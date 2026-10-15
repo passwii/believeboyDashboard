@@ -117,7 +117,7 @@ W1 只需给 `items` 即可建货件：**未提供的参数由系统自动生成
 
 | 参数 | 未提供时 | 说明 |
 |---|---|---|
-| `shipment_no`（FBA 发货编码） | 自动生成 `FBA-<生成日期 YYYYMMDD>-<4 位标识>`，如 `FBA-20261015-K7Q2` | 占位编号，拿到真实 FBA 编码后用 W3 PATCH 覆盖；编号全局唯一，候选冲突自动换下一个 |
+| `shipment_no`（FBA 发货编码） | 自动生成 `FBA-<生成日期 YYYYMMDD>-<4 位标识>`，如 `FBA-20261015-K7Q2` | 占位编号，拿到真实 FBA 编码后用 W3 PATCH 覆盖；编号全局唯一，预览期选定后**绑定到本次确认**（重放不换号，被占用则 409 要求重新预览） |
 | `created_date`（发货时间） | 当天 | 仅新建时默认；后续 W3 未提供即保持原值 |
 | `shipping_method` | `sea`（海运） | 与前端新建表单默认一致；实际不是海运时请显式传入 |
 | `shipment_status` | `draft` | 与前端新建表单默认一致 |
@@ -125,6 +125,7 @@ W1 只需给 `items` 即可建货件：**未提供的参数由系统自动生成
 | `logistics_unit_price` / `include_in_history_shipping_calc` | `0` / `true` | 既有默认，不变 |
 
 - **不会自动生成**（属业务事实，缺省即留空/不填）：`etd_date` / `eta_date` / `actual_inbound_date` / `tracking_no` / `warehouse_code` / `forwarder_name` / `shipment_batch` / `remark`。
+- **预览=落库（BLF-1347 review 修正）**：自动填充值在**预览期算定并绑定进确认记录**（token 里存一份），重放时直接复用，不重算日期、不重新挑编号——即使预览与确认跨了零点，落库的仍是预览里展示的发货日期与编号。若预览后该自动编号被并发请求占用，重放会返回 `409 SHIPMENT_DUPLICATE_NO`（提示重新预览），**不会**静默换成预览里没展示过的编号。
 - **默认值只在新建生效**：W3 PATCH 是「未提供即保持原值」的合并语义，不会把发货时间改回当天、也不会重生成编号。
 
 ## 3. 注意事项

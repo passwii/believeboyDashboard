@@ -15,8 +15,11 @@ from fastapi.testclient import TestClient
 
 from app.api.agent.confirm import (
     DEFAULT_CONFIRM_TTL_SECONDS,
+    ConfirmRecord,
     InMemoryConfirmStore,
     RedisConfirmStore,
+    get_confirm_context,
+    get_confirm_record,
     get_confirm_store,
     issue_confirm_token,
     consume_confirm_token,
@@ -319,6 +322,119 @@ class TestCallbacksReceiveRequest:
             assert replay.json() == {"ok": True, "data": {"executed": True}}
         finally:
             set_confirm_store(None)
+
+
+class TestBoundContext:
+    """``bind`` 绑定值随 confirm 记录存储，重放复用（BLF-1347 review 修正）。
+
+    非确定性派生值（日期、编号候选）不能靠重算保证「预览=落库」：预览与重放可能
+    跨日，候选也可能被并发占用。``bind`` 在预览期算一次，随 token 存储。
+    """
+
+    def _build_app(self, seen: dict) -> FastAPI:
+        app = FastAPI()
+        register_agent_error_handlers(app)
+        calls = {"bind": 0}
+
+        def _bind(body: dict, request: Request) -> dict:
+            calls["bind"] += 1
+            return {"derived": f"V-{calls['bind']}", "day": "2026-10-15"}
+
+        def _prev(body: dict, request: Request) -> dict:
+            return dict(get_confirm_context(request) or {})
+
+        @app.post("/bound")
+        @require_confirmation(action="t.bound", build_preview=_prev, bind=_bind)
+        async def _bound(request: Request):
+            seen["context"] = get_confirm_context(request)
+            seen["record"] = get_confirm_record(request)
+            return agent_ok({"executed": True})
+
+        @app.middleware("http")
+        async def _stamp(request: Request, call_next):
+            request.state.agent_id = "confirm-agent"
+            return await call_next(request)
+
+        seen["calls"] = calls
+        return app
+
+    def test_preview_binds_context_and_replay_reuses_it(self):
+        seen: dict = {}
+        set_confirm_store(InMemoryConfirmStore())
+        try:
+            client = TestClient(self._build_app(seen))
+            preview = client.post(
+                "/bound", json={"a": 1}, headers={"Idempotency-Key": "k1"}
+            )
+            assert preview.status_code == 200, preview.text
+            body = preview.json()
+            # 预览阶段：bind 算一次，预览读到的就是绑定值（此时 handler 未执行）
+            assert body["preview"] == {
+                "action": "t.bound",
+                "derived": "V-1",
+                "day": "2026-10-15",
+            }
+            assert seen["calls"] == {"bind": 1}
+            assert "context" not in seen
+
+            replay = client.post(
+                "/bound",
+                json={"a": 1},
+                headers={
+                    "Idempotency-Key": "k1",
+                    "X-Confirm-Token": body["confirm_token"],
+                },
+            )
+            assert replay.json() == {"ok": True, "data": {"executed": True}}
+            # 重放阶段：不重新 bind，直接用确认记录里的值
+            assert seen["calls"] == {"bind": 1}
+            assert seen["context"] == {"derived": "V-1", "day": "2026-10-15"}
+            assert seen["record"] is not None
+            assert seen["record"].context == seen["context"]
+        finally:
+            set_confirm_store(None)
+
+    def test_context_is_json_serializable_for_redis_store(self):
+        """绑定值随记录进 Redis（``json.dumps(asdict(record))``），必须可序列化。"""
+        from dataclasses import asdict
+
+        set_confirm_store(InMemoryConfirmStore())
+        try:
+            record, _ = issue_confirm_token(
+                agent_id="a",
+                action="x",
+                idempotency_key="k",
+                body=b"{}",
+                context={
+                    "create_defaults": {
+                        "shipment_no": "FBA-20261015-K7Q2",
+                        "created_date": "2026-10-15",
+                        "auto_filled": ["shipment_no", "created_date"],
+                    }
+                },
+            )
+            payload = json.loads(json.dumps(asdict(record)))
+            assert payload["context"]["create_defaults"]["shipment_no"] == (
+                "FBA-20261015-K7Q2"
+            )
+        finally:
+            set_confirm_store(None)
+
+    def test_legacy_record_without_context_still_loads(self):
+        """旧记录（无 context 字段）反序列化不报错（向后兼容）。
+
+        Redis 里可能还留着升级前写入的 JSON（无 ``context`` 键）。
+        """
+        legacy_payload = {
+            "token": "cf_legacy",
+            "agent_id": "a",
+            "action": "x",
+            "idempotency_key": None,
+            "body_hash": "h",
+            "created_at": 0.0,
+        }
+        record = ConfirmRecord(**legacy_payload)  # type: ignore[arg-type]
+        assert record.context is None
 
 
 class TestMultipartConfirmation:

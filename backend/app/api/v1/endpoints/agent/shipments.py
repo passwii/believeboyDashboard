@@ -19,7 +19,11 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.agent.confirm import require_confirmation
+from app.api.agent.confirm import (
+    get_confirm_context,
+    get_confirm_record,
+    require_confirmation,
+)
 from app.api.agent.errors import AgentApiError, ErrorCode
 from app.api.agent.file_response import agent_file_response
 from app.api.agent.rate_limit import require_agent_write_rate_limit
@@ -545,13 +549,20 @@ AUTO_SHIPMENT_NO_MAX_ATTEMPTS = 20
 DEFAULT_CREATE_SHIPPING_METHOD = "sea"
 DEFAULT_CREATE_SHIPMENT_STATUS = "draft"
 
+#: confirm 记录里绑定自动填充值的键（预览期算定，重放期复用）
+_CONFIRM_DEFAULTS_KEY = "create_defaults"
+
+
+def _today() -> date_type:
+    """当前日期（独立函数便于测试冻结日期；跨日预览/重放回归用）。"""
+    return date_type.today()
+
 
 def _auto_shipment_no_seed(body: dict, request: Request) -> str:
     """自动编号种子：Idempotency-Key + 规范化请求体。
 
-    confirm 预览与重放要求请求体完全一致（body-hash 绑定），且同一次操作沿用
-    同一 Idempotency-Key，因此两次调用得到同一候选编号——预览里看到的编号就是
-    最终落库的编号。
+    只用于挑选**首个候选**编号（同一次操作重试时从同一候选开始）；预览与落库的
+    一致性由 confirm 绑定保证（见 ``_bind_create_defaults``），不依赖这里的确定性。
     """
     idempotency_key = request.headers.get("idempotency-key") or ""
     payload = json.dumps(body, ensure_ascii=False, sort_keys=True, default=str)
@@ -565,7 +576,7 @@ def _auto_shipment_no_candidate(seed: str, attempt: int) -> str:
         AUTO_SHIPMENT_NO_ALPHABET[byte % len(AUTO_SHIPMENT_NO_ALPHABET)]
         for byte in digest[:AUTO_SHIPMENT_NO_SUFFIX_LENGTH]
     )
-    return f"{AUTO_SHIPMENT_NO_PREFIX}-{date_type.today():%Y%m%d}-{suffix}"
+    return f"{AUTO_SHIPMENT_NO_PREFIX}-{_today():%Y%m%d}-{suffix}"
 
 
 def _shipment_no_taken(db: Session, shipment_no: str) -> bool:
@@ -612,7 +623,14 @@ def _create_defaults(db: Session, body: dict, request: Request) -> dict:
     ``sea``、``shipment_status`` → ``draft``（后两者与前端新建表单默认一致）。
 
     返回的 ``auto_filled`` 列出本次被自动填充的字段名，供 confirm 预览与审计说明。
+
+    **预览=落库**：日期与编号候选都不是确定值（会跨日、会被并发占用），所以
+    confirm 预览期由 ``_bind_create_defaults`` 算一次并绑定进确认记录，重放时这里
+    直接取回绑定值，不再重算。
     """
+    bound = _bound_create_defaults(request)
+    if bound is not None:
+        return bound
     shipment_no, shipment_no_auto = _resolve_create_shipment_no(db, body, request)
     created_date = str(body.get("created_date") or "").strip()
     shipping_method = str(body.get("shipping_method") or "").strip()
@@ -629,11 +647,55 @@ def _create_defaults(db: Session, body: dict, request: Request) -> dict:
     ]
     return {
         "shipment_no": shipment_no,
-        "created_date": created_date or date_type.today().isoformat(),
+        "created_date": created_date or _today().isoformat(),
         "shipping_method": shipping_method or DEFAULT_CREATE_SHIPPING_METHOD,
         "shipment_status": shipment_status or DEFAULT_CREATE_SHIPMENT_STATUS,
         "auto_filled": auto_filled,
     }
+
+
+def _bound_create_defaults(request: Request) -> dict | None:
+    """取本次 confirm 绑定的自动填充值；非 confirm 流程（内部调用）返回 None。"""
+    context = get_confirm_context(request)
+    if not context:
+        return None
+    bound = context.get(_CONFIRM_DEFAULTS_KEY)
+    return bound if isinstance(bound, dict) else None
+
+
+def _bind_create_defaults(body: dict, request: Request) -> dict:
+    """预览期算定自动填充值，绑定进 confirm 记录（重放复用同一份）。
+
+    返回值必须 JSON 可序列化（随 ``ConfirmRecord.context`` 进 Redis）。
+    """
+    db = SessionLocal()
+    try:
+        return {_CONFIRM_DEFAULTS_KEY: _create_defaults(db, body, request)}
+    finally:
+        db.close()
+
+
+def _assert_bound_auto_number_available(
+    db: Session, defaults: dict, request: Request
+) -> None:
+    """重放时校验预览选定的自动编号仍可用。
+
+    预览后编号被并发占用时**显式失败**（提示重新预览），而不是静默换到预览里
+    没展示过的编号——否则用户确认的编号与实际落库的编号是两个。
+    """
+    if get_confirm_record(request) is None:
+        return
+    if "shipment_no" not in (defaults.get("auto_filled") or []):
+        return
+    shipment_no = str(defaults.get("shipment_no") or "")
+    if _shipment_no_taken(db, shipment_no):
+        raise AgentApiError(
+            ErrorCode.SHIPMENT_DUPLICATE_NO,
+            human_message=(
+                f"预览时选定的自动编号 {shipment_no} 在确认前已被占用；"
+                "请重新发起预览（不带 X-Confirm-Token）后再确认"
+            ),
+        )
 
 
 def _validate_create(body: dict, request: Request) -> None:
@@ -701,6 +763,7 @@ def _preview_create(body: dict, request: Request) -> dict:
     action="shipment.create",
     build_preview=_preview_create,
     validate=_validate_create,
+    bind=_bind_create_defaults,
 )
 @invalidate_cache_on_commit_l1(
     domains=["shipment_schedules"],
@@ -713,6 +776,7 @@ async def create_shipment(
     project_id = int(request.path_params["project_id"])
     items = _normalize_items_body(body)
     defaults = _create_defaults(db, body, request)
+    _assert_bound_auto_number_available(db, defaults, request)
     create_payload = ShipmentScheduleCreate(
         project_id=project_id,
         country=str(body.get("country") or "US"),

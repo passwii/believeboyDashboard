@@ -14,6 +14,7 @@ from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from app.api.agent.confirm import (
     InMemoryConfirmStore,
@@ -22,7 +23,10 @@ from app.api.agent.confirm import (
 )
 from app.db.session import SessionLocal
 from app.main import app
+from app.models.shipment_schedule import ShipmentSchedule
 from app.services.audit_log_service import query_operation_audit_log
+
+from conftest import seed_schedule
 
 #: FBA-<YYYYMMDD>-<4 位标识>（字符集去掉易混淆的 I/O/0/1）
 AUTO_SHIPMENT_NO_PATTERN = re.compile(r"^FBA-\d{8}-[A-Z2-9]{4}$")
@@ -185,6 +189,75 @@ class TestCreateAutoDefaults:
         ]
         assert data["shipment_no"] == shipment_no
         assert data["created_date"] == date.today().isoformat()
+
+
+class TestConfirmBinding:
+    """预览期算定的自动填充值绑定到 confirm 记录，重放复用（BLF-1347 review 修正）。
+
+    ``_create_defaults`` 里的日期与编号候选都不是确定值：预览与重放可能跨日，
+    候选编号也可能在预览后被并发占用。若重放重算，就会出现「预览一个、落库
+    另一个」——因此预览期算一次并随 token 存储。
+    """
+
+    def test_replay_reuses_bound_values_across_day_change(
+        self, client, shipment_env, confirm_memory_store, monkeypatch
+    ):
+        from app.api.v1.endpoints.agent import shipments as shipments_module
+
+        monkeypatch.setattr(shipments_module, "_today", lambda: date(2026, 10, 15))
+        body = _minimal_body()
+        idem = f"idem-{uuid.uuid4().hex[:12]}"
+        preview = _post(client, shipment_env, body, idem=idem)
+        assert preview.status_code == 200, preview.text
+        pbody = preview.json()
+        bound_no = str(pbody["preview"]["shipment_no"])
+        assert bound_no.startswith("FBA-20261015-")
+        assert pbody["preview"]["created_date"] == "2026-10-15"
+
+        # 确认发生在第二天（token 有效期内的跨日）：重放复用预览期绑定的值
+        monkeypatch.setattr(shipments_module, "_today", lambda: date(2026, 10, 16))
+        replay = _post(
+            client, shipment_env, body, token=pbody["confirm_token"], idem=idem
+        )
+        assert replay.status_code == 200, replay.text
+        data = replay.json()["data"]
+        assert data["shipment_no"] == bound_no
+        assert str(data["shipment_no"]).startswith("FBA-20261015-")
+        assert data["created_date"] == "2026-10-15"
+
+    def test_replay_rejects_when_bound_number_taken(
+        self, client, shipment_env, confirm_memory_store
+    ):
+        """预览后被并发占用：显式 409 要求重新预览，不静默换号。"""
+        body = _minimal_body()
+        idem = f"idem-{uuid.uuid4().hex[:12]}"
+        preview = _post(client, shipment_env, body, idem=idem)
+        assert preview.status_code == 200, preview.text
+        pbody = preview.json()
+        chosen = str(pbody["preview"]["shipment_no"])
+
+        # 预览之后、确认之前，另一个请求占用了预览里展示的编号
+        seed_schedule(shipment_env["project_id"], chosen)
+
+        replay = _post(
+            client, shipment_env, body, token=pbody["confirm_token"], idem=idem
+        )
+        assert replay.status_code == 409, replay.text
+        err = replay.json()["error"]
+        assert err["code"] == "SHIPMENT_DUPLICATE_NO"
+        assert "重新发起预览" in err["human_message"]
+
+        # 未静默换号：本项目下除占用者外没有新增货件
+        db = SessionLocal()
+        try:
+            rows = db.scalars(
+                select(ShipmentSchedule.shipment_no).where(
+                    ShipmentSchedule.project_id == shipment_env["project_id"]
+                )
+            ).all()
+        finally:
+            db.close()
+        assert list(rows) == [chosen]
 
 
 class TestDefaultsOnlyOnCreate:
