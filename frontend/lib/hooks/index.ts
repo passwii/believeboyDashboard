@@ -1,1 +1,0 @@
-export { useUrlParam, useUrlParams } from './use-url-param'
