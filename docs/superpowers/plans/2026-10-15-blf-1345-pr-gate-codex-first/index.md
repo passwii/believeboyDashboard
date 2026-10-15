@@ -17,7 +17,7 @@
 | --- | --- | --- |
 | S1 | Review 智能体指令改为 Codex-first（Multica Agent Identity，平台侧） | ✅ 已落地（Seth / Damon / Tia 三条 instruction 已回读核对） |
 | S2 | 仓库文档与 PR 模板对齐新流程（`AGENTS.md` / `docs/REFERENCE.md` / `TESTING.md` / PR 模板） | ✅ 已落地（PR #726） |
-| S3 | 用真实 PR 样本验证并收敛 | 🔄 进行中（样本 #1 = PR #726，2×P1 + 1×P2 已修复；样本 #2 前端 / #3 后端待补） |
+| S3 | 用真实 PR 样本验证并收敛 | 🔄 进行中（样本 #1 = PR #726，两轮共 2×P1 + 2×P2 已修复；样本 #2 前端 / #3 后端待补） |
 
 ## 落地位置（S2 产出）
 
@@ -40,5 +40,5 @@
 | --- | --- |
 | 仓库改动文件 | 4（PR #726 首版）+ 3（归档：主 plan、S3 样本、index） |
 | 测试档位 | T0（纯文档 / 模板，不跑 pytest / vitest / lint） |
-| S3 样本 #1 Codex findings | 3（2×P1 + 1×P2），全部真实有效 |
+| S3 样本 #1 Codex findings | 4（2×P1 + 2×P2，两轮审查），全部真实有效 |
 | 平台 instruction 长度 | Seth 1452 / Damon 1628 / Tia 2520 字符 |

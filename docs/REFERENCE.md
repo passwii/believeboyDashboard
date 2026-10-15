@@ -173,19 +173,38 @@ Codex（`chatgpt-codex-connector`）自动审查是**低风险 PR 的主要语�
 
 **三个集合端点必须带 `--paginate`**：`gh api` 默认每页 30 条且**只返回第一页**（`gh api --help`：`--paginate` 会继续请求后续页）。审查记录超过一页时，Review Summary 可能已 `Completed`、而后一页的 inline finding 读不到 → 假 `CLEAN`。`gh pr view --json latestReviews` 同理不是全量（每个 reviewer 只留最新一条），**不能只靠它得出「无发现」**。
 
-**判断「跨 head 的旧 finding 是否仍挂着」**：REST 不暴露 thread 的 resolve 状态，用 GraphQL：
+**判断「跨 head 的旧 finding 是否仍挂着」**：REST 不暴露 thread 的 resolve 状态，用 GraphQL，**并带上 `--paginate` + `$endCursor`**——否则 `first:100` 硬上限之后的分页被静默丢弃，未结 finding 同样会被误判成 `CLEAN`：
 
 ```bash
-gh api graphql -f query='{ repository(owner:"passwii", name:"believeboyDashboard") { pullRequest(number:<N>) { reviewThreads(first:100) { nodes { isResolved isOutdated path line comments(first:5) { nodes { author { login } commit { oid } } } } } } } }'
+gh api graphql --paginate -f query='
+  query($endCursor: String) {
+    repository(owner:"passwii", name:"believeboyDashboard") {
+      pullRequest(number:<N>) {
+        reviewThreads(first:100, after:$endCursor) {
+          pageInfo { hasNextPage endCursor }
+          nodes { isResolved isOutdated path line comments(first:5) { nodes { author { login } commit { oid } } } }
+        }
+      }
+    }
+  }'
 ```
 
-`isResolved=false` 的 thread 就是**未结 finding**；`isOutdated=true` 只说明评论挂在旧 diff 行上，**不等于问题已修**。
+`gh api` 对 GraphQL 的分页约定：查询里声明 `$endCursor: String`、字段带 `pageInfo { hasNextPage endCursor }`、游标用 `after:$endCursor`，`--paginate` 会自动续页。
+
+`isResolved=false` 的 thread 就是**未结 finding**；`isOutdated=true` 只说明评论挂在旧 diff 行上，**不等于问题已修**。看 thread 首个评论的 `author.login` 是否为 `chatgpt-codex-connector`，只统计该 bot 的 thread。
 
 **必需检查不能用 `statusCheckRollup` 推断**：rollup 只列聚合结果，不区分必需与可选（该仓库 main 上 `gh pr checks <N> --required` 实测为空，即 branch protection 未把 Vercel 等设为必需）。判断必需门禁用 `gh pr checks <N> --required`，或直接查 branch protection / ruleset；Vercel 部署检查在本仓库属**项目约定门禁**，不因它不是 branch-required 就跳过。
 
 **为什么四个都要读（BLF-1345 实录）**：PR #720 的 Codex Review Summary 写明 `✅ Completed`，而真正的 P1（跨操作员项目数据访问越权）**只出现在 inline review comment**；只读 `gh pr view` 摘要或只看 summary 评论会漏掉它。
 
-**这套流程自身被 Codex 审出的三个边界（PR #726）**：① 集合端点漏 `--paginate`（只能读到第一页，后页 finding 静默丢失）；② 未结 finding 不跨 head 结转（推个新 commit 就能让旧 P1 从门禁消失）；③ 用 `statusCheckRollup` 推断必需检查（把可选检查当必需门禁）。三条均已并入上面的命令与枚举，照本节执行即可。
+**这套流程自身被 Codex 审出的边界（PR #726，两轮审查）**：
+
+1. 集合端点漏 `--paginate`（`gh api` 只读第一页，后页 finding 静默丢失）；
+2. 未结 finding 不跨 head 结转（推个新 commit 就能让旧 P1 从门禁消失）；
+3. 用 `statusCheckRollup` 推断必需检查（把可选检查当必需门禁）；
+4. （修复后重审 `aa6e67f` 又报一条 P2）新增的 GraphQL thread 查询 `reviewThreads(first:100)` 没带 `--paginate` / `$endCursor`，同样有硬上限。
+
+四条均已并入上面的命令与枚举，照本节执行即可。
 
 **决策枚举**：
 
