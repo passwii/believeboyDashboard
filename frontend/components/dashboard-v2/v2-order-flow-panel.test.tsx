@@ -34,14 +34,6 @@ vi.mock('@/components/dashboard-v2/use-pending-count', () => ({
   usePendingCount: (...args: unknown[]) => mockUsePendingCount(...(args as [])),
 }))
 
-// mock useProcessedOrders — BLF-928 已处理集合（默认空）
-const mockMarkProcessed = vi.fn()
-const mockUseProcessedOrders = vi.fn()
-
-vi.mock('@/components/dashboard-v2/use-processed-orders', () => ({
-  useProcessedOrders: (...args: unknown[]) => mockUseProcessedOrders(...(args as [])),
-}))
-
 // mock next-auth useSession — 标记处理 PATCH 需要 session / 操作人
 const mockUseSession = vi.fn()
 vi.mock('next-auth/react', () => ({
@@ -142,8 +134,6 @@ describe('V2OrderFlowPanel', () => {
       refresh: vi.fn(),
     })
     mockUsePendingCount.mockReturnValue({ count: 0, loading: false, refresh: vi.fn() })
-    mockUseProcessedOrders.mockReturnValue({ processedIds: new Set(), markProcessed: mockMarkProcessed })
-    mockMarkProcessed.mockReset()
     mockUseSession.mockReturnValue({ data: { user: { name: '测试用户' } }, status: 'authenticated' })
     notify.mockReset()
     mockRouterPush.mockClear()
