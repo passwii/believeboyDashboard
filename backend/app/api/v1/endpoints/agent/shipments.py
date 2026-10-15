@@ -7,6 +7,7 @@ service 层抛出的裸 HTTPException 在 ``_service_errors`` 里统一翻译成
 
 from __future__ import annotations
 
+import hashlib
 import json
 from contextlib import contextmanager
 from datetime import date as date_type
@@ -529,40 +530,140 @@ def get_shipment_audit(
 # ============================================================
 
 
+# ------------------------------------------------------------
+# 新建货件默认值（BLF-1347；仅新建时生效，PATCH 不受影响）
+# ------------------------------------------------------------
+
+#: 自动生成的货件编号前缀：``FBA-<生成日期>-<标识>``（占位编号，后续可 PATCH 覆盖）
+AUTO_SHIPMENT_NO_PREFIX = "FBA"
+#: 标识字符集去掉易混淆字符（I/O/0/1）；4 位足够日常用量，冲突按 attempt 递增重试
+AUTO_SHIPMENT_NO_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+AUTO_SHIPMENT_NO_SUFFIX_LENGTH = 4
+AUTO_SHIPMENT_NO_MAX_ATTEMPTS = 20
+
+#: 未提供 shipping_method / shipment_status 时的默认值（与前端新建表单默认一致）
+DEFAULT_CREATE_SHIPPING_METHOD = "sea"
+DEFAULT_CREATE_SHIPMENT_STATUS = "draft"
+
+
+def _auto_shipment_no_seed(body: dict, request: Request) -> str:
+    """自动编号种子：Idempotency-Key + 规范化请求体。
+
+    confirm 预览与重放要求请求体完全一致（body-hash 绑定），且同一次操作沿用
+    同一 Idempotency-Key，因此两次调用得到同一候选编号——预览里看到的编号就是
+    最终落库的编号。
+    """
+    idempotency_key = request.headers.get("idempotency-key") or ""
+    payload = json.dumps(body, ensure_ascii=False, sort_keys=True, default=str)
+    return f"{idempotency_key}\x00{payload}"
+
+
+def _auto_shipment_no_candidate(seed: str, attempt: int) -> str:
+    """按种子生成候选编号；``attempt`` 递增用于冲突重试（结果仍然确定）。"""
+    digest = hashlib.sha256(f"{seed}\x00{attempt}".encode("utf-8")).digest()
+    suffix = "".join(
+        AUTO_SHIPMENT_NO_ALPHABET[byte % len(AUTO_SHIPMENT_NO_ALPHABET)]
+        for byte in digest[:AUTO_SHIPMENT_NO_SUFFIX_LENGTH]
+    )
+    return f"{AUTO_SHIPMENT_NO_PREFIX}-{date_type.today():%Y%m%d}-{suffix}"
+
+
+def _shipment_no_taken(db: Session, shipment_no: str) -> bool:
+    """货件编号全局唯一（DB 唯一约束），建货件前先查占用。"""
+    return (
+        db.scalars(
+            select(ShipmentSchedule.id).where(
+                ShipmentSchedule.shipment_no == shipment_no
+            )
+        ).first()
+        is not None
+    )
+
+
+def _resolve_create_shipment_no(
+    db: Session, body: dict, request: Request
+) -> tuple[str, bool]:
+    """返回 ``(shipment_no, 是否自动生成)``。
+
+    未提供（或为空串）时按 ``FBA-<生成日期>-<标识>`` 生成占位编号；候选编号被占用
+    时按 attempt 递增重试，多次仍冲突则要求调用方显式指定。
+    """
+    provided = str(body.get("shipment_no") or "").strip()
+    if provided:
+        return provided, False
+    seed = _auto_shipment_no_seed(body, request)
+    for attempt in range(AUTO_SHIPMENT_NO_MAX_ATTEMPTS):
+        candidate = _auto_shipment_no_candidate(seed, attempt)
+        if not _shipment_no_taken(db, candidate):
+            return candidate, True
+    raise AgentApiError(
+        ErrorCode.VALIDATION_FAILED,
+        human_message=(
+            "自动生成货件编号失败（同名占位编号过多），请显式指定 shipment_no"
+        ),
+    )
+
+
+def _create_defaults(db: Session, body: dict, request: Request) -> dict:
+    """新建货件的有效参数（自动填充仅发生在新建）。
+
+    未提供时自动填充：``shipment_no`` → ``FBA-<生成日期>-<标识>``（占位编号，
+    后续可改）、``created_date``（发货时间）→ 当天、``shipping_method`` →
+    ``sea``、``shipment_status`` → ``draft``（后两者与前端新建表单默认一致）。
+
+    返回的 ``auto_filled`` 列出本次被自动填充的字段名，供 confirm 预览与审计说明。
+    """
+    shipment_no, shipment_no_auto = _resolve_create_shipment_no(db, body, request)
+    created_date = str(body.get("created_date") or "").strip()
+    shipping_method = str(body.get("shipping_method") or "").strip()
+    shipment_status = str(body.get("shipment_status") or "").strip()
+    auto_filled = [
+        name
+        for name, is_auto in (
+            ("shipment_no", shipment_no_auto),
+            ("created_date", not created_date),
+            ("shipping_method", not shipping_method),
+            ("shipment_status", not shipment_status),
+        )
+        if is_auto
+    ]
+    return {
+        "shipment_no": shipment_no,
+        "created_date": created_date or date_type.today().isoformat(),
+        "shipping_method": shipping_method or DEFAULT_CREATE_SHIPPING_METHOD,
+        "shipment_status": shipment_status or DEFAULT_CREATE_SHIPMENT_STATUS,
+        "auto_filled": auto_filled,
+    }
+
+
 def _validate_create(body: dict, request: Request) -> None:
     _check_idempotency_header(request)
     project_id = int(request.path_params["project_id"])
-    shipment_no = str(body.get("shipment_no") or "").strip()
-    shipping_method = str(body.get("shipping_method") or "").strip()
-    shipment_status = str(body.get("shipment_status") or "").strip()
-    if not shipment_no:
-        raise AgentApiError(
-            ErrorCode.VALIDATION_FAILED, human_message="shipment_no 不能为空"
-        )
-    if shipping_method not in ALLOWED_SHIPPING_METHOD:
-        raise AgentApiError(
-            ErrorCode.VALIDATION_FAILED,
-            human_message=(
-                f"shipping_method 必须是: {', '.join(sorted(ALLOWED_SHIPPING_METHOD))}"
-            ),
-        )
-    if shipment_status not in ALLOWED_SHIPMENT_STATUS:
-        raise AgentApiError(
-            ErrorCode.SHIPMENT_STATUS_INVALID,
-            details={"allowed": sorted(ALLOWED_SHIPMENT_STATUS)},
-        )
+    provided_shipment_no = str(body.get("shipment_no") or "").strip()
     items = _normalize_items_body(body)
 
     db = SessionLocal()
     try:
         project = _get_project_or_shell_404(db, project_id)
-        duplicate = db.scalars(
-            select(ShipmentSchedule).where(ShipmentSchedule.shipment_no == shipment_no)
-        ).first()
-        if duplicate is not None:
+        defaults = _create_defaults(db, body, request)
+        # 自动生成的编号已保证未被占用，只需校验调用方显式提供的编号
+        if provided_shipment_no and _shipment_no_taken(db, defaults["shipment_no"]):
             raise AgentApiError(
                 ErrorCode.SHIPMENT_DUPLICATE_NO,
-                human_message=f"货件编号 {shipment_no} 已存在",
+                human_message=f"货件编号 {defaults['shipment_no']} 已存在",
+            )
+        if defaults["shipping_method"] not in ALLOWED_SHIPPING_METHOD:
+            raise AgentApiError(
+                ErrorCode.VALIDATION_FAILED,
+                human_message=(
+                    "shipping_method 必须是: "
+                    f"{', '.join(sorted(ALLOWED_SHIPPING_METHOD))}"
+                ),
+            )
+        if defaults["shipment_status"] not in ALLOWED_SHIPMENT_STATUS:
+            raise AgentApiError(
+                ErrorCode.SHIPMENT_STATUS_INVALID,
+                details={"allowed": sorted(ALLOWED_SHIPMENT_STATUS)},
             )
         _validate_items_skus(
             db,
@@ -575,11 +676,19 @@ def _validate_create(body: dict, request: Request) -> None:
 
 
 def _preview_create(body: dict, request: Request) -> dict:
+    """confirm 预览：展示自动填充后的有效参数（与重放落库值一致）。"""
     items = body.get("items") or []
+    db = SessionLocal()
+    try:
+        defaults = _create_defaults(db, body, request)
+    finally:
+        db.close()
     return {
-        "shipment_no": body.get("shipment_no"),
-        "shipment_status": body.get("shipment_status"),
-        "shipping_method": body.get("shipping_method"),
+        "shipment_no": defaults["shipment_no"],
+        "created_date": defaults["created_date"],
+        "shipping_method": defaults["shipping_method"],
+        "shipment_status": defaults["shipment_status"],
+        "auto_filled": defaults["auto_filled"],
         "items_count": len(items),
         "total_quantity": sum(
             int(item.get("quantity") or 0) for item in items if isinstance(item, dict)
@@ -603,15 +712,16 @@ async def create_shipment(
     body = json.loads(await request.body() or b"{}")
     project_id = int(request.path_params["project_id"])
     items = _normalize_items_body(body)
+    defaults = _create_defaults(db, body, request)
     create_payload = ShipmentScheduleCreate(
         project_id=project_id,
         country=str(body.get("country") or "US"),
-        shipment_no=str(body["shipment_no"]).strip(),
+        shipment_no=defaults["shipment_no"],
         tracking_no=body.get("tracking_no"),
         warehouse_code=body.get("warehouse_code"),
         forwarder_name=body.get("forwarder_name"),
-        shipping_method=str(body["shipping_method"]).strip(),
-        created_date=body.get("created_date"),
+        shipping_method=defaults["shipping_method"],
+        created_date=defaults["created_date"],
         etd_date=body.get("etd_date"),
         eta_date=body.get("eta_date"),
         actual_inbound_date=body.get("actual_inbound_date"),
@@ -620,7 +730,7 @@ async def create_shipment(
             body.get("include_in_history_shipping_calc", True)
         ),
         remark=body.get("remark"),
-        shipment_status=str(body["shipment_status"]).strip(),
+        shipment_status=defaults["shipment_status"],
         shipment_batch=body.get("shipment_batch"),
     )
     with _service_errors():
@@ -640,6 +750,8 @@ async def create_shipment(
                 "project_id": row.project_id,
                 "status": row.shipment_status,
                 "items_count": len(items),
+                # 记录系统自动填充的字段（如自动生成的 FBA 占位编号），便于回溯
+                "auto_filled": defaults["auto_filled"],
             },
             **_audit_kwargs(request),
         )

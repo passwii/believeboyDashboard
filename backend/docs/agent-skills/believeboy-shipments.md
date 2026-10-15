@@ -80,7 +80,7 @@ curl -s "$BASE/projects/$PROJECT_ID/shipments?country=US&shipment_status=SHIPPED
 
 | # | 方法 | 路径 | 用途 |
 |---|---|---|---|
-| W1 | POST | `/shipments` | 新建货件 |
+| W1 | POST | `/shipments` | 新建货件（缺省参数自动生成，见 §2.2） |
 | W2 | PUT | `/shipments/{shipment_no}/items` | 更新货件商品明细 |
 | W3 | PATCH | `/shipments/{shipment_no}` | 改货件信息（如状态字段） |
 | W4 | POST | `/shipments/{shipment_no}/status` | 改货件状态 |
@@ -111,10 +111,26 @@ curl -X POST "$BASE/projects/$PROJECT_ID/shipments" "${AUTH[@]}" \
 - **items 明细字段**：`{sku, quantity, carton_count?}` —— 与前端一致，**数量 = 箱数 × 装箱率**（如 1 箱 × 28 件 = quantity 28 + carton_count 1）；carton_count 可省略，重算时后端按 ⌈数量÷装箱率⌉ 自动推导。
 - **W5 重算**（`POST /shipments/{shipment_no}/recalculate-costs`，body 需 `logistics_unit_price` 非负数，暂无价格传 0）：按 SKU 主数据外箱尺寸/毛重回写每个明细的 `carton_count / volume_m3 / actual_weight_kg / volumetric_weight_kg / chargeable_weight_kg / estimated_logistics_cost` 及货件汇总——建完货件后建议跑一次。
 
+## 2.2 W1 新建货件缺省参数（BLF-1347，仅新建时生效）
+
+W1 只需给 `items` 即可建货件：**未提供的参数由系统自动生成/填充**，confirm 预览的 `preview` 会返回填充后的有效值并用 `preview.auto_filled` 列出本次被自动填充的字段名（如 `["shipment_no", "created_date"]`），重放落库值与预览完全一致。
+
+| 参数 | 未提供时 | 说明 |
+|---|---|---|
+| `shipment_no`（FBA 发货编码） | 自动生成 `FBA-<生成日期 YYYYMMDD>-<4 位标识>`，如 `FBA-20261015-K7Q2` | 占位编号，拿到真实 FBA 编码后用 W3 PATCH 覆盖；编号全局唯一，候选冲突自动换下一个 |
+| `created_date`（发货时间） | 当天 | 仅新建时默认；后续 W3 未提供即保持原值 |
+| `shipping_method` | `sea`（海运） | 与前端新建表单默认一致；实际不是海运时请显式传入 |
+| `shipment_status` | `draft` | 与前端新建表单默认一致 |
+| `country` | `US` | 既有默认，不变 |
+| `logistics_unit_price` / `include_in_history_shipping_calc` | `0` / `true` | 既有默认，不变 |
+
+- **不会自动生成**（属业务事实，缺省即留空/不填）：`etd_date` / `eta_date` / `actual_inbound_date` / `tracking_no` / `warehouse_code` / `forwarder_name` / `shipment_batch` / `remark`。
+- **默认值只在新建生效**：W3 PATCH 是「未提供即保持原值」的合并语义，不会把发货时间改回当天、也不会重生成编号。
+
 ## 3. 注意事项
 
 - 读路由不落审计、绕过 Redis 读缓存直查 DB；写路由全 confirm + 写限流（30 次/分）
 - 删除/重算成本涉及不可逆/费用变更——确认流是强制安全门，务必给用户看预览再重放
 - **5xx**：一次性报告给报告 owner（Yawei），不要盲目重试
 - 404 与空列表是设计；所有路由挂 `require_project_scope` + `business_scope("shipments")`
-- 完整契约：believeboyDashboard `docs/agent-api-design.md` v0.12 + OpenAPI（模块 `backend/app/api/v1/endpoints/agent/shipments.py`）
+- 完整契约：believeboyDashboard `docs/agent-api-design.md` v0.13 + OpenAPI（模块 `backend/app/api/v1/endpoints/agent/shipments.py`）
