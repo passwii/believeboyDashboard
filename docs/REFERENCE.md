@@ -135,6 +135,66 @@ ad 报告现用 `ad_upload_files` 体系（**使用中**），取代旧 `analysi
 
 ---
 
+## PR 把关流程（完整）
+
+> **本节是 PR 把关的权威章节。** `AGENTS.md` §PR 把关流程（Codex-first）是它的摘要，冲突以本节为准。
+
+### 角色与门禁边界
+
+- **作者**：前端 / 后端 agent（Seth / Damon）——提 PR、按 `AGENTS.md` §测试规则跑分档测试、写测试声明、交棒。
+- **把关人**：代码质量工程师 Tia——读 Codex 结果、变更面识别、必需门禁，决定合并 / 退回 / 升级用户拍板。
+- **合并动作只属于把关人**；作者（包括收到把关报告后）不得自己 `gh pr merge`。
+
+### 作者侧：PR 正文只要求这几项
+
+按 [`.github/pull_request_template.md`](../.github/pull_request_template.md) 填：
+
+1. **关联 Issue**：`Closes BLF-XXX`（保证 webhook 链接回 issue）；
+2. **变更与影响面**：改了什么、影响哪些模块；涉及公共函数 / hook / route / service / schema 时写明 CodeGraph `callers` / `impact` 结论（fallback 到 Read/Grep 要说明原因）；
+3. **风险等级**：`[risk:normal]` / `[risk:high]`（高风险 = DB 迁移 / 权限认证 / 支付资金 / 外部 API 契约变更 / 删除性操作 / 跨模块大重构）；
+4. **实际执行的验证 + 真实数字**：按 T0–T3 分档，逐条写命令与结果（`errors / warnings / passed / failed`）；**没实际跑过的命令禁止打 ✓**；
+5. **未执行项及原因**：例如 `pnpm build` 交 Vercel preview、无相关改动故未跑 Playwright；
+6. **迁移 / 部署说明**：涉及迁移时给 `check_alembic.py` 结果与部署注意事项。
+
+提交自检：commit author email = `jr.way123@gmail.com`（BEL-153，否则 Vercel 拒部署）；diff 无 `TODO` / `FIXME` / `console.log` / `debugger` 残留。CodeGraph 不再是「每个 PR 必填项」，只有改动公共符号时才需要给影响面结论（BEL-93 的本意）。
+
+### 把关人侧：Codex 自动审查怎么判
+
+Codex（`chatgpt-codex-connector`）自动审查是**低风险 PR 的主要语义 review 来源**，但只覆盖「静态语义 review」这一件事。
+
+**四个来源都要读，且只认当前 PR HEAD**（`passwii/believeboyDashboard`，`<N>` = PR 号）：
+
+| 用途 | 读取命令 | 关键字段与判定 |
+| --- | --- | --- |
+| HEAD / 文件 / 检查概览 | `gh pr view <N> --json number,state,headRefOid,files,latestReviews,statusCheckRollup` | `headRefOid` = 当前 HEAD；`statusCheckRollup` 识别必需检查（含前端 Vercel） |
+| Codex review | `gh api repos/passwii/believeboyDashboard/pulls/<N>/reviews` | `user.login`、`state`、`commit_id`、`body`、`submitted_at` |
+| Codex 行内问题 | `gh api repos/passwii/believeboyDashboard/pulls/<N>/comments` | `user.login`、`body`、`path`、`line`（已过期评论看 `original_line`）、`commit_id`、`in_reply_to_id` |
+| Codex 摘要 / 完成状态 | `gh api repos/passwii/believeboyDashboard/issues/<N>/comments` | Review Summary 表的 Status + Commit + trigger；`👍` 反应只作辅助信号 |
+
+**为什么四个都要读（BLF-1345 实录）**：PR #720 的 Codex Review Summary 写明 `✅ Completed`，而真正的 P1（跨操作员项目数据访问越权）**只出现在 inline review comment**；只读 `gh pr view` 摘要或只看 summary 评论会漏掉它。
+
+**决策枚举**：
+
+- `PENDING`：Codex 仍在审查，或当前 HEAD 尚无完成记录 → 不合并；未观察到对新 HEAD 的完成记录时显式请求 `@codex review` 并等明确完成。
+- `UNKNOWN`：GitHub API / 权限 / 网络失败、review commit 无法确认、多个来源互相矛盾 → 报告原因并回退人工 review，**不得静默降级为 `CLEAN`**。
+- `FINDINGS`：当前 HEAD 的 Codex 反馈（含行内）提出风险 → 逐条判断有效性，真实问题修复或经人工明确接受后才继续。
+- `CLEAN`：已确认 Codex 对**当前 HEAD**完成、四个来源均已读、无待处理有效发现——**仍需**满足该 PR 适用的必需检查与测试策略。
+
+**Codex 之外仍然必须的**：
+
+- **Codex ≠ 测试**：静态审查不能证明代码跑得起来，也不替代作者测试证据、既有必需 GitHub 检查 / 前端 Vercel 门禁与部署检查；
+- **缺陷修复后**：按影响面跑对应目标集；Codex 未自动重审新 HEAD 时显式 `@codex review`，**旧 commit 的结论不能放行新 HEAD**；
+- **T3 不因 Codex 无发现而跳过**：命中 §测试规则（完整）的 T3 条件（迁移 / 权限 / 公共 schema / `app/core/config.py` 字段等）时仍按原规定验证；
+- **高风险 PR**（见上方风险等级定义）仍升级用户拍板，不因 Codex clean 自动合并。
+
+### 简化了什么、没简化什么（BLF-1345）
+
+- **简化**：低风险 PR 不再逐项人工 review、不再无差别全量本地测试；PR 正文只填上面 6 项；CodeGraph 从「每个 PR 必填」降为「改公共符号时填影响面结论」；Review agent 与作者 agent 的 instruction 不再重复维护整套流程（只指向本仓库文档）。
+- **没简化**：commit author 约束、关联 Issue、真实测试数字、必需 GitHub 检查 / Vercel 门禁、T3 与高风险验证、合并归属把关人。
+
+
+---
+
 ## 测试规则（完整）
 
 > **本地数据库（BLF-472）**：所有前后端测试都调用**本地数据库**完成，不依赖远程 VPS——本地 Postgres（端口 5432）常驻 `BLF`（生产快照，每日与生产拉取同步，数据完备，供集成 / 手动读写 / 真实数据验证）与 `BLF_test`（pytest 隔离库）。pytest 一律走 `BLF_test`，绝不写 `BLF`。详见 [TESTING.md](../../TESTING.md)。
@@ -172,6 +232,8 @@ ad 报告现用 `ad_upload_files` 体系（**使用中**），取代旧 `analysi
 - 前端单元测试已放开：Vitest（jsdom，配置 `frontend/vitest.config.ts`），`*.test.ts(x)` 放单元断言，组件交互用 `@testing-library/react`；新建纯函数 / 工具模块优先补单测。
 
 > **实测数字口径**：本节引用的 420s / 900s、225 failed / 155 errors、380 例、26 个失败落在 8 个文件、对账 10 秒等，均为 **Damon 本机（macOS）2026-10-05 / 10-06 单次实测**，只用于说明量级与相对关系，**不是通用基准**；换机器 / 换分支 / 换库后请以当次实测为准。其中 420s / 900s 是 **BLF-1238 修复前**的前端挂起现象记录（已定位并修复，当前前端全量约 **43s 起、同机满载约 2 分钟**，2026-10-06 实测）。后端并行测试的耗时比较中，**6 分 42 秒是串行基准，5 分 02 秒是 10 worker 的失败试跑**；失败试跑有 380 例未完成，因此这组数据不能作为有效性能对比，失败试跑也不能视为全量结果。
+
+**与 PR 把关的关系**：普通 PR 默认信任作者测试声明（PR 正文里的真实数字）+ Codex 完成结果，不机械重跑全量；命中 T3 条件、作者声明与门禁结论矛盾、或 CI 覆盖不到的边界（Lighthouse / mobile Playwright）才抽验——详见 §PR 把关流程（完整）§把关人侧。
 
 **规则 2 业务测试（每次必做）**：功能完成后 AI 提供业务测试清单，用户手动执行并反馈。
 

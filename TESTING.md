@@ -418,11 +418,28 @@ pnpm test:ui -- tests/crawl/discovery.spec.ts --project=chromium
 
 ---
 
+## PR 的测试证据与 Codex 审查的边界（BLF-1345）
+
+PR 上的「质量信号」有三类，不能互相顶替：
+
+| 信号 | 能证明什么 | 不能证明什么 |
+| --- | --- | --- |
+| **作者测试证据**（PR 正文里的实际命令 + 真实数字） | 这些命令在本机跑过、结果是这个 | 没跑过的档位 / 环境 |
+| **Codex 自动审查**（`chatgpt-codex-connector`） | 静态语义 review：越权、边界、契约、遗留调试 | 代码能否跑起来；CI / Vercel 与部署状态 |
+| **必需门禁**（前端 Vercel 部署检查；T3 的后端全量 pytest——后端无 CI） | 该门禁覆盖的构建 / 测试结论 | 门禁没覆盖的行为 |
+
+- **Codex 没报问题 ≠ 测试通过**：它是静态审查，不替代作者测试证据、门禁与 T3 验证。
+- **修复 Codex 发现的缺陷后**：按影响面跑对应目标集（必要时升档）；Codex 若未重审新 HEAD，显式 `@codex review` 后再判定，**旧 commit 的结论不算数**。
+- **两个模式不要混**：静态审查不代替运行时验证；运行时验证也不代替变更面识别（越权类问题可能躺在绿测试里）。
+- 判定规则（四个来源 + `PENDING` / `UNKNOWN` / `FINDINGS` / `CLEAN` 枚举 + 简化边界）唯一权威见 [AGENTS.md](AGENTS.md) §PR 把关流程（Codex-first）与 [docs/REFERENCE.md](docs/REFERENCE.md) §PR 把关流程（完整）。本节只管「测试拿什么当证据」。
+
+---
+
 ## 与项目主文档的关系
 
-- `AGENTS.md`：仓库根指针 + 平台 follow-up。
+- `AGENTS.md`：仓库根指针 + PR 把关流程摘要 + 测试分档（T0–T3）。
 - `CLAUDE.md`：旧权威，已弃用（AGENTS.md 说明了降级原因）。
-- `docs/REFERENCE.md`：环境/部署/广告数据/完整测试与反馈模板（旧权威的延伸）。
+- `docs/REFERENCE.md`：环境/部署/广告数据 + **PR 把关流程（完整）** + 完整测试与反馈模板。
 - `docs/superpowers/plans/`：历史 + 当前的设计 plan。当前测试主题的 plan：[`2026-07-14-test-db-and-playwright-foundation.md`](docs/superpowers/plans/2026-07-14-test-db-and-playwright-foundation.md)
 
 读这一份 TESTING.md + 上述 plan + 两个子 README = 测试基建完整知识图。**新加任何测试相关功能前先读它们，避免重新踩坑。**

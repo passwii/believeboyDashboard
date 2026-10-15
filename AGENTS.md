@@ -53,6 +53,20 @@
 
 > 本节引用的实测数字（420s / 900s、225 failed / 155 errors、前端全量 43s / 59s / 79s / 124s 等）为 **Damon 本机（macOS）2026-10-05 / 10-06 单次实测**，只作量级参考，**不是通用基准**；本机常与其他 agent 并发，前端全量耗时对同机负载很敏感，换机器 / 换时段请以当次实测为准。
 
+## PR 把关流程（Codex-first）
+
+> **唯一权威详细版**：[docs/REFERENCE.md](./docs/REFERENCE.md) §PR 把关流程（完整）。本节只是摘要与入口，冲突以那一节为准。
+
+**角色**：作者 = 前端 / 后端 agent（提 PR、跑分档测试、交棒）；把关人 = 代码质量工程师 Tia（判 Codex 结果 → 必需门禁 → 合并 / 退回 / 升级用户）。**合并动作只属于把关人**，作者绝不自己 `gh pr merge`。
+
+**作者提 PR**：commit author email = `jr.way123@gmail.com`（否则 Vercel 拒部署）→ 按本文件 §测试规则 的 T0–T3 分档跑测试 → 正文按 [PR 模板](./.github/pull_request_template.md) 写：关联 Issue（`Closes BLF-XXX`）、变更与影响面（改公共符号时给 CodeGraph 结论）、风险等级 `[risk:normal|high]`、**实际跑过的验证 + 真实数字**、未执行项及原因、迁移 / 部署说明。**没实际跑过的命令禁止打 ✓**。交棒：PR URL + PR 号 + head SHA + 关联 issue + 风险等级 + mention Tia。
+
+**把关人判 Codex 结果**：
+- **只认当前 PR HEAD 的 Codex 结果**，且四个来源都要读：Codex 摘要评论（issue comments 的 Review Summary 表）、PR reviews、inline review comments、PR 对话。摘要显示 `Completed` **不等于**无发现（BLF-1345 实录：PR #720 的 P1 越权只在行内评论里）。命令与字段见 [docs/REFERENCE.md](./docs/REFERENCE.md) §PR 把关流程（完整）。
+- 判定枚举：`PENDING`（未完成 / 当前 HEAD 无完成记录，必要时显式 `@codex review` 后等）→ 不合并；`UNKNOWN`（API / 权限失败、commit 不可确认、来源矛盾）→ 报告并回退人工，**不得静默当作 clean**；`FINDINGS`（含行内）→ 逐条判断，真实问题退回作者修；`CLEAN` → 仍需满足该 PR 适用的必需检查与测试策略。
+- **Codex 是静态审查，不是测试**：不替代作者测试证据、CI / Vercel 门禁与部署检查。缺陷修复后按影响面跑对应目标集；Codex 未重审新 HEAD 时旧 commit 的结论不能放行。
+- **T3 不因 Codex 无发现而跳过**：命中 §测试规则 T3 条件（迁移 / 权限 / 公共 schema / `app/core/config.py` 字段等）仍按原规定验证。CodeGraph 只在需要确认公共符号影响面时调用，不再作为每个 PR 的例行手续。
+
 ## 关键约定
 
 - **Projects API**：前端取项目列表用 `/api/v1/projects/manage`（非 `/api/v1/projects`），因其按 `X-Operator` 过滤可见项目。

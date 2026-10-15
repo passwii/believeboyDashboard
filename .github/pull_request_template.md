@@ -1,18 +1,33 @@
-## CodeGraph 使用确认
+## 关联 Issue
 
-定位代码的"CodeGraph 工作流"包括 **MCP 工具**（`mcp__codegraph__*`）和 **CLI 工具**（`codegraph <子命令>`）两条路，**二选一即可**——按你当前 agent 环境挑能用的那条。
+Closes BLF-XXX
 
-- [ ] 涉及代码定位、重构或 bug 修复时，已优先使用 CodeGraph：
-  - MCP 环境：`mcp__codegraph__codegraph_explore` / `..._search` / `..._node`（**`explore` 和 `node` 是 MCP-only，CLI 无等价**）
-  - 纯 CLI / 终端环境：`codegraph query <kw>` 拿 `file:line` → `Read` 文件；`codegraph callers|callees|impact <sym>` 看影响面
-- [ ] 修改公共函数、hook、service、route 或 schema 前，已使用 `callers` / `callees` / `impact` 评估影响面（MCP 用 `mcp__codegraph__codegraph_callers|callees|impact`；CLI 用 `codegraph callers|callees|impact`）。
-- [ ] 如 fallback 到 Read/Grep/Glob，请在 PR 描述中说明原因。
-- [ ] 如 CodeGraph 在当前 worktree 不可用，请在 PR 描述中记录诊断命令（例如 `codegraph status .`）与处理结果。
+## 变更与影响面
 
-## 变更说明
+<!-- 改了什么、影响哪些模块。涉及公共函数 / hook / route / service / schema 时，写明 CodeGraph `callers` / `impact` 的影响面结论；fallback 到 Read/Grep 请说明原因。不涉及公共符号时可只写变更说明。 -->
 
-<!-- 简要说明本次变更、影响范围和验证方式 -->
+## 风险等级与自检
 
-## 验证
+- [ ] `[risk:normal]`
+- [ ] `[risk:high]`（DB 迁移 / 权限认证 / 支付资金 / 外部 API 契约变更 / 删除性操作 / 跨模块大重构）
+- [ ] commit author = `jr.way123@gmail.com`（BEL-153，否则 Vercel 拒部署）
+- [ ] diff 无 `TODO` / `FIXME` / `console.log` / `debugger` 残留
 
-<!-- 说明已运行的测试、lint、手动验证或截图 -->
+## 验证（按 AGENTS.md §测试规则 T0–T3 分档，只写实际跑过的）
+
+<!-- 逐条写命令 + 真实数字（errors / warnings / passed / failed）。没实际跑过的命令禁止打 ✓。
+示例：
+- T1：`cd frontend && vitest run app/.../foo.test.tsx` ✓ (12 passed / 0 failed)
+- `pnpm lint` ✓ (0 errors / 0 warnings)
+- `pnpm build`：交 Vercel preview（本地未跑）
+- T3：`cd backend && pytest` ✓ (0 failed)
+- 含迁移：`cd backend && python scripts/check_alembic.py` ✓
+-->
+
+## 未执行项及原因
+
+<!-- 例如：pnpm build 交 Vercel preview；无登录 / 权限改动故未跑 Playwright；纯 docs 改动 T0 不跑测试 -->
+
+## 迁移 / 部署说明
+
+<!-- 涉及迁移时给 check_alembic.py 结果与部署注意事项；无则填「无」 -->
