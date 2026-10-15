@@ -210,7 +210,7 @@ gh api graphql --paginate -f query='
 
 - `PENDING`：Codex 仍在审查，或当前 HEAD 尚无完成记录 → 不合并；未观察到对新 HEAD 的完成记录时显式请求 `@codex review` 并等明确完成。
 - `UNKNOWN`：GitHub API / 权限 / 网络失败、review commit 无法确认、多个来源互相矛盾 → 报告原因并回退人工 review，**不得静默降级为 `CLEAN`**。
-- `FINDINGS`：**任一来源**（含行内评论）提出尚未处理的真实风险 → 逐条判断有效性，真实问题修复或经人工明确接受后才继续。判定范围**不限于当前 HEAD**：早于当前 HEAD 的未结 inline finding（`isResolved=false`）**继续算 finding**，直到其 thread 被 resolve、或经人工明确 dismiss 并记录原因——作者推一个无关 / 不完整的新 commit **不会**让旧 P1 消失（那一刻它就是「已知未修」，不是「已过期」）。同时，当前 HEAD 仍必须有一份完成记录，否则先按 `PENDING`。
+- `FINDINGS`：**任一来源**（含行内评论）提出尚未处理的真实风险 → 逐条判断有效性，真实问题修复或经人工明确接受后才继续。判定范围**不限于当前 HEAD**：早于当前 HEAD 的未结 inline finding（`isResolved=false`）**继续算 finding**，直到**把关人核验其修复已落在当前 HEAD 后**由把关人 resolve，或由把关人明确 dismiss 并记录原因——**作者不得自行 resolve**（作者应逐条回复修复证据后交把关人核验）；作者推一个无关 / 不完整的新 commit **不会**让旧 P1 消失（那一刻它就是「已知未修」，不是「已过期」）。同时，当前 HEAD 仍必须有一份完成记录，否则先按 `PENDING`。
 - `CLEAN`：已确认 Codex 对**当前 HEAD**完成、四个来源均已读、**且不存在任何跨 head 未结 finding**——**仍需**满足该 PR 适用的必需检查与测试策略。
 
 **Codex 之外仍然必须的**：
