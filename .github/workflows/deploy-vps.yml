@@ -1,0 +1,228 @@
+name: deploy-vps
+
+# 后端部署：把原本「本地 git deploy → 直连 ssh root@VPS 跑
+# deploy_vps.py」搬到 GitHub Actions，由 runner 从公网 SSH 进 VPS
+# （不再依赖本机 IP 可达）。
+#
+# 设计要点（与 productEnvAgent/deploy.sh 的规则对齐）：
+#   1. 只有 push 到 main 且本次 push 命中 backend/ 才部署
+#      （前端走 Vercel，不碰 VPS）
+#   2. 部署逻辑不重写：直接复用仓库里的
+#      productEnvAgent/deploy_vps.py --auto。它内部已含
+#      git pull --ff-only → 迁移图检查 → 停三个后台单元 →
+#      pip install → alembic upgrade head → 启回 worker/beat →
+#      落地校验 → 健康探活
+#   3. 想跳过本次部署：在本次 push 的 head commit message 里带
+#      `[skip ci]`（GitHub 内建跳过，workflow 整个不会跑）
+#   4. 手动触发：Actions 页面 Run workflow，或
+#      `gh workflow run deploy-vps.yml`
+#
+# 与本地部署的关系：同一时间只能有一条路径部署。
+# 见 productEnvAgent/deploy.sh —— 默认已改成「只 push、部署交给
+# 本 workflow」；需要本地兜底时用 `LOCAL_DEPLOY=1 git deploy`。
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "只预览将执行的命令，不真正部署"
+        type: boolean
+        default: false
+
+# 同一时刻只允许一次部署，且排队而非取消
+# （取消会留下半截部署：迁移跑了、服务没起）
+concurrency:
+  group: vps-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: read # 失败告警里用 gh api 反查 PR 需要
+
+jobs:
+  deploy:
+    name: deploy backend to VPS
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          # 我们不 push，不需要把 token 留在 .git/config 里
+          persist-credentials: false
+
+      - name: 判定本次 push 是否命中 backend/
+        id: changed
+        env:
+          BASE: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          ZERO=0000000000000000000000000000000000000000
+
+          # 手动 dispatch：无 BASE 可比，按「要部署」处理
+          if [ "$EVENT" != "push" ]; then
+            echo "backend_changed=true" >> "$GITHUB_OUTPUT"
+            echo "→ 非 push 触发（workflow_dispatch）→ 直接部署"
+            exit 0
+          fi
+
+          # BASE 缺失（首次 push / force push / 浅克隆没带上）
+          if [ -z "$BASE" ] || [ "$BASE" = "$ZERO" ]; then
+            echo "backend_changed=true" >> "$GITHUB_OUTPUT"
+            echo "→ 无法确定基线 BASE（$BASE）→ 保守执行部署"
+            exit 0
+          fi
+          if ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 origin "$BASE" \
+              >/dev/null 2>&1 || true
+          fi
+          if ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+            echo "backend_changed=true" >> "$GITHUB_OUTPUT"
+            echo "→ 基线 commit $BASE 取不到 → 保守执行部署"
+            exit 0
+          fi
+
+          changed="$(git diff --name-only "$BASE" "$HEAD_SHA")"
+          if printf '%s\n' "$changed" | grep -qE '^backend/'; then
+            echo "backend_changed=true" >> "$GITHUB_OUTPUT"
+            echo "→ 本次 push 命中 backend/："
+            printf '%s\n' "$changed" | grep -E '^backend/' | head -30
+          else
+            echo "backend_changed=false" >> "$GITHUB_OUTPUT"
+            echo "→ 未命中 backend/，跳过 VPS 部署"
+            echo "  （前端由 Vercel 自动部署）"
+          fi
+
+      - name: Setup Python
+        if: steps.changed.outputs.backend_changed == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 迁移图前置检查（不依赖 SSH，先 fail-fast）
+        if: steps.changed.outputs.backend_changed == 'true'
+        run: python backend/scripts/check_alembic.py
+
+      - name: 安装部署密钥
+        if: steps.changed.outputs.backend_changed == 'true'
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          set -euo pipefail
+          if [ -z "${VPS_SSH_KEY:-}" ] || [ -z "${VPS_HOST:-}" ]; then
+            echo "::error::缺少 secret VPS_SSH_KEY / VPS_HOST"
+            echo "  设置方法见本文件头部注释"
+            echo "  与 docs/REFERENCE.md §Git 提交与部署"
+            exit 1
+          fi
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          # deploy_vps.py 走系统 ssh，用默认私钥名即可零改代码
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          if [ -n "${VPS_KNOWN_HOSTS:-}" ]; then
+            printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
+            chmod 644 ~/.ssh/known_hosts
+          else
+            echo "::warning::未配置 VPS_KNOWN_HOSTS，退化为 TOFU"
+            ssh-keyscan -T 10 -t ed25519 "$VPS_HOST" \
+              > ~/.ssh/known_hosts 2>/dev/null || true
+          fi
+
+          cat > ~/.ssh/config <<EOF
+          Host $VPS_HOST
+            StrictHostKeyChecking yes
+            UserKnownHostsFile ~/.ssh/known_hosts
+            IdentityFile ~/.ssh/id_ed25519
+            IdentitiesOnly yes
+            ConnectTimeout 20
+            ServerAliveInterval 15
+            ServerAliveCountMax 6
+            ControlMaster no
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: SSH 连通性自检
+        if: steps.changed.outputs.backend_changed == 'true'
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          ssh -o BatchMode=yes "$VPS_HOST" \
+            'echo "ssh ok: $(hostname) @ $(date -Is)"'
+
+      - name: 部署到 VPS
+        if: steps.changed.outputs.backend_changed == 'true'
+        working-directory: productEnvAgent
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -o pipefail
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "→ DRY RUN：只预览命令"
+            python deploy_vps.py --dry-run
+          else
+            # 必须带 --auto：不带会 input() 等确认，直到 job 超时
+            python deploy_vps.py --auto
+          fi
+
+      - name: 外部健康校验（独立于 deploy_vps.py 的 SSH 内探活）
+        if: >-
+          success()
+          && steps.changed.outputs.backend_changed == 'true'
+          && inputs.dry_run != 'true'
+        run: |
+          set -uo pipefail
+          url="https://dash-api.believeboy.com/api/v1/health"
+          for i in 1 2 3 4 5 6; do
+            code="$(curl -so /dev/null -w '%{http_code}' -m 20 "$url" \
+              || true)"
+            echo "探活 $i: HTTP $code"
+            case "$code" in
+              200|401)
+                echo "✓ 服务已起（401 = /health 需 API key）"
+                exit 0
+                ;;
+            esac
+            sleep 5
+          done
+          # 不阻断 job：deploy_vps.py 已有 SSH 侧探活门禁
+          echo "::warning::外部健康校验未通过（最后 HTTP $code）"
+
+      - name: 失败摘要（bad-sha 落在 runner 临时盘，写进 summary）
+        if: failure()
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          SHA: ${{ github.sha }}
+          CHANGED: ${{ steps.changed.outputs.backend_changed }}
+        run: |
+          {
+            echo "### ❌ VPS 部署失败"
+            echo
+            echo "- 触发 commit：\`$SHA\`"
+            echo "- 命中 backend/：$CHANGED"
+            echo "- 本地补齐回滚（需本机 SSH 可用）："
+            echo "  python productEnvAgent/rollback.py \\"
+            echo "    --bad-sha $SHA --auto --force"
+            echo "- 排障：ssh root@${VPS_HOST} \\"
+            echo "    journalctl -u believeboy-api -n 100"
+            echo "- 回滚协议见 productEnvAgent/ROLLBACK.md"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 上传部署日志（失败留痕）
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-logs-${{ github.run_id }}
+          path: productEnvAgent/logs/
+          if-no-files-found: ignore
+          retention-days: 14
