@@ -426,9 +426,10 @@ PR 上的「质量信号」有三类，不能互相顶替：
 | --- | --- | --- |
 | **作者测试证据**（PR 正文里的实际命令 + 真实数字） | 这些命令在本机跑过、结果是这个 | 没跑过的档位 / 环境 |
 | **Codex 自动审查**（`chatgpt-codex-connector`） | 静态语义 review：越权、边界、契约、遗留调试 | 代码能否跑起来；CI / Vercel 与部署状态 |
-| **必需门禁**（前端 Vercel 部署检查；T3 的后端全量 pytest——后端无 CI） | 该门禁覆盖的构建 / 测试结论 | 门禁没覆盖的行为 |
+| **必需门禁**（branch protection 要求的检查，用 `gh pr checks <N> --required` 查；以及项目约定门禁：前端 PR 的 Vercel 部署检查、T3 的后端全量 pytest——后端无 CI） | 该门禁覆盖的构建 / 测试结论 | 门禁没覆盖的行为 |
 
 - **Codex 没报问题 ≠ 测试通过**：它是静态审查，不替代作者测试证据、门禁与 T3 验证。
+- **别用 `statusCheckRollup` 推断必需检查**：rollup 只给聚合概览、不区分必需与可选。必需检查看 `gh pr checks <N> --required`（或 branch protection）；本仓库实测该命令为空，即 Vercel 属项目约定门禁而非 branch-required，不因它不是 branch-required 就跳过。
 - **修复 Codex 发现的缺陷后**：按影响面跑对应目标集（必要时升档）；Codex 若未重审新 HEAD，显式 `@codex review` 后再判定，**旧 commit 的结论不算数**。
 - **两个模式不要混**：静态审查不代替运行时验证；运行时验证也不代替变更面识别（越权类问题可能躺在绿测试里）。
 - 判定规则（四个来源 + `PENDING` / `UNKNOWN` / `FINDINGS` / `CLEAN` 枚举 + 简化边界）唯一权威见 [AGENTS.md](AGENTS.md) §PR 把关流程（Codex-first）与 [docs/REFERENCE.md](docs/REFERENCE.md) §PR 把关流程（完整）。本节只管「测试拿什么当证据」。

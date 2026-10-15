@@ -162,23 +162,37 @@ ad 报告现用 `ad_upload_files` 体系（**使用中**），取代旧 `analysi
 
 Codex（`chatgpt-codex-connector`）自动审查是**低风险 PR 的主要语义 review 来源**，但只覆盖「静态语义 review」这一件事。
 
-**四个来源都要读，且只认当前 PR HEAD**（`passwii/believeboyDashboard`，`<N>` = PR 号）：
+**四个来源都要读，结论必须落在当前 PR HEAD，未结 finding 例外**（`passwii/believeboyDashboard`，`<N>` = PR 号）：
 
 | 用途 | 读取命令 | 关键字段与判定 |
 | --- | --- | --- |
-| HEAD / 文件 / 检查概览 | `gh pr view <N> --json number,state,headRefOid,files,latestReviews,statusCheckRollup` | `headRefOid` = 当前 HEAD；`statusCheckRollup` 识别必需检查（含前端 Vercel） |
-| Codex review | `gh api repos/passwii/believeboyDashboard/pulls/<N>/reviews` | `user.login`、`state`、`commit_id`、`body`、`submitted_at` |
-| Codex 行内问题 | `gh api repos/passwii/believeboyDashboard/pulls/<N>/comments` | `user.login`、`body`、`path`、`line`（已过期评论看 `original_line`）、`commit_id`、`in_reply_to_id` |
-| Codex 摘要 / 完成状态 | `gh api repos/passwii/believeboyDashboard/issues/<N>/comments` | Review Summary 表的 Status + Commit + trigger；`👍` 反应只作辅助信号 |
+| HEAD / 文件 / 检查概览 | `gh pr view <N> --json number,state,headRefOid,files,latestReviews,statusCheckRollup`；必需检查另跑 `gh pr checks <N> --required` | `headRefOid` = 当前 HEAD。`latestReviews` 与 `statusCheckRollup` **只是概览、不是全量**：前者每个 reviewer 只保留最新一条，后者只给聚合结果、**不区分该检查是否必需** |
+| Codex review | `gh api --paginate repos/passwii/believeboyDashboard/pulls/<N>/reviews` | `user.login`、`state`、`commit_id`、`body`、`submitted_at` |
+| Codex 行内问题 | `gh api --paginate repos/passwii/believeboyDashboard/pulls/<N>/comments`；thread 是否已结用下方 GraphQL | `user.login`、`body`、`path`、`line`（已过期评论看 `original_line`）、`commit_id`、`in_reply_to_id` |
+| Codex 摘要 / 完成状态 | `gh api --paginate repos/passwii/believeboyDashboard/issues/<N>/comments` | Review Summary 表的 Status + Commit + trigger；`👍` 反应只作辅助信号 |
+
+**三个集合端点必须带 `--paginate`**：`gh api` 默认每页 30 条且**只返回第一页**（`gh api --help`：`--paginate` 会继续请求后续页）。审查记录超过一页时，Review Summary 可能已 `Completed`、而后一页的 inline finding 读不到 → 假 `CLEAN`。`gh pr view --json latestReviews` 同理不是全量（每个 reviewer 只留最新一条），**不能只靠它得出「无发现」**。
+
+**判断「跨 head 的旧 finding 是否仍挂着」**：REST 不暴露 thread 的 resolve 状态，用 GraphQL：
+
+```bash
+gh api graphql -f query='{ repository(owner:"passwii", name:"believeboyDashboard") { pullRequest(number:<N>) { reviewThreads(first:100) { nodes { isResolved isOutdated path line comments(first:5) { nodes { author { login } commit { oid } } } } } } } }'
+```
+
+`isResolved=false` 的 thread 就是**未结 finding**；`isOutdated=true` 只说明评论挂在旧 diff 行上，**不等于问题已修**。
+
+**必需检查不能用 `statusCheckRollup` 推断**：rollup 只列聚合结果，不区分必需与可选（该仓库 main 上 `gh pr checks <N> --required` 实测为空，即 branch protection 未把 Vercel 等设为必需）。判断必需门禁用 `gh pr checks <N> --required`，或直接查 branch protection / ruleset；Vercel 部署检查在本仓库属**项目约定门禁**，不因它不是 branch-required 就跳过。
 
 **为什么四个都要读（BLF-1345 实录）**：PR #720 的 Codex Review Summary 写明 `✅ Completed`，而真正的 P1（跨操作员项目数据访问越权）**只出现在 inline review comment**；只读 `gh pr view` 摘要或只看 summary 评论会漏掉它。
+
+**这套流程自身被 Codex 审出的三个边界（PR #726）**：① 集合端点漏 `--paginate`（只能读到第一页，后页 finding 静默丢失）；② 未结 finding 不跨 head 结转（推个新 commit 就能让旧 P1 从门禁消失）；③ 用 `statusCheckRollup` 推断必需检查（把可选检查当必需门禁）。三条均已并入上面的命令与枚举，照本节执行即可。
 
 **决策枚举**：
 
 - `PENDING`：Codex 仍在审查，或当前 HEAD 尚无完成记录 → 不合并；未观察到对新 HEAD 的完成记录时显式请求 `@codex review` 并等明确完成。
 - `UNKNOWN`：GitHub API / 权限 / 网络失败、review commit 无法确认、多个来源互相矛盾 → 报告原因并回退人工 review，**不得静默降级为 `CLEAN`**。
-- `FINDINGS`：当前 HEAD 的 Codex 反馈（含行内）提出风险 → 逐条判断有效性，真实问题修复或经人工明确接受后才继续。
-- `CLEAN`：已确认 Codex 对**当前 HEAD**完成、四个来源均已读、无待处理有效发现——**仍需**满足该 PR 适用的必需检查与测试策略。
+- `FINDINGS`：**任一来源**（含行内评论）提出尚未处理的真实风险 → 逐条判断有效性，真实问题修复或经人工明确接受后才继续。判定范围**不限于当前 HEAD**：早于当前 HEAD 的未结 inline finding（`isResolved=false`）**继续算 finding**，直到其 thread 被 resolve、或经人工明确 dismiss 并记录原因——作者推一个无关 / 不完整的新 commit **不会**让旧 P1 消失（那一刻它就是「已知未修」，不是「已过期」）。同时，当前 HEAD 仍必须有一份完成记录，否则先按 `PENDING`。
+- `CLEAN`：已确认 Codex 对**当前 HEAD**完成、四个来源均已读、**且不存在任何跨 head 未结 finding**——**仍需**满足该 PR 适用的必需检查与测试策略。
 
 **Codex 之外仍然必须的**：
 
