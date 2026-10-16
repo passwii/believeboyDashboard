@@ -33,8 +33,17 @@ from alerting import (
     send_deploy_failure_alert,
 )
 
-# VPS 配置（与 deploy_vps.py 保持一致）
-VPS_HOST = "145.79.143.98"
+# 可达性回退（IPv4 → IPv6）与 deploy_vps.py 共用一份实现，免得两个文件各存一份
+# 地址列表、各自漂移。
+from deploy_vps import VPS_HOSTS, resolve_vps_host
+
+# VPS 配置
+#
+# VPS_HOST 必须保持模块级可覆盖：`_ssh()` 在**构建命令序列**时就要把地址拼进
+# 字符串，而 build_backend_plan 是纯逻辑单测（测试文件明确要求「不触网」），
+# 所以探测不能在 _ssh() 里做。run_rollback() 在非 dry-run 时用
+# resolve_vps_host() 的结果赋给这个全局，此后构建出的序列即指向真正可达的地址。
+VPS_HOST = VPS_HOSTS[0]
 VPS_USER = "root"
 PROJECT_DIR = "/root/believeboyDashboard/"
 BACKEND_DIR = f"{PROJECT_DIR}backend/"
@@ -240,6 +249,10 @@ def run_rollback(
     alert_issue: str | None = None,
 ) -> int:
     """执行回滚主流程。返回 exit code。"""
+    global VPS_HOST
+    if not dry_run:
+        # 探测可达地址（IPv4 优先，不通退 IPv6）。dry-run 不触网，保留首选项。
+        VPS_HOST = resolve_vps_host()
     print("=" * 64)
     print("  BelieveBoy Dashboard - 生产回滚工具（BLF-524）")
     print(f"  目标: {VPS_USER}@{VPS_HOST} / Vercel")

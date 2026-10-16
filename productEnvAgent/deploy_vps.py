@@ -27,6 +27,7 @@ import datetime
 import json
 import os
 import re
+import socket
 import subprocess
 import sys
 import time
@@ -40,7 +41,23 @@ from alerting import (
 )
 
 # VPS 配置
-VPS_HOST = "145.79.143.98"
+#
+# 访问地址按顺序尝试：IPv4 优先，不通再退到 IPv6。
+#
+# 为什么回退得自己做：OpenSSH 拿到字面量地址时只会连它，不会改用另一个
+# 地址族；实测 `ssh root@<同时有 A/AAAA 的域名>` 也一样卡在 IPv4 上失败，
+# 所以也不能指望 DNS 返回多条记录让 ssh 自己挑。
+#
+# 为什么探测不能只看 TCP：部分网络环境（本机走代理 fake-IP、运营商拦出站
+# 22）下 IPv4 的 TCP 握手**会成功**，但连接并没有真的到达 VPS，SSH banner
+# 永远不来，OpenSSH 只报 "Connection timed out during banner exchange"。
+# 用 socket/nc 判活会被这种「假通」骗到，选中坏地址再卡满 ConnectTimeout；
+# 只有真去读 SSH banner 才能区分「真通」与「假通」。
+VPS_HOSTS: tuple[str, ...] = ("145.79.143.98", "2a0e:97c0:3f0:1::2cba")
+# 首选地址（IPv4）。保留该名字供默认值与兼容引用；本次运行实际连哪个地址
+# 由 get_vps_host() 按可达性决定。
+VPS_HOST = VPS_HOSTS[0]
+VPS_PORT = 22
 VPS_USER = "root"
 PROJECT_DIR = "/root/believeboyDashboard/"
 BACKEND_DIR = f"{PROJECT_DIR}backend/"
@@ -191,7 +208,51 @@ LOG_COMMANDS = {
 }
 
 
-def run_ssh_command(command, host=VPS_HOST, user=VPS_USER, dry_run=False, timeout=300):
+def ssh_banner_reachable(
+    host: str, *, port: int = VPS_PORT, timeout: float = 6.0
+) -> bool:
+    """读 SSH 版本横幅，判断 host:port 是否**真的**可达。
+
+    直接对准故障形态：TCP 能连上却没有 banner = 连接被中间设备/代理接走、
+    并没有转发到 sshd。用 socket.connect 判活会把这种情况误判成「通」。
+    """
+    try:
+        with socket.create_connection((host, port), timeout=timeout) as sock:
+            sock.settimeout(timeout)
+            try:
+                banner = sock.recv(64)
+            except (TimeoutError, OSError):
+                return False
+    except OSError:
+        return False
+    return banner.startswith(b"SSH-")
+
+
+def resolve_vps_host(hosts: Sequence[str] = VPS_HOSTS, *, timeout: float = 6.0) -> str:
+    """返回第一个 SSH 横幅可达的地址；都不可达时返回首选项（IPv4）。
+
+    全不可达时兜底返回首选项而不是抛错：探测可能因瞬时网络问题整体失败，
+    此时保持原有行为（先试 IPv4）比直接中止部署更好诊断 —— 真正的原因由
+    后续 ssh 调用报出来。
+    """
+    for host in hosts:
+        if ssh_banner_reachable(host, timeout=timeout):
+            return host
+    return hosts[0]
+
+
+_resolved_vps_host: str | None = None
+
+
+def get_vps_host() -> str:
+    """本次运行使用的 VPS 地址：首次调用探测一次，之后复用（探测有网络开销）。"""
+    global _resolved_vps_host
+    if _resolved_vps_host is None:
+        _resolved_vps_host = resolve_vps_host()
+    return _resolved_vps_host
+
+
+def run_ssh_command(command, host=None, user=VPS_USER, dry_run=False, timeout=300):
     """通过 SSH 在 VPS 上执行命令。
 
     命令以 argv 形式传给 ssh（不走本地 shell）：`command` 原样作为 ssh 的第二个
@@ -200,6 +261,9 @@ def run_ssh_command(command, host=VPS_HOST, user=VPS_USER, dry_run=False, timeou
     截断/重拼（`python -c 'import app.main'` 就是这么被拆成
     `python -c import app.main` 而静默失败的）。
     """
+    if host is None:
+        # dry-run 不触网：探测是这里唯一会主动连网的步骤，预览按首选项即可
+        host = VPS_HOSTS[0] if dry_run else get_vps_host()
     ssh_command = f"ssh {user}@{host} '{command}'"  # 仅用于 dry-run 预览/人工复现
     if dry_run:
         print(f"[DRY RUN] 即将执行: {ssh_command}")
@@ -511,9 +575,13 @@ def save_report(logs, analysis, dry_run=False):
 
 def deploy(dry_run=False, auto_confirm=False):
     """执行完整部署流程。"""
+    # 先定下本次要连的地址（IPv4 优先、不通退 IPv6），让抬头与实际执行的地址
+    # 一致；顺带预热缓存，后续 run_ssh_command 不再重复探测。dry-run 不触网，
+    # 保留首选项。
+    target_host = VPS_HOSTS[0] if dry_run else get_vps_host()
     print("=" * 60)
     print("  BelieveBoy Dashboard - VPS 部署工具")
-    print(f"  目标服务器: {VPS_USER}@{VPS_HOST}")
+    print(f"  目标服务器: {VPS_USER}@{target_host}")
     print("=" * 60)
 
     if dry_run:
@@ -674,7 +742,7 @@ def deploy(dry_run=False, auto_confirm=False):
 
     if not dry_run:
         print("\n>>> 部署完成！显示最近日志：\n")
-        remote = f"{VPS_USER}@{VPS_HOST}"
+        remote = f"{VPS_USER}@{get_vps_host()}"
         try:
             subprocess.run(
                 [

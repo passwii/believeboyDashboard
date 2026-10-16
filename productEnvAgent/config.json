@@ -1,7 +1,7 @@
 {
   "skill": {
     "name": "deploy-vps",
-    "description": "Deploys the BelieveBoy Dashboard to the production server (145.79.143.98)",
+    "description": "Deploys the BelieveBoy Dashboard to the production server (IPv4 145.79.143.98 / IPv6 2a0e:97c0:3f0:1::2cba)",
     "module": "deploy_vps.py",
     "entry_point": "main",
     "args_schema": {
@@ -38,6 +38,7 @@
   },
   "vps": {
     "host": "145.79.143.98",
+    "hosts": ["145.79.143.98", "2a0e:97c0:3f0:1::2cba"],
     "user": "root",
     "project_dir": "/root/believeboyDashboard/",
     "backend_dir": "/root/believeboyDashboard/backend/",

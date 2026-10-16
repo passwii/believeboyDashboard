@@ -22,13 +22,14 @@ from alerting import (  # noqa: E402  # pyright: ignore[reportMissingImports]
     resolve_alert_issue_id,
 )
 from rollback import (  # noqa: E402  # pyright: ignore[reportMissingImports]
+    VPS_HOST,
+    VPS_USER,
     build_backend_plan,
     build_frontend_plan,
     format_plan,
     resolve_bad_sha,
 )
 
-VPS_HOST = "145.79.143.98"
 SHA = "6fa6852020f2048124ed14a0ca9756b1b9ed0ca6"
 
 
@@ -117,6 +118,19 @@ def test_backend_plan_push_back_and_downgrade_options():
     assert "downgrade 到指定修订" in labels
     downgrade_cmd = dict(plan)["downgrade 到指定修订"]
     assert "alembic downgrade 123" in downgrade_cmd
+
+
+def test_backend_plan_ssh_commands_target_configured_host():
+    """序列里的 ssh 目标取自配置，计划里不另写死地址。
+
+    run_rollback() 会在非 dry-run 时用 resolve_vps_host() 的结果覆盖该模块级
+    地址（IPv4 优先、不通退 IPv6），所以这里断言的是「计划消费配置」这一契约，
+    而不是某个具体 IP。
+    """
+    ssh_cmds = [cmd for _label, cmd in build_backend_plan(SHA) if cmd.startswith("ssh ")]
+    assert ssh_cmds, "回滚序列里应当有 ssh 命令"
+    for cmd in ssh_cmds:
+        assert cmd.startswith(f"ssh {VPS_USER}@{VPS_HOST} "), cmd
 
 
 def test_ssh_commands_have_no_nested_single_quotes():

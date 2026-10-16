@@ -720,3 +720,116 @@ def test_api_unit_has_no_systemd_readiness_signal():
     assert "Type=exec" not in content
     # 单元级落地校验保留（配置/单元是否装上仍然必须机械核对）
     assert any("is-active believeboy-api" in cmd for cmd in deploy_vps.CHECK_COMMANDS)
+
+
+# ---------------------------------------------------------------------------
+# 4. VPS 地址回退（IPv4 优先 → IPv6 兜底）
+# ---------------------------------------------------------------------------
+
+
+class _FakeSocket:
+    """假 socket：注入 recv 的返回或抛错，用于驱动 banner 判定。"""
+
+    def __init__(self, *, banner: bytes | None = None, error: Exception | None = None):
+        self._banner = banner
+        self._error = error
+
+    def __enter__(self) -> _FakeSocket:
+        return self
+
+    def __exit__(self, *_exc) -> bool:
+        return False
+
+    def settimeout(self, _timeout: float) -> None:
+        pass
+
+    def recv(self, _size: int) -> bytes:
+        if self._error is not None:
+            raise self._error
+        assert self._banner is not None
+        return self._banner
+
+
+def _patch_create_connection(monkeypatch, sock_or_error) -> None:
+    def _create_connection(*_args, **_kwargs):
+        if isinstance(sock_or_error, Exception):
+            raise sock_or_error
+        return sock_or_error
+
+    monkeypatch.setattr(deploy_vps.socket, "create_connection", _create_connection)
+
+
+def test_ssh_banner_reachable_rejects_fake_tcp(monkeypatch):
+    """TCP 连上但读不到 banner（代理/中间设备「假通」）必须判为不可达。
+
+    这正是线上现场：IPv4 握手 0.0 秒就「成功」，SSH 却报 banner exchange
+    超时。用 socket.connect 判活会选中这个坏地址，再卡满 ConnectTimeout。
+    """
+    _patch_create_connection(
+        monkeypatch, _FakeSocket(error=TimeoutError("banner never arrived"))
+    )
+    assert deploy_vps.ssh_banner_reachable("203.0.113.1") is False
+
+
+def test_ssh_banner_reachable_rejects_connect_error(monkeypatch):
+    """根本连不上（无 SYN-ACK）同样判不可达。"""
+    _patch_create_connection(monkeypatch, OSError("unreachable"))
+    assert deploy_vps.ssh_banner_reachable("203.0.113.1") is False
+
+
+def test_ssh_banner_reachable_accepts_ssh_banner(monkeypatch):
+    """读到 SSH 横幅才算真可达。"""
+    _patch_create_connection(
+        monkeypatch, _FakeSocket(banner=b"SSH-2.0-OpenSSH_10.0p2\r\n")
+    )
+    assert deploy_vps.ssh_banner_reachable("2001:db8::1") is True
+
+
+def test_resolve_vps_host_prefers_first_when_both_reachable(monkeypatch):
+    """两端都通时必须仍走首选（IPv4）——回退不得改变正常路径。"""
+    monkeypatch.setattr(deploy_vps, "ssh_banner_reachable", lambda *_a, **_k: True)
+    assert deploy_vps.resolve_vps_host() == deploy_vps.VPS_HOSTS[0]
+
+
+def test_resolve_vps_host_falls_back_to_ipv6(monkeypatch):
+    """首选（IPv4）假通、次选（IPv6）真通时必须退到 IPv6。"""
+    monkeypatch.setattr(
+        deploy_vps,
+        "ssh_banner_reachable",
+        lambda host, **_k: host == deploy_vps.VPS_HOSTS[1],
+    )
+    assert deploy_vps.resolve_vps_host() == deploy_vps.VPS_HOSTS[1]
+
+
+def test_resolve_vps_host_falls_back_to_first_when_none_reachable(monkeypatch):
+    """全不可达时兜底首选：保持原有行为，让后续 ssh 报出真正原因。"""
+    monkeypatch.setattr(deploy_vps, "ssh_banner_reachable", lambda *_a, **_k: False)
+    assert deploy_vps.resolve_vps_host() == deploy_vps.VPS_HOSTS[0]
+
+
+def test_get_vps_host_probes_once(monkeypatch):
+    """探测有网络开销：同一次运行只探一次。"""
+    calls: list[int] = []
+    monkeypatch.setattr(
+        deploy_vps,
+        "resolve_vps_host",
+        lambda *_a, **_k: calls.append(1) or deploy_vps.VPS_HOSTS[1],
+    )
+    monkeypatch.setattr(deploy_vps, "_resolved_vps_host", None)
+    assert deploy_vps.get_vps_host() == deploy_vps.VPS_HOSTS[1]
+    assert deploy_vps.get_vps_host() == deploy_vps.VPS_HOSTS[1]
+    assert len(calls) == 1
+
+
+def test_dry_run_does_not_probe(monkeypatch, capsys):
+    """--dry-run 不许触网：预览按首选地址，且不得调用可达性探测。"""
+
+    def _boom(*_a, **_k):
+        raise AssertionError("dry-run 不应触发可达性探测")
+
+    monkeypatch.setattr(deploy_vps, "get_vps_host", _boom)
+    rc, out, err = deploy_vps.run_ssh_command("echo hi", dry_run=True)
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert out == "" and err == ""
+    assert deploy_vps.VPS_HOSTS[0] in captured.out
