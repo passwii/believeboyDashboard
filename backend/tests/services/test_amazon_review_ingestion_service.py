@@ -384,3 +384,41 @@ def test_non_finite_numbers_rejected(db_session, target, kwargs):
     assert db_session.execute(select(AmazonReviewCrawlRun)).scalars().all() == []
     assert db_session.execute(select(AmazonReviewRatingSnapshot)).scalars().all() == []
     assert db_session.execute(select(AmazonReviewReview)).scalars().all() == []
+
+
+_NON_INTEGER_CASES: list[tuple[str, dict[str, Any]]] = [
+    ("rating_count-1.5", {"rating": _rating(rating_count=1.5)}),
+    ("review_count-2.5", {"rating": _rating(review_count=2.5)}),
+    ("star_counts-1.5", {"rating": _rating(star_counts=(1, 2, 3, 4, 1.5))}),
+    ("review_rating-4.5", {"reviews": [_capture(review_key="R1", id_confidence="original", rating=4.5)]}),
+    ("helpful_count-1.5", {"reviews": [_capture(review_key="R1", id_confidence="original", helpful_count=1.5)]}),
+]
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [case[1] for case in _NON_INTEGER_CASES],
+    ids=[case[0] for case in _NON_INTEGER_CASES],
+)
+def test_non_integer_values_rejected(db_session, target, kwargs):
+    with pytest.raises(IngestionError):
+        record_crawl_result(db_session, target_id=target.id, captured_at=_now(), status="success", **kwargs)
+    db_session.flush()
+    assert db_session.execute(select(AmazonReviewCrawlRun)).scalars().all() == []
+    assert db_session.execute(select(AmazonReviewRatingSnapshot)).scalars().all() == []
+    assert db_session.execute(select(AmazonReviewReview)).scalars().all() == []
+
+
+def test_integer_valued_float_accepted(db_session, target):
+    result = record_crawl_result(
+        db_session, target_id=target.id, captured_at=_now(), status="success",
+        rating=_rating(average_rating=4.5, rating_count=10.0, review_count=2.0,
+                       star_counts=(1.0, 2.0, 3.0, 4.0, 5.0)),
+        reviews=[_capture(review_key="R1", id_confidence="original", rating=4.0, helpful_count=2.0)],
+    )
+    db_session.flush()
+    assert result.reviews_upserted == 1
+    snap = db_session.execute(select(AmazonReviewRatingSnapshot)).scalar_one()
+    assert snap.rating_count == 10 and snap.review_count == 2 and snap.star_5_count == 5
+    row = db_session.execute(select(AmazonReviewReview)).scalar_one()
+    assert row.rating == 4 and row.helpful_count == 2
