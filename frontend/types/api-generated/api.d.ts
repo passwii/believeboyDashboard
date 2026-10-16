@@ -3364,6 +3364,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/amazon-review-tracking/groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Groups */
+        get: operations["list_groups_api_v1_amazon_review_tracking_groups_get"];
+        put?: never;
+        /** Create Review Group */
+        post: operations["create_review_group_api_v1_amazon_review_tracking_groups_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/amazon-review-tracking/groups/{group_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Patch Review Group */
+        patch: operations["patch_review_group_api_v1_amazon_review_tracking_groups__group_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/amazon-review-tracking/groups/{group_id}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Deactivate Review Group */
+        post: operations["deactivate_review_group_api_v1_amazon_review_tracking_groups__group_id__deactivate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
@@ -21509,6 +21561,51 @@ export interface components {
             /** Total Quantity */
             total_quantity: number;
         };
+        /** ReviewGroupCreate */
+        ReviewGroupCreate: {
+            /** Description */
+            description?: string | null;
+            /** Marketplace */
+            marketplace: string;
+            /** Member Ids */
+            member_ids: number[];
+            /** Name */
+            name: string;
+            /** Project Id */
+            project_id: number;
+            /** Representative Id */
+            representative_id: number;
+        };
+        /** ReviewGroupItem */
+        ReviewGroupItem: {
+            /** Description */
+            description: string | null;
+            /** Id */
+            id: number;
+            /** Is Active */
+            is_active: boolean;
+            /** Marketplace */
+            marketplace: string;
+            /** Member Ids */
+            member_ids: number[];
+            /** Name */
+            name: string;
+            /** Project Id */
+            project_id: number;
+            /** Representative Id */
+            representative_id: number | null;
+        };
+        /** ReviewGroupPatch */
+        ReviewGroupPatch: {
+            /** Description */
+            description?: string | null;
+            /** Member Ids */
+            member_ids?: number[] | null;
+            /** Name */
+            name?: string | null;
+            /** Representative Id */
+            representative_id?: number | null;
+        };
         /** RpaReportStatusResponseSchema */
         RpaReportStatusResponseSchema: {
             /** Country */
@@ -23308,6 +23405,8 @@ export interface components {
              * @default CNY
              */
             currency: string;
+            /** Father Id */
+            father_id?: string | null;
             /** First Leg Cost Rmb */
             first_leg_cost_rmb?: number | null;
             /** Fnsku */
@@ -23424,6 +23523,8 @@ export interface components {
             country: string;
             /** Currency */
             currency: string;
+            /** Father Id */
+            father_id?: string | null;
             /** First Leg Cost Rmb */
             first_leg_cost_rmb: number;
             /** Fnsku */
@@ -23532,6 +23633,8 @@ export interface components {
              * @default CNY
              */
             currency: string;
+            /** Father Id */
+            father_id?: string | null;
             /** First Leg Cost Rmb */
             first_leg_cost_rmb?: number | null;
             /** Fnsku */
@@ -31840,6 +31943,171 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AlertStatsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_groups_api_v1_amazon_review_tracking_groups_get: {
+        parameters: {
+            query?: {
+                project_id?: number | null;
+                marketplace?: string | null;
+                is_active?: boolean | null;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-User-Id"?: string | null;
+                "X-Session-Id"?: string | null;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewGroupItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_review_group_api_v1_amazon_review_tracking_groups_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-User-Id"?: string | null;
+                "X-Session-Id"?: string | null;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewGroupCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewGroupItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_review_group_api_v1_amazon_review_tracking_groups__group_id__patch: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-User-Id"?: string | null;
+                "X-Session-Id"?: string | null;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                group_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewGroupPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewGroupItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deactivate_review_group_api_v1_amazon_review_tracking_groups__group_id__deactivate_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-User-Id"?: string | null;
+                "X-Session-Id"?: string | null;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                group_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewGroupItem"];
                 };
             };
             /** @description Validation Error */
