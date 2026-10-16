@@ -71,11 +71,14 @@ def test_all_r2_key_columns_excludes_url_columns():
 
 
 def test_all_r2_key_columns_count_is_correct():
-    """After P2, expect exactly 12 columns (7 auto `*_r2_key` + 5 curated irregular)."""
+    """After P2 + 客户方案（283），expect exactly 14 columns."""
     cols = ArtifactService.all_r2_key_columns()
     # Hand-curated exhaustive list:
     expected = [
         ("AnalysisPT1Calculation", "result_r2_key"),
+        # 客户方案版本（283）：raw 原始上传 + adapted 注入主题，两份均存 R2
+        ("CrmProposalVersion", "adapted_r2_key"),
+        ("CrmProposalVersion", "raw_r2_key"),
         ("InspectionScreenshot", "r2_key"),
         ("InspectionScreenshot", "thumbnail_key"),
         ("MonthlyReport", "summary_pdf_r2_key"),

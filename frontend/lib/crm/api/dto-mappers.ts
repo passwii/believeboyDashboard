@@ -25,6 +25,14 @@ import type {
   LeadInput,
   LifecycleBoard,
   LifecycleDistribution,
+  Proposal,
+  ProposalContent,
+  ProposalCreateInput,
+  ProposalDetail,
+  ProposalUpdateInput,
+  ProposalUploadResult,
+  ProposalVersion,
+  ProposalVersionInput,
   Task,
   TaskInput,
   Rule,
@@ -793,4 +801,152 @@ export function toWorkflowSettingsPayload(
     stale_days: input.staleDays,
     stale_email_enabled: input.staleEmailEnabled,
   })
+}
+
+// ---------- 客户方案（Proposal） ----------
+
+/** 方案版本 DTO（后端 snake_case）。 */
+export interface ProposalVersionDto {
+  id: number
+  version_no: number
+  original_filename: string
+  content_type: string
+  file_size: number
+  change_note?: string | null
+  created_by?: string | null
+  created_by_name?: string | null
+  created_at: string
+}
+
+/** 方案 DTO（后端 snake_case）。 */
+export interface ProposalDto {
+  id: number
+  title: string
+  proposal_type: string
+  status: string
+  customer_id?: number | null
+  customer_name?: string | null
+  owner_id?: string | null
+  owner_name?: string | null
+  current_version_no: number
+  version_count: number
+  created_by?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ProposalDetailDto extends ProposalDto {
+  versions: ProposalVersionDto[]
+}
+
+export interface ProposalUploadResultDto {
+  proposal: ProposalDto
+  version: ProposalVersionDto
+  warnings?: string[] | null
+}
+
+/** 方案版本 DTO → 前端类型（snake → camel，int → string，null → undefined）。 */
+export function mapProposalVersion(dto: ProposalVersionDto): ProposalVersion {
+  return {
+    id: String(dto.id),
+    versionNo: dto.version_no,
+    originalFilename: dto.original_filename,
+    contentType: dto.content_type,
+    fileSize: dto.file_size,
+    changeNote: dto.change_note ?? undefined,
+    createdBy: dto.created_by ?? undefined,
+    createdByName: dto.created_by_name ?? undefined,
+    createdAt: dto.created_at,
+  }
+}
+
+/** 方案 DTO → 前端类型。 */
+export function mapProposal(dto: ProposalDto): Proposal {
+  return {
+    id: String(dto.id),
+    title: dto.title,
+    proposalType: dto.proposal_type as Proposal['proposalType'],
+    status: dto.status as Proposal['status'],
+    customerId: dto.customer_id != null ? String(dto.customer_id) : undefined,
+    customerName: dto.customer_name ?? undefined,
+    ownerId: dto.owner_id ?? null,
+    ownerName: dto.owner_name ?? undefined,
+    currentVersionNo: dto.current_version_no,
+    versionCount: dto.version_count ?? 0,
+    createdBy: dto.created_by ?? undefined,
+    createdAt: dto.created_at,
+    updatedAt: dto.updated_at,
+  }
+}
+
+/** 方案详情 DTO → 前端类型（含版本链）。 */
+export function mapProposalDetail(dto: ProposalDetailDto): ProposalDetail {
+  return {
+    ...mapProposal(dto),
+    versions: (dto.versions ?? []).map(mapProposalVersion),
+  }
+}
+
+/** 上传结果 DTO → 前端类型。 */
+export function mapProposalUploadResult(
+  dto: ProposalUploadResultDto
+): ProposalUploadResult {
+  return {
+    proposal: mapProposal(dto.proposal),
+    version: mapProposalVersion(dto.version),
+    warnings: dto.warnings ?? [],
+  }
+}
+
+/** customerId → 后端 int | null：空串/未传 → undefined（不动），null → null（清关联）。 */
+function toNullableCustomerId(value: string | null | undefined): number | null | undefined {
+  if (value === undefined) return undefined
+  if (value === null || value === '') return null
+  return Number(value)
+}
+
+/** 部分更新入参（camel → snake；只传有值的字段，customerId 空串转 null）。 */
+export function toProposalPayload(
+  input: Partial<ProposalUpdateInput>
+): Record<string, unknown> {
+  return stripUndefined({
+    title: input.title,
+    proposal_type: input.proposalType,
+    status: input.status,
+    customer_id: toNullableCustomerId(input.customerId),
+  })
+}
+
+/** 新建按钮：把文件 + 元数据打成 multipart FormData（后端 Form/File 字段）。 */
+export function toProposalCreateFormData(input: ProposalCreateInput): FormData {
+  const fd = new FormData()
+  fd.append('file', input.file)
+  if (input.title) fd.append('title', input.title)
+  if (input.proposalType) fd.append('proposal_type', input.proposalType)
+  if (input.customerId) fd.append('customer_id', String(input.customerId))
+  if (input.changeNote) fd.append('change_note', input.changeNote)
+  return fd
+}
+
+/** 追加版本：multipart FormData。 */
+export function toProposalVersionFormData(input: ProposalVersionInput): FormData {
+  const fd = new FormData()
+  fd.append('file', input.file)
+  if (input.changeNote) fd.append('change_note', input.changeNote)
+  return fd
+}
+
+/** 预览内容 DTO → 前端类型。 */
+export function mapProposalContent(dto: {
+  proposal_id: number
+  version_no: number
+  title: string
+  content: string
+}): ProposalContent {
+  return {
+    proposalId: String(dto.proposal_id),
+    versionNo: dto.version_no,
+    title: dto.title,
+    content: dto.content,
+  }
 }

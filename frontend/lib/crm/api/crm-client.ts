@@ -28,6 +28,14 @@ import type {
   Rule,
   RuleInput,
   WorkflowSettings,
+  Proposal,
+  ProposalContent,
+  ProposalCreateInput,
+  ProposalDetail,
+  ProposalListParams,
+  ProposalUpdateInput,
+  ProposalUploadResult,
+  ProposalVersionInput,
 } from '@/lib/crm/types'
 
 export interface ListParams {
@@ -136,4 +144,24 @@ export interface CrmClient {
   getWorkflowSettings(): Promise<WorkflowSettings>
   /** 更新工作流设置（部分更新）。仅管理员。 */
   updateWorkflowSettings(input: Partial<WorkflowSettings>): Promise<WorkflowSettings>
+
+  // ===== 客户方案（Proposal）=====
+  listProposals(params: ProposalListParams): Promise<Paginated<Proposal>>
+  getProposal(id: string): Promise<ProposalDetail>
+  createProposal(input: ProposalCreateInput): Promise<ProposalUploadResult>
+  addProposalVersion(id: string, input: ProposalVersionInput): Promise<ProposalUploadResult>
+  updateProposal(id: string, input: Partial<ProposalUpdateInput>): Promise<Proposal>
+  deleteProposal(id: string): Promise<void>
+  /** 预览：拿某个版本的 HTML 文本（前端塞进 sandbox iframe）。 */
+  getProposalVersionContent(
+    id: string,
+    versionNo: number,
+    opts?: { raw?: boolean }
+  ): Promise<ProposalContent>
+  /** 下载：拿某个版本的单个 HTML（默认适配版；raw=true 拿原始上传版）。 */
+  downloadProposalVersion(
+    id: string,
+    versionNo: number,
+    opts?: { raw?: boolean }
+  ): Promise<Blob>
 }

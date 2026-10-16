@@ -15,6 +15,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -622,4 +623,108 @@ class CrmSavedView(Base):
         nullable=False,
         server_default=func.now(),
         onupdate=func.now(),
+    )
+
+
+# ---------- 客户方案（Proposal，BLF proposal 模块） ----------
+
+
+class CrmProposalStatus(str):
+    """方案状态：草稿 / 已发布 / 已归档。"""
+
+    DRAFT = "draft"
+    PUBLISHED = "published"
+    ARCHIVED = "archived"
+
+
+class CrmProposalType(str):
+    """方案类型（枚举，先不上独立分类表；有真实需要再升级）。"""
+
+    ONBOARDING = "onboarding"  # 入驻方案
+    OPERATION = "operation"  # 运营方案
+    QUOTATION = "quotation"  # 报价方案
+    OTHER = "other"
+
+
+class CrmProposal(Base):
+    """客户方案主表：一份面向某客户的方案（可多份）。
+
+    层级：crm_customers → crm_proposals → crm_proposal_versions。
+    文件不是独立一层——它是版本的载荷（raw_r2_key / adapted_r2_key），
+    因为输入约束是「单个 HTML」，一个版本恒等于一个文件。
+
+    - customer_id 可空：允许「未关联方案」（模板/先行产出）；
+      客户端删为软删，此处 ondelete=SET NULL 仅作硬删兜底。
+    - current_version_no 指向当前版本；历史版本不被改写（append-only）。
+    - owner_id = user_accounts.id UUID（沿用 CRM owner/admin 权限语义）。
+    """
+
+    __tablename__ = "crm_proposals"
+    __table_args__ = (
+        Index("idx_cp_customer", "customer_id"),
+        Index("idx_cp_owner_status", "owner_id", "status"),
+        Index("idx_cp_updated", "updated_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    proposal_type: Mapped[str] = mapped_column(
+        String(32), nullable=False, default=CrmProposalType.OTHER
+    )
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=CrmProposalStatus.DRAFT
+    )
+    customer_id: Mapped[int | None] = mapped_column(
+        ForeignKey("crm_customers.id", ondelete="SET NULL")
+    )
+    owner_id: Mapped[str | None] = mapped_column(
+        String(36)
+    )  # user_accounts.id UUID；null = 未指派
+    current_version_no: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_by: Mapped[str | None] = mapped_column(String(36))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+class CrmProposalVersion(Base):
+    """方案版本（append-only，永不 UPDATE 内容）。
+
+    每个版本冻结两份 R2 对象：
+    - raw_r2_key：原始上传的单个 HTML（交付保真 / 回滚用）；
+    - adapted_r2_key：注入本项目设计令牌后的单个 HTML（查看/默认下载用）。
+    adapted_sha256 供完整性与去重核对。
+    """
+
+    __tablename__ = "crm_proposal_versions"
+    __table_args__ = (
+        UniqueConstraint(
+            "proposal_id", "version_no", name="uq_cpv_proposal_version"
+        ),
+        Index("idx_cpv_proposal", "proposal_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    proposal_id: Mapped[int] = mapped_column(
+        ForeignKey("crm_proposals.id", ondelete="CASCADE"), nullable=False
+    )
+    version_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    raw_r2_key: Mapped[str] = mapped_column(String(512), nullable=False, unique=True)
+    adapted_r2_key: Mapped[str] = mapped_column(
+        String(512), nullable=False, unique=True
+    )
+    adapted_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    file_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    change_note: Mapped[str | None] = mapped_column(String(500))
+    created_by: Mapped[str | None] = mapped_column(String(36))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
     )

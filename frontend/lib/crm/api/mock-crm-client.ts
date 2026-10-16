@@ -23,6 +23,15 @@ import type {
   LeadInput,
   LifecycleBoard,
   LifecycleDistribution,
+  Proposal,
+  ProposalContent,
+  ProposalCreateInput,
+  ProposalDetail,
+  ProposalListParams,
+  ProposalUpdateInput,
+  ProposalUploadResult,
+  ProposalVersion,
+  ProposalVersionInput,
   Task,
   TaskInput,
   TaskListParams,
@@ -42,6 +51,9 @@ import {
   TASKS_FIXTURE,
   RULES_FIXTURE,
   USERS_FIXTURE,
+  PROPOSALS_FIXTURE,
+  PROPOSAL_VERSIONS_FIXTURE,
+  mockProposalHtml,
 } from './mock-data'
 
 const STORAGE_KEY = 'believeboy-crm-mock-state-v1'
@@ -65,6 +77,11 @@ interface MockState {
   audits: AuditLog[]
   tasks: Task[]
   rules: Rule[]
+  proposals: Proposal[]
+  /** 版本元数据（扁平存放，按 proposalId 过滤）。 */
+  proposalVersions: ProposalVersion[]
+  /** mock 预览/下载正文：`${proposalId}:${versionNo}` → 适配后的 HTML。 */
+  proposalBodies: Record<string, string>
   workflowSettings: WorkflowSettings
 }
 
@@ -106,6 +123,9 @@ function loadState(): MockState {
       audits: [],
       tasks: [...TASKS_FIXTURE],
       rules: [...RULES_FIXTURE],
+      proposals: [...PROPOSALS_FIXTURE],
+      proposalVersions: [...PROPOSAL_VERSIONS_FIXTURE],
+      proposalBodies: {},
       workflowSettings: { ...DEFAULT_WORKFLOW_SETTINGS },
     }
   }
@@ -122,6 +142,9 @@ function loadState(): MockState {
         audits: [],
         tasks: [...TASKS_FIXTURE],
         rules: [...RULES_FIXTURE],
+        proposals: [...PROPOSALS_FIXTURE],
+        proposalVersions: [...PROPOSAL_VERSIONS_FIXTURE],
+        proposalBodies: {},
         workflowSettings: { ...DEFAULT_WORKFLOW_SETTINGS },
       }
     }
@@ -136,6 +159,9 @@ function loadState(): MockState {
       audits: parsed.audits ?? [],
       tasks: parsed.tasks ?? [...TASKS_FIXTURE],
       rules: parsed.rules ?? [...RULES_FIXTURE],
+      proposals: parsed.proposals ?? [...PROPOSALS_FIXTURE],
+      proposalVersions: parsed.proposalVersions ?? [...PROPOSAL_VERSIONS_FIXTURE],
+      proposalBodies: parsed.proposalBodies ?? {},
       workflowSettings: parsed.workflowSettings ?? { ...DEFAULT_WORKFLOW_SETTINGS },
     }
   } catch {
@@ -149,6 +175,9 @@ function loadState(): MockState {
       audits: [],
       tasks: [...TASKS_FIXTURE],
       rules: [...RULES_FIXTURE],
+      proposals: [...PROPOSALS_FIXTURE],
+      proposalVersions: [...PROPOSAL_VERSIONS_FIXTURE],
+      proposalBodies: {},
       workflowSettings: { ...DEFAULT_WORKFLOW_SETTINGS },
     }
   }
@@ -1357,5 +1386,165 @@ export class MockCrmClient implements CrmClient {
     this.state.workflowSettings = next
     persistState(this.state)
     return { ...next }
+  }
+
+  // ===== 客户方案（Proposal）=====
+
+  private proposalVersionsOf(proposalId: string): ProposalVersion[] {
+    return this.state.proposalVersions
+      .filter((v) => v.id.startsWith(`pv-${proposalId}-`))
+      .sort((a, b) => b.versionNo - a.versionNo)
+  }
+
+  private bodyKey(proposalId: string, versionNo: number): string {
+    return `${proposalId}:${versionNo}`
+  }
+
+  private readBody(proposalId: string, versionNo: number): string {
+    const key = this.bodyKey(proposalId, versionNo)
+    if (this.state.proposalBodies[key]) return this.state.proposalBodies[key]
+    const proposal = this.state.proposals.find((p) => p.id === proposalId)
+    return mockProposalHtml(proposal?.title ?? '方案', versionNo)
+  }
+
+  async listProposals(params: ProposalListParams): Promise<Paginated<Proposal>> {
+    await this.delay('listProposals')
+    let items = applyScope(this.state.proposals, params.scope ?? 'mine', this.currentUserId, 'ownerId')
+    items = applyKeyword(items, params.keyword, ['title', 'customerName'])
+    items = applyFilters(items, params.filters)
+    items = applySort(items, params.sortBy ?? 'updatedAt', params.sortOrder ?? 'desc')
+    return paginate(items, params.page, params.pageSize)
+  }
+
+  async getProposal(id: string): Promise<ProposalDetail> {
+    await this.delay('getProposal')
+    const proposal = this.state.proposals.find((p) => p.id === id)
+    if (!proposal) throw new Error(`方案不存在: ${id}`)
+    return { ...proposal, versions: this.proposalVersionsOf(id) }
+  }
+
+  async createProposal(input: ProposalCreateInput): Promise<ProposalUploadResult> {
+    await this.delay('createProposal')
+    const id = genId('p')
+    const content = await input.file.text()
+    const customer = this.state.customers.find((c) => c.id === input.customerId)
+    const proposal: Proposal = {
+      id,
+      title: input.title?.trim() || input.file.name.replace(/\.html?$/i, '') || '未命名方案',
+      proposalType: input.proposalType ?? 'other',
+      status: 'draft',
+      customerId: input.customerId ?? undefined,
+      customerName: customer?.name,
+      ownerId: this.currentUserId,
+      ownerName: this.state.users.find((u) => u.id === this.currentUserId)?.name,
+      currentVersionNo: 1,
+      versionCount: 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+    const version: ProposalVersion = {
+      id: `pv-${id}-1`,
+      versionNo: 1,
+      originalFilename: input.file.name,
+      contentType: input.file.type || 'text/html',
+      fileSize: input.file.size,
+      changeNote: '初始版本',
+      createdBy: this.currentUserId,
+      createdAt: proposal.createdAt,
+    }
+    this.state.proposals = [proposal, ...this.state.proposals]
+    this.state.proposalVersions = [version, ...this.state.proposalVersions]
+    this.state.proposalBodies[this.bodyKey(id, 1)] = content
+    persistState(this.state)
+    return { proposal, version, warnings: [] }
+  }
+
+  async addProposalVersion(
+    id: string,
+    input: ProposalVersionInput
+  ): Promise<ProposalUploadResult> {
+    await this.delay('addProposalVersion')
+    const proposal = this.state.proposals.find((p) => p.id === id)
+    if (!proposal) throw new Error(`方案不存在: ${id}`)
+    const versionNo = proposal.currentVersionNo + 1
+    const content = await input.file.text()
+    const version: ProposalVersion = {
+      id: `pv-${id}-${versionNo}`,
+      versionNo,
+      originalFilename: input.file.name,
+      contentType: input.file.type || 'text/html',
+      fileSize: input.file.size,
+      changeNote: input.changeNote,
+      createdBy: this.currentUserId,
+      createdAt: new Date().toISOString(),
+    }
+    const next: Proposal = {
+      ...proposal,
+      currentVersionNo: versionNo,
+      versionCount: proposal.versionCount + 1,
+      updatedAt: version.createdAt,
+    }
+    this.state.proposals = this.state.proposals.map((p) => (p.id === id ? next : p))
+    this.state.proposalVersions = [version, ...this.state.proposalVersions]
+    this.state.proposalBodies[this.bodyKey(id, versionNo)] = content
+    persistState(this.state)
+    return { proposal: next, version, warnings: [] }
+  }
+
+  async updateProposal(
+    id: string,
+    input: Partial<ProposalUpdateInput>
+  ): Promise<Proposal> {
+    await this.delay('updateProposal')
+    const proposal = this.state.proposals.find((p) => p.id === id)
+    if (!proposal) throw new Error(`方案不存在: ${id}`)
+    const customer =
+      input.customerId != null
+        ? this.state.customers.find((c) => c.id === input.customerId)
+        : undefined
+    const next: Proposal = {
+      ...proposal,
+      title: input.title ?? proposal.title,
+      proposalType: input.proposalType ?? proposal.proposalType,
+      status: input.status ?? proposal.status,
+      customerId: input.customerId === undefined ? proposal.customerId : input.customerId ?? undefined,
+      customerName: input.customerId === undefined ? proposal.customerName : customer?.name,
+      updatedAt: new Date().toISOString(),
+    }
+    this.state.proposals = this.state.proposals.map((p) => (p.id === id ? next : p))
+    persistState(this.state)
+    return next
+  }
+
+  async deleteProposal(id: string): Promise<void> {
+    await this.delay('deleteProposal')
+    this.state.proposals = this.state.proposals.filter((p) => p.id !== id)
+    this.state.proposalVersions = this.state.proposalVersions.filter(
+      (v) => !v.id.startsWith(`pv-${id}-`)
+    )
+    for (const key of Object.keys(this.state.proposalBodies)) {
+      if (key.startsWith(`${id}:`)) delete this.state.proposalBodies[key]
+    }
+    persistState(this.state)
+  }
+
+  async getProposalVersionContent(
+    id: string,
+    versionNo: number
+  ): Promise<ProposalContent> {
+    await this.delay('getProposalVersionContent')
+    const proposal = this.state.proposals.find((p) => p.id === id)
+    if (!proposal) throw new Error(`方案不存在: ${id}`)
+    return {
+      proposalId: id,
+      versionNo,
+      title: proposal.title,
+      content: this.readBody(id, versionNo),
+    }
+  }
+
+  async downloadProposalVersion(id: string, versionNo: number): Promise<Blob> {
+    await this.delay('downloadProposalVersion')
+    return new Blob([this.readBody(id, versionNo)], { type: 'text/html;charset=utf-8' })
   }
 }
