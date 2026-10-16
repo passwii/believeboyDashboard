@@ -169,7 +169,7 @@ grep -rn "bg-white\b\|bg-slate-100\|bg-gray-50\|text-gray-700" frontend/app --in
 | 图片预览 | `ImagePreviewDialog` | `ui/image-preview-dialog.tsx` |
 | 上传 | `UploadZone` | `ui/upload-zone.tsx` |
 | **通知** | **`components/notifications/` 的 `useNotifications().notify()`（全局 Provider，`NotificationBell` + toast）** | `components/notifications/*` |
-| 面包屑 | `Breadcrumb` | `ui/breadcrumb.tsx` |
+| 面包屑 | 由 `TerminalHeader` 按 `lib/dashboard-route-meta.ts` 路由元数据渲染「域 › 模块」；页面正文不再自造面包屑 | `components/terminal/terminal-header.tsx` |
 
 > **禁止引入新的通知库**（如 sonner）：通知统一走 `useNotifications()`（`frontend/components/notifications/notifications-context.tsx`）。
 
@@ -195,18 +195,12 @@ grep -rn "bg-white\b\|bg-slate-100\|bg-gray-50\|text-gray-700" frontend/app --in
 
 ### 4.1 页面头部模式
 
-标准结构 = **eyebrow（可选）+ 标题 + 描述 + 操作区**，**已收口为 `PageHeader` 原语**（`components/ui/page-header.tsx`，规则见 §8.1），两种形态：
+**页面标题由 Top Header 承载**（BLF-824 去重原则）：`TerminalHeader` 依据 `lib/dashboard-route-meta.ts` 的 `DASHBOARD_PAGE_TITLES` 在固定 56px 头栏渲染「域 › 模块」面包屑 + 当前页标题。**页面正文不再渲染页内标题胶囊**（原 `PageHeader` 原语已下线）。
 
-1. **Eyebrow pill 形态**（`PageHeader` 的 `eyebrow` prop，参考 `app/dashboard/operations/site-navigation/page.tsx:138`）：
-   ```tsx
-   <PageHeader eyebrow={<><Store className="h-3.5 w-3.5" /> 运营导航 · 站点导航</>} description="..." actions={...} />
-   ```
-2. **Kicker 小标形态**（`PageHeader` 的 `kicker` prop + `title`，`dashboard-kicker` 类，参考 `app/dashboard/operations/inventory-analysis/inventory-analysis-client.tsx` 的 `DataTableCardHeader` 内用法）：
-   ```tsx
-   <PageHeader kicker="操作台账" title="库存明细表" description="..." />
-   ```
-
-**页面级头部布局**：`flex flex-wrap items-start justify-between gap-5`（标题/描述在左，操作/统计在右，由 `PageHeader` 内置，参考 site-navigation:138-166）。区块标题用 `flex items-end justify-between`（`h2 text-lg font-semibold tracking-tight md:text-xl` + `text-xs text-muted-foreground` 描述，site-navigation:162-165）。
+- 正文首屏用 `TermPanel`（`components/terminal/term-panel.tsx`：`title` + `actions` 卡头）或 `TermPageShell` 承载区块，**不要重复写页面标题**。
+- 区块小标题用 `font-mono text-xs font-semibold uppercase tracking-wider text-term-muted`（参考 `app/dashboard/operations/site-navigation/page.tsx` 的「平台 · 核心运营入口」）。
+- 页面级筛选 / 操作经 header 插槽注入：`useHeaderSlot(<ReactNode>)` 把控件 portal 进 Top Header 中段，`useHeaderRefresh(handler, { loading })` 接管全局刷新（无注册方时兜底 `router.refresh()`）。见 `components/terminal/terminal-header-slot.tsx`。
+- 卡内枚举 / 状态小标签用 `TermPill`（`components/terminal/term-controls.tsx`）。
 
 ### 4.2 页面壳
 
@@ -264,12 +258,11 @@ grep -rn "bg-white\b\|bg-slate-100\|bg-gray-50\|text-gray-700" frontend/app --in
 | `funnel-chart.tsx` | 漏斗图 | — |
 | `stat-card.tsx` | `StatCard` 统计卡 + `StatCardRow` 指标卡行 | emerald/rose/sky/amber 四色 + trend（涨跌走 Delta） |
 | `delta.tsx` | `Delta` / `DeltaIcon` / `DeltaValue` 涨跌原语 | 正值 emerald / 负值 rose，主页 v2-delta 为其 re-export |
-| `page-header.tsx` | `PageHeader` 页面头部 | §4.1/§8.1：eyebrow pill + kicker 两种形态 + 操作区 |
 | `filter-toolbar.tsx` | `FilterToolbar` 筛选工具栏 | §8.2：桌面横向 / 手机 2 列网格 |
 | `error-state.tsx` | `ErrorState` 错误态 | §8.4 三态之错误：可带重试、表格内 colSpan |
 | `dialog.tsx` / `alert-dialog.tsx` / `sheet.tsx` | 弹窗 / 确认框 / 侧滑 | 统一动效 |
 | `dropdown-menu.tsx` / `popover.tsx` / `select.tsx` / `command.tsx` / `combobox.tsx` / `multi-select.tsx` | 各类选择器 | 页面内选择一律用这些 |
-| `tabs.tsx` / `accordion.tsx` / `collapsible.tsx` / `breadcrumb.tsx` / `tooltip.tsx` / `hover-card.tsx` | 导航 / 收纳 / 提示 | — |
+| `tabs.tsx` / `accordion.tsx` / `tooltip.tsx` / `hover-card.tsx` | 导航 / 收纳 / 提示 | 面包屑统一由 `TerminalHeader` 渲染 |
 | `form.tsx` / `input.tsx` / `label.tsx` / `textarea.tsx` / `switch.tsx` / `checkbox.tsx` / `radio*` | 表单原语 | react-hook-form + zod |
 | `calendar.tsx` / `date-picker.tsx` / `time-picker.tsx` / `calendar-with-presets.tsx` | 日期时间 | — |
 | `pagination.tsx` | 分页 | — |
@@ -331,18 +324,18 @@ grep -rn "bg-white\b\|bg-slate-100\|bg-gray-50\|text-gray-700" frontend/app --in
 
 > BLF-503 定稿（2026-08-08）。本节把**高频页面组合**收口为可复用原语 + 规则，是 Stage 4 后续"高频页精修 / 长尾页扫尾"（BLF-504+）的统一模板。每个模式 = 规则 + 组件引用 + 真实页面示例；**新页面优先按本节组合，不再逐页手写**。
 
-### 8.1 PageHeader 页面头部
+### 8.1 页面头部（Top Header 收口）
 
-**规则**：页面级头部 = eyebrow（可选）+ 标题（可选）+ 描述 + 操作区，布局 `flex flex-wrap items-start justify-between gap-5`（标题/描述在左，操作/统计在右）。
+**规则**：页面标题与面包屑由 `TerminalHeader` 统一承载（BLF-824 去重原则），页面正文不再渲染页内标题胶囊（原 `PageHeader` 原语已下线）。
 
 | 项 | 规则 | 实现 |
 |---|---|---|
-| 组件 | `PageHeader`（`components/ui/page-header.tsx:31`），不包卡片外壳，页面按需包 `dashboard-surface` | — |
-| 形态 1（主） | `kicker`：`dashboard-kicker` 小标 + `title`（h1，`--font-display` 自动）+ `description` | `ui/page-header.tsx` |
-| 形态 2（变体） | `eyebrow`：§4.1 pill 胶囊小标（可带 icon），`title` 可省略（如 site-navigation 只有 pill+描述） | `ui/page-header.tsx` |
-| 操作区 | `actions` 放右侧（按钮 / 轻量统计 chips），自动 flex-wrap；轻量统计用 chips 网格（`grid grid-cols-3 gap-2.5 max-w-sm`）而非 StatCard | — |
+| 标题 / 面包屑 | 按 `DASHBOARD_PAGE_TITLES` 路由匹配渲染「域 › 模块」+ 当前页标题，固定 56px 头栏 | `components/terminal/terminal-header.tsx` + `lib/dashboard-route-meta.ts` |
+| 正文区块 | 用 `TermPanel`（`title` + `actions` 卡头）或 `TermPageShell` 承载，不重复写页面标题 | `components/terminal/term-panel.tsx` / `term-controls.tsx` |
+| 筛选 / 操作 | 经 header 插槽注入：`useHeaderSlot(<ReactNode>)` portal 控件、`useHeaderRefresh(handler, { loading })` 接管全局刷新（无注册方兜底 `router.refresh()`） | `components/terminal/terminal-header-slot.tsx` |
+| 区块小标题 | `font-mono text-xs font-semibold uppercase tracking-wider text-term-muted` | — |
 
-**示例**：`app/dashboard/operations/site-navigation/page.tsx:138`（pill 形态 + 右侧 3 个统计 chips）。存量 kicker 形态参照 `app/dashboard/operations/inventory-analysis/inventory-analysis-client.tsx`（`dashboard-kicker` + DataTableCardHeader 内用法）。
+**示例**：`app/dashboard/operations/site-navigation/page.tsx`（`TermPanel` + 区块小标题）；`app/dashboard/operations/inventory-analysis/inventory-analysis-client.tsx`（`useHeaderSlot` + `HeaderSlotSelect`）。
 
 ### 8.2 FilterToolbar 筛选工具栏
 
@@ -388,14 +381,14 @@ grep -rn "bg-white\b\|bg-slate-100\|bg-gray-50\|text-gray-700" frontend/app --in
 
 | 模式 | 原语 | 试点页面（已落地） | 待铺开 |
 |---|---|---|---|
-| 页面头部 | `PageHeader` | site-navigation（pill 形态） | 其余业务页头部 |
+| 页面头部 | `TerminalHeader`（路由标题 + 面包屑）+ `TermPanel` / `TermPageShell` | 全站统一 | 存量页内标题胶囊迁移 |
 | 筛选工具栏 | `FilterToolbar` | daily-analysis | inventory-analysis / inventory-ledger / weekly-product-analysis / portfolio-overview |
 | 指标卡行 | `StatCardRow` + `Delta` | StatCard 已统一 Delta（project-goals 等存量卡自动生效） | 各页 KPI 行 |
 | 三态 | `ErrorState` + 骨架 + 空态 | — | 存量手写错误块迁移 |
 
 > **BLF-505 长尾扫尾（2026-08-10）落地记录**：
 >
-> - **PageHeader（pill 形态）已铺开**：platform-inspection、store-navigation、shipment-management、sku-info、weekly-product-analysis、portfolio-overview、alerts、agent-management、backup-management、changelog、vat-invoice、report-reconciliation、ai/ad-analysis、ai/believeboy-models、ai/digital-employees、reports/auto-upload、reports/product-analysis、profile。
+> - **PageHeader（pill 形态）曾铺开**：platform-inspection、store-navigation、shipment-management、sku-info、weekly-product-analysis、portfolio-overview、alerts、agent-management、backup-management、changelog、vat-invoice、report-reconciliation、ai/ad-analysis、ai/believeboy-models、ai/digital-employees、reports/auto-upload、reports/product-analysis、profile。**（2026-10 更新：`PageHeader` 原语已下线，标题统一由 `TerminalHeader` 承载，见 §4.1 / §8.1）**
 > - **FilterToolbar 已铺开**：project-goals、return-analysis、inventory-replenishment、seasonal-replenishment、weekly-product-analysis。
 > - **保留的存量变体**：① console 页头（`DataCardHeader`/`CardHeader` + `dashboard-kicker`，daily-analysis / exchange-rate / order-info / monthly-report / logs / account-management 等）为卡内 console 模式，允许并存；② `components/dashboard/console/filter-toolbar.tsx` carded 形态供 portfolio-overview；③ console-hero（icon tile + SnapshotSelector，inventory-replenishment / pricing-calculation）为跨页既定模式；④ 报表渲染页（ai/insights）与版本发布 hero（feature-updates）为刻意设计。
 > - **暗黑硬编码**：清扫 project-goals「本月」高亮行 `bg-blue-50/50` → 补 `dark:bg-blue-950/30` + `dark:text-blue-400`；cyan 自制 eyebrow 徽章（project-info / data-management / profile / change-password）→ 标准 primary pill 配方。

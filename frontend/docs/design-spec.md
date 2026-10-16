@@ -76,7 +76,7 @@
 | 选择类 | Select / Combobox / Command / Popover / DatePicker | #457（BLF-870） |
 | 浮层类 | Sheet / Dialog / Tooltip | #458（BLF-871） |
 | 数据展示 | Card / DataCard / StatCard / Table / Badge / Empty / Skeleton / Pagination 统一外壳 `TERM_PANEL_SURFACE`（`card.tsx` 导出：零圆角 / 零阴影 / 零渐变） | #464（BLF-872） |
-| 导航布局 | Breadcrumb / PageHeader / FilterToolbar / ScrollArea / Separator；**删除** `ui/sidebar.tsx`（731 行）+ `sidebar-mobile-sheet` + `sidebar-constants`（被 `terminal-shell` 六区外壳取代） | #465（BLF-873） |
+| 导航布局 | FilterToolbar / ScrollArea / Separator；面包屑与页面标题由 `TerminalHeader` 承载（原 `Breadcrumb` / `PageHeader` 原语已下线）；**删除** `ui/sidebar.tsx`（731 行）+ `sidebar-mobile-sheet` + `sidebar-constants`（被 `terminal-shell` 六区外壳取代） | #465（BLF-873） |
 | Tabs | `variant="term"`：term 基座 + 激活态 accent 发光指示条 + 前置 icon + h-10 | #451 / #461 / #466（BLF-867 / 883）+ BLF-887 |
 | FieldLabel | **组件下线**，统一终端样式 | #450（BLF-876） |
 | 操作区 / Header | 4 档固定宽度原子控件；Head 三区骨架与常量抽取（BLF-877）；刷新按钮全页面常驻（BLF-881） | #449 / #454 / #460 |

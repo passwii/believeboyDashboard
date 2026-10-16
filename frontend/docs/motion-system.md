@@ -1,8 +1,8 @@
 # Motion System Guide
 
-> **适用版本：** v1（Phase 0-10 完成）
+> **适用版本：** 当前 frontend 动效实现（2026-10 更新）
 > **适用对象：** 在 `frontend/` 下新增 / 修改动效相关的工程师
-> **目标：** 让任何工程师在 5 分钟内能决定"用哪个组件 + 用哪个 token"
+> **目标：** 说明当前可用的路由动效、CSS 动效工具类和底层 spotlight hook
 
 ---
 
@@ -16,11 +16,10 @@
 └─────────────────────────────────────────────────────────────┘
             ↑                    ↑                  ↑
 ┌─────────────────────────────────────────────────────────────┐
-│ Primitive 层：components/motion/*                           │
-│ - PageTransition / Normal / FullBleed                       │
-│ - MotionFade / MotionStagger / MotionStaggerItem            │
-│ - DashboardSurfaceCard（组合 dashboard-surface + spotlight） │
-│ - useSpotlight hook                                         │
+│ 可复用层                                                   │
+│ - PageTransition / Normal / FullBleed（路由切换）            │
+│ - CSS：animate-fade-slide-up / u-stagger-item               │
+│ - useSpotlight hook（只写入光标坐标，不提供卡片包装）          │
 └─────────────────────────────────────────────────────────────┘
             ↑                    ↑                  ↑
 ┌─────────────────────────────────────────────────────────────┐
@@ -33,8 +32,8 @@
 **核心原则**
 
 1. **改 token 必双侧同步**：改 `globals.css` 必须同步改 `tokens.ts`，反之亦然（详见 §2.3）
-2. **优先用 Primitive 而非直接用 framer-motion**：业务方只用组合原语，不直接写 `motion.div`
-3. **无障碍是默认行为**：reduced-motion / reduced-transparency 不需要单独写，已封装在 Primitive 内
+2. **页面内容优先使用 CSS 动效工具类**：元素淡入用 `animate-fade-slide-up`，列表错落用 `u-stagger-item`；不要导入已移除的 MotionFade / MotionStagger 包装组件
+3. **无障碍退化由全局 CSS 保证**：reduced-motion 时以上 CSS 动效会立即显示；自定义 framer-motion 动效必须自行处理 `useReducedMotion()`
 
 ---
 
@@ -111,51 +110,52 @@ pnpm test && pnpm build
 ### 3.2 元素淡入
 
 ```tsx
-import { MotionFade } from '@/components/motion/MotionFade'
-
-<MotionFade>
+<div className="animate-fade-slide-up">
   <Card />
-</MotionFade>
+</div>
 ```
 
-**适用**：单个元素的入场、加载完成后显示。会自动尊重 `prefers-reduced-motion`（reduced 时跳过 fade，瞬时显示）。
+**适用**：单个元素的入场、加载完成后显示。工具类使用全局 `--motion-base` / `--motion-ease-out`；`prefers-reduced-motion: reduce` 时全局 CSS 会取消动画并显示内容。
 
 ### 3.3 列表错落进场
 
 ```tsx
-import { MotionStagger, MotionStaggerItem } from '@/components/motion/MotionStagger'
-
-<MotionStagger className="contents">  {/* 注意：contents 不破坏 grid */}
-  <MotionStaggerItem><Card /></MotionStaggerItem>
-  <MotionStaggerItem><Card /></MotionStaggerItem>
-  <MotionStaggerItem><Card /></MotionStaggerItem>
-</MotionStagger>
+<div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+  {items.map((item, index) => (
+    <Card
+      key={item.id}
+      className="u-stagger-item"
+      style={{ '--i': index } as React.CSSProperties}
+    />
+  ))}
+</div>
 ```
 
 **适用**：dashboard row / 卡片网格 / 列表入场。
 
 **注意**：
-- 容器使用 `className="contents"` 避免破坏 grid / flex 布局（如果外层是 grid）
-- 当前仅 `MotionStaggerItem` 暴露为 named export；不要自己写 `motion.div variants={...}`
-- reduced-motion 时直接返回 children（无 stagger）
+- 直接在列表项上使用 `u-stagger-item`，不要额外包一层 `display: contents` 容器
+- `--i` 是从 0 开始的序号，用于按 `--stagger-step` 计算延迟
+- reduced-motion 时全局 CSS 清除动画、延迟和透明度，内容保持可见
 
 ### 3.4 数据卡聚光（hover spotlight）
 
 ```tsx
-import { DashboardSurfaceCard } from '@/components/dashboard/dashboard-surface-card'
+const spotlightRef = useSpotlight<HTMLDivElement>({ enabled: true })
 
-<DashboardSurfaceCard spotlight>  {/* spotlight 默认 true */}
-  <CardContent />
-</DashboardSurfaceCard>
+return (
+  <div ref={spotlightRef} data-spotlight className="dashboard-surface spotlight-card">
+    <CardContent />
+  </div>
+)
 ```
 
-**适用**：KPI 卡 / 数据卡 / 需要 hover 聚光感的高频表面。
+`useSpotlight` 只监听 pointermove 并写入 `--spot-x` / `--spot-y`；它不再有通用卡片包装组件。只有页面确实需要动态高光时才使用，并为 `.spotlight-card::before` 提供局部渐变样式。普通数据卡使用项目现有的 `DataCard` / `TermPanel` / `.dashboard-surface`。
 
 **关键约束**：
-- ⚠️ **不要全局替换**：现有 92 处 `.dashboard-surface` 不动，全局挂 pointermove 会爆性能
-- 仅在新组件或试点处使用此 wrapper
-- spotlight 视觉由 CSS 径向渐变 + `before:` pseudo 实现，无需 JS 介入渲染
-- reduced-transparency / coarse pointer 下 useSpotlight 不挂监听，CSS 通过 `--spotlight-strength: 0` 关闭视觉
+- ⚠️ **不要全局替换**：`.dashboard-surface` 被大量页面共用，不要全局挂 pointermove 监听
+- hook 不负责渲染高光；局部 CSS 需读取坐标变量和 `--spotlight-strength`
+- `prefers-reduced-transparency: reduce` 时 `[data-spotlight]` 会将 `--spotlight-strength` 设为 `0`，hook 也不会挂监听
 
 ### 3.5 自定义 pointermove 高光
 
@@ -166,7 +166,7 @@ const ref = useSpotlight<HTMLDivElement>({ enabled: true })
 return <div ref={ref} className="...">...</div>
 ```
 
-**适用**：需要更精细控制的 spotlight 场景（不通过 `<DashboardSurfaceCard>`，例如需要不同形状或不同色彩）。
+**适用**：需要自定义形状或颜色的 spotlight 场景。hook 只负责坐标，视觉仍由使用处 CSS 实现。
 
 **要点**：
 - hook 写入 element.style 的 `--spot-x` / `--spot-y`（百分比），CSS 用 `radial-gradient(...)` 渲染
@@ -187,7 +187,7 @@ return <div ref={ref} className="...">...</div>
 `h-*` 等 utilities。同类全高构图可沿用这个口径。
 
 **退化**：两个动效都进 `prefers-reduced-motion: reduce` 闸门（`animation: none` + 覆盖层
-`opacity: 0`），关闭后各行停在静息色，信息零丢失——不走 `MotionFade` / framer-motion，
+`opacity: 0`），关闭后各行停在静息色，信息零丢失——不使用 framer-motion，
 因为这里不需要 JS 参与，避免给登录路由加 hydration 成本。
 
 **反向纪律（2026-09-30）**：`.u-interactive` 会在 hover 时 `translateY(-1px)`，**不要用在
@@ -256,9 +256,9 @@ const FULL_BLEED_DASHBOARD_ROUTES = [
 |------|---------|---------|
 | 路由切换看不到动效 | PageTransition 变体 key 不是 pathname | grep `key={pathname}` 在 `Normal/FullBleedPageTransition.tsx` |
 | full-bleed 页面塌缩 | wrapper 不是 `!absolute inset-0` | 检查 `isFullBleedDashboardRoute` 路由判断 + 父级是否 min-h |
-| 看不到 stagger | MotionStagger 容器没 `display: contents` | 检查 `className` 是否被覆盖 |
+| 看不到 stagger | 列表项缺少 `u-stagger-item` 或 `--i` | 检查每个列表项是否设置工具类和从 0 开始的序号 |
 | Spotlight 不跟随 | reduced-transparency / coarse pointer 启用 | DevTools → Rendering 检查 media |
-| Spotlight 闪屏 | `before:` pseudo 与 `transition-opacity` 没正确合并 | 检查 `dashboard-surface-card.tsx` 的 `before:` 链 |
+| Spotlight 闪屏 | 局部 `::before` 渐变或透明度配置错误 | 检查使用处是否读取 `--spot-x` / `--spot-y` / `--spotlight-strength` |
 | 路由切换慢 / 卡 | `will-change-transform` 未释放 | 检查 `AnimatePresence mode="wait"` 是否正确卸载旧 motion.div |
 | 模糊糊掉 1px 边框 | Retina 屏 backdrop-filter 半径过大 | 永不主动加 backdrop-filter 到 `.dashboard-surface` |
 | 数值不一致 | CSS 与 JS 两侧数值漂移 | `pnpm test`（`tokens.test.ts` 有数值断言） |
