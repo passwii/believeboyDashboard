@@ -352,3 +352,21 @@ def test_same_day_snapshot_concurrent_conflict_recovers(monkeypatch, db_session)
     finally:
         db_session.rollback()
         _cleanup_seed(seed)
+
+
+def test_non_finite_numbers_rejected(db_session, target):
+    cases: list[dict[str, Any]] = [
+        {"status": "success", "rating": _rating(average_rating=float("nan"))},
+        {"status": "success", "rating": _rating(average_rating=float("inf"))},
+        {"status": "success", "rating": _rating(star_percentages=(0, 0, 0, 0, float("nan")))},
+        {"status": "success", "rating": _rating(star_percentages=(0, 0, 0, 0, float("inf")))},
+        {"status": "success", "rating": _rating(star_counts=(1, 2, 3, 4, float("inf")))},
+        {"status": "success", "rating": _rating(star_counts=(1, 2, 3, 4, float("nan")))},
+    ]
+    for case in cases:
+        with pytest.raises(IngestionError):
+            record_crawl_result(db_session, target_id=target.id, captured_at=_now(), **case)
+    db_session.flush()
+    assert db_session.execute(select(AmazonReviewCrawlRun)).scalars().all() == []
+    assert db_session.execute(select(AmazonReviewRatingSnapshot)).scalars().all() == []
+    assert db_session.execute(select(AmazonReviewReview)).scalars().all() == []

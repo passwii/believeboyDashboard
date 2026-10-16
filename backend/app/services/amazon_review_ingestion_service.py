@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -78,27 +79,31 @@ def _validate_capture(
     if rating is not None:
         if rating.star_count_quality not in ("exact", "estimated", "unavailable"):
             raise IngestionError(f"invalid star_count_quality: {rating.star_count_quality}")
-        if rating.average_rating is not None and not 0 <= rating.average_rating <= 5:
-            raise IngestionError("average_rating must be between 0 and 5")
-        if rating.rating_count is not None and rating.rating_count < 0:
-            raise IngestionError("rating_count must be >= 0")
-        if rating.review_count is not None and rating.review_count < 0:
-            raise IngestionError("review_count must be >= 0")
+        if rating.average_rating is not None and (
+            not math.isfinite(rating.average_rating) or not 0 <= rating.average_rating <= 5
+        ):
+            raise IngestionError("average_rating must be a finite number between 0 and 5")
+        if rating.rating_count is not None and (not math.isfinite(rating.rating_count) or rating.rating_count < 0):
+            raise IngestionError("rating_count must be a non-negative finite number")
+        if rating.review_count is not None and (not math.isfinite(rating.review_count) or rating.review_count < 0):
+            raise IngestionError("review_count must be a non-negative finite number")
         for label, values in (("star_percentages", rating.star_percentages), ("star_counts", rating.star_counts)):
             if values is not None and len(values) != 5:
                 raise IngestionError(f"{label} must contain exactly 5 values")
-        if rating.star_percentages is not None and any(p < 0 or p > 100 for p in rating.star_percentages):
-            raise IngestionError("star_percentages values must be between 0 and 100")
-        if rating.star_counts is not None and any(c < 0 for c in rating.star_counts):
-            raise IngestionError("star_counts values must be >= 0")
+        if rating.star_percentages is not None and any(
+            not math.isfinite(p) or p < 0 or p > 100 for p in rating.star_percentages
+        ):
+            raise IngestionError("star_percentages values must be finite numbers between 0 and 100")
+        if rating.star_counts is not None and any(not math.isfinite(c) or c < 0 for c in rating.star_counts):
+            raise IngestionError("star_counts values must be non-negative finite numbers")
     if reviews is not None:
         for item in reviews:
             if item.id_confidence not in ("original", "derived"):
                 raise IngestionError(f"invalid id_confidence: {item.id_confidence}")
-            if item.rating is not None and not 1 <= item.rating <= 5:
-                raise IngestionError("review rating must be between 1 and 5")
-            if item.helpful_count is not None and item.helpful_count < 0:
-                raise IngestionError("helpful_count must be >= 0")
+            if item.rating is not None and (not math.isfinite(item.rating) or not 1 <= item.rating <= 5):
+                raise IngestionError("review rating must be a finite integer between 1 and 5")
+            if item.helpful_count is not None and (not math.isfinite(item.helpful_count) or item.helpful_count < 0):
+                raise IngestionError("helpful_count must be a non-negative finite number")
 
 
 def _existing_run(db: Session, target_id: int, idempotency_key: str | None) -> AmazonReviewCrawlRun | None:
