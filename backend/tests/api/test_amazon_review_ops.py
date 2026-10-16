@@ -72,6 +72,30 @@ def _seed_target(db_session):
     return target
 
 
+def _seed_project_targets(db_session, count):
+    """One dedicated project with ``count`` internal-group targets (isolated for pagination)."""
+    project = Project(project_name=f"ops-page-{uuid.uuid4().hex[:8]}", sort_order=930100, is_active=True)
+    db_session.add(project)
+    db_session.flush()
+    targets = []
+    for _ in range(count):
+        sku = SkuRecord(
+            project_id=project.id, project_name=project.project_name,
+            sku=f"ops-page-{uuid.uuid4().hex[:8]}", asin=f"B0{uuid.uuid4().hex[:8].upper()}",
+            country="US", fob_unit_cost=0, sort_order=930100, is_active=True,
+        )
+        db_session.add(sku)
+        db_session.flush()
+        group = create_group(db_session, project_id=project.id, marketplace="US",
+            name=f"OpsPage-{uuid.uuid4().hex[:6]}", member_ids=[sku.id], representative_id=sku.id)
+        db_session.flush()
+        targets.append(db_session.execute(
+            select(AmazonReviewTarget).where(AmazonReviewTarget.group_id == group.id)
+        ).scalar_one())
+    db_session.flush()
+    return project.id, targets
+
+
 def test_list_targets_filters_by_group_and_kind(client, admin_headers, db_session):
     target = _seed_target(db_session)
     resp = client.get(TARGETS_URL, params={"kind": "internal_group"}, headers=admin_headers)
@@ -162,3 +186,40 @@ def test_targets_and_snapshots_limit_bounds(client, admin_headers, db_session):
     snaps_url = f"{TARGETS_URL}/{target.id}/rating-snapshots"
     assert client.get(snaps_url, params={"limit": 0}, headers=admin_headers).status_code == 422
     assert client.get(snaps_url, params={"limit": 1001}, headers=admin_headers).status_code == 422
+
+
+def test_targets_pagination_orders_by_id_and_covers_all(client, admin_headers, db_session):
+    project_id, targets = _seed_project_targets(db_session, 3)
+    page1 = client.get(TARGETS_URL, params={"project_id": project_id, "limit": 2, "offset": 0},
+                       headers=admin_headers)
+    page2 = client.get(TARGETS_URL, params={"project_id": project_id, "limit": 2, "offset": 2},
+                       headers=admin_headers)
+    assert page1.status_code == 200 and page2.status_code == 200
+    ids = [item["id"] for item in page1.json()] + [item["id"] for item in page2.json()]
+    assert len(page1.json()) == 2 and len(page2.json()) == 1
+    # 两页并集 == 全集，且为 id 升序 → 不重不漏、确定顺序
+    assert ids == sorted(t.id for t in targets)
+
+
+def test_rating_snapshots_pagination_orders_by_date_and_covers_all(client, admin_headers, db_session):
+    target = _seed_target(db_session)  # 快照 capture_date = 2026-10-21
+    for day in (22, 23):
+        record_crawl_result(db_session, target_id=target.id,
+            captured_at=datetime(2026, 10, day, tzinfo=timezone.utc),
+            status="success", rating=RatingCapture(average_rating=4.0))
+    db_session.flush()
+    url = f"{TARGETS_URL}/{target.id}/rating-snapshots"
+
+    full = client.get(url, headers=admin_headers).json()
+    assert [s["capture_date"] for s in full] == ["2026-10-21", "2026-10-22", "2026-10-23"]
+
+    page1 = client.get(url, params={"limit": 2, "offset": 0}, headers=admin_headers).json()
+    page2 = client.get(url, params={"limit": 2, "offset": 2}, headers=admin_headers).json()
+    assert len(page1) == 2 and len(page2) == 1
+    dates = [s["capture_date"] for s in page1] + [s["capture_date"] for s in page2]
+    assert dates == [s["capture_date"] for s in full] and len(set(dates)) == 3
+
+    # (target_id, capture_date) 有 DB 唯一约束，同一目标同日期不可能出现两条，
+    # 故无法构造 id 次级键并列；改以重复请求断言顺序确定（deterministic）。
+    repeat = client.get(url, params={"limit": 2, "offset": 0}, headers=admin_headers).json()
+    assert repeat == page1
