@@ -17,6 +17,7 @@ from app.core.security import require_api_key
 from app.db.session import SessionLocal
 from app.models.amazon_review_tracking import (
     AmazonReviewCrawlRun,
+    AmazonReviewExternalLink,
     AmazonReviewGroup,
     AmazonReviewGroupMember,
     AmazonReviewRatingSnapshot,
@@ -39,6 +40,7 @@ from app.schemas.amazon_review_tracking import (
 from app.services.amazon_review_external_service import (
     ExternalLinkError,
     add_external_link,
+    links_by_target,
     links_for_target,
     register_external_target,
     remove_external_link,
@@ -444,18 +446,30 @@ def list_runs(
     return [CrawlRunItem.model_validate(row) for row in rows]
 
 
-def _external_item(db: Session, target: AmazonReviewTarget) -> ExternalTargetItem:
-    links = [ExternalLinkItem.model_validate(link) for link in links_for_target(db, target.id)]
+def _external_item(
+    target: AmazonReviewTarget, links: list[AmazonReviewExternalLink]
+) -> ExternalTargetItem:
     base = TargetItem.model_validate(target)
-    return ExternalTargetItem(**base.model_dump(), links=links)
+    return ExternalTargetItem(
+        **base.model_dump(),
+        links=[ExternalLinkItem.model_validate(link) for link in links],
+    )
 
 
 @router.get("/external-targets", response_model=list[ExternalTargetItem], dependencies=[Depends(_require_session)])
-def list_external_targets(db: Session = Depends(get_read_db_session)) -> list[ExternalTargetItem]:
+def list_external_targets(
+    limit: int = Query(default=200, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_read_db_session),
+) -> list[ExternalTargetItem]:
     targets = db.execute(
-        select(AmazonReviewTarget).where(AmazonReviewTarget.kind == "external_asin").order_by(AmazonReviewTarget.id)
+        select(AmazonReviewTarget)
+        .where(AmazonReviewTarget.kind == "external_asin")
+        .order_by(AmazonReviewTarget.id)
+        .limit(limit).offset(offset)
     ).scalars().all()
-    return [_external_item(db, target) for target in targets]
+    links = links_by_target(db, [target.id for target in targets])
+    return [_external_item(target, links.get(target.id, [])) for target in targets]
 
 
 @router.post("/external-targets", response_model=ExternalTargetItem, status_code=201, dependencies=[Depends(_require_admin)])
@@ -470,7 +484,7 @@ def create_external_target(
             db, marketplace=payload.marketplace, asin=payload.asin,
             shop_id=payload.shop_id, display_name=payload.display_name,
         )
-        result = _external_item(db, target)
+        result = _external_item(target, links_for_target(db, target.id))
         append_operation_audit_log(db, action="amazon_review_tracking.external_target.create",
             target_type="amazon_review_target", target_id=target.id, operator=operator,
             after=result.model_dump(mode="json"), request=request)
