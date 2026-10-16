@@ -245,12 +245,19 @@ def _normalize_item(
         "project_name": _normalize_text(item.project_name, "project_name"),
         "sku": _normalize_text(item.sku, "sku"),
         "asin": _normalize_optional_text(item.asin) or "",
-        "fnsku": ((item.fnsku or "").strip() or None)
-        if "fnsku" in provided_fields
-        else None,
-        "product_name": _normalize_optional_text(item.product_name)
-        if "product_name" in provided_fields
-        else None,
+        "fnsku": (
+            ((item.fnsku or "").strip() or None) if "fnsku" in provided_fields else None
+        ),
+        "product_name": (
+            _normalize_optional_text(item.product_name)
+            if "product_name" in provided_fields
+            else None
+        ),
+        "father_id": (
+            _normalize_optional_text(item.father_id)
+            if "father_id" in provided_fields
+            else None
+        ),
         "fob_unit_cost": optional_cost("fob_unit_cost", item.fob_unit_cost),
         "first_leg_cost_rmb": optional_cost(
             "first_leg_cost_rmb", item.first_leg_cost_rmb
@@ -269,13 +276,15 @@ def _normalize_item(
         "sort_order": _normalize_sort_order(item.sort_order),
         "is_active": bool(item.is_active) if "is_active" in provided_fields else None,
         "source_file": (source_file or item.source_file or "").strip() or None,
-        "sku_factory_info": item.sku_factory_info
-        if "sku_factory_info" in provided_fields
-        else None,
+        "sku_factory_info": (
+            item.sku_factory_info if "sku_factory_info" in provided_fields else None
+        ),
         **{
-            field: _normalize_optional_text(getattr(item, field))
-            if field in provided_fields
-            else None
+            field: (
+                _normalize_optional_text(getattr(item, field))
+                if field in provided_fields
+                else None
+            )
             for field in LISTING_COPY_FIELDS
         },
     }
@@ -398,6 +407,8 @@ def upsert_sku_record(
             existing.fnsku = normalized["fnsku"]
         if "product_name" in item.model_fields_set:
             existing.product_name = normalized["product_name"]
+        if "father_id" in item.model_fields_set:
+            existing.father_id = normalized["father_id"]
         if normalized["fob_unit_cost"] is not None:
             existing.fob_unit_cost = normalized["fob_unit_cost"]
         if normalized["first_leg_cost_rmb"] is not None:
@@ -437,9 +448,11 @@ def upsert_sku_record(
         normalized["sort_order"] = _resolve_insert_sort_order(
             db,
             project_id=project_id,
-            requested_sort_order=normalized["sort_order"]
-            if isinstance(normalized["sort_order"], int)
-            else None,
+            requested_sort_order=(
+                normalized["sort_order"]
+                if isinstance(normalized["sort_order"], int)
+                else None
+            ),
             next_sort_order_cache=next_sort_order_cache,
         )
         for key in (
@@ -513,6 +526,11 @@ def update_sku_record_by_id(
         _normalize_optional_text(payload.product_name)
         if "product_name" in payload.model_fields_set
         else row.product_name
+    )
+    father_id = (
+        _normalize_optional_text(payload.father_id)
+        if "father_id" in payload.model_fields_set
+        else row.father_id
     )
     fob_unit_cost = (
         _normalize_cost(payload.fob_unit_cost, "fob_unit_cost")
@@ -602,6 +620,7 @@ def update_sku_record_by_id(
     row.asin = asin
     row.fnsku = fnsku
     row.product_name = product_name
+    row.father_id = father_id
     row.fob_unit_cost = cast(float, fob_unit_cost)
     row.first_leg_cost_rmb = cast(float, first_leg_cost_rmb)
     row.package_length_cm = cast(float, package_length_cm)

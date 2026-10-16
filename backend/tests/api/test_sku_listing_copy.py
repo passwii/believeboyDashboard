@@ -60,6 +60,7 @@ def _ensure_sku(
             project_name=project_name,
             sku=sku,
             asin=asin,
+            father_id=listing.pop("father_id", None),
             fob_unit_cost=1.0,
             first_leg_cost_rmb=2.0,
             country="US",
@@ -369,6 +370,42 @@ def test_model_has_ten_listing_columns():
 # ---------------------------------------------------------------------------
 
 
+def test_generic_patch_updates_father_id_and_explicit_null_clears(
+    client, admin_headers
+):
+    record_id = _ensure_sku(sku="FATHER-ID-PATCH")
+    response = client.patch(
+        f"/api/v1/sku-info/{record_id}",
+        json={"father_id": "PARENT-002"},
+        headers=admin_headers,
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["father_id"] == "PARENT-002"
+
+    cleared = client.patch(
+        f"/api/v1/sku-info/{record_id}",
+        json={"father_id": None},
+        headers=admin_headers,
+    )
+    assert cleared.status_code == 200, cleared.text
+    assert cleared.json()["father_id"] is None
+
+
+def test_generic_create_persists_father_id(client, admin_headers):
+    response = client.post(
+        "/api/v1/sku-info",
+        json={
+            "project_name": TEST_PROJECT,
+            "sku": "FATHER-ID-CREATE",
+            "asin": "B0FATHERCRT",
+            "father_id": "PARENT-001",
+        },
+        headers=admin_headers,
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["item"]["father_id"] == "PARENT-001"
+
+
 def test_generic_create_persists_listing_fields(client, admin_headers):
     """POST /sku-info 接受文案 → 真落库（修复前静默丢弃）。"""
     sku = "LISTING-SKU-CREATE"
@@ -423,6 +460,7 @@ def test_generic_create_without_listing_leaves_null(client, admin_headers):
     item = response.json()["item"]
     for field in (
         "listing_title",
+        "father_id",
         "listing_bullet_1",
         "listing_bullet_2",
         "listing_bullet_3",

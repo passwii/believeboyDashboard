@@ -100,6 +100,7 @@ def _upsert_body(**overrides) -> dict:
         "carton_height_cm": 20,
         "carton_weight_kg": 5,
         "units_per_carton": 10,
+        "father_id": "PARENT-AGENT-001",
     }
     body.update(overrides)
     return body
@@ -128,9 +129,8 @@ def _post_status(client, env, sku_record_id, body, *, token=None, idem=None):
         headers=_headers(env, token=token, idem=idem),
     )
 
-def _delete_sku(
-    client, env, sku_record_id, *, token=None, idem=None, project_id=None
-):
+
+def _delete_sku(client, env, sku_record_id, *, token=None, idem=None, project_id=None):
     """DELETE /projects/{project_id}/sku-info/{sku_record_id}（confirm 两步）。"""
     pid = project_id if project_id is not None else env["project_id"]
     return client.delete(
@@ -226,6 +226,7 @@ class TestW1Upsert:
         assert rbody["ok"] is True
         assert rbody["data"]["sku"] == "X-NEW-001"
         assert rbody["data"]["fob_unit_cost"] == 15.5
+        assert rbody["data"]["father_id"] == "PARENT-AGENT-001"
         assert rbody["action"] == "inserted"
         assert rbody["idempotency_key"] == idem
 
@@ -268,7 +269,7 @@ class TestW1Upsert:
         row_id = r1.json()["data"]["id"]
 
         # 同键（同 sku/asin/country）二次 upsert → updated，不产生新行
-        body2 = _upsert_body(fob_unit_cost=25.0)
+        body2 = _upsert_body(fob_unit_cost=25.0, father_id=None)
         idem2 = f"idem-{uuid.uuid4().hex[:12]}"
         p2 = _post_upsert(client, shipment_env, body2, idem=idem2)
         assert p2.json()["preview"]["is_new"] is False
@@ -280,6 +281,7 @@ class TestW1Upsert:
         assert r2.json()["action"] == "updated"
         assert r2.json()["data"]["id"] == row_id
         assert r2.json()["data"]["fob_unit_cost"] == 25.0
+        assert r2.json()["data"]["father_id"] is None
 
         db = SessionLocal()
         try:
@@ -386,6 +388,38 @@ class TestW2Update:
             client, env, sku_record_id, body, token=p.json()["confirm_token"], idem=idem
         )
         return r
+
+    @pytest.mark.parametrize(
+        ("patch_fields", "expected_father_id"),
+        [
+            ({"father_id": "PARENT-PATCH-001"}, "PARENT-PATCH-001"),
+            ({"father_id": None}, None),
+            ({}, "PARENT-ORIGINAL-001"),
+        ],
+        ids=["set", "explicit-null-clears", "omitted-preserves"],
+    )
+    def test_father_id_patch_distinguishes_set_null_and_omitted(
+        self,
+        client,
+        shipment_env,
+        confirm_memory_store,
+        patch_fields,
+        expected_father_id,
+    ):
+        sku_id = _seed_sku(
+            shipment_env["project_id"],
+            shipment_env["project_name"],
+            sku=f"X-FATHER-{uuid.uuid4().hex[:8]}",
+            father_id="PARENT-ORIGINAL-001",
+        )
+        resp = self._run(
+            client,
+            shipment_env,
+            sku_id,
+            {"source": "agent_listing_pull", **patch_fields},
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["data"]["father_id"] == expected_father_id
 
     def test_partial_update_preserves_identity_fields(
         self, client, shipment_env, confirm_memory_store

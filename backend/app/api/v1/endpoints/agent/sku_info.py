@@ -281,6 +281,7 @@ def _serialize_sku_record(row: SkuRecord) -> dict[str, Any]:
         "asin": str(row.asin),
         "fnsku": str(row.fnsku) if row.fnsku else None,
         "product_name": str(row.product_name) if row.product_name else None,
+        "father_id": row.father_id,
         "fob_unit_cost": _num_float(row.fob_unit_cost),
         "first_leg_cost_rmb": _num_float(row.first_leg_cost_rmb),
         "package_length_cm": _num_float(row.package_length_cm),
@@ -296,29 +297,37 @@ def _serialize_sku_record(row: SkuRecord) -> dict[str, Any]:
         "country": str(row.country),
         "sort_order": row.sort_order,
         "is_active": bool(row.is_active),
-        "sku_factory_info": row.sku_factory_info
-        if hasattr(row, "sku_factory_info")
-        else None,
-        "sku_factory_info_updated_at": str(row.sku_factory_info_updated_at)
-        if row.sku_factory_info_updated_at
-        else None,
-        "sku_factory_info_updated_by": str(row.sku_factory_info_updated_by)
-        if row.sku_factory_info_updated_by
-        else None,
+        "sku_factory_info": (
+            row.sku_factory_info if hasattr(row, "sku_factory_info") else None
+        ),
+        "sku_factory_info_updated_at": (
+            str(row.sku_factory_info_updated_at)
+            if row.sku_factory_info_updated_at
+            else None
+        ),
+        "sku_factory_info_updated_by": (
+            str(row.sku_factory_info_updated_by)
+            if row.sku_factory_info_updated_by
+            else None
+        ),
         # 产品文案（Listing Copy，BLF-1080）：8 个业务字段 + 2 个溯源列。
         **{field: (getattr(row, field, None) or None) for field in LISTING_COPY_FIELDS},
-        "listing_copy_updated_at": str(row.listing_copy_updated_at)
-        if getattr(row, "listing_copy_updated_at", None)
-        else None,
+        "listing_copy_updated_at": (
+            str(row.listing_copy_updated_at)
+            if getattr(row, "listing_copy_updated_at", None)
+            else None
+        ),
         "listing_copy_updated_by": getattr(row, "listing_copy_updated_by", None),
         "fnsku_label_r2_url": getattr(row, "fnsku_label_r2_url", None),
         "product_image_r2_url": getattr(row, "product_image_r2_url", None),
         "product_image_thumbnail_r2_url": getattr(
             row, "product_image_thumbnail_r2_url", None
         ),
-        "product_image_uploaded_at": str(row.product_image_uploaded_at)
-        if getattr(row, "product_image_uploaded_at", None)
-        else None,
+        "product_image_uploaded_at": (
+            str(row.product_image_uploaded_at)
+            if getattr(row, "product_image_uploaded_at", None)
+            else None
+        ),
         "product_image_uploaded_by": getattr(row, "product_image_uploaded_by", None),
         "marketplace_url": build_marketplace_url(row.country, row.asin),
         "created_at": row.created_at.isoformat() if row.created_at else None,
@@ -424,9 +433,9 @@ def get_sku_info_audit(
             "items": [
                 {
                     "id": row.id,
-                    "created_at": row.created_at.isoformat()
-                    if row.created_at
-                    else None,
+                    "created_at": (
+                        row.created_at.isoformat() if row.created_at else None
+                    ),
                     "action": row.action,
                     "agent_id": row.agent_id,
                     "operator": row.operator,
@@ -541,9 +550,9 @@ async def upsert_sku_info(
             target_type="sku_info",
             target_id=row.id,
             operator=None,
-            before=_serialize_sku_record(before_row)
-            if before_row is not None
-            else None,
+            before=(
+                _serialize_sku_record(before_row) if before_row is not None else None
+            ),
             after=_serialize_sku_record(row),
             **_audit_kwargs(request),
         )
@@ -605,6 +614,7 @@ def _merge_update_payload(
     for field in (
         "fnsku",
         "product_name",
+        "father_id",
         "fob_unit_cost",
         "first_leg_cost_rmb",
         "package_length_cm",

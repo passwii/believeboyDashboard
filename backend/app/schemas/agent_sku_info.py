@@ -47,6 +47,7 @@ class AgentSkuRecordUpsertRequest(BaseModel):
 
     fnsku: str | None = Field(default=None, max_length=255)
     product_name: str | None = Field(default=None, max_length=255)
+    father_id: str | None = Field(default=None, max_length=255)
     fob_unit_cost: float | None = Field(default=None, ge=0, le=100000000)
     first_leg_cost_rmb: float | None = Field(default=None, ge=0, le=100000000)
     package_length_cm: float | None = Field(default=None, ge=0, le=100000)
@@ -84,6 +85,7 @@ class AgentSkuRecordUpdateRequest(BaseModel):
 
     fnsku: str | None = Field(default=None, max_length=255)
     product_name: str | None = Field(default=None, max_length=255)
+    father_id: str | None = Field(default=None, max_length=255)
     fob_unit_cost: float | None = Field(default=None, ge=0, le=100000000)
     first_leg_cost_rmb: float | None = Field(default=None, ge=0, le=100000000)
     package_length_cm: float | None = Field(default=None, ge=0, le=100000)
