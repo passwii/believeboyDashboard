@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import select, text
@@ -11,13 +13,23 @@ from app.api.deps import (
     get_request_operator,
 )
 from app.core.security import require_api_key
-from app.services.infra import validate_session
 from app.db.session import SessionLocal
-from app.models.amazon_review_tracking import AmazonReviewGroup, AmazonReviewGroupMember
+from app.models.amazon_review_tracking import (
+    AmazonReviewCrawlRun,
+    AmazonReviewGroup,
+    AmazonReviewGroupMember,
+    AmazonReviewRatingSnapshot,
+    AmazonReviewReview,
+    AmazonReviewTarget,
+)
 from app.schemas.amazon_review_tracking import (
+    CrawlRunItem,
+    RatingSnapshotItem,
     ReviewGroupCreate,
     ReviewGroupMemberReplace,
     ReviewGroupRepresentativeUpdate,
+    ReviewItem,
+    TargetItem,
 )
 from app.services.amazon_review_tracking_service import (
     ReviewGroupError,
@@ -28,15 +40,16 @@ from app.services.amazon_review_tracking_service import (
     update_group_name,
 )
 from app.services.audit_log_service import append_operation_audit_log
+from app.services.infra import validate_session
 
 router = APIRouter(prefix="/amazon-review-tracking", tags=["Amazon 评论追踪"])
 
 
-def _require_admin(
+def _require_session(
     _: None = Depends(require_api_key),
     x_user_id: str | None = Header(default=None, alias="X-User-Id"),
     x_session_id: str | None = Header(default=None, alias="X-Session-Id"),
-) -> bool:
+) -> str:
     if not x_user_id or not x_session_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
@@ -46,7 +59,10 @@ def _require_admin(
         raise
     except Exception:
         raise HTTPException(status_code=401, detail="Not authenticated") from None
+    return x_user_id
 
+
+def _require_admin(user_id: str = Depends(_require_session)) -> bool:
     db = SessionLocal()
     try:
         row = db.execute(
@@ -54,7 +70,7 @@ def _require_admin(
                 SELECT is_admin, is_active FROM public.user_accounts
                 WHERE id::text = :user_id LIMIT 1
             """),
-            {"user_id": x_user_id},
+            {"user_id": user_id},
         ).mappings().first()
     finally:
         db.close()
@@ -63,6 +79,13 @@ def _require_admin(
     if not row["is_admin"]:
         raise HTTPException(status_code=403, detail="需要管理员权限")
     return True
+
+
+def _ensure_target(db: Session, target_id: int) -> AmazonReviewTarget:
+    target = db.get(AmazonReviewTarget, target_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="review target not found")
+    return target
 
 
 class ReviewGroupPatch(BaseModel):
@@ -295,3 +318,87 @@ def deactivate_review_group(
     except Exception:
         db.rollback()
         raise
+
+
+@router.get("/targets", response_model=list[TargetItem], dependencies=[Depends(_require_session)])
+def list_targets(
+    project_id: int | None = Query(default=None, gt=0),
+    marketplace: str | None = None,
+    kind: str | None = None,
+    is_active: bool | None = None,
+    db: Session = Depends(get_read_db_session),
+) -> list[TargetItem]:
+    stmt = select(AmazonReviewTarget)
+    if project_id is not None:
+        stmt = stmt.where(AmazonReviewTarget.project_id == project_id)
+    if marketplace is not None:
+        stmt = stmt.where(AmazonReviewTarget.marketplace == marketplace.strip().upper())
+    if kind is not None:
+        stmt = stmt.where(AmazonReviewTarget.kind == kind)
+    if is_active is not None:
+        stmt = stmt.where(AmazonReviewTarget.is_active.is_(is_active))
+    rows = db.scalars(stmt.order_by(AmazonReviewTarget.id)).all()
+    return [TargetItem.model_validate(row) for row in rows]
+
+
+@router.get(
+    "/targets/{target_id}/rating-snapshots",
+    response_model=list[RatingSnapshotItem],
+    dependencies=[Depends(_require_session)],
+)
+def list_rating_snapshots(
+    target_id: int,
+    date_from: date | None = Query(default=None, alias="from"),
+    date_to: date | None = Query(default=None, alias="to"),
+    db: Session = Depends(get_read_db_session),
+) -> list[RatingSnapshotItem]:
+    _ensure_target(db, target_id)
+    stmt = select(AmazonReviewRatingSnapshot).where(AmazonReviewRatingSnapshot.target_id == target_id)
+    if date_from is not None:
+        stmt = stmt.where(AmazonReviewRatingSnapshot.capture_date >= date_from)
+    if date_to is not None:
+        stmt = stmt.where(AmazonReviewRatingSnapshot.capture_date <= date_to)
+    rows = db.scalars(stmt.order_by(AmazonReviewRatingSnapshot.capture_date)).all()
+    return [RatingSnapshotItem.model_validate(row) for row in rows]
+
+
+@router.get("/targets/{target_id}/reviews", response_model=list[ReviewItem], dependencies=[Depends(_require_session)])
+def list_reviews(
+    target_id: int,
+    visibility_status: str | None = None,
+    review_date_from: date | None = None,
+    review_date_to: date | None = None,
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_read_db_session),
+) -> list[ReviewItem]:
+    _ensure_target(db, target_id)
+    stmt = select(AmazonReviewReview).where(AmazonReviewReview.target_id == target_id)
+    if visibility_status is not None:
+        stmt = stmt.where(AmazonReviewReview.visibility_status == visibility_status)
+    if review_date_from is not None:
+        stmt = stmt.where(AmazonReviewReview.review_date >= review_date_from)
+    if review_date_to is not None:
+        stmt = stmt.where(AmazonReviewReview.review_date <= review_date_to)
+    rows = db.scalars(
+        stmt.order_by(AmazonReviewReview.review_date.desc().nullslast(), AmazonReviewReview.id)
+        .limit(limit).offset(offset)
+    ).all()
+    return [ReviewItem.model_validate(row) for row in rows]
+
+
+@router.get("/targets/{target_id}/runs", response_model=list[CrawlRunItem], dependencies=[Depends(_require_session)])
+def list_runs(
+    target_id: int,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_read_db_session),
+) -> list[CrawlRunItem]:
+    _ensure_target(db, target_id)
+    rows = db.scalars(
+        select(AmazonReviewCrawlRun)
+        .where(AmazonReviewCrawlRun.target_id == target_id)
+        .order_by(AmazonReviewCrawlRun.started_at.desc(), AmazonReviewCrawlRun.id.desc())
+        .limit(limit).offset(offset)
+    ).all()
+    return [CrawlRunItem.model_validate(row) for row in rows]

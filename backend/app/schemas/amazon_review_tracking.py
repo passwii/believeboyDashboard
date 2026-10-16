@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date, datetime
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 SUPPORTED_MARKETPLACES = frozenset({"US", "CA", "UK", "DE", "FR", "IT", "ES", "JP", "AU", "MX", "BR", "NL", "SE", "PL", "BE", "IN", "SG", "AE", "SA", "TR", "EG"})
@@ -60,3 +62,104 @@ class ReviewGroupMemberReplace(BaseModel):
 class ReviewGroupRepresentativeUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     sku_record_id: int = Field(gt=0)
+
+
+class TargetItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    kind: str
+    group_id: int | None
+    project_id: int | None
+    marketplace: str
+    asin: str | None
+    display_name: str | None
+    is_active: bool
+
+
+class RatingSnapshotItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    capture_date: date
+    captured_at: datetime
+    average_rating: float | None
+    rating_count: int | None
+    review_count: int | None
+    star_1_percentage: float | None
+    star_2_percentage: float | None
+    star_3_percentage: float | None
+    star_4_percentage: float | None
+    star_5_percentage: float | None
+    star_1_count: int | None
+    star_2_count: int | None
+    star_3_count: int | None
+    star_4_count: int | None
+    star_5_count: int | None
+    star_count_quality: str
+    capture_status: str
+
+
+class ReviewItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    review_key: str
+    id_confidence: str
+    reviewer_id: str | None
+    reviewer_name: str | None
+    rating: int | None
+    title: str | None
+    body: str | None
+    review_date: date | None
+    verified_purchase: bool | None
+    helpful_count: int | None
+    first_seen_at: datetime
+    last_seen_at: datetime
+    visibility_status: str
+
+
+class CrawlRunItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    started_at: datetime
+    finished_at: datetime | None
+    status: str
+    is_complete_list: bool
+    reviews_seen: int | None
+    ratings_captured: bool
+    asin_scraped: str | None
+    error_message: str | None
+
+
+class ExternalLinkItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    target_id: int
+    shop_id: int
+    is_active: bool
+
+
+class ExternalTargetItem(TargetItem):
+    links: list[ExternalLinkItem]
+
+
+class ExternalTargetCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    marketplace: str = Field(min_length=2, max_length=20)
+    asin: str = Field(min_length=1, max_length=20)
+    shop_id: int | None = Field(default=None, gt=0)
+    display_name: str | None = Field(default=None, max_length=255)
+
+    @field_validator("marketplace")
+    @classmethod
+    def marketplace_valid(cls, value: str) -> str:
+        return validate_marketplace(value)
+
+    @field_validator("asin")
+    @classmethod
+    def asin_normalized(cls, value: str) -> str:
+        value = value.strip().upper()
+        if not value:
+            raise ValueError("asin must not be blank")
+        return value
+
+
+class ExternalLinkCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    shop_id: int = Field(gt=0)
