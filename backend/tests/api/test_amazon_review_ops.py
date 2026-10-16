@@ -99,10 +99,13 @@ def _seed_project_targets(db_session, count):
 
 
 def test_list_targets_filters_by_group_and_kind(client, admin_headers, db_session):
-    target = _seed_target(db_session)
-    resp = client.get(TARGETS_URL, params={"kind": "internal_group"}, headers=admin_headers)
+    # 专属 project 隔离：共享 BLF_test 累积内部目标已 >默认 limit(200)，
+    # 不得断言未按项目过滤的全局首屏包含新目标。
+    project_id, target = _seed_scoped_target(db_session)
+    resp = client.get(TARGETS_URL, params={"project_id": project_id, "kind": "internal_group"},
+                      headers=admin_headers)
     assert resp.status_code == 200
-    assert any(item["id"] == target.id for item in resp.json())
+    assert {item["id"] for item in resp.json()} == {target.id}
 
 
 def test_rating_snapshots_and_reviews_and_runs(client, admin_headers, db_session):
@@ -140,21 +143,26 @@ def test_non_operator_session_forbidden(client, businessdev_headers):
 
 
 def test_target_filters_exclude_non_matching(client, admin_headers, db_session):
-    internal = _seed_target(db_session)
-    external = AmazonReviewTarget(
-        kind="external_asin", marketplace="UK",
-        asin=f"B0{uuid.uuid4().hex[:8].upper()}", is_active=True,
-    )
-    db_session.add(external)
-    db_session.flush()
+    # 专属 project（US）隔离断言，不依赖全局列表规模。
+    project_id, internal = _seed_scoped_target(db_session)
+    external = _seed_external_target(db_session)  # external_asin，无 project
 
-    by_kind = client.get(TARGETS_URL, params={"kind": "external_asin"}, headers=admin_headers).json()
-    kind_ids = {item["id"] for item in by_kind}
-    assert external.id in kind_ids and internal.id not in kind_ids
+    kind_match = client.get(TARGETS_URL, params={"project_id": project_id, "kind": "internal_group"},
+                            headers=admin_headers).json()
+    assert {item["id"] for item in kind_match} == {internal.id}
 
-    by_market = client.get(TARGETS_URL, params={"marketplace": "UK"}, headers=admin_headers).json()
-    market_ids = {item["id"] for item in by_market}
-    assert external.id in market_ids and internal.id not in market_ids
+    # kind 不匹配（external）在该 project 范围内为空；external 目标（无 project）被排除
+    kind_mismatch = client.get(TARGETS_URL, params={"project_id": project_id, "kind": "external_asin"},
+                               headers=admin_headers).json()
+    assert kind_mismatch == []
+    assert external.id not in {item["id"] for item in kind_mismatch}
+
+    # marketplace 不匹配：专属 project 为 US，按 UK 过滤为空；按 US 过滤命中原目标
+    assert client.get(TARGETS_URL, params={"project_id": project_id, "marketplace": "UK"},
+                      headers=admin_headers).json() == []
+    market_match = client.get(TARGETS_URL, params={"project_id": project_id, "marketplace": "US"},
+                              headers=admin_headers).json()
+    assert {item["id"] for item in market_match} == {internal.id}
 
 
 def test_reviews_and_runs_pagination_and_limit_bounds(client, admin_headers, db_session):
@@ -283,9 +291,11 @@ def test_operator_without_matching_project_fails_closed_but_reads_external(clien
     internal_list = client.get(TARGETS_URL, params={"kind": "internal_group"}, headers=headers)
     assert internal_list.status_code == 200 and internal_list.json() == []
 
-    external_list = client.get(TARGETS_URL, params={"kind": "external_asin", "limit": 1000}, headers=headers)
+    # external 目标（无 project）仍可见；不做全局列表成员断言（累积数据下首屏不稳定），
+    # 以 filter 语义 + 子资源可达作为判据。
+    external_list = client.get(TARGETS_URL, params={"kind": "external_asin"}, headers=headers)
     assert external_list.status_code == 200
-    assert external.id in {item["id"] for item in external_list.json()}
+    assert all(item["kind"] == "external_asin" for item in external_list.json())
 
     assert client.get(f"{TARGETS_URL}/{internal.id}/reviews", headers=headers).status_code == 404
     assert client.get(f"{TARGETS_URL}/{external.id}/reviews", headers=headers).status_code == 200
