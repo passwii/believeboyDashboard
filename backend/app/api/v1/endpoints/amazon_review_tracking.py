@@ -5,6 +5,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import select, text
+from sqlalchemy.engine import RowMapping
 from sqlalchemy.orm import Session
 
 from app.api.deps import (
@@ -45,6 +46,21 @@ from app.services.infra import validate_session
 router = APIRouter(prefix="/amazon-review-tracking", tags=["Amazon 评论追踪"])
 
 
+def _load_account(user_id: str) -> RowMapping | None:
+    session = SessionLocal()
+    try:
+        row = session.execute(
+            text("""
+                SELECT is_admin, is_active, role_type FROM public.user_accounts
+                WHERE id::text = :user_id LIMIT 1
+            """),
+            {"user_id": user_id},
+        ).mappings().first()
+        return row
+    finally:
+        session.close()
+
+
 def _require_session(
     _: None = Depends(require_api_key),
     x_user_id: str | None = Header(default=None, alias="X-User-Id"),
@@ -59,24 +75,20 @@ def _require_session(
         raise
     except Exception:
         raise HTTPException(status_code=401, detail="Not authenticated") from None
+
+    account = _load_account(x_user_id)
+    if account is None or not account.get("is_active"):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    if not account.get("is_admin") and account.get("role_type") != "operator":
+        raise HTTPException(status_code=403, detail="需要运营或管理员权限")
     return x_user_id
 
 
 def _require_admin(user_id: str = Depends(_require_session)) -> bool:
-    db = SessionLocal()
-    try:
-        row = db.execute(
-            text("""
-                SELECT is_admin, is_active FROM public.user_accounts
-                WHERE id::text = :user_id LIMIT 1
-            """),
-            {"user_id": user_id},
-        ).mappings().first()
-    finally:
-        db.close()
-    if row is None or not row["is_active"]:
+    account = _load_account(user_id)
+    if account is None or not account.get("is_active"):
         raise HTTPException(status_code=401, detail="Not authenticated")
-    if not row["is_admin"]:
+    if not account.get("is_admin"):
         raise HTTPException(status_code=403, detail="需要管理员权限")
     return True
 
@@ -140,7 +152,7 @@ def _item(
         id=group.id, project_id=group.project_id, marketplace=group.marketplace,
         name=group.name, description=group.description,
         representative_id=group.representative_sku_record_id,
-        member_ids=members, is_active=group.is_active,
+        member_ids=list(members), is_active=group.is_active,
     )
 
 
@@ -274,6 +286,8 @@ def patch_review_group(
             )
         db.flush()
         updated = db.get(AmazonReviewGroup, group_id)
+        if updated is None:
+            raise HTTPException(status_code=404, detail="review group not found")
         result = _item(db, updated)
         append_operation_audit_log(
             db, action="amazon_review_tracking.group.update",
@@ -326,6 +340,8 @@ def list_targets(
     marketplace: str | None = None,
     kind: str | None = None,
     is_active: bool | None = None,
+    limit: int = Query(default=200, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_read_db_session),
 ) -> list[TargetItem]:
     stmt = select(AmazonReviewTarget)
@@ -337,7 +353,7 @@ def list_targets(
         stmt = stmt.where(AmazonReviewTarget.kind == kind)
     if is_active is not None:
         stmt = stmt.where(AmazonReviewTarget.is_active.is_(is_active))
-    rows = db.scalars(stmt.order_by(AmazonReviewTarget.id)).all()
+    rows = db.scalars(stmt.order_by(AmazonReviewTarget.id).limit(limit).offset(offset)).all()
     return [TargetItem.model_validate(row) for row in rows]
 
 
@@ -350,6 +366,8 @@ def list_rating_snapshots(
     target_id: int,
     date_from: date | None = Query(default=None, alias="from"),
     date_to: date | None = Query(default=None, alias="to"),
+    limit: int = Query(default=200, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_read_db_session),
 ) -> list[RatingSnapshotItem]:
     _ensure_target(db, target_id)
@@ -358,7 +376,10 @@ def list_rating_snapshots(
         stmt = stmt.where(AmazonReviewRatingSnapshot.capture_date >= date_from)
     if date_to is not None:
         stmt = stmt.where(AmazonReviewRatingSnapshot.capture_date <= date_to)
-    rows = db.scalars(stmt.order_by(AmazonReviewRatingSnapshot.capture_date)).all()
+    rows = db.scalars(
+        stmt.order_by(AmazonReviewRatingSnapshot.capture_date, AmazonReviewRatingSnapshot.id)
+        .limit(limit).offset(offset)
+    ).all()
     return [RatingSnapshotItem.model_validate(row) for row in rows]
 
 
