@@ -4,7 +4,10 @@ Monitor loop: scan project folders and process new files.
 
 from __future__ import annotations
 
+import fcntl
 import logging
+import os
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -340,6 +343,54 @@ def _collect_files(project_dir: Path) -> list[Path]:
     return collected
 
 
+class SingleInstanceLock:
+    """Advisory exclusive lock so only one autoReportUpload daemon runs per host.
+
+    Two live instances sweep the same RPA folders concurrently and race on the
+    DB unique keys — the 2026-10-12 double-instance run produced 206 FAIL rows
+    (``ad_upload_files_scope_version_key`` x111, ``analysis_sources_period_version_key``
+    x70) plus 43 ``Errno 2`` file-stealing races. The lock file also stores the
+    holder PID so a rejected start can name the process that owns the service.
+    """
+
+    def __init__(self, path: Path):
+        self.path = path
+        self._fh = None
+
+    def acquire(self) -> bool:
+        """Try to take the lock. Returns False when another process holds it."""
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        fh = self.path.open("a+", encoding="utf-8")
+        try:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            fh.close()
+            return False
+        fh.seek(0)
+        fh.truncate()
+        fh.write(f"{os.getpid()}\n")
+        fh.flush()
+        self._fh = fh
+        return True
+
+    def holder_pid(self) -> str | None:
+        """PID written by whoever holds the lock, if readable."""
+        try:
+            pid = self.path.read_text(encoding="utf-8").strip()
+        except OSError:
+            return None
+        return pid or None
+
+    def release(self) -> None:
+        if self._fh is None:
+            return
+        try:
+            fcntl.flock(self._fh.fileno(), fcntl.LOCK_UN)
+        finally:
+            self._fh.close()
+            self._fh = None
+
+
 def run_cycle(logger: RunLogger, dry_run: bool = False) -> dict:
     """Scan all project folders and process new files. Returns summary stats."""
     stats = {"projects": 0, "files_seen": 0, "skipped": 0, "success": 0, "failed": 0}
@@ -384,6 +435,48 @@ def run_cycle(logger: RunLogger, dry_run: bool = False) -> dict:
             db.close()
 
     return stats
+
+
+class IncrementalRescanThread(threading.Thread):
+    """Background safety net: re-scan every ``CHECK_INTERVAL_MINUTES``.
+
+    The watchdog only reacts to filesystem events, so anything the observer
+    missed (DB outage, dropped event, a file written during the startup sweep)
+    would otherwise wait for the next manual restart — on 2026-10-16 that gap
+    was 2.5h and the whole 15:xx batch sat unprocessed. The rescan also gates on
+    one cheap ``check_db_health`` probe: when the DB is unreachable it skips the
+    *entire* round instead of burning ~44s per file on doomed retries.
+    """
+
+    def __init__(self, logger: RunLogger, dry_run: bool, interval_secs: float):
+        super().__init__(daemon=True, name="autorun-rescan")
+        self.logger = logger
+        self.dry_run = dry_run
+        self.interval_secs = interval_secs
+        self._stop_event = threading.Event()
+
+    def run_once(self) -> dict | None:
+        """One rescan round. Returns stats, or None when the DB gate blocks it."""
+        if not check_db_health():
+            self.logger.warning("[补扫] 数据库健康检查失败，本轮整轮跳过（不逐文件重试）")
+            return None
+        return run_cycle(self.logger, dry_run=self.dry_run)
+
+    def run(self) -> None:
+        while not self._stop_event.wait(self.interval_secs):
+            try:
+                stats = self.run_once()
+            except Exception as exc:  # noqa: BLE001 - rescan must never kill the daemon
+                self.logger.error(f"[补扫] 本轮异常: {exc}")
+                continue
+            if stats is not None and stats["files_seen"] > 0:
+                self.logger.info(
+                    f"增量补扫完成: {stats['files_seen']} 文件, "
+                    f"{stats['success']} 成功, {stats['skipped']} 跳过, {stats['failed']} 失败"
+                )
+
+    def stop(self) -> None:
+        self._stop_event.set()
 
 
 def _start_watchdog_logger(logger: RunLogger, dry_run: bool):
@@ -431,6 +524,10 @@ def _start_watchdog_logger(logger: RunLogger, dry_run: bool):
                 return
             file_path = Path(event.src_path)
             if file_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+                return
+            # The startup sweep / rescan may have processed (and moved) the file
+            # before this event landed — nothing left to do.
+            if not file_path.exists():
                 return
 
             key = str(file_path)
@@ -490,6 +587,20 @@ def _start_watchdog_logger(logger: RunLogger, dry_run: bool):
     return observer
 
 
+def _acquire_instance_lock(logger: RunLogger) -> SingleInstanceLock | None:
+    """Take the single-instance lock, or report the current holder and return None."""
+    lock = SingleInstanceLock(Path(__file__).parent / "logs" / "autorun.lock")
+    if lock.acquire():
+        return lock
+    pid = lock.holder_pid()
+    logger.error(
+        "已有 autoReportUpload 实例在运行"
+        + (f"（PID {pid}）" if pid else "")
+        + "，本进程退出。并跑两个实例会争抢同一批 RPA 文件并在 DB 上撞唯一键。"
+    )
+    return None
+
+
 def _main_loop_polling(logger: RunLogger, dry_run: bool) -> None:
     """原有定时轮询逻辑（polling 模式）"""
     logger.info("\n>>> 首次运行：全局扫描所有项目目录")
@@ -516,28 +627,45 @@ def main_loop(dry_run: bool = False, mode: str = "watchdog") -> None:
     logs_dir = Path(__file__).parent / "logs"
     logger = RunLogger(logs_dir)
 
+    lock = _acquire_instance_lock(logger)
+    if lock is None:
+        return
+
     logger.info("=" * 60)
     logger.info("autoReportUpload 服务启动")
     logger.info(f"监控目录: {WATCH_ROOT}")
     logger.info(f"项目列表: {', '.join(PROJECTS)}")
     logger.info(f"检查间隔: {CHECK_INTERVAL_MINUTES} 分钟  dry_run: {dry_run}")
+    logger.info(f"单实例锁: {lock.path}")
     logger.info("=" * 60)
 
     if mode == "watchdog":
         logger.info("监控模式: watchdog（文件事件触发）")
-        # ── 启动前先做一次全盘扫描 ──────────────────────────────────────────
+        # ── 先起 watchdog，再做全盘扫描 ─────────────────────────────────────
+        # 顺序很关键：以前是先扫描（21 分钟）再监听，这段时间落下的文件无人
+        # 接收，只能等下次重启。现在监听先就位，扫描期间的新文件走事件通道，
+        # 与扫描重复的由 on_created 里的 exists() 守卫自然去重。
+        observer = _start_watchdog_logger(logger, dry_run)
+        logger.info("watchdog 监控已启动，开始全盘扫描补齐历史积压...")
         stats = run_cycle(logger, dry_run=dry_run)
         logger.info(
             f"全盘扫描完成: {stats['files_seen']} 文件, "
             f"{stats['success']} 成功, {stats['skipped']} 跳过, {stats['failed']} 失败"
         )
-        # ── 然后启动 watchdog 持续监控新文件 ─────────────────────────────────
-        observer = _start_watchdog_logger(logger, dry_run)
-        logger.info("watchdog 监控已启动，持续监听新文件...")
+        # ── 后台增量补扫：兜住漏掉的文件系统事件 ────────────────────────────
+        rescan = IncrementalRescanThread(
+            logger, dry_run, interval_secs=CHECK_INTERVAL_MINUTES * 60
+        )
+        rescan.start()
+        logger.info(
+            f"增量补扫已启动，每 {CHECK_INTERVAL_MINUTES} 分钟兜底扫描一次"
+            "（DB 不健康时整轮跳过）"
+        )
         try:
             while True:
                 time.sleep(5)
         except KeyboardInterrupt:
+            rescan.stop()
             observer.stop()
         observer.join()
     else:
