@@ -15,7 +15,7 @@ from __future__ import annotations
 import io
 import os
 from typing import Any, Iterator
-from unittest.mock import patch
+from unittest.mock import PropertyMock, patch
 from urllib.parse import quote
 
 import pytest
@@ -90,12 +90,23 @@ def _fake_delete_from_r2(settings, key, log_failure=True):
 
 @pytest.fixture(autouse=True)
 def mock_r2():
+    """Stub R2 I/O **and** force ``r2_enabled`` on.
+
+    These tests exercise the upload/delete flow with a mocked bucket, so they
+    must not depend on real R2 credentials being present in the environment;
+    patching the computed ``r2_enabled`` property keeps the suite hermetic.
+    """
     with patch(
         "app.services.page_render_service.upload_bytes_to_r2",
         side_effect=_fake_upload_to_r2,
     ), patch(
         "app.services.page_render_service.try_delete_file_from_r2",
         side_effect=_fake_delete_from_r2,
+    ), patch.object(
+        type(get_settings()),
+        "r2_enabled",
+        new_callable=PropertyMock,
+        return_value=True,
     ):
         yield
 

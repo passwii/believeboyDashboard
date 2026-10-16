@@ -9,7 +9,7 @@ Run with: ``cd backend && .venv/bin/pytest tests/api/test_profile_endpoints.py -
 from __future__ import annotations
 
 import io
-from unittest.mock import patch
+from unittest.mock import PropertyMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -32,6 +32,24 @@ from app.db.session import SessionLocal
 @pytest.fixture
 def client() -> TestClient:
     return TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def force_r2_enabled():
+    """Force ``settings.r2_enabled=True`` for every test in this module.
+
+    The avatar upload path short-circuits with 503 when R2 is unconfigured.
+    These tests stub the R2 *I/O* only, so they must not depend on real R2
+    credentials being present in the environment — patching the computed
+    ``r2_enabled`` property keeps the suite hermetic.
+    """
+    with patch.object(
+        type(get_settings()),
+        "r2_enabled",
+        new_callable=PropertyMock,
+        return_value=True,
+    ):
+        yield
 
 
 @pytest.fixture

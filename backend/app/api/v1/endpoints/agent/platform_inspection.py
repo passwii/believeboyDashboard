@@ -160,6 +160,22 @@ def _get_period_or_shell_404(db: Session, period_id: int) -> InspectionPeriod:
     return period
 
 
+def _get_project_or_shell_404(db: Session, project_id: int) -> Project:
+    """项目不存在 → 404 ``RESOURCE_NOT_FOUND``（先于写入校验）。
+
+    缺此校验时 ``project_scope="*"`` 的 Agent 会对任意 project_id 直接放行，
+    INSERT 命中 ``inspection_reports_project_id_fkey`` 抛 500；契约应与
+    「周期不存在」一致，返回 404。
+    """
+    project = db.get(Project, project_id)
+    if project is None:
+        raise AgentApiError(
+            ErrorCode.RESOURCE_NOT_FOUND,
+            human_message=f"项目 {project_id} 不存在",
+        )
+    return project
+
+
 def _serialize_report(report: InspectionReport) -> dict[str, Any]:
     """写侧序列化：对齐 account_health 拍平口径，但**不含 presigned URL**
     （D6），含 ``screenshot_count``（spec §6.2 W1 响应形态）。
@@ -364,6 +380,7 @@ async def upsert_report(
     country = country.upper()
     with _service_errors():
         _get_period_or_shell_404(db, period_id)
+        _get_project_or_shell_404(db, project_id)
         current = db.execute(
             select(InspectionReport).where(
                 InspectionReport.period_id == period_id,
