@@ -62,7 +62,15 @@ from app.models.project_workflow_template import (
     WorkflowTemplateTaskContent,
 )
 from app.models.sku_info import SkuRecord
-from app.models.amazon_review_tracking import AmazonReviewGroup, AmazonReviewGroupMember
+from app.models.amazon_review_tracking import (
+    AmazonReviewGroup,
+    AmazonReviewGroupMember,
+    AmazonReviewTarget,
+    AmazonReviewRatingSnapshot,
+    AmazonReviewReview,
+    AmazonReviewCrawlRun,
+    AmazonReviewExternalLink,
+)
 from app.models.ai_chat import AIConversation, AIMessage, AIChatTokenUsageSnapshot
 from app.models.ai_insight import AIInsight, InsightStatus, InsightType
 from app.models.commission_record import CommissionRecord
@@ -173,6 +181,11 @@ __all__ = [
     "SkuRecord",
     "AmazonReviewGroup",
     "AmazonReviewGroupMember",
+    "AmazonReviewTarget",
+    "AmazonReviewRatingSnapshot",
+    "AmazonReviewReview",
+    "AmazonReviewCrawlRun",
+    "AmazonReviewExternalLink",
     "Project",
     "Job",
     "JobRun",
