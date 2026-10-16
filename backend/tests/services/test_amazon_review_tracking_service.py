@@ -157,3 +157,44 @@ def test_deactivate_group_soft_removes_members_and_allows_rejoin(db_session, dat
     assert new_group.id != old_group.id
     assert new_member.removed_at is None
     assert db_session.get(AmazonReviewGroupMember, old_member.id) is not None
+
+
+def test_group_lifecycle_syncs_internal_target(db_session, data):
+    from app.models.amazon_review_tracking import AmazonReviewTarget
+
+    project, (one, two, _) = data
+    group = create_group(db_session, project_id=project.id, marketplace="US", name="Sync",
+        member_ids=[one.id, two.id], representative_id=one.id)
+    db_session.flush()
+    target = db_session.execute(
+        select(AmazonReviewTarget).where(AmazonReviewTarget.group_id == group.id)
+    ).scalar_one()
+    assert target.kind == "internal_group" and target.is_active is True
+    assert target.project_id == project.id and target.marketplace == "US"
+    assert target.asin == one.asin
+
+    set_representative(db_session, group_id=group.id, sku_record_id=two.id)
+    db_session.flush()
+    db_session.refresh(target)
+    assert target.asin == two.asin
+
+    deactivate_group(db_session, group_id=group.id)
+    db_session.flush()
+    db_session.refresh(target)
+    assert target.is_active is False
+
+
+def test_group_rename_syncs_target_display_name(db_session, data):
+    from app.models.amazon_review_tracking import AmazonReviewTarget
+    from app.services.amazon_review_tracking_service import update_group_name
+
+    project, (one, _, _) = data
+    group = create_group(db_session, project_id=project.id, marketplace="US", name="Before",
+        member_ids=[one.id], representative_id=one.id)
+    db_session.flush()
+    update_group_name(db_session, group_id=group.id, name="After")
+    db_session.flush()
+    target = db_session.execute(
+        select(AmazonReviewTarget).where(AmazonReviewTarget.group_id == group.id)
+    ).scalar_one()
+    assert target.display_name == "After"

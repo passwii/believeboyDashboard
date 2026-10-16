@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models.amazon_review_tracking import AmazonReviewGroup, AmazonReviewGroupMember
+from app.models.amazon_review_tracking import AmazonReviewGroup, AmazonReviewGroupMember, AmazonReviewTarget
 from app.models.sku_info import SkuRecord
 from app.schemas.amazon_review_tracking import SUPPORTED_MARKETPLACES, validate_marketplace
 
@@ -43,6 +43,25 @@ def _active_group(db: Session, group_id: int) -> AmazonReviewGroup:
     if not group.is_active:
         raise ReviewGroupError("cannot modify inactive review group")
     return group
+
+
+def _sync_internal_target(db: Session, group: AmazonReviewGroup, *, representative_asin: str | None) -> AmazonReviewTarget:
+    target = db.execute(
+        select(AmazonReviewTarget).where(AmazonReviewTarget.group_id == group.id)
+    ).scalar_one_or_none()
+    if target is None:
+        target = AmazonReviewTarget(
+            kind="internal_group", group_id=group.id, project_id=group.project_id,
+            marketplace=group.marketplace, asin=representative_asin,
+            display_name=group.name, is_active=group.is_active,
+        )
+        db.add(target)
+    else:
+        target.asin = representative_asin
+        target.display_name = group.name
+        target.is_active = group.is_active
+    db.flush()
+    return target
 
 
 def _add_members(db: Session, group: AmazonReviewGroup, ids: list[int]) -> None:
@@ -94,6 +113,8 @@ def create_group(db: Session, *, project_id: int, marketplace: str, name: str, m
             db.flush()
     except IntegrityError as exc:
         raise ReviewGroupError("SKU already belongs to an active review group or violates group ownership") from exc
+    representative = db.get(SkuRecord, representative_id)
+    _sync_internal_target(db, group, representative_asin=representative.asin if representative else None)
     return group
 
 
@@ -113,6 +134,7 @@ def update_group_name(db: Session, *, group_id: int, name: str) -> AmazonReviewG
         raise ReviewGroupError("active review group with this name already exists")
     group.name = name
     db.flush()
+    _sync_internal_target(db, group, representative_asin=(db.get(SkuRecord, group.representative_sku_record_id).asin if group.representative_sku_record_id else None))
     return group
 
 
@@ -146,6 +168,7 @@ def set_representative(db: Session, *, group_id: int, sku_record_id: int) -> Ama
         raise ReviewGroupError("representative must be an active group member")
     group.representative_sku_record_id = sku_record_id
     db.flush()
+    _sync_internal_target(db, group, representative_asin=sku.asin)
     return group
 
 
@@ -160,4 +183,5 @@ def deactivate_group(db: Session, *, group_id: int) -> AmazonReviewGroup:
         member.removed_at = now
     group.is_active = False
     db.flush()
+    _sync_internal_target(db, group, representative_asin=(db.get(SkuRecord, group.representative_sku_record_id).asin if group.representative_sku_record_id else None))
     return group

@@ -48,12 +48,11 @@ def scoped_group(db_session, active_project):
 
 @pytest.fixture
 def internal_target(db_session, scoped_group):
-    project, sku, group = scoped_group
-    target = AmazonReviewTarget(kind="internal_group", group_id=group.id, project_id=project.id,
-                                marketplace="US", asin=sku.asin, is_active=True)
-    db_session.add(target)
-    db_session.flush()
-    return target
+    """The internal target auto-created by ``create_group`` (Task 2 group-lifecycle sync)."""
+    _project, _sku, group = scoped_group
+    return db_session.execute(
+        select(AmazonReviewTarget).where(AmazonReviewTarget.group_id == group.id)
+    ).scalar_one()
 
 
 def test_internal_target_shape_and_unique_group(db_session, internal_target):
