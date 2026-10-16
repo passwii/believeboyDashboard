@@ -32506,6 +32506,8 @@ export interface operations {
                 "X-Session-Id"?: string | null;
                 "X-API-Key"?: string | null;
                 Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -32631,6 +32633,8 @@ export interface operations {
                 "X-Session-Id"?: string | null;
                 "X-API-Key"?: string | null;
                 Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
             };
             path: {
                 target_id: number;
@@ -32674,6 +32678,8 @@ export interface operations {
                 "X-Session-Id"?: string | null;
                 "X-API-Key"?: string | null;
                 Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
             };
             path: {
                 target_id: number;
@@ -32714,6 +32720,8 @@ export interface operations {
                 "X-Session-Id"?: string | null;
                 "X-API-Key"?: string | null;
                 Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
             };
             path: {
                 target_id: number;
