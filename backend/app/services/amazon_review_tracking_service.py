@@ -45,6 +45,13 @@ def _active_group(db: Session, group_id: int) -> AmazonReviewGroup:
     return group
 
 
+def _representative_asin(db: Session, representative_sku_record_id: int | None) -> str | None:
+    if representative_sku_record_id is None:
+        return None
+    record = db.get(SkuRecord, representative_sku_record_id)
+    return record.asin if record is not None else None
+
+
 def _sync_internal_target(db: Session, group: AmazonReviewGroup, *, representative_asin: str | None) -> AmazonReviewTarget:
     target = db.execute(
         select(AmazonReviewTarget).where(AmazonReviewTarget.group_id == group.id)
@@ -113,8 +120,7 @@ def create_group(db: Session, *, project_id: int, marketplace: str, name: str, m
             db.flush()
     except IntegrityError as exc:
         raise ReviewGroupError("SKU already belongs to an active review group or violates group ownership") from exc
-    representative = db.get(SkuRecord, representative_id)
-    _sync_internal_target(db, group, representative_asin=representative.asin if representative else None)
+    _sync_internal_target(db, group, representative_asin=_representative_asin(db, representative_id))
     return group
 
 
@@ -134,7 +140,7 @@ def update_group_name(db: Session, *, group_id: int, name: str) -> AmazonReviewG
         raise ReviewGroupError("active review group with this name already exists")
     group.name = name
     db.flush()
-    _sync_internal_target(db, group, representative_asin=(db.get(SkuRecord, group.representative_sku_record_id).asin if group.representative_sku_record_id else None))
+    _sync_internal_target(db, group, representative_asin=_representative_asin(db, group.representative_sku_record_id))
     return group
 
 
@@ -183,5 +189,5 @@ def deactivate_group(db: Session, *, group_id: int) -> AmazonReviewGroup:
         member.removed_at = now
     group.is_active = False
     db.flush()
-    _sync_internal_target(db, group, representative_asin=(db.get(SkuRecord, group.representative_sku_record_id).asin if group.representative_sku_record_id else None))
+    _sync_internal_target(db, group, representative_asin=_representative_asin(db, group.representative_sku_record_id))
     return group

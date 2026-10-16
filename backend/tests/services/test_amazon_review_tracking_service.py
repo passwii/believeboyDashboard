@@ -198,3 +198,29 @@ def test_group_rename_syncs_target_display_name(db_session, data):
         select(AmazonReviewTarget).where(AmazonReviewTarget.group_id == group.id)
     ).scalar_one()
     assert target.display_name == "After"
+
+
+def test_target_sync_handles_null_representative(db_session, data):
+    from app.models.amazon_review_tracking import AmazonReviewTarget
+    from app.services.amazon_review_tracking_service import update_group_name
+
+    project, (one, _, _) = data
+    group = create_group(db_session, project_id=project.id, marketplace="US", name="NoRep",
+        member_ids=[one.id], representative_id=one.id)
+    db_session.flush()
+    target = db_session.execute(
+        select(AmazonReviewTarget).where(AmazonReviewTarget.group_id == group.id)
+    ).scalar_one()
+
+    group.representative_sku_record_id = None
+    db_session.flush()
+
+    update_group_name(db_session, group_id=group.id, name="NoRepRenamed")
+    db_session.flush()
+    db_session.refresh(target)
+    assert target.display_name == "NoRepRenamed" and target.asin is None
+
+    deactivate_group(db_session, group_id=group.id)
+    db_session.flush()
+    db_session.refresh(target)
+    assert target.is_active is False and target.asin is None
