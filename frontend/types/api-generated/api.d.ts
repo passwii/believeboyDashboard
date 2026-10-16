@@ -3364,6 +3364,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/amazon-review-tracking/external-targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List External Targets */
+        get: operations["list_external_targets_api_v1_amazon_review_tracking_external_targets_get"];
+        put?: never;
+        /** Create External Target */
+        post: operations["create_external_target_api_v1_amazon_review_tracking_external_targets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/amazon-review-tracking/groups": {
         parameters: {
             query?: never;
@@ -3410,6 +3428,108 @@ export interface paths {
         put?: never;
         /** Deactivate Review Group */
         post: operations["deactivate_review_group_api_v1_amazon_review_tracking_groups__group_id__deactivate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/amazon-review-tracking/targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Targets */
+        get: operations["list_targets_api_v1_amazon_review_tracking_targets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/amazon-review-tracking/targets/{target_id}/external-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create External Link */
+        post: operations["create_external_link_api_v1_amazon_review_tracking_targets__target_id__external_links_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/amazon-review-tracking/targets/{target_id}/external-links/{link_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete External Link */
+        delete: operations["delete_external_link_api_v1_amazon_review_tracking_targets__target_id__external_links__link_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/amazon-review-tracking/targets/{target_id}/rating-snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Rating Snapshots */
+        get: operations["list_rating_snapshots_api_v1_amazon_review_tracking_targets__target_id__rating_snapshots_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/amazon-review-tracking/targets/{target_id}/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Reviews */
+        get: operations["list_reviews_api_v1_amazon_review_tracking_targets__target_id__reviews_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/amazon-review-tracking/targets/{target_id}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Runs */
+        get: operations["list_runs_api_v1_amazon_review_tracking_targets__target_id__runs_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -13523,6 +13643,30 @@ export interface components {
             customer: components["schemas"]["CustomerItem"];
             lead: components["schemas"]["LeadItem"];
         };
+        /** CrawlRunItem */
+        CrawlRunItem: {
+            /** Asin Scraped */
+            asin_scraped: string | null;
+            /** Error Message */
+            error_message: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** Id */
+            id: number;
+            /** Is Complete List */
+            is_complete_list: boolean;
+            /** Ratings Captured */
+            ratings_captured: boolean;
+            /** Reviews Seen */
+            reviews_seen: number | null;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Status */
+            status: string;
+        };
         /** CreateJobRequest */
         CreateJobRequest: {
             /** File Id */
@@ -14717,6 +14861,54 @@ export interface components {
             uploaded_at: string;
             /** Url */
             url: string;
+        };
+        /** ExternalLinkCreate */
+        ExternalLinkCreate: {
+            /** Shop Id */
+            shop_id: number;
+        };
+        /** ExternalLinkItem */
+        ExternalLinkItem: {
+            /** Id */
+            id: number;
+            /** Is Active */
+            is_active: boolean;
+            /** Shop Id */
+            shop_id: number;
+            /** Target Id */
+            target_id: number;
+        };
+        /** ExternalTargetCreate */
+        ExternalTargetCreate: {
+            /** Asin */
+            asin: string;
+            /** Display Name */
+            display_name?: string | null;
+            /** Marketplace */
+            marketplace: string;
+            /** Shop Id */
+            shop_id?: number | null;
+        };
+        /** ExternalTargetItem */
+        ExternalTargetItem: {
+            /** Asin */
+            asin: string | null;
+            /** Display Name */
+            display_name: string | null;
+            /** Group Id */
+            group_id: number | null;
+            /** Id */
+            id: number;
+            /** Is Active */
+            is_active: boolean;
+            /** Kind */
+            kind: string;
+            /** Links */
+            links: components["schemas"]["ExternalLinkItem"][];
+            /** Marketplace */
+            marketplace: string;
+            /** Project Id */
+            project_id: number | null;
         };
         /** FilterOption */
         FilterOption: {
@@ -20836,6 +21028,49 @@ export interface components {
             /** Templates */
             templates: components["schemas"]["ProjectWorkflowTemplateOption"][];
         };
+        /** RatingSnapshotItem */
+        RatingSnapshotItem: {
+            /** Average Rating */
+            average_rating: number | null;
+            /**
+             * Capture Date
+             * Format: date
+             */
+            capture_date: string;
+            /** Capture Status */
+            capture_status: string;
+            /**
+             * Captured At
+             * Format: date-time
+             */
+            captured_at: string;
+            /** Rating Count */
+            rating_count: number | null;
+            /** Review Count */
+            review_count: number | null;
+            /** Star 1 Count */
+            star_1_count: number | null;
+            /** Star 1 Percentage */
+            star_1_percentage: number | null;
+            /** Star 2 Count */
+            star_2_count: number | null;
+            /** Star 2 Percentage */
+            star_2_percentage: number | null;
+            /** Star 3 Count */
+            star_3_count: number | null;
+            /** Star 3 Percentage */
+            star_3_percentage: number | null;
+            /** Star 4 Count */
+            star_4_count: number | null;
+            /** Star 4 Percentage */
+            star_4_percentage: number | null;
+            /** Star 5 Count */
+            star_5_count: number | null;
+            /** Star 5 Percentage */
+            star_5_percentage: number | null;
+            /** Star Count Quality */
+            star_count_quality: string;
+        };
         /**
          * ReceiptCluster
          * @description A receipt cluster: same date + location receiving multiple SKUs.
@@ -21605,6 +21840,41 @@ export interface components {
             name?: string | null;
             /** Representative Id */
             representative_id?: number | null;
+        };
+        /** ReviewItem */
+        ReviewItem: {
+            /** Body */
+            body: string | null;
+            /**
+             * First Seen At
+             * Format: date-time
+             */
+            first_seen_at: string;
+            /** Helpful Count */
+            helpful_count: number | null;
+            /** Id Confidence */
+            id_confidence: string;
+            /**
+             * Last Seen At
+             * Format: date-time
+             */
+            last_seen_at: string;
+            /** Rating */
+            rating: number | null;
+            /** Review Date */
+            review_date: string | null;
+            /** Review Key */
+            review_key: string;
+            /** Reviewer Id */
+            reviewer_id: string | null;
+            /** Reviewer Name */
+            reviewer_name: string | null;
+            /** Title */
+            title: string | null;
+            /** Verified Purchase */
+            verified_purchase: boolean | null;
+            /** Visibility Status */
+            visibility_status: string;
         };
         /** RpaReportStatusResponseSchema */
         RpaReportStatusResponseSchema: {
@@ -23853,6 +24123,25 @@ export interface components {
             table_name: string;
             /** Table Name Cn */
             table_name_cn?: string | null;
+        };
+        /** TargetItem */
+        TargetItem: {
+            /** Asin */
+            asin: string | null;
+            /** Display Name */
+            display_name: string | null;
+            /** Group Id */
+            group_id: number | null;
+            /** Id */
+            id: number;
+            /** Is Active */
+            is_active: boolean;
+            /** Kind */
+            kind: string;
+            /** Marketplace */
+            marketplace: string;
+            /** Project Id */
+            project_id: number | null;
         };
         /**
          * TaskCompleteRequest
@@ -31956,6 +32245,86 @@ export interface operations {
             };
         };
     };
+    list_external_targets_api_v1_amazon_review_tracking_external_targets_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-User-Id"?: string | null;
+                "X-Session-Id"?: string | null;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalTargetItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_external_target_api_v1_amazon_review_tracking_external_targets_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-User-Id"?: string | null;
+                "X-Session-Id"?: string | null;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExternalTargetCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalTargetItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_groups_api_v1_amazon_review_tracking_groups_get: {
         parameters: {
             query?: {
@@ -32108,6 +32477,258 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReviewGroupItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_targets_api_v1_amazon_review_tracking_targets_get: {
+        parameters: {
+            query?: {
+                project_id?: number | null;
+                marketplace?: string | null;
+                kind?: string | null;
+                is_active?: boolean | null;
+                limit?: number;
+                offset?: number;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-User-Id"?: string | null;
+                "X-Session-Id"?: string | null;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TargetItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_external_link_api_v1_amazon_review_tracking_targets__target_id__external_links_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-User-Id"?: string | null;
+                "X-Session-Id"?: string | null;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                target_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExternalLinkCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalLinkItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_external_link_api_v1_amazon_review_tracking_targets__target_id__external_links__link_id__delete: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-User-Id"?: string | null;
+                "X-Session-Id"?: string | null;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+            };
+            path: {
+                target_id: number;
+                link_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalLinkItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_rating_snapshots_api_v1_amazon_review_tracking_targets__target_id__rating_snapshots_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                limit?: number;
+                offset?: number;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-User-Id"?: string | null;
+                "X-Session-Id"?: string | null;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path: {
+                target_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RatingSnapshotItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_reviews_api_v1_amazon_review_tracking_targets__target_id__reviews_get: {
+        parameters: {
+            query?: {
+                visibility_status?: string | null;
+                review_date_from?: string | null;
+                review_date_to?: string | null;
+                limit?: number;
+                offset?: number;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-User-Id"?: string | null;
+                "X-Session-Id"?: string | null;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path: {
+                target_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewItem"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_runs_api_v1_amazon_review_tracking_targets__target_id__runs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-User-Id"?: string | null;
+                "X-Session-Id"?: string | null;
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path: {
+                target_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrawlRunItem"][];
                 };
             };
             /** @description Validation Error */
