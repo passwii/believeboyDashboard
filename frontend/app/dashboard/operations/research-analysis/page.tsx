@@ -43,6 +43,7 @@ import {
   Upload,
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -1903,6 +1904,7 @@ export default function CategoryResearchPage() {
   >([])
   const [activeSection, setActiveSection] = useState<ViewTab>('overview')
   const [showAllDefinitions, setShowAllDefinitions] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
 
   const loadKeywordOptions = useCallback(async () => {
     setKeywordLoading(true)
@@ -2072,6 +2074,24 @@ export default function CategoryResearchPage() {
     void loadOverview(selectedDatasetId)
     void loadMarketTrend(selectedDatasetId)
   }, [selectedDatasetId, loadMarketTrend, loadOverview])
+
+  const refreshResearchData = useCallback(async () => {
+    setRefreshing(true)
+    try {
+      await Promise.all([
+        loadKeywordOptions(),
+        analysisKeyword.trim() ? loadDatasets(analysisKeyword) : Promise.resolve(true),
+        selectedDatasetId
+          ? Promise.all([loadOverview(selectedDatasetId), loadMarketTrend(selectedDatasetId)])
+          : Promise.resolve(),
+      ])
+    } finally {
+      setRefreshing(false)
+    }
+  }, [analysisKeyword, loadDatasets, loadKeywordOptions, loadMarketTrend, loadOverview, selectedDatasetId])
+  useHeaderRefresh(refreshResearchData, {
+    loading: refreshing || keywordLoading || datasetLoading || overviewLoading || marketTrendLoading,
+  })
 
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     setUploadFile(event.target.files?.[0] ?? null)

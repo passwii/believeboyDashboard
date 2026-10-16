@@ -72,6 +72,7 @@ import {
 import { parseResponseError } from '@/lib/error-utils'
 import { ensureConfigLoaded } from '@/lib/api/ai-chat-config-store'
 import { useNotifications } from '@/components/notifications'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { useConfirm } from '@/hooks/use-confirm'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { cn } from '@/lib/utils'
@@ -242,6 +243,8 @@ export default function AIInsightsPage() {
       void loadInsights()
     }
   }, [selectedProjectId, loadInsights])
+
+  useHeaderRefresh(loadInsights, { loading: isLoadingInsights })
 
   // BEL-424：模型配置推迟到生成弹窗首次打开再拉，并复用 ai-chat 配置 store
   // （模块级缓存 + 在途去重，与 AI 聊天 / 客服页共享同一份配置，跨页不重复请求）。

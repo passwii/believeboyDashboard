@@ -6,6 +6,7 @@ import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import { useCrmDataScope } from '@/hooks/use-crm-data-scope'
 import { useCrmUsers } from '@/hooks/use-crm-users'
 import { useNotifications } from '@/components/notifications'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -72,6 +73,8 @@ export function CrmFollowUpList() {
       setLoading(false)
     }
   }, [client, scope])
+
+  useHeaderRefresh(load, { loading })
 
   useEffect(() => {
     void load()
@@ -148,7 +151,7 @@ export function CrmFollowUpList() {
   if (loading && !groups) {
     return <div className="py-16 text-center font-mono text-xs text-term-faint">加载中…</div>
   }
-  if (error) {
+  if (error && !groups) {
     return (
       <div
         role="alert"
@@ -160,7 +163,8 @@ export function CrmFollowUpList() {
   }
   if (!groups || groups.totalCount === 0) {
     return (
-      <div className="flex flex-col items-center gap-2 py-20 text-term-faint">
+      <div className="flex flex-col items-center gap-2 py-20 text-term-faint" aria-busy={loading}>
+        {error && <p role="alert" className="font-mono text-xs text-term-neg">刷新失败：{error}</p>}
         <Inbox className="h-10 w-10" />
         <p className="font-mono text-xs">暂无待跟进，太棒了</p>
       </div>
@@ -168,7 +172,12 @@ export function CrmFollowUpList() {
   }
 
   return (
-    <div className="flex min-w-0 flex-col gap-3">
+    <div className="flex min-w-0 flex-col gap-3" aria-busy={loading}>
+      {error && (
+        <div role="alert" className="font-mono text-xs text-term-neg">
+          刷新失败：{error}
+        </div>
+      )}
       {GROUPS.map((g) => {
         const items = groups[g.key]
         if (items.length === 0) return null

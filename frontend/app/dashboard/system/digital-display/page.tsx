@@ -15,6 +15,7 @@ import {
 } from '@/components/charts'
 import { cn } from '@/lib/utils'
 import { fetchProjectOptionsCached } from '@/lib/project-client-cache'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 
 
 // ─── types ──────────────────────────────────────────────────────────────────
@@ -249,6 +250,10 @@ export default function DigitalDisplayPage() {
   }, [])
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId)
+  const refreshDisplay = useCallback(async () => {
+    if (selectedProjectId) await fetchData(selectedProjectId)
+  }, [fetchData, selectedProjectId])
+  useHeaderRefresh(refreshDisplay, { loading: isLoading })
 
   const exitFullscreen = () => {
     if (document.fullscreenElement) {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowDown, ArrowDownUp, ArrowUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import { useCrmTable } from './use-crm-table'
 import { CrmSearchInput } from './crm-search-input'
+import { CrmTableHeaderRefresh } from './header-refresh'
 import type { CrmColumnDef, CrmTableProps, FilterCondition } from './types'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -132,6 +133,7 @@ export function CrmTable<T extends { id?: string | number }>({
   defaultPageSize,
   rowKey,
   refreshKey,
+  headerRefresh = false,
   filterFields = [],
   searchable = false,
   searchPlaceholder,
@@ -198,8 +200,12 @@ export function CrmTable<T extends { id?: string | number }>({
     setSelectedIds(allSelected ? [] : rowIds)
   }
 
+  const refreshBridge = headerRefresh ? (
+    <CrmTableHeaderRefresh refresh={table.refresh} loading={table.loading} />
+  ) : null
+
   // loading skeleton
-  if (table.loading && (!table.data || table.data.length === 0)) {
+  if (table.loading && table.data === undefined) {
     return (
       <div
         className="space-y-2 rounded-none"
@@ -208,6 +214,7 @@ export function CrmTable<T extends { id?: string | number }>({
         aria-label="表格加载中"
         data-testid="crm-table-skeleton"
       >
+        {refreshBridge}
         {Array.from({ length: 5 }).map((_, i) => (
           <Skeleton key={i} className="h-10 w-full" />
         ))}
@@ -216,16 +223,25 @@ export function CrmTable<T extends { id?: string | number }>({
   }
 
   // error
-  if (table.error) {
+  if (table.error && table.data === undefined) {
     return (
-      <ErrorState title="加载失败" message={table.error.message} onRetry={() => void table.refresh()} />
+      <>
+        {refreshBridge}
+        <ErrorState title="加载失败" message={table.error.message} onRetry={() => void table.refresh()} />
+      </>
     )
   }
 
   const totalPages = Math.max(1, Math.ceil(table.total / table.pageSize))
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col" aria-busy={table.loading}>
+      {refreshBridge}
+      {table.error && (
+        <div role="alert" className="mb-2 font-mono text-xs text-term-neg">
+          刷新失败：{table.error.message}
+        </div>
+      )}
       {(searchable || filterFields.length > 0) && (
         // 移动规则 2/8：手机 2 列网格内联标签；桌面 md+ 恢复横向 flex 排列（终端控件规格）
         <div className="mb-1.5 grid grid-cols-2 items-end gap-2 md:flex md:flex-wrap md:items-center md:gap-1.5">

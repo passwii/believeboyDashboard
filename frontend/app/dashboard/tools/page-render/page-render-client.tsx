@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input'
 import { UploadZone } from '@/components/ui/upload-zone'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { cn } from '@/lib/utils'
 import { formatDistanceToNow } from 'date-fns'
@@ -120,7 +121,7 @@ export default function PageRenderClient() {
   const [isUploading, setIsUploading] = useState(false)
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
 
-  const refreshHistory = useCallback(async () => {
+  const refreshHistory = useCallback(async (preserveExisting = false) => {
     setIsLoadingHistory(true)
     try {
       const res = await fetch(`${API_BASE}/api/v1/page-render/history?limit=50`, {
@@ -133,7 +134,15 @@ export default function PageRenderClient() {
       setHistory(data.items)
       setHistoryTotal(data.total)
     } catch (err) {
-      notify({ type: 'error', title: '加载历史失败', message: normalizeErrorMessage(err) })
+      if (!preserveExisting) {
+        notify({ type: 'error', title: '加载历史失败', message: normalizeErrorMessage(err) })
+      } else {
+        notify({
+          type: 'error',
+          title: '历史刷新失败，已保留现有列表',
+          message: normalizeErrorMessage(err),
+        })
+      }
     } finally {
       setIsLoadingHistory(false)
     }
@@ -142,6 +151,8 @@ export default function PageRenderClient() {
   useEffect(() => {
     void refreshHistory()
   }, [refreshHistory])
+
+  useHeaderRefresh(() => refreshHistory(true), { loading: isLoadingHistory || isUploading })
 
   const handleUpload = useCallback(
     async (file: File) => {
@@ -332,7 +343,7 @@ export default function PageRenderClient() {
         actions={
           <>
             <Badge variant="secondary" className="rounded-none border-term-border bg-term-bg font-mono text-[11px] tabular-nums text-term-muted">{historyTotal}</Badge>
-            <Button variant="ghost" size="sm" className="h-7 rounded-none px-2 font-mono text-xs text-term-muted hover:text-term-text" onClick={refreshHistory} disabled={isLoadingHistory}>
+            <Button variant="ghost" size="sm" className="h-7 rounded-none px-2 font-mono text-xs text-term-muted hover:text-term-text" onClick={() => void refreshHistory(true)} disabled={isLoadingHistory}>
               {isLoadingHistory ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : '刷新'}
             </Button>
           </>

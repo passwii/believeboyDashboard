@@ -168,6 +168,7 @@ export function CrmLeadTable() {
       </div>
       <CrmTable<Lead>
         queryKey="leads"
+        headerRefresh
         fetchPage={fetchPage}
         columns={columns}
         filterFields={leadFilterFields}

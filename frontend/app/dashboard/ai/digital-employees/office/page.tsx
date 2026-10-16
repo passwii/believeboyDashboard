@@ -7,6 +7,7 @@ import { OfficeChatterTicker, OfficeSpotlightToast } from '@/components/digital-
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import type { OfficeEmployee } from '@/lib/digital-employee/office-stream-types'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 
 /** 排序权重：忙碌/在岗优先，休息/离线沉底 */
 const STATUS_ORDER: Record<string, number> = {
@@ -55,8 +56,9 @@ function OfficeOverview({ employees, large }: { employees: OfficeEmployee[]; lar
 export default function DigitalOfficePage() {
   const searchParams = useSearchParams()
   const isPresentation = searchParams.get('mode') === 'presentation'
-  const { employees, connected, chatterFeed } = useOfficeStream()
+  const { employees, connected, chatterFeed, refreshing, refresh } = useOfficeStream()
   const sorted = useMemo(() => sortEmployees(employees), [employees])
+  useHeaderRefresh(refresh, { loading: refreshing })
   const [clock, setClock] = useState('')
 
   // 投屏模式：显示时钟

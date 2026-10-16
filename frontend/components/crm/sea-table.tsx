@@ -166,6 +166,7 @@ export function CrmSeaTable() {
       </div>
       <CrmTable<Customer>
         queryKey="sea"
+        headerRefresh
         fetchPage={fetchPage}
         columns={columns}
         filterFields={seaFilterFields}

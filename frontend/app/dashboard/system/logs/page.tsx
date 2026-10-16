@@ -40,6 +40,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AgentAccessLogsPanel } from '@/components/system/agent-access-logs-panel'
 import { buildBackendClientHeaders } from '@/lib/backend-auth'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { useNotifications } from '@/components/notifications'
 
@@ -465,6 +466,7 @@ export default function SystemOperationLogsPage() {
   const [rows, setRows] = useState<OperationAuditLogItem[]>([])
   const [summary, setSummary] = useState<OperationAuditLogsSummaryResponse | null>(null)
   const [loading, setLoading] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
 
   const [page, setPage] = useState(1)
   const pageSize = 20
@@ -591,6 +593,21 @@ export default function SystemOperationLogsPage() {
   useEffect(() => {
     void fetchLogs()
   }, [fetchLogs])
+
+  const refreshActiveLogView = useCallback(async () => {
+    setRefreshing(true)
+    try {
+      if (activeTab === 'agent') return
+      if (activeTab === 'login') {
+        await fetchLoginLogs()
+        return
+      }
+      await fetchLogs()
+    } finally {
+      setRefreshing(false)
+    }
+  }, [activeTab, fetchLoginLogs, fetchLogs])
+  useHeaderRefresh(refreshActiveLogView, { loading: loading || refreshing })
 
   useEffect(() => {
     if (activeTab === 'login') {

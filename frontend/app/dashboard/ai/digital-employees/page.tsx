@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { useSmoothRefresh } from '@/hooks/use-smooth-refresh'
 import { RefreshProgressBar } from '@/components/ui/refresh-progress-bar'
 import { TERM_BUTTON } from '@/components/terminal/term-controls'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 
 const STATUS_FILTERS = [
   { label: '全部', value: null },
@@ -30,6 +31,8 @@ export default function DigitalEmployeesPage() {
   const { employees, isLoading, error, mutate } = useDigitalEmployees()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
+
+  useHeaderRefresh(() => mutate(), { loading: isLoading })
 
   const { showSkeleton, isRefreshing } = useSmoothRefresh({
     loading: isLoading,

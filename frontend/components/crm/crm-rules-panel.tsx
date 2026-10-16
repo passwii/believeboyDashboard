@@ -19,7 +19,11 @@ import type { Rule, RuleInput } from '@/lib/crm/types'
  * 可见性：sidebar 不做角色墙（roles 已移除），权限由后端 require_admin 兜底——
  * 非管理员调用 listRules 返回 403 → 展示「无权限」而非报错（沿用 audit 页范式）。
  */
-export function CrmRulesPanel() {
+export function CrmRulesPanel({
+  onRefreshReady,
+}: {
+  onRefreshReady?: (refresh: () => Promise<void>) => void
+}) {
   const client = useCrmClient()
   const { notify } = useNotifications()
   const { confirm } = useConfirm()
@@ -47,6 +51,9 @@ export function CrmRulesPanel() {
   useEffect(() => {
     void load()
   }, [load])
+  useEffect(() => {
+    onRefreshReady?.(load)
+  }, [load, onRefreshReady])
 
   function openCreate() {
     setEditing(undefined)

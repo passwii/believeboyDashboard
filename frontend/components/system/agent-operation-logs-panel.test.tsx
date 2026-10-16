@@ -12,6 +12,9 @@ const { notify, session } = vi.hoisted(() => ({
 vi.mock('next-auth/react', () => ({
   useSession: () => session,
 }))
+vi.mock('@/components/terminal/terminal-header-slot', () => ({
+  useHeaderRefresh: () => ({ setLoading: vi.fn() }),
+}))
 
 vi.mock('@/components/notifications', () => ({
   useNotifications: () => ({ notify }),

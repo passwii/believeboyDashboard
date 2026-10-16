@@ -26,6 +26,7 @@ import {
 } from '@/components/terminal/term-table'
 import { TermPanel } from '@/components/terminal/term-panel'
 import { TERM_TRIGGER, TERM_SELECT_ITEM, TERM_BUTTON, type TermTone } from '@/components/terminal/term-controls'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 
 const SEVERITY_TONE: Record<string, TermTone> = {
   critical: 'neg',
@@ -41,7 +42,11 @@ const STATUS_LABEL: Record<string, string> = {
 
 const PAGE_SIZE = 20
 
-export function AlertEventsTab() {
+export function AlertEventsTab({
+  onRefreshReady,
+}: {
+  onRefreshReady?: (refresh: () => Promise<void>) => void
+}) {
   const { notify } = useNotifications()
   const [status, setStatus] = useState<string>('active')
   const [severity, setSeverity] = useState<string>('all')
@@ -71,6 +76,10 @@ export function AlertEventsTab() {
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    onRefreshReady?.(load)
+  }, [load, onRefreshReady])
 
   const onAck = async (id: number) => {
     try {

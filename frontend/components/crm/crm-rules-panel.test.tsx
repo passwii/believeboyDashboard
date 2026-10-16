@@ -4,6 +4,7 @@ import { CrmRulesPanel } from './crm-rules-panel'
 import { NotificationWrapper } from '@/components/system/notification-wrapper'
 import type { Rule } from '@/lib/crm/types'
 
+
 const seedRules: Rule[] = [
   {
     id: 1,

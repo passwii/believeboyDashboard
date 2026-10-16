@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, use } from 'react'
+import { useState, useEffect, useCallback, use, useRef } from 'react'
 import { ArrowLeft, Pause, Play } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,7 @@ import { StatusBadge } from '@/components/digital-employee/status-badge'
 import { HeartbeatDot } from '@/components/digital-employee/heartbeat-dot'
 import { LiveLog } from '@/components/digital-employee/live-log'
 import { cn } from '@/lib/utils'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 
 /** BLF-838：任务状态 → 终端单色语义（pill 底改 1px 边界） */
 const TASK_STATUS_STYLES: Record<string, string> = {
@@ -43,12 +44,16 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
   const [employee, setEmployee] = useState<
     import('@/types/digital-employee').DigitalEmployee | null
   >(null)
+  const employeeRef = useRef(employee)
+  employeeRef.current = employee
   const [tasks, setTasks] = useState<import('@/types/digital-employee').DigitalEmployeeTask[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [isActing, setIsActing] = useState(false)
   const [taskPage, setTaskPage] = useState(1)
 
   const load = useCallback(async () => {
+    if (!employeeRef.current) setIsLoading(true)
     try {
       const [emp, taskData] = await Promise.all([
         fetchDigitalEmployee(employeeId),
@@ -57,11 +62,21 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
       setEmployee(emp)
       setTasks(taskData.items)
     } catch {
-      // ignore
+      // Existing details remain visible during a transient refresh failure.
     } finally {
       setIsLoading(false)
     }
   }, [employeeId])
+
+  const refreshFromHeader = useCallback(async () => {
+    setIsRefreshing(true)
+    try {
+      await load()
+    } finally {
+      setIsRefreshing(false)
+    }
+  }, [load])
+  useHeaderRefresh(refreshFromHeader, { loading: isLoading || isRefreshing })
 
   useEffect(() => {
     void load()

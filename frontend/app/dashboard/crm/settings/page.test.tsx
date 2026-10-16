@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NotificationWrapper } from '@/components/system/notification-wrapper'
 import type { WorkflowSettings } from '@/lib/crm/types'
@@ -6,7 +6,7 @@ import SettingsPage from './page'
 
 import { stableSession } from '@/test-utils/stable-mocks'
 
-const { getWorkflowSettings, updateWorkflowSettings, listRules, notify, sessionRef } = vi.hoisted(() => {
+const { getWorkflowSettings, updateWorkflowSettings, listRules, notify, sessionRef, refreshHandlerRef } = vi.hoisted(() => {
   const getWorkflowSettings = vi.fn(async (): Promise<WorkflowSettings> => ({
     staleDays: 7,
     staleEmailEnabled: true,
@@ -20,8 +20,16 @@ const { getWorkflowSettings, updateWorkflowSettings, listRules, notify, sessionR
   const listRules = vi.fn(async () => [])
   const notify = vi.fn()
   const sessionRef: { roleType: 'admin' | 'operator' | null } = { roleType: 'admin' }
-  return { getWorkflowSettings, updateWorkflowSettings, listRules, notify, sessionRef }
+  const refreshHandlerRef: { current: null | (() => Promise<void>) } = { current: null }
+  return { getWorkflowSettings, updateWorkflowSettings, listRules, notify, sessionRef, refreshHandlerRef }
 })
+
+vi.mock('@/components/terminal/terminal-header-slot', () => ({
+  useHeaderRefresh: (handler: () => Promise<void>) => {
+    refreshHandlerRef.current = handler
+    return { setLoading: vi.fn() }
+  },
+}))
 
 vi.mock('next-auth/react', () => ({
   useSession: () => stableSession({ user: { roleType: sessionRef.roleType } }),
@@ -85,11 +93,24 @@ describe('SettingsPage（BLF-540 工作流设置）', () => {
     expect(screen.getByLabelText('无跟进天数')).toHaveValue(7)
   })
 
+  it('Head 刷新重新读取工作流设置，并保留未保存的天数输入', async () => {
+    renderPage()
+    await screen.findByText('7 天无跟进提醒')
+    fireEvent.change(screen.getByLabelText('无跟进天数'), { target: { value: '21' } })
+    getWorkflowSettings.mockResolvedValueOnce({ staleDays: 30, staleEmailEnabled: false })
+    const callsBefore = getWorkflowSettings.mock.calls.length
+
+    await act(async () => { await refreshHandlerRef.current?.() })
+
+    expect(getWorkflowSettings).toHaveBeenCalledTimes(callsBefore + 1)
+    expect(screen.getByLabelText('无跟进天数')).toHaveValue(21)
+    expect(screen.getByRole('switch', { name: '提醒邮件开关' })).not.toBeChecked()
+  })
+
   it('保存调用 updateWorkflowSettings 并提示成功', async () => {
     renderPage()
     await screen.findByText('7 天无跟进提醒')
 
-    fireEvent.click(screen.getByRole('switch', { name: '提醒邮件开关' }))
     const daysInput = screen.getByLabelText('无跟进天数')
     fireEvent.change(daysInput, { target: { value: '14' } })
     fireEvent.click(screen.getByRole('button', { name: '保存' }))
@@ -97,7 +118,7 @@ describe('SettingsPage（BLF-540 工作流设置）', () => {
     await waitFor(() => {
       expect(updateWorkflowSettings).toHaveBeenCalledWith({
         staleDays: 14,
-        staleEmailEnabled: false,
+        staleEmailEnabled: true,
       })
     })
     expect(notify).toHaveBeenCalledWith({ type: 'success', title: '设置已保存' })

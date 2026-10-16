@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,16 +19,52 @@ import {
   type AlertPreference,
 } from '@/lib/alerts-api'
 
-export function AlertPreferencesTab() {
+function arePreferencesEqual(left: AlertPreference, right: AlertPreference): boolean {
+  return (
+    left.email_enabled === right.email_enabled &&
+    left.in_app_enabled === right.in_app_enabled &&
+    left.min_severity === right.min_severity &&
+    left.quiet_hours_start === right.quiet_hours_start &&
+    left.quiet_hours_end === right.quiet_hours_end
+  )
+}
+
+export function AlertPreferencesTab({
+  onRefreshReady,
+}: {
+  onRefreshReady?: (refresh: () => Promise<void>) => void
+}) {
   const { notify } = useNotifications()
   const [pref, setPref] = useState<AlertPreference | null>(null)
+  const prefRef = useRef<AlertPreference | null>(null)
+  const savedPrefRef = useRef<AlertPreference | null>(null)
   const [saving, setSaving] = useState(false)
 
+  const updateDraft = useCallback((next: AlertPreference) => {
+    prefRef.current = next
+    setPref(next)
+  }, [])
+
+  const load = useCallback(async () => {
+    try {
+      const refreshed = await fetchAlertPreferences()
+      const currentDraft = prefRef.current
+      const savedPref = savedPrefRef.current
+      if (!currentDraft || !savedPref || arePreferencesEqual(currentDraft, savedPref)) {
+        savedPrefRef.current = refreshed
+        updateDraft(refreshed)
+      }
+    } catch (err) {
+      notify({ type: 'error', title: '加载偏好失败', message: String(err) })
+    }
+  }, [notify, updateDraft])
+
   useEffect(() => {
-    void fetchAlertPreferences()
-      .then(setPref)
-      .catch((err) => notify({ type: 'error', title: '加载偏好失败', message: String(err) }))
-  }, [notify])
+    void load()
+  }, [load])
+  useEffect(() => {
+    onRefreshReady?.(load)
+  }, [load, onRefreshReady])
 
   if (!pref) {
     return <div className="py-8 text-center font-mono text-xs text-term-faint">加载中…</div>
@@ -38,7 +74,8 @@ export function AlertPreferencesTab() {
     setSaving(true)
     try {
       const updated = await updateAlertPreferences(pref)
-      setPref(updated)
+      savedPrefRef.current = updated
+      updateDraft(updated)
       notify({ type: 'success', title: '偏好已保存' })
     } catch (err) {
       notify({ type: 'error', title: '保存失败', message: String(err) })
@@ -57,7 +94,7 @@ export function AlertPreferencesTab() {
         </div>
         <Switch
           checked={pref.email_enabled}
-          onCheckedChange={(v) => setPref({ ...pref, email_enabled: v })}
+          onCheckedChange={(v) => updateDraft({ ...pref, email_enabled: v })}
         />
       </div>
       <div className="flex items-center justify-between">
@@ -67,12 +104,12 @@ export function AlertPreferencesTab() {
         </div>
         <Switch
           checked={pref.in_app_enabled}
-          onCheckedChange={(v) => setPref({ ...pref, in_app_enabled: v })}
+          onCheckedChange={(v) => updateDraft({ ...pref, in_app_enabled: v })}
         />
       </div>
       <div className="grid gap-1.5">
         <Label>最低告警级别</Label>
-        <Select value={pref.min_severity} onValueChange={(v) => setPref({ ...pref, min_severity: v })}>
+        <Select value={pref.min_severity} onValueChange={(v) => updateDraft({ ...pref, min_severity: v })}>
           <SelectTrigger className={`w-40 rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text focus:ring-0 data-[state=open]:border-term-border-strong`}><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem className="rounded-none text-xs focus:bg-term-hover focus:text-term-text" value="info">提示及以上</SelectItem>
@@ -88,7 +125,7 @@ export function AlertPreferencesTab() {
             type="time"
             className="h-9 rounded-none border-term-border bg-term-bg font-mono text-sm tabular-nums text-term-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
             value={pref.quiet_hours_start ?? ''}
-            onChange={(e) => setPref({ ...pref, quiet_hours_start: e.target.value || null })}
+            onChange={(e) => updateDraft({ ...pref, quiet_hours_start: e.target.value || null })}
           />
         </div>
         <div className="grid gap-1.5">
@@ -97,7 +134,7 @@ export function AlertPreferencesTab() {
             type="time"
             className="h-9 rounded-none border-term-border bg-term-bg font-mono text-sm tabular-nums text-term-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
             value={pref.quiet_hours_end ?? ''}
-            onChange={(e) => setPref({ ...pref, quiet_hours_end: e.target.value || null })}
+            onChange={(e) => updateDraft({ ...pref, quiet_hours_end: e.target.value || null })}
           />
         </div>
       </div>

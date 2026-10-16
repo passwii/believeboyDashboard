@@ -17,6 +17,7 @@ vi.mock('@/components/notifications', () => ({
   useNotifications: () => ({ notify: mocks.notify }),
 }))
 vi.mock('@/components/terminal/terminal-header-slot', () => ({
+  useHeaderRefresh: () => ({ setLoading: vi.fn() }),
   useHeaderSlot: (node: ReactNode) => { mocks.slotNode = node; return null },
   useMobileFilterStrip: () => null,
 }))

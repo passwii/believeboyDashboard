@@ -187,7 +187,11 @@ function BulkBar({
   )
 }
 
-export default function SubscriptionsView() {
+export default function SubscriptionsView({
+  onRefreshReady,
+}: {
+  onRefreshReady?: (refresh: () => Promise<void>) => void
+}) {
   const { data: session } = useSession()
   const { confirm } = useConfirm()
   const { notify } = useNotifications()
@@ -206,7 +210,6 @@ export default function SubscriptionsView() {
   const [modelConfig, setModelConfig] = useState<AIModelConfig | null>(null)
   const [isLoadingModelConfig, setIsLoadingModelConfig] = useState(false)
   const modelConfigRequested = useRef(false)
-  const initialLoadDone = useRef(false)
 
   // 多选 + 批量操作状态（BLF-1032）
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
@@ -248,39 +251,32 @@ export default function SubscriptionsView() {
         }),
         fetchManagedProjectsCached<Array<{ id?: number | null; name: string }>>(session),
       ])
-      const subs = subRes.ok ? await subRes.json() : { items: [] }
-      setSubscriptions(subs.items || [])
+      if (!subRes.ok) {
+        throw new Error(`订阅列表请求失败（HTTP ${subRes.status}）`)
+      }
+      const subs = await subRes.json()
+      if (!Array.isArray(subs.items)) {
+        throw new Error('订阅列表响应格式无效')
+      }
+      setSubscriptions(subs.items)
       setProjects(projectData.filter((p: { name: string }) => typeof p.name === 'string' && p.name.trim()))
-    } catch (e) {
-      console.error(e)
+    } catch (error) {
+      notify({
+        type: 'error',
+        title: '订阅数据刷新失败',
+        message: error instanceof Error ? error.message : String(error),
+      })
     }
-  }, [session])
+  }, [notify, session])
 
   useEffect(() => {
-    const loadData = async () => {
-      const isInitial = !initialLoadDone.current
-      if (isInitial) setLoading(true)
-      try {
-        const [subRes, projectData] = await Promise.all([
-          fetch(resolveApiUrl('/api/v1/scheduled-reports/subscriptions'), {
-            headers: authHeaders(),
-          }),
-          fetchManagedProjectsCached<Array<{ id?: number | null; name: string }>>(session),
-        ])
-        const subs = subRes.ok ? await subRes.json() : { items: [] }
-        setSubscriptions(subs.items || [])
-        setProjects(projectData.filter((p: { name: string }) => typeof p.name === 'string' && p.name.trim()))
-      } catch (e) {
-        console.error(e)
-      } finally {
-        if (isInitial) {
-          setLoading(false)
-          initialLoadDone.current = true
-        }
-      }
-    }
-    void loadData()
-  }, [session])
+    onRefreshReady?.(refreshSubscriptions)
+  }, [onRefreshReady, refreshSubscriptions])
+
+  useEffect(() => {
+    setLoading(true)
+    void refreshSubscriptions().finally(() => setLoading(false))
+  }, [refreshSubscriptions])
 
   // 过滤后的订阅列表
   const filteredSubscriptions = useMemo(

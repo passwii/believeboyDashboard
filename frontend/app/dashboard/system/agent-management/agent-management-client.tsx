@@ -37,6 +37,7 @@ import { Loader2, KeyRound, Copy, Check, LayoutGrid, BookOpen, Activity, Pencil,
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
 import { useManagedProjects } from '@/lib/hooks/use-managed-projects'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { ProjectScopeSelect } from '@/components/project-scope-select'
 import { MultiSelect, type Option as MultiSelectOption } from '@/components/ui/multi-select'
 import { cn } from '@/lib/utils'
@@ -253,6 +254,7 @@ export function AgentManagementClient() {
   useEffect(() => {
     void refresh()
   }, [refresh])
+  useHeaderRefresh(refresh, { loading })
 
   const resetForm = useCallback(() => {
     setLabel('')

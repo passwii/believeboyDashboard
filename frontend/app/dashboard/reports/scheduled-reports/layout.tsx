@@ -7,6 +7,7 @@ import { CalendarClock, History } from 'lucide-react'
 import { Tabs, TabsList } from '@/components/ui/tabs'
 import { SlidingTabsTrigger, TabsMotionGroup } from '@/components/ui/tab-motion'
 import { cn } from '@/lib/utils'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 
 import SubscriptionsView from './_components/SubscriptionsView'
 import LedgerView from './_components/LedgerView'
@@ -30,12 +31,35 @@ export default function ScheduledReportsLayout() {
   const [activatedTabs, setActivatedTabs] = useState<Set<ScheduledReportTabKey>>(
     () => new Set([resolveInitialTab(pathname)])
   )
+  const [refreshers, setRefreshers] = useState<Partial<Record<ScheduledReportTabKey, () => Promise<void>>>>({})
+  const [refreshing, setRefreshing] = useState(false)
+  const registerRefresher = useCallback((tab: ScheduledReportTabKey, refresh: () => Promise<void>) => {
+    setRefreshers((current) => ({ ...current, [tab]: refresh }))
+  }, [])
+  const registerSubscriptionsRefresher = useCallback(
+    (refresh: () => Promise<void>) => registerRefresher('subscriptions', refresh),
+    [registerRefresher]
+  )
+  const registerLedgerRefresher = useCallback(
+    (refresh: () => Promise<void>) => registerRefresher('ledger', refresh),
+    [registerRefresher]
+  )
 
   const handleTabChange = useCallback((next: string) => {
     const key = next as ScheduledReportTabKey
     setActiveTab(key)
     setActivatedTabs((prev) => (prev.has(key) ? prev : new Set(prev).add(key)))
   }, [])
+  const activeRefresher = refreshers[activeTab]
+  const refreshActiveTab = useCallback(async () => {
+    setRefreshing(true)
+    try {
+      await activeRefresher?.()
+    } finally {
+      setRefreshing(false)
+    }
+  }, [activeRefresher])
+  useHeaderRefresh(refreshActiveTab, { loading: refreshing })
 
   // BLF-883 全局统一：Tab 条一律走 variant="term"（h-8 / 零圆角 / 1px 边界 /
   // 激活态 term-raised + accent 发光指示条）。
@@ -72,12 +96,12 @@ export default function ScheduledReportsLayout() {
           切 tab 不卸载、不重新拉取数据，骨架屏仅在各自首次加载时出现一次。 */}
       {activatedTabs.has('subscriptions') && (
         <div className={cn(activeTab === 'subscriptions' ? 'block' : 'hidden')}>
-          <SubscriptionsView />
+          <SubscriptionsView onRefreshReady={registerSubscriptionsRefresher} />
         </div>
       )}
       {activatedTabs.has('ledger') && (
         <div className={cn(activeTab === 'ledger' ? 'block' : 'hidden')}>
-          <LedgerView />
+          <LedgerView onRefreshReady={registerLedgerRefresher} />
         </div>
       )}
     </Tabs>

@@ -224,6 +224,7 @@ export function CrmCustomerTable() {
       </div>
       <CrmTable<Customer>
         queryKey="customers"
+        headerRefresh
         fetchPage={fetchPage}
         columns={columns}
         filterFields={customerFilterFields}

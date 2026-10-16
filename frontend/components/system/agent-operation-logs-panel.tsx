@@ -38,6 +38,7 @@ import { Eye, Loader2, RefreshCw, Search } from 'lucide-react'
 import { buildBackendClientHeaders } from '@/lib/backend-auth'
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { useNotifications } from '@/components/notifications'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { describeOperation, operationActionLabel, targetTypeLabel } from '@/lib/agent-operation-diff'
 import { AgentIdentityCell, formatProjectRef } from '@/lib/agent-display'
 
@@ -256,6 +257,7 @@ export function AgentOperationLogsPanel() {
   useEffect(() => {
     void fetchLogs()
   }, [fetchLogs])
+  useHeaderRefresh(fetchLogs, { loading })
 
   const totalPages = useMemo(() => {
     if (total <= 0) return 1

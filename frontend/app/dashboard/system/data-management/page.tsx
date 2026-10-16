@@ -21,6 +21,7 @@ import { densityCell, densityHead } from '@/components/ui/table-presets'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
 import { buildBackendClientHeaders } from '@/lib/backend-auth'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { cn } from '@/lib/utils'
 
 type DataLifecycleStatus = 'active' | 'maintenance' | 'read_only' | 'paused'
@@ -215,6 +216,7 @@ export default function SystemDataManagementPage() {
   const refreshAll = useCallback(async () => {
     await Promise.all([loadStatus(), loadOverview()])
   }, [loadOverview, loadStatus])
+  useHeaderRefresh(refreshAll, { loading: loading || detailsLoading })
 
   const onClearCache = useCallback(async () => {
     if (!(await confirm({ title: '确定要清理所有 Redis 缓存吗？', variant: 'destructive' }))) return

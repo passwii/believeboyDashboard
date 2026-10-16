@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DataTableCard, DataTableCardBody, DataTableCardHeader } from '@/components/ui/data-card'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
 import { HeaderCountrySelect, HeaderProjectSelect } from '@/components/terminal/header-filter-suite'
-import { useHeaderSlot, useMobileFilterStrip } from '@/components/terminal/terminal-header-slot'
+import { useHeaderRefresh, useHeaderSlot, useMobileFilterStrip } from '@/components/terminal/terminal-header-slot'
 import { MobileFilterStrip } from '@/components/terminal/mobile-filter-strip'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -240,6 +240,7 @@ export default function ShippingPlanClient() {
     void reload()
     return () => { scopeRequestIdRef.current += 1 }
   }, [reload])
+  useHeaderRefresh(reload, { loading })
 
   useEffect(() => {
     if (!scopeReady || !selectedSku) {
