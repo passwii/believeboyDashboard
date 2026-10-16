@@ -163,7 +163,7 @@ grep -rn "bg-white\b\|bg-slate-100\|bg-gray-50\|text-gray-700" frontend/app --in
 | 侧滑 | `Sheet` | `ui/sheet.tsx` |
 | 下拉菜单 | `DropdownMenu` | `ui/dropdown-menu.tsx` |
 | 浮层选择 | `Popover` / `Select` / `Command` / `Combobox` / `MultiSelect`（动效 `ui-floating-motion`） | `ui/popover.tsx` 等 |
-| 日期 / 时间 | `DatePicker` / `TimePicker` / `CalendarWithPresets` / `DropdownRangeDatePicker` | `ui/date-picker.tsx` 等 |
+| 日期 / 时间 | `DatePicker` / `TimePicker` / `CalendarWithPresets` | `ui/date-picker.tsx` 等 |
 | 提示浮层 | `Tooltip` / `HoverCard` | `ui/tooltip.tsx` / `ui/hover-card.tsx` |
 | 表单 | `Form`(react-hook-form+zod) / `Input` / `Select` / `Switch` / `Tabs` / `Label` / `Textarea` | `ui/form.tsx` 等 |
 | 图片预览 | `ImagePreviewDialog` | `ui/image-preview-dialog.tsx` |
@@ -271,7 +271,7 @@ grep -rn "bg-white\b\|bg-slate-100\|bg-gray-50\|text-gray-700" frontend/app --in
 | `dropdown-menu.tsx` / `popover.tsx` / `select.tsx` / `command.tsx` / `combobox.tsx` / `multi-select.tsx` | 各类选择器 | 页面内选择一律用这些 |
 | `tabs.tsx` / `accordion.tsx` / `collapsible.tsx` / `breadcrumb.tsx` / `tooltip.tsx` / `hover-card.tsx` | 导航 / 收纳 / 提示 | — |
 | `form.tsx` / `input.tsx` / `label.tsx` / `textarea.tsx` / `switch.tsx` / `checkbox.tsx` / `radio*` | 表单原语 | react-hook-form + zod |
-| `calendar.tsx` / `date-picker.tsx` / `time-picker.tsx` / `calendar-with-presets.tsx` / `dropdown-range-date-picker.tsx` | 日期时间 | — |
+| `calendar.tsx` / `date-picker.tsx` / `time-picker.tsx` / `calendar-with-presets.tsx` | 日期时间 | — |
 | `pagination.tsx` | 分页 | — |
 | `skeleton.tsx` / `scroll-area.tsx` / `separator.tsx` / `avatar.tsx` / `tooltip.tsx` | 基础件 | — |
 | `image-preview-dialog.tsx` / `upload-zone.tsx` | 图片预览 / 上传 | — |
@@ -282,7 +282,6 @@ grep -rn "bg-white\b\|bg-slate-100\|bg-gray-50\|text-gray-700" frontend/app --in
 | `icons/` | 自定义图标（chatgpt-icon 等） | lucide-react 为主，缺失时放这里 |
 | `line-charts-6.tsx` | **存量弃用**（新代码禁用） | 仅 demo.tsx / metric-switcher-card 在用 |
 | `demo.tsx` | 组件展示样例 | — |
-| `full-screen-signup.tsx` | 注册页 | — |
 
 ### 6.2 `components/dashboard-v2/*`（Dashboard 主页专用，独立蓝色单色体系）
 
