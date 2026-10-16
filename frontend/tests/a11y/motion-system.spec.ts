@@ -6,7 +6,7 @@ import { addBLF611FixtureAuth } from '../setup/blf611-fixture'
  * Motion-system a11y regression.
  *
  * Runs axe-core against the two motion-heavy entry points:
- *   - /dashboard         (PageTransition + stagger + spotlight)
+ *   - /dashboard         (PageTransition + stagger)
  *   - /dashboard/ai/chat (chat bubbles / streaming indicator)
  *
  * **Phase 12 / 2026-07-12**: filter narrowed from `critical|serious` to

@@ -110,11 +110,6 @@
     /* ── Motion design system tokens ─────────────────────────────────────── */
     --motion-spring-press: 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
     --stagger-step: 70ms;
-
-    /* ── Spotlight (CSS 变量占位，由 useSpotlight 写入) ─────────────────── */
-    --spot-x: 50%;
-    --spot-y: 50%;
-    --spotlight-strength: 1;
   }
 
   .dark {
@@ -785,13 +780,6 @@ html[data-theme-transition] body * {
     }
   }
 
-}
-
-@media (prefers-reduced-transparency: reduce) {
-  .u-spotlight,
-  [data-spotlight] {
-    --spotlight-strength: 0;
-  }
 }
 
 @layer utilities {
