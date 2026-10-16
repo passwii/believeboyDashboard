@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime, timedelta, timezone
+from typing import Any
 
 import pytest
 from sqlalchemy import select
@@ -79,9 +80,11 @@ def test_same_day_retry_updates_snapshot_but_keeps_runs(db_session, target):
 
 
 def test_idempotency_key_noop(db_session, target):
-    kw = dict(target_id=target.id, captured_at=_now(), status="success",
-              rating=RatingCapture(average_rating=4.5, rating_count=10),
-              reviews=[_review("R1")], is_complete_list=True, idempotency_key="k-1")
+    kw: dict[str, Any] = {
+        "target_id": target.id, "captured_at": _now(), "status": "success",
+        "rating": RatingCapture(average_rating=4.5, rating_count=10),
+        "reviews": [_review("R1")], "is_complete_list": True, "idempotency_key": "k-1",
+    }
     record_crawl_result(db_session, **kw)
     record_crawl_result(db_session, **kw)
     db_session.flush()
@@ -165,3 +168,47 @@ def test_failed_run_with_rating_and_reviews_writes_run_only(db_session, target):
     run = db_session.execute(select(AmazonReviewCrawlRun)).scalar_one()
     assert run.status == "failed" and run.ratings_captured is True
     assert result.snapshot_updated is False and result.reviews_upserted == 0
+
+
+def test_star_arrays_must_have_exactly_five_values(db_session, target):
+    for bad in ((1, 2, 3, 4), (1, 2, 3, 4, 5, 6)):
+        with pytest.raises(IngestionError, match="exactly 5"):
+            record_crawl_result(db_session, target_id=target.id, captured_at=_now(), status="success",
+                                rating=RatingCapture(average_rating=4.5, star_percentages=bad))
+        with pytest.raises(IngestionError, match="exactly 5"):
+            record_crawl_result(db_session, target_id=target.id, captured_at=_now(), status="success",
+                                rating=RatingCapture(star_counts=bad))
+    db_session.flush()
+    assert db_session.execute(select(AmazonReviewCrawlRun)).scalars().all() == []
+    assert db_session.execute(select(AmazonReviewRatingSnapshot)).scalars().all() == []
+
+
+def test_naive_captured_at_rejected(db_session, target):
+    with pytest.raises(IngestionError, match="timezone"):
+        record_crawl_result(db_session, target_id=target.id,
+                            captured_at=datetime(2026, 10, 20, 3, 0), status="success")
+    assert db_session.execute(select(AmazonReviewCrawlRun)).scalars().all() == []
+
+
+def test_aware_utc_crossing_business_date_boundary(db_session, target):
+    result = record_crawl_result(
+        db_session, target_id=target.id, captured_at=datetime(2026, 10, 20, 20, 0, tzinfo=timezone.utc),
+        status="success", rating=RatingCapture(average_rating=4.5),
+    )
+    db_session.flush()
+    assert result.capture_date == date(2026, 10, 21)
+    snap = db_session.execute(select(AmazonReviewRatingSnapshot)).scalar_one()
+    assert snap.capture_date == date(2026, 10, 21)
+
+
+def test_duplicate_review_keys_deduped_in_count_and_rows(db_session, target):
+    result = record_crawl_result(
+        db_session, target_id=target.id, captured_at=_now(), status="success",
+        reviews=[_review("R1", title="old"), _review("R2"), _review("R1", title="new")],
+        is_complete_list=True,
+    )
+    db_session.flush()
+    rows = db_session.execute(select(AmazonReviewReview)).scalars().all()
+    assert len(rows) == 2 and result.reviews_upserted == 2
+    r1 = next(row for row in rows if row.review_key == "R1")
+    assert r1.title == "new"

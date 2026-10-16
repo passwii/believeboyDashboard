@@ -64,6 +64,15 @@ def business_date(captured_at: datetime) -> date:
     return captured_at.astimezone(BUSINESS_TZ).date()
 
 
+def _validate_capture(captured_at: datetime, rating: RatingCapture | None) -> None:
+    if captured_at.tzinfo is None or captured_at.utcoffset() is None:
+        raise IngestionError("captured_at must be timezone-aware")
+    if rating is not None:
+        for label, values in (("star_percentages", rating.star_percentages), ("star_counts", rating.star_counts)):
+            if values is not None and len(values) != 5:
+                raise IngestionError(f"{label} must contain exactly 5 values")
+
+
 def _existing_run(db: Session, target_id: int, idempotency_key: str | None) -> AmazonReviewCrawlRun | None:
     if idempotency_key is None:
         return None
@@ -157,6 +166,7 @@ def record_crawl_result(
     asin_scraped: str | None = None, source: str | None = None,
     error_message: str | None = None, capture_date: date | None = None,
 ) -> CrawlResult:
+    _validate_capture(captured_at, rating)
     target = db.get(AmazonReviewTarget, target_id)
     if target is None:
         raise IngestionError("target not found")
@@ -187,11 +197,13 @@ def record_crawl_result(
     upserted = 0
     suspects = 0
     if reviews is not None and status != "failed":
-        seen_keys: set[str] = set()
+        deduped: dict[str, ReviewCapture] = {}
         for item in reviews:
-            seen_keys.add(item.review_key)
+            deduped[item.review_key] = item
+        seen_keys = set(deduped)
+        for item in deduped.values():
             _upsert_review(db, target_id, item, captured_at)
-            upserted += 1
+        upserted = len(deduped)
         if is_complete_list and status == "success":
             suspects = _apply_missing(db, target_id, seen_keys)
         db.flush()
