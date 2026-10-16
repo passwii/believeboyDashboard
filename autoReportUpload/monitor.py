@@ -7,19 +7,27 @@ from __future__ import annotations
 import fcntl
 import logging
 import os
+import queue
 import threading
 import time
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
+from typing import Callable
 
 from config import (
     AD_PROCESSED_SUBDIR,
     CHECK_INTERVAL_MINUTES,
     COUNTRY_SUBFOLDERS,
+    DRAIN_TIMEOUT_SECONDS,
     IGNORED_DIRS,
+    MAX_FILE_ATTEMPTS,
     PROCESSED_SUBDIR,
     PROJECTS,
+    STABLE_POLL_SECONDS,
+    STABLE_SAMPLES,
     SUPPORTED_EXTENSIONS,
+    WATCH_WORKERS,
     WATCH_ROOT,
     resolve_project_dir,
 )
@@ -446,21 +454,53 @@ class IncrementalRescanThread(threading.Thread):
     was 2.5h and the whole 15:xx batch sat unprocessed. The rescan also gates on
     one cheap ``check_db_health`` probe: when the DB is unreachable it skips the
     *entire* round instead of burning ~44s per file on doomed retries.
+
+    The round is handed to the shared :class:`WatchdogDispatcher` so the rescan
+    rides the same worker pool (and the same dedup set) as the event stream —
+    files already in flight are not queued twice.
     """
 
-    def __init__(self, logger: RunLogger, dry_run: bool, interval_secs: float):
+    def __init__(
+        self,
+        logger: RunLogger,
+        dry_run: bool,
+        interval_secs: float,
+        dispatcher: WatchdogDispatcher,
+    ):
         super().__init__(daemon=True, name="autorun-rescan")
         self.logger = logger
         self.dry_run = dry_run
         self.interval_secs = interval_secs
+        self.dispatcher = dispatcher
         self._stop_event = threading.Event()
+        self._round = 0
 
     def run_once(self) -> dict | None:
         """One rescan round. Returns stats, or None when the DB gate blocks it."""
         if not check_db_health():
             self.logger.warning("[补扫] 数据库健康检查失败，本轮整轮跳过（不逐文件重试）")
             return None
-        return run_cycle(self.logger, dry_run=self.dry_run)
+        self._round += 1
+        pending = collect_all_files()
+        batch = f"rescan-{id(self)}-{self._round}"
+        queued = [
+            pair for pair in pending if self.dispatcher.submit(*pair, batch=batch)
+        ]
+        if not queued:
+            return {
+                "projects": 0, "files_seen": 0,
+                "success": 0, "skipped": 0, "failed": 0,
+            }
+        self.logger.info(f"[补扫] 入队 {len(queued)} 文件，等待处理完成后汇报")
+        self.dispatcher.wait_until_idle(timeout=DRAIN_TIMEOUT_SECONDS)
+        stats = self.dispatcher.take_batch_stats(batch)
+        return {
+            "projects": len({name for _, name in queued}),
+            "files_seen": len(queued),
+            "success": stats["success"],
+            "skipped": stats["skipped"],
+            "failed": stats["failed"],
+        }
 
     def run(self) -> None:
         while not self._stop_event.wait(self.interval_secs):
@@ -479,50 +519,471 @@ class IncrementalRescanThread(threading.Thread):
         self._stop_event.set()
 
 
-def _start_watchdog_logger(logger: RunLogger, dry_run: bool):
-    """启动 watchdog 事件监控，文件创建立即触发处理（watchdog 模式）"""
+class DbUnavailable(RuntimeError):
+    """Raised when no DB session can be obtained (caller decides whether to retry)."""
+
+
+def _eligible_project_name(file_path: Path) -> str | None:
+    """Project name for a watched file, or None when the path is not in scope.
+
+    ``processed`` / ``广告Processed`` archives and projects outside PROJECTS are
+    filtered out; country subfolders (e.g. ``美国``) resolve back to the project.
+    """
+    try:
+        project_name = resolve_project_dir(file_path).name
+    except Exception:
+        return None
+    if (
+        project_name == PROCESSED_SUBDIR
+        or project_name == AD_PROCESSED_SUBDIR
+        or project_name not in PROJECTS
+    ):
+        return None
+    return project_name
+
+
+def _process_one(
+    logger: RunLogger,
+    file_path: Path,
+    project_name: str,
+    dry_run: bool,
+) -> ProcessResult:
+    """Process a single file on its own DB session (safe to call concurrently)."""
+    db, needs_reconnect = get_db_session_with_retry()
+    if db is None:
+        if needs_reconnect:
+            reconnect_engine()
+        raise DbUnavailable(f"无法获取数据库连接: {file_path.name}")
+    try:
+        t0 = time.time()
+        result = process_file(file_path, project_name, db, dry_run=dry_run)
+        logger.result(
+            file_path, project_name, result,
+            db=db, duration_seconds=time.time() - t0,
+        )
+        return result
+    finally:
+        db.close()
+
+
+def _file_fingerprint(path: Path) -> tuple[int, int] | None:
+    """(size, mtime_ns) for an existing regular file, else None."""
+    try:
+        st = path.stat()
+    except OSError:
+        return None
+    return (st.st_size, st.st_mtime_ns)
+
+
+def wait_for_stable(
+    path: Path,
+    *,
+    samples: int = STABLE_SAMPLES,
+    poll_seconds: float = STABLE_POLL_SECONDS,
+    fingerprint: Callable[[Path], tuple[int, int] | None] = _file_fingerprint,
+    sleep: Callable[[float], None] = time.sleep,
+) -> bool:
+    """Block until ``path`` stops changing for ``samples`` consecutive reads.
+
+    RPA drops a file and then keeps writing it, so an ``on_created`` event alone
+    does not mean the content is complete — reading too early yields
+    "未匹配任何报表类型" for a file that is actually fine.
+
+    macOS is the constraint here: watchdog's FSEvents observer never emits
+    ``FileClosedEvent`` (only Linux inotify does), so there is no close signal to
+    wait on and stability must be inferred by sampling. Returns False when the
+    file vanished (typically already processed and archived by the sweep).
+    """
+    samples = max(1, samples)
+    last = fingerprint(path)
+    if last is None:
+        return False
+    unchanged = 0
+    while unchanged < samples - 1:
+        sleep(poll_seconds)
+        current = fingerprint(path)
+        if current is None:
+            return False
+        if current == last:
+            unchanged += 1
+        else:
+            last = current
+            unchanged = 0
+    return True
+
+
+@dataclass(frozen=True)
+class _PendingFile:
+    """One queued file plus the retry bookkeeping travelling with it.
+
+    ``attempt`` counts *content* retries (bounded by ``max_attempts``) while
+    ``db_attempt`` counts DB-outage retries — a dead database is an environment
+    problem and must not consume a file's retry budget.
+    """
+
+    path: Path
+    project_name: str
+    attempt: int = 1
+    db_attempt: int = 1
+    batch: str | None = None
+
+
+class WatchdogDispatcher:
+    """Fixed-size worker pool draining a queue of newly discovered report files.
+
+    Each file is handled on its own thread and its own DB session. Since the
+    per-file cost is dominated by cross-network DB round trips (~14s median
+    measured on 2026-10-16, independent of file size), three workers roughly
+    triple throughput; the previous code processed everything inline on the
+    watchdog event thread, so one slow file stalled every other arrival.
+
+    Dedup + bounded retry: a path is skipped while queued or already finished,
+    but a file whose content is not yet complete (or whose DB write failed) is
+    retried up to ``MAX_FILE_ATTEMPTS`` times before being reported as FAIL and
+    left on disk — replacing the old silent drop.
+    """
+
+    # How long a finished path stays "already handled".
+    #
+    # Deliberately a TTL rather than a permanent set: files that fail stay on
+    # disk, and the rescan must be able to pick them up again next round — a
+    # permanent memory would swallow exactly the backlog the rescan exists to
+    # recover. Ten minutes comfortably covers one sweep plus the burst of
+    # duplicate FSEvents that follow a single drop.
+    _DEDUP_TTL_SECONDS = 600.0
+    # Files we gave up on stay on disk, so a plain TTL would have the rescan
+    # re-attempt the same broken file every round forever (~14s of wasted DB
+    # round trips each round). Cool those down much longer, then let a later
+    # round try once more in case the cause was transient.
+    _FAILED_TTL_SECONDS = 1800.0
+    # Hard cap so a pathological drop rate cannot grow the map without bound.
+    _DONE_MEMORY = 5000
+
+    def __init__(
+        self,
+        logger: RunLogger,
+        dry_run: bool,
+        *,
+        workers: int = WATCH_WORKERS,
+        stable_samples: int = STABLE_SAMPLES,
+        stable_poll_seconds: float = STABLE_POLL_SECONDS,
+        max_attempts: int = MAX_FILE_ATTEMPTS,
+        backoff: Callable[[int], float] | None = None,
+    ):
+        self.logger = logger
+        self.dry_run = dry_run
+        self.workers = max(1, workers)
+        self.stable_samples = stable_samples
+        self.stable_poll_seconds = stable_poll_seconds
+        self.max_attempts = max(1, max_attempts)
+        # Seconds to wait before retry N (injectable so tests stay fast).
+        self.backoff = backoff or (lambda attempt: 5.0 * attempt)
+
+        self._queue: queue.Queue[_PendingFile | None] = queue.Queue()
+        self._lock = threading.Lock()
+        self._queued: set[str] = set()   # in flight or waiting
+        # path -> (finish time, cooldown). Success/skip means the file was
+        # archived, so the cooldown only has to outlive the duplicate FSEvents
+        # of that drop; failures leave the file in place and cool down longer.
+        self._done: dict[str, tuple[float, float]] = {}
+        self._stats = {"success": 0, "skipped": 0, "failed": 0}
+        # Per-batch tallies so a sweep / rescan round can report just its own
+        # files — the global counters are cumulative for the daemon's lifetime.
+        self._batch_stats: dict[str, dict[str, int]] = {}
+        self._threads: list[threading.Thread] = []
+        self._stopped = threading.Event()
+        self._started = False
+
+    # ── producer side ────────────────────────────────────────────────────────
+
+    def submit(self, file_path: Path, project_name: str, batch: str | None = None) -> bool:
+        """Enqueue a file for processing. Returns False when it is a duplicate."""
+        key = str(file_path)
+        now = time.time()
+        with self._lock:
+            remembered = self._done.get(key)
+            if remembered is not None and now - remembered[0] < remembered[1]:
+                return False
+            if key in self._queued:
+                return False
+            self._queued.add(key)
+            if batch is not None:
+                self._batch_stats.setdefault(batch, {"success": 0, "skipped": 0, "failed": 0})
+        self._queue.put(_PendingFile(file_path, project_name, batch=batch))
+        return True
+
+    # ── worker side ──────────────────────────────────────────────────────────
+
+    def _finish(self, key: str, ttl: float | None = None) -> None:
+        """Mark ``key`` handled, suppressing requeues for ``ttl`` seconds."""
+        now = time.time()
+        cooldown = self._DEDUP_TTL_SECONDS if ttl is None else ttl
+        with self._lock:
+            self._queued.discard(key)
+            self._done[key] = (now, cooldown)
+            if len(self._done) > self._DONE_MEMORY:
+                expired = [
+                    k for k, (at, cooldown_) in self._done.items() if now - at >= cooldown_
+                ]
+                for stale in expired:
+                    del self._done[stale]
+                # Still over the cap means everything is fresh (a burst of
+                # arrivals); evict the oldest so the map stays bounded.
+                overflow = len(self._done) - self._DONE_MEMORY
+                if overflow > 0:
+                    oldest = sorted(self._done, key=lambda k: self._done[k][0])
+                    for stale in oldest[:overflow]:
+                        del self._done[stale]
+
+    def _tally(self, result: ProcessResult, batch: str | None = None) -> None:
+        if result.skipped:
+            key = "skipped"
+        elif result.success:
+            key = "success"
+        else:
+            key = "failed"
+        with self._lock:
+            self._stats[key] += 1
+            # Only tally into a batch that is still registered. A round that hit
+            # its drain timeout has already been reported (and popped), so late
+            # results must not resurrect the entry and leak it forever.
+            if batch is not None and batch in self._batch_stats:
+                self._batch_stats[batch][key] += 1
+
+    def _requeue(self, item: _PendingFile, delay: float) -> None:
+        """Retry after ``delay`` without blocking this worker's queue slot."""
+        if self._stopped.wait(delay):
+            self._finish(str(item.path))
+            return
+        self._queue.put(item)
+
+    def _handle(self, item: _PendingFile) -> None:
+        file_path, project_name = item.path, item.project_name
+        key = str(file_path)
+
+        if not wait_for_stable(
+            file_path,
+            samples=self.stable_samples,
+            poll_seconds=self.stable_poll_seconds,
+        ):
+            # Already archived (or deleted) by the startup sweep / rescan.
+            self._finish(key)
+            return
+
+        try:
+            result = _process_one(self.logger, file_path, project_name, self.dry_run)
+        except DbUnavailable as exc:
+            # Back off up to a minute; the rescan is the final backstop.
+            delay = min(60.0, self.backoff(item.db_attempt))
+            self.logger.warning(f"  [watchdog] {exc}，{delay:.0f}s 后重试")
+            self._requeue(
+                replace(item, db_attempt=item.db_attempt + 1), delay
+            )
+            return
+        except Exception as exc:  # noqa: BLE001 - one bad file must not kill the worker
+            self.logger.error(f"  [watchdog] 处理文件异常: {file_path.name}  {exc}")
+            self._finish(key)
+            return
+
+        # A file whose content is not yet complete reads as "未匹配任何报表类型".
+        needs_retry = result.skipped and "未匹配任何报表类型" in (result.reason or "")
+        if needs_retry and item.attempt < self.max_attempts:
+            delay = self.backoff(item.attempt)
+            self.logger.info(
+                f"  [watchdog] 第 {item.attempt} 次未识别，"
+                f"{delay:.0f} 秒后重试: {file_path.name}"
+            )
+            self._requeue(replace(item, attempt=item.attempt + 1), delay)
+            return
+
+        self._tally(result, item.batch)
+        # 重试用尽仍未识别 / 入库失败：文件留在原地，用长冷却防止补扫每轮
+        # 重新白烧一轮 DB 往返；冷却到期后仍可再试一次。
+        exhausted = needs_retry or (not result.success and not result.skipped)
+        self._finish(key, self._FAILED_TTL_SECONDS if exhausted else None)
+
+    def _worker(self) -> None:
+        while not self._stopped.is_set():
+            try:
+                item = self._queue.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            try:
+                if item is None:  # shutdown sentinel
+                    return
+                self._handle(item)
+            finally:
+                self._queue.task_done()
+
+    # ── lifecycle ────────────────────────────────────────────────────────────
+
+    def start(self) -> None:
+        """Start the worker threads. Idempotent — safe to call from several places."""
+        if self._started:
+            return
+        self._started = True
+        self._stopped.clear()
+        for index in range(self.workers):
+            thread = threading.Thread(
+                target=self._worker, daemon=True, name=f"autorun-worker-{index + 1}"
+            )
+            thread.start()
+            self._threads.append(thread)
+
+    def stop(self, timeout: float = 5.0) -> None:
+        if not self._started:
+            return
+        self._stopped.set()
+        for _ in self._threads:
+            self._queue.put(None)
+        for thread in self._threads:
+            thread.join(timeout=timeout)
+        self._threads.clear()
+        self._started = False
+        # Workers leave as soon as they observe the stop flag, so some sentinels
+        # (and any still-queued files) can be left behind. Drain them — otherwise
+        # a later start() would hand the stale sentinels to fresh workers and
+        # they would exit immediately.
+        while True:
+            try:
+                self._queue.get_nowait()
+            except queue.Empty:
+                break
+            else:
+                self._queue.task_done()
+        with self._lock:
+            self._queued.clear()
+
+    def queue_depth(self) -> int:
+        return self._queue.qsize()
+
+    def pending_count(self) -> int:
+        """Files queued or currently being processed."""
+        return len(self._queued)
+
+    def wait_until_idle(
+        self, poll_seconds: float = 0.5, timeout: float | None = None
+    ) -> bool:
+        """Block until every queued file has been processed (or given up).
+
+        Returns False if ``timeout`` elapsed first — reachable when the DB stays
+        unreachable, since those items are re-queued rather than dropped. The
+        caller should not treat that as "everything failed"; the workers keep
+        draining in the background.
+        """
+        deadline = None if timeout is None else time.monotonic() + timeout
+        while not self._stopped.is_set():
+            if self.pending_count() == 0 and self._queue.qsize() == 0:
+                return True
+            if deadline is not None and time.monotonic() >= deadline:
+                return False
+            time.sleep(poll_seconds)
+        return False
+
+    def snapshot_stats(self) -> dict:
+        with self._lock:
+            return dict(self._stats)
+
+    def take_batch_stats(self, batch: str) -> dict:
+        """Consume the tallies accumulated for ``batch`` (removes the entry)."""
+        with self._lock:
+            return self._batch_stats.pop(batch, {"success": 0, "skipped": 0, "failed": 0})
+
+
+def collect_all_files() -> list[tuple[Path, str]]:
+    """(file, project) pairs for every unprocessed file across PROJECTS."""
+    found: list[tuple[Path, str]] = []
+    for project_name in PROJECTS:
+        project_dir = WATCH_ROOT / project_name
+        if not project_dir.exists():
+            continue
+        found.extend((path, project_name) for path in _collect_files(project_dir))
+    return found
+
+
+def sweep_to_dispatcher(logger: RunLogger, dispatcher: WatchdogDispatcher) -> dict:
+    """Enqueue the full backlog and block until the pool has drained it.
+
+    This is the parallel replacement for the serial startup ``run_cycle``: the
+    2026-10-16 sweep took 21.6 min for 91 files purely because files went
+    through one at a time. Returns the same summary keys callers already log.
+
+    Gated on the same cheap health probe as the rescan: with the database
+    unreachable every file would burn its full retry budget (~36s) before being
+    re-queued, so a 900s startup stall would buy nothing. Skipping is safe —
+    files stay on disk and the rescan picks them up once the connection is back.
+    """
+    empty = {"projects": 0, "files_seen": 0, "success": 0, "skipped": 0, "failed": 0}
+    if not check_db_health():
+        logger.warning("[扫描] 数据库健康检查失败，本轮整轮跳过（不逐文件重试）")
+        return empty
+
+    pending = collect_all_files()
+    batch = f"sweep-{time.time()}"
+    queued = [
+        (file_path, project_name)
+        for file_path, project_name in pending
+        if dispatcher.submit(file_path, project_name, batch=batch)
+    ]
+    logger.info(
+        f"全盘扫描入队: {len(queued)} 文件，"
+        f"{dispatcher.workers} 线程并行处理中..."
+    )
+    dispatcher.start()  # idempotent: already running when the observer set it up
+    drained = dispatcher.wait_until_idle(timeout=DRAIN_TIMEOUT_SECONDS)
+    if not drained:
+        logger.warning(
+            f"全盘扫描等待 {DRAIN_TIMEOUT_SECONDS:.0f}s 仍未排空（DB 可能不可用），"
+            "剩余文件由 worker 与增量补扫继续处理"
+        )
+    stats = dispatcher.take_batch_stats(batch)
+    return {
+        "projects": len({name for _, name in queued}),
+        "files_seen": len(queued),
+        "success": stats["success"],
+        "skipped": stats["skipped"],
+        "failed": stats["failed"],
+    }
+
+
+@dataclass
+class WatchdogRuntime:
+    """The running watchdog: the filesystem observer plus its worker pool."""
+
+    observer: object
+    dispatcher: WatchdogDispatcher
+
+    def stop(self) -> None:
+        self.dispatcher.stop()
+        self.observer.stop()
+
+    def sweep(self, logger: RunLogger) -> dict:
+        return sweep_to_dispatcher(logger, self.dispatcher)
+
+    def join(self, timeout: float | None = None) -> None:
+        self.observer.join(timeout)
+
+
+def _start_watchdog_logger(
+    logger: RunLogger,
+    dry_run: bool,
+    dispatcher: WatchdogDispatcher | None = None,
+) -> WatchdogRuntime:
+    """启动 watchdog 事件监控：事件只入队，由 worker 池并行处理。"""
     from watchdog.observers import Observer
     from watchdog.events import FileSystemEventHandler
 
+    dispatcher = dispatcher or WatchdogDispatcher(logger, dry_run)
+    dispatcher.start()
+
     class ReportFileHandler(FileSystemEventHandler):
-        def __init__(self, logger: RunLogger, dry_run: bool):
-            self.logger = logger
-            self.dry_run = dry_run
+        _DEBOUNCE_SECONDS = 2.0
+
+        def __init__(self):
             self._pending: dict[str, float] = {}  # debounce: 忽略 2 秒内重复事件
-            self._db_session: Session | None = None
-            self._last_db_check: float = 0
-            self._db_check_interval: float = 60  # 每 60 秒检查一次 DB 健康状态
 
-        def _get_db_session(self) -> Session | None:
-            """获取 DB session，带健康检查和重连机制"""
-            now = time.time()
-            if now - self._last_db_check > self._db_check_interval:
-                self._last_db_check = now
-                if not check_db_health():
-                    reconnect_engine()
-                    logger.warning("[DB] 健康检查失败，已重建连接池")
-
-            db, needs_reconnect = get_db_session_with_retry()
-            if db is None and needs_reconnect:
-                reconnect_engine()
-                logger.warning("[DB] 重新获取 session 失败，已重建连接池")
-                db, _ = get_db_session_with_retry()
-
-            return db
-
-        def _close_session(self) -> None:
-            """安全关闭 session"""
-            if self._db_session is not None:
-                try:
-                    self._db_session.close()
-                except Exception:
-                    pass
-                self._db_session = None
-
-        def on_created(self, event):
-            if event.is_directory:
-                return
-            file_path = Path(event.src_path)
+        def _enqueue(self, raw_path: str) -> None:
+            file_path = Path(raw_path)
             if file_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
                 return
             # The startup sweep / rescan may have processed (and moved) the file
@@ -532,45 +993,34 @@ def _start_watchdog_logger(logger: RunLogger, dry_run: bool):
 
             key = str(file_path)
             now = time.time()
-            if key in self._pending and now - self._pending[key] < 2:
+            if key in self._pending and now - self._pending[key] < self._DEBOUNCE_SECONDS:
                 return
+            if len(self._pending) > 1000:  # bounded: drop stale debounce entries
+                cutoff = now - self._DEBOUNCE_SECONDS
+                self._pending = {k: t for k, t in self._pending.items() if t >= cutoff}
             self._pending[key] = now
 
-            try:
-                project_name = resolve_project_dir(file_path).name
-                if (
-                    project_name == PROCESSED_SUBDIR
-                    or project_name == AD_PROCESSED_SUBDIR
-                    or project_name not in PROJECTS
-                ):
-                    return
-            except Exception:
+            project_name = _eligible_project_name(file_path)
+            if project_name is None:
                 return
-
-            db = self._get_db_session()
-            if db is None:
-                logger.error(f"  [watchdog] 无法获取数据库连接，跳过文件: {file_path.name}")
+            if not dispatcher.submit(file_path, project_name):
                 return
+            logger.info(f"  [watchdog] 已入队: {project_name}/{file_path.name}")
 
-            try:
-                t0 = time.time()
-                result = process_file(file_path, project_name, db, dry_run=self.dry_run)
-                duration = time.time() - t0
-                logger.result(file_path, project_name, result, db=db, duration_seconds=duration)
+        def on_created(self, event):
+            if event.is_directory:
+                return
+            self._enqueue(event.src_path)
 
-                if result.skipped and "未匹配任何报表类型" in (result.reason or ""):
-                    self.logger.info(f"  [watchdog] 5 秒后重试未识别文件: {file_path.name}")
-                    time.sleep(5)
-                    t0 = time.time()
-                    result = process_file(file_path, project_name, db, dry_run=self.dry_run)
-                    duration = time.time() - t0
-                    logger.result(file_path, project_name, result, db=db, duration_seconds=duration)
-            except Exception as exc:
-                logger.error(f"  [watchdog] 处理文件异常: {file_path.name}  {exc}")
-            finally:
-                db.close()
+        def on_moved(self, event):
+            # RPA 常见落盘方式：先写临时文件再改名到位，此时只有 moved 事件
+            # （src 是临时名、dest 才是报表）。以前只监听 created，这类文件
+            # 全靠补扫，实时性差一整个间隔。
+            if event.is_directory:
+                return
+            self._enqueue(event.dest_path)
 
-    handler = ReportFileHandler(logger, dry_run)
+    handler = ReportFileHandler()
     observer = Observer()
     for project_name in PROJECTS:
         project_dir = WATCH_ROOT / project_name
@@ -583,8 +1033,10 @@ def _start_watchdog_logger(logger: RunLogger, dry_run: bool):
                 if sub_dir.exists():
                     observer.schedule(handler, str(sub_dir), recursive=False)
     observer.start()
-    logger.info(f"watchdog 监控已启动，监控目录: {WATCH_ROOT}")
-    return observer
+    logger.info(
+        f"watchdog 监控已启动（{dispatcher.workers} 个处理线程），监控目录: {WATCH_ROOT}"
+    )
+    return WatchdogRuntime(observer=observer, dispatcher=dispatcher)
 
 
 def _acquire_instance_lock(logger: RunLogger) -> SingleInstanceLock | None:
@@ -641,33 +1093,37 @@ def main_loop(dry_run: bool = False, mode: str = "watchdog") -> None:
 
     if mode == "watchdog":
         logger.info("监控模式: watchdog（文件事件触发）")
-        # ── 先起 watchdog，再做全盘扫描 ─────────────────────────────────────
+        # ── 先起 watchdog，再用同一 worker 池并行跑全盘扫描 ─────────────────
         # 顺序很关键：以前是先扫描（21 分钟）再监听，这段时间落下的文件无人
         # 接收，只能等下次重启。现在监听先就位，扫描期间的新文件走事件通道，
-        # 与扫描重复的由 on_created 里的 exists() 守卫自然去重。
-        observer = _start_watchdog_logger(logger, dry_run)
-        logger.info("watchdog 监控已启动，开始全盘扫描补齐历史积压...")
-        stats = run_cycle(logger, dry_run=dry_run)
-        logger.info(
-            f"全盘扫描完成: {stats['files_seen']} 文件, "
-            f"{stats['success']} 成功, {stats['skipped']} 跳过, {stats['failed']} 失败"
-        )
+        # 与扫描重复的由 dispatcher 的去重集合自然合并。
+        runtime = _start_watchdog_logger(logger, dry_run)
         # ── 后台增量补扫：兜住漏掉的文件系统事件 ────────────────────────────
+        # 先起补扫线程：全盘扫描可能跑满 DRAIN_TIMEOUT，期间补扫仍按间隔兜底。
         rescan = IncrementalRescanThread(
-            logger, dry_run, interval_secs=CHECK_INTERVAL_MINUTES * 60
+            logger,
+            dry_run,
+            interval_secs=CHECK_INTERVAL_MINUTES * 60,
+            dispatcher=runtime.dispatcher,
         )
         rescan.start()
         logger.info(
             f"增量补扫已启动，每 {CHECK_INTERVAL_MINUTES} 分钟兜底扫描一次"
-            "（DB 不健康时整轮跳过）"
+            f"（{runtime.dispatcher.workers} 线程并行；DB 不健康时整轮跳过）"
+        )
+        logger.info("watchdog 监控已启动，开始全盘扫描补齐历史积压...")
+        stats = runtime.sweep(logger)
+        logger.info(
+            f"全盘扫描完成: {stats['files_seen']} 文件, "
+            f"{stats['success']} 成功, {stats['skipped']} 跳过, {stats['failed']} 失败"
         )
         try:
             while True:
                 time.sleep(5)
         except KeyboardInterrupt:
             rescan.stop()
-            observer.stop()
-        observer.join()
+            runtime.stop()
+        runtime.join()
     else:
         logger.info(f"监控模式: polling（每 {CHECK_INTERVAL_MINUTES} 分钟轮询）")
         _main_loop_polling(logger, dry_run)

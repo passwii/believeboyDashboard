@@ -9,6 +9,10 @@ Covers the three guards added after the 2026-10-12/10-16 incidents:
 3. ``IncrementalRescanThread`` — dropped events used to wait for a manual
    restart (2.5h on 2026-10-16); the rescan now retries every interval and
    skips the whole round when ``check_db_health`` fails.
+
+The rescan feeds the shared :class:`~monitor.WatchdogDispatcher`, whose own
+behaviour (3 workers, stability gate, dedup, bounded retry) lives in
+``tests/test_watchdog_dispatcher.py``.
 """
 
 from __future__ import annotations
@@ -81,14 +85,12 @@ class TestMainLoopGuards:
     @patch("monitor.RunLogger")
     @patch("time.sleep", side_effect=KeyboardInterrupt)
     @patch("monitor.IncrementalRescanThread")
-    @patch("monitor.run_cycle")
     @patch("monitor._start_watchdog_logger")
     @patch("monitor._acquire_instance_lock")
     def test_watchdog_starts_before_startup_sweep(
         self,
         mock_lock,
         mock_watchdog,
-        mock_run_cycle,
         _mock_rescan,
         _mock_sleep,
         _mock_logger,
@@ -99,17 +101,21 @@ class TestMainLoopGuards:
         lock = SingleInstanceLock(tmp_path / "autorun.lock")
         assert lock.acquire() is True
         mock_lock.return_value = lock
-        mock_watchdog.side_effect = lambda *a, **k: (calls.append("watchdog"), MagicMock())[1]
-        mock_run_cycle.side_effect = lambda *a, **k: (
+        runtime = MagicMock()
+        runtime.sweep.side_effect = lambda *a, **k: (
             calls.append("sweep"),
             {"files_seen": 0, "success": 0, "skipped": 0, "failed": 0, "projects": 0},
         )[1]
+        mock_watchdog.side_effect = lambda *a, **k: (calls.append("watchdog"), runtime)[1]
 
         main_loop(dry_run=False, mode="watchdog")
 
         assert calls[:2] == ["watchdog", "sweep"]
+        # The rescan thread must exist before the (potentially long) sweep.
+        _mock_rescan.return_value.start.assert_called_once()
         assert mock_watchdog.call_count == 1
-        assert mock_run_cycle.call_count == 1
+        runtime.sweep.assert_called_once()
+        runtime.stop.assert_called_once()
         lock.release()
 
 
@@ -118,30 +124,48 @@ class TestMainLoopGuards:
 
 class TestIncrementalRescanThread:
     @patch("monitor.run_cycle")
+    @patch("monitor.collect_all_files")
     @patch("monitor.check_db_health", return_value=True)
-    def test_run_once_scans_when_db_healthy(self, _health, mock_run_cycle):
-        mock_run_cycle.return_value = {
-            "files_seen": 2, "success": 2, "skipped": 0, "failed": 0, "projects": 1,
+    def test_run_once_queues_backlog_when_db_healthy(
+        self, _health, mock_collect, mock_run_cycle
+    ):
+        mock_collect.return_value = [
+            (Path("/rpa/项目/a.txt"), "项目"),
+            (Path("/rpa/项目/b.txt"), "项目"),
+        ]
+        dispatcher = MagicMock()
+        dispatcher.submit.return_value = True
+        dispatcher.take_batch_stats.return_value = {
+            "success": 2, "skipped": 0, "failed": 0,
         }
-        rescan = IncrementalRescanThread(MagicMock(), dry_run=False, interval_secs=999)
+        rescan = IncrementalRescanThread(
+            MagicMock(), dry_run=False, interval_secs=999, dispatcher=dispatcher
+        )
         stats = rescan.run_once()
         assert stats["files_seen"] == 2
-        mock_run_cycle.assert_called_once()
+        assert stats["success"] == 2
+        assert dispatcher.submit.call_count == 2
+        dispatcher.wait_until_idle.assert_called_once()
+        mock_run_cycle.assert_not_called()
 
-    @patch("monitor.run_cycle")
+    @patch("monitor.collect_all_files")
     @patch("monitor.check_db_health", return_value=False)
     def test_run_once_skips_whole_round_when_db_unhealthy(
-        self, _health, mock_run_cycle
+        self, _health, mock_collect
     ):
         """DB 不健康时整轮跳过——不逐文件重试（否则每文件白烧 ~44s）。"""
         logger = MagicMock()
-        rescan = IncrementalRescanThread(logger, dry_run=False, interval_secs=999)
+        rescan = IncrementalRescanThread(
+            logger, dry_run=False, interval_secs=999, dispatcher=MagicMock()
+        )
         assert rescan.run_once() is None
-        mock_run_cycle.assert_not_called()
+        mock_collect.assert_not_called()
         assert "整轮跳过" in logger.warning.call_args[0][0]
 
     def test_stop_releases_wait_immediately(self):
-        rescan = IncrementalRescanThread(MagicMock(), dry_run=False, interval_secs=3600)
+        rescan = IncrementalRescanThread(
+            MagicMock(), dry_run=False, interval_secs=3600, dispatcher=MagicMock()
+        )
         rescan.start()
         rescan.stop()
         rescan.join(timeout=2)
