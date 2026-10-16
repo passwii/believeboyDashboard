@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import uuid
 from datetime import datetime, timezone
 
@@ -18,6 +19,7 @@ from app.services.amazon_review_ingestion_service import (
     record_crawl_result,
 )
 from app.services.amazon_review_tracking_service import create_group
+from app.services.project_service import invalidate_projects_cache
 
 TARGETS_URL = "/api/v1/amazon-review-tracking/targets"
 
@@ -223,3 +225,76 @@ def test_rating_snapshots_pagination_orders_by_date_and_covers_all(client, admin
     # 故无法构造 id 次级键并列；改以重复请求断言顺序确定（deterministic）。
     repeat = client.get(url, params={"limit": 2, "offset": 0}, headers=admin_headers).json()
     assert repeat == page1
+
+
+def _seed_scoped_target(db_session, *, project_operator=None):
+    """专属 project（可指定 project_operator）下的一个内部目标，用于项目级读授权。"""
+    project = Project(project_name=f"ops-scope-{uuid.uuid4().hex[:8]}", sort_order=930400,
+                      is_active=True, project_operator=project_operator)
+    db_session.add(project)
+    db_session.flush()
+    sku = SkuRecord(
+        project_id=project.id, project_name=project.project_name,
+        sku=f"ops-scope-{uuid.uuid4().hex[:8]}", asin=f"B0{uuid.uuid4().hex[:8].upper()}",
+        country="US", fob_unit_cost=0, sort_order=930400, is_active=True,
+    )
+    db_session.add(sku)
+    db_session.flush()
+    group = create_group(db_session, project_id=project.id, marketplace="US",
+        name=f"OpsScope-{uuid.uuid4().hex[:6]}", member_ids=[sku.id], representative_id=sku.id)
+    db_session.flush()
+    target = db_session.execute(
+        select(AmazonReviewTarget).where(AmazonReviewTarget.group_id == group.id)
+    ).scalar_one()
+    db_session.flush()
+    invalidate_projects_cache()
+    return project.id, target
+
+
+def _seed_external_target(db_session):
+    target = AmazonReviewTarget(kind="external_asin", marketplace="US",
+        asin=f"B0{uuid.uuid4().hex[:8].upper()}", is_active=True)
+    db_session.add(target)
+    db_session.flush()
+    return target
+
+
+def test_operator_reads_only_accessible_project_targets(client, operator_headers, test_operator, db_session):
+    pid_ok, ok_target = _seed_scoped_target(db_session, project_operator=test_operator["name"])
+    pid_no, no_target = _seed_scoped_target(db_session, project_operator="别的运营")
+
+    ok_list = client.get(TARGETS_URL, params={"project_id": pid_ok, "limit": 1000}, headers=operator_headers)
+    assert ok_list.status_code == 200
+    assert ok_target.id in {item["id"] for item in ok_list.json()}
+
+    no_list = client.get(TARGETS_URL, params={"project_id": pid_no, "limit": 1000}, headers=operator_headers)
+    assert no_list.status_code == 200 and no_list.json() == []
+
+    assert client.get(f"{TARGETS_URL}/{ok_target.id}/reviews", headers=operator_headers).status_code == 200
+    for sub in ("reviews", "rating-snapshots", "runs"):
+        assert client.get(f"{TARGETS_URL}/{no_target.id}/{sub}", headers=operator_headers).status_code == 404
+
+
+def test_operator_without_matching_project_fails_closed_but_reads_external(client, operator_headers, db_session):
+    _, internal = _seed_scoped_target(db_session, project_operator="别的运营")
+    external = _seed_external_target(db_session)
+    headers = {**operator_headers, "X-Operator": base64.b64encode(b"no-such-operator").decode("ascii")}
+
+    internal_list = client.get(TARGETS_URL, params={"kind": "internal_group"}, headers=headers)
+    assert internal_list.status_code == 200 and internal_list.json() == []
+
+    external_list = client.get(TARGETS_URL, params={"kind": "external_asin", "limit": 1000}, headers=headers)
+    assert external_list.status_code == 200
+    assert external.id in {item["id"] for item in external_list.json()}
+
+    assert client.get(f"{TARGETS_URL}/{internal.id}/reviews", headers=headers).status_code == 404
+    assert client.get(f"{TARGETS_URL}/{external.id}/reviews", headers=headers).status_code == 200
+
+
+def test_admin_reads_all_project_targets(client, admin_headers, test_operator, db_session):
+    pid_a, target_a = _seed_scoped_target(db_session, project_operator=test_operator["name"])
+    pid_b, target_b = _seed_scoped_target(db_session, project_operator="别的运营")
+    for pid, target in ((pid_a, target_a), (pid_b, target_b)):
+        listed = client.get(TARGETS_URL, params={"project_id": pid}, headers=admin_headers)
+        assert listed.status_code == 200
+        assert target.id in {item["id"] for item in listed.json()}

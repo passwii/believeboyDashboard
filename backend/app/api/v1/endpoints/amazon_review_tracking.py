@@ -4,7 +4,7 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from sqlalchemy import select, text
+from sqlalchemy import or_, select, text
 from sqlalchemy.engine import RowMapping
 from sqlalchemy.orm import Session
 
@@ -55,6 +55,7 @@ from app.services.amazon_review_tracking_service import (
 )
 from app.services.audit_log_service import append_operation_audit_log
 from app.services.infra import validate_session
+from app.services.project_service import list_accessible_project_ids
 
 router = APIRouter(prefix="/amazon-review-tracking", tags=["Amazon 评论追踪"])
 
@@ -78,7 +79,7 @@ def _require_session(
     _: None = Depends(require_api_key),
     x_user_id: str | None = Header(default=None, alias="X-User-Id"),
     x_session_id: str | None = Header(default=None, alias="X-Session-Id"),
-) -> str:
+) -> RowMapping:
     if not x_user_id or not x_session_id:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
@@ -94,21 +95,39 @@ def _require_session(
         raise HTTPException(status_code=401, detail="Not authenticated")
     if not account.get("is_admin") and account.get("role_type") != "operator":
         raise HTTPException(status_code=403, detail="需要运营或管理员权限")
-    return x_user_id
+    return account
 
 
-def _require_admin(user_id: str = Depends(_require_session)) -> bool:
-    account = _load_account(user_id)
-    if account is None or not account.get("is_active"):
-        raise HTTPException(status_code=401, detail="Not authenticated")
+def _require_admin(account: RowMapping = Depends(_require_session)) -> bool:
     if not account.get("is_admin"):
         raise HTTPException(status_code=403, detail="需要管理员权限")
     return True
 
 
-def _ensure_target(db: Session, target_id: int) -> AmazonReviewTarget:
+def _read_scope(
+    account: RowMapping = Depends(_require_session),
+    operator: str | None = Depends(get_request_operator),
+    db: Session = Depends(get_read_db_session),
+) -> tuple[bool, list[int] | None]:
+    """读授权范围：admin 返回 (True, None)；operation 返回其可见 project id 列表。"""
+    is_admin = bool(account.get("is_admin"))
+    accessible_ids = list_accessible_project_ids(db, operator=operator, is_admin=is_admin)
+    return is_admin, accessible_ids
+
+
+def _ensure_target(
+    db: Session, target_id: int, scope: tuple[bool, list[int] | None]
+) -> AmazonReviewTarget:
     target = db.get(AmazonReviewTarget, target_id)
     if target is None:
+        raise HTTPException(status_code=404, detail="review target not found")
+    _, accessible_ids = scope
+    # 内部目标要求项目可见；不可见一律 404（不泄露存在性）。外部目标无 project，跨项目共享。
+    if (
+        target.project_id is not None
+        and accessible_ids is not None
+        and target.project_id not in accessible_ids
+    ):
         raise HTTPException(status_code=404, detail="review target not found")
     return target
 
@@ -355,7 +374,7 @@ def deactivate_review_group(
         raise
 
 
-@router.get("/targets", response_model=list[TargetItem], dependencies=[Depends(_require_session)])
+@router.get("/targets", response_model=list[TargetItem])
 def list_targets(
     project_id: int | None = Query(default=None, gt=0),
     marketplace: str | None = None,
@@ -363,9 +382,17 @@ def list_targets(
     is_active: bool | None = None,
     limit: int = Query(default=200, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
+    scope: tuple[bool, list[int] | None] = Depends(_read_scope),
     db: Session = Depends(get_read_db_session),
 ) -> list[TargetItem]:
+    _, accessible_ids = scope
     stmt = select(AmazonReviewTarget)
+    if accessible_ids is not None:
+        # 可见项目下的内部目标 + 跨项目共享的外部目标。
+        stmt = stmt.where(or_(
+            AmazonReviewTarget.kind == "external_asin",
+            AmazonReviewTarget.project_id.in_(accessible_ids),
+        ))
     if project_id is not None:
         stmt = stmt.where(AmazonReviewTarget.project_id == project_id)
     if marketplace is not None:
@@ -381,7 +408,6 @@ def list_targets(
 @router.get(
     "/targets/{target_id}/rating-snapshots",
     response_model=list[RatingSnapshotItem],
-    dependencies=[Depends(_require_session)],
 )
 def list_rating_snapshots(
     target_id: int,
@@ -389,9 +415,10 @@ def list_rating_snapshots(
     date_to: date | None = Query(default=None, alias="to"),
     limit: int = Query(default=200, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
+    scope: tuple[bool, list[int] | None] = Depends(_read_scope),
     db: Session = Depends(get_read_db_session),
 ) -> list[RatingSnapshotItem]:
-    _ensure_target(db, target_id)
+    _ensure_target(db, target_id, scope)
     stmt = select(AmazonReviewRatingSnapshot).where(AmazonReviewRatingSnapshot.target_id == target_id)
     if date_from is not None:
         stmt = stmt.where(AmazonReviewRatingSnapshot.capture_date >= date_from)
@@ -404,7 +431,7 @@ def list_rating_snapshots(
     return [RatingSnapshotItem.model_validate(row) for row in rows]
 
 
-@router.get("/targets/{target_id}/reviews", response_model=list[ReviewItem], dependencies=[Depends(_require_session)])
+@router.get("/targets/{target_id}/reviews", response_model=list[ReviewItem])
 def list_reviews(
     target_id: int,
     visibility_status: str | None = None,
@@ -412,9 +439,10 @@ def list_reviews(
     review_date_to: date | None = None,
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    scope: tuple[bool, list[int] | None] = Depends(_read_scope),
     db: Session = Depends(get_read_db_session),
 ) -> list[ReviewItem]:
-    _ensure_target(db, target_id)
+    _ensure_target(db, target_id, scope)
     stmt = select(AmazonReviewReview).where(AmazonReviewReview.target_id == target_id)
     if visibility_status is not None:
         stmt = stmt.where(AmazonReviewReview.visibility_status == visibility_status)
@@ -429,14 +457,15 @@ def list_reviews(
     return [ReviewItem.model_validate(row) for row in rows]
 
 
-@router.get("/targets/{target_id}/runs", response_model=list[CrawlRunItem], dependencies=[Depends(_require_session)])
+@router.get("/targets/{target_id}/runs", response_model=list[CrawlRunItem])
 def list_runs(
     target_id: int,
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
+    scope: tuple[bool, list[int] | None] = Depends(_read_scope),
     db: Session = Depends(get_read_db_session),
 ) -> list[CrawlRunItem]:
-    _ensure_target(db, target_id)
+    _ensure_target(db, target_id, scope)
     rows = db.scalars(
         select(AmazonReviewCrawlRun)
         .where(AmazonReviewCrawlRun.target_id == target_id)
@@ -504,9 +533,11 @@ def create_external_link(
     target_id: int,
     payload: ExternalLinkCreate,
     request: Request,
+    scope: tuple[bool, list[int] | None] = Depends(_read_scope),
     db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> ExternalLinkItem:
+    _ensure_target(db, target_id, scope)
     try:
         link = add_external_link(db, target_id=target_id, shop_id=payload.shop_id)
         result = ExternalLinkItem.model_validate(link)
@@ -529,9 +560,11 @@ def delete_external_link(
     target_id: int,
     link_id: int,
     request: Request,
+    scope: tuple[bool, list[int] | None] = Depends(_read_scope),
     db: Session = Depends(get_primary_db_session),
     operator: str | None = Depends(get_request_operator),
 ) -> ExternalLinkItem:
+    _ensure_target(db, target_id, scope)
     try:
         link = remove_external_link(db, target_id=target_id, link_id=link_id)
         result = ExternalLinkItem.model_validate(link)
