@@ -38,13 +38,26 @@ def main() -> None:
 
     if args.once:
         from pathlib import Path
-        from monitor import RunLogger, run_cycle
+        from monitor import (
+            RunLogger,
+            WatchdogDispatcher,
+            _acquire_instance_lock,
+            sweep_to_dispatcher,
+        )
 
         logs_dir = Path(__file__).parent / "logs"
         logger = RunLogger(logs_dir)
         logger.info(">>> 一次性扫描模式")
 
-        stats = run_cycle(logger, dry_run=args.dry_run)
+        # Same single-instance guard as the daemon: a manual sweep racing a live
+        # watchdog would fight over the same files and DB unique keys.
+        lock = _acquire_instance_lock(logger)
+        if lock is None:
+            sys.exit(1)
+
+        dispatcher = WatchdogDispatcher(logger, dry_run=args.dry_run)
+        stats = sweep_to_dispatcher(logger, dispatcher)
+        dispatcher.stop()
         logger.info(
             f"完成: {stats['files_seen']} 文件, "
             f"{stats['success']} 成功, {stats['skipped']} 跳过, {stats['failed']} 失败"
