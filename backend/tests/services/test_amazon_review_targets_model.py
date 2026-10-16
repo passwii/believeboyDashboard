@@ -172,6 +172,25 @@ def test_external_target_shape_check_rejects_missing_asin(db_session):
     db_session.rollback()
 
 
+@pytest.mark.parametrize("attach_group,attach_project", [(True, False), (False, True)])
+def test_external_target_shape_check_rejects_group_or_project(
+    db_session, scoped_group, attach_group, attach_project
+):
+    """external_asin must not carry group_id/project_id (shape CHECK)."""
+    project, _sku, group = scoped_group
+    bad = AmazonReviewTarget(
+        kind="external_asin", marketplace="US",
+        asin=f"B0{uuid.uuid4().hex[:8].upper()}",
+        group_id=group.id if attach_group else None,
+        project_id=project.id if attach_project else None,
+        is_active=True,
+    )
+    db_session.add(bad)
+    with pytest.raises(IntegrityError):
+        db_session.flush()
+    db_session.rollback()
+
+
 def test_internal_target_shape_check_rejects_missing_group(db_session, active_project):
     bad = AmazonReviewTarget(
         kind="internal_group", group_id=None, project_id=active_project.id,
