@@ -25,12 +25,23 @@ from app.models.amazon_review_tracking import (
 )
 from app.schemas.amazon_review_tracking import (
     CrawlRunItem,
+    ExternalLinkCreate,
+    ExternalLinkItem,
+    ExternalTargetCreate,
+    ExternalTargetItem,
     RatingSnapshotItem,
     ReviewGroupCreate,
     ReviewGroupMemberReplace,
     ReviewGroupRepresentativeUpdate,
     ReviewItem,
     TargetItem,
+)
+from app.services.amazon_review_external_service import (
+    ExternalLinkError,
+    add_external_link,
+    links_for_target,
+    register_external_target,
+    remove_external_link,
 )
 from app.services.amazon_review_tracking_service import (
     ReviewGroupError,
@@ -154,6 +165,14 @@ def _item(
         representative_id=group.representative_sku_record_id,
         member_ids=list(members), is_active=group.is_active,
     )
+
+
+_EXTERNAL_NOT_FOUND_MESSAGES = frozenset({"external target not found", "external link not found"})
+
+
+def _external_error_status(exc: ExternalLinkError) -> int:
+    """显式映射外部竞品错误码：资源不存在 → 404，入参无效 → 422。"""
+    return 404 if str(exc) in _EXTERNAL_NOT_FOUND_MESSAGES else 422
 
 
 def _call_service(fn, *args, **kwargs):
@@ -423,3 +442,93 @@ def list_runs(
         .limit(limit).offset(offset)
     ).all()
     return [CrawlRunItem.model_validate(row) for row in rows]
+
+
+def _external_item(db: Session, target: AmazonReviewTarget) -> ExternalTargetItem:
+    links = [ExternalLinkItem.model_validate(link) for link in links_for_target(db, target.id)]
+    base = TargetItem.model_validate(target)
+    return ExternalTargetItem(**base.model_dump(), links=links)
+
+
+@router.get("/external-targets", response_model=list[ExternalTargetItem], dependencies=[Depends(_require_session)])
+def list_external_targets(db: Session = Depends(get_read_db_session)) -> list[ExternalTargetItem]:
+    targets = db.execute(
+        select(AmazonReviewTarget).where(AmazonReviewTarget.kind == "external_asin").order_by(AmazonReviewTarget.id)
+    ).scalars().all()
+    return [_external_item(db, target) for target in targets]
+
+
+@router.post("/external-targets", response_model=ExternalTargetItem, status_code=201, dependencies=[Depends(_require_admin)])
+def create_external_target(
+    payload: ExternalTargetCreate,
+    request: Request,
+    db: Session = Depends(get_primary_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> ExternalTargetItem:
+    try:
+        target = register_external_target(
+            db, marketplace=payload.marketplace, asin=payload.asin,
+            shop_id=payload.shop_id, display_name=payload.display_name,
+        )
+        result = _external_item(db, target)
+        append_operation_audit_log(db, action="amazon_review_tracking.external_target.create",
+            target_type="amazon_review_target", target_id=target.id, operator=operator,
+            after=result.model_dump(mode="json"), request=request)
+        db.commit()
+        return result
+    except ExternalLinkError as exc:
+        db.rollback()
+        raise HTTPException(status_code=_external_error_status(exc), detail=str(exc)) from exc
+    except Exception:
+        db.rollback()
+        raise
+
+
+@router.post("/targets/{target_id}/external-links", response_model=ExternalLinkItem, status_code=201,
+             dependencies=[Depends(_require_admin)])
+def create_external_link(
+    target_id: int,
+    payload: ExternalLinkCreate,
+    request: Request,
+    db: Session = Depends(get_primary_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> ExternalLinkItem:
+    try:
+        link = add_external_link(db, target_id=target_id, shop_id=payload.shop_id)
+        result = ExternalLinkItem.model_validate(link)
+        append_operation_audit_log(db, action="amazon_review_tracking.external_link.add",
+            target_type="amazon_review_external_link", target_id=link.id, operator=operator,
+            after=result.model_dump(mode="json"), request=request)
+        db.commit()
+        return result
+    except ExternalLinkError as exc:
+        db.rollback()
+        raise HTTPException(status_code=_external_error_status(exc), detail=str(exc)) from exc
+    except Exception:
+        db.rollback()
+        raise
+
+
+@router.delete("/targets/{target_id}/external-links/{link_id}", response_model=ExternalLinkItem,
+               dependencies=[Depends(_require_admin)])
+def delete_external_link(
+    target_id: int,
+    link_id: int,
+    request: Request,
+    db: Session = Depends(get_primary_db_session),
+    operator: str | None = Depends(get_request_operator),
+) -> ExternalLinkItem:
+    try:
+        link = remove_external_link(db, target_id=target_id, link_id=link_id)
+        result = ExternalLinkItem.model_validate(link)
+        append_operation_audit_log(db, action="amazon_review_tracking.external_link.remove",
+            target_type="amazon_review_external_link", target_id=link.id, operator=operator,
+            after=result.model_dump(mode="json"), request=request)
+        db.commit()
+        return result
+    except ExternalLinkError as exc:
+        db.rollback()
+        raise HTTPException(status_code=_external_error_status(exc), detail=str(exc)) from exc
+    except Exception:
+        db.rollback()
+        raise
