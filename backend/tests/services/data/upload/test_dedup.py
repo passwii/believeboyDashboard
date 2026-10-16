@@ -4,7 +4,7 @@ from datetime import date
 from unittest.mock import MagicMock
 
 from app.services.data.upload.dedup import find_sha256_duplicates, DuplicateInfo
-from app.utils.models import AnalysisSourceFile
+from app.models import AnalysisSourceFile
 
 
 @pytest.mark.upload
