@@ -118,8 +118,6 @@ def _wrap_raw_handler(endpoint: Callable, *, name: str) -> Callable:
     period / country / data / summary），与 ad-data 页期望一致——不需要
     agent 壳，原样透传。
     """
-    from fastapi.params import Param
-
     def _call(*args: Any, **kwargs: Any) -> Any:
         try:
             return endpoint(*args, **kwargs)

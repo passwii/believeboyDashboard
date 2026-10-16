@@ -16,12 +16,11 @@ from app.models import (
     InventoryReplenishmentSnapshotItem,
     Project,
 )
-from app.utils.text_utils import normalize_text, normalize_identity
+from app.utils.text_utils import normalize_text
 from app.utils.math_utils import decimal_to_float
 
 from app.services.inventory.replenishment import (
     list_inventory_replenishment_analysis,
-    _normalize_text as _norm_text,
 )
 
 

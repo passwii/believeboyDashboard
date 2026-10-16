@@ -226,7 +226,6 @@ def get_current_inventory_snapshot(
     period_end_date: 'date | None' = None,
 ):
     from datetime import datetime as Dt, timezone as Tz
-    from sqlalchemy import or_ as _or
 
     ensure_tables(db)
     normalized_country = _normalize_country(country)

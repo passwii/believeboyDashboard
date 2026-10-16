@@ -357,7 +357,6 @@ def build_payload_messages(
     messages: list[AIMessage],
     user_content: str,
     system_prompt: str,
-    enable_tools: bool = False,
 ) -> list[dict[str, Any]]:
     payload_messages: list[dict[str, Any]] = []
     if system_prompt.strip():
@@ -379,7 +378,7 @@ def build_payload_messages_with_tools(
     from app.services.ai.tools import WEB_SEARCH_TOOL_SCHEMA
 
     payload_messages = build_payload_messages(
-        messages, user_content, system_prompt, enable_tools=False
+        messages, user_content, system_prompt
     )
 
     tools = [WEB_SEARCH_TOOL_SCHEMA]

@@ -25,7 +25,6 @@ import asyncio
 import logging
 from collections.abc import (
     AsyncIterator,
-    Awaitable,
     Callable,
     Iterable,
     Mapping,

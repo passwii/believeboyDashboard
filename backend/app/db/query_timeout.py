@@ -66,7 +66,7 @@ def _make_after_begin(timeout_ms: int):
     再走 Session 只会多绕一圈 identity map。
     """
 
-    def _apply(session, transaction, connection) -> None:
+    def _apply(_session, _transaction, connection) -> None:
         connection.execute(_SET_TIMEOUT_SQL, {"value": f"{timeout_ms}ms"})
 
     return _apply
