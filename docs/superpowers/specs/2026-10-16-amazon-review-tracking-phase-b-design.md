@@ -278,11 +278,16 @@ record_crawl_result(
 
 | 动作 | 要求 |
 | --- | --- |
-| 查询目标/趋势/评论/运行/外部关联 | 有效会话（运营或管理员） |
+| 查询目标/趋势/评论/运行/外部关联 | 账号为运营或管理员，且（非 admin 时）限其可访问项目下的内部目标 |
 | 登记外部竞品、增删店铺关联 | 管理员（沿用 `_require_admin`） |
 | 内部共享组维护（阶段 A 既有） | 管理员 |
 
-> 备注：阶段 A 的 `GET /groups` 目前也要求管理员。本阶段新增的**查询**接口按上表放开给运营；是否把 `GET /groups` 一并对齐，列为低优先 follow-up，不在本阶段强改。
+> 实现期收紧（见 [阶段 B 报告](../plans/2026-10-12-amazon-review-tracking/phase-b-report.md) §6）：
+> 1. 读接口要求 `is_admin` 或 `role_type == "operator"`（其余角色 403）；
+> 2. 项目级授权复用 `project_service.list_accessible_project_ids`（按 `project_operator/assistant_operator` 名匹配），不可见内部目标子资源返回 404；外部目标（无 project）跨项目可见，admin 全量。
+> 3. **遗留架构点**：运营身份取自 `X-Operator` 请求头（仓库既有信任模型，同 `/projects/manage`），未与已验证 session 绑定；如需防御直连伪造需仓库级改造，另立事项。
+>
+> 备注：阶段 A 的 `GET /groups` 目前也要求管理员；是否一并对齐列为低优先 follow-up。
 
 ---
 
