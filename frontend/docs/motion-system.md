@@ -2,7 +2,7 @@
 
 > **适用版本：** 当前 frontend 动效实现（2026-10 更新）
 > **适用对象：** 在 `frontend/` 下新增 / 修改动效相关的工程师
-> **目标：** 说明当前可用的路由动效、CSS 动效工具类和底层 spotlight hook
+> **目标：** 说明当前可用的路由动效与 CSS 动效工具类
 
 ---
 
@@ -19,7 +19,6 @@
 │ 可复用层                                                   │
 │ - PageTransition / Normal / FullBleed（路由切换）            │
 │ - CSS：animate-fade-slide-up / u-stagger-item               │
-│ - useSpotlight hook（只写入光标坐标，不提供卡片包装）          │
 └─────────────────────────────────────────────────────────────┘
             ↑                    ↑                  ↑
 ┌─────────────────────────────────────────────────────────────┐
@@ -50,8 +49,6 @@
 | `--motion-ease-out` | `cubic-bezier(0.22, 1, 0.36, 1)` | ≈ easeOutExpo，惯性减弱 |
 | `--motion-ease-standard` | `cubic-bezier(0.16, 1, 0.3, 1)` | 标准缓动 |
 | `--stagger-step` | `70ms` | 内容错落步长 |
-| `--spot-x / --spot-y` | `50%`（默认） | spotlight 光标坐标（由 `useSpotlight` 写入） |
-| `--spotlight-strength` | `1`（默认） | spotlight 强度（reduce-transparency 时为 0） |
 
 ### 2.2 JS 侧（`frontend/lib/motion/tokens.ts`）
 
@@ -138,41 +135,7 @@ pnpm test && pnpm build
 - `--i` 是从 0 开始的序号，用于按 `--stagger-step` 计算延迟
 - reduced-motion 时全局 CSS 清除动画、延迟和透明度，内容保持可见
 
-### 3.4 数据卡聚光（hover spotlight）
-
-```tsx
-const spotlightRef = useSpotlight<HTMLDivElement>({ enabled: true })
-
-return (
-  <div ref={spotlightRef} data-spotlight className="dashboard-surface spotlight-card">
-    <CardContent />
-  </div>
-)
-```
-
-`useSpotlight` 只监听 pointermove 并写入 `--spot-x` / `--spot-y`；它不再有通用卡片包装组件。只有页面确实需要动态高光时才使用，并为 `.spotlight-card::before` 提供局部渐变样式。普通数据卡使用项目现有的 `DataCard` / `TermPanel` / `.dashboard-surface`。
-
-**关键约束**：
-- ⚠️ **不要全局替换**：`.dashboard-surface` 被大量页面共用，不要全局挂 pointermove 监听
-- hook 不负责渲染高光；局部 CSS 需读取坐标变量和 `--spotlight-strength`
-- `prefers-reduced-transparency: reduce` 时 `[data-spotlight]` 会将 `--spotlight-strength` 设为 `0`，hook 也不会挂监听
-
-### 3.5 自定义 pointermove 高光
-
-```tsx
-import { useSpotlight } from '@/components/motion/use-spotlight'
-
-const ref = useSpotlight<HTMLDivElement>({ enabled: true })
-return <div ref={ref} className="...">...</div>
-```
-
-**适用**：需要自定义形状或颜色的 spotlight 场景。hook 只负责坐标，视觉仍由使用处 CSS 实现。
-
-**要点**：
-- hook 写入 element.style 的 `--spot-x` / `--spot-y`（百分比），CSS 用 `radial-gradient(...)` 渲染
-- 减透明 / 粗指针下 hook 不挂监听，CSS 仍可读 `--spot-x/y` 默认 `50%`
-
-### 3.6 页面级 authoured 动效（登录页品牌面板，2026-09-30）
+### 3.4 页面级 authoured 动效（登录页品牌面板，2026-09-30）
 
 登录 `/login` 左栏「工作区地图」是两个纯 CSS 动效，**零 JS、零计时器**（`.login-*` 类定义在
 `globals.css` 末尾、`@layer` 之外）：
@@ -237,8 +200,6 @@ const FULL_BLEED_DASHBOARD_ROUTES = [
 |------|---------|---------|
 | `prefers-reduced-motion: reduce` | 全量退化为瞬时（`duration: 0`、不 stagger、不 spring） | Primitive 内部读 `useReducedMotion()` |
 | `prefers-reduced-motion: reduce`（CSS 侧） | `animation-duration: 0.01ms !important` | `globals.css` `@media` 块 |
-| `prefers-reduced-transparency: reduce` | blur 关闭、spotlight 退化为静态高光（`--spotlight-strength: 0`） | Primitive 读 `matchMedia`；CSS `@media` |
-| `(pointer: coarse)` | spotlight 不挂 pointermove 监听；CSS 静态高光保留 | `useSpotlight` 检查 `matchMedia`（注：当前实现检查 reduced-transparency，coarse 由 CSS 退化） |
 | Keyboard Tab focus | `outline: 2px solid hsl(var(--ring))` 通过 `.u-focus` 强制可见 | `globals.css` `.u-focus` |
 | 老年 / 前庭功能障碍 | `--motion-fast` 仍保持感知舒适阈值；不引入位移过大的动效 | （设计纪律，非代码约束） |
 
@@ -257,8 +218,6 @@ const FULL_BLEED_DASHBOARD_ROUTES = [
 | 路由切换看不到动效 | PageTransition 变体 key 不是 pathname | grep `key={pathname}` 在 `Normal/FullBleedPageTransition.tsx` |
 | full-bleed 页面塌缩 | wrapper 不是 `!absolute inset-0` | 检查 `isFullBleedDashboardRoute` 路由判断 + 父级是否 min-h |
 | 看不到 stagger | 列表项缺少 `u-stagger-item` 或 `--i` | 检查每个列表项是否设置工具类和从 0 开始的序号 |
-| Spotlight 不跟随 | reduced-transparency / coarse pointer 启用 | DevTools → Rendering 检查 media |
-| Spotlight 闪屏 | 局部 `::before` 渐变或透明度配置错误 | 检查使用处是否读取 `--spot-x` / `--spot-y` / `--spotlight-strength` |
 | 路由切换慢 / 卡 | `will-change-transform` 未释放 | 检查 `AnimatePresence mode="wait"` 是否正确卸载旧 motion.div |
 | 模糊糊掉 1px 边框 | Retina 屏 backdrop-filter 半径过大 | 永不主动加 backdrop-filter 到 `.dashboard-surface` |
 | 数值不一致 | CSS 与 JS 两侧数值漂移 | `pnpm test`（`tokens.test.ts` 有数值断言） |
