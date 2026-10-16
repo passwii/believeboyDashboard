@@ -50,6 +50,7 @@ export const DASHBOARD_PAGE_TITLES: Array<{ match: string; title: string }> = [
   { match: '/feature-updates', title: '产品更新' },
   { match: '/system/system/changelog', title: '更新日志' },
   { match: '/dashboard/crm/customers', title: '客户管理' },
+  { match: '/dashboard/crm/proposals', title: '客户方案' },
   { match: '/dashboard/crm/leads', title: '线索管理' },
   { match: '/dashboard/crm/sea', title: '客户公海' },
   { match: '/dashboard/crm/settings', title: 'CRM 设置' },

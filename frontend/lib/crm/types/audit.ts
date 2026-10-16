@@ -21,7 +21,7 @@ export type AuditAction =
 /** 一条审计日志（前端视角）。 */
 export interface AuditLog {
   id: string
-  entityType: 'customer' | 'lead' | 'contact' | 'task'
+  entityType: 'customer' | 'lead' | 'contact' | 'task' | 'proposal'
   entityId: string
   action: AuditAction
   actorId: string | null

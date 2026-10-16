@@ -5,3 +5,8 @@ export { USERS_FIXTURE } from './users.fixture'
 export { TASKS_FIXTURE } from './tasks.fixture'
 export { RULES_FIXTURE } from './rules.fixture'
 export { CATEGORIES_FIXTURE } from './categories.fixture'
+export {
+  PROPOSALS_FIXTURE,
+  PROPOSAL_VERSIONS_FIXTURE,
+  mockProposalHtml,
+} from './proposals.fixture'

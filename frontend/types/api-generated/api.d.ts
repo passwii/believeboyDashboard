@@ -4367,6 +4367,123 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/crm/proposals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Proposals
+         * @description 方案列表：scope=mine/all（非 admin 的 all 降级 mine）+ 白名单筛选/排序。
+         */
+        get: operations["list_proposals_api_v1_crm_proposals_get"];
+        put?: never;
+        /**
+         * Create Proposal
+         * @description 新建方案并落首版（v1）：解析 → 适配 → 冻结到 R2（raw + adapted）。
+         */
+        post: operations["create_proposal_api_v1_crm_proposals_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/proposals/{proposal_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Proposal
+         * @description 方案详情：含完整版本链；owner/admin 可见。
+         */
+        get: operations["get_proposal_api_v1_crm_proposals__proposal_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Proposal
+         * @description 删方案（含全部版本 + 尽力删 R2 对象）；owner/admin 可删。
+         */
+        delete: operations["delete_proposal_api_v1_crm_proposals__proposal_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Proposal
+         * @description 改 标题 / 类型 / 状态 / 关联客户；owner/admin 可写。
+         */
+        patch: operations["update_proposal_api_v1_crm_proposals__proposal_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/crm/proposals/{proposal_id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Version
+         * @description 给已有方案追加新版本（append-only，旧版本与旧 R2 对象不动）。
+         */
+        post: operations["add_version_api_v1_crm_proposals__proposal_id__versions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/proposals/{proposal_id}/versions/{version_no}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Version Content
+         * @description 预览内容：返回 HTML 文本，前端塞进 sandbox iframe 的 srcDoc。
+         *
+         *     内容从 R2 读出后经后端鉴权转发——**不返回公开 URL**。
+         */
+        get: operations["get_version_content_api_v1_crm_proposals__proposal_id__versions__version_no__content_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/proposals/{proposal_id}/versions/{version_no}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Version
+         * @description 下载某个版本（仍是单个 HTML 文件）。
+         *
+         *     默认下载「适配版」（带本项目主题令牌，仍自包含单文件）；
+         *     ``raw=1`` 下载「原始上传版」（保真交付 / 审计）。响应流式转发 + 鉴权。
+         */
+        get: operations["download_version_api_v1_crm_proposals__proposal_id__versions__version_no__download_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/crm/rules": {
         parameters: {
             query?: never;
@@ -11880,6 +11997,29 @@ export interface components {
              * @description 已更新的 SKU ID 列表
              */
             updated_ids: number[];
+        };
+        /** Body_add_version_api_v1_crm_proposals__proposal_id__versions_post */
+        Body_add_version_api_v1_crm_proposals__proposal_id__versions_post: {
+            /** Change Note */
+            change_note?: string | null;
+            /** File */
+            file: string;
+        };
+        /** Body_create_proposal_api_v1_crm_proposals_post */
+        Body_create_proposal_api_v1_crm_proposals_post: {
+            /** Change Note */
+            change_note?: string | null;
+            /** Customer Id */
+            customer_id?: number | null;
+            /** File */
+            file: string;
+            /**
+             * Proposal Type
+             * @default other
+             */
+            proposal_type: string;
+            /** Title */
+            title?: string | null;
         };
         /** Body_generate_product_label_api_v1_product_label_generate_post */
         Body_generate_product_label_api_v1_product_label_generate_post: {
@@ -21027,6 +21167,172 @@ export interface components {
         ProjectWorkflowTemplatesResponse: {
             /** Templates */
             templates: components["schemas"]["ProjectWorkflowTemplateOption"][];
+        };
+        /**
+         * ProposalContentResponse
+         * @description 预览内容：前端把 ``content`` 塞进 sandbox iframe 的 srcDoc。
+         */
+        ProposalContentResponse: {
+            /** Content */
+            content: string;
+            /** Proposal Id */
+            proposal_id: number;
+            /** Title */
+            title: string;
+            /** Version No */
+            version_no: number;
+        };
+        /**
+         * ProposalDetail
+         * @description 方案详情：附完整版本链（按 version_no 倒序）。
+         */
+        ProposalDetail: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by?: string | null;
+            /** Current Version No */
+            current_version_no: number;
+            /** Customer Id */
+            customer_id?: number | null;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Id */
+            id: number;
+            /** Owner Id */
+            owner_id?: string | null;
+            /** Owner Name */
+            owner_name?: string | null;
+            /** Proposal Type */
+            proposal_type: string;
+            /** Status */
+            status: string;
+            /** Title */
+            title: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Version Count
+             * @default 0
+             */
+            version_count: number;
+            /**
+             * Versions
+             * @default []
+             */
+            versions: components["schemas"]["ProposalVersionItem"][];
+        };
+        /**
+         * ProposalItem
+         * @description 方案主表（列表/详情共用）。
+         */
+        ProposalItem: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by?: string | null;
+            /** Current Version No */
+            current_version_no: number;
+            /** Customer Id */
+            customer_id?: number | null;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Id */
+            id: number;
+            /** Owner Id */
+            owner_id?: string | null;
+            /** Owner Name */
+            owner_name?: string | null;
+            /** Proposal Type */
+            proposal_type: string;
+            /** Status */
+            status: string;
+            /** Title */
+            title: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Version Count
+             * @default 0
+             */
+            version_count: number;
+        };
+        /** ProposalListResponse */
+        ProposalListResponse: {
+            /** Items */
+            items: components["schemas"]["ProposalItem"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /**
+         * ProposalUpdate
+         * @description 部分更新（标题/类型/状态/关联客户）；只传需要改的字段。
+         */
+        ProposalUpdate: {
+            /** Customer Id */
+            customer_id?: number | null;
+            /** Proposal Type */
+            proposal_type?: ("onboarding" | "operation" | "quotation" | "other") | null;
+            /** Status */
+            status?: ("draft" | "published" | "archived") | null;
+            /** Title */
+            title?: string | null;
+        };
+        /**
+         * ProposalUploadResponse
+         * @description 上传（首版/新版本）统一返回：方案 + 该版本 + 适配提示。
+         */
+        ProposalUploadResponse: {
+            proposal: components["schemas"]["ProposalItem"];
+            version: components["schemas"]["ProposalVersionItem"];
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: string[];
+        };
+        /**
+         * ProposalVersionItem
+         * @description 方案版本（append-only）。
+         */
+        ProposalVersionItem: {
+            /** Change Note */
+            change_note?: string | null;
+            /** Content Type */
+            content_type: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by?: string | null;
+            /** Created By Name */
+            created_by_name?: string | null;
+            /** File Size */
+            file_size: number;
+            /** Id */
+            id: number;
+            /** Original Filename */
+            original_filename: string;
+            /** Version No */
+            version_no: number;
         };
         /** RatingSnapshotItem */
         RatingSnapshotItem: {
@@ -34926,6 +35232,329 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConvertLeadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_proposals_api_v1_crm_proposals_get: {
+        parameters: {
+            query?: {
+                scope?: string;
+                keyword?: string | null;
+                filters?: string | null;
+                sort_by?: string;
+                sort_order?: string;
+                page?: number;
+                page_size?: number;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_proposal_api_v1_crm_proposals_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_create_proposal_api_v1_crm_proposals_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalUploadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_proposal_api_v1_crm_proposals__proposal_id__get: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                proposal_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_proposal_api_v1_crm_proposals__proposal_id__delete: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                proposal_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_proposal_api_v1_crm_proposals__proposal_id__patch: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                proposal_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProposalUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalItem"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_version_api_v1_crm_proposals__proposal_id__versions_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                proposal_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_add_version_api_v1_crm_proposals__proposal_id__versions_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalUploadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_version_content_api_v1_crm_proposals__proposal_id__versions__version_no__content_get: {
+        parameters: {
+            query?: {
+                /** @description true = 返回原始上传版（未注入主题） */
+                raw?: boolean;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                proposal_id: number;
+                version_no: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalContentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_version_api_v1_crm_proposals__proposal_id__versions__version_no__download_get: {
+        parameters: {
+            query?: {
+                /** @description true = 下载原始上传版（交付保真） */
+                raw?: boolean;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                proposal_id: number;
+                version_no: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

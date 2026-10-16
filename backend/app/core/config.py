@@ -223,6 +223,9 @@ class Settings(BaseSettings):
     }
     page_render_max_bytes: int = 2 * 1024 * 1024  # 2 MB
     page_render_public_rate_limit: str = "30/minute"  # public read endpoint limit
+    # 客户方案单个 HTML 上传上限（含内联 base64 图/样式的自包含文档，可比
+    # page_render 的 2MB 放宽）；见 services/crm/proposal_service.py。
+    crm_proposal_max_bytes: int = 5 * 1024 * 1024  # 5 MB
 
     redis_host: str = Field(default="localhost", max_length=200)
     redis_port: int = Field(default=6379, ge=1, le=65535)

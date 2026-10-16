@@ -820,3 +820,85 @@ class SavedViewItem(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# ---------- 客户方案（Proposal，单个 HTML + 版本管理） ----------
+# 层级：crm_customers → crm_proposals → crm_proposal_versions。
+# 文件不是独立一层，而是版本的载荷（raw/adapted 两份 R2 对象）。
+ProposalStatus = Literal["draft", "published", "archived"]
+ProposalType = Literal["onboarding", "operation", "quotation", "other"]
+
+
+class ProposalVersionItem(BaseModel):
+    """方案版本（append-only）。"""
+
+    id: int
+    version_no: int
+    original_filename: str
+    content_type: str
+    file_size: int
+    change_note: str | None = None
+    created_by: str | None = None
+    created_by_name: str | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ProposalItem(BaseModel):
+    """方案主表（列表/详情共用）。"""
+
+    id: int
+    title: str
+    proposal_type: str
+    status: str
+    customer_id: int | None = None
+    customer_name: str | None = None
+    owner_id: str | None = None
+    owner_name: str | None = None
+    current_version_no: int
+    version_count: int = 0
+    created_by: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ProposalDetail(ProposalItem):
+    """方案详情：附完整版本链（按 version_no 倒序）。"""
+
+    versions: list[ProposalVersionItem] = []
+
+
+class ProposalListResponse(BaseModel):
+    items: list[ProposalItem]
+    total: int
+    page: int
+    page_size: int
+
+
+class ProposalUpdate(BaseModel):
+    """部分更新（标题/类型/状态/关联客户）；只传需要改的字段。"""
+
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    proposal_type: ProposalType | None = None
+    status: ProposalStatus | None = None
+    customer_id: int | None = None
+
+
+class ProposalContentResponse(BaseModel):
+    """预览内容：前端把 ``content`` 塞进 sandbox iframe 的 srcDoc。"""
+
+    proposal_id: int
+    version_no: int
+    title: str
+    content: str
+
+
+class ProposalUploadResponse(BaseModel):
+    """上传（首版/新版本）统一返回：方案 + 该版本 + 适配提示。"""
+
+    proposal: ProposalItem
+    version: ProposalVersionItem
+    warnings: list[str] = []

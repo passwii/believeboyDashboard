@@ -29,6 +29,14 @@ import type {
   User,
   ValueScoresInput,
   WorkflowSettings,
+  Proposal,
+  ProposalContent,
+  ProposalCreateInput,
+  ProposalDetail,
+  ProposalListParams,
+  ProposalUpdateInput,
+  ProposalUploadResult,
+  ProposalVersionInput,
 } from '@/lib/crm/types'
 import {
   mapAuditLog,
@@ -42,6 +50,10 @@ import {
   mapImportResult,
   mapLead,
   mapLifecycleBoard,
+  mapProposal,
+  mapProposalContent,
+  mapProposalDetail,
+  mapProposalUploadResult,
   mapTask,
   mapRule,
   mapUser,
@@ -56,6 +68,9 @@ import {
     toTaskPayload,
     toRulePayload,
     toWorkflowSettingsPayload,
+    toProposalPayload,
+    toProposalCreateFormData,
+    toProposalVersionFormData,
   type AuditLogDto,
   type CategoryDto,
   type ContactDto,
@@ -63,6 +78,9 @@ import {
   type DashboardStatsDto,
   type FollowDto,
   type FollowUpGroupsDto,
+  type ProposalDetailDto,
+  type ProposalDto,
+  type ProposalUploadResultDto,
   type RuleDto,
   type StageDetailDto,
   type LeadDto,
@@ -103,6 +121,28 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * 从失败的响应里解析后端错误体（CRM 端点统一返回 {detail}）。
+ * 三处请求入口（JSON / multipart / blob）共用，避免解析逻辑分叉。
+ */
+async function parseApiError(res: Response, fallback: string): Promise<ApiError> {
+  let body: unknown = undefined
+  let message = fallback
+  try {
+    body = await res.json()
+    if (body !== null && typeof body === 'object') {
+      const record = body as { detail?: unknown; message?: unknown }
+      const detail = record.detail
+      if (typeof detail === 'string') message = detail
+      else if (detail) message = JSON.stringify(detail)
+      else if (typeof record.message === 'string') message = record.message
+    }
+  } catch {
+    // 非 JSON 错误体，保留默认消息
+  }
+  return new ApiError(res.status, message, body)
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response
   try {
@@ -115,25 +155,38 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(`网络错误：${(e as Error)?.message ?? String(e)}`)
   }
   if (!res.ok) {
-    let body: unknown = undefined
-    let message = `CRM 请求失败（${res.status}）`
-    try {
-      body = await res.json()
-      if (typeof body === 'object' && body !== null) {
-        const detail = (body as { detail?: unknown }).detail
-        if (typeof detail === 'string') message = detail
-        else if (detail) message = JSON.stringify(detail)
-        else if (typeof (body as { message?: unknown }).message === 'string') {
-          message = (body as { message: string }).message
-        }
-      }
-    } catch {
-      // 非 JSON 错误体，保留默认消息
-    }
-    throw new ApiError(res.status, message, body)
+    throw await parseApiError(res, `CRM 请求失败（${res.status}）`)
   }
   if (res.status === 204) return undefined as T
   return (await res.json()) as T
+}
+
+/** multipart 上传专用：**不**设 Content-Type，让浏览器自动带 boundary。 */
+async function requestForm<T>(path: string, form: FormData): Promise<T> {
+  let res: Response
+  try {
+    res = await fetch(`${BASE}${path}`, { method: 'POST', body: form })
+  } catch (e) {
+    throw new Error(`网络错误：${(e as Error)?.message ?? String(e)}`)
+  }
+  if (!res.ok) {
+    throw await parseApiError(res, `CRM 请求失败（${res.status}）`)
+  }
+  return (await res.json()) as T
+}
+
+/** 下载专用：返回二进制 Blob（响应体是单个 HTML 文件）。 */
+async function requestBlob(path: string): Promise<Blob> {
+  let res: Response
+  try {
+    res = await fetch(`${BASE}${path}`)
+  } catch (e) {
+    throw new Error(`网络错误：${(e as Error)?.message ?? String(e)}`)
+  }
+  if (!res.ok) {
+    throw await parseApiError(res, `下载失败（${res.status}）`)
+  }
+  return res.blob()
 }
 
 /** ListParams → 后端 query string。filters（高级筛选）序列化为 JSON 数组入站（Task B2 后端支持）。 */
@@ -186,6 +239,22 @@ function toTaskQueryString(params: TaskListParams): string {
   if (params.ownerId) qs.set('owner_id', params.ownerId)
   if (params.customerId) qs.set('customer_id', params.customerId)
   if (params.leadId) qs.set('lead_id', params.leadId)
+  if (params.page != null) qs.set('page', String(params.page))
+  if (params.pageSize != null) qs.set('page_size', String(params.pageSize))
+  if (params.sortBy) qs.set('sort_by', params.sortBy)
+  if (params.sortOrder) qs.set('sort_order', params.sortOrder)
+  const s = qs.toString()
+  return s ? `?${s}` : ''
+}
+
+/** 方案列表参数 → 后端 query string（filters 序列化为 FilterCondition JSON 数组）。 */
+function toProposalQueryString(params: ProposalListParams): string {
+  const qs = new URLSearchParams()
+  if (params.scope) qs.set('scope', params.scope)
+  if (params.keyword) qs.set('keyword', params.keyword)
+  if (params.filters && params.filters.length > 0) {
+    qs.set('filters', JSON.stringify(params.filters))
+  }
   if (params.page != null) qs.set('page', String(params.page))
   if (params.pageSize != null) qs.set('page_size', String(params.pageSize))
   if (params.sortBy) qs.set('sort_by', params.sortBy)
@@ -487,5 +556,72 @@ export class HttpCrmClient implements CrmClient {
         body: JSON.stringify(toWorkflowSettingsPayload(input)),
       })
     )
+  }
+
+  // ===== 客户方案（Proposal）=====
+  async listProposals(params: ProposalListParams): Promise<Paginated<Proposal>> {
+    const dto = await request<ListResponseDto<ProposalDto>>(
+      `/proposals${toProposalQueryString(params)}`
+    )
+    return mapPage(dto, mapProposal)
+  }
+  async getProposal(id: string): Promise<ProposalDetail> {
+    return mapProposalDetail(await request<ProposalDetailDto>(`/proposals/${id}`))
+  }
+  async createProposal(input: ProposalCreateInput): Promise<ProposalUploadResult> {
+    return mapProposalUploadResult(
+      await requestForm<ProposalUploadResultDto>(
+        '/proposals',
+        toProposalCreateFormData(input)
+      )
+    )
+  }
+  async addProposalVersion(
+    id: string,
+    input: ProposalVersionInput
+  ): Promise<ProposalUploadResult> {
+    return mapProposalUploadResult(
+      await requestForm<ProposalUploadResultDto>(
+        `/proposals/${id}/versions`,
+        toProposalVersionFormData(input)
+      )
+    )
+  }
+  async updateProposal(
+    id: string,
+    input: Partial<ProposalUpdateInput>
+  ): Promise<Proposal> {
+    return mapProposal(
+      await request<ProposalDto>(`/proposals/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(toProposalPayload(input)),
+      })
+    )
+  }
+  async deleteProposal(id: string): Promise<void> {
+    await request<void>(`/proposals/${id}`, { method: 'DELETE' })
+  }
+  async getProposalVersionContent(
+    id: string,
+    versionNo: number,
+    opts?: { raw?: boolean }
+  ): Promise<ProposalContent> {
+    const q = opts?.raw ? '?raw=true' : ''
+    return mapProposalContent(
+      await request<{
+        proposal_id: number
+        version_no: number
+        title: string
+        content: string
+      }>(`/proposals/${id}/versions/${versionNo}/content${q}`)
+    )
+  }
+  async downloadProposalVersion(
+    id: string,
+    versionNo: number,
+    opts?: { raw?: boolean }
+  ): Promise<Blob> {
+    const q = opts?.raw ? '?raw=true' : ''
+    return requestBlob(`/proposals/${id}/versions/${versionNo}/download${q}`)
   }
 }
