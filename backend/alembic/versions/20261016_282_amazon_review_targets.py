@@ -33,8 +33,11 @@ def upgrade() -> None:
             "(kind = 'external_asin' AND group_id IS NULL AND project_id IS NULL AND asin IS NOT NULL)",
             name="ck_amazon_review_targets_shape",
         ),
-        sa.ForeignKeyConstraint(["group_id"], ["amazon_review_groups.id"], ondelete="RESTRICT"),
-        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="RESTRICT"),
+        sa.ForeignKeyConstraint(
+            ["group_id", "project_id", "marketplace"],
+            ["amazon_review_groups.id", "amazon_review_groups.project_id", "amazon_review_groups.marketplace"],
+            ondelete="RESTRICT",
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("group_id", name="uq_amazon_review_targets_group"),
     )
@@ -83,7 +86,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("target_id", "capture_date", name="uq_amazon_review_rating_snapshots_target_date"),
     )
-    op.create_index("idx_amazon_review_rating_snapshots_target_date", "amazon_review_rating_snapshots", ["target_id", "capture_date"])
     op.create_table(
         "amazon_review_reviews",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
@@ -157,7 +159,6 @@ def downgrade() -> None:
     op.drop_index("idx_amazon_review_reviews_target_date", table_name="amazon_review_reviews")
     op.drop_index("idx_amazon_review_reviews_target_visibility", table_name="amazon_review_reviews")
     op.drop_table("amazon_review_reviews")
-    op.drop_index("idx_amazon_review_rating_snapshots_target_date", table_name="amazon_review_rating_snapshots")
     op.drop_table("amazon_review_rating_snapshots")
     op.drop_index("uq_amazon_review_targets_external_key", table_name="amazon_review_targets")
     op.drop_index("idx_amazon_review_targets_kind_active", table_name="amazon_review_targets")

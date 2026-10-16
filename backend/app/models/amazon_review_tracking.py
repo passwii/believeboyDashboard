@@ -93,6 +93,11 @@ class AmazonReviewTarget(Base):
             "(kind = 'external_asin' AND group_id IS NULL AND project_id IS NULL AND asin IS NOT NULL)",
             name="ck_amazon_review_targets_shape",
         ),
+        ForeignKeyConstraint(
+            ["group_id", "project_id", "marketplace"],
+            ["amazon_review_groups.id", "amazon_review_groups.project_id", "amazon_review_groups.marketplace"],
+            ondelete="RESTRICT",
+        ),
         UniqueConstraint("group_id", name="uq_amazon_review_targets_group"),
         Index("idx_amazon_review_targets_kind_active", "kind", "is_active"),
         Index(
@@ -105,12 +110,8 @@ class AmazonReviewTarget(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     kind: Mapped[str] = mapped_column(String(20), nullable=False)
-    group_id: Mapped[int | None] = mapped_column(
-        Integer, ForeignKey("amazon_review_groups.id", ondelete="RESTRICT"), nullable=True
-    )
-    project_id: Mapped[int | None] = mapped_column(
-        BigInteger, ForeignKey("projects.id", ondelete="RESTRICT"), nullable=True
-    )
+    group_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    project_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     marketplace: Mapped[str] = mapped_column(String(2), nullable=False)
     asin: Mapped[str | None] = mapped_column(String(20), nullable=True)
     display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -123,7 +124,6 @@ class AmazonReviewRatingSnapshot(Base):
     __tablename__ = "amazon_review_rating_snapshots"
     __table_args__ = (
         UniqueConstraint("target_id", "capture_date", name="uq_amazon_review_rating_snapshots_target_date"),
-        Index("idx_amazon_review_rating_snapshots_target_date", "target_id", "capture_date"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
