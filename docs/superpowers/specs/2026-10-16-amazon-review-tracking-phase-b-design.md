@@ -67,7 +67,7 @@
 
 ## 2. 数据模型
 
-所有新表主键用 `Integer`；引用 `projects.id` / `product_costs.id` / `project_shops.id` 的列按其实际类型用 `BigInteger().with_variant(Integer, "sqlite")`（与阶段 A 一致）。时间列用 `DateTime(timezone=True)`。
+所有新表主键用 `Integer`；引用 `projects.id` / `product_costs.id` 的外键列按其实际类型用 `BigInteger().with_variant(Integer, "sqlite")`；引用 `project_shops.id` 的列用 `Integer`（该表主键为 `Integer`）。时间列用 `DateTime(timezone=True)`。
 
 ### 2.1 `amazon_review_targets`（新增，统一挂载点）
 
@@ -173,7 +173,7 @@
 | --- | --- | --- |
 | `id` | Integer PK | |
 | `target_id` | Integer NOT NULL | → `targets.id`（仅 `external_asin`） |
-| `shop_id` | BigInteger NOT NULL | → `project_shops.id`（`RESTRICT`） |
+| `shop_id` | Integer NOT NULL | → `project_shops.id`（`RESTRICT`） |
 | `is_active` | Boolean NOT NULL default true | 软删除标记 |
 | `added_at` | DateTime(tz) NOT NULL | |
 | `removed_at` | DateTime(tz) NULL | |
