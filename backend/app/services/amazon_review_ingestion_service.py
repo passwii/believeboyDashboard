@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Literal, Sequence
+from decimal import Decimal
+from typing import Literal
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.amazon_review_tracking import (
@@ -64,13 +67,38 @@ def business_date(captured_at: datetime) -> date:
     return captured_at.astimezone(BUSINESS_TZ).date()
 
 
-def _validate_capture(captured_at: datetime, rating: RatingCapture | None) -> None:
+def _validate_capture(
+    captured_at: datetime, rating: RatingCapture | None,
+    reviews: Sequence[ReviewCapture] | None, status: CaptureStatus,
+) -> None:
+    if status not in ("success", "partial", "failed"):
+        raise IngestionError(f"invalid status: {status}")
     if captured_at.tzinfo is None or captured_at.utcoffset() is None:
         raise IngestionError("captured_at must be timezone-aware")
     if rating is not None:
+        if rating.star_count_quality not in ("exact", "estimated", "unavailable"):
+            raise IngestionError(f"invalid star_count_quality: {rating.star_count_quality}")
+        if rating.average_rating is not None and not 0 <= rating.average_rating <= 5:
+            raise IngestionError("average_rating must be between 0 and 5")
+        if rating.rating_count is not None and rating.rating_count < 0:
+            raise IngestionError("rating_count must be >= 0")
+        if rating.review_count is not None and rating.review_count < 0:
+            raise IngestionError("review_count must be >= 0")
         for label, values in (("star_percentages", rating.star_percentages), ("star_counts", rating.star_counts)):
             if values is not None and len(values) != 5:
                 raise IngestionError(f"{label} must contain exactly 5 values")
+        if rating.star_percentages is not None and any(p < 0 or p > 100 for p in rating.star_percentages):
+            raise IngestionError("star_percentages values must be between 0 and 100")
+        if rating.star_counts is not None and any(c < 0 for c in rating.star_counts):
+            raise IngestionError("star_counts values must be >= 0")
+    if reviews is not None:
+        for item in reviews:
+            if item.id_confidence not in ("original", "derived"):
+                raise IngestionError(f"invalid id_confidence: {item.id_confidence}")
+            if item.rating is not None and not 1 <= item.rating <= 5:
+                raise IngestionError("review rating must be between 1 and 5")
+            if item.helpful_count is not None and item.helpful_count < 0:
+                raise IngestionError("helpful_count must be >= 0")
 
 
 def _existing_run(db: Session, target_id: int, idempotency_key: str | None) -> AmazonReviewCrawlRun | None:
@@ -84,21 +112,21 @@ def _existing_run(db: Session, target_id: int, idempotency_key: str | None) -> A
     ).scalar_one_or_none()
 
 
-def _upsert_snapshot(
-    db: Session, target_id: int, capture_date: date, captured_at: datetime,
-    rating: RatingCapture, status: CaptureStatus, source: str | None,
-) -> None:
-    snapshot = db.execute(
+def _find_snapshot(db: Session, target_id: int, capture_date: date) -> AmazonReviewRatingSnapshot | None:
+    return db.execute(
         select(AmazonReviewRatingSnapshot).where(
             AmazonReviewRatingSnapshot.target_id == target_id,
             AmazonReviewRatingSnapshot.capture_date == capture_date,
         )
     ).scalar_one_or_none()
-    if snapshot is None:
-        snapshot = AmazonReviewRatingSnapshot(target_id=target_id, capture_date=capture_date)
-        db.add(snapshot)
+
+
+def _apply_snapshot_fields(
+    snapshot: AmazonReviewRatingSnapshot, captured_at: datetime,
+    rating: RatingCapture, status: CaptureStatus, source: str | None,
+) -> None:
     snapshot.captured_at = captured_at
-    snapshot.average_rating = rating.average_rating
+    snapshot.average_rating = Decimal(str(rating.average_rating)) if rating.average_rating is not None else None
     snapshot.rating_count = rating.rating_count
     snapshot.review_count = rating.review_count
     percentages = list(rating.star_percentages) if rating.star_percentages is not None else [None] * 5
@@ -109,6 +137,28 @@ def _upsert_snapshot(
     snapshot.star_count_quality = rating.star_count_quality
     snapshot.capture_status = status
     snapshot.source = source
+
+
+def _upsert_snapshot(
+    db: Session, target_id: int, capture_date: date, captured_at: datetime,
+    rating: RatingCapture, status: CaptureStatus, source: str | None,
+) -> None:
+    snapshot = _find_snapshot(db, target_id, capture_date)
+    if snapshot is None:
+        try:
+            with db.begin_nested():
+                snapshot = AmazonReviewRatingSnapshot(target_id=target_id, capture_date=capture_date)
+                _apply_snapshot_fields(snapshot, captured_at, rating, status, source)
+                db.add(snapshot)
+                db.flush()
+        except IntegrityError:
+            # 并发下另一方先插入 (target_id, capture_date)：savepoint 只回滚本次插入，随后复用既有行。
+            if snapshot in db:
+                db.expunge(snapshot)
+            snapshot = _find_snapshot(db, target_id, capture_date)
+            if snapshot is None:
+                raise
+    _apply_snapshot_fields(snapshot, captured_at, rating, status, source)
     db.flush()
 
 
@@ -166,7 +216,7 @@ def record_crawl_result(
     asin_scraped: str | None = None, source: str | None = None,
     error_message: str | None = None, capture_date: date | None = None,
 ) -> CrawlResult:
-    _validate_capture(captured_at, rating)
+    _validate_capture(captured_at, rating, reviews, status)
     target = db.get(AmazonReviewTarget, target_id)
     if target is None:
         raise IngestionError("target not found")
@@ -186,8 +236,22 @@ def record_crawl_result(
         reviews_seen=(len(reviews) if reviews is not None else None),
         ratings_captured=rating is not None, asin_scraped=asin_scraped, error_message=error_message,
     )
-    db.add(run)
-    db.flush()
+    try:
+        with db.begin_nested():
+            db.add(run)
+            db.flush()
+    except IntegrityError:
+        # 并发下另一方先提交相同 (target_id, idempotency_key)：savepoint 只回滚本次插入，
+        # 命中既有 run 即视为幂等 noop；仍查不到才说明是真实约束错误。
+        if run in db:
+            db.expunge(run)
+        existing = _existing_run(db, target_id, idempotency_key)
+        if existing is not None:
+            return CrawlResult(
+                target_id=target_id, run_id=existing.id, capture_date=effective_date,
+                snapshot_updated=False, reviews_upserted=0, reviews_suspected_removed=0,
+            )
+        raise
 
     snapshot_updated = False
     if rating is not None and status != "failed":

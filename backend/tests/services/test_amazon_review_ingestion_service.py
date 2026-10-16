@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import importlib
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
+from app.db.session import SessionLocal
 from app.models import Project, SkuRecord
 from app.models.amazon_review_tracking import (
     AmazonReviewCrawlRun,
@@ -21,6 +23,10 @@ from app.services.amazon_review_ingestion_service import (
     record_crawl_result,
 )
 from app.services.amazon_review_tracking_service import create_group
+
+# 直接 import 该新模块会被本地 LSP 的陈旧索引误报；动态导入拿到真实模块对象，
+# 既能 monkeypatch 内部查找函数，又与 tests/api/test_amazon_review_external.py 一致。
+service = importlib.import_module("app.services.amazon_review_ingestion_service")
 
 
 @pytest.fixture
@@ -47,6 +53,55 @@ def _now(days_ago: int = 0) -> datetime:
 
 def _review(key: str, **kw) -> ReviewCapture:
     return ReviewCapture(review_key=key, id_confidence="original", rating=5, **kw)
+
+
+def _rating(**kw: Any) -> RatingCapture:
+    return RatingCapture(**kw)
+
+
+def _capture(**kw: Any) -> ReviewCapture:
+    return ReviewCapture(**kw)
+
+
+def _commit_seed(*, run_key: str | None = None, snapshot_date: date | None = None) -> dict:
+    """独立 session 提交一条既有外部目标（可选含一条已提交 run / 同日快照）。
+
+    模拟「并发下另一方已先提交」的状态，供 savepoint 恢复测试复用。
+    """
+    db = SessionLocal()
+    try:
+        target = AmazonReviewTarget(
+            kind="external_asin", marketplace="US",
+            asin=f"B0{uuid.uuid4().hex[:8].upper()}", display_name="seed", is_active=True)
+        db.add(target)
+        db.flush()
+        if run_key is not None:
+            db.add(AmazonReviewCrawlRun(
+                target_id=target.id, idempotency_key=run_key, started_at=datetime.now(timezone.utc),
+                finished_at=datetime.now(timezone.utc), status="success",
+                is_complete_list=False, ratings_captured=False))
+            db.flush()
+        if snapshot_date is not None:
+            db.add(AmazonReviewRatingSnapshot(
+                target_id=target.id, capture_date=snapshot_date,
+                captured_at=datetime.now(timezone.utc), capture_status="success"))
+            db.flush()
+        db.commit()
+        return {"target_id": target.id}
+    finally:
+        db.close()
+
+
+def _cleanup_seed(seed: dict) -> None:
+    db = SessionLocal()
+    try:
+        db.execute(delete(AmazonReviewReview).where(AmazonReviewReview.target_id == seed["target_id"]))
+        db.execute(delete(AmazonReviewRatingSnapshot).where(AmazonReviewRatingSnapshot.target_id == seed["target_id"]))
+        db.execute(delete(AmazonReviewCrawlRun).where(AmazonReviewCrawlRun.target_id == seed["target_id"]))
+        db.execute(delete(AmazonReviewTarget).where(AmazonReviewTarget.id == seed["target_id"]))
+        db.commit()
+    finally:
+        db.close()
 
 
 def test_first_run_writes_snapshot_reviews_and_run(db_session, target):
@@ -212,3 +267,88 @@ def test_duplicate_review_keys_deduped_in_count_and_rows(db_session, target):
     assert len(rows) == 2 and result.reviews_upserted == 2
     r1 = next(row for row in rows if row.review_key == "R1")
     assert r1.title == "new"
+
+
+def test_invalid_enums_and_ranges_rejected(db_session, target):
+    cases: list[dict[str, Any]] = [
+        {"status": "weird"},
+        {"status": "success", "rating": _rating(star_count_quality="maybe")},
+        {"status": "success", "rating": _rating(average_rating=6)},
+        {"status": "success", "rating": _rating(average_rating=-0.1)},
+        {"status": "success", "rating": _rating(star_percentages=(0, 0, 0, 0, 101))},
+        {"status": "success", "rating": _rating(star_percentages=(0, 0, 0, 0, -1))},
+        {"status": "success", "rating": _rating(star_counts=(1, 2, 3, 4, -1))},
+        {"status": "success", "rating": _rating(rating_count=-1)},
+        {"status": "success", "rating": _rating(review_count=-1)},
+        {"status": "success", "reviews": [_capture(review_key="R1", id_confidence="bogus")]},
+        {"status": "success", "reviews": [_capture(review_key="R1", id_confidence="original", rating=0)]},
+        {"status": "success", "reviews": [_capture(review_key="R1", id_confidence="original", rating=6)]},
+        {"status": "success", "reviews": [_review("R1", helpful_count=-1)]},
+    ]
+    for case in cases:
+        with pytest.raises(IngestionError):
+            record_crawl_result(db_session, target_id=target.id, captured_at=_now(), **case)
+    db_session.flush()
+    assert db_session.execute(select(AmazonReviewCrawlRun)).scalars().all() == []
+    assert db_session.execute(select(AmazonReviewRatingSnapshot)).scalars().all() == []
+    assert db_session.execute(select(AmazonReviewReview)).scalars().all() == []
+
+
+def test_same_idempotency_key_concurrent_conflict_recovers(monkeypatch, db_session):
+    """savepoint 恢复：相同 idempotency_key 并发插入撞唯一约束 → 幂等 noop，仅 1 条 run。"""
+    seed = _commit_seed(run_key="k-concurrent")
+    try:
+        real_existing = service._existing_run
+        calls = {"n": 0}
+
+        def first_miss(db, target_id, idempotency_key):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return None  # 模拟并发：另一 session 已提交，但本次首个 select 查不到
+            return real_existing(db, target_id, idempotency_key)
+
+        monkeypatch.setattr(service, "_existing_run", first_miss)
+
+        result = record_crawl_result(
+            db_session, target_id=seed["target_id"], captured_at=_now(), status="success",
+            rating=RatingCapture(average_rating=4.5), idempotency_key="k-concurrent")
+        db_session.flush()
+
+        assert result.snapshot_updated is False and result.reviews_upserted == 0
+        assert calls["n"] >= 2
+        runs = db_session.execute(select(AmazonReviewCrawlRun).where(
+            AmazonReviewCrawlRun.target_id == seed["target_id"])).scalars().all()
+        assert len(runs) == 1 and runs[0].idempotency_key == "k-concurrent"
+    finally:
+        db_session.rollback()
+        _cleanup_seed(seed)
+
+
+def test_same_day_snapshot_concurrent_conflict_recovers(monkeypatch, db_session):
+    """savepoint 恢复：同 (target_id, capture_date) 快照并发插入撞唯一约束，仅 1 条且内容为本次。"""
+    seed = _commit_seed(snapshot_date=date(2026, 10, 20))
+    try:
+        real_find = service._find_snapshot
+        calls = {"n": 0}
+
+        def first_miss(db, target_id, capture_date):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return None
+            return real_find(db, target_id, capture_date)
+
+        monkeypatch.setattr(service, "_find_snapshot", first_miss)
+
+        result = record_crawl_result(
+            db_session, target_id=seed["target_id"], captured_at=_now(), status="success",
+            rating=RatingCapture(average_rating=4.6, rating_count=11))
+        db_session.flush()
+
+        assert result.snapshot_updated is True
+        assert calls["n"] >= 2
+        snaps = db_session.execute(select(AmazonReviewRatingSnapshot).where(
+            AmazonReviewRatingSnapshot.target_id == seed["target_id"])).scalars().all()
+        assert len(snaps) == 1 and float(snaps[0].average_rating) == 4.6
+    finally:
+        db_session.rollback()
+        _cleanup_seed(seed)
