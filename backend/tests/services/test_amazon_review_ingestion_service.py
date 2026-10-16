@@ -89,6 +89,16 @@ def test_idempotency_key_noop(db_session, target):
     assert len(db_session.execute(select(AmazonReviewReview)).scalars().all()) == 1
 
 
+def test_empty_string_idempotency_key_is_a_valid_key_and_noops(db_session, target):
+    record_crawl_result(db_session, target_id=target.id, captured_at=_now(), status="success",
+                        reviews=[_review("R1")], idempotency_key="")
+    record_crawl_result(db_session, target_id=target.id, captured_at=_now(), status="success",
+                        reviews=[_review("R1")], idempotency_key="")
+    db_session.flush()
+    assert len(db_session.execute(select(AmazonReviewCrawlRun)).scalars().all()) == 1
+    assert len(db_session.execute(select(AmazonReviewReview)).scalars().all()) == 1
+
+
 def test_two_complete_misses_mark_suspected_removed_then_reappear_restores(db_session, target):
     record_crawl_result(db_session, target_id=target.id, captured_at=_now(2), status="success",
                         reviews=[_review("R1")], is_complete_list=True)
@@ -141,3 +151,17 @@ def test_failed_run_writes_run_only_and_unknown_target_rejected(db_session, targ
     assert run.status == "failed" and run.ratings_captured is False
     with pytest.raises(IngestionError, match="target not found"):
         record_crawl_result(db_session, target_id=999999999, captured_at=_now(), status="failed")
+
+
+def test_failed_run_with_rating_and_reviews_writes_run_only(db_session, target):
+    result = record_crawl_result(
+        db_session, target_id=target.id, captured_at=_now(), status="failed",
+        rating=RatingCapture(average_rating=4.5, rating_count=10),
+        reviews=[_review("R1")], is_complete_list=True, error_message="timeout",
+    )
+    db_session.flush()
+    assert db_session.execute(select(AmazonReviewRatingSnapshot)).scalars().all() == []
+    assert db_session.execute(select(AmazonReviewReview)).scalars().all() == []
+    run = db_session.execute(select(AmazonReviewCrawlRun)).scalar_one()
+    assert run.status == "failed" and run.ratings_captured is True
+    assert result.snapshot_updated is False and result.reviews_upserted == 0

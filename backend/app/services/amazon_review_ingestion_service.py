@@ -65,7 +65,7 @@ def business_date(captured_at: datetime) -> date:
 
 
 def _existing_run(db: Session, target_id: int, idempotency_key: str | None) -> AmazonReviewCrawlRun | None:
-    if not idempotency_key:
+    if idempotency_key is None:
         return None
     return db.execute(
         select(AmazonReviewCrawlRun).where(
@@ -180,13 +180,13 @@ def record_crawl_result(
     db.flush()
 
     snapshot_updated = False
-    if rating is not None:
+    if rating is not None and status != "failed":
         _upsert_snapshot(db, target_id, effective_date, captured_at, rating, status, source)
         snapshot_updated = True
 
     upserted = 0
     suspects = 0
-    if reviews is not None:
+    if reviews is not None and status != "failed":
         seen_keys: set[str] = set()
         for item in reviews:
             seen_keys.add(item.review_key)
