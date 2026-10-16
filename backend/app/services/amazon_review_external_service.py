@@ -58,13 +58,14 @@ def _upsert_link(db: Session, target_id: int, shop_id: int) -> AmazonReviewExter
     now = datetime.now(timezone.utc)
     link = _find_link(db, target_id, shop_id)
     if link is None:
-        link = AmazonReviewExternalLink(target_id=target_id, shop_id=shop_id, is_active=True, added_at=now)
-        db.add(link)
         try:
             with db.begin_nested():
+                link = AmazonReviewExternalLink(target_id=target_id, shop_id=shop_id,
+                                                is_active=True, added_at=now)
+                db.add(link)
                 db.flush()
         except IntegrityError:
-            # 并发下另一方先插入 (target_id, shop_id)：回滚 savepoint 后复用既有行。
+            # 并发下另一方先插入 (target_id, shop_id)：savepoint 只回滚本次插入，随后复用既有行。
             if link in db:
                 db.expunge(link)
             link = _find_link(db, target_id, shop_id)
@@ -91,14 +92,14 @@ def register_external_target(db: Session, *, marketplace: str, asin: str, shop_i
     display_name = _normalize_display_name(display_name)
     target = _find_target(db, marketplace, asin)
     if target is None:
-        target = AmazonReviewTarget(kind="external_asin", marketplace=marketplace, asin=asin,
-                                    display_name=display_name or asin, is_active=True)
-        db.add(target)
         try:
             with db.begin_nested():
+                target = AmazonReviewTarget(kind="external_asin", marketplace=marketplace, asin=asin,
+                                            display_name=display_name or asin, is_active=True)
+                db.add(target)
                 db.flush()
         except IntegrityError:
-            # 并发下另一方先插入 (kind, marketplace, asin)：回滚 savepoint 后复用既有行。
+            # 并发下另一方先插入 (kind, marketplace, asin)：savepoint 只回滚本次插入，随后复用既有行。
             if target in db:
                 db.expunge(target)
             target = _find_target(db, marketplace, asin)
