@@ -354,18 +354,32 @@ def test_same_day_snapshot_concurrent_conflict_recovers(monkeypatch, db_session)
         _cleanup_seed(seed)
 
 
-def test_non_finite_numbers_rejected(db_session, target):
-    cases: list[dict[str, Any]] = [
-        {"status": "success", "rating": _rating(average_rating=float("nan"))},
-        {"status": "success", "rating": _rating(average_rating=float("inf"))},
-        {"status": "success", "rating": _rating(star_percentages=(0, 0, 0, 0, float("nan")))},
-        {"status": "success", "rating": _rating(star_percentages=(0, 0, 0, 0, float("inf")))},
-        {"status": "success", "rating": _rating(star_counts=(1, 2, 3, 4, float("inf")))},
-        {"status": "success", "rating": _rating(star_counts=(1, 2, 3, 4, float("nan")))},
-    ]
-    for case in cases:
-        with pytest.raises(IngestionError):
-            record_crawl_result(db_session, target_id=target.id, captured_at=_now(), **case)
+_NON_FINITE_VALUES = (("nan", float("nan")), ("+inf", float("inf")), ("-inf", float("-inf")))
+
+
+def _non_finite_cases() -> list[tuple[str, dict[str, Any]]]:
+    cases: list[tuple[str, dict[str, Any]]] = []
+    for name, value in _NON_FINITE_VALUES:
+        cases.extend([
+            (f"average_rating-{name}", {"rating": _rating(average_rating=value)}),
+            (f"rating_count-{name}", {"rating": _rating(rating_count=value)}),
+            (f"review_count-{name}", {"rating": _rating(review_count=value)}),
+            (f"star_percentages-{name}", {"rating": _rating(star_percentages=(0, 0, 0, 0, value))}),
+            (f"star_counts-{name}", {"rating": _rating(star_counts=(1, 2, 3, 4, value))}),
+            (f"review_rating-{name}", {"reviews": [_capture(review_key="R1", id_confidence="original", rating=value)]}),
+            (f"helpful_count-{name}", {"reviews": [_capture(review_key="R1", id_confidence="original", helpful_count=value)]}),
+        ])
+    return cases
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [case[1] for case in _non_finite_cases()],
+    ids=[case[0] for case in _non_finite_cases()],
+)
+def test_non_finite_numbers_rejected(db_session, target, kwargs):
+    with pytest.raises(IngestionError):
+        record_crawl_result(db_session, target_id=target.id, captured_at=_now(), status="success", **kwargs)
     db_session.flush()
     assert db_session.execute(select(AmazonReviewCrawlRun)).scalars().all() == []
     assert db_session.execute(select(AmazonReviewRatingSnapshot)).scalars().all() == []
