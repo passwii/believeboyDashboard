@@ -77,20 +77,31 @@ export function AdAnalysisBudgetClient() {
   const campaignFilter = searchParams.get('campaign') || ''
   const skuFilter = searchParams.get('sku') || ''
 
-  const [data, setData] = useState<BudgetResponse | null>(null)
+  const [dataResult, setDataResult] = useState<{ signature: string; value: BudgetResponse } | null>(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [errorResult, setErrorResult] = useState<{ signature: string; message: string } | null>(null)
   const refreshKey = useAdClientRefreshKey()
+  const sessionUser = session?.user as
+    | { id?: string | null; roleType?: string | null; operatorNameZh?: string | null }
+    | undefined
+  const querySignature = JSON.stringify([
+    projectId, country, dateFrom, dateTo, campaignFilter, skuFilter,
+    sessionUser?.id ?? null, sessionUser?.roleType ?? null, sessionUser?.operatorNameZh ?? null,
+  ])
+  const data = dataResult?.signature === querySignature ? dataResult.value : null
+  const error = errorResult?.signature === querySignature ? errorResult.message : null
+  const isLoading = loading || (Boolean(projectId) && status !== 'loading' && !data && !error)
 
   useEffect(() => {
     if (!projectId) return
     // BEL-421：缓存键按用户域隔离，等 session 就绪再取数，避免 unknown 域双请求
     if (status === 'loading') return
     let active = true
+    setDataResult((current) => current?.signature === querySignature ? current : null)
+    setErrorResult(null)
 
     async function load() {
       setLoading(true)
-      setError(null)
       try {
         const query = new URLSearchParams({
           project_id: projectId,
@@ -102,9 +113,14 @@ export function AdAnalysisBudgetClient() {
         if (skuFilter) query.set('sku', skuFilter)
         // BEL-421：客户端缓存（2min TTL）——重复 mount 0 请求
         const payload = await fetchAdAnalysisCached<BudgetResponse>('budget', query, session)
-        if (active) setData(payload)
+        if (active) setDataResult({ signature: querySignature, value: payload })
       } catch (fetchError) {
-        if (active) setError(fetchError instanceof Error ? fetchError.message : '预算分析加载失败')
+        if (active) {
+          setErrorResult({
+            signature: querySignature,
+            message: fetchError instanceof Error ? fetchError.message : '预算分析加载失败',
+          })
+        }
       } finally {
         if (active) setLoading(false)
       }
@@ -114,10 +130,10 @@ export function AdAnalysisBudgetClient() {
     return () => {
       active = false
     }
-  }, [campaignFilter, country, dateFrom, dateTo, projectId, session, skuFilter, status, refreshKey])
+  }, [campaignFilter, country, dateFrom, dateTo, projectId, querySignature, session, skuFilter, status, refreshKey])
 
   if (!projectId) return <EmptyState rowHeight="lg" message="请先选择项目。" />
-  if (loading && !data) return <EmptyState rowHeight="lg" message="正在加载预算分析..." />
+  if (isLoading && !data) return <EmptyState rowHeight="lg" message="正在加载预算分析..." />
   if (error && !data) {
     return (
       <div className="border border-term-neg/50 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
