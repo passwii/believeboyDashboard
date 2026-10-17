@@ -27,6 +27,7 @@ import {
 } from '@/components/terminal/terminal-header-slot'
 import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { clearAdClientCaches } from '@/lib/ad-client-cache'
 
 type ProjectOption = {
   id: number
@@ -141,9 +142,12 @@ export function AdAnalysisTopFilters() {
     })
   }
 
-  // 刷新语义：清 2min 客户端缓存后 router.refresh —— 子页 effect 依 URL 参数重取，
-  // 等价于「当前筛选条件下的强刷」。
-  useHeaderRefresh(() => router.refresh())
+  // 查询结果驻留在 user-scoped sessionStorage/memory cache，RSC refresh 本身不会重跑
+  // 已挂载 client effects；清理当前广告数据缓存后用 URL key 触发 client sub-tree remount。
+  useHeaderRefresh(() => {
+    clearAdClientCaches()
+    router.refresh()
+  })
 
   // Desktop controls (fixed: isMobileView={false})
   const desktopControls = (

@@ -42,6 +42,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
+import { useAdClientRefreshKey } from '@/components/dashboard/ad-refresh'
 import {
   fetchAdRawCached,
   fetchAdUploadFilesCached,
@@ -106,6 +107,7 @@ export function AdDataExplorer() {
     : undefined
 
   const isAggregate = mode === 'aggregate'
+  const refreshKey = useAdClientRefreshKey()
 
   // 每个分组合并了多少份明细（用于"合并份数"列；与 lib 内部 composite key 一致）
   const groupCounts = useMemo(() => {
@@ -167,7 +169,7 @@ export function AdDataExplorer() {
     return () => {
       active = false
     }
-  }, [projectId, country, session, status])
+  }, [projectId, country, session, status, refreshKey])
 
   // ---- 拉取选中类型的原始行（BEL-421：2min 客户端缓存，切回已看过的类型 0 请求）----
   useEffect(() => {
@@ -207,7 +209,7 @@ export function AdDataExplorer() {
     return () => {
       active = false
     }
-  }, [projectId, country, dateFrom, dateTo, selectedReportType, config, session, status])
+  }, [projectId, country, dateFrom, dateTo, selectedReportType, config, session, status, refreshKey])
 
   // ---- 搜索 + 排序 ----
   const filtered = useMemo(() => {

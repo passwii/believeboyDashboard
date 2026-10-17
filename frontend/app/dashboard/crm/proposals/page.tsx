@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Download, Eye, Loader2, Plus, Search, Trash2 } from 'lucide-react'
 
@@ -40,6 +40,7 @@ import {
   type ProposalType,
 } from '@/lib/crm/types'
 import { ScopeToggle } from '../customers/components/scope-toggle'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 
 const PAGE_SIZE = 50
 
@@ -99,6 +100,10 @@ export default function ProposalsPage() {
   useEffect(() => {
     void load()
   }, [load, refreshKey])
+
+  const refreshRef = useRef(load)
+  refreshRef.current = load
+  useHeaderRefresh(() => refreshRef.current(), { loading })
 
   // 建方案时要选客户：按当前数据范围拉一页（管理员 all 可见全部）。
   useEffect(() => {
