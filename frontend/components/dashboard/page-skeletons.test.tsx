@@ -11,6 +11,7 @@ import {
   CardListSkeleton,
   ChatPageLoading,
   CrmDashboardPageLoading,
+  CrmProposalDetailPageLoading,
   CrmTaskBoardPageLoading,
   InventoryLedgerPageLoading,
   InventoryReplenishmentPageLoading,
@@ -103,6 +104,13 @@ describe('page-skeletons 组合骨架', () => {
     expect(screen.queryByTestId('page-skeleton-table')).toBeNull()
   })
 
+  it('CRM 客户方案详情骨架包含宽预览和窄版时间线', () => {
+    render(<CrmProposalDetailPageLoading />)
+    expect(screen.getByTestId('page-skeleton-proposal-detail')).toBeInTheDocument()
+    expect(screen.getByTestId('page-skeleton-proposal-detail').children).toHaveLength(2)
+    expect(screen.getByLabelText('页面加载中')).toHaveAttribute('aria-busy', 'true')
+  })
+
   it('CRM dashboard 骨架包含四个 KPI、漏斗和负责人表', () => {
     render(<CrmDashboardPageLoading />)
     expect(screen.getByTestId('page-skeleton-kpis').children).toHaveLength(4)
@@ -147,6 +155,11 @@ describe('BEL-419 路由骨架覆盖', () => {
     }
     return false
   }
+
+  it('客户方案详情路由注册专用 loading boundary', () => {
+    const detailBoundary = join(dashboardDir, 'crm', 'proposals', '[id]', 'loading.tsx')
+    expect(existsSync(detailBoundary)).toBe(true)
+  })
 
   it('dashboard 下每个含页面的 section 都有自己的 loading.tsx（不依赖首页骨架兜底）', () => {
     const sections = readdirSync(dashboardDir)

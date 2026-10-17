@@ -1,8 +1,9 @@
-import { render, screen, cleanup, within, waitFor } from '@testing-library/react'
+import { render, screen, cleanup, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AdDataExplorer } from '@/components/dashboard/ad-data/ad-data-explorer'
+import { requestAdClientRefresh } from '@/components/dashboard/ad-refresh'
 import { clearAdClientCaches } from '@/lib/ad-client-cache'
 
 // ── mocks ────────────────────────────────────────────────────────────────────
@@ -52,7 +53,7 @@ function jsonResponse(payload: unknown): Response {
 }
 
 function mockFetchSequence(fetchMock: ReturnType<typeof vi.spyOn>) {
-  fetchMock.mockImplementation(async (input) => {
+  fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
     const url = String(input)
     if (url.includes('ad-upload-files')) return jsonResponse(UPLOAD_FILES)
     if (url.includes('-raw')) return jsonResponse(RAW_PAYLOAD)
@@ -130,6 +131,33 @@ describe('AdDataExplorer 终端化渲染契约（BLF-834）', () => {
     await user.click(screen.getByText('点击量'))
     await user.click(screen.getByText('聚合'))
     expect(screen.getByRole('table')).toBeInTheDocument()
+  })
+
+  it('广告强刷期间失败保留已加载行、导出可用并显示错误', async () => {
+    let rawRequests = 0
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('ad-upload-files')) return jsonResponse(UPLOAD_FILES)
+      if (url.includes('-raw')) {
+        rawRequests += 1
+        if (rawRequests === 1) return jsonResponse(RAW_PAYLOAD)
+        throw new Error('刷新连接失败')
+      }
+      return jsonResponse({})
+    })
+
+    render(<AdDataExplorer />)
+    await waitForTable()
+    expect(screen.getByText('ENABLED')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '导出 CSV' })).toBeEnabled()
+
+    requestAdClientRefresh()
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('刷新连接失败'))
+    expect(screen.getByText('ENABLED')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '导出 CSV' })).toBeEnabled()
+    expect(screen.queryByText('正在刷新广告明细…')).not.toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalled()
   })
 
   it('展开行显示 raw_row 原始数据 pre 块', async () => {

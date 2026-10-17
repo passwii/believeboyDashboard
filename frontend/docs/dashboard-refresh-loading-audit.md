@@ -20,7 +20,7 @@
 
 ## Dashboard 路由清单
 
-> Stage 1 表格保留 90 条既有路由基线。Stage 3 从当前 App Router 另行发现 `/dashboard/crm/proposals` 与 `/dashboard/crm/proposals/[id]` 两条新路由；此分支含客户方案页面，需为其数据刷新/加载状态补充路由级维护记录。本次代码为方案列表接上 Head 刷新，骨架新增；详情页因用户可编辑元数据草稿，本轮不注册会覆盖草稿的刷新 callback。两条新路由数据来源 C（客户端请求），建议后续清单合并时单列。
+> Stage 1 表格保留 90 条既有路由基线。Stage 3 从当前 App Router 另行发现 `/dashboard/crm/proposals` 与 `/dashboard/crm/proposals/[id]` 两条新路由；两者数据来源均为 C（客户端请求），建议后续清单合并时单列。列表页注册 Head refresh callback，初载最近边界为 `crm/proposals/loading.tsx`（列表筛选 + 7 列表格骨架）；详情页已注册 `useHeaderRefresh(() => refreshRef.current(), { loading })`，仅重取 `detail`、不触碰编辑表单草稿，初载最近边界为 `crm/proposals/[id]/loading.tsx`（宽预览 + 窄版时间线骨架）。
 
 | 路由 | 数据来源（S） | Head 刷新路径（S） | 最近 loading boundary → 骨架 | 每路由验证方式 / 静态备注 |
 | --- | --- | --- | --- | --- |

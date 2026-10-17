@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { DeferredSection } from '@/components/dashboard/deferred-section'
 import { useAdClientRefreshKey } from '@/components/dashboard/ad-refresh'
+import { TermRefreshStatus } from '@/components/dashboard/ad-analysis/term-chrome'
 import { fetchAdAnalysisCached } from '@/lib/ad-client-cache'
 import { cn } from '@/lib/utils'
 import {
@@ -119,16 +120,23 @@ export function AdAnalysisSearchTermsClient() {
   }, [campaignFilter, country, dateFrom, dateTo, projectId, searchTermFilter, session, skuFilter, status, refreshKey])
 
   if (!projectId) return <EmptyState rowHeight="lg" message="请先选择项目。" />
-  if (loading) return <EmptyState rowHeight="lg" message="正在加载搜索词分析..." />
-  if (error) {
+  if (loading && !data) return <EmptyState rowHeight="lg" message="正在加载搜索词分析..." />
+  if (error && !data) {
     return (
       <div className="border border-term-neg/50 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
         ERR · {error}
       </div>
     )
   }
-  if (!data || data.items.length === 0)
-    return <EmptyState rowHeight="lg" message="当前没有搜索词明细。" />
+  if (!data) return <EmptyState rowHeight="lg" message="当前没有搜索词明细。" />
+  if (data.items.length === 0) {
+    return (
+      <>
+        <TermRefreshStatus loading={loading} error={error} hasData />
+        <EmptyState rowHeight="lg" message="当前没有搜索词明细。" />
+      </>
+    )
+  }
 
   const narrativeSections = data.narrative_sections ?? []
 
@@ -140,12 +148,16 @@ export function AdAnalysisSearchTermsClient() {
 
   if (filteredItems.length === 0) {
     return (
-      <EmptyState rowHeight="lg" message={`当前筛选下没有匹配“${searchTermFilter}”的搜索词。`} />
+      <>
+        <TermRefreshStatus loading={loading} error={error} hasData />
+        <EmptyState rowHeight="lg" message={`当前筛选下没有匹配“${searchTermFilter}”的搜索词。`} />
+      </>
     )
   }
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
+      <TermRefreshStatus loading={loading} error={error} hasData />
       <AdAnalysisContextBanner
         items={[
           ...(campaignFilter ? [{ label: '当前活动', value: campaignFilter }] : []),

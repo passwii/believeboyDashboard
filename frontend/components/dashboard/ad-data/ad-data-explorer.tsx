@@ -200,8 +200,6 @@ export function AdDataExplorer() {
       .catch((fetchError) => {
         if (!active) return
         setError(fetchError instanceof Error ? fetchError.message : '数据加载失败')
-        setRows([])
-        setTotalRows(0)
       })
       .finally(() => {
         if (active) setLoading(false)
@@ -400,7 +398,16 @@ export function AdDataExplorer() {
           ERR · {error}
         </div>
       ) : null}
-      {loading ? (
+      {loading && rows.length > 0 ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="border border-term-border bg-term-panel px-2 py-1 font-mono text-xs text-term-muted"
+        >
+          正在刷新广告明细…
+        </div>
+      ) : null}
+      {loading && rows.length === 0 ? (
         <div className="space-y-px border border-term-border bg-term-panel p-px">
           {Array.from({ length: 8 }).map((_, i) => (
             <Skeleton key={i} className="h-9 w-full rounded-none" />

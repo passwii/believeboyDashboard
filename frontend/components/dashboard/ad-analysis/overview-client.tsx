@@ -13,7 +13,7 @@ import {
   YAxis,
 } from 'recharts'
 
-import { TermErrorBar, TermGridHeader, TermMetricTile } from '@/components/dashboard/ad-analysis/term-chrome'
+import { TermGridHeader, TermMetricTile, TermRefreshStatus } from '@/components/dashboard/ad-analysis/term-chrome'
 import {
   TermBody,
   TermCell,
@@ -244,7 +244,7 @@ export function AdAnalysisOverviewClient() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-1.5">
-      <TermErrorBar message={error} />
+      <TermRefreshStatus loading={loading} error={error} hasData={Boolean(data)} />
 
       {/* ===== KPI 等宽磁贴带（范围 3）：等宽网格 + 同比环比语义色 ===== */}
       <div className="grid shrink-0 grid-cols-2 gap-1 sm:grid-cols-4 xl:grid-cols-8">

@@ -10,6 +10,7 @@ import { TermPanel } from '@/components/terminal/term-panel'
 import { TermPill } from '@/components/terminal/term-controls'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useAdClientRefreshKey } from '@/components/dashboard/ad-refresh'
+import { TermRefreshStatus } from '@/components/dashboard/ad-analysis/term-chrome'
 import { fetchAdAnalysisCached } from '@/lib/ad-client-cache'
 import { cn } from '@/lib/utils'
 import {
@@ -93,16 +94,23 @@ export function AdAnalysisPurchasedProductsClient() {
   }, [campaignFilter, country, dateFrom, dateTo, projectId, purchasedAsinFilter, session, skuFilter, status, refreshKey])
 
   if (!projectId) return <EmptyState rowHeight="lg" message="请先选择项目。" />
-  if (loading) return <EmptyState rowHeight="lg" message="正在加载已购买商品分析..." />
-  if (error) {
+  if (loading && !data) return <EmptyState rowHeight="lg" message="正在加载已购买商品分析..." />
+  if (error && !data) {
     return (
       <div className="border border-term-neg/50 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
         ERR · {error}
       </div>
     )
   }
-  if (!data || data.items.length === 0)
-    return <EmptyState rowHeight="lg" message="当前没有已购买商品明细。" />
+  if (!data) return <EmptyState rowHeight="lg" message="当前没有已购买商品明细。" />
+  if (data.items.length === 0) {
+    return (
+      <>
+        <TermRefreshStatus loading={loading} error={error} hasData />
+        <EmptyState rowHeight="lg" message="当前没有已购买商品明细。" />
+      </>
+    )
+  }
 
   const filteredItems = data.items.filter((item) => {
     const matchesSku = skuFilter
@@ -115,11 +123,17 @@ export function AdAnalysisPurchasedProductsClient() {
   })
 
   if (filteredItems.length === 0) {
-    return <EmptyState rowHeight="lg" message="当前筛选下没有匹配的关联购买明细。" />
+    return (
+      <>
+        <TermRefreshStatus loading={loading} error={error} hasData />
+        <EmptyState rowHeight="lg" message="当前筛选下没有匹配的关联购买明细。" />
+      </>
+    )
   }
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
+      <TermRefreshStatus loading={loading} error={error} hasData />
       <AdAnalysisContextBanner
         items={[
           ...(campaignFilter ? [{ label: '当前活动', value: campaignFilter }] : []),

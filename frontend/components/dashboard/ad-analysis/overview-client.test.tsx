@@ -96,6 +96,33 @@ describe('AdAnalysisOverviewClient mount 请求行为（BEL-421）', () => {
     expect(screen.getByText('20%')).toBeTruthy()
   })
 
+  it('Header 强刷期间保留旧结果，失败时显示错误而不替换画布', async () => {
+    let rejectRefresh: ((reason?: unknown) => void) | undefined
+    let requestCount = 0
+    const refreshResponse = new Promise<Response>((_resolve, reject) => {
+      rejectRefresh = reject
+    })
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      requestCount += 1
+      if (String(input).includes('/api/v1/ad-analysis/overview?')) {
+        return requestCount === 1 ? jsonResponse(OVERVIEW_PAYLOAD) : refreshResponse
+      }
+      return jsonResponse({})
+    })
+
+    render(<AdAnalysisOverviewClient />)
+    await waitFor(() => expect(screen.getByText('20%')).toBeInTheDocument())
+
+    requestAdClientRefresh()
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('正在刷新'))
+    expect(screen.getByText('20%')).toBeInTheDocument()
+
+    rejectRefresh?.(new Error('刷新连接失败'))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('刷新连接失败'))
+    expect(screen.getByText('20%')).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
   it('筛选变化（新参数）会重新取数一次', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse(OVERVIEW_PAYLOAD))
 
