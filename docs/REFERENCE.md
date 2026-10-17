@@ -135,6 +135,35 @@ ad 报告现用 `ad_upload_files` 体系（**使用中**），取代旧 `analysi
 
 ---
 
+## 代码检查（Lint）
+
+后端用 **ruff**，配置在 `backend/ruff.toml`，跑法：
+
+```bash
+cd backend && make lint   # 等价于 ruff check app tests scripts alembic --statistics
+```
+
+**这是建议性检查（advisory），不是门禁。** 后端的合并门禁仍然只有 `pytest`
+（见下节与 `AGENTS.md`）。当前存量约 1.7k 条（以 `F401`/`I001`/`E402` 为主），
+不要为了让 lint 变绿而改业务代码，也不要把它接进 CI 卡合并。
+
+`backend/ruff.toml` 要解决的三个具体问题（细节见该文件顶部注释）：
+
+| 问题 | 处理 |
+| --- | --- |
+| `ruff --fix` 会删掉 load-bearing 的 `# noqa: E402`（`tests/scripts` 里必须先改 `sys.path` 再 import） | 显式启用 `E402`，让该 noqa 成为真正生效的指令 |
+| 无项目配置时不同 runner 落到不同规则集（pi-lens 内置接近 `ALL`：413 条规则 / 5000+ findings） | 换成显式、可解释、可增长的基线（`E4/E7/E9/F/I/S`） |
+| FastAPI 惯用写法容易被判 `B008`（函数默认值里调 `Depends/Query`…） | 当前基线未选 `B`；若日后面加，请用 `[lint.flake8-bugbear] extend-immutable-calls` 精确放行，**不要**整体 ignore |
+
+想扩大覆盖面时一次加一族（`B` / `UP` / `RUF`…），先跑 `make lint` 看存量规模。
+
+> 已知开放项：`app/core/config.py` 的 `app_host = "0.0.0.0"` 会被 `S104` 命中。
+> 实际绑定由 systemd 单元硬编码的 `--host 127.0.0.1` 决定（见 §服务清单），
+> 该 Settings 字段目前没有任何读取方——属于**死配置 + 误导性默认值**，
+> 要不要删由后续单独决定（改默认值是行为变更，不在 lint 配置 PR 范围内）。
+
+---
+
 ## 测试规则（完整）
 
 > **本地数据库（BLF-472）**：所有前后端测试都调用**本地数据库**完成，不依赖远程 VPS——本地 Postgres（端口 5432）常驻 `BLF`（生产快照，每日与生产拉取同步，数据完备，供集成 / 手动读写 / 真实数据验证）与 `BLF_test`（pytest 隔离库）。pytest 一律走 `BLF_test`，绝不写 `BLF`。详见 [TESTING.md](../../TESTING.md)。

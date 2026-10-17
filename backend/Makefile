@@ -24,7 +24,7 @@ help:
 	@echo "  openapi-check   - Verify $(OPENAPI_OUT) matches current schema (CI gate)"
 	@echo "  api             - Run the FastAPI dev server (uvicorn --reload)"
 	@echo "  test            - Run pytest"
-	@echo "  lint            - Placeholder (add ruff/flake8 here if you adopt one)"
+	@echo "  lint            - Run ruff（建议性，非门禁），按规则打印存量统计"
 
 openapi-export:
 	@mkdir -p "$(dir $(OPENAPI_OUT))"
@@ -40,4 +40,10 @@ test:
 	python -m pytest
 
 lint:
-	@echo "No linter configured. Add ruff/flake8/mypy here as the project grows."
+	@if [ -x .venv/bin/ruff ]; then \
+		.venv/bin/ruff check app tests scripts alembic --statistics --exit-zero; \
+	elif command -v ruff >/dev/null 2>&1; then \
+		ruff check app tests scripts alembic --statistics --exit-zero; \
+	else \
+		echo "ruff 未安装：pip install ruff（或 uv tool install ruff）"; exit 1; \
+	fi
