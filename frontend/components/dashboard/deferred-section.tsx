@@ -2,13 +2,13 @@
 
 import { type ReactNode } from 'react'
 
-import { Skeleton } from '@/components/ui/skeleton'
+import { SkeletonReveal } from '@/components/ui/skeleton-reveal'
 import { useInViewOnce } from '@/lib/hooks/use-in-view-once'
 import { cn } from '@/lib/utils'
 
 export interface DeferredSectionProps {
   children: ReactNode
-  /** 进入视口前渲染的占位，默认与容器等高的 shimmer 块 */
+  /** 进入视口前渲染的占位，默认与容器等高的脉冲块 */
   fallback?: ReactNode
   /** IntersectionObserver rootMargin 提前量，默认 '320px' */
   rootMargin?: string
@@ -27,6 +27,10 @@ export interface DeferredSectionProps {
  *
  * 注意：仅对"子组件自取数"有效；数据由父级取好再以 props 下发的组件请用
  * useInViewOnce 在父级延迟取数（见 app/dashboard/page.tsx Row 3 国家分布示例）。
+ *
+ * 动效（transitions.dev 14-skeleton-reveal）：进入视口后子组件挂载、骨架层转为已揭示态
+ * （交叉淡入 + 去模糊），骨架层**不卸载**——否则没有可交叉淡出的对象。运动规格读
+ * `--pulse-*` / `--reveal-*`，见 `components/ui/skeleton-reveal.tsx`。
  */
 export function DeferredSection({
   children,
@@ -40,7 +44,15 @@ export function DeferredSection({
 
   return (
     <div ref={ref} className={cn(className)} data-testid={testId}>
-      {inView ? children : (fallback ?? <Skeleton className={cn('w-full rounded-xl', fallbackHeight)} />)}
+      <SkeletonReveal
+        loading={!inView}
+        skeleton={
+          fallback ?? <div className={cn('w-full rounded-xl bg-term-raised', fallbackHeight)} />
+        }
+      >
+        {/* 未进视口时刻意不渲染子组件，保留惰挂载（延迟子组件的 mount-fetch）语义 */}
+        {inView ? children : null}
+      </SkeletonReveal>
     </div>
   )
 }

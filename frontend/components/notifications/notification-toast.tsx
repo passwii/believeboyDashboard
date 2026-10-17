@@ -7,7 +7,11 @@ import { CheckCircle2, Info, AlertTriangle, XCircle, X } from 'lucide-react'
 import { Notification, NotificationType } from '@/lib/notifications'
 import { useNotifications } from './notifications-context'
 import { cn } from '@/lib/utils'
-import { DURATION } from '@/lib/motion/tokens'
+import { BLUR, DURATION, EASE, SCALE } from '@/lib/motion/tokens'
+
+/** 上浮行程，对应 transitions.dev `--toast-distance`（16px）——
+ * 它不在共享的 `--distance-*` 档位（4/6/8/12/30）里，属 toast 自己的语义变量，故保留字面量。 */
+const TOAST_DISTANCE = 16
 
 const typeConfig: Record<
   NotificationType,
@@ -56,10 +60,20 @@ function ToastItem({ notification }: ToastItemProps) {
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, x: 40, scale: 0.95 }}
-      animate={{ opacity: 1, x: 0, scale: 1 }}
-      exit={{ opacity: 0, x: 40, scale: 0.95 }}
-      transition={{ duration: DURATION.springPress, ease: 'easeOut' }}
+      /* transitions.dev 22-toast：从下方向上浮 + 淡入 + 交叉模糊 + 微缩；开启走慢钟、
+       * 退场走快钟——--toast-open(350ms)=DURATION.medium、--toast-close(250ms)=DURATION.fast、
+       * --toast-distance(16px)、--toast-scale(0.97)=SCALE.medium、--toast-blur(2px)=BLUR.small、
+       * --toast-ease=EASE.smoothOut。旧实现是 x:40 的横向滑入 + scale 0.95，按 snippet 改为垂直上浮。 */
+      initial={{ opacity: 0, y: TOAST_DISTANCE, scale: SCALE.medium, filter: `blur(${BLUR.small}px)` }}
+      animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+      exit={{
+        opacity: 0,
+        y: TOAST_DISTANCE,
+        scale: SCALE.medium,
+        filter: `blur(${BLUR.small}px)`,
+        transition: { duration: DURATION.fast, ease: EASE.smoothOut },
+      }}
+      transition={{ duration: DURATION.medium, ease: EASE.smoothOut }}
       onClick={() => notification.onClick?.()}
       className={cn(
         // BLF-893：toast 终端化——零圆角、term 令牌、无阴影；保留 backdrop-blur 维持半透明提示感。

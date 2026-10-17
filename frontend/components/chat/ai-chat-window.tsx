@@ -869,7 +869,7 @@ export function AIChatWindow({
         className="absolute inset-0"
         style={{
           paddingLeft: !isMobile && showSidebar ? 'var(--sidebar-width, 280px)' : '0px',
-          transition: 'padding-left 0.35s var(--motion-ease-standard)',
+          transition: 'padding-left var(--duration-medium) var(--ease-smooth-out)',
         }}
       >
         <RayBackground arcsUp={arcsUp} />
@@ -981,7 +981,7 @@ export function AIChatWindow({
             paddingLeft: !isMobile && showSidebar ? 'var(--sidebar-width, 280px)' : '0px',
             paddingTop: 'env(safe-area-inset-top, 16px)',
             paddingBottom: 'calc(120px + env(safe-area-inset-bottom, 16px))',
-            transition: 'padding-left 0.35s var(--motion-ease-standard)',
+            transition: 'padding-left var(--duration-medium) var(--ease-smooth-out)',
           }}
         >
           <div className="px-3 sm:px-4 pt-6 pb-4">
@@ -1056,7 +1056,7 @@ export function AIChatWindow({
                   paddingBottom: 'env(safe-area-inset-bottom, 16px)',
                 }),
             transition:
-              'padding-left 0.35s var(--motion-ease-standard), top 0.6s var(--motion-ease-out), bottom 0.6s var(--motion-ease-out)',
+              'padding-left var(--duration-medium) var(--ease-smooth-out), top 0.6s var(--ease-smooth-out), bottom 0.6s var(--ease-smooth-out)',
             zIndex: 40,
           }}
         >

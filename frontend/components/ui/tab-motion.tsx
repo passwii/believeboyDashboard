@@ -5,6 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 
 import { TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
+import { DURATION, EASE } from '@/lib/motion/tokens'
 
 export function TabsMotionGroup({ id, children }: { id: string; children: ReactNode }) {
   void id
@@ -37,8 +38,8 @@ export function DirectionalTabTransition({
             prefersReducedMotion
               ? { duration: 0 }
               : {
-                  duration: 0.2,
-                  ease: [0.22, 1, 0.36, 1],
+                  duration: DURATION.fast,
+                  ease: EASE.smoothOut,
                 }
           }
         >
@@ -92,8 +93,12 @@ export function SlidingTabsTrigger({
               prefersReducedMotion
                 ? { duration: 0 }
                 : {
-                    layout: { type: 'spring', stiffness: 420, damping: 34, mass: 0.8 },
-                    opacity: { duration: 0.18, ease: [0.22, 1, 0.36, 1] },
+                    /* transitions.dev 16-tabs-sliding：滑块位移走 250ms smooth-out
+                     * （--tabs-dur / --tabs-ease），不再用自定义 spring。
+                     * snippet 的 --tabs-* 颜色 token 是浅色主题字面值，与本仓库的
+                     * term 令牌色彩体系冲突，不接入（只取运动规格）。 */
+                    layout: { duration: DURATION.fast, ease: EASE.smoothOut },
+                    opacity: { duration: DURATION.quick, ease: EASE.smoothOut },
                   }
             }
             className={cn(

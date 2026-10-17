@@ -63,7 +63,7 @@ export function RayBackground({ arcsUp }: { arcsUp?: boolean }) {
         style={{
           transform: 'translateX(-50%) rotate(180deg)',
           top: arcsUp ? '-30%' : '50%',
-          transition: 'top 0.8s var(--motion-ease-out)',
+          transition: 'top 0.8s var(--ease-smooth-out)',
         }}
       >
         {/* ── Light arcs — crisp white with airy blue rings ── */}

@@ -152,7 +152,7 @@ function ConcentricRing({ item, index, size, reduce }: ConcentricRingProps) {
           strokeLinecap="round"
           strokeWidth={RING_STROKE_WIDTH}
           style={{ filter: 'drop-shadow(0 0 3px rgba(0,0,0,0.12))' }}
-          transition={{ duration: 1.1, delay: index * 0.1, ease: EASE.out }}
+          transition={{ duration: 1.1, delay: index * 0.1, ease: EASE.smoothOut }}
         />
       </svg>
     </div>
@@ -244,7 +244,7 @@ export function GoalProgressStat({
                     strokeDasharray={circumference}
                     strokeLinecap="round"
                     strokeWidth={5}
-                    transition={{ duration: 0.8, delay: index * 0.08, ease: EASE.out }}
+                    transition={{ duration: 0.8, delay: index * 0.08, ease: EASE.smoothOut }}
                   />
                 </svg>
               </div>
@@ -330,7 +330,7 @@ export function GoalProgressRings({ items, className }: GoalProgressRingsProps) 
         data-testid="goal-rings-concentric"
         initial={reduce ? false : { opacity: 0, scale: 0.85 }}
         role="group"
-        transition={{ duration: DURATION.slow, ease: EASE.out }}
+        transition={{ duration: DURATION.slow, ease: EASE.smoothOut }}
       >
         {ringItems.map((item, index) => (
           <ConcentricRing
@@ -353,7 +353,7 @@ export function GoalProgressRings({ items, className }: GoalProgressRingsProps) 
               animate={{ opacity: 1, x: 0 }}
               className="flex min-w-0 items-start gap-3"
               initial={reduce ? false : { opacity: 0, x: 16 }}
-              transition={{ duration: DURATION.fast, delay: 0.15 + index * 0.1, ease: EASE.out }}
+              transition={{ duration: DURATION.quick, delay: 0.15 + index * 0.1, ease: EASE.smoothOut }}
             >
               {/* 指标色点 */}
               <span

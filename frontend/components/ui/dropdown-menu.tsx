@@ -46,7 +46,7 @@ const DropdownMenuSubContent = React.forwardRef<
   <DropdownMenuPrimitive.SubContent
     ref={ref}
     className={cn(
-      'z-50 min-w-[8rem] overflow-hidden rounded-none border border-term-border bg-term-panel p-1 text-term-text shadow-none u-floating-glass data-[state=open]:animate-popup-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:origin-top data-[side=left]:origin-right data-[side=right]:origin-left data-[side=top]:origin-bottom',
+      'z-50 min-w-[8rem] overflow-hidden rounded-none border border-term-border bg-term-panel p-1 text-term-text shadow-none u-floating-glass ui-floating-motion',
       className
     )}
     {...props}
@@ -67,7 +67,7 @@ const DropdownMenuContent = React.forwardRef<
         sideOffset={sideOffset}
         {...(onOpenAutoFocus ? { onOpenAutoFocus } : {})}
         className={cn(
-          'z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-[8rem] overflow-y-auto overflow-x-hidden rounded-none border border-term-border bg-term-panel p-1 text-term-text shadow-none u-floating-glass data-[state=open]:animate-popup-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:origin-top data-[side=left]:origin-right data-[side=right]:origin-left data-[side=top]:origin-bottom',
+          'z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-[8rem] overflow-y-auto overflow-x-hidden rounded-none border border-term-border bg-term-panel p-1 text-term-text shadow-none u-floating-glass ui-floating-motion',
           className
         )}
         {...props}

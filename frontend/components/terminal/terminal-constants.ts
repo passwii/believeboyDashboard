@@ -27,15 +27,15 @@ export const TERMINAL_SUBNAV_COLLAPSED_WIDTH = 0
  * 内容退场先于容器收缩、入场晚于容器展开，形成「壳动→字散→壳定→字归」的分层节奏。
  */
 export const TERMINAL_SUBNAV_MOTION = {
-  /** 容器宽度过渡时长（ms） */
-  durationMs: 260,
-  /** 宽度过渡缓动曲线（ease-out-expo 类） */
-  ease: 'cubic-bezier(0.16, 1, 0.3, 1)',
-  /** 文本内容淡出时长（ms）；收缩时文字先行淡出 */
-  fadeOutMs: 120,
-  /** 文本内容入场单段时长（ms）；展开时级联淡入 */
-  fadeInMs: 180,
-  /** 入场 stagger 步长（ms）：组头 → 搜索框 → 列表项依次级联 */
+  /** 容器宽度过渡时长（ms）；对齐 --duration-fast（250ms，dropdown/panel open 档） */
+  durationMs: 250,
+  /** 宽度过渡缓动曲线；对齐 --ease-smooth-out */
+  ease: 'cubic-bezier(0.22, 1, 0.36, 1)',
+  /** 文本内容淡出时长（ms）；收缩时文字先行淡出，对齐 --duration-micro（80ms） */
+  fadeOutMs: 80,
+  /** 文本内容入场单段时长（ms）；展开时级联淡入，对齐 --duration-quick（150ms） */
+  fadeInMs: 150,
+  /** 入场 stagger 步长（ms）：组头 → 搜索框 → 列表项依次级联，对齐 --duration-stagger（40ms） */
   staggerStepMs: 40,
   /** 入场最大级联延迟（ms），防止列表过长时尾部等待过久 */
   maxStaggerDelayMs: 240,

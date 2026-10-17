@@ -120,72 +120,17 @@ const config: Config = {
             height: '0',
           },
         },
-        'dialog-in': {
-          '0%': {
-            opacity: '0',
-            transform: 'translate(-50%, -48%) scale(0.96)',
-          },
-          '60%': {
-            opacity: '1',
-            transform: 'translate(-50%, -50.4%) scale(1.012)',
-          },
-          '80%': {
-            transform: 'translate(-50%, -49.8%) scale(0.998)',
-          },
-          '100%': {
-            opacity: '1',
-            transform: 'translate(-50%, -50%) scale(1)',
-          },
-        },
-        'dialog-out': {
-          from: {
-            opacity: '1',
-            transform: 'translate(-50%, -50%) scale(1)',
-          },
-          to: {
-            opacity: '0',
-            transform: 'translate(-50%, -48%) scale(0.96)',
-          },
-        },
-        /* ── Dropdown / generic popup spring ── */
-        'popup-in': {
-          '0%': { opacity: '0', transform: 'scale(0.95) translateY(-2px)' },
-          '60%': { opacity: '1', transform: 'scale(1.012) translateY(0.5px)' },
-          '80%': { transform: 'scale(0.997) translateY(0)' },
-          '100%': { opacity: '1', transform: 'scale(1) translateY(0)' },
-        },
-        /* ── Tooltip micro-spring (shorter, tighter) ── */
-        'tooltip-in': {
-          '0%': { opacity: '0', transform: 'scale(0.95)' },
-          '50%': { opacity: '1', transform: 'scale(1.008)' },
-          '75%': { transform: 'scale(0.998)' },
-          '100%': { opacity: '1', transform: 'scale(1)' },
-        },
-        /* ── Sheet directional overshoots ── */
-        'sheet-in-from-right': {
-          '0%': { transform: 'translateX(100%)' },
-          '70%': { transform: 'translateX(-1.5%)' },
-          '85%': { transform: 'translateX(0.4%)' },
-          '100%': { transform: 'translateX(0)' },
-        },
-        'sheet-in-from-left': {
-          '0%': { transform: 'translateX(-100%)' },
-          '70%': { transform: 'translateX(1.5%)' },
-          '85%': { transform: 'translateX(-0.4%)' },
-          '100%': { transform: 'translateX(0)' },
-        },
-        'sheet-in-from-top': {
-          '0%': { transform: 'translateY(-100%)' },
-          '70%': { transform: 'translateY(1.5%)' },
-          '85%': { transform: 'translateY(-0.4%)' },
-          '100%': { transform: 'translateY(0)' },
-        },
-        'sheet-in-from-bottom': {
-          '0%': { transform: 'translateY(100%)' },
-          '70%': { transform: 'translateY(-1.5%)' },
-          '85%': { transform: 'translateY(0.4%)' },
-          '100%': { transform: 'translateY(0)' },
-        },
+        /* `dialog-in` / `dialog-out` 已移除（Phase B）：Radix dialog / alert-dialog 的开合动效
+         * 迁到 globals.css 的 `.ui-modal-motion` + `@keyframes ui-modal-in/out`，读 transitions.dev
+         * 的 `--modal-open-dur` / `--modal-close-dur` / `--modal-scale` / `--modal-scale-close` /
+         * `--modal-ease` 语义变量（见 frontend/docs/motion-system.md §7 Phase B）。 */
+        /* `popup-in` / `tooltip-in` 已移除（Phase B）：Radix dropdown / popover / select / tooltip
+         * 的开合动效迁到 globals.css 的 `.ui-floating-motion`（transitions.dev 05-menu-dropdown）
+         * 与 `.ui-tooltip-motion`（17-tooltip）。 */
+        /* `sheet-in-from-*` 已移除（Phase B）：Radix sheet 的滑入/滑出迁到 globals.css 的
+         * `.ui-panel-motion`（transitions.dev 07-panel-reveal），按 `data-side` 选位移方向，
+         * 读 `--panel-open-dur` / `--panel-close-dur` / `--panel-blur` / `--panel-ease`。
+         * 旧的方向性过冲（ 70% -1.5% / 85% 0.4%）属历史自定义，按 snippet 不保留。 */
         /* ── Switch thumb overshoot ── */
         'switch-snap': {
           '0%': { transform: 'translateX(var(--switch-from))' },
@@ -200,18 +145,13 @@ const config: Config = {
         },
       },
       animation: {
-        'accordion-down': 'accordion-down 0.2s ease-out',
-        'accordion-up': 'accordion-up 0.2s ease-out',
-        'collapsible-down': 'collapsible-down 260ms cubic-bezier(0.22, 1, 0.36, 1)',
-        'collapsible-up': 'collapsible-up 220ms cubic-bezier(0.4, 0, 0.2, 1)',
-        'dialog-in': 'dialog-in 340ms ease-out',
-        'dialog-out': 'dialog-out 200ms cubic-bezier(0.4, 0, 1, 1)',
-        'popup-in': 'popup-in 260ms ease-out',
-        'tooltip-in': 'tooltip-in 160ms ease-out',
-        'sheet-in-from-right': 'sheet-in-from-right 400ms ease-out',
-        'sheet-in-from-left': 'sheet-in-from-left 400ms ease-out',
-        'sheet-in-from-top': 'sheet-in-from-top 400ms ease-out',
-        'sheet-in-from-bottom': 'sheet-in-from-bottom 400ms ease-out',
+        /* transitions.dev 21-accordion：展开 / 收起走 --acc-expand(250ms) / --acc-collapse(250ms)
+         * / --acc-ease。snippet 本体用 grid-template-rows 0fr↔1fr；此处的 keyframe 等价地动
+         * height（Radix 已提供 --radix-accordion-content-height，同样无需 JS 量高），故只换调参。 */
+        'accordion-down': 'accordion-down var(--acc-expand) var(--acc-ease)',
+        'accordion-up': 'accordion-up var(--acc-collapse) var(--acc-ease)',
+        'collapsible-down': 'collapsible-down var(--duration-fast) var(--ease-smooth-out)',
+        'collapsible-up': 'collapsible-up var(--duration-fast) var(--ease-smooth-out)',
         'switch-snap': 'switch-snap 280ms ease-out',
         'fade-in-up': 'fade-in-up 360ms cubic-bezier(0.16, 1, 0.3, 1) both',
       },
