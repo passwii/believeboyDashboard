@@ -22,15 +22,14 @@ import sys
 from io import StringIO
 from unittest.mock import patch
 
-import pytest
-
 # Make backend/ importable as top-level. We do this BEFORE importing scripts.*.
 BACKEND = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if BACKEND not in sys.path:
     sys.path.insert(0, BACKEND)
 
+# 该 import 必须在 sys.path 插入之后（上面先把 backend/ 变成可导入顶层根），
+# 因此刻意不放在文件顶部。
 from scripts.cleanup_r2_orphaned_files import _print_config  # noqa: E402
-
 
 # ---------------------------------------------------------------------------
 # (1) --config-print: must exit cleanly without DB / R2

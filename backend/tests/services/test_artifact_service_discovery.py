@@ -13,7 +13,6 @@ from __future__ import annotations
 
 from app.services.artifact_service import ArtifactService
 
-
 # ---------------------------------------------------------------------------
 # discover_r2_key_columns (auto)
 # ---------------------------------------------------------------------------

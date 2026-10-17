@@ -31,10 +31,11 @@ if [ -f .env ]; then
   set +a
 fi
 
-# Concurrency per worker process. Production systemd units now hard-code
-# their own value (--concurrency=2 in believeboy-celery.service), but this
-# var still feeds the fallback `worker_concurrency` in `app.tasks.celery_app`
-# and the local dev launcher `run_worker.sh`. Override per-machine to taste;
+# Concurrency per worker process. Production systemd units hard-code their own
+# value (--concurrency=1 in believeboy-celery.service, -c 2 in
+# believeboy-celery-scheduled.service), but this var still feeds the fallback
+# `worker_concurrency` in `app.tasks.celery_app` and the local dev launcher
+# `run_worker.sh`. Override per-machine to taste;
 # 4 is fine for a beefy dev box, drop to 2 on a 2 GiB VPS-like host.
 CONCURRENCY="${CELERY_WORKER_CONCURRENCY:-4}"
 QUEUES="${CELERY_WORKER_QUEUES:-default,reports,insights}"

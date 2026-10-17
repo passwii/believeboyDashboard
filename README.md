@@ -271,9 +271,11 @@ cd backend
 ./scripts/systemd-install.sh
 ```
 
-这将创建并启用 Systemd 服务：
-- `believeboy-api.service` - API 服务器
-- `believeboy-celery.service` - 后台任务执行器
+这将创建并启用 Systemd 服务（清单与参数以 `backend/deploy/systemd/*.service` 为准）：
+- `believeboy-api.service` - API 服务器（uvicorn，127.0.0.1:8100，nginx 反代）
+- `believeboy-celery.service` - 后台任务执行器（主 worker）
+- `believeboy-celery-scheduled.service` - 定时报告专用 worker（Playwright 截图内存隔离）
+- `believeboy-beat.service` - Celery beat 定时派发（必须单实例）
 
 ### 数据库
 - 生产环境建议使用独立的 PostgreSQL 实例

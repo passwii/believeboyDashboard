@@ -30,9 +30,14 @@
 - 后端：`require_api_key`（`app/core/security.py`）校验 `X-API-Key`；除 `/api/v1/health` 外全保护；请求级用户上下文来自 `X-Operator` / `X-User-Id`
 
 ### Background Jobs
-Celery worker 基于 Redis broker 运行。当前两个 systemd 单元：
-- `believeboy-celery.service`（`-c 4`，消费 `default,reports,insights,ai_summary`）——手动月报 + AI 洞察 + 定时报告 AI 摘要
-- `belief-worker-scheduled.service`（`-c 2` BEL-NEW，仅消费 `scheduled`）——定时报告主体（数据 / 截图 / 邮件），方案 `2026-07-10-scheduled-report-to-celery.md §4.4`
+Celery worker 基于 Redis broker 运行。当前四个 systemd 单元（完整清单见 §部署与重启服务）：
+- `believeboy-celery.service`（`--concurrency=1`，消费 `default,reports,insights,ai_summary`）——手动月报 + AI 洞察 + 定时报告 AI 摘要
+- `believeboy-celery-scheduled.service`（`-c 2`，仅消费 `scheduled`）——定时报告主体（数据 / 截图 / 邮件），Playwright 截图内存隔离；方案 `2026-07-10-scheduled-report-to-celery.md §4.4`
+- `believeboy-beat.service`——Celery beat 定时派发（用 `celery_beat_app`，必须单实例）
+
+> **单元名历史**：scheduled worker 早期叫 `belief-worker-scheduled.service`，已随
+> `believeboy-worker* → believeboy-celery*` 一次性迁移改名（见
+> `productEnvAgent/deploy_vps.py`）；旧名在当前 VPS 上已 `not-found`。
 
 APScheduler 仍跑在 API 进程内，每分钟扫订阅触发派发。但调度本身退化成"定时器"——派发延迟通过 Celery `apply_async(countdown=i*SCHEDULED_DISPATCH_SPREAD_SECONDS, ...)` 错峰，主体任务跑在 worker。`SCHEDULED_REPORT_VIA_CELERY=false` 可回到 ThreadPoolExecutor 同步派发形态（秒级回滚，不动代码）。监控面板 Flower 已移除（冗余——任务状态走 Job 表 + 前端轮询，运维见 `backend/docs/multi-worker-ops.md`）。
 
@@ -56,9 +61,16 @@ python run.py --once     # 单次扫描
 > 本机服务用 **systemd** 管理。让线上生效**不要直接 `pkill`**，走 `systemctl restart`。
 
 ### 服务清单（仅后端）
-| Unit | 进程 | 监听 |
+
+> 权威来源是仓库里的 `backend/deploy/systemd/*.service`（部署脚本会拷进
+> `/etc/systemd/system/`）；下表是线上实际状态（2026-10-17 实测）。
+
+| Unit | 进程 | 关键参数 |
 |---|---|---|
-| `believeboy-api.service` | `uvicorn app.main:app` | `0.0.0.0:8100`（OpenAPI 在 `/docs`） |
+| `believeboy-api.service` | `uvicorn app.main:app` | `--host 127.0.0.1 --port 8100 --workers 1`（OpenAPI 在 `/docs`，对外由 nginx 反代） |
+| `believeboy-celery.service` | Celery worker（主） | `-Q default,reports,insights,ai_summary --concurrency=1 --max-tasks-per-child=50` |
+| `believeboy-celery-scheduled.service` | Celery worker（定时报告专用） | `-Q scheduled -c 2 --max-tasks-per-child=50`（Playwright 截图内存隔离） |
+| `believeboy-beat.service` | Celery beat（**必须单实例**） | `-A app.tasks.celery_beat_app beat`，`--schedule=/var/lib/believeboy/celerybeat-schedule` |
 
 > 本 VPS 只部署后端。前端在 Vercel / 外部平台，生产环境变量在平台 dashboard 配置（非 `frontend/.env.local`）。前端构建现已可在本地 / CI / VPS 跑（`pnpm -C frontend build`），但部署目标仍是外部平台。
 
