@@ -16,9 +16,10 @@
 
 | 单元文件 | 作用 | 关键命令 |
 | --- | --- | --- |
-| `deploy/systemd/believeboy-api.service` | FastAPI（uvicorn）单进程 | 端口 8100，nginx 转发 `/api/*` |
-| `deploy/systemd/believeboy-celery.service` | 主 Celery worker（`-c 4`） | 消费 `default,reports,insights,ai_summary`（方案 §4.4） |
-| `deploy/systemd/believeboy-celery-scheduled.service` | 定时报告专用 worker（`-c 2`，BEL-NEW） | 仅消费 `scheduled` 队列——Playwright 截图内存隔离专用 |
+| `deploy/systemd/believeboy-api.service` | FastAPI（uvicorn）单进程 | `--host 127.0.0.1 --port 8100 --workers 1`，nginx 转发 `/api/*` |
+| `deploy/systemd/believeboy-celery.service` | 主 Celery worker（`--concurrency=1`） | 消费 `default,reports,insights,ai_summary`（方案 §4.4） |
+| `deploy/systemd/believeboy-celery-scheduled.service` | 定时报告专用 worker（`-c 2`） | 仅消费 `scheduled` 队列——Playwright 截图内存隔离专用 |
+| `deploy/systemd/believeboy-beat.service` | Celery beat 定时派发（**必须单实例**） | `-A app.tasks.celery_beat_app beat`，`--schedule=/var/lib/believeboy/celerybeat-schedule` |
 
 > **为什么新增 `scheduled` worker？** 方案 §4.4 的核心价值是**内存隔离**：
 > 定时报告带 Playwright headless 截图（约 200-400MB / 任务），OOM 时只
@@ -37,10 +38,11 @@
 > 任务模块 import 链拉进这个只发任务名的进程（实测 202MB → ~70MB，见 BLF-1047）。
 
 > **为什么只起一个 worker 进程？** `believeboy-celery.service` 用的是
-> `celery -A app.tasks.celery_app worker -c 4`：一个 worker **进程** + 4
-> 个并发线程。这是 CPU 4 核的 VPS 的默认配置。需要更多并行槽位时，参见
-> 末尾「横向扩展」一节；目前不建议直接调高 `-c`，因为报告类任务 IO
-> 密集，4 个 thread 已经接近 4 核的承载上限。
+> `celery -A app.tasks.celery_app worker --concurrency=1
+> --max-tasks-per-child=50`：一个 worker **进程** + 1 个并发槽位，靠
+> `--max-tasks-per-child` 兜住常驻内存增长。线上 VPS 是 2 核 / 3.8 GB，
+> 报告类任务 IO 密集、截图任务吃内存，串行消费比堆并发更稳。需要更多
+> 并行槽位时，参见末尾「横向扩展」一节（不要在 2 核机器上直接调高 `-c`）。
 
 ### 1.1 启停 worker
 
@@ -328,8 +330,8 @@ connecting to ...`。
 
 > 这一节**不是 P4 验收的硬性要求**，仅供未来扩容参考。
 
-把单 worker 进程扩成 N 个 worker 进程，每进程 `-c 4`，总共 `N × 4`
-并发槽位：
+把单 worker 进程扩成 N 个 worker 进程，每进程并发度由
+`CELERY_WORKER_CONCURRENCY` 控制（默认 `4`），总共 `N × concurrency` 并发槽位：
 
 ```bash
 cd /root/believeboyDashboard/backend
