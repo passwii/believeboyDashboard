@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import React from 'react'
 
 interface RefreshProgressBarProps {
-  /** Show the progress bar and dim content */
+  /** Show the progress bar while keeping the content readable and interactive */
   refreshing: boolean
   /** Additional class names for the dimming wrapper */
   className?: string
@@ -23,16 +23,20 @@ export function RefreshProgressBar({
   return (
     <>
       {refreshing && (
-        <div className="absolute inset-x-0 top-0 z-10 h-0.5 overflow-hidden bg-blue-100 dark:bg-blue-900/30">
-          <div className="h-full w-1/3 bg-blue-500 animate-shimmer" />
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 top-0 z-10 h-0.5 overflow-hidden bg-term-raised"
+        >
+          <div
+            data-testid="refresh-progress-indicator"
+            className="h-full w-1/3 bg-term-accent animate-shimmer motion-reduce:w-full motion-reduce:animate-none"
+          />
         </div>
       )}
       <Component
-        className={cn(
-          'transition-opacity duration-200',
-          refreshing && 'opacity-50 pointer-events-none',
-          className
-        )}
+        aria-busy={refreshing}
+        data-testid="refresh-progress-region"
+        className={cn('transition-colors duration-200', className)}
       >
         {children}
       </Component>

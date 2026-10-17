@@ -225,7 +225,8 @@ export function CardListSkeleton({ count = 6, className }: CardListSkeletonProps
  */
 export function ChatPageLoading() {
   return (
-    <div className="space-y-5" aria-busy="true" aria-label="页面加载中">
+    <div className="space-y-5" aria-busy="true">
+      <span className="sr-only" role="status" aria-live="polite">页面加载中</span>
       <PageHeaderSkeleton />
       <div
         data-testid="page-skeleton-chat"
@@ -263,7 +264,8 @@ export function ChatPageLoading() {
  */
 export function TablePageLoading() {
   return (
-    <div className="space-y-5" aria-busy="true" aria-label="页面加载中">
+    <div className="space-y-5" aria-busy="true">
+      <span className="sr-only" role="status" aria-live="polite">页面加载中</span>
       <PageHeaderSkeleton />
       <FilterBarSkeleton />
       <DataTableSkeleton />
@@ -277,7 +279,8 @@ export function TablePageLoading() {
  */
 export function AnalyticsContentLoading() {
   return (
-    <div className="space-y-5" aria-busy="true" aria-label="页面加载中">
+    <div className="space-y-5" aria-busy="true">
+      <span className="sr-only" role="status" aria-live="polite">页面加载中</span>
       <KpiCardsSkeleton />
       <ChartPanelSkeleton />
       <DataTableSkeleton columns={6} rows={6} />
@@ -291,7 +294,8 @@ export function AnalyticsContentLoading() {
  */
 export function AnalyticsPageLoading() {
   return (
-    <div className="space-y-5">
+    <div className="space-y-5" aria-busy="true">
+      <span className="sr-only" role="status" aria-live="polite">页面加载中</span>
       <PageHeaderSkeleton />
       <FilterBarSkeleton count={4} />
       <AnalyticsContentLoading />
@@ -305,7 +309,8 @@ export function AnalyticsPageLoading() {
  */
 export function SimplePageLoading() {
   return (
-    <div className="space-y-5" aria-busy="true" aria-label="页面加载中">
+    <div className="space-y-5" aria-busy="true">
+      <span className="sr-only" role="status" aria-live="polite">页面加载中</span>
       <PageHeaderSkeleton />
       <CardListSkeleton />
     </div>
@@ -318,9 +323,9 @@ export function CrmProposalDetailPageLoading() {
     <div
       className="grid min-h-[70vh] gap-3 lg:grid-cols-[minmax(0,1fr)_320px]"
       aria-busy="true"
-      aria-label="页面加载中"
       data-testid="page-skeleton-proposal-detail"
     >
+      <span className="sr-only" role="status" aria-live="polite">页面加载中</span>
       <section className="space-y-3 border border-term-border bg-term-panel p-3">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-term-border pb-2">
           <Skeleton className="h-4 w-56 rounded-none" />
@@ -347,7 +352,8 @@ export function CrmProposalDetailPageLoading() {
 /** CRM 任务页默认看板：筛选工具条 + 三个状态列，避免用表格骨架误导布局。 */
 export function CrmTaskBoardPageLoading() {
   return (
-    <div className="space-y-2.5" aria-busy="true" aria-label="页面加载中">
+    <div className="space-y-2.5" aria-busy="true">
+      <span className="sr-only" role="status" aria-live="polite">页面加载中</span>
       <div className="flex items-center justify-end gap-1.5" data-testid="page-skeleton-task-toolbar">
         <Skeleton className="h-8 w-28 rounded-none" />
         <Skeleton className="h-8 w-32 rounded-none" />
@@ -382,7 +388,8 @@ export function CrmTaskBoardPageLoading() {
 /** CRM 数据看板：首页 KPI、漏斗、负责人业绩与生命周期区。 */
 export function CrmDashboardPageLoading() {
   return (
-    <div className="space-y-2" aria-busy="true" aria-label="页面加载中">
+    <div className="space-y-2" aria-busy="true">
+      <span className="sr-only" role="status" aria-live="polite">页面加载中</span>
       <KpiCardsSkeleton count={4} className="gap-1.5" />
       <section className="space-y-3 border border-term-border bg-term-panel p-3" data-testid="page-skeleton-crm-funnel">
         <div className="flex items-center justify-between gap-3">
@@ -439,7 +446,8 @@ export function WideDataTableSkeleton({ columns = 8, rows = 6 }: { columns?: num
 /** Agent 中心双表页：标题 + 实际多列活动矩阵。 */
 export function AgentTablePageLoading({ columns = 8 }: { columns?: number }) {
   return (
-    <div className="space-y-4" aria-busy="true" aria-label="页面加载中">
+    <div className="space-y-4" aria-busy="true">
+      <span className="sr-only" role="status" aria-live="polite">页面加载中</span>
       <WideDataTableSkeleton columns={columns} rows={7} />
     </div>
   )
@@ -448,7 +456,8 @@ export function AgentTablePageLoading({ columns = 8 }: { columns?: number }) {
 /** 库存分类账：全局筛选、KPI、四张趋势/分布面板、Tab 与明细表。 */
 export function InventoryLedgerPageLoading() {
   return (
-    <div className="space-y-4" aria-busy="true" aria-label="页面加载中" data-testid="page-skeleton-inventory-ledger">
+    <div className="space-y-4" aria-busy="true" data-testid="page-skeleton-inventory-ledger">
+      <span className="sr-only" role="status" aria-live="polite">页面加载中</span>
       <div className="flex flex-wrap items-center gap-2" data-testid="page-skeleton-ledger-filters">{Array.from({ length: 6 }).map((_, index) => <Skeleton key={index} className="h-10 w-36 rounded-none" />)}</div>
       <KpiCardsSkeleton count={4} className="gap-2" />
       <div className="grid gap-3 lg:grid-cols-2">
@@ -473,7 +482,8 @@ export function InventoryLedgerPageLoading() {
 /** 项目启动台：桌面项目列表 + 右侧项目详情/流程 Tab。 */
 export function ProjectLaunchPageLoading() {
   return (
-    <div className="space-y-2" aria-busy="true" aria-label="页面加载中" data-testid="page-skeleton-project-launch">
+    <div className="space-y-2" aria-busy="true" data-testid="page-skeleton-project-launch">
+      <span className="sr-only" role="status" aria-live="polite">页面加载中</span>
       <div className="flex justify-end"><Skeleton className="h-8 w-32 rounded-none" /></div>
       <div className="md:hidden"><Skeleton className="h-9 w-full rounded-none" /></div>
       <div className="grid min-w-0 gap-2 md:grid-cols-[260px_minmax(0,1fr)]">
@@ -509,7 +519,8 @@ export function ProjectLaunchPageLoading() {
 /** 模板管理编辑器：模板目录与多字段/阶段编辑并列，包含附件和内容区。 */
 export function WorkflowTemplateEditorPageLoading() {
   return (
-    <div className="space-y-3" aria-busy="true" aria-label="页面加载中" data-testid="page-skeleton-workflow-editor">
+    <div className="space-y-3" aria-busy="true" data-testid="page-skeleton-workflow-editor">
+      <span className="sr-only" role="status" aria-live="polite">页面加载中</span>
       <div className="flex items-center justify-between gap-3 border-b border-term-border pb-2">
         <div className="space-y-2">
           <Skeleton className="h-4 w-28 rounded-none" />
@@ -536,7 +547,8 @@ export function WorkflowTemplateEditorPageLoading() {
 /** 发货规划首屏：项目范围提示、KPI 与 SKU 预测表，而非通用分析图表。 */
 export function ShippingPlanPageLoading() {
   return (
-    <div className="space-y-5" aria-busy="true" aria-label="页面加载中" data-testid="page-skeleton-shipping-plan">
+    <div className="space-y-5" aria-busy="true" data-testid="page-skeleton-shipping-plan">
+      <span className="sr-only" role="status" aria-live="polite">页面加载中</span>
       <div className="md:hidden"><div className="flex gap-2"><Skeleton className="h-9 w-36 rounded-none" /><Skeleton className="h-9 w-28 rounded-none" /></div></div>
       <div className="flex justify-between border-b border-term-border pb-4">
         <div className="space-y-2"><Skeleton className="h-6 w-32 rounded-none" /><Skeleton className="h-4 w-96 max-w-full rounded-none" /></div>
@@ -554,7 +566,8 @@ export function ShippingPlanPageLoading() {
 /** 补货 cockpit：视图切换、指标区与日历/表格内容。 */
 export function InventoryReplenishmentPageLoading() {
   return (
-    <div className="space-y-4" aria-busy="true" aria-label="页面加载中" data-testid="page-skeleton-inventory-replenishment">
+    <div className="space-y-4" aria-busy="true" data-testid="page-skeleton-inventory-replenishment">
+      <span className="sr-only" role="status" aria-live="polite">页面加载中</span>
       <FilterBarSkeleton count={4} />
       <div className="flex gap-1 border-b border-term-border pb-2" data-testid="page-skeleton-replenishment-tabs">{Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="h-9 w-28 rounded-none" />)}</div>
       <KpiCardsSkeleton count={4} />
@@ -567,7 +580,8 @@ export function InventoryReplenishmentPageLoading() {
 /** 巡检工作区：活动 Tab、周期筛选、状态面板与填写/历史区。 */
 export function PlatformInspectionPageLoading() {
   return (
-    <div className="space-y-4" aria-busy="true" aria-label="页面加载中" data-testid="page-skeleton-platform-inspection">
+    <div className="space-y-4" aria-busy="true" data-testid="page-skeleton-platform-inspection">
+      <span className="sr-only" role="status" aria-live="polite">页面加载中</span>
       <div className="flex items-center justify-between"><div className="flex gap-1">{Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="h-9 w-28 rounded-none" />)}</div><Skeleton className="h-9 w-36 rounded-none" /></div>
       <div className="grid gap-3 lg:grid-cols-2"><section className="space-y-3 border border-term-border p-3"><Skeleton className="h-5 w-40 rounded-none" /><div className="grid grid-cols-2 gap-1.5">{Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-16 rounded-none" />)}</div><Skeleton className="h-28 rounded-none" /></section><DataTableSkeleton columns={9} rows={5} /></div>
     </div>
@@ -577,7 +591,8 @@ export function PlatformInspectionPageLoading() {
 /** 项目目标页：筛选、指标、图表和进度 Tab。 */
 export function ProjectGoalsPageLoading() {
   return (
-    <div className="space-y-4" aria-busy="true" aria-label="页面加载中" data-testid="page-skeleton-project-goals">
+    <div className="space-y-4" aria-busy="true" data-testid="page-skeleton-project-goals">
+      <span className="sr-only" role="status" aria-live="polite">页面加载中</span>
       <FilterBarSkeleton count={3} />
       <KpiCardsSkeleton count={4} />
       <ChartPanelSkeleton height="h-[192px]" />
@@ -590,7 +605,8 @@ export function ProjectGoalsPageLoading() {
 /** 客诉列表：筛选和七列工作表；不呈现 KPI/图表。 */
 export function ComplaintListPageLoading() {
   return (
-    <div className="space-y-4" aria-busy="true" aria-label="页面加载中" data-testid="page-skeleton-complaint-list">
+    <div className="space-y-4" aria-busy="true" data-testid="page-skeleton-complaint-list">
+      <span className="sr-only" role="status" aria-live="polite">页面加载中</span>
       <FilterBarSkeleton count={4} />
       <WideDataTableSkeleton columns={7} rows={8} />
     </div>
@@ -600,7 +616,8 @@ export function ComplaintListPageLoading() {
 /** 船期管理：四个工作 Tab 与批次表格。 */
 export function ShipmentManagementPageLoading() {
   return (
-    <div className="space-y-4" aria-busy="true" aria-label="页面加载中" data-testid="page-skeleton-shipment-management">
+    <div className="space-y-4" aria-busy="true" data-testid="page-skeleton-shipment-management">
+      <span className="sr-only" role="status" aria-live="polite">页面加载中</span>
       <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex gap-1">{Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-9 w-24 rounded-none" />)}</div><div className="flex gap-2">{Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="h-9 w-24 rounded-none" />)}</div></div>
       <WideDataTableSkeleton columns={10} rows={8} />
     </div>
@@ -610,7 +627,8 @@ export function ShipmentManagementPageLoading() {
 /** SKU 资料页：六个工作 Tab、搜索工具栏、宽数据表。 */
 export function SkuInfoPageLoading() {
   return (
-    <div className="space-y-4" aria-busy="true" aria-label="页面加载中" data-testid="page-skeleton-sku-info">
+    <div className="space-y-4" aria-busy="true" data-testid="page-skeleton-sku-info">
+      <span className="sr-only" role="status" aria-live="polite">页面加载中</span>
       <div className="flex flex-wrap gap-1 border-b border-term-border pb-2" data-testid="page-skeleton-sku-tabs">{Array.from({ length: 6 }).map((_, index) => <Skeleton key={index} className="h-9 w-24 rounded-none" />)}</div>
       <div className="flex flex-wrap items-center gap-2">{Array.from({ length: 5 }).map((_, index) => <Skeleton key={index} className="h-9 w-36 rounded-none" />)}</div>
       <WideDataTableSkeleton columns={9} rows={7} />
@@ -621,7 +639,8 @@ export function SkuInfoPageLoading() {
 /** 月报生成：左侧文件识别/上传 + 右侧任务进度，而不是表格页。 */
 export function MonthlyReportGeneratePageLoading() {
   return (
-    <div className="grid w-full gap-4 xl:grid-cols-[minmax(0,1fr)_360px]" aria-busy="true" aria-label="页面加载中" data-testid="page-skeleton-monthly-report-generate">
+    <div className="grid w-full gap-4 xl:grid-cols-[minmax(0,1fr)_360px]" aria-busy="true" data-testid="page-skeleton-monthly-report-generate">
+      <span className="sr-only" role="status" aria-live="polite">页面加载中</span>
       <div className="space-y-4"><section className="space-y-4 border border-term-border bg-term-panel p-4"><Skeleton className="h-5 w-28 rounded-none" /><div className="grid grid-cols-2 gap-2 xl:grid-cols-4">{Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-14 rounded-none" />)}</div></section><section className="space-y-4 border border-term-border bg-term-panel p-4"><Skeleton className="h-5 w-40 rounded-none" /><div className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)]"><Skeleton className="min-h-[190px] w-full rounded-none" /><div className="space-y-3">{Array.from({ length: 2 }).map((_, index) => <Skeleton key={index} className="h-28 w-full rounded-none" />)}</div></div></section></div>
       <section className="space-y-4 border border-term-border bg-term-panel p-4"><Skeleton className="h-5 w-24 rounded-none" /><Skeleton className="h-20 w-full rounded-none" /><div className="space-y-3">{Array.from({ length: 5 }).map((_, index) => <Skeleton key={index} className="h-4 w-full rounded-none" />)}</div><Skeleton className="h-10 w-full rounded-none" /></section>
     </div>
@@ -631,7 +650,8 @@ export function MonthlyReportGeneratePageLoading() {
 /** 静态/动态站点导航：三项概览、分组标题及可点开的链接卡片网格。 */
 export function OperationsNavigationPageLoading() {
   return (
-    <div className="space-y-4" aria-busy="true" aria-label="页面加载中" data-testid="page-skeleton-operations-navigation">
+    <div className="space-y-4" aria-busy="true" data-testid="page-skeleton-operations-navigation">
+      <span className="sr-only" role="status" aria-live="polite">页面加载中</span>
       <section className="space-y-3 border border-term-border bg-term-panel p-3">
         <Skeleton className="h-4 w-32 rounded-none" />
         <Skeleton className="h-3 w-3/4 rounded-none" />

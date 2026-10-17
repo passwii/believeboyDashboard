@@ -440,13 +440,26 @@
       scroll-behavior: auto;
     }
 
+    /* Suppress spatial/looping motion without erasing color and state feedback. */
     *,
     *::before,
     *::after {
-      animation-duration: 0.01ms !important;
+      animation-duration: 1ms !important;
       animation-iteration-count: 1 !important;
       scroll-behavior: auto !important;
-      transition-duration: 0.01ms !important;
+    }
+
+    .ui-floating-motion,
+    .ui-overlay-motion,
+    .sidebar-panel-reveal,
+    .global-loading-indicator,
+    .u-skeleton-shimmer::after,
+    .animate-shimmer {
+      animation: none !important;
+      transition-property: color, background-color, border-color, outline-color, fill, stroke;
+      transition-duration: var(--motion-fast) !important;
+      transform: none !important;
+      will-change: auto !important;
     }
   }
 }

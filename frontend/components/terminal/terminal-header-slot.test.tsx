@@ -20,6 +20,7 @@ function Probe() {
       <span data-testid="has-anchor">{ctx.anchor == null ? 'none' : 'present'}</span>
       <span data-testid="refresh-registered">{String(ctx.refreshRegistered)}</span>
       <span data-testid="refresh-loading">{String(ctx.refreshLoading)}</span>
+      <span role="status" data-testid="refresh-announcement">{ctx.refreshFeedback.message}</span>
       <button type="button" onClick={ctx.triggerRefresh}>
         trigger
       </button>
@@ -219,11 +220,35 @@ describe('TerminalHeaderSlotProvider', () => {
     expect(calls).toEqual([3])
   })
 
-  it('异步 handler 抛错不会让按钮态卡死（异常被吞掉、状态复位）', async () => {
+  it('异步刷新回调执行期间保持 busy，完成后复位', async () => {
+    let resolveRefresh: (() => void) | undefined
+    const handler = vi.fn(
+      () => new Promise<void>((resolve) => {
+        resolveRefresh = resolve
+      })
+    )
+
+    renderShell(
+      <>
+        <Page onRefresh={handler} />
+        <Probe />
+      </>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('refresh-registered')).toHaveTextContent('true'))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'trigger' }))
+    expect(handler).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('refresh-announcement')).toHaveTextContent('正在刷新当前页。')
+
+    await act(async () => resolveRefresh?.())
+    await waitFor(() => expect(screen.getByTestId('refresh-announcement')).toHaveTextContent('刷新请求已返回；请确认页面内容已更新。'))
+  })
+
+  it('异步 handler 抛错会结束 busy 并通过状态区提示，不重复页面错误详情', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     function AsyncPage() {
       useHeaderRefresh(async () => {
-        throw new Error('boom')
+        throw new Error('具体接口错误')
       })
       return null
     }
@@ -236,10 +261,70 @@ describe('TerminalHeaderSlotProvider', () => {
     await waitFor(() =>
       expect(screen.getByTestId('refresh-registered')).toHaveTextContent('true')
     )
-    act(() => {
-      screen.getByRole('button', { name: 'trigger' }).click()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'trigger' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('refresh-loading')).toHaveTextContent('false')
+      expect(screen.getByTestId('refresh-announcement')).toHaveTextContent(
+        '刷新失败，请查看页面提示并重试。'
+      )
     })
-    // 异步 rejection 不应产生未处理拒绝导致测试崩溃；错误被记录
-    await waitFor(() => expect(errorSpy).toHaveBeenCalled())
+    expect(screen.getByTestId('refresh-announcement')).not.toHaveTextContent('具体接口错误')
+    expect(errorSpy).toHaveBeenCalledWith('[header-slot] 刷新回调执行失败:', expect.any(Error))
+  })
+
+  it('刷新 callback 失败后，延迟的 loading=false 不会覆盖错误反馈', async () => {
+    function RejectingPage() {
+      const [loading, setLoading] = React.useState(false)
+      useHeaderRefresh(async () => {
+        setLoading(true)
+        await Promise.resolve()
+        setLoading(false)
+        throw new Error('request failed')
+      }, { loading })
+      return null
+    }
+
+    renderShell(
+      <>
+        <RejectingPage />
+        <Probe />
+      </>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('refresh-registered')).toHaveTextContent('true'))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'trigger' }))
+    await waitFor(() =>
+      expect(screen.getByTestId('refresh-announcement')).toHaveTextContent(
+        '刷新失败，请查看页面提示并重试。'
+      )
+    )
+    expect(screen.getByTestId('refresh-loading')).toHaveTextContent('false')
+  })
+
+  it('同步刷新 callback 的 loading 状态决定成功播报，不依据函数返回时机', async () => {
+    let setLoading: ((loading: boolean) => void) | undefined
+    function SyncPage() {
+      const refresh = useHeaderRefresh(() => {})
+      setLoading = refresh.setLoading
+      return null
+    }
+    renderShell(
+      <>
+        <SyncPage />
+        <Probe />
+      </>
+    )
+    await waitFor(() =>
+      expect(screen.getByTestId('refresh-registered')).toHaveTextContent('true')
+    )
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'trigger' }))
+    expect(screen.getByTestId('refresh-announcement')).toHaveTextContent('刷新请求已发起。')
+
+    act(() => setLoading?.(true))
+    expect(screen.getByTestId('refresh-announcement')).toHaveTextContent('正在刷新当前页。')
+    act(() => setLoading?.(false))
+    expect(screen.getByTestId('refresh-announcement')).toHaveTextContent('刷新请求已返回；请确认页面内容已更新。')
   })
 })

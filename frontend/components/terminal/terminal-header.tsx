@@ -3,7 +3,19 @@
 import * as React from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { Bell, Loader2, LogOut, Menu, PanelLeft, PanelRight, RefreshCcw, Search, UserRound } from 'lucide-react'
+import {
+  AlertCircle,
+  Bell,
+  Check,
+  Loader2,
+  LogOut,
+  Menu,
+  PanelLeft,
+  PanelRight,
+  RefreshCcw,
+  Search,
+  UserRound,
+} from 'lucide-react'
 
 import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
 import { OPEN_SEARCH_EVENT } from '@/components/dashboard/search-command'
@@ -83,10 +95,22 @@ export function TerminalHeader({
 
   // BLF-826 全局刷新按钮：页面经 useHeaderRefresh 注册回调。
   // BLF-881 全页面常驻：未注册页兜底 router.refresh()（重取当前路由 server 数据、不丢 client state）。
-  const { refreshRegistered, refreshLoading, triggerRefresh } = useTerminalHeaderSlot()
+  const {
+    refreshRegistered,
+    refreshLoading,
+    refreshHandlerPending,
+    refreshFeedback,
+    announceRefresh,
+    triggerRefresh,
+  } = useTerminalHeaderSlot()
   const router = useRouter()
   const [fallbackPending, startFallbackRefresh] = React.useTransition()
   const [fallbackTimedOut, setFallbackTimedOut] = React.useState(false)
+  const fallbackRefreshStartedRef = React.useRef(false)
+
+  React.useEffect(() => {
+    announceRefresh('', 'idle')
+  }, [announceRefresh, pathname])
 
   React.useEffect(() => {
     if (!fallbackPending) {
@@ -98,17 +122,32 @@ export function TerminalHeader({
   }, [fallbackPending])
 
   const fallbackLoading = fallbackPending && !fallbackTimedOut
-  const refreshActive = refreshRegistered ? refreshLoading : fallbackLoading
+  const refreshActive = refreshRegistered
+    ? refreshLoading || refreshHandlerPending
+    : fallbackLoading
 
   const handleRefreshClick = React.useCallback(() => {
     if (refreshRegistered) {
       triggerRefresh()
       return
     }
+    fallbackRefreshStartedRef.current = true
+    announceRefresh('正在刷新当前页。', 'loading')
     startFallbackRefresh(() => {
       router.refresh()
     })
-  }, [refreshRegistered, triggerRefresh, startFallbackRefresh, router])
+  }, [announceRefresh, refreshRegistered, triggerRefresh, startFallbackRefresh, router])
+
+  React.useEffect(() => {
+    if (refreshRegistered || fallbackPending || !fallbackRefreshStartedRef.current) return
+    fallbackRefreshStartedRef.current = false
+    announceRefresh('刷新请求已返回；请确认页面内容已更新。', 'requested')
+  }, [announceRefresh, fallbackPending, fallbackTimedOut, refreshRegistered])
+
+  React.useEffect(() => {
+    if (!fallbackTimedOut || refreshRegistered) return
+    announceRefresh('刷新仍在后台进行，页面响应后会自动更新。', 'requested')
+  }, [announceRefresh, fallbackTimedOut, refreshRegistered])
 
   // BLF-819 全局筛选四件套：仅试点路由渲染，其余页面头部行为零变化
   // BLF-874 Stage 1：KPI 磁贴（GMV/ORD/PND）已下线，正文 MetricSwitcherCard 已覆盖，移除 useHeaderKpis 依赖
@@ -195,16 +234,40 @@ export function TerminalHeader({
           type="button"
           onClick={handleRefreshClick}
           disabled={refreshActive}
-          title={refreshRegistered ? '刷新当前页数据（强刷跳缓存）' : '刷新当前页（重取服务端数据）'}
+          title={refreshFeedback.message || (refreshRegistered ? '刷新当前页数据（强刷跳缓存）' : '刷新当前页（重取服务端数据）')}
           aria-label="刷新当前页数据"
+          aria-busy={refreshActive}
           data-testid="terminal-header-refresh"
-          className="relative flex h-9 w-9 items-center justify-center rounded-none text-term-muted shadow-none transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent disabled:pointer-events-none disabled:opacity-50"
+          className={cn(
+            'relative flex h-9 w-9 items-center justify-center rounded-none text-term-muted shadow-none transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent disabled:pointer-events-none disabled:opacity-50',
+            !refreshActive && refreshFeedback.status === 'success' && 'text-term-pos',
+            !refreshActive && refreshFeedback.status === 'error' && 'text-term-neg',
+            !refreshActive && refreshFeedback.status === 'requested' && 'text-term-accent'
+          )}
         >
-          <RefreshCcw className="h-5 w-5" strokeWidth={1.75} />
-          {refreshActive && (
-            <Loader2 className="absolute h-5 w-5 animate-spin" strokeWidth={1.75} aria-hidden />
+          {refreshActive ? (
+            <Loader2
+              className="h-5 w-5 animate-spin motion-reduce:animate-none"
+              strokeWidth={1.75}
+              aria-hidden
+            />
+          ) : refreshFeedback.status === 'success' ? (
+            <Check className="h-5 w-5" strokeWidth={1.75} aria-hidden />
+          ) : refreshFeedback.status === 'error' ? (
+            <AlertCircle className="h-5 w-5" strokeWidth={1.75} aria-hidden />
+          ) : (
+            <RefreshCcw className="h-5 w-5" strokeWidth={1.75} aria-hidden />
           )}
         </button>
+        <span
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          className="sr-only"
+          data-testid="terminal-header-refresh-status"
+        >
+          {refreshFeedback.message}
+        </span>
         <button
           type="button"
           onClick={() => window.dispatchEvent(new CustomEvent(OPEN_SEARCH_EVENT))}

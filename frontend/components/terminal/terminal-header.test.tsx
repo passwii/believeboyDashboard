@@ -1,4 +1,4 @@
-import { render, screen, cleanup, waitFor } from '@testing-library/react'
+import { act, render, screen, cleanup, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -227,11 +227,16 @@ describe('TerminalHeader 全局刷新按钮（BLF-826；BLF-881 全页面常驻�
     const btn = screen.getByTestId('terminal-header-refresh')
     expect(btn).toBeInTheDocument()
     expect(btn).toBeEnabled()
+    expect(btn).toHaveAttribute('aria-busy', 'false')
+    expect(screen.getByTestId('terminal-header-refresh-status')).toHaveTextContent('')
     // 基础控件仍在
     expect(screen.getByTestId('terminal-header-user')).toBeInTheDocument()
 
     await user.click(btn)
     expect(routerRefreshMock).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('terminal-header-refresh-status')).toHaveTextContent(
+      '刷新请求已返回；请确认页面内容已更新。'
+    )
     // 兜底完成后不卡在 loading（mock refresh 同步返回，transition 即刻结束）
     await waitFor(() => expect(screen.getByTestId('terminal-header-refresh')).toBeEnabled())
   })
@@ -256,14 +261,22 @@ describe('TerminalHeader 全局刷新按钮（BLF-826；BLF-881 全页面常驻�
     await user.click(screen.getByTestId('terminal-header-refresh'))
     expect(handler).toHaveBeenCalledTimes(1)
     expect(routerRefreshMock).not.toHaveBeenCalled()
+    expect(screen.getByTestId('terminal-header-refresh-status')).toHaveTextContent(
+      '刷新请求已发起。'
+    )
   })
 
   it('loading 时：按钮禁用并转 spinner，不可重复点击', async () => {
     const user = userEvent.setup()
-    const handler = vi.fn()
+    let finishRefresh: (() => void) | undefined
+    const handler = vi.fn(
+      () => new Promise<void>((resolve) => {
+        finishRefresh = resolve
+      })
+    )
 
     function SlotPage() {
-      useHeaderRefresh(handler, { loading: true })
+      useHeaderRefresh(handler)
       return null
     }
 
@@ -275,8 +288,16 @@ describe('TerminalHeader 全局刷新按钮（BLF-826；BLF-881 全页面常驻�
     )
 
     const btn = await screen.findByTestId('terminal-header-refresh')
-    await waitFor(() => expect(btn).toBeDisabled())
     await user.click(btn)
-    expect(handler).not.toHaveBeenCalled()
+    await waitFor(() => expect(btn).toBeDisabled())
+    expect(btn).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByTestId('terminal-header-refresh-status')).toHaveTextContent('正在刷新当前页。')
+    expect(handler).toHaveBeenCalledTimes(1)
+
+    await act(async () => finishRefresh?.())
+    await waitFor(() => expect(btn).toBeEnabled())
+    expect(screen.getByTestId('terminal-header-refresh-status')).toHaveTextContent(
+      '刷新请求已返回；请确认页面内容已更新。'
+    )
   })
 })
