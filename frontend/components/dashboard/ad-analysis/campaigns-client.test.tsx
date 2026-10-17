@@ -75,6 +75,28 @@ describe('AdAnalysisCampaignsClient Header refresh', () => {
     window.sessionStorage.clear()
   })
 
+  it('查询条件变化立即隐藏旧活动，失败时不把旧结果留在新范围', async () => {
+    let requestCount = 0
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/api/v1/ad-analysis/campaigns?')) {
+        requestCount += 1
+        if (requestCount === 1) return jsonResponse(CAMPAIGNS_PAYLOAD)
+        throw new Error('新查询加载失败')
+      }
+      return jsonResponse({})
+    })
+
+    const view = render(<AdAnalysisCampaignsClient />)
+    await waitFor(() => expect(screen.getByText('旧结果 $25.00')).toBeInTheDocument())
+
+    mockSearchParams = new URLSearchParams('projectId=1&country=DE')
+    view.rerender(<AdAnalysisCampaignsClient />)
+
+    expect(screen.queryByText('旧结果 $25.00')).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText(/新查询加载失败/)).toBeInTheDocument())
+    expect(screen.queryByText('旧结果 $25.00')).not.toBeInTheDocument()
+  })
+
   it('强刷期间保留已加载结果，失败时显示错误而不替换页面', async () => {
     let rejectRefresh: ((reason?: unknown) => void) | undefined
     let requestCount = 0

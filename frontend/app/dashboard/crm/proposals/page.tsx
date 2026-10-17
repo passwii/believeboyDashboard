@@ -53,10 +53,13 @@ export default function ProposalsPage() {
   const { notify } = useNotifications()
   const { confirm } = useConfirm()
 
-  const [items, setItems] = useState<Proposal[]>([])
-  const [total, setTotal] = useState(0)
+  const [itemsResult, setItemsResult] = useState<{
+    signature: string
+    items: Proposal[]
+    total: number
+  } | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [errorResult, setErrorResult] = useState<{ signature: string; message: string } | null>(null)
   const [keyword, setKeyword] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
@@ -73,10 +76,15 @@ export default function ProposalsPage() {
     if (typeFilter !== 'all') out.push({ field: 'proposal_type', op: 'eq', value: typeFilter })
     return out
   }, [statusFilter, typeFilter])
+  const querySignature = JSON.stringify([scope, keyword.trim(), filters])
+  const items = itemsResult?.signature === querySignature ? itemsResult.items : []
+  const total = itemsResult?.signature === querySignature ? itemsResult.total : 0
+  const error = errorResult?.signature === querySignature ? errorResult.message : null
+  const isLoading = loading || (itemsResult?.signature !== querySignature && !error)
 
   const load = useCallback(async () => {
     setLoading(true)
-    setError(null)
+    setErrorResult(null)
     try {
       const page = await client.listProposals({
         scope,
@@ -86,15 +94,17 @@ export default function ProposalsPage() {
         sortOrder: 'desc',
         pageSize: PAGE_SIZE,
       })
-      setItems(page.items)
-      setTotal(page.total)
+      setItemsResult({ signature: querySignature, items: page.items, total: page.total })
     } catch (e) {
-      // A failed manual refresh should not erase the last successful page.
-      setError(e instanceof Error ? e.message : '加载方案失败')
+      // A failed manual refresh should not erase the last successful page for this query.
+      setErrorResult({
+        signature: querySignature,
+        message: e instanceof Error ? e.message : '加载方案失败',
+      })
     } finally {
       setLoading(false)
     }
-  }, [client, scope, keyword, filters])
+  }, [client, scope, keyword, filters, querySignature])
 
   useEffect(() => {
     void load()
@@ -102,7 +112,7 @@ export default function ProposalsPage() {
 
   const refreshRef = useRef(load)
   refreshRef.current = load
-  useHeaderRefresh(() => refreshRef.current(), { loading })
+  useHeaderRefresh(() => refreshRef.current(), { loading: isLoading })
 
   // 建方案时要选客户：按当前数据范围拉一页（管理员 all 可见全部）。
   useEffect(() => {
@@ -278,7 +288,7 @@ export default function ProposalsPage() {
             </tr>
           </thead>
           <tbody>
-            {loading && items.length === 0 ? (
+            {isLoading && items.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-2 py-16 text-center font-mono text-xs text-term-faint">
                   加载中…

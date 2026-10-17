@@ -3,8 +3,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import { Activity, Layers3 } from 'lucide-react'
-
 import { AdAnalysisContextBanner } from '@/components/dashboard/ad-analysis/context-banner'
 import { buildAnalysisDrillHref } from '@/components/dashboard/ad-analysis/drill'
 import { AdAnalysisDrillLinks } from '@/components/dashboard/ad-analysis/drill-links'
@@ -12,7 +10,6 @@ import { Button } from '@/components/ui/button'
 import { TermPanel } from '@/components/terminal/term-panel'
 import { TermKpiTile, TermPill } from '@/components/terminal/term-controls'
 import { EmptyState } from '@/components/ui/empty-state'
-import { Input } from '@/components/ui/input'
 import {
   Table,
   TableBody,
@@ -86,20 +83,47 @@ export function AdAnalysisCampaignsClient() {
   const searchTermFilter = searchParams.get('searchTerm') || ''
   const placementFilter = searchParams.get('placement') || ''
 
-  const [data, setData] = useState<CampaignResponse | null>(null)
+  const [dataResult, setDataResult] = useState<{
+    signature: string
+    value: CampaignResponse
+  } | null>(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [errorResult, setErrorResult] = useState<{ signature: string; message: string } | null>(null)
   const refreshKey = useAdClientRefreshKey()
+  const sessionUser = session?.user as
+    | { id?: string | null; roleType?: string | null; operatorNameZh?: string | null }
+    | undefined
+  const querySignature = JSON.stringify([
+    projectId,
+    country,
+    dateFrom,
+    dateTo,
+    campaignFilter,
+    skuFilter,
+    searchTermFilter,
+    placementFilter,
+    sessionUser?.id ?? null,
+    sessionUser?.roleType ?? null,
+    sessionUser?.operatorNameZh ?? null,
+  ])
+  // A refreshKey change keeps the same signature and therefore the last good payload;
+  // query changes immediately stop rendering results from the previous scope.
+  const data = dataResult?.signature === querySignature ? dataResult.value : null
+  const error = errorResult?.signature === querySignature ? errorResult.message : null
+  const isLoading = loading || (
+    Boolean(projectId) && status !== 'loading' && !data && !error
+  )
 
   useEffect(() => {
     if (!projectId) return
     // BEL-421: cache key is user-scoped; wait for session to avoid an unknown-scope double fetch
     if (status === 'loading') return
     let active = true
+    setDataResult((current) => current?.signature === querySignature ? current : null)
+    setErrorResult(null)
 
     async function load() {
       setLoading(true)
-      setError(null)
       try {
         const query = new URLSearchParams({
           project_id: projectId,
@@ -113,9 +137,14 @@ export function AdAnalysisCampaignsClient() {
         if (placementFilter) query.set('placement', placementFilter)
         // BEL-421: 2-min client cache — repeat mounts within TTL make 0 requests
         const payload = await fetchAdAnalysisCached<CampaignResponse>('campaigns', query, session)
-        if (active) setData(payload)
+        if (active) setDataResult({ signature: querySignature, value: payload })
       } catch (fetchError) {
-        if (active) setError(fetchError instanceof Error ? fetchError.message : '活动分析加载失败')
+        if (active) {
+          setErrorResult({
+            signature: querySignature,
+            message: fetchError instanceof Error ? fetchError.message : '活动分析加载失败',
+          })
+        }
       } finally {
         if (active) setLoading(false)
       }
@@ -125,10 +154,10 @@ export function AdAnalysisCampaignsClient() {
     return () => {
       active = false
     }
-  }, [campaignFilter, country, dateFrom, dateTo, placementFilter, projectId, searchTermFilter, session, skuFilter, status, refreshKey])
+  }, [campaignFilter, country, dateFrom, dateTo, placementFilter, projectId, querySignature, searchTermFilter, session, skuFilter, status, refreshKey])
 
   if (!projectId) return <EmptyState rowHeight="lg" message="请先选择项目。" />
-  if (loading && !data) return <EmptyState rowHeight="lg" message="正在加载活动分析..." />
+  if (isLoading && !data) return <EmptyState rowHeight="lg" message="正在加载活动分析..." />
   if (error && !data) {
     return (
       <div className="border border-term-neg/50 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
@@ -140,7 +169,7 @@ export function AdAnalysisCampaignsClient() {
   if (data.items.length === 0) {
     return (
       <>
-        <TermRefreshStatus loading={loading} error={error} hasData />
+        <TermRefreshStatus loading={isLoading} error={error} hasData />
         <EmptyState rowHeight="lg" message="当前没有广告活动明细。" />
       </>
     )
@@ -157,7 +186,7 @@ export function AdAnalysisCampaignsClient() {
   if (filteredItems.length === 0) {
     return (
       <>
-        <TermRefreshStatus loading={loading} error={error} hasData />
+        <TermRefreshStatus loading={isLoading} error={error} hasData />
         <EmptyState rowHeight="lg" message={`当前筛选下没有匹配“${campaignFilter}”的活动。`} />
       </>
     )
@@ -165,7 +194,7 @@ export function AdAnalysisCampaignsClient() {
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      <TermRefreshStatus loading={loading} error={error} hasData />
+      <TermRefreshStatus loading={isLoading} error={error} hasData />
       <AdAnalysisContextBanner
         items={[
           ...(campaignFilter ? [{ label: '当前活动', value: campaignFilter }] : []),

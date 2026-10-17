@@ -123,6 +123,28 @@ describe('AdAnalysisOverviewClient mount 请求行为（BEL-421）', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
+  it('筛选变化立即隐藏旧总览，失败时不残留旧查询数据', async () => {
+    let requestCount = 0
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      if (String(input).includes('/api/v1/ad-analysis/overview?')) {
+        requestCount += 1
+        if (requestCount === 1) return jsonResponse(OVERVIEW_PAYLOAD)
+        throw new Error('新筛选加载失败')
+      }
+      return jsonResponse({})
+    })
+
+    const view = render(<AdAnalysisOverviewClient />)
+    await waitFor(() => expect(screen.getByText('20%')).toBeInTheDocument())
+
+    mockSearchParams = new URLSearchParams('projectId=1&country=DE')
+    view.rerender(<AdAnalysisOverviewClient />)
+
+    expect(screen.queryByText('20%')).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('新筛选加载失败'))
+    expect(screen.queryByText('20%')).not.toBeInTheDocument()
+  })
+
   it('筛选变化（新参数）会重新取数一次', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse(OVERVIEW_PAYLOAD))
 

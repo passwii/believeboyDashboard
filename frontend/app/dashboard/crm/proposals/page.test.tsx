@@ -58,6 +58,24 @@ beforeEach(() => {
 })
 
 describe('客户方案 Head 刷新', () => {
+  it('查询条件变化时隐藏旧列表，失败不残留旧范围结果', async () => {
+    let requestCount = 0
+    client.listProposals.mockImplementation(async () => {
+      requestCount += 1
+      if (requestCount === 1) return { items: PROPOSALS, total: 1, page: 1, pageSize: 50 }
+      throw new Error('新筛选加载失败')
+    })
+
+    render(<ProposalsPage />)
+    await screen.findByText('北美春季方案')
+
+    fireEvent.change(screen.getByLabelText('搜索方案标题'), { target: { value: '冬季' } })
+    expect(screen.queryByText('北美春季方案')).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('新筛选加载失败'))
+    expect(screen.queryByText('北美春季方案')).not.toBeInTheDocument()
+    expect(screen.getByText('共 0 个方案')).toBeInTheDocument()
+  })
+
   it('按当前关键词、状态和 scope 重取列表，不丢筛选', async () => {
     render(<ProposalsPage />)
     await screen.findByText('北美春季方案')

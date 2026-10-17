@@ -133,6 +133,32 @@ describe('AdDataExplorer 终端化渲染契约（BLF-834）', () => {
     expect(screen.getByRole('table')).toBeInTheDocument()
   })
 
+  it('查询范围变化立即清除旧行，失败后不显示旧结果', async () => {
+    let rawRequests = 0
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('ad-upload-files')) return jsonResponse(UPLOAD_FILES)
+      if (url.includes('-raw')) {
+        rawRequests += 1
+        if (rawRequests === 1) return jsonResponse(RAW_PAYLOAD)
+        throw new Error('新范围加载失败')
+      }
+      return jsonResponse({})
+    })
+
+    const view = render(<AdDataExplorer />)
+    await waitForTable()
+    expect(screen.getByText('ENABLED')).toBeInTheDocument()
+
+    mockSearchParams = new URLSearchParams('projectId=1&country=DE')
+    view.rerender(<AdDataExplorer />)
+
+    expect(screen.queryByText('ENABLED')).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('新范围加载失败'))
+    expect(screen.queryByText('ENABLED')).not.toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalled()
+  })
+
   it('广告强刷期间失败保留已加载行、导出可用并显示错误', async () => {
     let rawRequests = 0
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
