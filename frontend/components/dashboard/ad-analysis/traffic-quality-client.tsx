@@ -13,6 +13,7 @@ import { TermPanel } from '@/components/terminal/term-panel'
 import { TermKpiTile, TermPill } from '@/components/terminal/term-controls'
 import { EmptyState } from '@/components/ui/empty-state'
 import { DeferredSection } from '@/components/dashboard/deferred-section'
+import { useAdClientRefreshKey } from '@/components/dashboard/ad-refresh'
 import { fetchAdAnalysisCached } from '@/lib/ad-client-cache'
 import { cn } from '@/lib/utils'
 import {
@@ -79,6 +80,7 @@ export function AdAnalysisTrafficQualityClient() {
   const [data, setData] = useState<TrafficQualityResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const refreshKey = useAdClientRefreshKey()
 
   useEffect(() => {
     if (!projectId) return
@@ -113,7 +115,7 @@ export function AdAnalysisTrafficQualityClient() {
     return () => {
       active = false
     }
-  }, [campaignFilter, country, dateFrom, dateTo, projectId, session, status])
+  }, [campaignFilter, country, dateFrom, dateTo, projectId, session, status, refreshKey])
 
   if (!projectId) return <EmptyState rowHeight="lg" message="请先选择项目。" />
   if (loading) return <EmptyState rowHeight="lg" message="正在加载流量质量分析..." />

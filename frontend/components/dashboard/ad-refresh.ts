@@ -2,9 +2,18 @@
 
 import { useEffect, useState } from 'react'
 
-/** Active advertisement data surfaces listen for a cache-busting Head refresh from their shared filters. */
+import { clearAdClientCaches } from '@/lib/ad-client-cache'
+
+/** Shared refresh signal for ad-analysis and ad-data client data owners. */
 export const AD_CLIENT_REFRESH_EVENT = 'believeboy:ad-client-refresh'
 
+/** Invalidate cached responses and ask mounted ad data owners to reload. */
+export function requestAdClientRefresh(): void {
+  clearAdClientCaches()
+  window.dispatchEvent(new Event(AD_CLIENT_REFRESH_EVENT))
+}
+
+/** Subscribe to the shared refresh signal and rerun the owning data effects. */
 export function useAdClientRefreshKey(): number {
   const [refreshKey, setRefreshKey] = useState(0)
 

@@ -13,6 +13,7 @@ import { TermPanel } from '@/components/terminal/term-panel'
 import { TermKpiTile, TermPill } from '@/components/terminal/term-controls'
 import { EmptyState } from '@/components/ui/empty-state'
 import { DeferredSection } from '@/components/dashboard/deferred-section'
+import { useAdClientRefreshKey } from '@/components/dashboard/ad-refresh'
 import { fetchAdAnalysisCached } from '@/lib/ad-client-cache'
 import { cn } from '@/lib/utils'
 import {
@@ -76,6 +77,7 @@ export function AdAnalysisProductsClient() {
   const [data, setData] = useState<ProductResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const refreshKey = useAdClientRefreshKey()
 
   useEffect(() => {
     if (!projectId) return
@@ -109,7 +111,7 @@ export function AdAnalysisProductsClient() {
     return () => {
       active = false
     }
-  }, [campaignFilter, country, dateFrom, dateTo, projectId, session, skuFilter, status])
+  }, [campaignFilter, country, dateFrom, dateTo, projectId, session, skuFilter, status, refreshKey])
 
   if (!projectId) return <EmptyState rowHeight="lg" message="请先选择项目。" />
   if (loading) return <EmptyState rowHeight="lg" message="正在加载 SKU 分析..." />

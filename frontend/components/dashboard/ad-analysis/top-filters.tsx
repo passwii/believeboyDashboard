@@ -26,8 +26,8 @@ import {
   useMobileFilterStrip,
 } from '@/components/terminal/terminal-header-slot'
 import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
+import { requestAdClientRefresh } from '@/components/dashboard/ad-refresh'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
-import { clearAdClientCaches } from '@/lib/ad-client-cache'
 
 type ProjectOption = {
   id: number
@@ -142,10 +142,10 @@ export function AdAnalysisTopFilters() {
     })
   }
 
-  // 查询结果驻留在 user-scoped sessionStorage/memory cache，RSC refresh 本身不会重跑
-  // 已挂载 client effects；清理当前广告数据缓存后用 URL key 触发 client sub-tree remount。
+  // 分析结果在已挂载的 client subtree 中读取；先清缓存并通知当前数据 owner 重取，
+  // router.refresh 只负责可能存在的 RSC 内容，不作为客户端数据刷新的依据。
   useHeaderRefresh(() => {
-    clearAdClientCaches()
+    requestAdClientRefresh()
     router.refresh()
   })
 

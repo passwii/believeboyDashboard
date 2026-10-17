@@ -22,6 +22,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { DeferredSection } from '@/components/dashboard/deferred-section'
+import { useAdClientRefreshKey } from '@/components/dashboard/ad-refresh'
 import { fetchAdAnalysisCached } from '@/lib/ad-client-cache'
 import { cn } from '@/lib/utils'
 
@@ -87,6 +88,7 @@ export function AdAnalysisCampaignsClient() {
   const [data, setData] = useState<CampaignResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const refreshKey = useAdClientRefreshKey()
 
   useEffect(() => {
     if (!projectId) return
@@ -122,7 +124,7 @@ export function AdAnalysisCampaignsClient() {
     return () => {
       active = false
     }
-  }, [campaignFilter, country, dateFrom, dateTo, placementFilter, projectId, searchTermFilter, session, skuFilter, status])
+  }, [campaignFilter, country, dateFrom, dateTo, placementFilter, projectId, searchTermFilter, session, skuFilter, status, refreshKey])
 
   if (!projectId) return <EmptyState rowHeight="lg" message="请先选择项目。" />
   if (loading) return <EmptyState rowHeight="lg" message="正在加载活动分析..." />

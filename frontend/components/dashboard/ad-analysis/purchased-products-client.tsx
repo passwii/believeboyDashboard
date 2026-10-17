@@ -9,6 +9,7 @@ import { AdAnalysisContextBanner } from '@/components/dashboard/ad-analysis/cont
 import { TermPanel } from '@/components/terminal/term-panel'
 import { TermPill } from '@/components/terminal/term-controls'
 import { EmptyState } from '@/components/ui/empty-state'
+import { useAdClientRefreshKey } from '@/components/dashboard/ad-refresh'
 import { fetchAdAnalysisCached } from '@/lib/ad-client-cache'
 import { cn } from '@/lib/utils'
 import {
@@ -52,6 +53,7 @@ export function AdAnalysisPurchasedProductsClient() {
   const [data, setData] = useState<PurchasedProductsResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const refreshKey = useAdClientRefreshKey()
 
   useEffect(() => {
     if (!projectId) return
@@ -88,7 +90,7 @@ export function AdAnalysisPurchasedProductsClient() {
     return () => {
       active = false
     }
-  }, [campaignFilter, country, dateFrom, dateTo, projectId, purchasedAsinFilter, session, skuFilter, status])
+  }, [campaignFilter, country, dateFrom, dateTo, projectId, purchasedAsinFilter, session, skuFilter, status, refreshKey])
 
   if (!projectId) return <EmptyState rowHeight="lg" message="请先选择项目。" />
   if (loading) return <EmptyState rowHeight="lg" message="正在加载已购买商品分析..." />

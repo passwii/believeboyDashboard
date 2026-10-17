@@ -30,6 +30,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from '@/components/ui/chart'
+import { useAdClientRefreshKey } from '@/components/dashboard/ad-refresh'
 import { fetchAdAnalysisCached } from '@/lib/ad-client-cache'
 import {
   buildAnalysisDrillHref,
@@ -144,6 +145,7 @@ export function AdAnalysisOverviewClient() {
   const [data, setData] = useState<OverviewResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const refreshKey = useAdClientRefreshKey()
 
   useEffect(() => {
     if (!projectId) return
@@ -178,7 +180,7 @@ export function AdAnalysisOverviewClient() {
     return () => {
       active = false
     }
-  }, [country, dateFrom, dateTo, projectId, session, status])
+  }, [country, dateFrom, dateTo, projectId, session, status, refreshKey])
 
   // ===== 派生数据：趋势图 / 站点分布 =====
 

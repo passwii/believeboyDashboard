@@ -91,7 +91,7 @@ export function KpiCardsSkeleton({ count = 4, className }: KpiCardsSkeletonProps
 }
 
 interface DataTableSkeletonProps {
-  /** 列数，默认 6 */
+  /** 列数，默认 6（最多展示 6 个等宽占位） */
   columns?: number
   /** 行数，默认 8 */
   rows?: number
@@ -121,7 +121,10 @@ export function DataTableSkeleton({
         </div>
       ) : null}
       <div className="space-y-0 p-4">
-        <div className="grid grid-cols-6 gap-3 border-b border-term-border pb-3">
+        <div
+          className="grid gap-3 border-b border-term-border pb-3"
+          style={{ gridTemplateColumns: `repeat(${Math.min(columns, 6)}, minmax(0, 1fr))` }}
+        >
           {Array.from({ length: Math.min(columns, 6) }).map((_, index) => (
             <Skeleton key={index} className="h-3.5 w-full max-w-24" />
           ))}
@@ -129,7 +132,8 @@ export function DataTableSkeleton({
         {Array.from({ length: rows }).map((_, rowIndex) => (
           <div
             key={rowIndex}
-            className="grid grid-cols-6 items-center gap-3 border-b border-term-border py-3 last:border-b-0"
+            className="grid items-center gap-3 border-b border-term-border py-3 last:border-b-0"
+            style={{ gridTemplateColumns: `repeat(${Math.min(columns, 6)}, minmax(0, 1fr))` }}
           >
             {Array.from({ length: Math.min(columns, 6) }).map((_, cellIndex) => (
               <Skeleton

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { ArrowLeft, Download, Loader2, Pencil, Upload } from 'lucide-react'
@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/dialog'
 import { useNotifications } from '@/components/notifications'
 import { downloadBlob } from '@/lib/download-blob'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import { useCrmDataScope } from '@/hooks/use-crm-data-scope'
 import {
@@ -87,6 +88,10 @@ export default function ProposalDetailPage() {
   useEffect(() => {
     void load()
   }, [load])
+
+  const refreshRef = useRef(load)
+  refreshRef.current = load
+  useHeaderRefresh(() => refreshRef.current(), { loading })
 
   const selectedVersion = useMemo(
     () => detail?.versions.find((v) => v.versionNo === selectedVersionNo) ?? null,
