@@ -5,10 +5,25 @@ import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
 import {
+  AgentTablePageLoading,
   AnalyticsContentLoading,
   AnalyticsPageLoading,
   CardListSkeleton,
   ChatPageLoading,
+  CrmDashboardPageLoading,
+  CrmProposalDetailPageLoading,
+  CrmTaskBoardPageLoading,
+  InventoryLedgerPageLoading,
+  InventoryReplenishmentPageLoading,
+  MonthlyReportGeneratePageLoading,
+  OperationsNavigationPageLoading,
+  PlatformInspectionPageLoading,
+  ProjectGoalsPageLoading,
+  ProjectLaunchPageLoading,
+  ShipmentManagementPageLoading,
+  ShippingPlanPageLoading,
+  SkuInfoPageLoading,
+  WorkflowTemplateEditorPageLoading,
   DataTableSkeleton,
   FilterBarSkeleton,
   KpiCardsSkeleton,
@@ -81,6 +96,52 @@ describe('page-skeletons 组合骨架', () => {
     render(<ChatPageLoading />)
     expect(screen.getByTestId('page-skeleton-chat')).toBeDefined()
   })
+
+  it('CRM 任务骨架按工具条和三列看板占位，不伪装成表格', () => {
+    render(<CrmTaskBoardPageLoading />)
+    expect(screen.getByTestId('page-skeleton-task-toolbar')).toBeInTheDocument()
+    expect(screen.getByTestId('page-skeleton-task-columns').children).toHaveLength(3)
+    expect(screen.queryByTestId('page-skeleton-table')).toBeNull()
+  })
+
+  it('CRM 客户方案详情骨架包含宽预览和窄版时间线', () => {
+    render(<CrmProposalDetailPageLoading />)
+    expect(screen.getByTestId('page-skeleton-proposal-detail')).toBeInTheDocument()
+    expect(screen.getByTestId('page-skeleton-proposal-detail').children).toHaveLength(2)
+    expect(screen.getByLabelText('页面加载中')).toHaveAttribute('aria-busy', 'true')
+  })
+
+  it('CRM dashboard 骨架包含四个 KPI、漏斗和负责人表', () => {
+    render(<CrmDashboardPageLoading />)
+    expect(screen.getByTestId('page-skeleton-kpis').children).toHaveLength(4)
+    expect(screen.getByTestId('page-skeleton-crm-funnel')).toBeInTheDocument()
+    expect(screen.getByTestId('page-skeleton-crm-lifecycle')).toBeInTheDocument()
+  })
+
+  it.each([
+    ['库存分类账', InventoryLedgerPageLoading, 'page-skeleton-inventory-ledger'],
+    ['项目启动台', ProjectLaunchPageLoading, 'page-skeleton-project-launch'],
+    ['模板编辑器', WorkflowTemplateEditorPageLoading, 'page-skeleton-workflow-editor'],
+    ['站点导航', OperationsNavigationPageLoading, 'page-skeleton-operations-navigation'],
+    ['发货规划', ShippingPlanPageLoading, 'page-skeleton-shipping-plan'],
+    ['补货 cockpit', InventoryReplenishmentPageLoading, 'page-skeleton-inventory-replenishment'],
+    ['巡检工作区', PlatformInspectionPageLoading, 'page-skeleton-platform-inspection'],
+    ['项目目标', ProjectGoalsPageLoading, 'page-skeleton-project-goals'],
+    ['船期管理', ShipmentManagementPageLoading, 'page-skeleton-shipment-management'],
+    ['SKU 管理', SkuInfoPageLoading, 'page-skeleton-sku-info'],
+    ['月报生成', MonthlyReportGeneratePageLoading, 'page-skeleton-monthly-report-generate'],
+  ])('%s 路由骨架保留页面专属区域', (_, PageLoading, testId) => {
+    render(<PageLoading />)
+    expect(screen.getByTestId(testId as string)).toBeInTheDocument()
+    expect(screen.getByLabelText('页面加载中')).toHaveAttribute('aria-busy', 'true')
+  })
+
+  it('Agent 活动矩阵按 8/11 列参数生成表格宽骨架', () => {
+    const { rerender } = render(<AgentTablePageLoading columns={8} />)
+    expect(screen.getByTestId('page-skeleton-wide-table')).toBeInTheDocument()
+    rerender(<AgentTablePageLoading columns={11} />)
+    expect(screen.getByTestId('page-skeleton-wide-table').querySelector('[style*="repeat(11,"]')).toBeInTheDocument()
+  })
 })
 
 describe('BEL-419 路由骨架覆盖', () => {
@@ -94,6 +155,11 @@ describe('BEL-419 路由骨架覆盖', () => {
     }
     return false
   }
+
+  it('客户方案详情路由注册专用 loading boundary', () => {
+    const detailBoundary = join(dashboardDir, 'crm', 'proposals', '[id]', 'loading.tsx')
+    expect(existsSync(detailBoundary)).toBe(true)
+  })
 
   it('dashboard 下每个含页面的 section 都有自己的 loading.tsx（不依赖首页骨架兜底）', () => {
     const sections = readdirSync(dashboardDir)

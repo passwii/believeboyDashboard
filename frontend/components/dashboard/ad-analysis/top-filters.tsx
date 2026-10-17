@@ -26,6 +26,7 @@ import {
   useMobileFilterStrip,
 } from '@/components/terminal/terminal-header-slot'
 import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
+import { requestAdClientRefresh } from '@/components/dashboard/ad-refresh'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 
 type ProjectOption = {
@@ -141,9 +142,12 @@ export function AdAnalysisTopFilters() {
     })
   }
 
-  // 刷新语义：清 2min 客户端缓存后 router.refresh —— 子页 effect 依 URL 参数重取，
-  // 等价于「当前筛选条件下的强刷」。
-  useHeaderRefresh(() => router.refresh())
+  // 分析结果在已挂载的 client subtree 中读取；先清缓存并通知当前数据 owner 重取，
+  // router.refresh 只负责可能存在的 RSC 内容，不作为客户端数据刷新的依据。
+  useHeaderRefresh(() => {
+    requestAdClientRefresh()
+    router.refresh()
+  })
 
   // Desktop controls (fixed: isMobileView={false})
   const desktopControls = (

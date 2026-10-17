@@ -42,6 +42,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
+import { useAdClientRefreshKey } from '@/components/dashboard/ad-refresh'
 import {
   fetchAdRawCached,
   fetchAdUploadFilesCached,
@@ -89,10 +90,10 @@ export function AdDataExplorer() {
   const [availableLoading, setAvailableLoading] = useState(false)
   const [selectedReportType, setSelectedReportType] = useState<string>('')
 
-  const [rows, setRows] = useState<RawRow[]>([])
-  const [totalRows, setTotalRows] = useState(0)
+  const [rowsResult, setRowsResult] = useState<{ signature: string; value: RawRow[] } | null>(null)
+  const [totalRowsResult, setTotalRowsResult] = useState<{ signature: string; value: number } | null>(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [errorResult, setErrorResult] = useState<{ signature: string; message: string } | null>(null)
 
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<SortState>(null)
@@ -106,6 +107,33 @@ export function AdDataExplorer() {
     : undefined
 
   const isAggregate = mode === 'aggregate'
+  const refreshKey = useAdClientRefreshKey()
+  const sessionUser = session?.user as
+    | { id?: string | null; roleType?: string | null; operatorNameZh?: string | null }
+    | undefined
+  const querySignature = JSON.stringify([
+    projectId,
+    country,
+    dateFrom,
+    dateTo,
+    selectedReportType,
+    sessionUser?.id ?? null,
+    sessionUser?.roleType ?? null,
+    sessionUser?.operatorNameZh ?? null,
+  ])
+  // Refreshes keep the current signature; changing any query scope hides prior rows immediately.
+  const rows = useMemo(
+    () => rowsResult?.signature === querySignature ? rowsResult.value : [],
+    [querySignature, rowsResult]
+  )
+  const totalRows = totalRowsResult?.signature === querySignature ? totalRowsResult.value : 0
+  const error = errorResult?.signature === querySignature ? errorResult.message : null
+  const isLoading = loading || (
+    Boolean(projectId && selectedReportType && config) &&
+    status !== 'loading' &&
+    rowsResult?.signature !== querySignature &&
+    !error
+  )
 
   // 每个分组合并了多少份明细（用于"合并份数"列；与 lib 内部 composite key 一致）
   const groupCounts = useMemo(() => {
@@ -167,15 +195,17 @@ export function AdDataExplorer() {
     return () => {
       active = false
     }
-  }, [projectId, country, session, status])
+  }, [projectId, country, session, status, refreshKey])
 
   // ---- 拉取选中类型的原始行（BEL-421：2min 客户端缓存，切回已看过的类型 0 请求）----
   useEffect(() => {
     if (!projectId || !selectedReportType || !config) return
     if (status === 'loading') return
     let active = true
+    setRowsResult((current) => current?.signature === querySignature ? current : null)
+    setTotalRowsResult((current) => current?.signature === querySignature ? current : null)
+    setErrorResult((current) => current?.signature === querySignature ? current : null)
     setLoading(true)
-    setError(null)
     const query = new URLSearchParams({
       period: 'custom',
       country,
@@ -191,15 +221,19 @@ export function AdDataExplorer() {
     )
       .then((payload) => {
         if (!active) return
-        setRows(payload.data ?? [])
-        setTotalRows(payload.summary?.total_rows ?? payload.data?.length ?? 0)
+        setRowsResult({ signature: querySignature, value: payload.data ?? [] })
+        setTotalRowsResult({
+          signature: querySignature,
+          value: payload.summary?.total_rows ?? payload.data?.length ?? 0,
+        })
         setPage(1)
       })
       .catch((fetchError) => {
         if (!active) return
-        setError(fetchError instanceof Error ? fetchError.message : '数据加载失败')
-        setRows([])
-        setTotalRows(0)
+        setErrorResult({
+          signature: querySignature,
+          message: fetchError instanceof Error ? fetchError.message : '数据加载失败',
+        })
       })
       .finally(() => {
         if (active) setLoading(false)
@@ -207,7 +241,7 @@ export function AdDataExplorer() {
     return () => {
       active = false
     }
-  }, [projectId, country, dateFrom, dateTo, selectedReportType, config, session, status])
+  }, [projectId, country, dateFrom, dateTo, selectedReportType, config, querySignature, session, status, refreshKey])
 
   // ---- 搜索 + 排序 ----
   const filtered = useMemo(() => {
@@ -398,7 +432,16 @@ export function AdDataExplorer() {
           ERR · {error}
         </div>
       ) : null}
-      {loading ? (
+      {isLoading && rows.length > 0 ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="border border-term-border bg-term-panel px-2 py-1 font-mono text-xs text-term-muted"
+        >
+          正在刷新广告明细…
+        </div>
+      ) : null}
+      {isLoading && rows.length === 0 ? (
         <div className="space-y-px border border-term-border bg-term-panel p-px">
           {Array.from({ length: 8 }).map((_, i) => (
             <Skeleton key={i} className="h-9 w-full rounded-none" />

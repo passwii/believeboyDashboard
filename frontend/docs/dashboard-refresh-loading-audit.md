@@ -1,6 +1,6 @@
 # Dashboard Head 刷新与页面加载基线（Stage 1）
 
-> 快照日期：2026-10-10；Stage 2 增量更新：2026-10-10。本文是后续 BLF-1308 Stage 2–4 的可复核基线，不是运行时验收报告。路由清单按 `frontend/app/dashboard/**/page.tsx` 静态盘点；共 90 个 page 文件/URL（含重定向别名）。
+> 快照日期：2026-10-10；Stage 2 增量更新：2026-10-10；Stage 3 骨架核查：2026-10-17。本文记录静态证据、自动化结果与运行时验证边界，不把静态或测试结果当作浏览器验收。路由清单按 `frontend/app/dashboard/**/page.tsx` 静态盘点；本快照涵盖 90 条既有 Dashboard 路由。2026-10-17 静态扫描发现另有 2 条 CRM 客户方案路由，清单待补列（见 Stage 3 发现）。
 
 ## 结论摘要
 
@@ -8,7 +8,7 @@
 - Stage 1 静态导入链检查发现 **28 个页面路由注册了 callback**。Stage 2 已为 CRM 任务页增加页面 callback 与回归用例；其余 50 条 Stage 1 标记路由本阶段逐条复核来源和交互，按下方「Stage 2 增量盘点」记录刷新候选或仍待后续处理。对上传、编辑器、静态内容等页面不机械增加形式 callback。
 - 对未注册 callback 的 client-only 页面，点击当前仅能确认走 RSC `router.refresh()` 兜底；该操作**不能作为客户端 `useEffect` / 本地请求必定重新执行的证据**。本阶段静态盘点出 23 条 client 数据加载路由尚无明确 Head callback，需继续修复。
 - 当前扫描到的 Dashboard 页面都能沿路由树找到最近的 `loading.tsx`（根 Dashboard loading 作为继承兜底）。这只证明静态边界存在；**不证明导航时一定显示、骨架与页面结构匹配，也不证明页面内 callback 刷新会触发该 loading 边界**。
-- 静态结构已经暴露出需优先复核的骨架疑点：`/dashboard/crm/tasks` 是看板/列表，却继承表格骨架；`/dashboard/crm/dashboard` 是 KPI/漏斗图/表格，却继承表格骨架；整个 operations 域共用分析型骨架，其中台账、编辑表单、导航卡片等页面结构明显不同。以下只标为“静态疑点”，最终匹配度须浏览器慢请求验证。
+- Stage 3 复核确认：CRM 任务、CRM dashboard、库存分类账、项目启动台/模板编辑、站点导航、发货规划、补货、巡检、项目目标、客诉列表、船期管理、SKU 管理、月报生成、Agent 员工/活动矩阵及 AI 洞察的旧骨架有可从页面结构静态确认的错配；已提供专用骨架或更近边界。其余未专门调整的 Operations 路由仍共享分析骨架，本轮不宣称视觉匹配通过。所有慢导航显示、响应式间距与边界触发仍需浏览器观察。
 
 ## 证据等级与检查口径
 
@@ -20,22 +20,24 @@
 
 ## Dashboard 路由清单
 
+> Stage 1 表格保留 90 条既有路由基线。Stage 3 从当前 App Router 另行发现 `/dashboard/crm/proposals` 与 `/dashboard/crm/proposals/[id]` 两条新路由；两者数据来源均为 C（客户端请求），建议后续清单合并时单列。列表页注册 Head refresh callback，初载最近边界为 `crm/proposals/loading.tsx`（列表筛选 + 7 列表格骨架）；详情页已注册 `useHeaderRefresh(() => refreshRef.current(), { loading })`，仅重取 `detail`、不触碰编辑表单草稿，初载最近边界为 `crm/proposals/[id]/loading.tsx`（宽预览 + 窄版时间线骨架）。
+
 | 路由 | 数据来源（S） | Head 刷新路径（S） | 最近 loading boundary → 骨架 | 每路由验证方式 / 静态备注 |
 | --- | --- | --- | --- | --- |
 | `/dashboard/advertising/ad-analysis` | 重定向 | router.refresh fallback | `advertising/ad-analysis/loading.tsx` → `AnalyticsPageLoading` | S；B-redirect，目标页再做 B-nav/B-refresh |
-| `/dashboard/advertising/ad-analysis/budget` | H（服务端入口 + 客户端子树） | router.refresh fallback | `advertising/ad-analysis/loading.tsx` → `AnalyticsPageLoading` | S；B-nav + B-refresh；callback 缺失待 Stage 2 明确契约 |
-| `/dashboard/advertising/ad-analysis/campaigns` | H（服务端入口 + 客户端子树） | router.refresh fallback | `advertising/ad-analysis/loading.tsx` → `AnalyticsPageLoading` | S；B-nav + B-refresh；callback 缺失待 Stage 2 明确契约 |
-| `/dashboard/advertising/ad-analysis/overview` | H（服务端入口 + 客户端子树） | router.refresh fallback | `advertising/ad-analysis/loading.tsx` → `AnalyticsPageLoading` | S；B-nav + B-refresh；callback 缺失待 Stage 2 明确契约 |
-| `/dashboard/advertising/ad-analysis/placements` | H（服务端入口 + 客户端子树） | router.refresh fallback | `advertising/ad-analysis/loading.tsx` → `AnalyticsPageLoading` | S；B-nav + B-refresh；callback 缺失待 Stage 2 明确契约 |
-| `/dashboard/advertising/ad-analysis/products` | H（服务端入口 + 客户端子树） | router.refresh fallback | `advertising/ad-analysis/loading.tsx` → `AnalyticsPageLoading` | S；B-nav + B-refresh；callback 缺失待 Stage 2 明确契约 |
-| `/dashboard/advertising/ad-analysis/purchased-products` | H（服务端入口 + 客户端子树） | router.refresh fallback | `advertising/ad-analysis/loading.tsx` → `AnalyticsPageLoading` | S；B-nav + B-refresh；callback 缺失待 Stage 2 明确契约 |
-| `/dashboard/advertising/ad-analysis/search-terms` | H（服务端入口 + 客户端子树） | router.refresh fallback | `advertising/ad-analysis/loading.tsx` → `AnalyticsPageLoading` | S；B-nav + B-refresh；callback 缺失待 Stage 2 明确契约 |
-| `/dashboard/advertising/ad-analysis/targets` | H（服务端入口 + 客户端子树） | router.refresh fallback | `advertising/ad-analysis/loading.tsx` → `AnalyticsPageLoading` | S；B-nav + B-refresh；callback 缺失待 Stage 2 明确契约 |
-| `/dashboard/advertising/ad-analysis/time-trend` | H（服务端入口 + 客户端子树） | router.refresh fallback | `advertising/ad-analysis/loading.tsx` → `AnalyticsPageLoading` | S；B-nav + B-refresh；callback 缺失待 Stage 2 明确契约 |
-| `/dashboard/advertising/ad-analysis/traffic-quality` | H（服务端入口 + 客户端子树） | router.refresh fallback | `advertising/ad-analysis/loading.tsx` → `AnalyticsPageLoading` | S；B-nav + B-refresh；callback 缺失待 Stage 2 明确契约 |
+| `/dashboard/advertising/ad-analysis/budget` | H（服务端入口 + 客户端子树） | callback：清广告客户端缓存并通知当前 client 数据 owner 重取；同时 router.refresh RSC | `advertising/ad-analysis/loading.tsx` → `AnalyticsPageLoading` | S；query signature 隔离查询范围，强刷保留当前成功结果；B-nav + B-refresh 待浏览器验证 |
+| `/dashboard/advertising/ad-analysis/campaigns` | H（服务端入口 + 客户端子树） | callback：清广告客户端缓存并通知当前 client 数据 owner 重取；同时 router.refresh RSC | `advertising/ad-analysis/loading.tsx` → `AnalyticsPageLoading` | S；query signature 隔离查询范围，强刷保留当前成功结果；B-nav + B-refresh 待浏览器验证 |
+| `/dashboard/advertising/ad-analysis/overview` | H（服务端入口 + 客户端子树） | callback：清广告客户端缓存并通知当前 client 数据 owner 重取；同时 router.refresh RSC | `advertising/ad-analysis/loading.tsx` → `AnalyticsPageLoading` | S；query signature 隔离查询范围，强刷保留当前成功结果；B-nav + B-refresh 待浏览器验证 |
+| `/dashboard/advertising/ad-analysis/placements` | H（服务端入口 + 客户端子树） | callback：清广告客户端缓存并通知当前 client 数据 owner 重取；同时 router.refresh RSC | `advertising/ad-analysis/loading.tsx` → `AnalyticsPageLoading` | S；query signature 隔离查询范围，强刷保留当前成功结果；B-nav + B-refresh 待浏览器验证 |
+| `/dashboard/advertising/ad-analysis/products` | H（服务端入口 + 客户端子树） | callback：清广告客户端缓存并通知当前 client 数据 owner 重取；同时 router.refresh RSC | `advertising/ad-analysis/loading.tsx` → `AnalyticsPageLoading` | S；query signature 隔离查询范围，强刷保留当前成功结果；B-nav + B-refresh 待浏览器验证 |
+| `/dashboard/advertising/ad-analysis/purchased-products` | H（服务端入口 + 客户端子树） | callback：清广告客户端缓存并通知当前 client 数据 owner 重取；同时 router.refresh RSC | `advertising/ad-analysis/loading.tsx` → `AnalyticsPageLoading` | S；query signature 隔离查询范围，强刷保留当前成功结果；B-nav + B-refresh 待浏览器验证 |
+| `/dashboard/advertising/ad-analysis/search-terms` | H（服务端入口 + 客户端子树） | callback：清广告客户端缓存并通知当前 client 数据 owner 重取；同时 router.refresh RSC | `advertising/ad-analysis/loading.tsx` → `AnalyticsPageLoading` | S；query signature 隔离查询范围，强刷保留当前成功结果；B-nav + B-refresh 待浏览器验证 |
+| `/dashboard/advertising/ad-analysis/targets` | H（服务端入口 + 客户端子树） | callback：清广告客户端缓存并通知当前 client 数据 owner 重取；同时 router.refresh RSC | `advertising/ad-analysis/loading.tsx` → `AnalyticsPageLoading` | S；query signature 隔离查询范围，强刷保留当前成功结果；B-nav + B-refresh 待浏览器验证 |
+| `/dashboard/advertising/ad-analysis/time-trend` | H（服务端入口 + 客户端子树） | callback：清广告客户端缓存并通知当前 client 数据 owner 重取；同时 router.refresh RSC | `advertising/ad-analysis/loading.tsx` → `AnalyticsPageLoading` | S；query signature 隔离查询范围，强刷保留当前成功结果；B-nav + B-refresh 待浏览器验证 |
+| `/dashboard/advertising/ad-analysis/traffic-quality` | H（服务端入口 + 客户端子树） | callback：清广告客户端缓存并通知当前 client 数据 owner 重取；同时 router.refresh RSC | `advertising/ad-analysis/loading.tsx` → `AnalyticsPageLoading` | S；query signature 隔离查询范围，强刷保留当前成功结果；B-nav + B-refresh 待浏览器验证 |
 | `/dashboard/advertising/ad-data` | H（服务端入口 + 客户端子树） | router.refresh fallback | `advertising/loading.tsx` → `AnalyticsPageLoading` | S；B-nav + B-refresh；callback 缺失待 Stage 2 明确契约 |
-| `/dashboard/agent-center/employees` | H（服务端入口 + 客户端子树） | callback：`employees-client.tsx` | `agent-center/loading.tsx` → `SimplePageLoading` | S；B-nav + B-refresh；Simple 卡片骨架与员工页结构待核对 |
-| `/dashboard/agent-center/overview` | H（服务端入口 + 客户端子树） | callback：`agent-overview-client.tsx` | `agent-center/loading.tsx` → `SimplePageLoading` | S；B-nav + B-refresh；概览与 Simple 卡片骨架待核对 |
+| `/dashboard/agent-center/employees` | H（服务端入口 + 客户端子树） | callback：`employees-client.tsx` | `agent-center/employees/loading.tsx` → `AgentTablePageLoading(8 列)` | S；按员工表真实列数建表格骨架；B-nav + B-refresh 未验证 |
+| `/dashboard/agent-center/overview` | H（服务端入口 + 客户端子树） | callback：`agent-overview-client.tsx` | `agent-center/overview/loading.tsx` → `AgentTablePageLoading(11 列)` | S；按业务域活动矩阵真实列数建超宽表骨架；B-nav + B-refresh 未验证 |
 | `/dashboard/ai` | C（客户端页面/请求） | callback：`AIChatWindow` 重取会话列表、当前会话消息与 AI 配置；发送流中不触发刷新 | `ai/loading.tsx` → `SimplePageLoading` | S + A：共享 AIChatWindow callback；B-nav + B-refresh 未验证 |
 | `/dashboard/ai/ad-analysis` | C（客户端页面/请求） | callback：按当前 History/Schedule Tab 刷新其真实数据 owner | `ai/loading.tsx` → `SimplePageLoading` | S + A：活动 Tab owner 已接线；B-nav + B-refresh 未验证 |
 | `/dashboard/ai/chat` | C（客户端页面/请求） | callback：共享 `AIChatWindow` 重取会话列表、当前会话消息与 AI 配置；发送流中不触发刷新 | `ai/chat/loading.tsx` → `ChatPageLoading` | S + A：回归覆盖会话/消息请求与失败保留；B-nav + B-refresh 未验证 |
@@ -44,18 +46,18 @@
 | `/dashboard/ai/digital-employees` | C（客户端页面/请求） | callback：`ai/digital-employees/page.tsx`，调用列表 hook `mutate()` | `ai/digital-employees/loading.tsx` → `SimplePageLoading` | S；Head callback 复用已有强刷；B-nav + B-refresh 未验证，列表/卡片骨架待核对 |
 | `/dashboard/ai/digital-employees/office` | C（SSE 实时流） | callback：重连 SSE 并在首个 snapshot 到达时完成刷新，不重置展示模式/时钟 | `ai/digital-employees/loading.tsx` → `SimplePageLoading` | S；浏览器验证 SSE snapshot 与 callback 反馈未执行 |
 | `/dashboard/ai/digital-employees/[id]` | C（客户端页面/请求） | callback：详情页 `load()` 重取员工及任务，15 秒轮询保留 | `ai/digital-employees/loading.tsx` → `SimplePageLoading` | S；刷新保留旧详情；B-nav + B-refresh 未验证，详情结构与 Simple 骨架待核对 |
-| `/dashboard/ai/insights` | C（客户端页面/请求） | callback：`ai/insights/page.tsx`，按当前项目重取洞察列表 | `ai/insights/loading.tsx` → `AnalyticsPageLoading` | S；callback 桥接洞察列表；B-nav + B-refresh 未验证；分析骨架待浏览器核对 |
+| `/dashboard/ai/insights` | C（客户端页面/请求） | callback：`ai/insights/page.tsx`，按当前项目重取洞察列表 | `ai/insights/loading.tsx` → 洞察工作区/筛选 + 6 列列表骨架 | S；按页面列表主结构修正分析骨架错配；B-nav + B-refresh 未验证 |
 | `/dashboard/ai/inventory-health` | C（客户端页面/请求） | callback：`ai/inventory-health/page.tsx`，强刷项目选项列表，不重置已提交的分析 run | `ai/loading.tsx` → `SimplePageLoading` | S；Head 刷新仅重取读模型，保留当前口径与生成状态；B-nav + B-refresh 未验证；骨架待核对 |
 | `/dashboard/change-password` | C（本地表单；提交时才请求） | 不适用：Head refresh 不重置/重提密码表单，保留未提交输入；无独立读模型 | `change-password/loading.tsx` → `SimplePageLoading` | S；无 client 数据 loader；导航 skeleton B-nav 待验证 |
 | `/dashboard/crm` | 重定向 | router.refresh fallback | `crm/loading.tsx` → `TablePageLoading` | S；B-redirect，目标页再做 B-nav/B-refresh |
 | `/dashboard/crm/audit` | C（客户端页面/请求） | callback：`crm/audit/page.tsx` | `crm/loading.tsx` → `TablePageLoading` | S；B-nav + B-refresh；Table 骨架待与实际筛选/表格比对 |
 | `/dashboard/crm/customers` | C（客户端页面/请求） | callback：`CrmCustomerTable` → `CrmTable/useCrmTable.refresh` | `crm/loading.tsx` → `TablePageLoading` | S + A：客户数据 owner 桥接；B-nav + B-refresh 未验证 |
-| `/dashboard/crm/dashboard` | C（客户端页面/请求） | callback：`crm/dashboard/page.tsx` | `crm/loading.tsx` → `TablePageLoading` | S；B-nav + B-refresh；KPI/漏斗与通用表格骨架存在结构疑点 |
+| `/dashboard/crm/dashboard` | C（客户端页面/请求） | callback：`crm/dashboard/page.tsx` | `crm/dashboard/loading.tsx` → `CrmDashboardPageLoading` | S；新近边界与 KPI/漏斗/负责人业绩/生命周期骨架按页面结构实现；B-nav 未验证 |
 | `/dashboard/crm/follow-ups` | C（客户端页面/请求） | callback：`CrmFollowUpList`，重取当前 scope 跟进分组 | `crm/loading.tsx` → `TablePageLoading` | S + A：数据 owner 桥接；B-nav + B-refresh 未验证 |
 | `/dashboard/crm/leads` | C（客户端页面/请求） | callback：`CrmLeadTable` → `CrmTable/useCrmTable.refresh` | `crm/loading.tsx` → `TablePageLoading` | S + A：线索数据 owner 桥接；B-nav + B-refresh 未验证 |
 | `/dashboard/crm/sea` | C（客户端页面/请求） | callback：`CrmSeaTable` → `CrmTable/useCrmTable.refresh` | `crm/loading.tsx` → `TablePageLoading` | S + A：公海客户数据重取，不重置导入/选择状态；B-nav + B-refresh 未验证 |
 | `/dashboard/crm/settings` | C（客户端页面/请求） | callback：`crm/settings/page.tsx`，重取工作流设置而保留未提交天数输入 | `crm/loading.tsx` → `TablePageLoading` | S + A：Head refresh 回归覆盖设置重取与本地草稿保留；B-nav + B-refresh 未验证 |
-| `/dashboard/crm/tasks` | C（客户端页面/请求） | callback：`crm/tasks/page.tsx`，直接调用 `load()`，保留类型/视图筛选 | `crm/loading.tsx` → `TablePageLoading` | S + A：callback 请求和筛选保留、失败保留旧任务有 Vitest 覆盖；B-nav + B-refresh 未执行；Table 骨架与看板/列表明显待核对 |
+| `/dashboard/crm/tasks` | C（客户端页面/请求） | callback：`crm/tasks/page.tsx`，直接调用 `load()`，保留类型/视图筛选 | `crm/tasks/loading.tsx` → `CrmTaskBoardPageLoading`（工具行 + 三列任务看板） | S + A：Head 请求/筛选保留/失败保留旧任务有测试；专用初载骨架结构回归本轮通过；B-nav + B-refresh 未执行 |
 | `/dashboard/crm/workbench` | 重定向 | router.refresh fallback | `crm/loading.tsx` → `TablePageLoading` | S；B-redirect，目标页再做 B-nav/B-refresh |
 | `/dashboard/feature-updates` | C（静态常量内容） | 不适用：版本说明随应用发布，不存在客户端读请求 | `feature-updates/loading.tsx` → `SimplePageLoading` | S；静态内容，骨架 B-nav 待验证 |
 | `/dashboard/finance/commission-management` | C（客户端页面/请求） | callback：`finance/commission-management/page.tsx` | `finance/loading.tsx` → `TablePageLoading` | S；B-nav + B-refresh；多面板/汇总骨架待逐视图核对 |
@@ -64,30 +66,30 @@
 | `/dashboard/finance/vat-invoice` | H（服务端入口 + 客户端子树） | router.refresh fallback | `finance/loading.tsx` → `TablePageLoading` | S；B-nav + B-refresh；RSC refresh 是否带动客户端请求待验证；Stage 2 明确契约 |
 | `/dashboard/finance/vat-invoices` | 重定向 | router.refresh fallback | `finance/loading.tsx` → `TablePageLoading` | S；B-redirect，目标页再做 B-nav/B-refresh |
 | `/dashboard/operations/complaint-center` | H（服务端入口 + 客户端子树） | callback：`complaint-center-client.tsx` | `operations/loading.tsx` → `AnalyticsPageLoading` | S；B-nav + B-refresh；分析骨架与客诉工作区逐屏核对 |
-| `/dashboard/operations/complaint-center/list` | H（服务端入口 + 客户端子树） | callback：`complaint-list-client.tsx` | `operations/loading.tsx` → `AnalyticsPageLoading` | S；B-nav + B-refresh；列表页与 Analytics 骨架疑似不匹配 |
+| `/dashboard/operations/complaint-center/list` | H（服务端入口 + 客户端子树） | callback：`complaint-list-client.tsx` | `operations/complaint-center/list/loading.tsx` → `ComplaintListPageLoading` | S；按 7 列列表与筛选占位修正；B-nav + B-refresh 未验证 |
 | `/dashboard/operations/daily-analysis` | H（服务端入口 + 客户端子树） | callback：`daily-analysis-client.tsx` | `operations/loading.tsx` → `AnalyticsPageLoading` | S；B-nav + B-refresh；需核对实际首屏筛选/指标/表格比例 |
 | `/dashboard/operations/inventory-analysis` | H（服务端入口 + 客户端子树） | callback：`inventory-analysis-client.tsx` | `operations/loading.tsx` → `AnalyticsPageLoading` | S；B-nav + B-refresh；需核对筛选/库存表结构 |
-| `/dashboard/operations/inventory-ledger` | H（服务端入口 + 客户端子树） | callback：`inventory-ledger-client.tsx` | `operations/loading.tsx` → `AnalyticsPageLoading` | S；B-nav + B-refresh；台账表格与 Analytics 骨架明显待核对 |
-| `/dashboard/operations/inventory-replenishment` | H（服务端入口 + 客户端子树） | callback：`inventory-replenishment-client.tsx` | `operations/loading.tsx` → `AnalyticsPageLoading` | S；B-nav + B-refresh；cockpit/日历/表格与 Analytics 骨架待核对 |
-| `/dashboard/operations/platform-inspection` | H（服务端入口 + 客户端子树） | callback：`inspection-client.tsx` | `operations/loading.tsx` → `AnalyticsPageLoading` | S；B-nav + B-refresh；巡检卡片/表单与 Analytics 骨架待核对 |
+| `/dashboard/operations/inventory-ledger` | H（服务端入口 + 客户端子树） | callback：`inventory-ledger-client.tsx` | `operations/inventory-ledger/loading.tsx` → `InventoryLedgerPageLoading` | S；专用骨架含 6 控件、KPI、四分图表区、Tab 与明细表；B-nav + B-refresh 未验证 |
+| `/dashboard/operations/inventory-replenishment` | H（服务端入口 + 客户端子树） | callback：`inventory-replenishment-client.tsx` | `operations/inventory-replenishment/loading.tsx` → `InventoryReplenishmentPageLoading` | S；Tab、指标、图表和宽表专用组合；B-nav + B-refresh 未验证 |
+| `/dashboard/operations/platform-inspection` | H（服务端入口 + 客户端子树） | callback：`inspection-client.tsx` | `operations/platform-inspection/loading.tsx` → `PlatformInspectionPageLoading` | S；活动 Tab、状态卡与巡检表单/历史表专用结构；B-nav + B-refresh 未验证 |
 | `/dashboard/operations/portfolio-overview` | C（客户端页面/请求） | callback：`portfolio-overview-client.tsx` | `operations/loading.tsx` → `AnalyticsPageLoading` | S；B-nav + B-refresh；图表概览与 Analytics 骨架待核对 |
-| `/dashboard/operations/project-goals` | C（客户端页面/请求） | callback：`project-goals/page.tsx` | `operations/loading.tsx` → `AnalyticsPageLoading` | S；B-nav + B-refresh；目标卡片/图表与 Analytics 骨架待核对 |
-| `/dashboard/operations/project-launch` | H（服务端入口 + 客户端子树） | callback：`project-launch-client.tsx` | `operations/loading.tsx` → `AnalyticsPageLoading` | S；B-nav + B-refresh；流程管理结构与 Analytics 骨架存在疑点 |
-| `/dashboard/operations/project-launch/templates` | H（服务端入口 + client 编辑器） | callback：重取模板列表及当前选中详情，保留编辑草稿并刷新保存后的详情 | `operations/loading.tsx` → `AnalyticsPageLoading` | S + A：编辑器 callback 已接线；详情替换草稿语义与浏览器刷新待验证 |
+| `/dashboard/operations/project-goals` | C（客户端页面/请求） | callback：`project-goals/page.tsx` | `operations/project-goals/loading.tsx` → `ProjectGoalsPageLoading` | S；筛选、KPI、图表、Tab 与表格专用组合；B-nav + B-refresh 未验证 |
+| `/dashboard/operations/project-launch` | H（服务端入口 + 客户端子树） | callback：`project-launch-client.tsx` | `operations/project-launch/loading.tsx` → `ProjectLaunchPageLoading` | S；项目列表 + 详情/流程 Tab 专用双栏骨架；B-nav + B-refresh 未验证 |
+| `/dashboard/operations/project-launch/templates` | H（服务端入口 + client 编辑器） | callback：重取模板列表及当前选中详情，保留编辑草稿并刷新保存后的详情 | `operations/project-launch/templates/loading.tsx` → `WorkflowTemplateEditorPageLoading` | S + A：目录/编辑区双栏骨架和既有编辑器测试；浏览器刷新与未保存草稿语义待验证 |
 | `/dashboard/operations/research-analysis` | C（客户端页面/请求） | callback：按当前关键词/数据集重取概览与趋势 owner | `operations/loading.tsx` → `AnalyticsPageLoading` | S + A：读数据 owner callback 已接线；浏览器刷新与骨架待验证 |
 | `/dashboard/operations/return-analysis` | H（服务端入口 + 客户端子树） | callback：`return-analysis-client.tsx` | `operations/loading.tsx` → `AnalyticsPageLoading` | S；B-nav + B-refresh；需核对筛选/多表格/导出区域骨架 |
 | `/dashboard/operations/seasonal-replenishment` | H（服务端入口 + 客户端子树） | callback：`seasonal-replenishment-client.tsx` | `operations/loading.tsx` → `AnalyticsPageLoading` | S；B-nav + B-refresh；补货列表/表格与 Analytics 骨架待核对 |
-| `/dashboard/operations/shipment-management` | C（客户端页面/请求） | callback：`shipment-management/page.tsx` | `operations/loading.tsx` → `AnalyticsPageLoading` | S；B-nav + B-refresh；多 tab/表格工作区与 Analytics 骨架待核对 |
-| `/dashboard/operations/shipping-plan` | H（服务端入口 + client 规划表） | callback：`reload()` 强刷当前项目/国家 scope | `operations/loading.tsx` → `AnalyticsPageLoading` | S + A：当前 scope owner callback；浏览器刷新与骨架待验证 |
-| `/dashboard/operations/site-navigation` | RSC（服务端/静态） | router.refresh fallback（无业务数据 callback） | `operations/loading.tsx` → `AnalyticsPageLoading` | S；B-nav + B-readonly；静态卡片网格与 Analytics 骨架明显待核对；明确“不适用”或静态刷新 |
-| `/dashboard/operations/sku-info` | C（客户端页面/请求） | callback：`sku-info/page.tsx` | `operations/loading.tsx` → `AnalyticsPageLoading` | S；B-nav + B-refresh；SKU 表格/工具栏与 Analytics 骨架明显待核对 |
+| `/dashboard/operations/shipment-management` | C（客户端页面/请求） | callback：`shipment-management/page.tsx` | `operations/shipment-management/loading.tsx` → `ShipmentManagementPageLoading` | S；四个工作 Tab、操作工具栏与 10 列表格占位；B-nav + B-refresh 未验证 |
+| `/dashboard/operations/shipping-plan` | H（服务端入口 + client 规划表） | callback：`reload()` 强刷当前项目/国家 scope | `operations/shipping-plan/loading.tsx` → `ShippingPlanPageLoading` | S + A：首屏 KPI、SKU 预测清单与表单双栏骨架；浏览器导航/刷新待验证 |
+| `/dashboard/operations/site-navigation` | RSC（服务端/静态） | router.refresh fallback（无业务数据 callback） | `operations/site-navigation/loading.tsx` → `OperationsNavigationPageLoading` | S；三项概览 + 分组外链卡片网格专用骨架；RSC 可感知刷新意义/B-nav 待浏览器确认 |
+| `/dashboard/operations/sku-info` | C（客户端页面/请求） | callback：`sku-info/page.tsx` | `operations/sku-info/loading.tsx` → `SkuInfoPageLoading` | S；六个 Tab、查询栏、9 列宽表占位专用骨架；B-nav + B-refresh 未验证 |
 | `/dashboard/operations/store-navigation` | C（客户端页面/请求） | callback：`store-navigation/page.tsx` | `operations/loading.tsx` → `AnalyticsPageLoading` | S；B-nav + B-refresh；店铺导航与 Analytics 骨架待核对 |
 | `/dashboard/operations/weekly-product-analysis` | H（服务端入口 + 客户端子树） | callback：`weekly-product-analysis-client.tsx` | `operations/loading.tsx` → `AnalyticsPageLoading` | S；B-nav + B-refresh；需核对实际周分析图表/表格布局 |
 | `/dashboard` | C（客户端页面/请求） | callback：`app/dashboard/page.tsx` | `dashboard/loading.tsx` → `DashboardV2Loading`（内联） | S；B-nav + B-refresh；按首页图表/指标骨架实测；另有既有首页单测但本阶段未运行 |
 | `/dashboard/profile` | H（服务端入口 + 客户端子树） | router.refresh fallback | `profile/loading.tsx` → `ProfileInfoSkeleton`（内联） | S；B-nav + B-refresh；client 请求是否随 RSC 刷新待核对，callback 缺失 |
 | `/dashboard/reports/auto-upload` | C（状态矩阵 + 上传流程） | callback：按活动 Tab 刷新当前日期/站点状态，或强刷项目选项；不清上传队列、识别/提交进度 | `reports/loading.tsx` → `TablePageLoading` | S + A：当前状态视图请求回归；浏览器点击与上传 Tab 验证未执行 |
 | `/dashboard/reports/monthly-report/display` | H（服务端入口 + 客户端子树） | callback：`display-client.tsx` | `reports/loading.tsx` → `TablePageLoading` | S；B-nav + B-refresh；核对报告展示/表格实际结构 |
-| `/dashboard/reports/monthly-report/generate` | H（服务端入口 + 客户端子树） | router.refresh fallback；页面注释说明无刷新语义 | `reports/loading.tsx` → `TablePageLoading` | S；B-nav；检查生成表单/上传反馈骨架；Head 行为须明确“不适用”或定义恢复语义 |
+| `/dashboard/reports/monthly-report/generate` | H（client 上传/生成工作流；入口仅提供 dynamic 路由） | 不适用：保留本地文件、映射、上传和任务进度；无独立读列表 | `reports/monthly-report/generate/loading.tsx` → `MonthlyReportGeneratePageLoading` | S；左侧文件/上传 + 右侧任务进度专用骨架；B-nav 待验证 |
 | `/dashboard/reports/monthly-report/reconcile` | C（客户端页面/请求） | callback：`reconcile/page.tsx` | `reports/loading.tsx` → `TablePageLoading` | S；B-nav + B-refresh；对账布局与表格骨架核对 |
 | `/dashboard/reports/order-info` | C（客户端页面/请求） | callback：`order-info/page.tsx` | `reports/loading.tsx` → `TablePageLoading` | S；B-nav + B-refresh；可验证代表路由：确认请求、筛选保留和数据更新 |
 | `/dashboard/reports/pricing-calculation` | 重定向 | router.refresh fallback | `reports/loading.tsx` → `TablePageLoading` | S；B-redirect，目标页再做 B-nav/B-refresh |
@@ -124,6 +126,10 @@
 5. 失败时停止 busy、保留既有数据和筛选，向用户提供可理解的错误反馈/重试入口；不得只写 console、静默清空旧数据或留下未处理 rejection。Stage 4 再统一 live announcement、主题 token 与 reduced-motion。
 6. 初次路由加载与数据已有时的手动刷新分开：初载可展示与主体同构的 skeleton；手动刷新优先保留可读旧内容并展示局部 busy/progress，不应用路由 loading 骨架遮盖页面，除非明确设计并验证。
 
+### 已知缓存限制
+
+广告分析 Head 强刷会清除浏览器端广告缓存并通知当前 client 数据 owner 重取，但 `/api/v1/ad-analysis/*` 服务端代理仍使用 30 秒 `unstable_cache`（见 `lib/server/backend-cache.ts`）。因此强刷可能在该 TTL 内仍返回服务端缓存 payload；这是现有跨层缓存策略，不由客户端刷新信号绕过。本 PR 不改服务端契约，后续可另行评估 cache-bypass 或 tag revalidation。
+
 ### 骨架适配验收
 
 - 慢速网络下从邻接路由导航进入，确认最近 `loading.tsx` 是否真的出现；对照页面第一屏的标题、筛选器、卡片/图表/看板/表格列数与响应式排列检查形态和占位尺寸。
@@ -134,7 +140,7 @@
 
 Stage 1 的 51 条 C/H + fallback 路由及 scheduled-reports 的 3 个 URL 已逐条核对入口/数据 owner。表中路由类型按静态页面形态，以下分类细化 Head 刷新行为：
 
-- **服务端/RSC 刷新候选（不是已验证完成）**：`/dashboard/advertising/ad-analysis/{budget,campaigns,overview,placements,products,purchased-products,search-terms,targets,time-trend,traffic-quality}`、`/dashboard/advertising/ad-data`、`/dashboard/ai/believeboy-models`、`/dashboard/finance/vat-invoice`、`/dashboard/profile`、`/dashboard/reports/pricing-calculation/new-product`、`/dashboard/reports/pricing-calculation/shop-calculation` 的路由入口是 RSC/server props 或由其加载 client subtree；这是 fallback 应触发 server route refresh 的候选，但是否重取真实服务端 payload 仍须浏览器网络验证。`/dashboard/operations/project-launch/templates` 的 client 编辑器已接 callback：刷新模板列表及当前选中详情，保留本地编辑草稿（详情更新会替换当前所选 template 内容，此语义仍待确认/浏览器验证）。`/dashboard/operations/shipping-plan` 主数据由 client `reload()` 强刷当前项目/国家 scope。
+- **服务端/RSC 刷新候选（不是已验证完成）**：`/dashboard/advertising/ad-data`、`/dashboard/ai/believeboy-models`、`/dashboard/finance/vat-invoice`、`/dashboard/profile`、`/dashboard/reports/pricing-calculation/new-product`、`/dashboard/reports/pricing-calculation/shop-calculation` 的路由入口是 RSC/server props 或由其加载 client subtree；这是 fallback 应触发 server route refresh 的候选，但是否重取真实服务端 payload 仍须浏览器网络验证。广告分析十个子路由已由 Head callback 清客户端缓存并通知其实际 client 数据 owner 重取，同时保留 `router.refresh()` 处理 RSC 内容；其客户端查询签名区分新筛选与同范围强刷，浏览器端缓存仍待网络验证。`/dashboard/operations/project-launch/templates` 的 client 编辑器已接 callback：刷新模板列表及当前选中详情，保留本地编辑草稿（详情更新会替换当前所选 template 内容，此语义仍待确认/浏览器验证）。`/dashboard/operations/shipping-plan` 主数据由 client `reload()` 强刷当前项目/国家 scope。
 - **静态/流程状态契约候选（已按 client 数据 owner 细化；浏览器仍未验证）**：`/dashboard/ai` 与 `/dashboard/ai/chat` 共用 `AIChatWindow` callback，重取会话列表、当前会话消息与 AI 配置，避免中断正在进行的流；`/dashboard/ai/customer-service` callback 强刷场景配置并保留仍有效的场景选择及草稿；`/dashboard/ai/digital-employees/office` callback 重连 SSE，并等首个 snapshot 同步实时状态，不重置展示/投屏模式；`/dashboard/reports/auto-upload` 只刷新当前活动视图的数据（RPA 状态矩阵重取当前日期/站点，上传 Tab 只强刷项目选项），不清队列/识别/上传进度；`/dashboard/tools/page-render` 只强刷历史列表，保留本地预览与待上传草稿。`/dashboard/change-password`（仅本地表单）、`/dashboard/feature-updates`（静态发布说明）、`/dashboard/reports/monthly-report/generate`（上传/生成工作流）、`/dashboard/system/changelog`（服务端 changelog snapshot）、`/dashboard/table-showcase`（静态组件示例）、`/dashboard/tools/brand-registration-example`（静态参考页）、`/dashboard/tools/markdown-to-word`（本地编辑/转换）及 `/dashboard/tools/product-label`（标签编辑/生成流程）仍采用 RSC fallback/不修改本地内容；本轮未做浏览器验证，需后续实际确认其 RSC 行为及不适用边界。
 - **Stage 2 初始静态盘点（23 条缺口）**：最初确认 `/dashboard/ai/ad-analysis`、`/dashboard/ai/digital-employees`、`/dashboard/ai/digital-employees/[id]`、`/dashboard/ai/insights`、`/dashboard/ai/inventory-health`、`/dashboard/crm/customers`、`/dashboard/crm/follow-ups`、`/dashboard/crm/leads`、`/dashboard/crm/sea`、`/dashboard/crm/settings`、`/dashboard/operations/project-launch/templates`、`/dashboard/operations/research-analysis`、`/dashboard/operations/shipping-plan`、`/dashboard/reports/product-analysis`、`/dashboard/reports/scheduled-reports`、`/dashboard/reports/scheduled-reports/ledger`、`/dashboard/reports/scheduled-reports/subscriptions`、`/dashboard/system/account-management`、`/dashboard/system/alerts`、`/dashboard/system/data-management`、`/dashboard/system/digital-display`、`/dashboard/system/logs`、`/dashboard/system/project-info` 存在客户端读数据而无 callback。Stage 2 后续修复情况见下方状态；CRM customers/leads owner 为共享 `CrmTable/useCrmTable`，follow-ups 为 `CrmFollowUpList`，公海为 `CrmSeaTable`，均已桥接到实际数据 owner。
 - **需确认非数据流程契约的边界**：`/dashboard/ai/digital-employees/office` 的页面数据为 SSE snapshot/chatter；刷新仅重连实时通道并等待 snapshot，不应重置投屏/时钟状态。`/dashboard/ai`、`/dashboard/ai/chat` 共用会话数据 owner；发送期间忽略手动刷新以免打断流。`/dashboard/ai/ad-analysis` 有子组件/列表刷新路径，`ai/insights` 有客户端 list loader，均已列入 23 条缺口。

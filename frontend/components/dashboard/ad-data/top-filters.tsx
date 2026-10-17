@@ -25,6 +25,7 @@ import {
   useHeaderSlot,
   useMobileFilterStrip,
 } from '@/components/terminal/terminal-header-slot'
+import { requestAdClientRefresh } from '@/components/dashboard/ad-refresh'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 
 type ProjectOption = {
@@ -116,8 +117,12 @@ export function AdDataTopFilters() {
     router.replace(buildHref(pathname, next), { scroll: false })
   }
 
-  // 全局刷新语义：重放当前 URL 筛选下的拉取（router.replace 同 href 触发 explorer 重取）。
-  useHeaderRefresh(() => router.refresh())
+  // 数据由已挂载的 explorer client effects 读取；RSC refresh 不会强制它们绕过缓存。
+  // 先清用户域缓存并通知数据 owner 重取，保留当前筛选、搜索与视图状态。
+  useHeaderRefresh(() => {
+    requestAdClientRefresh()
+    router.refresh()
+  })
 
   // Desktop controls using shared HeaderSlot atoms
   const desktopControls = (

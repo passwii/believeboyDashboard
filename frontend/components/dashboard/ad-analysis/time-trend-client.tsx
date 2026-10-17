@@ -10,6 +10,8 @@ import { TermPanel } from '@/components/terminal/term-panel'
 import { TermKpiTile } from '@/components/terminal/term-controls'
 import { EmptyState } from '@/components/ui/empty-state'
 import { DeferredSection } from '@/components/dashboard/deferred-section'
+import { useAdClientRefreshKey } from '@/components/dashboard/ad-refresh'
+import { TermRefreshStatus } from '@/components/dashboard/ad-analysis/term-chrome'
 import { fetchAdAnalysisCached } from '@/lib/ad-client-cache'
 import { cn } from '@/lib/utils'
 import {
@@ -56,19 +58,31 @@ export function AdAnalysisTimeTrendClient() {
   const dateTo = searchParams.get('dateTo') || ''
   const focusDate = searchParams.get('focusDate') || ''
 
-  const [data, setData] = useState<TimeTrendResponse | null>(null)
+  const [dataResult, setDataResult] = useState<{ signature: string; value: TimeTrendResponse } | null>(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [errorResult, setErrorResult] = useState<{ signature: string; message: string } | null>(null)
+  const refreshKey = useAdClientRefreshKey()
+  const sessionUser = session?.user as
+    | { id?: string | null; roleType?: string | null; operatorNameZh?: string | null }
+    | undefined
+  const querySignature = JSON.stringify([
+    projectId, country, dateFrom, dateTo,
+    sessionUser?.id ?? null, sessionUser?.roleType ?? null, sessionUser?.operatorNameZh ?? null,
+  ])
+  const data = dataResult?.signature === querySignature ? dataResult.value : null
+  const error = errorResult?.signature === querySignature ? errorResult.message : null
+  const isLoading = loading || (Boolean(projectId) && status !== 'loading' && !data && !error)
 
   useEffect(() => {
     if (!projectId) return
     // BEL-421: cache key is user-scoped; wait for session to avoid an unknown-scope double fetch
     if (status === 'loading') return
     let active = true
+    setDataResult((current) => current?.signature === querySignature ? current : null)
+    setErrorResult(null)
 
     async function load() {
       setLoading(true)
-      setError(null)
       try {
         const query = new URLSearchParams({
           project_id: projectId,
@@ -78,9 +92,14 @@ export function AdAnalysisTimeTrendClient() {
         if (dateTo) query.set('date_to', dateTo)
         // BEL-421: 2-min client cache — repeat mounts within TTL make 0 requests
         const payload = await fetchAdAnalysisCached<TimeTrendResponse>('time-trend', query, session)
-        if (active) setData(payload)
+        if (active) setDataResult({ signature: querySignature, value: payload })
       } catch (fetchError) {
-        if (active) setError(fetchError instanceof Error ? fetchError.message : '趋势分析加载失败')
+        if (active) {
+          setErrorResult({
+            signature: querySignature,
+            message: fetchError instanceof Error ? fetchError.message : '趋势分析加载失败',
+          })
+        }
       } finally {
         if (active) setLoading(false)
       }
@@ -90,25 +109,33 @@ export function AdAnalysisTimeTrendClient() {
     return () => {
       active = false
     }
-  }, [country, dateFrom, dateTo, projectId, session, status])
+  }, [country, dateFrom, dateTo, projectId, querySignature, session, status, refreshKey])
 
   if (!projectId) return <EmptyState rowHeight="lg" message="请先选择项目。" />
-  if (loading) return <EmptyState rowHeight="lg" message="正在加载趋势分析..." />
-  if (error) {
+  if (isLoading && !data) return <EmptyState rowHeight="lg" message="正在加载趋势分析..." />
+  if (error && !data) {
     return (
       <div className="border border-term-neg/50 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
         ERR · {error}
       </div>
     )
   }
-  if (!data || data.summary.length === 0)
-    return <EmptyState rowHeight="lg" message="当前没有趋势数据。" />
+  if (!data) return <EmptyState rowHeight="lg" message="当前没有趋势数据。" />
+  if (data.summary.length === 0) {
+    return (
+      <>
+        <TermRefreshStatus loading={loading} error={error} hasData />
+        <EmptyState rowHeight="lg" message="当前没有趋势数据。" />
+      </>
+    )
+  }
 
   const latest = data.summary[data.summary.length - 1]
   const comparison = data.comparison
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
+      <TermRefreshStatus loading={loading} error={error} hasData />
       <AdAnalysisContextBanner
         items={focusDate ? [{ label: '当前聚焦日期', value: focusDate }] : []}
       />

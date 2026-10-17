@@ -13,7 +13,7 @@ import {
   YAxis,
 } from 'recharts'
 
-import { TermErrorBar, TermGridHeader, TermMetricTile } from '@/components/dashboard/ad-analysis/term-chrome'
+import { TermGridHeader, TermMetricTile, TermRefreshStatus } from '@/components/dashboard/ad-analysis/term-chrome'
 import {
   TermBody,
   TermCell,
@@ -30,6 +30,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from '@/components/ui/chart'
+import { useAdClientRefreshKey } from '@/components/dashboard/ad-refresh'
 import { fetchAdAnalysisCached } from '@/lib/ad-client-cache'
 import {
   buildAnalysisDrillHref,
@@ -141,9 +142,31 @@ export function AdAnalysisOverviewClient() {
   const dateFrom = searchParams.get('dateFrom') || ''
   const dateTo = searchParams.get('dateTo') || ''
 
-  const [data, setData] = useState<OverviewResponse | null>(null)
+  const [dataResult, setDataResult] = useState<{
+    signature: string
+    value: OverviewResponse
+  } | null>(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [errorResult, setErrorResult] = useState<{ signature: string; message: string } | null>(null)
+  const refreshKey = useAdClientRefreshKey()
+  const sessionUser = session?.user as
+    | { id?: string | null; roleType?: string | null; operatorNameZh?: string | null }
+    | undefined
+  const querySignature = JSON.stringify([
+    projectId,
+    country,
+    dateFrom,
+    dateTo,
+    sessionUser?.id ?? null,
+    sessionUser?.roleType ?? null,
+    sessionUser?.operatorNameZh ?? null,
+  ])
+  // Header refresh keeps the same query signature; changed filters immediately hide stale data.
+  const data = dataResult?.signature === querySignature ? dataResult.value : null
+  const error = errorResult?.signature === querySignature ? errorResult.message : null
+  const isLoading = loading || (
+    Boolean(projectId) && status !== 'loading' && !data && !error
+  )
 
   useEffect(() => {
     if (!projectId) return
@@ -151,10 +174,11 @@ export function AdAnalysisOverviewClient() {
     // 避免先以 unknown 域取一次、session 到位后再取一次的双请求。
     if (status === 'loading') return
     let active = true
+    setDataResult((current) => current?.signature === querySignature ? current : null)
+    setErrorResult(null)
 
     async function load() {
       setLoading(true)
-      setError(null)
       try {
         const query = new URLSearchParams({
           project_id: projectId,
@@ -164,10 +188,13 @@ export function AdAnalysisOverviewClient() {
         if (dateTo) query.set('date_to', dateTo)
         // BEL-421：客户端缓存（2min TTL）——2 分钟内重复 mount 0 请求。
         const payload = await fetchAdAnalysisCached<OverviewResponse>('overview', query, session)
-        if (active) setData(payload)
+        if (active) setDataResult({ signature: querySignature, value: payload })
       } catch (fetchError) {
         if (active) {
-          setError(fetchError instanceof Error ? fetchError.message : '广告总览加载失败')
+          setErrorResult({
+            signature: querySignature,
+            message: fetchError instanceof Error ? fetchError.message : '广告总览加载失败',
+          })
         }
       } finally {
         if (active) setLoading(false)
@@ -178,7 +205,7 @@ export function AdAnalysisOverviewClient() {
     return () => {
       active = false
     }
-  }, [country, dateFrom, dateTo, projectId, session, status])
+  }, [country, dateFrom, dateTo, projectId, querySignature, session, status, refreshKey])
 
   // ===== 派生数据：趋势图 / 站点分布 =====
 
@@ -242,11 +269,11 @@ export function AdAnalysisOverviewClient() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-1.5">
-      <TermErrorBar message={error} />
+      <TermRefreshStatus loading={isLoading} error={error} hasData={Boolean(data)} />
 
       {/* ===== KPI 等宽磁贴带（范围 3）：等宽网格 + 同比环比语义色 ===== */}
       <div className="grid shrink-0 grid-cols-2 gap-1 sm:grid-cols-4 xl:grid-cols-8">
-        {loading && metrics.length === 0
+        {isLoading && metrics.length === 0
           ? Array.from({ length: 8 }).map((_, i) => (
               <div key={`kpi-skeleton-${i}`} className="border border-term-border bg-term-panel px-2 py-1.5">
                 <Skeleton className="h-3 w-12 rounded-none" />
@@ -351,7 +378,7 @@ export function AdAnalysisOverviewClient() {
           meta={data ? `${data.top_campaigns.length + data.top_products.length + data.top_waste_terms.length} groups` : undefined}
         />
         <div className="min-h-0 flex-1 overflow-auto overscroll-contain term-scroll">
-          {loading && !data ? (
+          {isLoading && !data ? (
             <SkeletonRows />
           ) : data ? (
             <TermTable aria-label="广告总览明细">

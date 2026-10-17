@@ -13,6 +13,8 @@ import { TermPanel } from '@/components/terminal/term-panel'
 import { TermKpiTile, TermPill } from '@/components/terminal/term-controls'
 import { EmptyState } from '@/components/ui/empty-state'
 import { DeferredSection } from '@/components/dashboard/deferred-section'
+import { useAdClientRefreshKey } from '@/components/dashboard/ad-refresh'
+import { TermRefreshStatus } from '@/components/dashboard/ad-analysis/term-chrome'
 import { fetchAdAnalysisCached } from '@/lib/ad-client-cache'
 import { cn } from '@/lib/utils'
 import {
@@ -73,19 +75,31 @@ export function AdAnalysisProductsClient() {
   const skuFilter = searchParams.get('sku') || ''
   const campaignFilter = searchParams.get('campaign') || ''
 
-  const [data, setData] = useState<ProductResponse | null>(null)
+  const [dataResult, setDataResult] = useState<{ signature: string; value: ProductResponse } | null>(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [errorResult, setErrorResult] = useState<{ signature: string; message: string } | null>(null)
+  const refreshKey = useAdClientRefreshKey()
+  const sessionUser = session?.user as
+    | { id?: string | null; roleType?: string | null; operatorNameZh?: string | null }
+    | undefined
+  const querySignature = JSON.stringify([
+    projectId, country, dateFrom, dateTo, campaignFilter, skuFilter,
+    sessionUser?.id ?? null, sessionUser?.roleType ?? null, sessionUser?.operatorNameZh ?? null,
+  ])
+  const data = dataResult?.signature === querySignature ? dataResult.value : null
+  const error = errorResult?.signature === querySignature ? errorResult.message : null
+  const isLoading = loading || (Boolean(projectId) && status !== 'loading' && !data && !error)
 
   useEffect(() => {
     if (!projectId) return
     // BEL-421: cache key is user-scoped; wait for session to avoid an unknown-scope double fetch
     if (status === 'loading') return
     let active = true
+    setDataResult((current) => current?.signature === querySignature ? current : null)
+    setErrorResult(null)
 
     async function load() {
       setLoading(true)
-      setError(null)
       try {
         const query = new URLSearchParams({
           project_id: projectId,
@@ -97,9 +111,14 @@ export function AdAnalysisProductsClient() {
         if (skuFilter) query.set('sku', skuFilter)
         // BEL-421: 2-min client cache — repeat mounts within TTL make 0 requests
         const payload = await fetchAdAnalysisCached<ProductResponse>('products', query, session)
-        if (active) setData(payload)
+        if (active) setDataResult({ signature: querySignature, value: payload })
       } catch (fetchError) {
-        if (active) setError(fetchError instanceof Error ? fetchError.message : 'SKU 分析加载失败')
+        if (active) {
+          setErrorResult({
+            signature: querySignature,
+            message: fetchError instanceof Error ? fetchError.message : 'SKU 分析加载失败',
+          })
+        }
       } finally {
         if (active) setLoading(false)
       }
@@ -109,30 +128,43 @@ export function AdAnalysisProductsClient() {
     return () => {
       active = false
     }
-  }, [campaignFilter, country, dateFrom, dateTo, projectId, session, skuFilter, status])
+  }, [campaignFilter, country, dateFrom, dateTo, projectId, querySignature, session, skuFilter, status, refreshKey])
 
   if (!projectId) return <EmptyState rowHeight="lg" message="请先选择项目。" />
-  if (loading) return <EmptyState rowHeight="lg" message="正在加载 SKU 分析..." />
-  if (error) {
+  if (isLoading && !data) return <EmptyState rowHeight="lg" message="正在加载 SKU 分析..." />
+  if (error && !data) {
     return (
       <div className="border border-term-neg/50 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
         ERR · {error}
       </div>
     )
   }
-  if (!data || data.items.length === 0)
-    return <EmptyState rowHeight="lg" message="当前没有推广商品明细。" />
+  if (!data) return <EmptyState rowHeight="lg" message="当前没有推广商品明细。" />
+  if (data.items.length === 0) {
+    return (
+      <>
+        <TermRefreshStatus loading={loading} error={error} hasData />
+        <EmptyState rowHeight="lg" message="当前没有推广商品明细。" />
+      </>
+    )
+  }
 
   const filteredItems = skuFilter
     ? data.items.filter((item) => item.ad_sku.toLowerCase().includes(skuFilter.toLowerCase()))
     : data.items
 
   if (filteredItems.length === 0) {
-    return <EmptyState rowHeight="lg" message={`当前筛选下没有匹配“${skuFilter}”的 SKU。`} />
+    return (
+      <>
+        <TermRefreshStatus loading={loading} error={error} hasData />
+        <EmptyState rowHeight="lg" message={`当前筛选下没有匹配“${skuFilter}”的 SKU。`} />
+      </>
+    )
   }
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
+      <TermRefreshStatus loading={loading} error={error} hasData />
       <AdAnalysisContextBanner
         items={[
           ...(campaignFilter ? [{ label: '当前活动', value: campaignFilter }] : []),

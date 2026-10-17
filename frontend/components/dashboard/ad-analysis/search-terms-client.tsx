@@ -13,6 +13,8 @@ import { TermKpiTile, TermPill } from '@/components/terminal/term-controls'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { DeferredSection } from '@/components/dashboard/deferred-section'
+import { useAdClientRefreshKey } from '@/components/dashboard/ad-refresh'
+import { TermRefreshStatus } from '@/components/dashboard/ad-analysis/term-chrome'
 import { fetchAdAnalysisCached } from '@/lib/ad-client-cache'
 import { cn } from '@/lib/utils'
 import {
@@ -76,19 +78,31 @@ export function AdAnalysisSearchTermsClient() {
   const campaignFilter = searchParams.get('campaign') || ''
   const skuFilter = searchParams.get('sku') || ''
 
-  const [data, setData] = useState<SearchTermsResponse | null>(null)
+  const [dataResult, setDataResult] = useState<{ signature: string; value: SearchTermsResponse } | null>(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [errorResult, setErrorResult] = useState<{ signature: string; message: string } | null>(null)
+  const refreshKey = useAdClientRefreshKey()
+  const sessionUser = session?.user as
+    | { id?: string | null; roleType?: string | null; operatorNameZh?: string | null }
+    | undefined
+  const querySignature = JSON.stringify([
+    projectId, country, dateFrom, dateTo, campaignFilter, searchTermFilter, skuFilter,
+    sessionUser?.id ?? null, sessionUser?.roleType ?? null, sessionUser?.operatorNameZh ?? null,
+  ])
+  const data = dataResult?.signature === querySignature ? dataResult.value : null
+  const error = errorResult?.signature === querySignature ? errorResult.message : null
+  const isLoading = loading || (Boolean(projectId) && status !== 'loading' && !data && !error)
 
   useEffect(() => {
     if (!projectId) return
     // BEL-421: cache key is user-scoped; wait for session to avoid an unknown-scope double fetch
     if (status === 'loading') return
     let active = true
+    setDataResult((current) => current?.signature === querySignature ? current : null)
+    setErrorResult(null)
 
     async function load() {
       setLoading(true)
-      setError(null)
       try {
         const query = new URLSearchParams({
           project_id: projectId,
@@ -101,10 +115,14 @@ export function AdAnalysisSearchTermsClient() {
         if (skuFilter) query.set('sku', skuFilter)
         // BEL-421: 2-min client cache — repeat mounts within TTL make 0 requests
         const payload = await fetchAdAnalysisCached<SearchTermsResponse>('search-terms', query, session)
-        if (active) setData(payload)
+        if (active) setDataResult({ signature: querySignature, value: payload })
       } catch (fetchError) {
-        if (active)
-          setError(fetchError instanceof Error ? fetchError.message : '搜索词分析加载失败')
+        if (active) {
+          setErrorResult({
+            signature: querySignature,
+            message: fetchError instanceof Error ? fetchError.message : '搜索词分析加载失败',
+          })
+        }
       } finally {
         if (active) setLoading(false)
       }
@@ -114,19 +132,26 @@ export function AdAnalysisSearchTermsClient() {
     return () => {
       active = false
     }
-  }, [campaignFilter, country, dateFrom, dateTo, projectId, searchTermFilter, session, skuFilter, status])
+  }, [campaignFilter, country, dateFrom, dateTo, projectId, querySignature, searchTermFilter, session, skuFilter, status, refreshKey])
 
   if (!projectId) return <EmptyState rowHeight="lg" message="请先选择项目。" />
-  if (loading) return <EmptyState rowHeight="lg" message="正在加载搜索词分析..." />
-  if (error) {
+  if (isLoading && !data) return <EmptyState rowHeight="lg" message="正在加载搜索词分析..." />
+  if (error && !data) {
     return (
       <div className="border border-term-neg/50 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
         ERR · {error}
       </div>
     )
   }
-  if (!data || data.items.length === 0)
-    return <EmptyState rowHeight="lg" message="当前没有搜索词明细。" />
+  if (!data) return <EmptyState rowHeight="lg" message="当前没有搜索词明细。" />
+  if (data.items.length === 0) {
+    return (
+      <>
+        <TermRefreshStatus loading={loading} error={error} hasData />
+        <EmptyState rowHeight="lg" message="当前没有搜索词明细。" />
+      </>
+    )
+  }
 
   const narrativeSections = data.narrative_sections ?? []
 
@@ -138,12 +163,16 @@ export function AdAnalysisSearchTermsClient() {
 
   if (filteredItems.length === 0) {
     return (
-      <EmptyState rowHeight="lg" message={`当前筛选下没有匹配“${searchTermFilter}”的搜索词。`} />
+      <>
+        <TermRefreshStatus loading={loading} error={error} hasData />
+        <EmptyState rowHeight="lg" message={`当前筛选下没有匹配“${searchTermFilter}”的搜索词。`} />
+      </>
     )
   }
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
+      <TermRefreshStatus loading={loading} error={error} hasData />
       <AdAnalysisContextBanner
         items={[
           ...(campaignFilter ? [{ label: '当前活动', value: campaignFilter }] : []),

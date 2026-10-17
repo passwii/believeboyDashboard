@@ -1,7 +1,7 @@
 'use client'
 
 import type * as React from 'react'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, Loader2 } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
@@ -24,6 +24,45 @@ export function TermErrorBar({ message }: { message?: string | null }) {
       <span className="truncate" title={message}>
         ERR · {message}
       </span>
+    </div>
+  )
+}
+
+/** Keep an already-rendered analysis visible while a Header-triggered refresh runs. */
+export function TermRefreshStatus({
+  loading,
+  error,
+  hasData,
+}: {
+  loading: boolean
+  error?: string | null
+  hasData: boolean
+}) {
+  if (!loading && !error) return null
+
+  return (
+    <div className="flex shrink-0 flex-col gap-1">
+      {loading ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-center gap-2 border border-term-border bg-term-panel px-2 py-1 font-mono text-xs text-term-muted"
+        >
+          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+          正在刷新广告分析数据…
+        </div>
+      ) : null}
+      {error ? (
+        <div
+          role="alert"
+          className="flex items-center gap-2 border border-term-neg/50 bg-term-neg/10 px-2 py-1 font-mono text-xs text-term-neg"
+        >
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span className="truncate" title={error}>
+            ERR · {error}{hasData ? ' · 已保留上次成功结果' : ''}
+          </span>
+        </div>
+      ) : null}
     </div>
   )
 }
