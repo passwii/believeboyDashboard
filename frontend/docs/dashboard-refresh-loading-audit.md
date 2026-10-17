@@ -115,7 +115,13 @@
 | `/dashboard/tools/page-render` | H（历史列表 API + 本地编辑/预览） | callback：强刷服务端历史列表，保留文件预览、标题和上传流程 | `tools/page-render/loading.tsx` → `SimplePageLoading` | S + A：历史列表 owner callback；浏览器验证未执行 |
 | `/dashboard/tools/product-label` | H（本地 PDF 文案/生成流程） | 不适用：文件、文案与生成结果均为本地工作流状态，无读模型 | `tools/loading.tsx` → `SimplePageLoading` | S；本地流程，骨架 B-nav 待验证 |
 
-## 统一刷新验收约定（Stage 2–4）
+## Stage 4 收口记录
+
+- **统一刷新状态**：Head 的注册 callback 和 `router.refresh()` fallback 现在均使用 polite live region。异步 callback 的 Promise 结束才播报完成；同步 callback 只播报“请求已发起”，直到页面通过 `useHeaderRefresh().setLoading(false)` 结束可观测加载周期后才报成功。失败时统一提示查看页面现有错误详情并重试，不再重复触发 toast；Header 图标以 term 正/负/强调色给出短暂结果反馈。callback 在途会排重，并在执行期间禁用头部重复刷新。
+- **忙碌区域**：`RefreshProgressBar` 仅标记自己的内容区域 `aria-busy`，刷新内容继续可读可操作；因本轮刷新控制其内操作权限并无普遍必要，已去除整区 opacity/pointer-events 锁定。进度带统一采用 `term-raised` / `term-accent` tokens，reduced-motion 下转为静态完整指示条。
+- **骨架可访问状态**：共享与专用页面骨架改用 `aria-busy` 区域加独立 polite status，避免把 `aria-label` 直接放在普通容器上造成无语义的 accessible name。
+- **Reduced motion**：移除全局把所有 transition 都压至 0.01ms 的规则。保留颜色/边框等短暂状态反馈；停用空间位移、无限 shimmer/loading 动画和 `will-change` 提示。Header spinner 在 reduce 下停转但仍用图标、busy 语义与文案表明进行中。
+- **运行时限制**：未启动已认证 Dashboard 浏览器会话；跨路由慢速导航、真实网络与 callback 点击验证、截图对照、axe/主题实际视觉验证仍未执行。路由级静态盘点与组件自动化不代替浏览器验收。
 
 ### 页面刷新契约
 

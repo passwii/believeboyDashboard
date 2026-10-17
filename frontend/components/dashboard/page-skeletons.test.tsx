@@ -63,12 +63,22 @@ describe('page-skeletons 原子组件', () => {
 })
 
 describe('page-skeletons 组合骨架', () => {
+  it('共享骨架使用 busy 区域和独立的非打断加载播报', () => {
+    const { container } = render(<TablePageLoading />)
+    const region = container.firstElementChild
+
+    expect(region).toHaveAttribute('aria-busy', 'true')
+    expect(region).not.toHaveAttribute('aria-label')
+    expect(screen.getAllByRole('status')).toHaveLength(1)
+    expect(screen.getByRole('status')).toHaveTextContent('页面加载中')
+  })
+
   it('TablePageLoading 渲染 标题/过滤器/表格 三段且标记 aria-busy', () => {
     render(<TablePageLoading />)
     expect(screen.getByTestId('page-skeleton-header')).toBeDefined()
     expect(screen.getByTestId('page-skeleton-filters')).toBeDefined()
     expect(screen.getByTestId('page-skeleton-table')).toBeDefined()
-    expect(screen.getByLabelText('页面加载中')).toBeDefined()
+    expect(screen.getByRole('status')).toHaveTextContent('页面加载中')
   })
 
   it('AnalyticsPageLoading 额外渲染 KPI 行与图表占位', () => {
@@ -107,8 +117,9 @@ describe('page-skeletons 组合骨架', () => {
   it('CRM 客户方案详情骨架包含宽预览和窄版时间线', () => {
     render(<CrmProposalDetailPageLoading />)
     expect(screen.getByTestId('page-skeleton-proposal-detail')).toBeInTheDocument()
-    expect(screen.getByTestId('page-skeleton-proposal-detail').children).toHaveLength(2)
-    expect(screen.getByLabelText('页面加载中')).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByTestId('page-skeleton-proposal-detail').children).toHaveLength(3)
+    expect(screen.getByTestId('page-skeleton-proposal-detail')).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('status')).toHaveTextContent('页面加载中')
   })
 
   it('CRM dashboard 骨架包含四个 KPI、漏斗和负责人表', () => {
@@ -131,9 +142,12 @@ describe('page-skeletons 组合骨架', () => {
     ['SKU 管理', SkuInfoPageLoading, 'page-skeleton-sku-info'],
     ['月报生成', MonthlyReportGeneratePageLoading, 'page-skeleton-monthly-report-generate'],
   ])('%s 路由骨架保留页面专属区域', (_, PageLoading, testId) => {
-    render(<PageLoading />)
+    const { container } = render(<PageLoading />)
+    const region = container.querySelector('[aria-busy="true"]')
     expect(screen.getByTestId(testId as string)).toBeInTheDocument()
-    expect(screen.getByLabelText('页面加载中')).toHaveAttribute('aria-busy', 'true')
+    expect(region).toBeInTheDocument()
+    expect(region).not.toHaveAttribute('aria-label')
+    expect(screen.getByRole('status')).toHaveTextContent('页面加载中')
   })
 
   it('Agent 活动矩阵按 8/11 列参数生成表格宽骨架', () => {

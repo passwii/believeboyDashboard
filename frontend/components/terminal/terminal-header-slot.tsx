@@ -21,9 +21,9 @@ import { cn } from '@/lib/utils'
  *  - 页面卸载时 React 自动摘除 portal 内容。
  *
  * 刷新走同一 Provider 的轻量事件模型（不引入 zustand / mitt 等新依赖）：
- * 页面 `useHeaderRefresh(handler, opts)` 注册回调并上报 loading；无页面注册时
- * 头部刷新按钮仍常驻（BLF-881），点击兜底 `router.refresh()` 重取当前路由
- * server 数据（不丢 client state）。
+ * 页面 `useHeaderRefresh(handler, opts)` 注册回调并上报 loading；Header 统一
+ * 管理本次回调的排重、结果状态与非打断播报。无页面注册时由 Header 兜底
+ * `router.refresh()` 重取当前路由 server 数据（不丢 client state）。
  * 语义约定：已注册页刷新 = 页面当前筛选条件下的强刷（跳 Redis/客户端缓存）；
  * 未注册页刷新 = 当前路由 server 数据重取。
  */
@@ -37,8 +37,19 @@ export interface TerminalHeaderSlotContextValue {
 
   /** 刷新回调是否已由当前页面提供（决定头部刷新按钮点击走页面回调还是 router.refresh 兜底） */
   refreshRegistered: boolean
-  /** 刷新进行中（头部按钮转 spinner、禁点） */
+  /** 页面 loader 上报的 loading 状态 */
   refreshLoading: boolean
+  /** Header callback 本身仍在执行 */
+  refreshHandlerPending: boolean
+  /** 最近一次全局刷新结果，供 Header 图标与非打断播报使用 */
+  refreshFeedback: {
+    status: 'idle' | 'loading' | 'requested' | 'success' | 'error'
+    message: string
+  }
+  announceRefresh: (
+    message: string,
+    status: 'idle' | 'loading' | 'requested' | 'success' | 'error'
+  ) => void
   setRefreshLoading: (loading: boolean) => void
   /** 注册全局刷新回调，返回注销函数 */
   registerRefresh: (handler: () => void | Promise<void>) => () => void
@@ -52,10 +63,19 @@ export function TerminalHeaderSlotProvider({ children }: { children: React.React
   const [anchor, setAnchor] = React.useState<HTMLElement | null>(null)
   const [mobileStripAnchor, setMobileStripAnchor] = React.useState<HTMLElement | null>(null)
   const [refreshLoading, setRefreshLoadingState] = React.useState(false)
+  const [refreshHandlerPending, setRefreshHandlerPending] = React.useState(false)
   const [refreshRegistered, setRefreshRegistered] = React.useState(false)
+  const [refreshFeedback, setRefreshFeedback] = React.useState<TerminalHeaderSlotContextValue['refreshFeedback']>({
+    status: 'idle',
+    message: '',
+  })
 
   // 刷新回调经 ref 桥接：handler 变化不需要让 triggerRefresh 的消费方重渲染
   const refreshHandlerRef = React.useRef<(() => void | Promise<void>) | null>(null)
+  const refreshInvocationPendingRef = React.useRef(false)
+  const refreshCycleActiveRef = React.useRef(false)
+  const refreshLoaderObservedRef = React.useRef(false)
+  const refreshLoaderPendingRef = React.useRef(false)
   // 自增 token：后注册者胜出；注销时只有当前持有者能清状态
   const refreshHandlerIdRef = React.useRef(0)
 
@@ -67,26 +87,105 @@ export function TerminalHeaderSlotProvider({ children }: { children: React.React
       return () => {
         if (refreshHandlerIdRef.current === id) {
           refreshHandlerRef.current = null
+          refreshHandlerIdRef.current += 1
+          refreshInvocationPendingRef.current = false
+          refreshCycleActiveRef.current = false
+          refreshLoaderObservedRef.current = false
+          refreshLoaderPendingRef.current = false
           setRefreshRegistered(false)
           setRefreshLoadingState(false)
+          setRefreshHandlerPending(false)
+          setRefreshFeedback({ status: 'idle', message: '' })
         }
       }
     },
     []
   )
 
+  const announceRefresh = React.useCallback(
+    (message: string, status: TerminalHeaderSlotContextValue['refreshFeedback']['status']) => {
+      setRefreshFeedback({ message, status })
+    },
+    []
+  )
+
+  const completeRefresh = React.useCallback(() => {
+    if (!refreshCycleActiveRef.current || refreshLoaderPendingRef.current) return
+    refreshCycleActiveRef.current = false
+    refreshLoaderObservedRef.current = false
+    announceRefresh('刷新请求已返回；请确认页面内容已更新。', 'requested')
+  }, [announceRefresh])
+
   const setRefreshLoading = React.useCallback((loading: boolean) => {
     setRefreshLoadingState(loading)
-  }, [])
+    if (!refreshCycleActiveRef.current) return
+
+    refreshLoaderPendingRef.current = loading
+    if (loading) {
+      refreshLoaderObservedRef.current = true
+      announceRefresh('正在刷新当前页。', 'loading')
+      return
+    }
+
+    if (refreshLoaderObservedRef.current && !refreshInvocationPendingRef.current) {
+      completeRefresh()
+    }
+  }, [announceRefresh, completeRefresh])
 
   const triggerRefresh = React.useCallback(() => {
     const handler = refreshHandlerRef.current
-    if (!handler) return
-    void Promise.resolve(handler()).catch((err) => {
-      // 刷新失败不冒泡成未处理 rejection；页面自身负责 toast 提示
-      console.error('[header-slot] 刷新回调执行失败:', err)
-    })
-  }, [])
+    if (!handler || refreshInvocationPendingRef.current) return
+
+    const invocationId = refreshHandlerIdRef.current
+    refreshInvocationPendingRef.current = true
+    refreshCycleActiveRef.current = true
+    refreshLoaderObservedRef.current = false
+    refreshLoaderPendingRef.current = false
+    setRefreshHandlerPending(true)
+    announceRefresh('正在刷新当前页。', 'loading')
+
+    void (async () => {
+      try {
+        const result = handler()
+        if (result && typeof result.then === 'function') {
+          await result
+          if (refreshHandlerIdRef.current === invocationId) {
+            refreshInvocationPendingRef.current = false
+            setRefreshHandlerPending(false)
+            if (refreshLoaderObservedRef.current) {
+              completeRefresh()
+            } else {
+              refreshCycleActiveRef.current = false
+              announceRefresh('刷新请求已返回；请确认页面内容已更新。', 'requested')
+            }
+          }
+        } else if (refreshHandlerIdRef.current === invocationId) {
+          // 同步 callback 通常只是启动 effect/fetch；只确认请求已发起，不宣称数据已更新。
+          refreshInvocationPendingRef.current = false
+          setRefreshHandlerPending(false)
+          if (refreshLoaderObservedRef.current) {
+            if (!refreshLoaderPendingRef.current) completeRefresh()
+          } else {
+            announceRefresh('刷新请求已发起。', 'requested')
+          }
+        }
+      } catch (err) {
+        if (refreshHandlerIdRef.current === invocationId) {
+          refreshCycleActiveRef.current = false
+          refreshLoaderObservedRef.current = false
+          refreshLoaderPendingRef.current = false
+          announceRefresh('刷新失败，请查看页面提示并重试。', 'error')
+          // 页面保留自己的详细错误提示；这里仅提供统一的可访问状态，不再额外弹 toast。
+          console.error('[header-slot] 刷新回调执行失败:', err)
+        }
+      } finally {
+        if (refreshHandlerIdRef.current === invocationId) {
+          refreshInvocationPendingRef.current = false
+          setRefreshHandlerPending(false)
+        }
+      }
+    })()
+  }, [announceRefresh, completeRefresh])
 
   const value = React.useMemo<TerminalHeaderSlotContextValue>(
     () => ({
@@ -94,6 +193,9 @@ export function TerminalHeaderSlotProvider({ children }: { children: React.React
       mobileStripAnchor,
       refreshRegistered,
       refreshLoading,
+      refreshHandlerPending,
+      refreshFeedback,
+      announceRefresh,
       setRefreshLoading,
       registerRefresh,
       triggerRefresh,
@@ -103,6 +205,9 @@ export function TerminalHeaderSlotProvider({ children }: { children: React.React
       mobileStripAnchor,
       refreshRegistered,
       refreshLoading,
+      refreshHandlerPending,
+      refreshFeedback,
+      announceRefresh,
       setRefreshLoading,
       registerRefresh,
       triggerRefresh,
