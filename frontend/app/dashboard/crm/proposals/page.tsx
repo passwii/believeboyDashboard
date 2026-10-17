@@ -89,9 +89,8 @@ export default function ProposalsPage() {
       setItems(page.items)
       setTotal(page.total)
     } catch (e) {
+      // A failed manual refresh should not erase the last successful page.
       setError(e instanceof Error ? e.message : '加载方案失败')
-      setItems([])
-      setTotal(0)
     } finally {
       setLoading(false)
     }

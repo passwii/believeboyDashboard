@@ -79,7 +79,6 @@ export default function ProposalDetailPage() {
       setSelectedVersionNo((prev) => prev ?? data.currentVersionNo)
     } catch (e) {
       setError(e instanceof Error ? e.message : '加载方案失败')
-      setDetail(null)
     } finally {
       setLoading(false)
     }
@@ -235,7 +234,7 @@ export default function ProposalDetailPage() {
   if (loading && !detail) {
     return <div className="py-16 text-center font-mono text-xs text-term-faint">加载中…</div>
   }
-  if (error || !detail) {
+  if (!detail) {
     return (
       <div className="flex flex-col items-start gap-2">
         <div
@@ -253,6 +252,11 @@ export default function ProposalDetailPage() {
 
   return (
     <CrmPageShell>
+      {error ? (
+        <div role="alert" className="border border-term-neg/50 bg-term-neg/10 px-2 py-1 font-mono text-xs text-term-neg">
+          ERR · {error}
+        </div>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
         <Link
           href="/dashboard/crm/proposals"

@@ -312,6 +312,38 @@ export function SimplePageLoading() {
   )
 }
 
+/** CRM 方案详情：宽预览画布 + 窄版时间线，匹配阅读与版本导航布局。 */
+export function CrmProposalDetailPageLoading() {
+  return (
+    <div
+      className="grid min-h-[70vh] gap-3 lg:grid-cols-[minmax(0,1fr)_320px]"
+      aria-busy="true"
+      aria-label="页面加载中"
+      data-testid="page-skeleton-proposal-detail"
+    >
+      <section className="space-y-3 border border-term-border bg-term-panel p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-term-border pb-2">
+          <Skeleton className="h-4 w-56 rounded-none" />
+          <div className="flex gap-2">
+            <Skeleton className="h-8 w-24 rounded-none" />
+            <Skeleton className="h-8 w-28 rounded-none" />
+          </div>
+        </div>
+        <Skeleton className="min-h-[60vh] w-full rounded-none" />
+      </section>
+      <aside className="space-y-3 border border-term-border bg-term-panel p-3">
+        <Skeleton className="h-4 w-32 rounded-none" />
+        {Array.from({ length: 5 }).map((_, index) => (
+          <div key={index} className="space-y-2 border-b border-term-border pb-3">
+            <Skeleton className="h-4 w-24 rounded-none" />
+            <Skeleton className="h-3 w-36 rounded-none" />
+          </div>
+        ))}
+      </aside>
+    </div>
+  )
+}
+
 /** CRM 任务页默认看板：筛选工具条 + 三个状态列，避免用表格骨架误导布局。 */
 export function CrmTaskBoardPageLoading() {
   return (

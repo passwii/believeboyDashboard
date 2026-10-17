@@ -1,4 +1,8 @@
-import { DataTableSkeleton, FilterBarSkeleton } from '@/components/dashboard/page-skeletons'
+import {
+  CrmProposalDetailPageLoading,
+  DataTableSkeleton,
+  FilterBarSkeleton,
+} from '@/components/dashboard/page-skeletons'
 
 export default function CustomerProposalsLoading() {
   return (
