@@ -41,6 +41,40 @@ describe('maskComments：只遮注释，保留长度与换行', () => {
     const src = `{ 'accordion-down': 'x' }`
     assert.ok(maskComments(src).includes("'accordion-down'"))
   })
+
+  // 字符串里的 `/*` 不是注释起号。不跳过字符串的话会一路遮到下一个块注释闭号
+  // 或 EOF，把后面的真注入整段吃掉 → 门禁①误报悬空变量（假红）。
+  it('字符串里的块注释起号不开启遮蔽（glob / accept="image/*" 两种写法）', () => {
+    const cases = [
+      `const glob = './app/**/*.{ts}'\nel.style.setProperty('--motion-x', '10ms')`,
+      `const accept = 'image/*'\nel.style.setProperty('--motion-x', '10ms')`,
+    ]
+    for (const src of cases) {
+      assert.equal(maskComments(src), src, '字符串里的起号不得引起遮蔽')
+      assert.deepEqual([...collectRuntimeVarDefs(src)], ['--motion-x'])
+    }
+  })
+
+  it('字符串里的行注释起号不开启遮蔽（URL 里的 //）', () => {
+    const src = `const url = 'https://example.com/x'\nel.style.setProperty('--motion-x', '10ms')`
+    assert.equal(maskComments(src), src)
+    assert.deepEqual([...collectRuntimeVarDefs(src)], ['--motion-x'])
+  })
+
+  it('字符串里的转义引号不结束字符串', () => {
+    const src = `const s = 'it\\'s /* not a comment'\nel.style.setProperty('--motion-x', '10ms')`
+    assert.deepEqual([...collectRuntimeVarDefs(src)], ['--motion-x'])
+  })
+
+  it('跳过字符串不影响真注释被遮蔽', () => {
+    const src = [
+      `const s = 'x/*y'`,
+      `/* setProperty('--ghost', '1ms') */`,
+      `// setProperty('--ghost2', '1ms')`,
+      `el.style.setProperty('--real', '40ms')`,
+    ].join('\n')
+    assert.deepEqual([...collectRuntimeVarDefs(src)], ['--real'])
+  })
 })
 
 // ─── 判据 1：悬空 CSS 变量 ───────────────────────────────────────────────────

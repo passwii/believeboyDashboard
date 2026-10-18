@@ -84,9 +84,12 @@ const OFF_SCALE_DURATION_CLASSES = [75, 200, 300, 700, 1000]
 /**
  * 把 CSS / TS 注释的内容换成空格（保留长度与换行）。
  *
- * 只处理注释，**不动字符串**：CSS 里的 token 名本来就在声明里（不在字符串里），
+ * 只遮蔽注释，**不动字符串**：CSS 里的 token 名本来就在声明里（不在字符串里），
  * 而 `tailwind.config.ts` 的 keyframe / animation 名恰恰是**字符串字面量**
  * （`'accordion-down': …`），遮蔽掉就解析不出来了。
+ *
+ * 字符串是**跳过**而非遮蔽：不跳过的话，字符串里的块注释起号会被当成真注释开头，
+ * 一路遮到下一个块注释闭号或 EOF，把后面的真注入整段吃掉 → 门禁①误报。
  */
 export function maskComments(source) {
   const chars = source.split('')
@@ -97,8 +100,34 @@ export function maskComments(source) {
   }
 
   let i = 0
+
+  // 跳过字符串字面量（含闭引号）。**跳过、不是遮蔽**——定义本身就在字符串里
+  // （`variable: '--font-sans'` / `setProperty('--x', …)` / `'accordion-down'`），
+  // 遮蔽掉会把运行时定义全删光。不跳过的话，字符串里的块注释起号（`accept="image/*"`、
+  // `'./app/**/*.{ts}'` 里的那个起号）会被当成真注释开头，一路遮到下一个闭号或 EOF，
+  // 把后面的真注入整段吃掉 → 门禁①误报悬空变量。
+  const skipString = (quote) => {
+    let k = i + 1
+    while (k < len) {
+      if (source[k] === '\\') {
+        k += 2
+        continue
+      }
+      if (source[k] === quote) {
+        k += 1
+        break
+      }
+      k += 1
+    }
+    i = k
+  }
+
   while (i < len) {
     const c = source[i]
+    if (c === '"' || c === "'" || c === '`') {
+      skipString(c)
+      continue
+    }
     if (c === '/' && source[i + 1] === '*') {
       let k = i + 2
       while (k < len && !(source[k] === '*' && source[k + 1] === '/')) k += 1
