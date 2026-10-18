@@ -90,6 +90,8 @@ const OFF_SCALE_DURATION_CLASSES = [75, 200, 300, 700, 1000]
  *
  * 字符串是**跳过**而非遮蔽：不跳过的话，字符串里的块注释起号会被当成真注释开头，
  * 一路遮到下一个块注释闭号或 EOF，把后面的真注入整段吃掉 → 门禁①误报。
+ *
+ * 正则字面量同样是**跳过**（正则里的引号不是字符串起号、`\/` 不是注释起号）。
  */
 export function maskComments(source) {
   const chars = source.split('')
@@ -122,8 +124,62 @@ export function maskComments(source) {
     i = k
   }
 
+  // 正则字面量里的引号（`/['"]/`、`/[",]/`）不是字符串起始引号：不先跳过正则，
+  // quote 分支会从正则里那个引号一路跳到「下一个同引号字符」，而那个引号往往落在
+  // 后面的注释里 → 注释不再被遮蔽，被注释掉的注入被当成真注入（门禁①假阴性）。
+  // 判据：`/` 后不是 `*` / `/`，且处于表达式位置（前一个非空白字符是分隔符之一，
+  // 或紧跟 return / typeof 这类只可能出现在表达式前的关键字，或箭头 `=>`）。
+  const isRegexStart = () => {
+    let k = i - 1
+    while (k >= 0 && (source[k] === ' ' || source[k] === '\t')) k -= 1
+    if (k < 0) return true
+    const p = source[k]
+    if (
+      p === '(' || p === ',' || p === '=' || p === ':' || p === '[' ||
+      p === '!' || p === '&' || p === '|' || p === '?' || p === '{' || p === ';'
+    ) {
+      return true
+    }
+    // 箭头函数直接返回正则：`=> /['"]/`。`>` 本身不是分隔符，单独认。
+    if (p === '>') {
+      let j = k - 1
+      while (j >= 0 && (source[j] === ' ' || source[j] === '\t')) j -= 1
+      return source[j] === '='
+    }
+    return /\b(return|typeof|case|in|of|delete|void|instanceof|yield)$/.test(
+      source.slice(Math.max(0, k - 9), k + 1),
+    )
+  }
+
+  // 跳到正则的闭斜杠 + flags。转义斜杠与字符类里的斜杠都不结束正则。
+  const skipRegex = () => {
+    let k = i + 1
+    let inClass = false
+    while (k < len) {
+      const c = source[k]
+      if (c === '\\') {
+        k += 2
+        continue
+      }
+      if (c === '\n') break
+      if (c === '[') inClass = true
+      else if (c === ']') inClass = false
+      else if (c === '/' && !inClass) {
+        k += 1
+        break
+      }
+      k += 1
+    }
+    while (k < len && /[gimsuyvd]/.test(source[k])) k += 1
+    i = k
+  }
+
   while (i < len) {
     const c = source[i]
+    if (c === '/' && source[i + 1] !== '*' && source[i + 1] !== '/' && isRegexStart()) {
+      skipRegex()
+      continue
+    }
     if (c === '"' || c === "'" || c === '`') {
       skipString(c)
       continue

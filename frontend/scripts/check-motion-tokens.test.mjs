@@ -75,6 +75,48 @@ describe('maskComments：只遮注释，保留长度与换行', () => {
     ].join('\n')
     assert.deepEqual([...collectRuntimeVarDefs(src)], ['--real'])
   })
+
+  // 正则字面量里的引号不是字符串起号。不先跳过正则的话，quote 分支会从那个引号
+  // 一路跳到后面注释里的同引号 → 注释没被遮蔽 → 被注释掉的注入被当成真注入
+  // （门禁①假阴性，正是本脚本最该抓的形状）。
+  it('正则里的引号不当字符串起始引号', () => {
+    const cases = [
+      `const quoteMatcher = /['"]/ // el.style.setProperty('--deleted', value)`,
+      `const csv = /[",\\n]/ // el.style.setProperty('--deleted', value)`,
+    ]
+    for (const src of cases) {
+      assert.deepEqual([...collectRuntimeVarDefs(src)], [], '注释里的注入不得算定义')
+    }
+  })
+
+  // 正则里的 `\/` 与 `\/\/` 也不是注释起号；不跳过正则会把其后内容误遮（假红）。
+  it('正则字面量整段被跳过（含转义斜杠与字符类里的斜杠）', () => {
+    const src = [
+      `const url = /^https?:\\/\\//i`,
+      `const cls = /bg-secondary\\//`,
+      `el.style.setProperty('--motion-x', '10ms')`,
+    ].join('\n')
+    assert.equal(maskComments(src), src, '正则里的斜杠不得引起遮蔽')
+    assert.deepEqual([...collectRuntimeVarDefs(src)], ['--motion-x'])
+  })
+
+  // 箭头函数直接返回正则（`=> /[\'"]/`）：`>` 不是分隔符，得单独认，否则又回到假阴性。
+  // 同时盯住反向：`a > b / 2` 里的 `/` 是除号，不得当正则跳过。
+  it('箭头函数返回的正则也被跳过，比较运算符后的除号不被当正则', () => {
+    const arrow = [
+      `const f = (v) => /['"]/.test(v)`,
+      `// el.style.setProperty('--ghost', '1ms')`,
+      `el.style.setProperty('--real', '10ms')`,
+    ].join('\n')
+    assert.deepEqual([...collectRuntimeVarDefs(arrow)], ['--real'])
+
+    const division = [
+      `const x = a > b / 2`,
+      `// el.style.setProperty('--ghost', '1ms')`,
+      `el.style.setProperty('--real', '10ms')`,
+    ].join('\n')
+    assert.deepEqual([...collectRuntimeVarDefs(division)], ['--real'])
+  })
 })
 
 // ─── 判据 1：悬空 CSS 变量 ───────────────────────────────────────────────────
