@@ -36,7 +36,7 @@ export function RefreshProgressBar({
       <Component
         aria-busy={refreshing}
         data-testid="refresh-progress-region"
-        className={cn('transition-colors duration-200', className)}
+        className={cn('transition-colors duration-[var(--duration-quick)]', className)}
       >
         {children}
       </Component>

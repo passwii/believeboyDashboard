@@ -38,7 +38,7 @@ export function MessageActions({
   }
 
   return (
-    <div className="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200">
+    <div className="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-[var(--duration-quick)]">
       <button
         type="button"
         onClick={handleCopy}

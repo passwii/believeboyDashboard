@@ -127,7 +127,7 @@ function ProgressRow({
       <span className="w-8 text-[11px] text-muted-foreground">{label}</span>
       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-term-raised">
         <div
-          className="h-full rounded-full bg-term-accent transition-all duration-300 ease-out"
+          className="h-full rounded-full bg-term-accent transition-all duration-[var(--duration-very-slow)] ease-out"
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -873,7 +873,7 @@ function AutoUploadContent({
           <CardContent className="flex h-full !px-3 !py-3">
             <div
               className={cn(
-                'relative flex w-full flex-col items-center justify-center rounded-none border border-dashed px-4 transition-[border-color,background-color] duration-200',
+                'relative flex w-full flex-col items-center justify-center rounded-none border border-dashed px-4 transition-[border-color,background-color] duration-[var(--duration-quick)]',
                 dragActive
                   ? 'border-term-accent/70 bg-term-accent/10'
                   : 'border-term-border bg-term-raised'
@@ -958,7 +958,7 @@ function AutoUploadContent({
                   <div
                     key={item.localId}
                     className={cn(
-                      'relative flex items-start justify-between gap-3 rounded-none border border-term-border bg-term-raised/85 px-3 py-2.5 transition-colors duration-300',
+                      'relative flex items-start justify-between gap-3 rounded-none border border-term-border bg-term-raised/85 px-3 py-2.5 transition-colors duration-[var(--duration-quick)]',
                       // 上传成功：整条 pos 覆盖
                       item.fileCommitStatus === 'success' && 'border-term-pos/50 bg-term-pos/10',
                       // 保存中：accent

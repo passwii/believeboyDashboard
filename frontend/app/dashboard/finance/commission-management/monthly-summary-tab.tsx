@@ -83,7 +83,7 @@ export function MonthlySummaryTab({ items, year, loading }: MonthlySummaryTabPro
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
       {/* 骨架屏层 */}
       <div
-        className="absolute inset-0 transition-opacity duration-200"
+        className="absolute inset-0 transition-opacity duration-[var(--duration-fast)]"
         style={{ opacity: loading ? 1 : 0, pointerEvents: loading ? 'auto' : 'none' }}
         aria-hidden={!loading}
       >
@@ -92,7 +92,7 @@ export function MonthlySummaryTab({ items, year, loading }: MonthlySummaryTabPro
 
       {/* 内容层 */}
       <div
-        className="relative flex min-h-0 flex-1 flex-col overflow-hidden transition-opacity duration-200"
+        className="relative flex min-h-0 flex-1 flex-col overflow-hidden transition-opacity duration-[var(--duration-fast)]"
         style={{ opacity: loading ? 0 : 1 }}
       >
         <div className="flex-1 overflow-auto term-scroll">

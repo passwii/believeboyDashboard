@@ -219,7 +219,7 @@ export function ChatInput({
                     setShowAttachMenu(!showAttachMenu)
                   }}
                   disabled={disabled}
-                  className={`attach-btn flex items-center justify-center size-10 sm:size-10 rounded-full transition-all duration-300 active:scale-95 touch-manipulation ${
+                  className={`attach-btn flex items-center justify-center size-10 sm:size-10 rounded-full transition-all duration-[var(--duration-quick)] active:scale-95 touch-manipulation ${
                     focused
                       ? 'bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-500/15 dark:text-blue-400 dark:hover:bg-blue-500/25'
                       : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 dark:bg-white/[0.08] dark:text-[#8a8a8f] dark:hover:bg-white/[0.12] dark:hover:text-white'
@@ -227,7 +227,7 @@ export function ChatInput({
                   aria-label="添加附件"
                 >
                   <Plus
-                    className={`size-4 sm:size-5 transition-transform duration-200 ${
+                    className={`size-4 sm:size-5 transition-transform duration-[var(--duration-fast)] ${
                       showAttachMenu ? 'rotate-45' : ''
                     }`}
                   />
@@ -273,7 +273,7 @@ export function ChatInput({
                 type="button"
                 onClick={handleToggleWebSearch}
                 disabled={disabled || !cfg?.webSearchConfigured}
-                className={`relative flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-full text-[11px] sm:text-xs font-medium transition-all duration-200 active:scale-95 touch-manipulation min-h-[44px] ${
+                className={`relative flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-full text-[11px] sm:text-xs font-medium transition-all duration-[var(--duration-quick)] active:scale-95 touch-manipulation min-h-[44px] ${
                   !cfg?.webSearchConfigured
                     ? 'border bg-amber-50 border-amber-200 text-amber-700 cursor-not-allowed dark:bg-amber-500/[0.06] dark:border-amber-500/20 dark:text-amber-200/90'
                     : enableWebSearch
@@ -312,7 +312,7 @@ export function ChatInput({
                 type="button"
                 onClick={handleToggleReasoning}
                 disabled={disabled || !reasoningSupported}
-                className={`flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-full text-[11px] sm:text-xs font-medium transition-all duration-200 active:scale-95 touch-manipulation min-h-[44px] sm:min-h-[auto] ${
+                className={`flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-full text-[11px] sm:text-xs font-medium transition-all duration-[var(--duration-quick)] active:scale-95 touch-manipulation min-h-[44px] sm:min-h-[auto] ${
                   reasoningEnabled
                     ? 'bg-blue-50 text-blue-600 dark:bg-blue-500/20 dark:text-blue-300'
                     : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-[#8a8a8f] dark:hover:text-white dark:hover:bg-white/5'
@@ -333,7 +333,7 @@ export function ChatInput({
                 type="button"
                 onClick={handleSubmit}
                 disabled={!message.trim() || disabled}
-                className={`flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-2 rounded-full text-sm font-medium text-white transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 touch-manipulation min-h-[44px] sm:min-h-[auto] ${
+                className={`flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-2 rounded-full text-sm font-medium text-white transition-all duration-[var(--duration-quick)] disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 touch-manipulation min-h-[44px] sm:min-h-[auto] ${
                   focused
                     ? 'bg-[#1a94ff] shadow-[0_0_20px_rgba(37,119,255,0.25)] dark:shadow-[0_0_25px_rgba(20,136,252,0.5),0_0_50px_rgba(20,136,252,0.2)]'
                     : 'bg-[#1488fc] shadow-[0_2px_12px_rgba(37,119,255,0.2)] hover:bg-[#1a94ff] hover:shadow-[0_4px_20px_rgba(37,119,255,0.3)] dark:shadow-[0_0_20px_rgba(20,136,252,0.3)] dark:hover:shadow-[0_0_30px_rgba(20,136,252,0.45)]'

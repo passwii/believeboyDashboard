@@ -741,7 +741,11 @@
     .animate-shimmer {
       animation: none !important;
       transition-property: color, background-color, border-color, outline-color, fill, stroke;
-      transition-duration: var(--motion-fast) !important;
+      /* reduced-motion 下只保留短色变：走 `--duration-quick`(150ms) 而非位移/模糊。
+       * 这里曾是 `var(--motion-fast)`——迁移（BLF-1359 / #737）删掉了自研 `--motion-*` 定义，
+       * 悬空变量无 fallback → 整条 `transition-duration` invalid at computed-value time →
+       * 退化为初始值 0s，这条兜底在 6 个选择器上静默失效。BLF-1361 改回尺度内 token。 */
+      transition-duration: var(--duration-quick) !important;
       transform: none !important;
       will-change: auto !important;
     }
@@ -1399,16 +1403,9 @@ html[data-theme-transition] body * {
     animation-delay: calc(var(--i, 0) * var(--duration-stagger));
   }
 
-  .stagger-item {
-    opacity: 0;
-    animation: fade-slide-up var(--duration-slow) var(--ease-smooth-out) both;
-  }
-
-  .stagger-item:nth-child(1) { animation-delay: 0ms; }
-  .stagger-item:nth-child(2) { animation-delay: calc(1 * var(--duration-stagger)); }
-  .stagger-item:nth-child(3) { animation-delay: calc(2 * var(--duration-stagger)); }
-  .stagger-item:nth-child(4) { animation-delay: calc(3 * var(--duration-stagger)); }
-  .stagger-item:nth-child(5) { animation-delay: calc(4 * var(--duration-stagger)); }
+  /* `.stagger-item` + `:nth-child(1..5)` 固定延迟已于 BLF-1361 删除：
+   * 全仓只有 1 个消费点（已迁到 `.u-stagger-item` + `--i`），而文档（motion-system.md
+   * §1 / §3.3 / 排障表）一直推荐 `.u-stagger-item`——两套并存等于两套半真的真相源。 */
 
   .empty-state-icon {
     animation: float 3s ease-in-out infinite;
@@ -1777,7 +1774,6 @@ html[data-theme-transition] body * {
 
 @media (prefers-reduced-motion: reduce) {
   .empty-state-icon,
-  .stagger-item,
   .animate-fade-slide-up,
   .animate-scroll-btn-enter,
   .animate-scroll-btn-exit,

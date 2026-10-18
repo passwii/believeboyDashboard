@@ -44,7 +44,7 @@ function SourceLogsSection({ logs }: { logs: string[] }) {
         </Badge>
         <ChevronDown
           className={cn(
-            'ml-auto h-4 w-4 text-term-faint transition-transform duration-200',
+            'ml-auto h-4 w-4 text-term-faint transition-transform duration-[var(--duration-fast)]',
             isExpanded && 'rotate-180'
           )}
           strokeWidth={1.75}
@@ -52,7 +52,7 @@ function SourceLogsSection({ logs }: { logs: string[] }) {
       </button>
       <div
         className={cn(
-          'overflow-hidden rounded-none border border-dashed border-term-border bg-term-bg transition-all duration-300',
+          'overflow-hidden rounded-none border border-dashed border-term-border bg-term-bg transition-all duration-[var(--duration-fast)]',
           isExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
         )}
       >
@@ -99,7 +99,7 @@ export default function ChangelogPage() {
                     </div>
                   </div>
                   <ArrowUpRight
-                    className="h-4 w-4 shrink-0 text-term-faint transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-term-text"
+                    className="h-4 w-4 shrink-0 text-term-faint transition-transform duration-[var(--duration-quick)] group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-term-text"
                     strokeWidth={1.75}
                   />
                 </a>

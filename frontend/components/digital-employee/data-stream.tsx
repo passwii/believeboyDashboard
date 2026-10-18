@@ -129,7 +129,7 @@ export function DataStream({
     <div className={cn('space-y-2', className)}>
       <div
         className={cn(
-          'rounded-none border px-3 py-2.5 min-h-[72px] transition-all duration-300',
+          'rounded-none border px-3 py-2.5 min-h-[72px] transition-all duration-[var(--duration-medium)]',
           variantStyle.border,
           variantStyle.bg,
           fadeState === 'in' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'
@@ -140,7 +140,7 @@ export function DataStream({
           <div className="mt-2">
             <div className="h-1 w-full overflow-hidden rounded-none bg-term-border">
               <div
-                className="h-full rounded-none bg-term-accent transition-all duration-700"
+                className="h-full rounded-none bg-term-accent transition-all duration-[var(--duration-very-slow)]"
                 style={{ width: `${Math.min(100, Math.max(0, current.progress))}%` }}
               />
             </div>
@@ -158,7 +158,7 @@ export function DataStream({
             <span
               key={msg.id}
               className={cn(
-                'h-1 w-1 rounded-full transition-colors duration-300',
+                'h-1 w-1 rounded-full transition-colors duration-[var(--duration-quick)]',
                 i === currentIndex ? 'bg-foreground' : 'bg-muted-foreground/30'
               )}
             />

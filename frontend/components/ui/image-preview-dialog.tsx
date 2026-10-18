@@ -40,7 +40,7 @@ export function PortraitScreenshotDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={cn(
-          'flex flex-col items-center p-4 transition-all duration-300',
+          'flex flex-col items-center p-4 transition-all duration-[var(--duration-fast)]',
           zoomed ? 'max-w-[96vw]' : 'max-w-2xl'
         )}
       >

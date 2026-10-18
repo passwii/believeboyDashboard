@@ -32,7 +32,7 @@
 
 1. **改 token 必双侧同步**：改 `globals.css` 必须同步改 `tokens.ts`，反之亦然（详见 §2.3）
 2. **页面内容优先使用 CSS 动效工具类**：元素淡入用 `animate-fade-slide-up`，列表错落用 `u-stagger-item`；不要导入已移除的 MotionFade / MotionStagger 包装组件
-3. **无障碍退化由全局 CSS 保证**：reduced-motion 时以上 CSS 动效会立即显示；自定义 framer-motion 动效必须自行处理 `useReducedMotion()`
+3. **无障碍退化由全局 CSS 保证**：reduced-motion 时以上 CSS 动效会立即显示；framer-motion 侧由 `app/layout.tsx` 的 `<MotionConfig reducedMotion="user">` 兜底（BLF-1361），需要逐组件差异化时再自行读 `useReducedMotion()`
 
 ---
 
@@ -167,6 +167,7 @@ pnpm test && pnpm build
 **注意**：
 - 直接在列表项上使用 `u-stagger-item`，不要额外包一层 `display: contents` 容器
 - `--i` 是从 0 开始的序号，用于按 `--duration-stagger`（40ms）计算延迟
+- 旧的 `.stagger-item` + `:nth-child(1..5)` 固定延迟已于 BLF-1361 删除，全仓只留 `.u-stagger-item` 一套
 - reduced-motion 时全局 CSS 清除动画、延迟和透明度，内容保持可见
 
 ### 3.4 页面级 authoured 动效（登录页品牌面板，2026-09-30）
@@ -233,13 +234,16 @@ const FULL_BLEED_DASHBOARD_ROUTES = [
 | 场景 | 退化策略 | 实现位置 |
 |------|---------|---------|
 | `prefers-reduced-motion: reduce` | 全量退化为瞬时（`duration: 0`、不 stagger、不 spring） | Primitive 内部读 `useReducedMotion()` |
-| `prefers-reduced-motion: reduce`（CSS 侧） | `animation-duration: 0.01ms !important` | `globals.css` `@media` 块 |
+| `prefers-reduced-motion: reduce`（CSS 侧） | `animation-duration: 1ms !important` + `animation-iteration-count: 1`（`globals.css` 的 reduced-motion 块）；`.ui-floating-motion` / `.ui-overlay-motion` / `.sidebar-panel-reveal` / `.global-loading-indicator` / `.u-skeleton-shimmer::after` / `.animate-shimmer` 另只保留 `--duration-quick`(150ms) 短色变 | `globals.css` `@media (prefers-reduced-motion: reduce)` 块 |
 | Keyboard Tab focus | `outline: 2px solid hsl(var(--ring))` 通过 `.u-focus` 强制可见 | `globals.css` `.u-focus` |
 | 老年 / 前庭功能障碍 | `--duration-quick`（hover / focus 微状态）仍在 200ms 感知阈值内；不引入位移过大的动效 | （设计纪律，非代码约束） |
 
 **写新组件时**：
 
-- 如果直接用 framer-motion，必须自己读 `useReducedMotion()` 并提供退化分支
+- 如果直接用 framer-motion，**先看有没有全局 `MotionConfig`**：`app/layout.tsx` 已挂
+  `<MotionConfig reducedMotion="user">`（BLF-1361），它会让 framer-motion 自动把 transform / layout
+  动画降为瞬时。**但它不管 `filter`**——要动 blur 的组件必须自己读 `useReducedMotion()`
+  （参考 `components/notifications/notification-toast.tsx` 的 `blurIn`）。
 - 如果用 Primitive，已自带退化
 - 永远不要用 `backdrop-filter` 在 `.dashboard-surface` 上（详见 `globals.css` 注释，原因：92 处共用 + Retina 糊掉细节）
 
@@ -252,6 +256,7 @@ const FULL_BLEED_DASHBOARD_ROUTES = [
 | 路由切换看不到动效 | PageTransition 变体 key 不是 pathname | grep `key={pathname}` 在 `Normal/FullBleedPageTransition.tsx` |
 | full-bleed 页面塌缩 | wrapper 不是 `!absolute inset-0` | 检查 `isFullBleedDashboardRoute` 路由判断 + 父级是否 min-h |
 | 看不到 stagger | 列表项缺少 `u-stagger-item` 或 `--i` | 检查每个列表项是否设置工具类和从 0 开始的序号 |
+| 动效 token 不存在 / 动画配了没人用 | `var(--x)` 无定义、`animation` 条目无 `animate-*` 消费 | `pnpm check:motion`（`scripts/check-motion-tokens.mjs`，已接进 `pnpm test`） |
 | 路由切换慢 / 卡 | `will-change-transform` 未释放 | 检查 `AnimatePresence mode="wait"` 是否正确卸载旧 motion.div |
 | 模糊糊掉 1px 边框 | Retina 屏 backdrop-filter 半径过大 | 永不主动加 backdrop-filter 到 `.dashboard-surface` |
 | 数值不一致 | CSS 与 JS 两侧数值漂移 | `pnpm test`（`tokens.test.ts` 有数值断言） |

@@ -6,6 +6,7 @@ import './globals.css'
 import { GlobalLoadingProvider } from '@/components/global-loading-provider'
 import { GlobalLoadingOverlay } from '@/components/global-loading-overlay'
 import { NotificationWrapper } from '@/components/system/notification-wrapper'
+import { MotionConfigProvider } from '@/components/system/motion-config-provider'
 import { ThemeProvider } from '@/components/theme-provider'
 import { AuthSessionProvider } from '@/components/auth/session-provider'
 import { SkipLink } from '@/components/ui/skip-link'
@@ -69,16 +70,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           defaultTheme="system"
           enableSystem
         >
-          <AuthSessionProvider>
-            <GlobalLoadingProvider>
-              <NotificationWrapper>
-                {children}
-                <GlobalLoadingOverlay />
-                <Analytics />
-                <SpeedInsights />
-              </NotificationWrapper>
-            </GlobalLoadingProvider>
-          </AuthSessionProvider>
+          {/* BLF-1361：全局 framer-motion reduced-motion 退化。必须在 NotificationWrapper
+           * 外层——toast 容器是 ssr:false 懒挂载 + createPortal，context 穿过 portal 生效。 */}
+          <MotionConfigProvider>
+            <AuthSessionProvider>
+              <GlobalLoadingProvider>
+                <NotificationWrapper>
+                  {children}
+                  <GlobalLoadingOverlay />
+                  <Analytics />
+                  <SpeedInsights />
+                </NotificationWrapper>
+              </GlobalLoadingProvider>
+            </AuthSessionProvider>
+          </MotionConfigProvider>
         </ThemeProvider>
       </body>
     </html>

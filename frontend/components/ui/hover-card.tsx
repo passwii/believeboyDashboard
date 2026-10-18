@@ -92,7 +92,7 @@ const HoverCard = React.forwardRef<HTMLDivElement, HoverCardProps>(
         <div
           className={cn(
             'absolute z-50 w-fit min-w-[200px] max-w-[320px] rounded-none border border-term-border bg-term-panel p-4 text-term-text shadow-none u-floating-glass',
-            'transition-all duration-300 ease-out',
+            'transition-all duration-[var(--duration-quick)] ease-out',
             'opacity-0 invisible transform',
             isVisible && 'opacity-100 visible',
             // 位置样式

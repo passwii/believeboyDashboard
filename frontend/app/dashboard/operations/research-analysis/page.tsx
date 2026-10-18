@@ -1613,7 +1613,7 @@ function MetricGridCard({
           {items.map((item) => (
             <div
               key={item.label}
-              className="rounded-none border border-term-border bg-term-raised p-3 transition-colors duration-200 hover:border-term-accent/30 hover:bg-term-hover"
+              className="rounded-none border border-term-border bg-term-raised p-3 transition-colors duration-[var(--duration-quick)] hover:border-term-accent/30 hover:bg-term-hover"
             >
               <p className="text-xs text-term-muted">{item.label}</p>
               <p
@@ -1786,7 +1786,7 @@ function ContextSummaryStrip({
 
 function DecisionSummaryCard({ item }: { item: SummaryCard }) {
   return (
-    <div className="rounded-none border border-term-border bg-term-panel p-4 shadow-none transition-colors duration-200 hover:border-term-accent/25">
+    <div className="rounded-none border border-term-border bg-term-panel p-4 shadow-none transition-colors duration-[var(--duration-quick)] hover:border-term-accent/25">
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm font-medium text-term-text">
@@ -1823,7 +1823,7 @@ function AnalysisSectionNav({
               type="button"
               onClick={() => onSelect(section.key)}
               className={cn(
-                'cursor-pointer whitespace-nowrap rounded-none px-4 py-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:w-full',
+                'cursor-pointer whitespace-nowrap rounded-none px-4 py-2 text-sm font-medium transition-all duration-[var(--duration-quick)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:w-full',
                 activeSection === section.key
                   ? 'bg-primary text-primary-foreground shadow-none'
                   : 'text-term-muted hover:bg-term-hover hover:text-term-text'
@@ -2665,7 +2665,7 @@ export default function CategoryResearchPage() {
                     <div className="flex items-end">
                       <Button
                         variant="outline"
-                        className="w-full cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring"
+                        className="w-full cursor-pointer transition-colors duration-[var(--duration-quick)] focus-visible:ring-2 focus-visible:ring-ring"
                         onClick={() => void loadKeywordOptions()}
                         disabled={keywordLoading}
                       >
@@ -2706,7 +2706,7 @@ export default function CategoryResearchPage() {
                     )}
                     <Button
                       variant="outline"
-                      className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring"
+                      className="cursor-pointer transition-colors duration-[var(--duration-quick)] focus-visible:ring-2 focus-visible:ring-ring"
                       onClick={() => void loadDatasets(analysisKeyword)}
                       disabled={datasetLoading || !analysisKeyword.trim()}
                     >
@@ -2719,7 +2719,7 @@ export default function CategoryResearchPage() {
                     </Button>
                     <Button
                       variant="outline"
-                      className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring"
+                      className="cursor-pointer transition-colors duration-[var(--duration-quick)] focus-visible:ring-2 focus-visible:ring-ring"
                       onClick={() => void onRecomputeCurrent()}
                       disabled={recomputingCurrent || !selectedDatasetId}
                     >
@@ -2732,7 +2732,7 @@ export default function CategoryResearchPage() {
                     </Button>
                     <Button
                       variant="outline"
-                      className="cursor-pointer transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring"
+                      className="cursor-pointer transition-colors duration-[var(--duration-quick)] focus-visible:ring-2 focus-visible:ring-ring"
                       onClick={() => void onRecomputeHistory()}
                       disabled={recomputingHistory || !analysisKeyword.trim()}
                     >
@@ -3104,7 +3104,7 @@ export default function CategoryResearchPage() {
                               {showAllDefinitions ? '收起完整口径' : '展开完整口径'}
                               <ChevronDown
                                 className={cn(
-                                  'ml-1 h-3.5 w-3.5 transition-transform duration-200',
+                                  'ml-1 h-3.5 w-3.5 transition-transform duration-[var(--duration-fast)]',
                                   showAllDefinitions && 'rotate-180'
                                 )}
                               />

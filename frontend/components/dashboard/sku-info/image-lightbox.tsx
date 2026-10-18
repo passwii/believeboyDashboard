@@ -56,7 +56,7 @@ export function ImageLightbox({ open, onOpenChange, src, alt, meta }: ImageLight
           <img
             src={src}
             alt={alt}
-            className="rounded-md transition-all duration-300"
+            className="rounded-md transition-all duration-[var(--duration-fast)]"
             style={{
               maxHeight: zoomed ? 'calc(100vh - 8rem)' : '85vh',
               maxWidth: zoomed ? '96vw' : '100%',

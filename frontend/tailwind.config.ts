@@ -104,22 +104,6 @@ const config: Config = {
             height: '0',
           },
         },
-        'collapsible-down': {
-          from: {
-            height: '0',
-          },
-          to: {
-            height: 'var(--radix-collapsible-content-height)',
-          },
-        },
-        'collapsible-up': {
-          from: {
-            height: 'var(--radix-collapsible-content-height)',
-          },
-          to: {
-            height: '0',
-          },
-        },
         /* `dialog-in` / `dialog-out` 已移除（Phase B）：Radix dialog / alert-dialog 的开合动效
          * 迁到 globals.css 的 `.ui-modal-motion` + `@keyframes ui-modal-in/out`，读 transitions.dev
          * 的 `--modal-open-dur` / `--modal-close-dur` / `--modal-scale` / `--modal-scale-close` /
@@ -131,18 +115,12 @@ const config: Config = {
          * `.ui-panel-motion`（transitions.dev 07-panel-reveal），按 `data-side` 选位移方向，
          * 读 `--panel-open-dur` / `--panel-close-dur` / `--panel-blur` / `--panel-ease`。
          * 旧的方向性过冲（ 70% -1.5% / 85% 0.4%）属历史自定义，按 snippet 不保留。 */
-        /* ── Switch thumb overshoot ── */
-        'switch-snap': {
-          '0%': { transform: 'translateX(var(--switch-from))' },
-          '60%': { transform: 'translateX(calc(var(--switch-to) + 3px))' },
-          '80%': { transform: 'translateX(calc(var(--switch-to) - 0.5px))' },
-          '100%': { transform: 'translateX(var(--switch-to))' },
-        },
-        /* [BEL-81.B] 搜索结果卡片入场动画 */
-        'fade-in-up': {
-          '0%': { opacity: '0', transform: 'translateY(8px) scale(0.985)' },
-          '100%': { opacity: '1', transform: 'translateY(0) scale(1)' },
-        },
+        /* `collapsible-down` / `collapsible-up` 已移除（BLF-1361）：全仓零 `animate-collapsible-*`
+         * 消费点，Radix Collapsible 的开合走 `data-[state=open]` 的 CSS 过渡。
+         * `switch-snap` 已移除（BLF-1361）：依赖的 `--switch-from` / `--switch-to` 全仓从未定义，
+         * 且零 `animate-switch-snap` 消费。
+         * `fade-in-up` 已移除（BLF-1361）：零 `animate-fade-in-up` 消费，入场统一走
+         * `.animate-fade-slide-up`（globals.css）。 */
       },
       animation: {
         /* transitions.dev 21-accordion：展开 / 收起走 --acc-expand(250ms) / --acc-collapse(250ms)
@@ -150,10 +128,9 @@ const config: Config = {
          * height（Radix 已提供 --radix-accordion-content-height，同样无需 JS 量高），故只换调参。 */
         'accordion-down': 'accordion-down var(--acc-expand) var(--acc-ease)',
         'accordion-up': 'accordion-up var(--acc-collapse) var(--acc-ease)',
-        'collapsible-down': 'collapsible-down var(--duration-fast) var(--ease-smooth-out)',
-        'collapsible-up': 'collapsible-up var(--duration-fast) var(--ease-smooth-out)',
-        'switch-snap': 'switch-snap 280ms ease-out',
-        'fade-in-up': 'fade-in-up 360ms cubic-bezier(0.16, 1, 0.3, 1) both',
+        /* 仅保留有消费点的动画配置：`accordion-down` / `accordion-up`
+         * （components/ui/accordion.tsx）。新增 animation 必须有 `animate-<name>` 消费点——
+         * scripts/check-motion-tokens.mjs 会拦。 */
       },
       colors: {
         background: 'hsl(var(--background))',

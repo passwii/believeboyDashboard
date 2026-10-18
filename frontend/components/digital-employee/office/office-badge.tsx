@@ -111,13 +111,13 @@ export function OfficeBadge({ employee }: { employee: OfficeEmployee }) {
           />
         </div>
         {/* 拟人化状态气泡 */}
-        <p className="mt-2 font-mono text-xs leading-4 text-term-muted transition-opacity duration-700">
+        <p className="mt-2 font-mono text-xs leading-4 text-term-muted transition-opacity duration-[var(--duration-very-slow)]">
           {step_label}
         </p>
       </div>
 
       {/* ── hover 展开：当前步骤细节 ── */}
-      <div className="max-h-0 overflow-hidden opacity-0 transition-all duration-300 group-hover:max-h-20 group-hover:opacity-100">
+      <div className="max-h-0 overflow-hidden opacity-0 transition-all duration-[var(--duration-slow)] group-hover:max-h-20 group-hover:opacity-100">
         {employee.current_task && (
           <div className="rounded-none border border-term-border bg-term-bg px-3 py-2 font-mono text-[11px] leading-4 text-term-muted">
             <p>任务：{employee.current_task.task_name}</p>

@@ -881,7 +881,7 @@ export function AIChatWindow({
         <button
           type="button"
           onClick={() => setShowSidebar(true)}
-          className="absolute top-4 left-16 md:left-4 z-30 flex items-center justify-center size-10 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-50 shadow-sm dark:bg-white/[0.06] dark:border-white/[0.08] dark:text-[#8a8a8f] dark:hover:text-white dark:hover:bg-white/[0.1] dark:shadow-none transition-all duration-200 active:scale-95"
+          className="absolute top-4 left-16 md:left-4 z-30 flex items-center justify-center size-10 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-50 shadow-sm dark:bg-white/[0.06] dark:border-white/[0.08] dark:text-[#8a8a8f] dark:hover:text-white dark:hover:bg-white/[0.1] dark:shadow-none transition-all duration-[var(--duration-quick)] active:scale-95"
           aria-label="打开对话历史"
         >
           <PanelLeft className="size-4" />
@@ -1067,7 +1067,7 @@ export function AIChatWindow({
                 ref={stopBtnRef}
                 type="button"
                 onClick={handleStopGeneration}
-                className="flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-50 shadow-sm dark:bg-white/[0.06] dark:border-white/[0.08] dark:text-[#8a8a8f] dark:hover:text-white dark:hover:bg-white/[0.1] dark:shadow-none transition-all duration-200 active:scale-95"
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-50 shadow-sm dark:bg-white/[0.06] dark:border-white/[0.08] dark:text-[#8a8a8f] dark:hover:text-white dark:hover:bg-white/[0.1] dark:shadow-none transition-all duration-[var(--duration-quick)] active:scale-95"
                 style={{
                   animation: isStreaming ? 'bb-stop-pulse 1.5s ease-in-out infinite' : 'none',
                 }}

@@ -208,7 +208,7 @@ function ProgressBar({ percent }: { percent: number }) {
   return (
     <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-muted">
       <div
-        className="h-full rounded-full bg-blue-500 transition-all duration-700"
+        className="h-full rounded-full bg-blue-500 transition-all duration-[var(--duration-very-slow)]"
         style={{ width: `${percent}%` }}
       />
     </div>
@@ -223,7 +223,7 @@ function ActivityItem({ activity, compact }: { activity: ActivityEvent; compact?
   return (
     <div
       className={cn(
-        'group relative flex gap-3 rounded-xl border p-3 transition-all duration-300',
+        'group relative flex gap-3 rounded-xl border p-3 transition-all duration-[var(--duration-quick)]',
         'hover:shadow-sm hover:-translate-y-0.5',
         style.border,
         style.bg,
