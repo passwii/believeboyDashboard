@@ -33,7 +33,7 @@
 - **仍在线的 V2 资产**（不是 bug；例外登记见 §1.5，迁移口径见 §0.3.6）：
   - 主页 `app/dashboard/page.tsx` + `components/dashboard-v2/`（V2Card 蓝色单色独立体系）；
   - 未迁完的存量页面（约 32 文件仍用 `dashboard-surface`）；
-  - **微交互基建跨版本共用**：`u-btn / u-press / u-focus / u-interactive / u-focus-glow` 工具类与 `--motion-*` 令牌（见 `motion-system.md`）——V3 组件同样引用，只替换视觉表面层。
+  - **微交互基建跨版本共用**：`u-btn / u-press / u-focus / u-interactive / u-focus-glow` 工具类与 transitions.dev motion 令牌（`--duration-*` / `--ease-*`，见 `motion-system.md`）——V3 组件同样引用，只替换视觉表面层。
 
 ### 0.3 V3 —— Terminal 终端化（现行权威）★
 
@@ -87,7 +87,7 @@
 
 1. **新页面 / 新组件一律 V3**：按 `master-prompt.md` §任务 2 SOP + `term-controls` 原语写；**不要**再加页面级标题胶囊 / 筛选条（改接 `header-filter-suite` 组件族）；
 2. **存量 V2 页面**按批次迁（master-prompt 批次表 A–F 已收官，全站 52 模块终端化完成；后续增量以 issue 驱动），迁完删除旧类；
-3. **motion 基建不动**：`u-*` 工具类、`--motion-*` 令牌跨版本共用，只换视觉表面层；
+3. **motion 基建不动**：`u-*` 工具类、`--duration-*` / `--ease-*` 令牌跨版本共用，只换视觉表面层；
 4. `variant="term"` / `TERM_PANEL_SURFACE` / `term-controls` 是唯一入口，**不要**再新造各域 term-shared 副本（`order-info` / `scheduled-reports` 存有历史本地副本，仅存量维护，勿模仿）。
 
 ---
@@ -137,7 +137,7 @@
 3. **状态色**：表格用 `StatusPill`（`table-presets.tsx`，映射 `--data-*` 自动适配 dark）或 `Badge` 内置 variant；终端工具行用 `term-controls.tsx` 的 `TermPill`（tone 语义色）；**禁止**业务页手写状态色类（如 `bg-slate-100 text-slate-800`）。
 4. **新颜色双主题双写**：`--term-*` 必须 light / dark 两套同步新增，Tailwind `term` 色组同步 `tailwind.config.ts`；漏写暗色即在暗黑模式出浅色块。
 5. **圆角 / 阴影零回归**：term 体系内禁新增 `rounded-*`（`rounded-none` 除外，`switch` 滑轨等物理隐喻除外）与任何 Box-Shadow；浮层与面板分割一律 `border-term-border`。
-6. **动效令牌双侧同步**：修改 `--motion-*` 需同步 `lib/motion/tokens.ts`（见 `motion-system.md` §2.3）。
+6. **动效令牌双侧同步**：修改 `--duration-*` / `--ease-*` 需同步 `lib/motion/tokens.ts`（见 `motion-system.md` §2.3）。
 
 ---
 
@@ -149,6 +149,6 @@
 | BLF-809 交付复盘 | `docs/terminal-design/design-review.md` | 历史决策与问题清单 |
 | 表格唯一配方 | `frontend/docs/table-spec.md` | v2（BLF-872，已 term 化） |
 | V2 总纲（存档） | `docs/FRONTEND-DESIGN-SPEC.md` | V2 定稿总纲；**与 V3 冲突处以本文档为准** |
-| 动效体系 | `frontend/docs/motion-system.md` | 跨版本共用（`u-*` / `--motion-*`） |
+| 动效体系 | `frontend/docs/motion-system.md` | 跨版本共用（`u-*` / `--duration-*` / `--ease-*`） |
 | 暗黑层次决策 | `docs/dark-mode-depth-design-decisions.md` | V2 定稿（BLF-573） |
 | 图表统一 / 移动端适配 | `docs/chart-unification-spec.md` / `MOBILE_ADAPTATION_RULES.md` | 主题性规范，沿 V2 定稿 |

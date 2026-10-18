@@ -29,7 +29,7 @@ const SelectTrigger = React.forwardRef<
       <ChevronDownIcon
         width={16}
         height={16}
-        className="shrink-0 text-muted-foreground/80 transition-transform duration-[var(--motion-fast)] ease-[var(--motion-ease-out)] group-data-[state=open]:rotate-180 motion-reduce:transition-none"
+        className="shrink-0 text-muted-foreground/80 transition-transform duration-[var(--duration-quick)] ease-[var(--ease-smooth-out)] group-data-[state=open]:rotate-180 motion-reduce:transition-none"
       />
     </SelectPrimitive.Icon>
   </SelectPrimitive.Trigger>

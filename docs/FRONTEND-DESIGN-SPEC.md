@@ -74,7 +74,7 @@
 
 - **圆角阶梯**：`--radius-xs(0.375rem) / sm(0.5rem) / md(0.625rem) / lg(0.75rem) / xl(1rem)`，`--radius` = lg（globals.css:70-75）。卡片用 lg，内嵌小块用 md/sm。
 - **阴影**：兼容别名 `--shadow-soft`（默认卡片）/ `--shadow-raised`（hover 浮起）/ `--shadow-overlay`（浮层）（globals.css:76-78, 176-178）。**Raycast 成对阴影（BLF-573）**：`--shadow-level-1..5`（外阴影 + inset 配对，globals.css:80-92, 180-209），层次规范见 §9；dark 下 `.dashboard-surface` / `.dashboard-panel` / `.dashboard-toolbar` 消费 `--shadow-level-2`，`.dashboard-glass` 消费 `--shadow-level-5`。用 `hover-lift` 类切换 soft→raised。
-- **动效 token**：`--motion-fast(180ms) / base(240ms) / slow(320ms)`、缓动 `--motion-ease-out / standard`、`--stagger-step(70ms)`（globals.css:93-97）。**JS 侧必须同步** `frontend/lib/motion/tokens.ts`（`DURATION/EASE/SPRING/STAGGER`），改 CSS 必须同步 JS，反之亦然——`tokens.test.ts` 有数值断言锁契约。
+- **动效 token**：**transitions.dev 尺度**（2026-10-16 全量替换，globals.css:104-396）——7 档时长 `--duration-stagger(40ms) / micro(80) / quick(150) / fast(250) / medium(350) / slow(400) / very-slow(500)`、6 档缓动 `--ease-smooth-out / in-out / out / linear / bounce / bounce-strong`，另有 `--distance-* / --scale-* / --blur-*` （详见 `frontend/docs/motion-system.md` §2）。**JS 侧必须同步** `frontend/lib/motion/tokens.ts`（`DURATION/EASE/DISTANCE/SCALE/BLUR/SPRING/STAGGER`），改 CSS 必须同步 JS，反之亦然——`tokens.test.ts` 有数值断言锁契约。
 - **交互工具类**：`u-interactive`（hover 上浮 1px）、`u-press`（按压 0.97）、`u-focus`（focus ring）、`u-focus-glow`（聚焦蓝辉光，BLF-573）、`animate-enter`（入场）、`animate-float`（浮动）、`stagger-item` / `u-stagger-item`（错落入场，见 globals.css:820-837）。
 
 ### 1.6 字体与排版
@@ -316,7 +316,7 @@ grep -rn "bg-white\b\|bg-slate-100\|bg-gray-50\|text-gray-700" frontend/app --in
 6. **排版**：eyebrow 用 `dashboard-kicker` 或 §4.1 pill；标题字号 rem、标题走 `--font-display`。
 7. **移动端**：对照 `MOBILE_ADAPTATION_RULES.md` 10 条规则 + 组件排列总则逐项过。
 8. **组件**：新能力优先复用 §6 清单中的组件；确需新增先与设计规范对齐。
-9. **动效**：时长/缓动取 `--motion-*` 或 `lib/motion/tokens.ts`，不另起节奏；新交互满足 `prefers-reduced-motion` 降级。
+9. **动效**：时长/缓动取 `--duration-*` / `--ease-*`（transitions.dev 尺度）或 `lib/motion/tokens.ts`，不另起节奏；新交互满足 `prefers-reduced-motion` 降级。
 
 ---
 

@@ -31,15 +31,13 @@ const SheetOverlay = React.forwardRef<
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName
 
 const sheetVariants = cva(
-  'fixed z-50 gap-4 rounded-none border-term-border bg-term-panel p-6 text-term-text shadow-none u-floating-glass will-change-transform', {
+  'fixed z-50 gap-4 rounded-none border-term-border bg-term-panel p-6 text-term-text shadow-none u-floating-glass ui-panel-motion', {
   variants: {
     side: {
-      top: 'inset-x-0 top-0 border-b data-[state=open]:animate-sheet-in-from-top data-[state=closed]:animate-out data-[state=closed]:duration-[var(--motion-slow)] data-[state=closed]:slide-out-to-top',
-      bottom:
-        'inset-x-0 bottom-0 border-t data-[state=open]:animate-sheet-in-from-bottom data-[state=closed]:animate-out data-[state=closed]:duration-[var(--motion-slow)] data-[state=closed]:slide-out-to-bottom',
-      left: 'inset-y-0 left-0 h-full w-3/4 border-r data-[state=open]:animate-sheet-in-from-left data-[state=closed]:animate-out data-[state=closed]:duration-[var(--motion-slow)] data-[state=closed]:slide-out-to-left sm:max-w-sm',
-      right:
-        'inset-y-0 right-0 h-full w-3/4 border-l data-[state=open]:animate-sheet-in-from-right data-[state=closed]:animate-out data-[state=closed]:duration-[var(--motion-slow)] data-[state=closed]:slide-out-to-right sm:max-w-sm',
+      top: 'inset-x-0 top-0 border-b',
+      bottom: 'inset-x-0 bottom-0 border-t',
+      left: 'inset-y-0 left-0 h-full w-3/4 border-r sm:max-w-sm',
+      right: 'inset-y-0 right-0 h-full w-3/4 border-l sm:max-w-sm',
     },
   },
   defaultVariants: {
@@ -57,7 +55,12 @@ const SheetContent = React.forwardRef<
 >(({ side = 'right', className, children, ...props }, ref) => (
   <SheetPortal>
     <SheetOverlay />
-    <SheetPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), className)} {...props}>
+    <SheetPrimitive.Content
+      ref={ref}
+      data-side={side}
+      className={cn(sheetVariants({ side }), className)}
+      {...props}
+    >
       {children}
       <SheetPrimitive.Close className="absolute right-4 top-4 rounded-none p-1 text-term-muted opacity-70 ring-offset-background transition-colors hover:bg-term-hover hover:text-term-text hover:opacity-100 focus:outline-none focus:ring-1 focus:ring-term-border-strong focus:ring-offset-0 disabled:pointer-events-none data-[state=open]:bg-term-hover">
         <X className="h-4 w-4" />

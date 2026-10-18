@@ -34,7 +34,10 @@ const AccordionTrigger = React.forwardRef<
       {...props}
     >
       {children}
-      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200" />
+      {/* transitions.dev 21-accordion：chevron 用 --acc-chevron(250ms) / --acc-ease。
+       * snippet 用 scaleY(-1) 竖向翻转（跳过 Chromium-only 的 CSS d: 形变）；本仓库的
+       * ChevronDown 左右对称，rotate-180 与之等价，故保留 rotate 机制、只换调参 token。 */}
+      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform [transition-duration:var(--acc-chevron)] [transition-timing-function:var(--acc-ease)]" />
     </AccordionPrimitive.Trigger>
   </AccordionPrimitive.Header>
 ))

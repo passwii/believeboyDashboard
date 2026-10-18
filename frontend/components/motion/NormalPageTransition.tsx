@@ -23,9 +23,9 @@ export function NormalPageTransition({ children, className, pathname }: Props) {
   const exit = reduce ? { opacity: 1 } : { opacity: 0, y: -6 }
 
   // 极致轻量：只动 opacity + 极短 translateY（都是合成器属性，零逐帧重绘），
-  // 用 0.24s ease-out 短 tween 代替 spring —— 整页合成层存在时间缩短约 3 倍，
+  // 用 0.25s smooth-out 短 tween 代替 spring —— 整页合成层存在时间缩短约 3 倍，
   // GPU 显存占用与合成次数大幅下降；不再用 scale（避免大层重栅格）。
-  const transition = reduce ? { duration: 0 } : { duration: DURATION.base, ease: EASE.out }
+  const transition = reduce ? { duration: 0 } : { duration: DURATION.fast, ease: EASE.smoothOut }
 
   return (
     <div className={className ?? 'h-full w-full'}>

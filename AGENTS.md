@@ -77,3 +77,37 @@
 ## Platform follow-up（BEL-127）
 
 BEL-127 根因是平台注入的 `workdir/AGENTS.md` 模板把 MCP 工具名（`codegraph_status` 等）当 shell 命令让 agent 跑。仓库内文档无法修复（平台每次启动覆盖 `workdir/AGENTS.md`），属平台 owner 事项。建议平台把注入模板改为走 CLI（`codegraph <子命令>`）路径，详见 `docs/REFERENCE.md` 的 CodeGraph 章节与历史 `CLAUDE.md` 的 Platform follow-up 段。
+
+## Platform follow-up（pi-lens LSP 误报，2026-10-16）
+
+**症状**：`lens_diagnostics(source=lsp)` 在本仓库大量报 `TS2307 Cannot find module 'vitest' / 'framer-motion' / 'lucide-react' / '@radix-ui/*' / 'recharts' / 'gsap' / 'tailwindcss'`、`TS7016 Could not find a declaration file`、`TS7006 implicitly has an 'any' type`，**包括本 session 完全没碰过的文件**（例：`frontend/lib/motion/routes.test.ts`）。
+
+**根因**：pi-lens 的 `typescript-language-server` 未应用 `frontend/tsconfig.json`（`moduleResolution: "bundler"`），退化为 node10 语义 → 所有只走 `exports` 的包装配都解析失败。**不是仓库代码问题**。
+
+**已实测无效的仓库侧修复（勿重复尝试）**：
+
+| 尝试 | 结果 |
+| --- | --- |
+| 仓库根新增 `tsconfig.json`（extends `frontend/tsconfig.json`） | ❌ 误报不变 |
+| `.pi-lens.json` → `lsp.serverOverrides.typescript.initializationOptions.typescript.tsdk`（相对 / 绝对路径各一次，指向 `frontend/node_modules/typescript/lib`） | ❌ 误报不变 |
+| `.pi-lens.json` → `rules."2307"/"7016"/"7006".disable` | ❌ 无效（`rules.<id>` 只认 pi-lens 自有 rule id，非 LSP 数字码） |
+| 删除 `tsconfig.tsbuildinfo` + touch 文件/tsconfig 触发重解析 | ❌ 误报不变 |
+
+**判定它是否误报的四条证据**（照跑即可）：
+
+```bash
+cd frontend
+# ① 未改动的文件报同样的错 → 与本次改动无关
+npx tsc --noEmit --pretty false --moduleResolution node10 lib/motion/routes.test.ts   # 复现 LSP 同类错
+npx tsc --noEmit --pretty false --moduleResolution bundler --module esnext \
+  --jsx react-jsx --target ES2017 --strict --skipLibCheck lib/motion/routes.test.ts  # 0 个模块错误
+# ② 项目 tsc（读 frontend/tsconfig.json）对该文件 0 诊断
+npx tsc --noEmit --pretty false | grep lib/motion/routes.test
+# ③ 包确实装着
+node -e "require.resolve('vitest',{paths:[process.cwd()]})"
+# ④ vitest 真跑
+npx vitest run lib/motion/routes.test.ts
+```
+
+**当前处置**：不用改代码消除它（会掩盖后续真诊断）；用 `lens_diagnostic_mark(disposition="false-positive")` 标注本 session 触碰文件上的误报即可。**权威 TS 门禁是项目 tsc / `pnpm build`（Vercel next build 内置 tsc）/ `pnpm lint` / `pnpm test`，不是 pi-lens 的 LSP 面板。**
+

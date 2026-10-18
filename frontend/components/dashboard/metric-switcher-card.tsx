@@ -16,6 +16,7 @@ import {
 } from 'recharts'
 
 import { cn } from '@/lib/utils'
+import { DURATION, EASE } from '@/lib/motion/tokens'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { ChartContainer, ChartTooltip, type ChartConfig } from '@/components/ui/line-charts-6'
 
@@ -30,12 +31,6 @@ const METRIC_TONE_CLASS: Record<MetricTone, string> = {
   warn: 'text-term-warn',
   muted: 'text-term-muted',
 }
-
-/**
- * Project-standard motion easing. Mirrors `--motion-ease-out` in
- * `app/globals.css` and the easing used in `components/ui/tab-motion.tsx`.
- */
-const MOTION_EASE_OUT = [0.22, 1, 0.36, 1] as const
 
 /**
  * Round a spring-interpolated value to the metric's declared precision before
@@ -294,7 +289,7 @@ export function MetricSwitcherCard<K extends string>({
           key={`chart-${effectiveKind}`}
           initial={prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25, ease: MOTION_EASE_OUT }}
+          transition={{ duration: DURATION.fast, ease: EASE.smoothOut }}
           className={cn('w-full border border-term-border bg-term-panel', heightClass)}
         >
           <ChartContainer config={config} className={cn('w-full', heightClass)}>
@@ -825,7 +820,7 @@ function MetricSwitcherTooltip<K extends string>({
     <motion.div
       initial={prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.15, ease: MOTION_EASE_OUT }}
+      transition={{ duration: DURATION.quick, ease: EASE.smoothOut }}
       className="grid min-w-[8rem] items-start gap-1.5 border border-term-border bg-term-panel px-2.5 py-1.5 text-xs shadow-none"
     >
       {label !== undefined && label !== null && (
