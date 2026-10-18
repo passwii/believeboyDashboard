@@ -178,6 +178,35 @@ describe('collectRuntimeVarDefs：认三种运行时注入写法', () => {
     const src = `const s = 'var(--ghost)'`
     assert.equal(collectRuntimeVarDefs(src).size, 0)
   })
+
+  // 反例：被注释掉的注入不是注入。真实回归形状是「真注入删了、只剩一行注释」，
+  // 不遮蔽注释就会误判成已定义 → 门禁①静默放行。
+  it('注释里的注入不算定义（行注释 / 块注释 / JSDoc 三种写法）', () => {
+    const src = [
+      `// el.style.setProperty('--motion-x', '10ms')`,
+      `/* <div style={{ '--motion-y': index }} /> */`,
+      `/** localFont({ variable: '--motion-z' }) */`,
+      `const real = 1`,
+    ].join('\n')
+    assert.deepEqual([...collectRuntimeVarDefs(src)], [])
+  })
+
+  it('注释遮蔽后不影响同一文件里真实的注入', () => {
+    const src = `// setProperty('--ghost', '1ms')\nel.style.setProperty('--subnav-delay', '40ms')`
+    assert.deepEqual([...collectRuntimeVarDefs(src)], ['--subnav-delay'])
+  })
+})
+
+// ─── 判据 1 与运行时注入的交叉：注释不能洗白悬空引用 ────────────────────────
+
+describe('注释里的注入不能洗白悬空引用', () => {
+  it('真注入只剩注释时，引用仍必须命中', () => {
+    const css = `.x { transition-duration: var(--motion-x); }`
+    const source = `// el.style.setProperty('--motion-x', '10ms')`
+    const { hits } = findUndefinedVars(css, { runtimeDefined: collectRuntimeVarDefs(source) })
+    assert.equal(hits.length, 1)
+    assert.equal(hits[0].name, '--motion-x')
+  })
 })
 
 // ─── 判据 2：零消费 animation 配置 ───────────────────────────────────────────

@@ -218,8 +218,13 @@ export function collectCssVarRefs(cssText) {
  *   DOM API:     `setProperty('--x', …)`
  *
  * 不认 `var(--x)` 引用——那正是要被检查的东西。
+ *
+ * **先遮蔽注释**：被注释掉的注入不是注入。不遮蔽的话，`// el.style.setProperty('--x', …)`
+ * 这种「真注入已删、只剩注释」的回归会被误认成已定义，门禁①静默放行——而这类回归
+ * （注入没了、引用还在）恰恰是本脚本最该抓的形状。
  */
 export function collectRuntimeVarDefs(source) {
+  const masked = maskComments(source)
   const defs = new Set()
   const patterns = [
     /variable\s*:\s*['"](--[A-Za-z0-9_-]+)['"]/g,
@@ -229,7 +234,7 @@ export function collectRuntimeVarDefs(source) {
   for (const re of patterns) {
     let m
     re.lastIndex = 0
-    while ((m = re.exec(source)) !== null) defs.add(m[1])
+    while ((m = re.exec(masked)) !== null) defs.add(m[1])
   }
   return defs
 }
