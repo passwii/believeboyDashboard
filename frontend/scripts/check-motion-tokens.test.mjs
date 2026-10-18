@@ -102,7 +102,21 @@ describe('maskComments：只遮注释，保留长度与换行', () => {
 
   // 箭头函数直接返回正则（`=> /[\'"]/`）：`>` 不是分隔符，得单独认，否则又回到假阴性。
   // 同时盯住反向：`a > b / 2` 里的 `/` 是除号，不得当正则跳过。
-  it('箭头函数返回的正则也被跳过，比较运算符后的除号不被当正则', () => {
+  it('正则起始检测跨行，且比较运算符后的除号仍按除号处理', () => {
+    const multilineAssignment = [
+      `const matcher =`,
+      `  /['"]/.test(value) // el.style.setProperty('--ghost', '1ms')`,
+      `el.style.setProperty('--real', '10ms')`,
+    ].join('\n')
+    assert.deepEqual([...collectRuntimeVarDefs(multilineAssignment)], ['--real'])
+
+    const multilineArrow = [
+      `const matcher = (value) =>`,
+      `  /['"]/.test(value) // el.style.setProperty('--ghost', '1ms')`,
+      `el.style.setProperty('--real', '10ms')`,
+    ].join('\r\n')
+    assert.deepEqual([...collectRuntimeVarDefs(multilineArrow)], ['--real'])
+
     const arrow = [
       `const f = (v) => /['"]/.test(v)`,
       `// el.style.setProperty('--ghost', '1ms')`,

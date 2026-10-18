@@ -131,7 +131,12 @@ export function maskComments(source) {
   // 或紧跟 return / typeof 这类只可能出现在表达式前的关键字，或箭头 `=>`）。
   const isRegexStart = () => {
     let k = i - 1
-    while (k >= 0 && (source[k] === ' ' || source[k] === '\t')) k -= 1
+    while (
+      k >= 0 &&
+      (source[k] === ' ' || source[k] === '\t' || source[k] === '\n' || source[k] === '\r')
+    ) {
+      k -= 1
+    }
     if (k < 0) return true
     const p = source[k]
     if (
@@ -143,7 +148,12 @@ export function maskComments(source) {
     // 箭头函数直接返回正则：`=> /['"]/`。`>` 本身不是分隔符，单独认。
     if (p === '>') {
       let j = k - 1
-      while (j >= 0 && (source[j] === ' ' || source[j] === '\t')) j -= 1
+      while (
+        j >= 0 &&
+        (source[j] === ' ' || source[j] === '\t' || source[j] === '\n' || source[j] === '\r')
+      ) {
+        j -= 1
+      }
       return source[j] === '='
     }
     return /\b(return|typeof|case|in|of|delete|void|instanceof|yield)$/.test(
