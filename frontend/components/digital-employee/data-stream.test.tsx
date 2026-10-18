@@ -9,8 +9,8 @@ import type { DigitalEmployee } from '@/types/digital-employee'
  * BLF-1361 复审 P2：`DataStream` 的自动轮换是「淡出 → 换内容 → 淡入」，
  * 轮换 `setTimeout` 与容器的 `transition` 必须**同源**。
  *
- * 历史坑：迁移时只把 CSS 一侧从 `duration-300` 换成 `duration-[var(--duration-medium)]`
- * （350ms），timer 仍是裸 `300`——淡出没走完就换内容并反向插值，每次轮换都有一次
+ * 历史坑：迁移时只把 CSS 一侧换成 `duration-[var(--duration-medium)]`（350ms），
+ * timer 仍是裸的 300ms——淡出没走完就换内容并反向插值，每次轮换都有一次
  * 可见的 content pop。这里用「淡出结束前内容不得变」把它钉死：谁把两侧改成不同值，
  * 这两个用例就会红。
  */
