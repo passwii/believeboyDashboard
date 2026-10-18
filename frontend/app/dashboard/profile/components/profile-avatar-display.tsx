@@ -64,7 +64,7 @@ export function ProfileAvatarDisplay({
         disabled={!hasAvatar}
         aria-label={hasAvatar ? `查看 ${name} 头像原图` : '尚未上传头像'}
         className={cn(
-          'group relative rounded-2xl ring-offset-background transition-all duration-200',
+          'group relative rounded-2xl ring-offset-background transition-all duration-[var(--duration-quick)]',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
           hasAvatar ? 'cursor-zoom-in hover:ring-4 hover:ring-primary/30' : 'cursor-default'
         )}

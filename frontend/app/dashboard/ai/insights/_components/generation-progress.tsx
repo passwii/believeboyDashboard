@@ -90,7 +90,7 @@ export function GenerationProgress({ currentSubStatus }: { currentSubStatus: str
                 )}
                 <div
                   className={cn(
-                    'flex items-center justify-center rounded-full border transition-all duration-300',
+                    'flex items-center justify-center rounded-full border transition-all duration-[var(--duration-quick)]',
                     isCompleted
                       ? 'border-term-pos bg-term-pos text-term-bg'
                       : isActive
@@ -125,7 +125,7 @@ export function GenerationProgress({ currentSubStatus }: { currentSubStatus: str
               <div className="flex-1 pb-6">
                 <p
                   className={cn(
-                    'text-sm font-medium transition-colors duration-300',
+                    'text-sm font-medium transition-colors duration-[var(--duration-quick)]',
                     isActive
                       ? 'text-term-accent'
                       : isCompleted
@@ -149,7 +149,7 @@ export function GenerationProgress({ currentSubStatus }: { currentSubStatus: str
                         <div
                           key={ds.key}
                           className={cn(
-                            'flex flex-col gap-1 transition-all duration-300',
+                            'flex flex-col gap-1 transition-all duration-[var(--duration-fast)]',
                             isDActive ? 'translate-x-1' : ''
                           )}
                         >
@@ -161,7 +161,7 @@ export function GenerationProgress({ currentSubStatus }: { currentSubStatus: str
                               )}
                               <div
                                 className={cn(
-                                  'h-1.5 w-1.5 rounded-full transition-colors duration-300',
+                                  'h-1.5 w-1.5 rounded-full transition-colors duration-[var(--duration-quick)]',
                                   isDActive
                                     ? 'bg-term-accent'
                                     : isDCompleted
@@ -172,7 +172,7 @@ export function GenerationProgress({ currentSubStatus }: { currentSubStatus: str
                             </div>
                             <span
                               className={cn(
-                                'text-xs transition-colors duration-300',
+                                'text-xs transition-colors duration-[var(--duration-quick)]',
                                 isDActive
                                   ? 'text-term-accent font-semibold'
                                   : isDCompleted

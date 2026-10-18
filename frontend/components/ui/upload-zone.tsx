@@ -189,7 +189,7 @@ export function UploadZone({
           className={cn(
             // 终端规格（BLF-809 / BLF-887）：零圆角 / 1px 边界 / mono 小字；
             // 状态色与 auto-upload 拖拽区一致（drag-active 与 paste-active 都走 term-accent 语义）。
-            'flex flex-1 cursor-pointer items-center justify-center rounded-none border border-dashed px-4 py-5 transition-[border-color,background-color] duration-200',
+            'flex flex-1 cursor-pointer items-center justify-center rounded-none border border-dashed px-4 py-5 transition-[border-color,background-color] duration-[var(--duration-quick)]',
             isDragActive
               ? 'border-term-accent/70 bg-term-accent/10'
               : isPasteActive

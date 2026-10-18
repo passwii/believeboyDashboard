@@ -74,7 +74,7 @@ export function OfficeSpotlightToast({ feed }: { feed: ChatterEvent[] }) {
     <div
       className={cn(
         'fixed bottom-6 left-4 right-4 z-50 flex items-center gap-3 rounded-none border px-4 py-3 shadow-none',
-        'animate-in slide-in-from-bottom-2 fade-in duration-300',
+        'animate-in slide-in-from-bottom-2 fade-in duration-[var(--duration-medium)]',
         'sm:left-auto sm:right-6',
         isFail
           ? 'border-term-neg/40 bg-term-bg text-term-neg'

@@ -167,7 +167,7 @@ export function AIChatSearchSources({
             return (
               <div
                 key={cardKey}
-                className="group relative w-[240px] shrink-0 rounded-2xl border border-surface-outline/60 bg-gradient-to-br from-surface-panel via-surface-subtle/90 to-surface-subtle/70 p-3 shadow-[0_10px_24px_rgba(15,23,42,0.08)] dark:shadow-[0_10px_24px_rgba(0,0,0,0.3)] transition-[border-color,background-color,box-shadow] duration-200 hover:border-primary/25 hover:bg-slate-50/90 dark:hover:bg-[hsl(var(--surface-subtle)/0.8)] dark:hover:shadow-[0_14px_30px_rgba(0,0,0,0.35)]"
+                className="group relative w-[240px] shrink-0 rounded-2xl border border-surface-outline/60 bg-gradient-to-br from-surface-panel via-surface-subtle/90 to-surface-subtle/70 p-3 shadow-[0_10px_24px_rgba(15,23,42,0.08)] dark:shadow-[0_10px_24px_rgba(0,0,0,0.3)] transition-[border-color,background-color,box-shadow] duration-[var(--duration-quick)] hover:border-primary/25 hover:bg-slate-50/90 dark:hover:bg-[hsl(var(--surface-subtle)/0.8)] dark:hover:shadow-[0_14px_30px_rgba(0,0,0,0.35)]"
               >
                 <a
                   href={source.url || '#'}

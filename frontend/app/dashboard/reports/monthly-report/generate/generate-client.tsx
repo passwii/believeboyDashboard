@@ -1085,7 +1085,7 @@ export default function GenerateTab() {
                       <div className="h-1 overflow-hidden rounded-none bg-term-raised">
                         <div
                           className={cn(
-                            'h-full transition-all duration-200',
+                            'h-full transition-all duration-[var(--duration-quick)]',
                             matched
                               ? meta.bar
                               : 'bg-term-border dark:bg-term-border'
@@ -1194,7 +1194,7 @@ export default function GenerateTab() {
             </div>
             <div className="h-1 overflow-hidden rounded-none bg-term-raised">
               <div
-                className="h-full bg-blue-500 transition-all duration-300"
+                className="h-full bg-blue-500 transition-all duration-[var(--duration-very-slow)]"
                 style={{ width: `${normalizeProgress(jobProgress?.progress ?? 0)}%` }}
               />
             </div>

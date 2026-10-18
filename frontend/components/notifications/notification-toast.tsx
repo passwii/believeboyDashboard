@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { CheckCircle2, Info, AlertTriangle, XCircle, X } from 'lucide-react'
 import { Notification, NotificationType } from '@/lib/notifications'
 import { useNotifications } from './notifications-context'
@@ -56,6 +56,12 @@ function ToastItem({ notification }: ToastItemProps) {
   const { dismissToast } = useNotifications()
   const config = typeConfig[notification.type]
   const Icon = config.icon
+  /* 全局 <MotionConfig reducedMotion="user">（app/layout.tsx）只会把 **transform / layout**
+   * 动画降为瞬时，`filter: blur()` 不在它的覆盖面内——实测 reduced-motion 下位移已变成
+   * `transform: none`，但 blur 仍在 2px→0 之间插值。验收要求「不再做位移与模糊」，
+   * 所以这里单独把 blur 拿掉：退化后只留 opacity 淡入，仍给出「出现了」的反馈。 */
+  const prefersReducedMotion = useReducedMotion()
+  const blurIn = prefersReducedMotion ? 'blur(0px)' : `blur(${BLUR.small}px)`
 
   return (
     <motion.div
@@ -64,13 +70,13 @@ function ToastItem({ notification }: ToastItemProps) {
        * 退场走快钟——--toast-open(350ms)=DURATION.medium、--toast-close(250ms)=DURATION.fast、
        * --toast-distance(16px)、--toast-scale(0.97)=SCALE.medium、--toast-blur(2px)=BLUR.small、
        * --toast-ease=EASE.smoothOut。旧实现是 x:40 的横向滑入 + scale 0.95，按 snippet 改为垂直上浮。 */
-      initial={{ opacity: 0, y: TOAST_DISTANCE, scale: SCALE.medium, filter: `blur(${BLUR.small}px)` }}
+      initial={{ opacity: 0, y: TOAST_DISTANCE, scale: SCALE.medium, filter: blurIn }}
       animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
       exit={{
         opacity: 0,
         y: TOAST_DISTANCE,
         scale: SCALE.medium,
-        filter: `blur(${BLUR.small}px)`,
+        filter: blurIn,
         transition: { duration: DURATION.fast, ease: EASE.smoothOut },
       }}
       transition={{ duration: DURATION.medium, ease: EASE.smoothOut }}

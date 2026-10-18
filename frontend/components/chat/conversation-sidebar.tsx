@@ -143,7 +143,7 @@ export function ConversationSidebar({
                 gsap.fromTo(btn, { scale: 0.8 }, { scale: 1, duration: 0.3, ease: 'back.out(2)' })
               onCreate()
             }}
-            className="conv-new-btn flex items-center justify-center size-8 rounded-lg bg-slate-100 text-slate-500 hover:text-slate-900 hover:bg-slate-200 dark:bg-white/[0.06] dark:text-[#8a8a8f] dark:hover:text-white dark:hover:bg-white/[0.1] transition-all duration-200 active:scale-95"
+            className="conv-new-btn flex items-center justify-center size-8 rounded-lg bg-slate-100 text-slate-500 hover:text-slate-900 hover:bg-slate-200 dark:bg-white/[0.06] dark:text-[#8a8a8f] dark:hover:text-white dark:hover:bg-white/[0.1] transition-all duration-[var(--duration-quick)] active:scale-95"
             aria-label="新建对话"
           >
             <Plus className="size-4" />
@@ -161,7 +161,7 @@ export function ConversationSidebar({
                   onComplete: onClose,
                 })
             }}
-            className="flex items-center justify-center size-8 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 dark:text-[#5a5a5f] dark:hover:text-white dark:hover:bg-white/[0.06] transition-all duration-200 active:scale-95"
+            className="flex items-center justify-center size-8 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 dark:text-[#5a5a5f] dark:hover:text-white dark:hover:bg-white/[0.06] transition-all duration-[var(--duration-quick)] active:scale-95"
             aria-label="关闭侧边栏"
           >
             <PanelLeftClose className="size-4" />
@@ -210,7 +210,7 @@ export function ConversationSidebar({
                 <button
                   type="button"
                   onClick={onCreate}
-                  className="flex items-center gap-1.5 rounded-lg bg-blue-50 border border-blue-200 px-3 py-2 text-xs font-medium text-blue-600 hover:bg-blue-100 hover:text-blue-700 dark:bg-blue-500/15 dark:border-blue-500/20 dark:text-blue-300 dark:hover:bg-blue-500/25 dark:hover:text-blue-200 transition-all duration-200 active:scale-95"
+                  className="flex items-center gap-1.5 rounded-lg bg-blue-50 border border-blue-200 px-3 py-2 text-xs font-medium text-blue-600 hover:bg-blue-100 hover:text-blue-700 dark:bg-blue-500/15 dark:border-blue-500/20 dark:text-blue-300 dark:hover:bg-blue-500/25 dark:hover:text-blue-200 transition-all duration-[var(--duration-quick)] active:scale-95"
                 >
                   <Plus className="size-3.5" />
                   开始新对话
@@ -236,7 +236,7 @@ export function ConversationSidebar({
             }}
             onMouseEnter={() => setHoveredId(conv.id)}
             onMouseLeave={() => setHoveredId(null)}
-            className={`group relative flex items-center gap-3 px-3 py-3 sm:py-2.5 rounded-xl cursor-pointer transition-all duration-200 min-h-[44px] sm:min-h-[auto] ${
+            className={`group relative flex items-center gap-3 px-3 py-3 sm:py-2.5 rounded-xl cursor-pointer transition-all duration-[var(--duration-quick)] min-h-[44px] sm:min-h-[auto] ${
               activeId === conv.id
                 ? 'bg-slate-100 text-slate-900 dark:bg-white/[0.08] dark:text-white'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 dark:text-[#a0a0a5] dark:hover:text-white dark:hover:bg-white/[0.04]'

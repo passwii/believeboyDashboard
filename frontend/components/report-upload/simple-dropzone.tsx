@@ -30,7 +30,7 @@ export function SimpleDropzone({
     <div
       className={cn(
         // BLF-893：dropzone 终端化——零圆角、term 令牌、slate 拖入态走 term-accent。
-        'relative flex flex-col items-center justify-center gap-3 rounded-none border-2 border-dashed border-term-border bg-term-panel px-6 py-10 text-center transition-[border-color,background-color] duration-200 cursor-pointer hover:border-term-border-strong',
+        'relative flex flex-col items-center justify-center gap-3 rounded-none border-2 border-dashed border-term-border bg-term-panel px-6 py-10 text-center transition-[border-color,background-color] duration-[var(--duration-quick)] cursor-pointer hover:border-term-border-strong',
         dragActive && 'border-term-accent bg-term-hover',
         className
       )}

@@ -195,7 +195,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
               <p className="mb-2 truncate text-sm font-medium text-term-text">{runningTask.task_name}</p>
               <div className="mb-2 h-1.5 w-full overflow-hidden rounded-none border border-term-border bg-term-bg">
                 <div
-                  className="h-full bg-term-accent transition-all duration-700"
+                  className="h-full bg-term-accent transition-all duration-[var(--duration-very-slow)]"
                   style={{ width: `${runningTask.progress_percent}%` }}
                 />
               </div>

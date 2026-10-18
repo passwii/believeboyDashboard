@@ -475,7 +475,7 @@ export function ShopCalculationTable({
             <TableRow
               key={item.id}
               className={cn(
-                'align-middle transition-colors duration-75 hover:bg-term-hover',
+                'align-middle transition-colors duration-[var(--duration-quick)] hover:bg-term-hover',
                 idx % 2 === 1 && 'bg-term-bg'
               )}
             >

@@ -26,7 +26,7 @@ function StatCard({ icon, label, value, description }: StatCardProps) {
   return (
     <div
       className={cn(
-        'group relative rounded-none border border-border/60 bg-card/50 p-4 transition-all duration-200',
+        'group relative rounded-none border border-border/60 bg-card/50 p-4 transition-all duration-[var(--duration-quick)]',
         'hover:border-border hover:shadow-none hover:bg-card/80'
       )}
     >

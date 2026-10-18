@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, type CSSProperties } from 'react'
 import { TermPanel } from '@/components/terminal/term-panel'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
@@ -552,8 +552,12 @@ export default function InspectionOverview({
         )}
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {sortedItems.map((item) => (
-            <div key={item.project_id} className="stagger-item">
+          {sortedItems.map((item, index) => (
+            <div
+              key={item.project_id}
+              className="u-stagger-item"
+              style={{ '--i': index } as CSSProperties}
+            >
               <ProjectCard
                 item={item}
                 onClick={() => onSelectProject(item.project_id)}

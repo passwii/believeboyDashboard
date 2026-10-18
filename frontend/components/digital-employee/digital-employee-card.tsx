@@ -91,7 +91,7 @@ export function DigitalEmployeeCard({ employee, onClick, currentTask }: DigitalE
         </div>
 
         <div className="flex justify-center">
-          <div className={cn('transition-all duration-300', avatarRing)}>
+          <div className={cn('transition-all duration-[var(--duration-quick)]', avatarRing)}>
             <EmployeeAvatar
               employeeType={employee.employee_type}
               size="lg"

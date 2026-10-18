@@ -26,7 +26,7 @@ export function AnnouncementBadge({ text, href = '#' }: { text: string; href?: s
   )
 
   const baseClass =
-    'announcement-badge relative inline-flex items-center gap-2 px-5 py-2 min-h-[40px] rounded-full text-sm overflow-hidden transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] cursor-pointer bb-anim-scale-in'
+    'announcement-badge relative inline-flex items-center gap-2 px-5 py-2 min-h-[40px] rounded-full text-sm overflow-hidden transition-all duration-[var(--duration-quick)] hover:scale-[1.02] active:scale-[0.98] cursor-pointer bb-anim-scale-in'
 
   return (
     <>
