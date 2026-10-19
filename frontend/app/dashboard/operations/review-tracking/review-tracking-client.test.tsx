@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -6,8 +6,14 @@ import { notify, stableNotifications, stableSession } from '@/test-utils/stable-
 
 // ── mocks ────────────────────────────────────────────────────────────────────
 
+// session 可切：评论追踪页的写操作（登记外部竞品）仅管理员可见，
+// 其余用例一律用运营账号。`stableSession` 按值缓存，同一组入参身份恒定。
+const { sessionUser } = vi.hoisted(() => ({
+  sessionUser: { current: { id: 'user-1', roleType: 'operator' } as Record<string, unknown> },
+}))
+
 vi.mock('next-auth/react', () => ({
-  useSession: () => stableSession({ user: { id: 'user-1', roleType: 'operator' } }),
+  useSession: () => stableSession({ user: sessionUser.current }),
 }))
 
 vi.mock('@/components/notifications', () => ({
@@ -40,12 +46,14 @@ const {
   fetchReviews,
   fetchCrawlRuns,
   fetchExternalTargets,
+  createExternalTarget,
 } = vi.hoisted(() => ({
   fetchTargets: vi.fn(),
   fetchRatingSnapshots: vi.fn(),
   fetchReviews: vi.fn(),
   fetchCrawlRuns: vi.fn(),
   fetchExternalTargets: vi.fn(),
+  createExternalTarget: vi.fn(),
 }))
 
 vi.mock('@/lib/review-tracking-api', async (importOriginal) => {
@@ -57,6 +65,7 @@ vi.mock('@/lib/review-tracking-api', async (importOriginal) => {
     fetchReviews,
     fetchCrawlRuns,
     fetchExternalTargets,
+    createExternalTarget,
   }
 })
 
@@ -64,6 +73,7 @@ import ReviewTrackingClient from './review-tracking-client'
 import {
   ReviewTrackingApiError,
   mapRatingSnapshot,
+  mapReview,
   mapTarget,
 } from '@/lib/review-tracking-api'
 
@@ -91,14 +101,65 @@ const EXTERNAL_TARGET = mapTarget({
 
 beforeEach(() => {
   vi.clearAllMocks()
+  sessionUser.current = { id: 'user-1', roleType: 'operator' }
   fetchTargets.mockResolvedValue([INTERNAL_TARGET])
   fetchRatingSnapshots.mockResolvedValue([])
   fetchReviews.mockResolvedValue([])
   fetchCrawlRuns.mockResolvedValue([])
   fetchExternalTargets.mockResolvedValue([])
+  createExternalTarget.mockResolvedValue(undefined)
 })
 
 afterEach(cleanup)
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((res) => {
+    resolve = res
+  })
+  return { promise, resolve }
+}
+
+function snapshot(averageRating: number, captureDate = '2026-10-18') {
+  return mapRatingSnapshot({
+    capture_date: captureDate,
+    captured_at: `${captureDate}T03:00:00Z`,
+    average_rating: averageRating,
+    rating_count: 120,
+    review_count: 15,
+    star_1_percentage: 5,
+    star_2_percentage: 5,
+    star_3_percentage: 10,
+    star_4_percentage: 20,
+    star_5_percentage: 60,
+    star_1_count: 6,
+    star_2_count: 6,
+    star_3_count: 12,
+    star_4_count: 24,
+    star_5_count: 72,
+    star_count_quality: 'exact',
+    capture_status: 'success',
+  } as never)
+}
+
+function review(title: string) {
+  return mapReview({
+    review_key: `key-${title}`,
+    id_confidence: 'exact',
+    reviewer_name: '测试评论者',
+    rating: 5,
+    title,
+    body: '正文',
+    review_date: '2026-10-17',
+    verified_purchase: true,
+    helpful_count: 1,
+    first_seen_at: '2026-10-17T03:00:00Z',
+    last_seen_at: '2026-10-18T03:00:00Z',
+    visibility_status: 'visible',
+  } as never)
+}
 
 describe('评论追踪页：空态', () => {
   it('没有目标时提示等待采集端接入，并列出空态', async () => {
@@ -201,5 +262,82 @@ describe('评论追踪页：目标选择', () => {
       expect(fetchReviews).toHaveBeenCalledWith(2, expect.objectContaining({ limit: 50, offset: 0 }))
     )
     await waitFor(() => expect(fetchCrawlRuns).toHaveBeenCalledWith(2, { limit: 20 }))
+  })
+})
+
+describe('评论追踪页：切目标防串台（B4）', () => {
+  it('A 未回就切到 B，A 后到时仍渲染 B 的快照', async () => {
+    fetchTargets.mockResolvedValue([INTERNAL_TARGET, EXTERNAL_TARGET])
+    const slowA = deferred<ReturnType<typeof snapshot>[]>()
+    fetchRatingSnapshots.mockImplementation((targetId: number) =>
+      targetId === 1 ? slowA.promise : Promise.resolve([snapshot(3.1)])
+    )
+
+    render(<ReviewTrackingClient />)
+    await screen.findByTestId('target-2')
+    await waitFor(() => expect(fetchRatingSnapshots).toHaveBeenCalledWith(1, { limit: 200 }))
+
+    // 切到 B：B 先回，图表先渲染 B 的数据
+    screen.getByTestId('target-2').click()
+    expect(await screen.findByText('3.1')).toBeInTheDocument()
+
+    // A 的响应此刻才回来：必须被丢弃，不能把 B 的图表盖成 A 的 4.2
+    await act(async () => {
+      slowA.resolve([snapshot(4.2)])
+    })
+
+    await waitFor(() => expect(screen.getByText('3.1')).toBeInTheDocument())
+    expect(screen.queryByText('4.2')).not.toBeInTheDocument()
+  })
+
+  it('A 未回就切到 B，A 后到时仍渲染 B 的评论（含翻页/可见性令牌）', async () => {
+    fetchTargets.mockResolvedValue([INTERNAL_TARGET, EXTERNAL_TARGET])
+    const slowA = deferred<ReturnType<typeof review>[]>()
+    fetchReviews.mockImplementation((targetId: number) =>
+      targetId === 1 ? slowA.promise : Promise.resolve([review('B 的评论标题')])
+    )
+
+    render(<ReviewTrackingClient />)
+    await screen.findByTestId('target-2')
+    fireEvent.mouseDown(screen.getByRole('tab', { name: '评论明细' }))
+    fireEvent.click(screen.getByRole('tab', { name: '评论明细' }))
+
+    screen.getByTestId('target-2').click()
+    expect(await screen.findByText('B 的评论标题')).toBeInTheDocument()
+
+    await act(async () => {
+      slowA.resolve([review('A 的评论标题')])
+    })
+
+    await waitFor(() => expect(screen.getByText('B 的评论标题')).toBeInTheDocument())
+    expect(screen.queryByText('A 的评论标题')).not.toBeInTheDocument()
+  })
+})
+
+describe('评论追踪页：外部竞品登记（B5）', () => {
+  it('登记成功后同时刷新外部列表与左侧目标列表', async () => {
+    sessionUser.current = { id: 'user-1', roleType: 'admin', isAdmin: true }
+    render(<ReviewTrackingClient />)
+
+    await screen.findByTestId('target-1')
+    expect(fetchTargets).toHaveBeenCalledTimes(1)
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: '外部竞品' }))
+    fireEvent.click(screen.getByRole('tab', { name: '外部竞品' }))
+
+    const asinInput = await screen.findByLabelText('ASIN')
+    fireEvent.change(asinInput, { target: { value: 'B0DDDDDDD4' } })
+
+    const submit = screen.getByRole('button', { name: /登记/ })
+    await waitFor(() => expect(submit).not.toBeDisabled())
+    fireEvent.click(submit)
+
+    // 左侧目标列表重新拉取（否则「仅启用」下刚登记的竞品选不到）
+    await waitFor(() => expect(fetchTargets).toHaveBeenCalledTimes(2))
+    expect(createExternalTarget).toHaveBeenCalledWith(
+      expect.objectContaining({ marketplace: 'US', asin: 'B0DDDDDDD4' })
+    )
+    await waitFor(() => expect(fetchExternalTargets).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(notify).toHaveBeenCalledWith(expect.objectContaining({ title: '外部竞品已登记' })))
   })
 })

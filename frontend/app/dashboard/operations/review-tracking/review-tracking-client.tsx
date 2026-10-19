@@ -101,6 +101,17 @@ export default function ReviewTrackingClient() {
   const [runs, setRuns] = useState<CrawlRunRow[]>([])
   const [runsLoading, setRunsLoading] = useState(false)
 
+  // ── 详情请求防串台（BLF-1377 / B4） ──
+  // 运营快速从 A 切到 B 时，A 的响应可能后到。若直接 `setX(await fetchX(A))`，
+  // 页面会出现「标题是 B、图表 / 评论 / 运行记录是 A」的串台——比空态糟得多。
+  // 每个 loader 发请求时领一个递增令牌，响应回来（含失败）时令牌已不是最新、
+  // 或当前选中目标已经不是发起时的目标，就整批丢弃（连 loading 也不回落，交给新请求）。
+  const selectedTargetRef = useRef<number | null>(selectedTargetId)
+  selectedTargetRef.current = selectedTargetId
+  const snapshotsRequestRef = useRef(0)
+  const reviewsRequestRef = useRef(0)
+  const runsRequestRef = useRef(0)
+
   const [externalTargets, setExternalTargets] = useState<ExternalTarget[]>([])
   const [externalLoading, setExternalLoading] = useState(false)
   const [shopOptions, setShopOptions] = useState<ShopOption[]>([])
@@ -183,26 +194,42 @@ export default function ReviewTrackingClient() {
   }, [loadTargets, sessionStatus])
 
   // ── 目标详情：快照 / 评论 / 运行 ──
+  // `stale()`：该请求是否已被更新的请求取代、或已切到别的目标。
+  const isStale = useCallback(
+    (requestId: number, latestRequestId: number, targetId: number) =>
+      latestRequestId !== requestId || selectedTargetRef.current !== targetId,
+    []
+  )
+
   const loadSnapshots = useCallback(
     async (targetId: number) => {
+      const requestId = ++snapshotsRequestRef.current
+      const stale = () => isStale(requestId, snapshotsRequestRef.current, targetId)
       setSnapshotsLoading(true)
       try {
-        setSnapshots(await fetchRatingSnapshots(targetId, { limit: 200 }))
+        const points = await fetchRatingSnapshots(targetId, { limit: 200 })
+        if (stale()) return
+        setSnapshots(points)
       } catch (error) {
+        // 已切走的请求不再弹错：A 的 404 不该在 B 的页面上报
+        if (stale()) return
         if (!describeError(error)) {
           const described = describeReviewTrackingError(error)
           notify({ type: 'error', title: described.title, message: described.message })
         }
         setSnapshots([])
       } finally {
-        setSnapshotsLoading(false)
+        if (!stale()) setSnapshotsLoading(false)
       }
     },
-    [describeError, notify]
+    [describeError, isStale, notify]
   )
 
   const loadReviews = useCallback(
     async (targetId: number, offset: number, nextVisibility: VisibilityStatus | 'all') => {
+      // 评论的令牌同时覆盖 offset / visibility：翻页或换筛选时旧页的响应同样作废。
+      const requestId = ++reviewsRequestRef.current
+      const stale = () => isStale(requestId, reviewsRequestRef.current, targetId)
       setReviewsLoading(true)
       try {
         const rows = await fetchReviews(targetId, {
@@ -210,43 +237,57 @@ export default function ReviewTrackingClient() {
           limit: REVIEW_PAGE_SIZE,
           offset,
         })
+        if (stale()) return
         setReviews(rows)
       } catch (error) {
+        if (stale()) return
         if (!describeError(error)) {
           const described = describeReviewTrackingError(error)
           notify({ type: 'error', title: described.title, message: described.message })
         }
         setReviews([])
       } finally {
-        setReviewsLoading(false)
+        if (!stale()) setReviewsLoading(false)
       }
     },
-    [describeError, notify]
+    [describeError, isStale, notify]
   )
 
   const loadRuns = useCallback(
     async (targetId: number) => {
+      const requestId = ++runsRequestRef.current
+      const stale = () => isStale(requestId, runsRequestRef.current, targetId)
       setRunsLoading(true)
       try {
-        setRuns(await fetchCrawlRuns(targetId, { limit: RUN_PAGE_SIZE }))
+        const rows = await fetchCrawlRuns(targetId, { limit: RUN_PAGE_SIZE })
+        if (stale()) return
+        setRuns(rows)
       } catch (error) {
+        if (stale()) return
         if (!describeError(error)) {
           const described = describeReviewTrackingError(error)
           notify({ type: 'error', title: described.title, message: described.message })
         }
         setRuns([])
       } finally {
-        setRunsLoading(false)
+        if (!stale()) setRunsLoading(false)
       }
     },
-    [describeError, notify]
+    [describeError, isStale, notify]
   )
 
   useEffect(() => {
     if (selectedTargetId === null) {
+      // 目标被清空时让在途请求一并失效，避免它们回填已清空的数据
+      snapshotsRequestRef.current += 1
+      reviewsRequestRef.current += 1
+      runsRequestRef.current += 1
       setSnapshots([])
       setReviews([])
       setRuns([])
+      setSnapshotsLoading(false)
+      setReviewsLoading(false)
+      setRunsLoading(false)
       return
     }
     void loadSnapshots(selectedTargetId)
@@ -348,13 +389,15 @@ export default function ReviewTrackingClient() {
       setWriteBusy(true)
       try {
         await createExternalTarget(payload)
-        await loadExternalTargets()
+        // 左侧目标列表也要刷新：刚登记的竞品（或 upsert 复活的停用目标）否则在
+        // 「仅启用」筛选下选不到，得手动刷整页。
+        await Promise.all([loadExternalTargets(), loadTargets()])
         notify({ type: 'success', title: '外部竞品已登记' })
       } finally {
         setWriteBusy(false)
       }
     },
-    [loadExternalTargets, notify]
+    [loadExternalTargets, loadTargets, notify]
   )
 
   const handleLink = useCallback(
