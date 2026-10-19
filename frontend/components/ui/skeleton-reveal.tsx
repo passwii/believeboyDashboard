@@ -44,7 +44,18 @@ export function SkeletonReveal({
       <div className="ui-skel-skeleton is-pulsing" data-testid="skeleton-layer" aria-hidden="true">
         {skeleton}
       </div>
-      <div className="ui-skel-content" data-testid="content-layer">
+      <div
+        ref={(element) => {
+          // React 18 does not type the HTML inert attribute. Apply it directly so hidden
+          // controls leave the keyboard focus order until the reveal is complete.
+          if (!element) return
+          if (loading) element.setAttribute('inert', '')
+          else element.removeAttribute('inert')
+        }}
+        className="ui-skel-content"
+        data-testid="content-layer"
+        aria-hidden={loading || undefined}
+      >
         {children}
       </div>
     </div>
