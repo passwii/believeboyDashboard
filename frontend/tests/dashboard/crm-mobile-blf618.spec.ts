@@ -237,16 +237,53 @@ test.describe('@mobile-blf618 CRM 任务 手机端（BLF-618）', () => {
 })
 
 test.describe('@mobile-blf618 CRM 数据看板 / 操作日志 手机端（BLF-618）', () => {
-  test('数据看板：KPI 一行两个 + 无溢出', async ({ page }) => {
-    await page.goto('/dashboard/crm/dashboard')
-    await expect(page.getByRole('heading', { name: '数据看板' })).toBeVisible({ timeout: 30000 })
-    await expect(page.getByText('本月新增客户')).toBeVisible({ timeout: 15000 })
+  test('数据看板：两图层揭示遵守 reduced-motion、主题和响应式布局', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.goto('/dashboard/crm/dashboard?e2e')
+    await expect(page.getByText('本月新增客户')).toBeVisible({ timeout: 30000 })
 
-    // 总则 1：StatCardRow 手机端一行两个
-    await expectSameRow(page, page.getByText('本月新增客户'), page.getByText('本月新增线索'), 'KPI 一行两个')
-    const firstKpi = (await page.getByText('本月新增客户').boundingBox())!
-    const thirdKpi = (await page.getByText('本月转化', { exact: true }).first().boundingBox())!
-    expect(thirdKpi.y, '第 3 个 KPI 应换行到第二行').toBeGreaterThan(firstKpi.y + 4)
+    const kpis = page.locator('[data-testid="crm-dashboard-kpis"]')
+    const funnel = page.locator('[data-testid="crm-dashboard-funnel"]')
+    await expect(kpis).toHaveAttribute('data-state', 'revealed', { timeout: 15000 })
+    await expect(funnel).toHaveAttribute('data-state', 'revealed', { timeout: 15000 })
+    await expect(kpis.locator('.ui-skel-content')).not.toHaveAttribute('aria-hidden')
+    await expect(kpis.locator('.ui-skel-content')).not.toHaveAttribute('inert')
+    await page.waitForFunction(() => {
+      const root = document.querySelector('[data-testid="crm-dashboard-kpis"]')
+      const content = root?.querySelector<HTMLElement>('.ui-skel-content')
+      return Boolean(content && !content.hasAttribute('inert') && getComputedStyle(content).opacity === '1')
+    })
+
+    const motion = await kpis.locator('.ui-skel-content').evaluate((content) => ({
+      transitionDuration: getComputedStyle(content).transitionDuration,
+      pulseAnimation: getComputedStyle(content.parentElement!.querySelector('.ui-skel-skeleton')!.firstElementChild!).animationName,
+    }))
+    expect(motion.transitionDuration).toBe('0s')
+    expect(motion.pulseAnimation).toBe('none')
+
+    const themeColors = await page.evaluate(() => {
+      const root = document.documentElement
+      const bar = root.querySelector<HTMLElement>('[data-testid="crm-dashboard-kpis"] .ui-skel-skeleton .h-3')!
+      root.classList.remove('dark')
+      const light = getComputedStyle(bar).backgroundColor
+      root.classList.add('dark')
+      const dark = getComputedStyle(bar).backgroundColor
+      root.classList.remove('dark')
+      return { light, dark }
+    })
+    expect(themeColors.light).not.toBe(themeColors.dark)
+
+    for (const width of [393, 360]) {
+      await page.setViewportSize({ width, height: 851 })
+      await expectSameRow(page, page.getByText('本月新增客户'), page.getByText('本月新增线索'), `${width}px KPI 一行两个`)
+      const firstKpi = (await page.getByText('本月新增客户').boundingBox())!
+      const thirdKpi = (await page.getByText('本月转化', { exact: true }).first().boundingBox())!
+      expect(thirdKpi.y, `${width}px 第 3 个 KPI 应换行到第二行`).toBeGreaterThan(firstKpi.y + 4)
+      await expectNoPageHorizontalOverflow(page)
+    }
+
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await expectSameRow(page, page.getByText('本月新增客户'), page.getByText('本月转化', { exact: true }).first(), '1440px KPI 四列同一行')
     await expectNoPageHorizontalOverflow(page)
   })
 

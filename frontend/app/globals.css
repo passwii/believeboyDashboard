@@ -1459,11 +1459,14 @@ html[data-theme-transition] body * {
    */
   .ui-skel {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
   }
 
   .ui-skel-skeleton,
   .ui-skel-content {
     grid-area: 1 / 1;
+    min-width: 0;
   }
 
   .ui-skel-skeleton {

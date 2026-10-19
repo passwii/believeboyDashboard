@@ -16,6 +16,8 @@ describe('SkeletonReveal（transitions.dev 14-skeleton-reveal）', () => {
     expect(root.getAttribute('data-state')).toBe('loading')
     expect(root.getAttribute('aria-busy')).toBe('true')
     expect(screen.getByTestId('skeleton-layer').getAttribute('aria-hidden')).toBe('true')
+    expect(screen.getByTestId('content-layer').getAttribute('aria-hidden')).toBe('true')
+    expect(screen.getByTestId('content-layer').hasAttribute('inert')).toBe(true)
   })
 
   /* 契约：globals.css 的 .ui-skel.is-revealed 选择器依赖这两个标记（class + data-state）。
@@ -33,6 +35,8 @@ describe('SkeletonReveal（transitions.dev 14-skeleton-reveal）', () => {
     // 与「加载完卸载骨架」旧模式的关键差异：骨架层不卸载
     expect(screen.getByTestId('skeleton-layer')).toBeDefined()
     expect(screen.getByTestId('content-layer').textContent).toBe('content')
+    expect(screen.getByTestId('content-layer').hasAttribute('aria-hidden')).toBe(false)
+    expect(screen.getByTestId('content-layer').hasAttribute('inert')).toBe(false)
   })
 
   it('两层按 grid 同格叠放（容器高度取较高者，调用方无需给确定高度）', () => {
