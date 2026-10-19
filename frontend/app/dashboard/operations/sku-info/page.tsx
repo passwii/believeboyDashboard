@@ -52,6 +52,9 @@ import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import FactoryInfoSheet from '@/components/dashboard/sku-info/factory-info-sheet'
 import BatchFactoryInfoSheet from '@/components/dashboard/sku-info/batch-factory-info-sheet'
 import ListingCopySheet from '@/components/dashboard/sku-info/listing-copy-sheet'
+import ReviewGroupSheet, {
+  type SkuCandidate,
+} from '@/components/dashboard/sku-info/review-group-sheet'
 import { ImageTabContent } from '@/components/dashboard/sku-info/image-tab'
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
@@ -66,6 +69,8 @@ export type ProductCostItem = {
   asin: string
   fnsku: string | null
   product_name: string | null
+  /** 父体标识（阶段 A 遗留，运营手动维护；与 ASIN 不同，不自动推导） */
+  father_id: string | null
   fob_unit_cost: number
   first_leg_cost_rmb: number
   package_length_cm: number
@@ -302,6 +307,7 @@ const EMPTY_EDIT_ROW = {
   asin: '',
   fnsku: '',
   product_name: '',
+  father_id: '',
   fob_unit_cost: '0',
   first_leg_cost_rmb: '0',
   package_length_cm: '0',
@@ -395,6 +401,10 @@ export default function SkuInfoPage() {
   const [listingSheetOpen, setListingSheetOpen] = useState(false)
   const [listingEditingRow, setListingEditingRow] = useState<ProductCostItem | null>(null)
 
+  // 内部评论共享组维护（阶段 C，BLF-1377；仅管理员可写）
+  const [reviewGroupSheetOpen, setReviewGroupSheetOpen] = useState(false)
+  const [reviewGroupRow, setReviewGroupRow] = useState<ProductCostItem | null>(null)
+
   // 批量编辑产品属性
   const [batchSheetOpen, setBatchSheetOpen] = useState(false)
   const [selectedSkus, setSelectedSkus] = useState<ProductCostItem[]>([])
@@ -421,6 +431,24 @@ export default function SkuInfoPage() {
     () => projects.find((project) => project.name === projectFilter) ?? null,
     [projectFilter, projects]
   )
+
+  const isAdmin = Boolean(session?.user?.isAdmin)
+
+  /**
+   * 共享组 Sheet 的候选成员：当前筛选出来的同项目 + 同站点 SKU。
+   * 组规则要求成员同 Project + Marketplace，因此跨站点/跨项目的行不能进同一组。
+   */
+  const reviewGroupCandidates = useMemo<SkuCandidate[]>(() => {
+    if (!reviewGroupRow) return []
+    return items
+      .filter((item) => item.country === reviewGroupRow.country)
+      .map((item) => ({
+        id: item.id,
+        sku: item.sku,
+        asin: item.asin,
+        productName: item.product_name,
+      }))
+  }, [items, reviewGroupRow])
 
   useEffect(() => {
     if (status === 'loading') {
@@ -880,6 +908,7 @@ export default function SkuInfoPage() {
       asin: row.asin,
       fnsku: row.fnsku || '',
       product_name: row.product_name || '',
+      father_id: row.father_id || '',
       fob_unit_cost: String(row.fob_unit_cost),
       first_leg_cost_rmb: String(row.first_leg_cost_rmb),
       package_length_cm: String(row.package_length_cm),
@@ -911,6 +940,8 @@ export default function SkuInfoPage() {
           asin: editRow.asin.trim(),
           fnsku: editRow.fnsku.trim() || null,
           product_name: editRow.product_name.trim() || null,
+          // 空串 = 清除父体（后端 PATCH 显式 null 才清空；不传则保留）
+          father_id: editRow.father_id.trim() || null,
           fob_unit_cost: Number(editRow.fob_unit_cost),
           first_leg_cost_rmb: Number(editRow.first_leg_cost_rmb),
           package_length_cm: Number(editRow.package_length_cm),
@@ -1303,6 +1334,24 @@ export default function SkuInfoPage() {
                                     row.fnsku || '-'
                                   )}
                                 </span>
+                                <span>
+                                  父体:{' '}
+                                  {editingId === row.id ? (
+                                    <Input
+                                      className="h-6 w-24 text-xs"
+                                      value={editRow.father_id}
+                                      placeholder="Father ID"
+                                      onChange={(e) =>
+                                        setEditRow((current) => ({
+                                          ...current,
+                                          father_id: e.target.value,
+                                        }))
+                                      }
+                                    />
+                                  ) : (
+                                    row.father_id || '-'
+                                  )}
+                                </span>
                               </div>
                             </div>
                           </td>
@@ -1432,14 +1481,29 @@ export default function SkuInfoPage() {
                                   </Button>
                                 </>
                               ) : (
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => startEditRow(row)}
-                                >
-                                  编辑
-                                </Button>
+                                <div className="flex flex-col gap-2">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => startEditRow(row)}
+                                  >
+                                    编辑
+                                  </Button>
+                                  {isAdmin ? (
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => {
+                                        setReviewGroupRow(row)
+                                        setReviewGroupSheetOpen(true)
+                                      }}
+                                    >
+                                      评论共享组
+                                    </Button>
+                                  ) : null}
+                                </div>
                               )}
                             </div>
                           </td>
@@ -1581,6 +1645,24 @@ export default function SkuInfoPage() {
                                     />
                                   ) : (
                                     row.fnsku || '-'
+                                  )}
+                                </span>
+                                <span>
+                                  父体:{' '}
+                                  {editingId === row.id ? (
+                                    <Input
+                                      className="h-6 w-24 text-xs"
+                                      value={editRow.father_id}
+                                      placeholder="Father ID"
+                                      onChange={(e) =>
+                                        setEditRow((current) => ({
+                                          ...current,
+                                          father_id: e.target.value,
+                                        }))
+                                      }
+                                    />
+                                  ) : (
+                                    row.father_id || '-'
                                   )}
                                 </span>
                               </div>
@@ -2185,6 +2267,26 @@ export default function SkuInfoPage() {
           </TabsContent>
         </DirectionalTabTransition>
       </Tabs>
+
+      {reviewGroupRow && (
+        <ReviewGroupSheet
+          open={reviewGroupSheetOpen}
+          projectId={
+            projects.find((project) => project.name === reviewGroupRow.project_name)?.id ?? null
+          }
+          projectName={reviewGroupRow.project_name}
+          marketplace={reviewGroupRow.country}
+          candidates={reviewGroupCandidates}
+          currentSkuId={reviewGroupRow.id}
+          onClose={() => {
+            setReviewGroupSheetOpen(false)
+            setReviewGroupRow(null)
+          }}
+          onChanged={() => {
+            void loadData(undefined, { pageOverride: page, clearOnMissingProject: true })
+          }}
+        />
+      )}
 
       {listingEditingRow && (
         <ListingCopySheet

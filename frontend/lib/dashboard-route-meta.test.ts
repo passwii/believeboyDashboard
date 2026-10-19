@@ -21,4 +21,8 @@ describe('getDashboardPageTitle', () => {
       '流程模板管理'
     )
   })
+
+  it('评论追踪页使用独立标题', () => {
+    expect(getDashboardPageTitle('/dashboard/operations/review-tracking')).toBe('评论追踪')
+  })
 })

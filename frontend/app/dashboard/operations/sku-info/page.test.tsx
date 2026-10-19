@@ -8,7 +8,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // useEffect 重复触发、双重 fetch、loading 断言竞态
 // （真实 useSession / useNotifications 返回稳定引用）
 const { stableSession, mockNotify, mockConfirm, fetchMock } = vi.hoisted(() => ({
-  stableSession: { user: { id: 'user-1', roleType: 'admin' } },
+  // 可变 session：用例可切成非管理员，验证管理员门禁（引用保持稳定，避免重复渲染）
+  stableSession: {
+    user: { id: 'user-1', roleType: 'admin', isAdmin: true } as Record<string, unknown>,
+  },
   mockNotify: vi.fn(),
   mockConfirm: vi.fn().mockResolvedValue(true),
   fetchMock: vi.fn(),
@@ -73,6 +76,7 @@ function skuItem(overrides?: Record<string, unknown>) {
     asin: 'B0AAAAAAA1',
     fnsku: 'FNSKU-001',
     product_name: '测试商品一',
+    father_id: 'FATHER-001',
     fob_unit_cost: 2.57,
     first_leg_cost_rmb: 1.2,
     package_length_cm: 18.5,
@@ -155,6 +159,8 @@ function openSelect(trigger: HTMLElement) {
 beforeEach(() => {
   fetchMock.mockImplementation(defaultFetchImpl)
   vi.stubGlobal('fetch', fetchMock)
+  // 每个用例默认管理员；需要非管理员的用例自行覆盖，afterEach 恢复
+  stableSession.user = { id: 'user-1', roleType: 'admin', isAdmin: true }
 })
 
 afterEach(() => {
@@ -385,6 +391,71 @@ describe('SkuInfoPage header 化渲染契约（operations header migration B3）
         }
       )
     ).toEqual({ items: [{ id: 1, listing_title: '新标题' }] })
+  })
+
+  it('父体（Father ID）展示已有值', async () => {
+    render(<SkuInfoPage />)
+    await waitForProjectsReady()
+    fireEvent.change(screen.getByPlaceholderText('输入 SKU 或 ASIN'), {
+      target: { value: 'SKU-001' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: '查询' }))
+
+    expect(await screen.findByText('SKU-001')).toBeInTheDocument()
+    // 「父体: FATHER-001」在同一 span 内由多个文本节点拼成，用正则做内容匹配
+    expect(screen.getByText(/FATHER-001/)).toBeInTheDocument()
+  })
+
+  it('行内编辑保存时 PATCH 带上 father_id（空串清为 null）', async () => {
+    render(<SkuInfoPage />)
+    await waitForProjectsReady()
+    fireEvent.change(screen.getByPlaceholderText('输入 SKU 或 ASIN'), {
+      target: { value: 'SKU-001' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: '查询' }))
+    expect(await screen.findByText('SKU-001')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }))
+    const fatherInput = screen.getByPlaceholderText('Father ID')
+    expect(fatherInput).toHaveValue('FATHER-001')
+
+    // 清空 → 保存时应提交 null（PATCH 显式 null 才清除）
+    fireEvent.change(fatherInput, { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => {
+      const patchCall = fetchMock.mock.calls.find(
+        (call) => (call[1] as RequestInit | undefined)?.method === 'PATCH'
+      )
+      expect(patchCall).toBeTruthy()
+      const body = JSON.parse(String((patchCall?.[1] as RequestInit).body))
+      expect(body.father_id).toBeNull()
+    })
+  })
+
+  it('管理员可见「评论共享组」入口', async () => {
+    render(<SkuInfoPage />)
+    await waitForProjectsReady()
+    fireEvent.change(screen.getByPlaceholderText('输入 SKU 或 ASIN'), {
+      target: { value: 'SKU-001' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: '查询' }))
+    expect(await screen.findByText('SKU-001')).toBeInTheDocument()
+
+    expect(screen.getByRole('button', { name: '评论共享组' })).toBeInTheDocument()
+  })
+
+  it('非管理员看不到「评论共享组」入口', async () => {
+    stableSession.user = { id: 'user-2', roleType: 'operator', isAdmin: false }
+    render(<SkuInfoPage />)
+    await waitForProjectsReady()
+    fireEvent.change(screen.getByPlaceholderText('输入 SKU 或 ASIN'), {
+      target: { value: 'SKU-001' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: '查询' }))
+    expect(await screen.findByText('SKU-001')).toBeInTheDocument()
+
+    expect(screen.queryByRole('button', { name: '评论共享组' })).not.toBeInTheDocument()
   })
 
   it('重置按钮：清空查询条件与结果，且不发起请求', async () => {
