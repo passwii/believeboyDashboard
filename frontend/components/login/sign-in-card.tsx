@@ -4,6 +4,13 @@ import React, { useRef, useEffect, useState, useMemo, useCallback, type FormEven
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 import { useGlobalLoading } from '@/components/global-loading-provider'
+import {
+  clearLoginErrorHint,
+  readLoginErrorHint,
+  type LoginErrorHint,
+} from '@/lib/auth/login-error-hint'
+import { resolveLoginPageErrorCode, type ResolvedLoginPageErrorCode } from '@/lib/auth/login-error-code'
+import { buildLoginErrorMessage } from '@/lib/auth/login-error-message'
 import TerminalFormPanel from './terminal-form-panel'
 
 const SIGN_IN_MINIMUM_DISPLAY_MS = 500
@@ -11,6 +18,17 @@ const SIGNIN_LOADING_WATCHDOG_MS = 10000
 const SIGN_IN_MAX_ATTEMPTS = 3
 const SIGN_IN_ATTEMPT_TIMEOUT_MS = 5000
 const SIGN_IN_RETRY_DELAYS_MS = [500, 1000] as const
+const RATE_LIMIT_TICK_MS = 1000
+
+/**
+ * 一次失败的登录尝试：页面只看 code 选文案（BLF-1383）。
+ * `hint` 来自 authorize 失败时写入的短 TTL cookie（request_id / retry_after_seconds），
+ * 因为 Auth.js 只把 code 透传到客户端。
+ */
+type LoginFailure = {
+  code: ResolvedLoginPageErrorCode
+  hint: LoginErrorHint | null
+}
 
 /**
  * BelieveBoy 登录表单与 credentials 流程。
@@ -23,7 +41,9 @@ const SignInCard = () => {
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [retryAttempt, setRetryAttempt] = useState(0)
-  const [error, setError] = useState<string | null>(null)
+  const [failure, setFailure] = useState<LoginFailure | null>(null)
+  const [rateLimitDeadline, setRateLimitDeadline] = useState<number | null>(null)
+  const [rateLimitRemaining, setRateLimitRemaining] = useState<number | null>(null)
   const mountedRef = useRef(true)
   const submittingRef = useRef(false)
   const verificationWaitRef = useRef<{ timer: number; resolve: () => void } | null>(null)
@@ -59,6 +79,44 @@ const SignInCard = () => {
   }, [finishNavigationLoading, startGlobalLoading])
 
   useEffect(() => {
+    if (!rateLimitDeadline) {
+      setRateLimitRemaining(null)
+      return
+    }
+    let timer: number | null = null
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((rateLimitDeadline - Date.now()) / 1000))
+      if (!mountedRef.current) return
+      setRateLimitRemaining(remaining > 0 ? remaining : null)
+      if (remaining <= 0) {
+        // 归零后停止每秒空转：remaining 已是 null，再 tick 也不会有任何变化。
+        if (timer !== null) {
+          window.clearInterval(timer)
+          timer = null
+        }
+        return
+      }
+      // 惰性启动：deadline 已过期时不建 interval（
+      // 否则要等下一次 tick 才把自己清掉）。
+      if (timer === null) timer = window.setInterval(tick, RATE_LIMIT_TICK_MS)
+    }
+    tick()
+    return () => {
+      if (timer !== null) window.clearInterval(timer)
+    }
+  }, [rateLimitDeadline])
+
+  // 文案完全由 code + 排查线索派生；倒计时每秒刷新一次，避免状态里存中文文案。
+  const error = useMemo(() => {
+    if (!failure) return null
+    return buildLoginErrorMessage({
+      code: failure.code,
+      hint: failure.hint,
+      rateLimitRemainingSeconds: rateLimitRemaining,
+    })
+  }, [failure, rateLimitRemaining])
+
+  useEffect(() => {
     mountedRef.current = true
     return () => {
       mountedRef.current = false
@@ -90,7 +148,8 @@ const SignInCard = () => {
     }
     setSubmitting(true)
     setRetryAttempt(0)
-    setError(null)
+    setFailure(null)
+    setRateLimitDeadline(null)
 
     // NOTE: We intentionally do NOT start the global "navigation" spinner
     // here. The login HTTP round-trip itself is fast (~150–400ms server
@@ -163,15 +222,21 @@ const SignInCard = () => {
       if (signInError) {
         submittingRef.current = false
         setSubmitting(false)
-        const errorCode = typeof result === 'string' ? '' : result?.code?.toLowerCase()
-        if (errorCode === 'network_error') {
-          setError('无法连接到服务器，请检查后端服务是否启动。')
-        } else {
-          setError('邮箱或密码错误，或账号已停用。')
-        }
+        const errorCode = typeof result === 'string' ? '' : result?.code
+        // 401/429/500 是确定性失败：重试只会延长等待并加重限流计数（循环内已只对
+        // network_error 重试）。这里按后端 code 选文案。
+        const hint = readLoginErrorHint()
+        clearLoginErrorHint()
+        setFailure({ code: resolveLoginPageErrorCode(errorCode), hint })
+        setRateLimitDeadline(
+          hint?.retryAfterSeconds ? Date.now() + hint.retryAfterSeconds * 1000 : null,
+        )
         return
       }
 
+      // 登录成功就清掉上一条失败的排查线索：否则 120s 内紧接着的失败（例如
+      // account_disabled）会显示上一次的请求 ID，误导排查。
+      clearLoginErrorHint()
       let nextPath = '/dashboard'
       try {
         const callbackTarget = new URL(callbackUrl, window.location.origin)
@@ -203,7 +268,9 @@ const SignInCard = () => {
       submittingRef.current = false
       setSubmitting(false)
       setRetryAttempt(0)
-      setError('无法连接到服务器，请检查后端服务是否启动。')
+      // 走到这里是请求本身抛错（网络 / 超时）：沿用连接失败文案。
+      setFailure({ code: 'network_error', hint: null })
+      setRateLimitDeadline(null)
       console.error('登录请求失败:', err)
     }
   }
