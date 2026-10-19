@@ -19,8 +19,6 @@ import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from monitor import (
     DbUnavailable,
     WatchdogDispatcher,
@@ -332,6 +330,92 @@ class TestDispatcherRetry:
         assert len(calls) == 1
         assert dispatcher.pending_count() == 0
         assert str(path) in dispatcher._done
+
+    def test_unexpected_exception_is_counted_and_cools_down_terminally(
+        self, tmp_path: Path
+    ):
+        """抛异常也是一次失败：必须计入本轮 failed，并用终态失败冷却。"""
+        dispatcher = WatchdogDispatcher(MagicMock(), dry_run=True, workers=1)
+        path = tmp_path / "a.txt"
+        path.write_text("data", encoding="utf-8")
+
+        def fake_process(logger_, file_path, project_name, dry_run):
+            raise ValueError("boom")
+
+        with patch("monitor.wait_for_stable", return_value=True), patch(
+            "monitor._process_one", side_effect=fake_process
+        ):
+            dispatcher.start()
+            try:
+                dispatcher.submit(path, "项目", batch="round-1")
+                dispatcher.wait_until_idle()
+            finally:
+                dispatcher.stop()
+
+        assert dispatcher.snapshot_stats() == {"success": 0, "skipped": 0, "failed": 1}
+        assert dispatcher.take_batch_stats("round-1")["failed"] == 1
+        # 终态失败（长冷却），不是成功后的短冷却。
+        _at, cooldown = dispatcher._done[str(path)]
+        assert cooldown == dispatcher._FAILED_TTL_SECONDS
+
+    def test_ingest_failure_is_retried_up_to_max_attempts(self, tmp_path: Path):
+        """入库失败（skipped=False, success=False）是有界重试对象，不是一次性终态。"""
+        dispatcher = WatchdogDispatcher(
+            MagicMock(), dry_run=True, workers=1, max_attempts=3, backoff=_fast_backoff
+        )
+        path = tmp_path / "a.txt"
+        path.write_text("data", encoding="utf-8")
+        calls: list[int] = []
+
+        def fake_process(logger_, file_path, project_name, dry_run):
+            calls.append(1)
+            return _result(skipped=False, success=False, reason="入库失败")
+
+        with patch("monitor.wait_for_stable", return_value=True), patch(
+            "monitor._process_one", side_effect=fake_process
+        ):
+            dispatcher.start()
+            try:
+                dispatcher.submit(path, "项目")
+                dispatcher.wait_until_idle()
+            finally:
+                dispatcher.stop()
+
+        assert len(calls) == 3, "入库失败应重试满 max_attempts 次"
+        # 只记一次 FAIL（不是每次重试都记），且按终态失败冷却。
+        assert dispatcher.snapshot_stats() == {"success": 0, "skipped": 0, "failed": 1}
+        _at, cooldown = dispatcher._done[str(path)]
+        assert cooldown == dispatcher._FAILED_TTL_SECONDS
+
+    def test_ingest_failure_that_recovers_is_reported_as_success(
+        self, tmp_path: Path
+    ):
+        """重试窗口内的入库失败可以恢复，恢复后不得再报失败。"""
+        dispatcher = WatchdogDispatcher(
+            MagicMock(), dry_run=True, workers=1, max_attempts=3, backoff=_fast_backoff
+        )
+        path = tmp_path / "a.txt"
+        path.write_text("data", encoding="utf-8")
+        calls: list[int] = []
+
+        def fake_process(logger_, file_path, project_name, dry_run):
+            calls.append(1)
+            if len(calls) < 2:
+                return _result(skipped=False, success=False, reason="入库失败")
+            return _result(skipped=False, success=True)
+
+        with patch("monitor.wait_for_stable", return_value=True), patch(
+            "monitor._process_one", side_effect=fake_process
+        ):
+            dispatcher.start()
+            try:
+                dispatcher.submit(path, "项目")
+                dispatcher.wait_until_idle()
+            finally:
+                dispatcher.stop()
+
+        assert len(calls) == 2
+        assert dispatcher.snapshot_stats() == {"success": 1, "skipped": 0, "failed": 0}
 
     def test_db_retry_backoff_grows_with_consecutive_outages(self, tmp_path: Path):
         """连续 DB 断线必须逐次加大退避，而不是永远停在同一个档位。"""

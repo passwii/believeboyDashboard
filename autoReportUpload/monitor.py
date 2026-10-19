@@ -781,16 +781,28 @@ class WatchdogDispatcher:
             )
             return
         except Exception as exc:  # noqa: BLE001 - one bad file must not kill the worker
+            # 异常也是一个失败的文件，不是「什么都没发生」：必须计数（否则本轮
+            # 汇总少报失败），并按终态失败冷却——短冷却会让补扫每轮在同一坏
+            # 文件上白烧一次 DB 往返。
             self.logger.error(f"  [watchdog] 处理文件异常: {file_path.name}  {exc}")
-            self._finish(key)
+            self._tally(
+                ProcessResult(skipped=False, success=False, error=str(exc)),
+                item.batch,
+            )
+            self._finish(key, self._FAILED_TTL_SECONDS)
             return
 
-        # A file whose content is not yet complete reads as "未匹配任何报表类型".
-        needs_retry = result.skipped and "未匹配任何报表类型" in (result.reason or "")
-        if needs_retry and item.attempt < self.max_attempts:
+        # 两类「还没处理完」都要重试：内容未写完会读成「未匹配任何报表类型」；
+        # 入库失败（skipped=False, success=False）同样是可重试的失败，不能第一
+        # 次就记 FAIL + 长冷却——那与类注释的「有界重试」自相矛盾。
+        unrecognised = result.skipped and "未匹配任何报表类型" in (result.reason or "")
+        ingest_failed = not result.success and not result.skipped
+        retryable = unrecognised or ingest_failed
+        if retryable and item.attempt < self.max_attempts:
             delay = self.backoff(item.attempt)
+            reason = "未识别" if unrecognised else f"入库失败（{result.error or result.reason}）"
             self.logger.info(
-                f"  [watchdog] 第 {item.attempt} 次未识别，"
+                f"  [watchdog] 第 {item.attempt} 次{reason}，"
                 f"{delay:.0f} 秒后重试: {file_path.name}"
             )
             self._requeue(replace(item, attempt=item.attempt + 1), delay)
@@ -799,8 +811,7 @@ class WatchdogDispatcher:
         self._tally(result, item.batch)
         # 重试用尽仍未识别 / 入库失败：文件留在原地，用长冷却防止补扫每轮
         # 重新白烧一轮 DB 往返；冷却到期后仍可再试一次。
-        exhausted = needs_retry or (not result.success and not result.skipped)
-        self._finish(key, self._FAILED_TTL_SECONDS if exhausted else None)
+        self._finish(key, self._FAILED_TTL_SECONDS if retryable else None)
 
     def _worker(self) -> None:
         while not self._stopped.is_set():
