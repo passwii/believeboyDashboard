@@ -1,6 +1,6 @@
-# Agent API 设计文档（v0.14 — 评论追踪采集域）
+# Agent API 设计文档（v0.15 — 评论追踪采集域乱序护栏）
 
-> **状态**：v0.14 — 新增评论追踪采集域（`review_tracking`，BLF-1378 阶段 D）；v0.13 — shipments W1 新建货件缺省参数自动生成（BLF-1347）；v0.12 — 固化 Agent 文件型资源二进制响应规范；v0.11 — FBA 发货模板改为 XLSX 二进制流（BLF-1178）；v0.10 — shipments 新增 FBA 发货模板导出（BLF-1178）；v0.9 — report-upload-status 移除库存分类账 2 类状态（BLF-649）；v0.8 响应补充中文字段（BLF-648）；v0.7 新增报表上传状态域（BLF-484，1 条读路由）。
+> **状态**：v0.15 — 评论追踪采集域补时序护栏 + 幂等键空白校验 + 重放 `capture_date` 口径（BLF-1378 阶段 D 复审修复）；v0.14 — 新增评论追踪采集域（`review_tracking`，BLF-1378 阶段 D）；v0.13 — shipments W1 新建货件缺省参数自动生成（BLF-1347）；v0.12 — 固化 Agent 文件型资源二进制响应规范；v0.11 — FBA 发货模板改为 XLSX 二进制流（BLF-1178）；v0.10 — shipments 新增 FBA 发货模板导出（BLF-1178）；v0.9 — report-upload-status 移除库存分类账 2 类状态（BLF-649）；v0.8 响应补充中文字段（BLF-648）；v0.7 新增报表上传状态域（BLF-484，1 条读路由）。
 > **范围**：定义 `/api/v1/agent/*` 命名空间的鉴权契约、危险动作 confirm 流、响应壳、错误码、审计归因与路径迁移策略。**P0 不做 scope/权限细分**——只做"你是哪个 agent"的身份校验。
 
 ---
@@ -302,14 +302,36 @@ external link 的 shop 所属项目判定即可。
   且 `replayed=true`，不新增行、不写审计（重放不是写）。`idempotency_key`
   取值 body 字段优先，缺省回退 `Idempotency-Key` 头；两者都给且不一致 →
   400 `VALIDATION_FAILED`（避免「body 去重 A、审计记 B」）。上限 64 字符
-  （与审计列宽一致）。
+  （与审计列宽一致）。**body 里 strip 后为空的键（如 `"   "`）同样 400**——
+  `min_length=1` 只挡原始长度，若放行会被路由当作 `None` 降级成「无幂等键」，
+  同一请求重复提交就落两行 run（与空白 header 400 的口径对齐）。
+- **提交顺序护栏（乱序 → 409 `REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER`）**：
+  `captured_at` 由调用方控制，而 `amazon_review_reviews` /
+  `amazon_review_rating_snapshots` 是**当前态表、无版本**——服务层
+  `_upsert_review` 无条件覆盖当前行并回写 `last_seen_at`，`_apply_missing` 也
+  无条件在当前 `missing_streak` 上 +1。放行乱序提交会：① 把当前态评论正文 /
+  `last_seen_at` 倒退（补采一条更旧的结果即可覆盖现网数据）；② 按陈旧数据再记
+  一次「缺失」，直接产出错误的「疑似移除」结论。因此路由层在进入
+  `record_crawl_result` 前查该 target 的 `max(started_at)`（落库时就等于
+  `captured_at`），`body.captured_at` 早于它 → 409（响应 `details` 带
+  `latest_started_at` 供自纠）。同一业务日重跑天然是更晚的 `captured_at`，不受
+  影响；幂等重放走既有 run 短路（先查幂等键，命中则跳过顺序校验），也不受影响。
+  护栏是**尽力而为**：两个携带不同幂等键的并发请求可能同时通过检查（无数据库级
+  约束）。若要真正允许补采，必须先给当前态表加版本或改成「以 `captured_at` 为准
+  的条件更新」，再补定向测试证明影响可接受，不能只去掉这道检查。
+- **重放响应的 `capture_date`**：一律由**已持久化 run 的 `started_at`** 推业务日
+  （`business_date(run.started_at)`），不用本次 payload 的 `captured_at`；否则重放
+  会把首次 run 的 `run_id` / `status` 与重试 payload 的日期拼在一起，调用方会
+  误以为那天有快照。
 - **失败语义**：`status=failed` 只落 run，不写评分快照与评论（服务层既有
   语义）；本次没抓到评论也要提交已取得的评分快照。
 - **形态校验**（schema）：naive `captured_at`、星级越界、星数数组长度不是 5、
   枚举非法、未知字段（`extra=forbid`）→ 400 `VALIDATION_FAILED`；单次最多 500
   条评论（与 `crawl_rules.max_reviews_per_run` 同源）。
-- **目标不存在 / 已停用** → 404 `RESOURCE_NOT_FOUND`（不泄露范围外目标存在性；
-  停用组不再采集，避免结果写到已退役的组上）。
+- **目标不存在 / 已停用** → 404 `RESOURCE_NOT_FOUND`（不提供范围外目标的存在性信息；
+  停用组不再采集，避免结果写到已退役的组上）。内部目标越权则是 403
+  `AGENT_PROJECT_OUT_OF_SCOPE`——**403 与 404 可区分**（403 = 存在但无权、
+  404 = 不存在 / 已停用），这是有意的「可自纠」取舍，与其它写域一致。
 - 写审计：`action=review_tracking.crawl_run`、`target_type=amazon_review_crawl_run`、
   `target_id=run_id`、`operator=NULL` + `agent_id` / `agent_name` /
   `idempotency_key` 归因。
@@ -450,6 +472,7 @@ P2 货件域再扩展（`SHIPMENT_*`）。
 | `CONFIRM_TOKEN_INVALID` | 400 | token 不存在或与 body hash 不匹配 |
 | `CONFIRM_TOKEN_EXPIRED` | 409 | token 过期 |
 | `IDEMPOTENCY_KEY_CONFLICT` | 409 | 同一 Idempotency-Key 被用于不同请求体 |
+| `REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER` | 409 | 评论追踪 W1：`captured_at` 早于该目标最近一次 run（乱序提交会倒退当前态） |
 | `INTERNAL_ERROR` | 500 | 未分类异常（不向 Agent 暴露堆栈） |
 | （confirm 预览，非错误） | **200** | `ok:false, requires_confirmation:true`（见 §3.1） |
 
@@ -706,6 +729,25 @@ Sunset/Link 提示头（2026-08-09 上线，`Sunset: 2026-12-31` 预告）；**v
 ---
 
 ## 修订记录
+
+- **v0.15（2026-10-19）**：评论追踪采集域（`review_tracking`）复审修复（BLF-1378 阶段 D）——
+  1. 新增路由层**提交时序护栏**：`captured_at` 早于该 target 最近一次 run 的
+     `started_at` → 409 `REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER`。服务层零改造；
+     幂等重放（先查幂等键命中）与同日更晚重跑不受影响。理由：当前态表
+     `amazon_review_reviews` 无版本，乱序提交会倒退正文 / `last_seen_at`，并按陈旧
+     数据累加 `missing_streak` 产出错误的「疑似移除」结论；护栏是尽力而为（无
+     数据库级约束），若产品确需允许补采，必须先加版本或改成条件更新；
+  2. body 字段 `idempotency_key` 增 strip 后非空校验：`"   "` 这类全空白值 400
+     `VALIDATION_FAILED`（原先 `min_length=1` 放行、又被路由静默降级成 `None`，
+     导致同请求重复提交落两行 run，与空白 header 400 口径不一致）；
+  3. 重放响应的 `capture_date` 改由**已持久化 run 的 `started_at`** 推业务日，不再用
+     重试 payload 的 `captured_at`（否则首次 run 的 `run_id`/`status` 会与重试
+     payload 的日期拼接，调用方误以为那天有快照）；
+  4. R1 `last_run` 改为库内 `row_number()` 取每组首条（原先把目标范围内全部 run
+     拉回 Python 去重，无上限）；审计 `reviews_seen` 统一为「`null` 表未抓评论、
+     整数表抓到 N 条」（原 `[]` 时为 `0`、`None` 时为 `False`，类型不一致）；
+     修正 docstring 中「404 不泄露范围外目标存在性」的表述——内部目标越权实际是
+     403、不存在 / 停用是 404，两者可区分且是有意的可自纠取舍。
 
 - **v0.14（2026-10-19）**：新增评论追踪采集域（`review_tracking`，BLF-1378 阶段 D）——
   1. 新增 2 条路由：`GET /api/v1/agent/review-tracking/targets`（active 采集目标 +

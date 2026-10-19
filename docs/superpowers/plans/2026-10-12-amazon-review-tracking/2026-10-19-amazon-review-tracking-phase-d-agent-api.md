@@ -95,7 +95,10 @@ R1 顶层 `crawl_rules`（常量，随响应下发一次，不在每个 item 里
 **项目范围口径（W1）**：
 - `internal_group` 目标 → 复用 `require_project_scope(target.project_id, request)`，不在范围 → 403 `AGENT_PROJECT_OUT_OF_SCOPE`（与其它写域一致）；
 - `external_asin` 目标 → 无项目归属，持 `review_tracking` 域的凭据即可提交（同 R1 口径，待产品确认）；
-- 目标不存在 / 已停用 → **404 `RESOURCE_NOT_FOUND`**（不泄露范围外目标的存在性；停用组不再采集，避免把结果写到已退役的组上）。
+- 目标不存在 / 已停用 → **404 `RESOURCE_NOT_FOUND`**（停用组不再采集，避免把结果写到已退役的组上）；内部目标越权 → 403 `AGENT_PROJECT_OUT_OF_SCOPE`，**403 与 404 可区分**（403 = 存在但无权、404 = 不存在 / 已停用），是有意的「可自纠」取舍。
+- **提交时序护栏**（复审后新增）：`captured_at` 早于该 target 最近一次 run 的 `started_at` → 409 `REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER`。理由：当前态表 `amazon_review_reviews` 无版本，乱序提交会倒退正文 / `last_seen_at` 并按陈旧数据累加 `missing_streak` 产出错误的「疑似移除」。幂等重放（先查幂等键）与同日更晚重跑不受影响；护栏是尽力而为（无数据库级约束），若产品确需允许补采，必须先加版本或改成条件更新。
+- **重放 `capture_date`** 一律由已持久化 run 的 `started_at` 推业务日，不用本次 payload 的 `captured_at`。
+- **`idempotency_key` 空白**（如 `"   "`）→ 400 `VALIDATION_FAILED`（与空白 `Idempotency-Key` 头口径对齐；否则会被静默降级为 `None`，同请求重复提交落两行 run）。
 
 ## 5. 为什么 W1 不走 confirm
 

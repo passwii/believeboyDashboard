@@ -10,6 +10,10 @@ W1 提交采集结果的**形态**校验层（语义校验仍在
 * 字符串长度对齐目标列宽（``review_key`` 255 / ``title`` 512 /
   ``reviewer_id`` 128 / ``reviewer_name`` 255 / ``asin_scraped`` 20 /
   ``error_message`` 4000 / ``source`` 64），避免落库时才报数据库错误；
+* ``idempotency_key`` 在 strip 后重新校验非空——``min_length=1`` 只挡原始长度，
+  ``"   "`` 能过但路由会把它当 ``None`` 降级成「无幂等键」（同一请求重复提交会
+  落两行 run），与 ``Idempotency-Key`` 头全空白 → 400 的口径不一致，因此在
+  schema 层直接 400；
 * ``reviews`` 一次最多 ``MAX_REVIEWS_PER_RUN``（500）条——与 R1 下发的
   ``crawl_rules.max_reviews_per_run`` 同一数字（单源引用常量模块）。
 """
@@ -19,7 +23,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Literal
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
 
 from app.constants.amazon_review_crawl_rules import (
     MAX_IDEMPOTENCY_KEY_LENGTH,
@@ -91,3 +95,14 @@ class AgentCrawlResultRequest(BaseModel):
     asin_scraped: str | None = Field(default=None, max_length=20)
     error_message: str | None = Field(default=None, max_length=4000)
     source: str | None = Field(default=None, max_length=64)
+
+    @field_validator("idempotency_key")
+    @classmethod
+    def _idempotency_key_not_blank(cls, value: str | None) -> str | None:
+        """全空白等于没给键——必须 400，不能静默降级成 ``None``（假幂等）。"""
+        if value is None:
+            return None
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("idempotency_key 不能为空白字符串")
+        return stripped

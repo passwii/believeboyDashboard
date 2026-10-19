@@ -2775,13 +2775,20 @@ export interface paths {
          * Submit Crawl Result
          * @description W1 提交一次采集结果（``record_crawl_result`` 薄封装，服务层零改造）。
          *
-         *     * 目标不存在 / 已停用 → 404 ``RESOURCE_NOT_FOUND``（不泄露范围外目标存在性；
-         *       停用组不再采集，避免结果写到已退役的组上）；
-         *     * 内部目标不在凭据 ``project_scope`` → 403 ``AGENT_PROJECT_OUT_OF_SCOPE``；
-         *       外部目标跨项目可写（见模块 docstring）；
+         *     * 目标不存在 / 已停用 → 404 ``RESOURCE_NOT_FOUND``（停用组不再采集，避免结果
+         *       写到已退役的组上）；
+         *     * 内部目标不在凭据 ``project_scope`` → 403 ``AGENT_PROJECT_OUT_OF_SCOPE``
+         *       （与 404 **可区分**：403 表示目标存在但无权，404 表示不存在 / 已停用；
+         *       这是有意的「可自纠」取舍，与其它写域一致）；
+         *     * ``captured_at`` 早于该目标最近一次 run → 409
+         *       ``REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER``（乱序提交会覆盖当前态评论 / 误判
+         *       疑似移除，见模块 docstring 的「提交顺序护栏」）；幂等重放不受此限；
          *     * 请求体语义校验失败（服务层 ``IngestionError``）→ 400 ``VALIDATION_FAILED``；
          *     * 同幂等键重复提交 → 返回首次 ``run_id`` 且 ``replayed=true``，不新增行、
          *       不写审计（重放不是写）；并发路径由服务层 savepoint + 重查保证唯一。
+         *       ``capture_date`` 一律取**已持久化 run 的** ``started_at`` 推业务日，
+         *       不用本次 payload 的 ``captured_at``（否则重放会把首次 run 的 status
+         *       和重试 payload 的日期拼在一起，调用方会误以为那天有快照）。
          */
         post: operations["submit_crawl_result_api_v1_agent_review_tracking_targets__target_id__runs_post"];
         delete?: never;

@@ -13,6 +13,22 @@
   **不 confirm**——幂等 + 只增量写入，无金钱/不可逆状态（对齐 platform-inspection
   W1 保存草稿的先例）。
 
+**提交顺序护栏（乱序提交 → 409）**：``captured_at`` 由调用方控制，而
+``amazon_review_reviews`` / ``amazon_review_rating_snapshots`` 是**当前态表、无版本**——
+服务层 ``_upsert_review`` 无条件覆盖当前行并回写 ``last_seen_at``，``_apply_missing``
+也无条件在当前 ``missing_streak`` 上 +1。若允许任意顺序提交，补采一条更旧的结果会
+把当前态评论正文 / ``last_seen_at`` **倒退**，并按陈旧数据再记一次「缺失」，直接
+产出错误的「疑似移除」结论。因此本阶段在**路由层**加护栏（issue 要求不改服务层
+签名 / 行为）：进入 ``record_crawl_result`` 前查该 target 的 ``max(started_at)``，
+``body.captured_at`` 早于它 → 409 ``REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER``。
+
+* 同一业务日重跑天然是更晚的 ``captured_at``，不受影响；
+* 幂等重放走既有 run 短路（先查幂等键，命中则不校验顺序），也不受响；
+* 护栏是**尽力而为**：两个携带不同幂等键的并发请求可能同时通过检查
+ （无数据库级约束，需真正串行化时得另加唯一索引 / advisory lock）。
+  若产品确实需要允许补采，则必须先给当前态表加版本或改成「以 captured_at 为准
+  的条件更新」，并在设计文档里写清影响，不能只去掉这道检查。
+
 范围口径（重要，两处都显式写死并待产品确认）：
 
 * **内部目标**（``kind=internal_group``，有 ``project_id``）——严格按 key 的
@@ -35,6 +51,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -66,6 +83,7 @@ from app.services.amazon_review_ingestion_service import (
     IngestionError,
     RatingCapture,
     ReviewCapture,
+    business_date,
     record_crawl_result,
 )
 from app.services.audit_log_service import append_operation_audit_log
@@ -271,7 +289,7 @@ def list_targets(
     ).all()
 
     target_ids = [int(target.id) for target in targets]
-    external_shop_ids = _active_external_shop_ids(db, target_ids, targets)
+    external_shop_ids = _active_external_shop_ids(db, targets)
     last_runs = _last_runs(db, target_ids)
 
     return agent_ok(
@@ -298,7 +316,6 @@ def list_targets(
 
 def _active_external_shop_ids(
     db: Session,
-    target_ids: list[int],
     targets: Sequence[AmazonReviewTarget],
 ) -> dict[int, list[int]]:
     """外部目标的 active 店铺关联（内部目标恒空，省一次查询）。"""
@@ -322,34 +339,59 @@ def _active_external_shop_ids(
 
 
 def _last_runs(db: Session, target_ids: list[int]) -> dict[int, dict[str, Any]]:
-    """每个目标最近一次 run（按 ``started_at`` 倒序取首条，含 failed）。"""
+    """每个目标最近一次 run（按 ``started_at`` 倒序取首条，含 failed）。
+
+    用 ``row_number()`` 在库内取每组首条，只把每个目标 1 行拉回 Python——
+    目标范围内累计 run 会按「每日一次 × target 数 × 年数」增长（500 个 target
+    跑一年即十几万行），不能全量拉回来去重。
+    """
     if not target_ids:
         return {}
-    rows = db.execute(
+    ranked = (
         select(
-            AmazonReviewCrawlRun.target_id,
-            AmazonReviewCrawlRun.id,
-            AmazonReviewCrawlRun.status,
-            AmazonReviewCrawlRun.started_at,
+            AmazonReviewCrawlRun.target_id.label("target_id"),
+            AmazonReviewCrawlRun.id.label("run_id"),
+            AmazonReviewCrawlRun.status.label("status"),
+            AmazonReviewCrawlRun.started_at.label("started_at"),
+            func.row_number()
+            .over(
+                partition_by=AmazonReviewCrawlRun.target_id,
+                order_by=(
+                    AmazonReviewCrawlRun.started_at.desc(),
+                    AmazonReviewCrawlRun.id.desc(),
+                ),
+            )
+            .label("rn"),
         )
         .where(AmazonReviewCrawlRun.target_id.in_(target_ids))
-        .order_by(
-            AmazonReviewCrawlRun.target_id,
-            AmazonReviewCrawlRun.started_at.desc(),
-            AmazonReviewCrawlRun.id.desc(),
-        )
+        .subquery()
+    )
+    rows = db.execute(
+        select(
+            ranked.c.target_id, ranked.c.run_id, ranked.c.status, ranked.c.started_at
+        ).where(ranked.c.rn == 1)
     ).all()
-    latest: dict[int, dict[str, Any]] = {}
-    for target_id, run_id, status, started_at in rows:
-        key = int(target_id)
-        if key in latest:
-            continue
-        latest[key] = {
+    return {
+        int(target_id): {
             "run_id": int(run_id),
             "status": status,
             "started_at": started_at.isoformat() if started_at else None,
         }
-    return latest
+        for target_id, run_id, status, started_at in rows
+    }
+
+
+def _latest_started_at(db: Session, target_id: int) -> datetime | None:
+    """该 target 已提交 run 中最大的 ``started_at``（无 run → ``None``）。
+
+    ``started_at`` 落库时就等于调用方给的 ``captured_at``，所以它也就是「最近一次
+    采集时间」，用于 W1 的乱序护栏。
+    """
+    return db.scalar(
+        select(func.max(AmazonReviewCrawlRun.started_at)).where(
+            AmazonReviewCrawlRun.target_id == target_id
+        )
+    )
 
 
 # ============================================================
@@ -369,13 +411,20 @@ def submit_crawl_result(
 ) -> dict:
     """W1 提交一次采集结果（``record_crawl_result`` 薄封装，服务层零改造）。
 
-    * 目标不存在 / 已停用 → 404 ``RESOURCE_NOT_FOUND``（不泄露范围外目标存在性；
-      停用组不再采集，避免结果写到已退役的组上）；
-    * 内部目标不在凭据 ``project_scope`` → 403 ``AGENT_PROJECT_OUT_OF_SCOPE``；
-      外部目标跨项目可写（见模块 docstring）；
+    * 目标不存在 / 已停用 → 404 ``RESOURCE_NOT_FOUND``（停用组不再采集，避免结果
+      写到已退役的组上）；
+    * 内部目标不在凭据 ``project_scope`` → 403 ``AGENT_PROJECT_OUT_OF_SCOPE``
+      （与 404 **可区分**：403 表示目标存在但无权，404 表示不存在 / 已停用；
+      这是有意的「可自纠」取舍，与其它写域一致）；
+    * ``captured_at`` 早于该目标最近一次 run → 409
+      ``REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER``（乱序提交会覆盖当前态评论 / 误判
+      疑似移除，见模块 docstring 的「提交顺序护栏」）；幂等重放不受此限；
     * 请求体语义校验失败（服务层 ``IngestionError``）→ 400 ``VALIDATION_FAILED``；
     * 同幂等键重复提交 → 返回首次 ``run_id`` 且 ``replayed=true``，不新增行、
       不写审计（重放不是写）；并发路径由服务层 savepoint + 重查保证唯一。
+      ``capture_date`` 一律取**已持久化 run 的** ``started_at`` 推业务日，
+      不用本次 payload 的 ``captured_at``（否则重放会把首次 run 的 status
+      和重试 payload 的日期拼在一起，调用方会误以为那天有快照）。
     """
     idempotency_key = _resolve_idempotency_key(request, body)
 
@@ -390,6 +439,18 @@ def submit_crawl_result(
         require_project_scope(int(target.project_id), request)
 
     existing = _find_run(db, target_id, idempotency_key)
+    if existing is None:
+        latest_started_at = _latest_started_at(db, target_id)
+        if latest_started_at is not None and body.captured_at < latest_started_at:
+            raise AgentApiError(
+                ErrorCode.REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER,
+                reason="captured_at_before_latest_run",
+                human_message=(
+                    f"captured_at {body.captured_at.isoformat()} 早于该目标最近一次"
+                    f"采集时间 {latest_started_at.isoformat()}"
+                ),
+                details={"latest_started_at": latest_started_at.isoformat()},
+            )
 
     try:
         result = record_crawl_result(
@@ -406,6 +467,12 @@ def submit_crawl_result(
             error_message=body.error_message,
         )
         replayed = existing is not None
+        # 一律用已持久化 run 的 started_at 推业务日：重放（incl. 并发命中）时不能
+        # 用本次 payload 的 captured_at，否则 run_id/status 与 capture_date 跨次拼接。
+        run = db.get(AmazonReviewCrawlRun, result.run_id)
+        capture_date = (
+            business_date(run.started_at) if run is not None else result.capture_date
+        )
         if not replayed:
             append_operation_audit_log(
                 db,
@@ -417,9 +484,11 @@ def submit_crawl_result(
                     "target_id": target_id,
                     "kind": target.kind,
                     "status": body.status,
-                    "capture_date": result.capture_date.isoformat(),
+                    "capture_date": capture_date.isoformat(),
                     "is_complete_list": body.is_complete_list,
-                    "reviews_seen": body.reviews is not None and len(body.reviews),
+                    "reviews_seen": (
+                        len(body.reviews) if body.reviews is not None else None
+                    ),
                     "ratings_captured": body.rating is not None,
                     "asin_scraped": body.asin_scraped,
                 },
@@ -446,7 +515,11 @@ def submit_crawl_result(
             "target_id": result.target_id,
             "run_id": result.run_id,
             "status": run.status if run is not None else body.status,
-            "capture_date": result.capture_date.isoformat(),
+            "capture_date": (
+                business_date(run.started_at)
+                if run is not None
+                else result.capture_date
+            ).isoformat(),
             "snapshot_updated": result.snapshot_updated,
             "reviews_upserted": result.reviews_upserted,
             "reviews_suspected_removed": result.reviews_suspected_removed,

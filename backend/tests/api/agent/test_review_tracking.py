@@ -737,3 +737,225 @@ class TestSubmitCrawlResult:
         )
         assert resp.status_code == 400, resp.text
         assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+
+    # ------------------------------------------------------------
+    # 复审修复（BLF-1378 复审 3 条必须修复项）
+    # ------------------------------------------------------------
+
+    def test_out_of_order_capture_409_does_not_roll_back_current_state(
+        self, client, make_api_key, rt_env
+    ):
+        """较新的结果先落库后，补采更旧的 → 409，当前态正文 / last_seen_at 不倒退。"""
+        _agent_id, headers = _make_headers(make_api_key)
+        newest = _run_body(
+            captured_at="2026-10-19T09:30:00+08:00",
+            reviews=[
+                {
+                    "review_key": "R1",
+                    "id_confidence": "original",
+                    "rating": 5,
+                    "body": "新内容",
+                }
+            ],
+        )
+        first = client.post(_runs_url(rt_env["target_id"]), json=newest, headers=headers)
+        assert first.status_code == 200, first.text
+
+        stale = _run_body(
+            captured_at="2026-10-01T09:30:00+08:00",
+            reviews=[
+                {
+                    "review_key": "R1",
+                    "id_confidence": "original",
+                    "rating": 5,
+                    "body": "旧内容",
+                }
+            ],
+        )
+        resp = client.post(_runs_url(rt_env["target_id"]), json=stale, headers=headers)
+        assert resp.status_code == 409, resp.text
+        error = resp.json()["error"]
+        assert error["code"] == "REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER"
+        assert error["details"]["latest_started_at"].startswith("2026-10-19")
+
+        db = SessionLocal()
+        try:
+            review = db.execute(
+                select(AmazonReviewReview).where(
+                    AmazonReviewReview.target_id == rt_env["target_id"]
+                )
+            ).scalar_one()
+            # 当前态没有被旧数据覆盖
+            assert review.body == "新内容"
+            assert review.last_seen_at.isoformat().startswith("2026-10-19")
+            # 被拒的提交不落 run
+            assert (
+                _count_rows(db, AmazonReviewCrawlRun, target_id=rt_env["target_id"]) == 1
+            )
+        finally:
+            db.close()
+
+    def test_out_of_order_complete_list_does_not_advance_missing_streak(
+        self, client, make_api_key, rt_env
+    ):
+        """陈旧完整列表缺 R1 → 409，missing_streak 不 +1、不产出疑似移除。"""
+        _agent_id, headers = _make_headers(make_api_key)
+        seen = client.post(
+            _runs_url(rt_env["target_id"]),
+            json=_run_body(captured_at="2026-10-17T09:30:00+08:00"),
+            headers=headers,
+        )
+        assert seen.status_code == 200, seen.text
+        miss = client.post(
+            _runs_url(rt_env["target_id"]),
+            json=_run_body(captured_at="2026-10-18T09:30:00+08:00", reviews=[]),
+            headers=headers,
+        )
+        assert miss.status_code == 200, miss.text
+
+        stale_miss = client.post(
+            _runs_url(rt_env["target_id"]),
+            json=_run_body(captured_at="2026-09-01T09:30:00+08:00", reviews=[]),
+            headers=headers,
+        )
+        assert stale_miss.status_code == 409, stale_miss.text
+        assert (
+            stale_miss.json()["error"]["code"]
+            == "REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER"
+        )
+
+        db = SessionLocal()
+        try:
+            review = db.execute(
+                select(AmazonReviewReview).where(
+                    AmazonReviewReview.target_id == rt_env["target_id"]
+                )
+            ).scalar_one()
+            assert review.missing_streak == 1
+            assert review.visibility_status == "visible"
+        finally:
+            db.close()
+
+    def test_same_day_later_rerun_allowed(self, client, make_api_key, rt_env):
+        """同日更晚的 captured_at（重跑）不受顺序护栏影响。"""
+        _agent_id, headers = _make_headers(make_api_key)
+        first = client.post(
+            _runs_url(rt_env["target_id"]),
+            json=_run_body(captured_at="2026-10-19T09:30:00+08:00"),
+            headers=headers,
+        )
+        second = client.post(
+            _runs_url(rt_env["target_id"]),
+            json=_run_body(captured_at="2026-10-19T18:30:00+08:00"),
+            headers=headers,
+        )
+        assert first.status_code == 200, first.text
+        assert second.status_code == 200, second.text
+
+    def test_replay_skips_order_guard(self, client, make_api_key, rt_env):
+        """幂等重放即使 captured_at 更早也照常返回首次 run（重放不是写）。"""
+        _agent_id, headers = _make_headers(make_api_key)
+        body = _run_body(
+            captured_at="2026-10-10T09:30:00+08:00", idempotency_key="replay-old"
+        )
+        first = client.post(_runs_url(rt_env["target_id"]), json=body, headers=headers)
+        assert first.status_code == 200, first.text
+        newer = client.post(
+            _runs_url(rt_env["target_id"]),
+            json=_run_body(captured_at="2026-10-19T09:30:00+08:00"),
+            headers=headers,
+        )
+        assert newer.status_code == 200, newer.text
+
+        replay = client.post(_runs_url(rt_env["target_id"]), json=body, headers=headers)
+        assert replay.status_code == 200, replay.text
+        data = replay.json()["data"]
+        assert data["replayed"] is True
+        assert data["run_id"] == first.json()["data"]["run_id"]
+        # 重放返回首次 run 的业务日，不是更晚那次
+        assert data["capture_date"] == "2026-10-10"
+
+    def test_replay_returns_capture_date_of_first_run(
+        self, client, make_api_key, rt_env
+    ):
+        """重试 payload 换了 captured_at，响应日期仍取已持久化 run 的 started_at。"""
+        _agent_id, headers = _make_headers(make_api_key)
+        first = client.post(
+            _runs_url(rt_env["target_id"]),
+            json=_run_body(
+                captured_at="2026-10-19T09:30:00+08:00", idempotency_key="k-1"
+            ),
+            headers=headers,
+        )
+        assert first.status_code == 200, first.text
+        assert first.json()["data"]["capture_date"] == "2026-10-19"
+
+        retry = client.post(
+            _runs_url(rt_env["target_id"]),
+            json=_run_body(
+                captured_at="2026-10-25T09:30:00+08:00", idempotency_key="k-1"
+            ),
+            headers=headers,
+        )
+        assert retry.status_code == 200, retry.text
+        data = retry.json()["data"]
+        assert data["replayed"] is True
+        assert data["run_id"] == first.json()["data"]["run_id"]
+        assert data["capture_date"] == "2026-10-19"
+
+    def test_blank_body_idempotency_key_400(self, client, make_api_key, rt_env):
+        """body 里全空白的幂等键必须 400，不能静默降级成 None（假幂等）。"""
+        _agent_id, headers = _make_headers(make_api_key)
+        for _ in range(2):
+            resp = client.post(
+                _runs_url(rt_env["target_id"]),
+                json=_run_body(idempotency_key="   "),
+                headers=headers,
+            )
+            assert resp.status_code == 400, resp.text
+            assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+
+        db = SessionLocal()
+        try:
+            assert (
+                _count_rows(db, AmazonReviewCrawlRun, target_id=rt_env["target_id"]) == 0
+            )
+        finally:
+            db.close()
+
+    def test_audit_reviews_seen_null_vs_zero(self, client, make_api_key, rt_env):
+        """审计 reviews_seen：未抓评论 → null，抓到空列表 → 0（类型一致）。"""
+        _agent_id, headers = _make_headers(make_api_key)
+        no_reviews = client.post(
+            _runs_url(rt_env["target_id"]),
+            json=_run_body(
+                captured_at="2026-10-18T09:30:00+08:00",
+                reviews=None,
+                is_complete_list=False,
+            ),
+            headers=headers,
+        )
+        assert no_reviews.status_code == 200, no_reviews.text
+        empty_list = client.post(
+            _runs_url(rt_env["target_id"]),
+            json=_run_body(captured_at="2026-10-19T09:30:00+08:00", reviews=[]),
+            headers=headers,
+        )
+        assert empty_list.status_code == 200, empty_list.text
+
+        db = SessionLocal()
+        try:
+            null_log = query_operation_audit_log(
+                db,
+                target_type="amazon_review_crawl_run",
+                target_id=str(no_reviews.json()["data"]["run_id"]),
+            )
+            zero_log = query_operation_audit_log(
+                db,
+                target_type="amazon_review_crawl_run",
+                target_id=str(empty_list.json()["data"]["run_id"]),
+            )
+            assert (null_log[0].after_json or {})["reviews_seen"] is None
+            assert (zero_log[0].after_json or {})["reviews_seen"] == 0
+        finally:
+            db.close()
