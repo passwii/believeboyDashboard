@@ -1,8 +1,11 @@
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 
+import { LoginFailureError } from '@/lib/auth/login-auth-error'
+import { pageCodeFromBackendCode, pageCodeFromStatus } from '@/lib/auth/login-error-code'
 import { NetworkAuthError } from '@/lib/auth/network-auth-error'
-import { backendFetchJson } from '@/lib/server/backend-api'
+import { BackendHttpError, backendFetchJson } from '@/lib/server/backend-api'
+import { rememberLoginErrorHint } from '@/lib/server/login-error-hint'
 
 type UserCredentials = Partial<Record<'email' | 'password', unknown>>
 
@@ -45,7 +48,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             body: JSON.stringify({ email, password }),
             cache: 'no-store',
           })
-          if (!account.is_active) return null
+          if (!account.is_active) {
+            // 正常链路后端会先回 401 LOGIN_ACCOUNT_DISABLED；这里兜住旧后端。
+            throw new LoginFailureError('account_disabled')
+          }
           return {
             id: account.id,
             name: account.name,
@@ -56,7 +62,24 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             sessionId: account.session_id,
           }
         } catch (err: unknown) {
-          // 区分网络错误和认证错误，让前端可以显示正确的错误提示
+          // 已经带上具体原因的失败（例如旧后端的 is_active=false）直接透传。
+          if (err instanceof LoginFailureError) throw err
+
+          // 1) 后端明确返回了失败响应：按稳定 code 选页面 code（BLF-1383）。
+          //    `code` 缺省时按 HTTP 状态兜底，覆盖「前端先上线、后端还是旧版」的窗口
+          //    ——旧后端 500 是纯文本，也能落到 internal_error，不再显示「后端连接错误」。
+          if (err instanceof BackendHttpError) {
+            const pageCode = pageCodeFromBackendCode(err.code) ?? pageCodeFromStatus(err.status, err.message)
+            // 排查线索（请求 ID / 等待秒数）走短 TTL cookie，因为 Auth.js 只透传 code。
+            await rememberLoginErrorHint({
+              backendCode: err.code,
+              requestId: err.requestId,
+              retryAfterSeconds: err.retryAfterSeconds,
+            })
+            throw new LoginFailureError(pageCode)
+          }
+
+          // 2) 连不上后端：抛出 CredentialsSignin 子类，确保 NextAuth 正确传递错误类型
           const errorMessage = (err instanceof Error ? err.message : String(err)).toLowerCase()
           const isNetworkError =
             errorMessage.includes('fetch') ||
@@ -68,12 +91,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             errorMessage.includes('failed to fetch') ||
             errorMessage.includes('typeerror')
 
-          if (isNetworkError) {
-            // 抛出 CredentialsSignin 子类，确保 NextAuth 正确传递错误类型
-            throw new NetworkAuthError()
-          }
-          // 其他错误（如认证失败）不抛出，让 NextAuth 返回默认错误
-          return null
+          if (isNetworkError) throw new NetworkAuthError()
+
+          // 3) 其它未预期异常：按「登录服务内部错误」上报，绝不归成「密码错误」。
+          console.error('登录异常（未预期）:', err)
+          throw new LoginFailureError('internal_error')
         }
       },
     }),
