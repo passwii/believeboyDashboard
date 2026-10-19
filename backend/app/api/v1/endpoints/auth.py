@@ -1,3 +1,4 @@
+import logging
 from urllib.parse import unquote
 from uuid import uuid4
 
@@ -14,10 +15,16 @@ from app.db.session import SessionLocal
 from app.schemas.system_management import UserRoleType
 from app.services.audit_log_service import append_operation_audit_log
 from app.services.infra import delete_user_sessions, validate_session, write_session
-from app.services.rate_limit_service import clear_key, increment_and_check
+from app.services.rate_limit_service import (
+    clear_login_failures,
+    release_attempt,
+    reserve_attempt,
+)
 from app.services.user_api_key_service import ensure_user_api_key, normalize_client_id
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+logger = logging.getLogger(__name__)
 
 limiter = Limiter(key_func=get_remote_address, default_limits=[])
 
@@ -64,24 +71,65 @@ def _get_client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
-def _check_login_rate_limits(request: Request, email: str) -> tuple[bool, int]:
-    """Check both IP and per-email rate limits. Returns (allowed, retry_after_seconds)."""
-    ip = _get_client_ip(request)
+def _reserve_login_attempts(
+    request: Request, email: str
+) -> tuple[bool, int, str | None, str | None]:
+    """先给本次登录**原子预占**两个桶各一次额度。
 
-    _, ip_retry = increment_and_check(
+    BLF-1381：过去的写法把「检查」与「记账」拆开（先 ``peek_limit``，密码错才
+    ``record_attempt``），虽然修掉了「成功登录也吃额度」和「被挡请求续窗」，却
+    在**并发**下漏了：同一邮箱的一批并行请求可以全部看到「桶没满」、全部跑完
+    密码校验，之后才一起记账 —— 攻击者于是在任何计数生效前就试过任意多组密码。
+
+    现在改为先原子预占：密码错就保留（和原来只计失败等价），成功 / 不构成失败
+    就 ``release_attempt`` 回滚（成功仍然零消耗），超限的预占当场撤回（被挡请求
+    依旧不续窗）。拿到 ``(allowed=True, 0, ip_token, email_token)`` 后，调用方
+    必须在每条退出路径上调用 ``_release_login_attempts``。
+    """
+    ip = _get_client_ip(request)
+    ip_ok, ip_retry, ip_token = reserve_attempt(
         "login_ip", ip, LOGIN_IP_RATE_MAX, LOGIN_IP_RATE_WINDOW
     )
-    if ip_retry > 0:
-        return False, ip_retry
+    if not ip_ok:
+        return False, ip_retry, None, None
 
     email_key = email.strip().lower()
-    _, email_retry = increment_and_check(
-        "login_email_fail", email_key, LOGIN_EMAIL_FAILED_MAX, LOGIN_EMAIL_FAILED_WINDOW
+    email_ok, email_retry, email_token = reserve_attempt(
+        "login_email_fail",
+        email_key,
+        LOGIN_EMAIL_FAILED_MAX,
+        LOGIN_EMAIL_FAILED_WINDOW,
     )
-    if email_retry > 0:
-        return False, email_retry
+    if not email_ok:
+        # 邮箱桶满了：把刚占的 IP 额度退回去，别让被挡的请求消耗 IP 配额。
+        release_attempt("login_ip", ip, ip_token, LOGIN_IP_RATE_WINDOW)
+        return False, email_retry, None, None
 
-    return True, 0
+    return True, 0, ip_token, email_token
+
+
+def _release_login_attempts(
+    request: Request,
+    email: str,
+    ip_token: str | None,
+    email_token: str | None,
+) -> None:
+    """回滚**非失败**场景（密码对 / 账号停用 / 内部错误）预占的额度。
+
+    密码错时不要调本函数：那正是要计数的那一次。成功路径上邮箱桶已被
+    ``clear_login_failures`` 整桶清空，这里的 email 回滚退化为空操作。
+    """
+    if ip_token:
+        release_attempt(
+            "login_ip", _get_client_ip(request), ip_token, LOGIN_IP_RATE_WINDOW
+        )
+    if email_token:
+        release_attempt(
+            "login_email_fail",
+            email.strip().lower(),
+            email_token,
+            LOGIN_EMAIL_FAILED_WINDOW,
+        )
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -113,8 +161,11 @@ def login(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid X-Client-Id"
         ) from None
 
-    # ── Rate limit check ───────────────────────────────────────────────────────
-    allowed, retry_after = _check_login_rate_limits(request, payload.email)
+    # ── Rate limit check ──────────────────────────────────────────────────────
+    # BLF-1381：先原子预占两个桶各一次额度 —— 并发批次到不了密码校验就把上限打满。
+    allowed, retry_after, ip_token, email_token = _reserve_login_attempts(
+        request, payload.email
+    )
     if not allowed:
         return JSONResponse(
             status_code=429,
@@ -126,6 +177,8 @@ def login(
         )
 
     db: Session = SessionLocal()
+    # 预占只在「密码错」这一条路径上留下；其余（成功 / 停用 / 意外异常）都退回。
+    count_as_failure = False
     try:
         row = (
             db.execute(
@@ -155,6 +208,8 @@ def login(
         if row is None or not verify_password(
             payload.password, str(row["password_hash"])
         ):
+            # 保留本次预占：失败是通往攻击的唯一路径，这一笔就该计数。
+            count_as_failure = True
             append_operation_audit_log(
                 db,
                 action="auth.login.failed",
@@ -171,6 +226,7 @@ def login(
 
         # ── Account disabled ───────────────────────────────────────────────
         if not bool(row["is_active"]):
+            # 密码是对的，不算爆破：预占在 finally 里退回。
             append_operation_audit_log(
                 db,
                 action="auth.login.account_disabled",
@@ -199,14 +255,15 @@ def login(
         db.commit()
 
         # Clear failed-attempt counter on successful login
-        clear_key("login_email_fail", payload.email.strip().lower())
+        clear_login_failures(payload.email)
 
         # Create session in Redis
         session_id = uuid4().hex
         try:
             write_session(str(row["id"]), session_id)
         except Exception:
-            pass  # Redis unavailable — degrade gracefully, session check will be skipped
+            # Redis 不可用时降级：会话校验被跳过，登录本身不该因此失败。
+            logger.warning("write_session failed user_id=%s", row["id"], exc_info=True)
 
         # BLF-711 / BLF-1059：登录按 (账号, 设备槽) 下发专属 API key（桌面端不再
         # 依赖 BELIEVEBOY_TOKEN）。轮换语义限定在本槽：同槽重登旧 key 立即失效、
@@ -239,6 +296,9 @@ def login(
         )
     finally:
         db.close()
+        # 成功登录零消耗：非「密码错」路径都把预占退回去（只退一次，由本处统一负责）。
+        if not count_as_failure:
+            _release_login_attempts(request, payload.email, ip_token, email_token)
 
 
 @router.get("/me", response_model=MeResponse)
@@ -284,7 +344,11 @@ def get_current_user(
             try:
                 delete_user_sessions(x_user_id)
             except Exception:
-                pass
+                logger.warning(
+                    "delete_user_sessions failed on disabled account user_id=%s",
+                    x_user_id,
+                    exc_info=True,
+                )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Account disabled"
             )
@@ -300,7 +364,10 @@ def get_current_user(
             except HTTPException:
                 raise
             except Exception:
-                pass  # Redis unavailable — degrade gracefully
+                # Redis 不可用 → 降级放行（不能因为缓存挂了把所有人踢下线）。
+                logger.warning(
+                    "validate_session failed user_id=%s", x_user_id, exc_info=True
+                )
 
         return MeResponse(
             id=str(row["id"]),
