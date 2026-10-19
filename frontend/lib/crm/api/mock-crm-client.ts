@@ -57,14 +57,51 @@ import {
 } from './mock-data'
 
 const STORAGE_KEY = 'believeboy-crm-mock-state-v1'
+/** 存量清理前的原始状态留底（BLF-1372），见 `backupBeforeMigration`。 */
+const BACKUP_STORAGE_KEY = `${STORAGE_KEY}.backup-pre-blf1372`
 const LATENCY_MIN = 150
 const LATENCY_MAX = 400
 const E2E_LATENCY_MS = 200
 const ERROR_RATE = 0.05
 
+/**
+ * 是否灌入演示夹具数据（BLF-1372）。
+ *
+ * CRM 至今默认走 MockCrmClient（`NEXT_PUBLIC_CRM_API_MODE` 未设置 → 'mock'），
+ * 而 mock 会把 100 客户 / 50 线索 / 200 跟进 / 24 任务的演示夹具混进真实业务数据，
+ * 用户无法只看自己新建 / 导入的数据。故：
+ *
+ * - **生产构建一律不灌**（用户看到的只有自己录入的数据）；
+ * - 开发 / 测试环境继续灌，E2E 与本地开发仍拿得到稳定的演示数据；
+ * - 需要显式覆盖时用 `NEXT_PUBLIC_CRM_DEMO_DATA=1|0`（预览环境要演示数据就设 1）。
+ */
+function shouldSeedDemoData(): boolean {
+  const flag = process.env.NEXT_PUBLIC_CRM_DEMO_DATA
+  if (flag === '1') return true
+  if (flag === '0') return false
+  return process.env.NODE_ENV !== 'production'
+}
+
 const DEFAULT_WORKFLOW_SETTINGS: WorkflowSettings = {
   staleDays: 7,
   staleEmailEnabled: true,
+}
+
+/**
+ * 演示夹具 id 集合（BLF-1372）。
+ *
+ * 夹具 id 由 `mock-data/_generator.ts` 按固定序号生成（`c-0001` / `l-0001` /
+ * `f-00001` / `t-0001`）；用户自建、CSV 导入的数据一律走 `genId()`
+ * （`c-<base36 时间戳>-<随机串>`，两段以上）。两者格式不重叠，因此能精确地
+ * 「只删夹具、保留用户数据」。这里直接取夹具常量的 id，夹具增删时集合自动跟随。
+ */
+const FIXTURE_IDS = {
+  customers: new Set(CUSTOMERS_FIXTURE.map((c) => c.id)),
+  leads: new Set(LEADS_FIXTURE.map((l) => l.id)),
+  follows: new Set(FOLLOWS_FIXTURE.map((f) => f.id)),
+  tasks: new Set(TASKS_FIXTURE.map((t) => t.id)),
+  proposals: new Set(PROPOSALS_FIXTURE.map((p) => p.id)),
+  proposalVersions: new Set(PROPOSAL_VERSIONS_FIXTURE.map((v) => v.id)),
 }
 
 interface MockState {
@@ -113,73 +150,150 @@ function maybeFail(op: string): void {
 
 function loadState(): MockState {
   if (typeof window === 'undefined') {
-    return {
-      customers: [...CUSTOMERS_FIXTURE],
-      leads: [...LEADS_FIXTURE],
-      follows: [...FOLLOWS_FIXTURE],
-      contacts: [],
-      users: [...USERS_FIXTURE],
-      categories: [...CATEGORIES_FIXTURE],
-      audits: [],
-      tasks: [...TASKS_FIXTURE],
-      rules: [...RULES_FIXTURE],
-      proposals: [...PROPOSALS_FIXTURE],
-      proposalVersions: [...PROPOSAL_VERSIONS_FIXTURE],
-      proposalBodies: {},
-      workflowSettings: { ...DEFAULT_WORKFLOW_SETTINGS },
-    }
+    return createInitialState()
   }
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
     if (!raw) {
-      return {
-        customers: [...CUSTOMERS_FIXTURE],
-        leads: [...LEADS_FIXTURE],
-        follows: [...FOLLOWS_FIXTURE],
-        contacts: [],
-        users: [...USERS_FIXTURE],
-        categories: [...CATEGORIES_FIXTURE],
-        audits: [],
-        tasks: [...TASKS_FIXTURE],
-        rules: [...RULES_FIXTURE],
-        proposals: [...PROPOSALS_FIXTURE],
-        proposalVersions: [...PROPOSAL_VERSIONS_FIXTURE],
-        proposalBodies: {},
-        workflowSettings: { ...DEFAULT_WORKFLOW_SETTINGS },
-      }
+      return createInitialState()
     }
     const parsed = JSON.parse(raw) as Partial<MockState>
-    return {
-      customers: parsed.customers ?? [...CUSTOMERS_FIXTURE],
-      leads: parsed.leads ?? [...LEADS_FIXTURE],
-      follows: parsed.follows ?? [...FOLLOWS_FIXTURE],
+    // 缺字段时的回落：开发 / 测试补演示夹具（与旧行为一致），生产留空
+    const seedDemo = shouldSeedDemoData()
+    const fresh = <T,>(fixture: () => T[]): T[] => (seedDemo ? fixture() : [])
+    return migrateState({
+      customers: parsed.customers ?? fresh(() => [...CUSTOMERS_FIXTURE]),
+      leads: parsed.leads ?? fresh(() => [...LEADS_FIXTURE]),
+      follows: parsed.follows ?? fresh(() => [...FOLLOWS_FIXTURE]),
       contacts: parsed.contacts ?? [],
       users: parsed.users ?? [...USERS_FIXTURE],
       categories: parsed.categories ?? [...CATEGORIES_FIXTURE],
       audits: parsed.audits ?? [],
-      tasks: parsed.tasks ?? [...TASKS_FIXTURE],
+      tasks: parsed.tasks ?? fresh(() => [...TASKS_FIXTURE]),
       rules: parsed.rules ?? [...RULES_FIXTURE],
-      proposals: parsed.proposals ?? [...PROPOSALS_FIXTURE],
-      proposalVersions: parsed.proposalVersions ?? [...PROPOSAL_VERSIONS_FIXTURE],
+      proposals: parsed.proposals ?? fresh(() => [...PROPOSALS_FIXTURE]),
+      proposalVersions:
+        parsed.proposalVersions ?? fresh(() => [...PROPOSAL_VERSIONS_FIXTURE]),
       proposalBodies: parsed.proposalBodies ?? {},
       workflowSettings: parsed.workflowSettings ?? { ...DEFAULT_WORKFLOW_SETTINGS },
-    }
+    }, raw)
   } catch {
-    return {
-      customers: [...CUSTOMERS_FIXTURE],
-      leads: [...LEADS_FIXTURE],
-      follows: [...FOLLOWS_FIXTURE],
-      contacts: [],
-      users: [...USERS_FIXTURE],
-      categories: [...CATEGORIES_FIXTURE],
-      audits: [],
-      tasks: [...TASKS_FIXTURE],
-      rules: [...RULES_FIXTURE],
-      proposals: [...PROPOSALS_FIXTURE],
-      proposalVersions: [...PROPOSAL_VERSIONS_FIXTURE],
-      proposalBodies: {},
-      workflowSettings: { ...DEFAULT_WORKFLOW_SETTINGS },
-    }
+    return createInitialState()
+  }
+}
+
+/** 新建状态：业务实体按 `shouldSeedDemoData()` 决定是否带演示夹具。 */
+function createInitialState(): MockState {
+  const seedDemo = shouldSeedDemoData()
+  return {
+    customers: seedDemo ? [...CUSTOMERS_FIXTURE] : [],
+    leads: seedDemo ? [...LEADS_FIXTURE] : [],
+    follows: seedDemo ? [...FOLLOWS_FIXTURE] : [],
+    contacts: [],
+    users: [...USERS_FIXTURE],
+    categories: [...CATEGORIES_FIXTURE],
+    audits: [],
+    tasks: seedDemo ? [...TASKS_FIXTURE] : [],
+    rules: [...RULES_FIXTURE],
+    proposals: seedDemo ? [...PROPOSALS_FIXTURE] : [],
+    proposalVersions: seedDemo ? [...PROPOSAL_VERSIONS_FIXTURE] : [],
+    proposalBodies: {},
+    workflowSettings: { ...DEFAULT_WORKFLOW_SETTINGS },
+  }
+}
+
+/**
+ * 存量状态回落（BLF-1372）。
+ *
+ * 之前版本把演示夹具与用户数据一并写进 localStorage，用户升级后仍会看到
+ * 100 条演示客户 / 50 条线索，以及挂在它们身上的跟进、任务、联系人、方案。
+ * 这里在读取时按 id 剔除夹具记录（用户自建 / 导入的 id 不在集合里），
+ * 并清掉指向被删实体的下级记录，使「只保留自己上传的数据」对老会话也生效。
+ *
+ * 幂等：夹具已被剔除时实体 id 集合与夹具集合无交集，不动任何数据。
+ * 开发 / 测试环境要演示数据时直接原样返回，不影响 E2E 与本地开发。
+ */
+function migrateState(state: MockState, raw?: string): MockState {
+  if (shouldSeedDemoData()) return state
+
+  const customersKept = state.customers.filter((c) => !FIXTURE_IDS.customers.has(c.id))
+  const leadsKept = state.leads.filter((l) => !FIXTURE_IDS.leads.has(l.id))
+  const keptCustomerIds = new Set(customersKept.map((c) => c.id))
+  const keptLeadIds = new Set(leadsKept.map((l) => l.id))
+  // 方案只剔夹具本体：用户自己上传的方案（genId）即使曾挂在演示客户上也保留，
+  // 它自带 customerName 快照，不会因客户删除而渲染不出来。
+  const proposalsKept = state.proposals.filter((p) => !FIXTURE_IDS.proposals.has(p.id))
+  const followsKept = state.follows.filter(
+    (f) =>
+      !FIXTURE_IDS.follows.has(f.id) &&
+      (f.entityType === 'customer'
+        ? keptCustomerIds.has(f.entityId)
+        : keptLeadIds.has(f.entityId))
+  )
+  const contactsKept = state.contacts.filter((c) => keptCustomerIds.has(c.customerId))
+  const tasksKept = state.tasks.filter(
+    (t) =>
+      !FIXTURE_IDS.tasks.has(t.id) &&
+      (!t.customerId || keptCustomerIds.has(t.customerId)) &&
+      (!t.leadId || keptLeadIds.has(t.leadId))
+  )
+  const proposalVersionsKept = state.proposalVersions.filter(
+    (v) => !FIXTURE_IDS.proposalVersions.has(v.id)
+  )
+  const keptProposalIds = new Set(proposalsKept.map((p) => p.id))
+  // 预览正文的 key 是 `<proposalId>:<versionNo>`，随方案一并丢弃孤儿
+  const proposalBodiesKept = Object.fromEntries(
+    Object.entries(state.proposalBodies).filter(([key]) =>
+      keptProposalIds.has(key.slice(0, key.lastIndexOf(':')))
+    )
+  )
+
+  const next: MockState = {
+    ...state,
+    customers: customersKept,
+    leads: leadsKept,
+    follows: followsKept,
+    contacts: contactsKept,
+    tasks: tasksKept,
+    proposals: proposalsKept,
+    proposalVersions: proposalVersionsKept,
+    proposalBodies: proposalBodiesKept,
+  }
+
+  // 真的删掉了演示记录时回写 localStorage，让清理成为一次性的持久动作，
+  // 而不是每次加载都做一遍过滤。
+  const changed =
+    customersKept.length !== state.customers.length ||
+    leadsKept.length !== state.leads.length ||
+    followsKept.length !== state.follows.length ||
+    contactsKept.length !== state.contacts.length ||
+    tasksKept.length !== state.tasks.length ||
+    proposalsKept.length !== state.proposals.length ||
+    proposalVersionsKept.length !== state.proposalVersions.length ||
+    Object.keys(proposalBodiesKept).length !== Object.keys(state.proposalBodies).length
+  if (changed) {
+    backupBeforeMigration(raw ?? JSON.stringify(state))
+    persistState(next)
+  }
+
+  return next
+}
+
+/**
+ * 清理前的原始状态留底（BLF-1372）。
+ *
+ * `migrateState` 的级联过滤会连同挂在演示客户上的**用户自建**跟进 / 联系人 /
+ * 任务一起删掉，而生产环境的 CRM 只有 localStorage、没有别的副本，误删无法
+ * 找回。这里在首次清理前把原始 raw 原样存一份：需要回滚时把它写回
+ * `STORAGE_KEY` 即可完整还原。只写一次，不覆盖已有留底。
+ */
+function backupBeforeMigration(raw: string): void {
+  if (typeof window === 'undefined') return
+  try {
+    if (window.localStorage.getItem(BACKUP_STORAGE_KEY)) return
+    window.localStorage.setItem(BACKUP_STORAGE_KEY, raw)
+  } catch {
+    // 配额超限等情况下静默忽略，不阻断清理
   }
 }
 
