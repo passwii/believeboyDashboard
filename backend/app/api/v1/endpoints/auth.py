@@ -1,4 +1,5 @@
 import logging
+from enum import Enum
 from urllib.parse import unquote
 from uuid import uuid4
 
@@ -69,6 +70,87 @@ def _get_client_ip(request: Request) -> str:
     if forwarded:
         return forwarded.split(",")[0].strip()
     return request.client.host if request.client else "unknown"
+
+
+class LoginErrorCode(str, Enum):
+    """登录失败的可稳定机读 code（登录页按 code 选文案，不做自然语言匹配）。
+
+    **只增不改**：已发布的 code 不允许改名或改语义——前端登录页、桌面端与排障
+    脚本都按它分支。新增失败原因时追加枚举值，不要复用旧值。
+    """
+
+    #: 邮箱或密码不正确（**含账号不存在**：两者共用同一 code，避免登录页变成
+    #: 账号枚举接口）。
+    INVALID_CREDENTIALS = "LOGIN_INVALID_CREDENTIALS"
+    #: 账号存在且密码正确，但账号已被停用。
+    ACCOUNT_DISABLED = "LOGIN_ACCOUNT_DISABLED"
+    #: 失败次数打满窗口，需等待 ``retry_after_seconds`` 秒后再试。
+    RATE_LIMITED = "LOGIN_RATE_LIMITED"
+    #: ``X-Client-Id`` 形态非法（超长 / 含空白与控制字符）。
+    INVALID_CLIENT_ID = "LOGIN_INVALID_CLIENT_ID"
+    #: 登录处理过程中出现未预期异常（数据库 / Redis / 代码缺陷），需看服务端日志。
+    INTERNAL_ERROR = "LOGIN_INTERNAL_ERROR"
+
+
+def _request_id(request: Request) -> str:
+    """本次请求的追踪 ID（与响应头 ``X-Request-Id`` 同一个值）。"""
+    value = getattr(request.state, "request_id", "")
+    return str(value or "") or uuid4().hex
+
+
+def _login_error(
+    request: Request,
+    status_code: int,
+    code: LoginErrorCode,
+    detail: str,
+    message: str,
+    *,
+    retry_after: int | None = None,
+    headers: dict[str, str] | None = None,
+) -> JSONResponse:
+    """登录失败的统一响应体（**一定是 JSON**，绝不退回 Starlette 纯文本 500）。
+
+    背景（BLF-1381 续）：登录页过去只能拿到 HTTP 状态码，401 的「密码错」与
+    「账号停用」无法区分，429 也看不出还要等多久，页面最后只剩一句笼统提示，
+    用户与支持都没法判断到底是密码、停用、限流还是后端故障。这里给每次失败
+    补上可机读的 ``code`` 与中文 ``message``。
+
+    字段口径：
+
+    * ``detail``：**保持改动前的字符串值不变**（旧的网页/桌面端调用方只读它）；
+    * ``code``：稳定枚举值，见 :class:`LoginErrorCode`；
+    * ``message``：面向用户的中文文案，可直接展示（第三方客户端不必自己再写一份）；
+    * ``request_id``：与响应头 ``X-Request-Id`` 一致，排障时用它回查后端日志与审计；
+    * ``retry_after_seconds``：仅 429 携带，登录页可直接做倒计时。
+    """
+    body: dict[str, object] = {
+        "detail": detail,
+        "code": code.value,
+        "message": message,
+        "request_id": _request_id(request),
+    }
+    if retry_after is not None:
+        body["retry_after_seconds"] = retry_after
+
+    merged = dict(headers or {})
+    if retry_after is not None:
+        merged.setdefault("Retry-After", str(retry_after))
+        merged.setdefault("X-RateLimit-Retry-After-Sec", str(retry_after))
+    return JSONResponse(status_code=status_code, content=body, headers=merged)
+
+
+def _login_internal_error(request: Request) -> JSONResponse:
+    """登录链路上的未预期异常 / 会话建不起来时的统一 500 响应。"""
+    return _login_error(
+        request,
+        status.HTTP_500_INTERNAL_SERVER_ERROR,
+        LoginErrorCode.INTERNAL_ERROR,
+        detail="Login failed due to an internal error",
+        message=(
+            "登录服务内部错误，请稍后重试；"
+            "若持续出现，请把本次请求 ID 提供给管理员排查。"
+        ),
+    )
 
 
 def _reserve_login_attempts(
@@ -154,12 +236,22 @@ def login(
     形态非法（超 64 字符 / 含空白与控制字符）→ 400，而不是静默落 ``default``：
     静默降级会让发错标识的设备与网页端共用一把 key，比报错更难排查。
     """
+    # 本函数的**每一条失败路径**都返回 :func:`_login_error` 的同一套 JSON
+    # （``detail`` / ``code`` / ``message`` / ``request_id``，429 另带
+    # ``retry_after_seconds``）：密码错、账号停用、被限流、``X-Client-Id``
+    # 非法、后端内部错误各自一个稳定 code。不写成 docstring 是故意的 ——
+    # docstring 会进 OpenAPI ``description``，一改就得重生 frontend 侧的
+    # ``openapi.json`` / ``api.d.ts``（本 PR 要留在后端）。
     try:
         client_id = normalize_client_id(x_client_id)
     except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid X-Client-Id"
-        ) from None
+        return _login_error(
+            request,
+            status.HTTP_400_BAD_REQUEST,
+            LoginErrorCode.INVALID_CLIENT_ID,
+            detail="Invalid X-Client-Id",
+            message="客户端标识（X-Client-Id）格式非法，请检查设备配置后重试。",
+        )
 
     # ── Rate limit check ──────────────────────────────────────────────────────
     # BLF-1381：先原子预占两个桶各一次额度 —— 并发批次到不了密码校验就把上限打满。
@@ -167,16 +259,28 @@ def login(
         request, payload.email
     )
     if not allowed:
-        return JSONResponse(
-            status_code=429,
-            content={"detail": "Too many login attempts. Please try again later."},
-            headers={
-                "Retry-After": str(retry_after),
-                "X-RateLimit-Retry-After-Sec": str(retry_after),
-            },
+        return _login_error(
+            request,
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            LoginErrorCode.RATE_LIMITED,
+            detail="Too many login attempts. Please try again later.",
+            # 只承诺「还要等多久」，不写「刚改过密码可直接用新密码重试」：
+            # 429 可能来自**IP 桶**（10 次 / 15 分钟），而重置密码只清邮箱桶
+            # （``users.update_user`` → ``clear_login_failures``），这句话在
+            # 共享出口 IP 的场景下会把人再骗进同一个 429。
+            message=f"登录失败次数过多，请在 {retry_after} 秒后重试。",
+            retry_after=retry_after,
         )
 
-    db: Session = SessionLocal()
+    try:
+        db: Session = SessionLocal()
+    except Exception:
+        # 建 session 就失败（连接池耗尽 / 数据库不可达）：先把预占退回去。
+        # 这不是密码错，不该吃掉该邮箱的失败额度，否则一次后端故障就能把
+        # 账号锁在 429 外面。
+        logger.exception("login: cannot open db session")
+        _release_login_attempts(request, payload.email, ip_token, email_token)
+        return _login_internal_error(request)
     # 预占只在「密码错」这一条路径上留下；其余（成功 / 停用 / 意外异常）都退回。
     count_as_failure = False
     try:
@@ -220,8 +324,12 @@ def login(
                 request=request,
             )
             db.commit()
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
+            return _login_error(
+                request,
+                status.HTTP_401_UNAUTHORIZED,
+                LoginErrorCode.INVALID_CREDENTIALS,
+                detail="Invalid credentials",
+                message="邮箱或密码错误。请检查大小写与键盘输入法后重试。",
             )
 
         # ── Account disabled ───────────────────────────────────────────────
@@ -238,8 +346,12 @@ def login(
                 request=request,
             )
             db.commit()
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Account disabled"
+            return _login_error(
+                request,
+                status.HTTP_401_UNAUTHORIZED,
+                LoginErrorCode.ACCOUNT_DISABLED,
+                detail="Account disabled",
+                message="该账号已被停用，请联系管理员重新启用后再登录。",
             )
 
         # ── Login success ───────────────────────────────────────────────────
@@ -294,8 +406,24 @@ def login(
             session_id=session_id,
             api_key=api_key,
         )
+    except Exception:
+        # 未预期异常（数据库 / Redis / 代码缺陷）：不能再让它变成一句笼统的
+        # 「邮箱或密码错误」——那是本次报障里最误导人的一环。这里回稳定 code +
+        # 请求 ID，异常原文只进服务端日志（不回给客户端，避免内部信息外泄）。
+        logger.exception("login failed unexpectedly")
+        try:
+            db.rollback()
+        except Exception:
+            logger.warning("rollback after login failure also failed", exc_info=True)
+        return _login_internal_error(request)
     finally:
-        db.close()
+        # 收尾失败不能顶掉上面刚构造好的 JSON 500：``close()`` 抛错会变成
+        # Starlette 的纯文本 ``Internal Server Error``，本 PR 对外的承诺
+        # 「登录失败一定是 JSON」就破在这一行。异常只进服务端日志。
+        try:
+            db.close()
+        except Exception:
+            logger.warning("close after login failed", exc_info=True)
         # 成功登录零消耗：非「密码错」路径都把预占退回去（只退一次，由本处统一负责）。
         if not count_as_failure:
             _release_login_attempts(request, payload.email, ip_token, email_token)
