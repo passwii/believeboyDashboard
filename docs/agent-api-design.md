@@ -1,6 +1,6 @@
-# Agent API 设计文档（v0.13 — 新建货件缺省参数自动生成）
+# Agent API 设计文档（v0.14 — 评论追踪采集域）
 
-> **状态**：v0.13 — shipments W1 新建货件缺省参数自动生成（BLF-1347）；v0.12 — 固化 Agent 文件型资源二进制响应规范；v0.11 — FBA 发货模板改为 XLSX 二进制流（BLF-1178）；v0.10 — shipments 新增 FBA 发货模板导出（BLF-1178）；v0.9 — report-upload-status 移除库存分类账 2 类状态（BLF-649）；v0.8 响应补充中文字段（BLF-648）；v0.7 新增报表上传状态域（BLF-484，1 条读路由）。
+> **状态**：v0.14 — 新增评论追踪采集域（`review_tracking`，BLF-1378 阶段 D）；v0.13 — shipments W1 新建货件缺省参数自动生成（BLF-1347）；v0.12 — 固化 Agent 文件型资源二进制响应规范；v0.11 — FBA 发货模板改为 XLSX 二进制流（BLF-1178）；v0.10 — shipments 新增 FBA 发货模板导出（BLF-1178）；v0.9 — report-upload-status 移除库存分类账 2 类状态（BLF-649）；v0.8 响应补充中文字段（BLF-648）；v0.7 新增报表上传状态域（BLF-484，1 条读路由）。
 > **范围**：定义 `/api/v1/agent/*` 命名空间的鉴权契约、危险动作 confirm 流、响应壳、错误码、审计归因与路径迁移策略。**P0 不做 scope/权限细分**——只做"你是哪个 agent"的身份校验。
 
 ---
@@ -262,6 +262,57 @@ GET /api/v1/agent/projects/{project_id}/new-product-calculations/export.xlsx
 - 成功响应为标准 XLSX 二进制流（不使用 `agent_ok` 或 Base64），带 RFC 5987
   `Content-Disposition`；每次成功导出写 `new_product_calculation.export`
   审计。
+
+### 3.6 评论追踪采集域（`review_tracking`，BLF-1378 阶段 D）
+
+采集端（Agent）的**唯一**入口，把阶段 B 已完成的写入服务
+（`record_crawl_result`，零改造）接上对外通道。共 2 条路由，**均不走
+confirm**——W1 幂等 + 只增量写入，无金钱/不可逆状态（对齐 §3.2
+platform-inspection「W1 保存草稿不 confirm、W2 提交 confirm」的先例）。
+
+```text
+GET  /api/v1/agent/review-tracking/targets
+POST /api/v1/agent/review-tracking/targets/{target_id}/runs
+```
+
+**R1 读目标**（域 `review_tracking`，读桶，不落操作审计）：只返回
+`is_active=true` 的目标；`asin` 对内部目标是**组代表 ASIN**、对外部目标是竞品
+ASIN（同形态，调用方不需要分支解析）；`external_shop_ids` 仅外部目标有值；
+`last_run` 给最近一次 run（含 failed），供采集侧判断「今天是否已经跑过」。
+顶层 `crawl_rules` 是**常量下发**（`app/constants/amazon_review_crawl_rules.py`）——
+库里没有抓取规则字段，本阶段不加列/不加表：只下发服务端**已强制**的语义
+（业务时区、同日一快照、两连缺失判疑似移除、完整列表前提、词表、单次评论
+上限），**不下发**分页大小/抓取频率/UA 这些服务端不校验、由采集侧决定的参数。
+
+**项目范围口径**：内部目标（`kind=internal_group`，有 `project_id`）严格按
+凭据 `project_scope` 过滤/校验（写侧越权 → 403 `AGENT_PROJECT_OUT_OF_SCOPE`）；
+**外部目标**（`kind=external_asin`，`project_id` 为空）**跨项目可见/可写**——
+外部竞品 ASIN 是评论追踪的全局共享数据（同 `marketplace + asin` 全仓一份
+历史），不归属任何项目。与阶段 B 运营读 API 的既有实现一致；「外部目标跨项目
+可见」仍属**待产品确认**项（阶段 B 报告 §5.2），如需收紧改为按 active
+external link 的 shop 所属项目判定即可。
+
+**W1 提交采集结果**（写桶 + 审计归因）：body 覆盖 `captured_at`（必须 tz-aware）、
+`status`（`success|partial|failed`）、`rating`（均分/评分数/评论数/1–5 星百分比或
+绝对数 + `star_count_quality`）、`reviews[]`（`review_key`/`id_confidence`/星级/
+标题/正文/日期/verified/helpful）、`is_complete_list`、`idempotency_key`、
+`asin_scraped`、`error_message`、`source`。
+
+- **幂等**：唯一键 `(target_id, idempotency_key)`；重复提交返回**首次** `run_id`
+  且 `replayed=true`，不新增行、不写审计（重放不是写）。`idempotency_key`
+  取值 body 字段优先，缺省回退 `Idempotency-Key` 头；两者都给且不一致 →
+  400 `VALIDATION_FAILED`（避免「body 去重 A、审计记 B」）。上限 64 字符
+  （与审计列宽一致）。
+- **失败语义**：`status=failed` 只落 run，不写评分快照与评论（服务层既有
+  语义）；本次没抓到评论也要提交已取得的评分快照。
+- **形态校验**（schema）：naive `captured_at`、星级越界、星数数组长度不是 5、
+  枚举非法、未知字段（`extra=forbid`）→ 400 `VALIDATION_FAILED`；单次最多 500
+  条评论（与 `crawl_rules.max_reviews_per_run` 同源）。
+- **目标不存在 / 已停用** → 404 `RESOURCE_NOT_FOUND`（不泄露范围外目标存在性；
+  停用组不再采集，避免结果写到已退役的组上）。
+- 写审计：`action=review_tracking.crawl_run`、`target_type=amazon_review_crawl_run`、
+  `target_id=run_id`、`operator=NULL` + `agent_id` / `agent_name` /
+  `idempotency_key` 归因。
 
 ## 4. 数据模型（review 修订：复用 BEL-377 凭据基建）
 
@@ -655,6 +706,21 @@ Sunset/Link 提示头（2026-08-09 上线，`Sunset: 2026-12-31` 预告）；**v
 ---
 
 ## 修订记录
+
+- **v0.14（2026-10-19）**：新增评论追踪采集域（`review_tracking`，BLF-1378 阶段 D）——
+  1. 新增 2 条路由：`GET /api/v1/agent/review-tracking/targets`（active 采集目标 +
+     抓取规则常量 + 最近一次 run）与 `POST /api/v1/agent/review-tracking/targets/{target_id}/runs`
+     （`record_crawl_result` 薄封装，服务层零改造）；
+  2. **均不走 confirm**：W1 幂等（`(target_id, idempotency_key)` 唯一）+ 只增量
+     写入，无金钱/不可逆状态（对齐 platform-inspection W1 保存草稿先例）；
+  3. 「抓取规则」**常量下发**（`app/constants/amazon_review_crawl_rules.py`）：库里
+     无该字段，本阶段不加列/不加表，只下发服务端已强制的语义；分页/频率等
+     采集侧参数明确不下发；
+  4. 项目范围：内部目标按 `project_scope` 过滤/校验；**外部目标跨项目可见/可写**
+     （全局共享竞品数据，与阶段 B 运营读 API 一致，仍待产品确认）；
+  5. 新增域 code 同步四处：`KNOWN_BUSINESS_DOMAINS`、`AGENT_PATH_DOMAIN_MAP`、
+     审计映射覆盖测试的 `KNOWN_DOMAINS`、`frontend/lib/agent-domains.ts`（前端
+     侧另单跟进）。
 
 - **v0.13（2026-10-15）**：shipments W1 新建货件缺省参数自动生成（BLF-1347）——
   1. `POST /api/v1/agent/projects/{project_id}/shipments` 未提供 `shipment_no` 时自动生成 `FBA-<生成日期>-<标识>` 占位编号（用户后续用 W3 PATCH 覆盖为真实 FBA 编码）；候选编号按 `Idempotency-Key + 规范化请求体` 的 SHA-256 确定性派生出首个候选并做全局唯一性重试；

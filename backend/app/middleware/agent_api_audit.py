@@ -73,6 +73,9 @@ AGENT_PATH_DOMAIN_MAP: tuple[tuple[str, str], ...] = (
     ("/provisioning", "agent_provisioning"),
     # BLF-1250：月报写入域（临时上传 + 仅计算草稿 + 确认入库）。
     ("/monthly-reports", "monthly_reports"),
+    # BLF-1378：评论追踪采集域（阶段 D）——R1 读目标 + W1 按目标回传结果。
+    # 片段与其他已有片段无子串包含关系（长片段优先规则不受影响）。
+    ("/review-tracking", "review_tracking"),
 )
 
 _PROJECT_ID_RE = re.compile(r"/projects/(\d+)")

@@ -10,7 +10,6 @@ from app.api.agent.auth import require_agent_credential
 from app.api.agent.rate_limit import require_agent_read_rate_limit
 from app.api.agent.scope import require_business_scope
 from app.api.v1.endpoints.agent.account_health import account_health_router
-from app.api.v1.endpoints.agent.complaint_center import complaint_center_router
 
 # BLF-581：其余 9 个 ad 域原生化（agent/ad_*.py 原生路由）
 from app.api.v1.endpoints.agent.ad_budgets import ad_budgets_router
@@ -27,6 +26,7 @@ from app.api.v1.endpoints.agent.ad_search_term_shares import (
 from app.api.v1.endpoints.agent.ad_search_terms import ad_search_terms_router
 from app.api.v1.endpoints.agent.ad_targets import ad_targets_router
 from app.api.v1.endpoints.agent.ad_time_trends import ad_time_trends_router
+from app.api.v1.endpoints.agent.complaint_center import complaint_center_router
 from app.api.v1.endpoints.agent.health import router as health_router
 from app.api.v1.endpoints.agent.inventory import inventory_router
 from app.api.v1.endpoints.agent.inventory_ledger import inventory_ledger_router
@@ -45,6 +45,7 @@ from app.api.v1.endpoints.agent.replenishment_analysis import (
 )
 from app.api.v1.endpoints.agent.report_upload_status import report_upload_status_router
 from app.api.v1.endpoints.agent.return_analysis import return_analysis_router
+from app.api.v1.endpoints.agent.review_tracking import review_tracking_router
 from app.api.v1.endpoints.agent.sales import sales_router
 from app.api.v1.endpoints.agent.shipments import shipments_router
 from app.api.v1.endpoints.agent.shop_calculation import shop_calculation_router
@@ -241,6 +242,15 @@ agent_router.include_router(
 agent_router.include_router(
     monthly_reports_router,
     dependencies=[Depends(require_business_scope("monthly_reports"))],
+)
+
+# 评论追踪采集域（BLF-1378 阶段 D）：R1 读 active 采集目标 + W1 按目标回传采集
+# 结果（``record_crawl_result`` 薄封装，幂等不 confirm），挂
+# business_scope("review_tracking")。必须插在兜底路由之前，否则被静默吞成
+# 404 壳。
+agent_router.include_router(
+    review_tracking_router,
+    dependencies=[Depends(require_business_scope("review_tracking"))],
 )
 
 

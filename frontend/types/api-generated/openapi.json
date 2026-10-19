@@ -1848,6 +1848,111 @@
         "title": "AgentAccessLogsSummaryResponse",
         "type": "object"
       },
+      "AgentCrawlResultRequest": {
+        "additionalProperties": false,
+        "description": "W1 `POST .../targets/{target_id}/runs` 请求体。\n\n``reviews`` 区分三种语义（不可合并）：``null``（本次未抓评论列表）、\n``[]``（抓到了完整的空列表）、``[...]``（抓到 N 条）。空列表 + \n``is_complete_list=true`` + ``status=success`` 才会触发「两连缺失 → 疑似移除」\n判定，因此不能把「没抓到」提交成空列表。",
+        "properties": {
+          "asin_scraped": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asin Scraped"
+          },
+          "captured_at": {
+            "format": "date-time",
+            "title": "Captured At",
+            "type": "string"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key"
+          },
+          "is_complete_list": {
+            "default": false,
+            "title": "Is Complete List",
+            "type": "boolean"
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentRatingCapture"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reviews": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AgentReviewCapture"
+                },
+                "maxItems": 500,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviews"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "status": {
+            "enum": [
+              "success",
+              "partial",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "captured_at",
+          "status"
+        ],
+        "title": "AgentCrawlResultRequest",
+        "type": "object"
+      },
       "AgentMonthlyReportDetail": {
         "properties": {
           "pt3": {
@@ -2641,6 +2746,215 @@
           "unique_agent_count"
         ],
         "title": "AgentOperationLogsSummaryResponse",
+        "type": "object"
+      },
+      "AgentRatingCapture": {
+        "additionalProperties": false,
+        "description": "评分块：均分 / 评分数 / 评论数 / 1–5 星百分比或绝对数。\n\n``rating_count``（页面 global ratings 总数）与 ``review_count``（有文案的评论\n数）是两个指标，不得互相填充（设计稿 §8.3 / 阶段 A 观察结论）。",
+        "properties": {
+          "average_rating": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Rating"
+          },
+          "rating_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating Count"
+          },
+          "review_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Count"
+          },
+          "star_count_quality": {
+            "default": "unavailable",
+            "enum": [
+              "exact",
+              "estimated",
+              "unavailable"
+            ],
+            "title": "Star Count Quality",
+            "type": "string"
+          },
+          "star_counts": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "maxItems": 5,
+                "minItems": 5,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Star Counts"
+          },
+          "star_percentages": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "maxItems": 5,
+                "minItems": 5,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Star Percentages"
+          }
+        },
+        "title": "AgentRatingCapture",
+        "type": "object"
+      },
+      "AgentReviewCapture": {
+        "additionalProperties": false,
+        "description": "单条评论的当前记录（内容变化只更新当前行，不保留版本）。",
+        "properties": {
+          "body": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body"
+          },
+          "helpful_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Helpful Count"
+          },
+          "id_confidence": {
+            "enum": [
+              "original",
+              "derived"
+            ],
+            "title": "Id Confidence",
+            "type": "string"
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating"
+          },
+          "review_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Date"
+          },
+          "review_key": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Review Key",
+            "type": "string"
+          },
+          "reviewer_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewer Id"
+          },
+          "reviewer_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewer Name"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 512,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "verified_purchase": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified Purchase"
+          }
+        },
+        "required": [
+          "review_key",
+          "id_confidence"
+        ],
+        "title": "AgentReviewCapture",
         "type": "object"
       },
       "AgentShopCalculationComputeRequest": {
@@ -56758,6 +57072,172 @@
         "tags": [
           "agent",
           "agent-report-upload-status"
+        ]
+      }
+    },
+    "/api/v1/agent/review-tracking/targets": {
+      "get": {
+        "description": "R1 当前 active 采集目标 + 抓取规则常量。\n\n* 只返回 ``is_active=true`` 的目标（组停用 / 外部目标停用后不再采集）；\n* 内部目标按 key 的 ``project_scope`` 过滤；**外部目标跨项目可见**\n  （``project_id`` 为空，见模块 docstring）；\n* ``?project_id=`` 不在凭据范围 → 403 ``AGENT_PROJECT_OUT_OF_SCOPE``\n  （显式报错而不是静默返回空列表，便于 Agent 自纠配置）；\n* ``asin`` 对内部目标是**组代表 ASIN**、对外部目标是竞品 ASIN——形态一致，\n  Agent 不需要分支解析；\n* ``last_run`` 是该目标最近一次 run（含 failed），供采集侧判断\n  「今天是否已经跑过」，批量一次查询无 N+1。",
+        "operationId": "list_targets_api_v1_agent_review_tracking_targets_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "marketplace",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Marketplace"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "project_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Project Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Targets Api V1 Agent Review Tracking Targets Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Targets",
+        "tags": [
+          "agent",
+          "agent-review-tracking"
+        ]
+      }
+    },
+    "/api/v1/agent/review-tracking/targets/{target_id}/runs": {
+      "post": {
+        "description": "W1 提交一次采集结果（``record_crawl_result`` 薄封装，服务层零改造）。\n\n* 目标不存在 / 已停用 → 404 ``RESOURCE_NOT_FOUND``（不泄露范围外目标存在性；\n  停用组不再采集，避免结果写到已退役的组上）；\n* 内部目标不在凭据 ``project_scope`` → 403 ``AGENT_PROJECT_OUT_OF_SCOPE``；\n  外部目标跨项目可写（见模块 docstring）；\n* 请求体语义校验失败（服务层 ``IngestionError``）→ 400 ``VALIDATION_FAILED``；\n* 同幂等键重复提交 → 返回首次 ``run_id`` 且 ``replayed=true``，不新增行、\n  不写审计（重放不是写）；并发路径由服务层 savepoint + 重查保证唯一。",
+        "operationId": "submit_crawl_result_api_v1_agent_review_tracking_targets__target_id__runs_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "target_id",
+            "required": true,
+            "schema": {
+              "title": "Target Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentCrawlResultRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Submit Crawl Result Api V1 Agent Review Tracking Targets  Target Id  Runs Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Submit Crawl Result",
+        "tags": [
+          "agent",
+          "agent-review-tracking"
         ]
       }
     },

@@ -2732,6 +2732,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent/review-tracking/targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Targets
+         * @description R1 当前 active 采集目标 + 抓取规则常量。
+         *
+         *     * 只返回 ``is_active=true`` 的目标（组停用 / 外部目标停用后不再采集）；
+         *     * 内部目标按 key 的 ``project_scope`` 过滤；**外部目标跨项目可见**
+         *       （``project_id`` 为空，见模块 docstring）；
+         *     * ``?project_id=`` 不在凭据范围 → 403 ``AGENT_PROJECT_OUT_OF_SCOPE``
+         *       （显式报错而不是静默返回空列表，便于 Agent 自纠配置）；
+         *     * ``asin`` 对内部目标是**组代表 ASIN**、对外部目标是竞品 ASIN——形态一致，
+         *       Agent 不需要分支解析；
+         *     * ``last_run`` 是该目标最近一次 run（含 failed），供采集侧判断
+         *       「今天是否已经跑过」，批量一次查询无 N+1。
+         */
+        get: operations["list_targets_api_v1_agent_review_tracking_targets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/review-tracking/targets/{target_id}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit Crawl Result
+         * @description W1 提交一次采集结果（``record_crawl_result`` 薄封装，服务层零改造）。
+         *
+         *     * 目标不存在 / 已停用 → 404 ``RESOURCE_NOT_FOUND``（不泄露范围外目标存在性；
+         *       停用组不再采集，避免结果写到已退役的组上）；
+         *     * 内部目标不在凭据 ``project_scope`` → 403 ``AGENT_PROJECT_OUT_OF_SCOPE``；
+         *       外部目标跨项目可写（见模块 docstring）；
+         *     * 请求体语义校验失败（服务层 ``IngestionError``）→ 400 ``VALIDATION_FAILED``；
+         *     * 同幂等键重复提交 → 返回首次 ``run_id`` 且 ``replayed=true``，不新增行、
+         *       不写审计（重放不是写）；并发路径由服务层 savepoint + 重查保证唯一。
+         */
+        post: operations["submit_crawl_result_api_v1_agent_review_tracking_targets__target_id__runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent/upload/commit": {
         parameters: {
             query?: never;
@@ -10807,6 +10865,43 @@ export interface components {
             /** Unique Agent Count */
             unique_agent_count: number;
         };
+        /**
+         * AgentCrawlResultRequest
+         * @description W1 `POST .../targets/{target_id}/runs` 请求体。
+         *
+         *     ``reviews`` 区分三种语义（不可合并）：``null``（本次未抓评论列表）、
+         *     ``[]``（抓到了完整的空列表）、``[...]``（抓到 N 条）。空列表 +
+         *     ``is_complete_list=true`` + ``status=success`` 才会触发「两连缺失 → 疑似移除」
+         *     判定，因此不能把「没抓到」提交成空列表。
+         */
+        AgentCrawlResultRequest: {
+            /** Asin Scraped */
+            asin_scraped?: string | null;
+            /**
+             * Captured At
+             * Format: date-time
+             */
+            captured_at: string;
+            /** Error Message */
+            error_message?: string | null;
+            /** Idempotency Key */
+            idempotency_key?: string | null;
+            /**
+             * Is Complete List
+             * @default false
+             */
+            is_complete_list: boolean;
+            rating?: components["schemas"]["AgentRatingCapture"] | null;
+            /** Reviews */
+            reviews?: components["schemas"]["AgentReviewCapture"][] | null;
+            /** Source */
+            source?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "success" | "partial" | "failed";
+        };
         /** AgentMonthlyReportDetail */
         AgentMonthlyReportDetail: {
             /** Pt3 */
@@ -11054,6 +11149,60 @@ export interface components {
             total: number;
             /** Unique Agent Count */
             unique_agent_count: number;
+        };
+        /**
+         * AgentRatingCapture
+         * @description 评分块：均分 / 评分数 / 评论数 / 1–5 星百分比或绝对数。
+         *
+         *     ``rating_count``（页面 global ratings 总数）与 ``review_count``（有文案的评论
+         *     数）是两个指标，不得互相填充（设计稿 §8.3 / 阶段 A 观察结论）。
+         */
+        AgentRatingCapture: {
+            /** Average Rating */
+            average_rating?: number | null;
+            /** Rating Count */
+            rating_count?: number | null;
+            /** Review Count */
+            review_count?: number | null;
+            /**
+             * Star Count Quality
+             * @default unavailable
+             * @enum {string}
+             */
+            star_count_quality: "exact" | "estimated" | "unavailable";
+            /** Star Counts */
+            star_counts?: number[] | null;
+            /** Star Percentages */
+            star_percentages?: number[] | null;
+        };
+        /**
+         * AgentReviewCapture
+         * @description 单条评论的当前记录（内容变化只更新当前行，不保留版本）。
+         */
+        AgentReviewCapture: {
+            /** Body */
+            body?: string | null;
+            /** Helpful Count */
+            helpful_count?: number | null;
+            /**
+             * Id Confidence
+             * @enum {string}
+             */
+            id_confidence: "original" | "derived";
+            /** Rating */
+            rating?: number | null;
+            /** Review Date */
+            review_date?: string | null;
+            /** Review Key */
+            review_key: string;
+            /** Reviewer Id */
+            reviewer_id?: string | null;
+            /** Reviewer Name */
+            reviewer_name?: string | null;
+            /** Title */
+            title?: string | null;
+            /** Verified Purchase */
+            verified_purchase?: boolean | null;
         };
         /**
          * AgentShopCalculationComputeRequest
@@ -30905,6 +31054,80 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_targets_api_v1_agent_review_tracking_targets_get: {
+        parameters: {
+            query?: {
+                marketplace?: string | null;
+                kind?: string | null;
+                project_id?: number | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_crawl_result_api_v1_agent_review_tracking_targets__target_id__runs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                target_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentCrawlResultRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

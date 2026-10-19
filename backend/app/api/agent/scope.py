@@ -60,6 +60,9 @@ KNOWN_BUSINESS_DOMAINS: frozenset[str] = frozenset(
         # 月报写入域（BLF-1250 阶段一）：临时上传 + 仅计算草稿 + 确认入库。
         # 写侧域——只有显式持有该域的凭据能写入正式财务月报。
         "monthly_reports",
+        # 评论追踪采集域（BLF-1378 阶段 D）：R1 读 active 采集目标 +
+        # W1 按目标回传采集结果。幂等写入、不 confirm。
+        "review_tracking",
     }
 )
 
