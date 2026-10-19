@@ -102,6 +102,8 @@ export default function ReviewGroupSheet({
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState<GroupFormState>(EMPTY_FORM)
   const [editingGroupId, setEditingGroupId] = useState<number | null>(null)
+  /** 编辑中组在打开表单时的**原代表**（用于判断「是否把旧代表移出成员」这个中间态）。 */
+  const [editingRepresentativeId, setEditingRepresentativeId] = useState<number | null>(null)
 
   const candidateById = useMemo(
     () => new Map(candidates.map((candidate) => [candidate.id, candidate])),
@@ -139,6 +141,7 @@ export default function ReviewGroupSheet({
   useEffect(() => {
     if (!open) return
     setEditingGroupId(null)
+    setEditingRepresentativeId(null)
     setForm(
       currentSkuId !== null
         ? { ...EMPTY_FORM, memberIds: [String(currentSkuId)], representativeId: String(currentSkuId) }
@@ -166,6 +169,7 @@ export default function ReviewGroupSheet({
 
   const startEdit = (group: ReviewGroup) => {
     setEditingGroupId(group.id)
+    setEditingRepresentativeId(group.representativeId)
     setForm({
       name: group.name,
       description: group.description ?? '',
@@ -176,6 +180,7 @@ export default function ReviewGroupSheet({
 
   const resetForm = () => {
     setEditingGroupId(null)
+    setEditingRepresentativeId(null)
     setForm(EMPTY_FORM)
   }
 
@@ -186,6 +191,10 @@ export default function ReviewGroupSheet({
     }
     if (!form.name.trim()) {
       notify({ type: 'error', title: '组名不能为空' })
+      return
+    }
+    if (form.name.trim().length > 255) {
+      notify({ type: 'error', title: '组名不能超过 255 个字符' })
       return
     }
     if (form.memberIds.length === 0) {
@@ -202,14 +211,42 @@ export default function ReviewGroupSheet({
     }
 
     setSaving(true)
+    const name = form.name.trim()
+    const description = form.description.trim() ? form.description.trim() : null
+    const memberIds = form.memberIds.map(Number)
+    const representativeId = Number(form.representativeId)
     try {
       if (editingGroupId !== null) {
-        await patchReviewGroup(editingGroupId, {
-          name: form.name.trim(),
-          description: form.description.trim() ? form.description.trim() : null,
-          memberIds: form.memberIds.map(Number),
-          representativeId: Number(form.representativeId),
-        })
+        /**
+         * 后端 `PATCH /groups/{id}` 按 name → description → member_ids → representative_id
+         * 固定顺序落字段，且 `replace_group_members` 校验的是**中间态**（当前代表必须仍在成员内）。
+         * 所以「移出旧代表 + 指定新代表」如果一次提交，成员先落（旧代表已不在）→ 必现 422，
+         * 而错误文案「set representative first」也走不通（新代表还不是成员）。
+         * 前端拆两次 PATCH 即可满足两个中间态：
+         *   1) 成员 = 最终成员 ∪ {旧代表}，同时把代表切成新代表；
+         *   2) 成员 = 最终成员（此时当前代表已是新代表，仍在成员内）。
+         */
+        const staleRepresentative =
+          editingRepresentativeId !== null &&
+          editingRepresentativeId !== representativeId &&
+          !memberIds.includes(editingRepresentativeId)
+
+        if (staleRepresentative) {
+          await patchReviewGroup(editingGroupId, {
+            name,
+            description,
+            memberIds: [...memberIds, editingRepresentativeId],
+            representativeId,
+          })
+          await patchReviewGroup(editingGroupId, { memberIds })
+        } else {
+          await patchReviewGroup(editingGroupId, {
+            name,
+            description,
+            memberIds,
+            representativeId,
+          })
+        }
         notify({ type: 'success', title: '共享组已更新' })
       } else {
         await createReviewGroup({

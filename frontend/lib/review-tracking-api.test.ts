@@ -11,6 +11,7 @@ import {
   formatStarCount,
   hasMorePage,
   idConfidenceLabel,
+  isStarCountAvailable,
   mapCrawlRun,
   mapExternalTarget,
   mapRatingSnapshot,
@@ -114,6 +115,21 @@ describe('星数口径三档', () => {
   it('unavailable 只保留百分比，数量不展示', () => {
     expect(formatStarCount(24, 'unavailable')).toBe(MISSING_VALUE)
     expect(formatStarCount(null, 'exact')).toBe(MISSING_VALUE)
+  })
+
+  it('未知口径 fail-closed：不渲染裸数字冒充精确值', () => {
+    // 认不出口径时宁可展示缺失占位，也不能静默宣称「这是精确数量」
+    for (const unknown of ['unknown', 'EXACT', '', 'mystery']) {
+      expect(formatStarCount(24, unknown)).toBe(MISSING_VALUE)
+      expect(isStarCountAvailable(24, unknown)).toBe(false)
+    }
+  })
+
+  it('已知三档的可用性判定', () => {
+    expect(isStarCountAvailable(24, 'exact')).toBe(true)
+    expect(isStarCountAvailable(24, 'estimated')).toBe(true)
+    expect(isStarCountAvailable(24, 'unavailable')).toBe(false)
+    expect(isStarCountAvailable(null, 'exact')).toBe(false)
   })
 
   it('星占比保持页面原始值且按 5→1 排序', () => {

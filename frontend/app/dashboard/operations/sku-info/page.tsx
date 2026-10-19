@@ -435,13 +435,18 @@ export default function SkuInfoPage() {
   const isAdmin = Boolean(session?.user?.isAdmin)
 
   /**
-   * 共享组 Sheet 的候选成员：当前筛选出来的同项目 + 同站点 SKU。
-   * 组规则要求成员同 Project + Marketplace，因此跨站点/跨项目的行不能进同一组。
+   * 共享组 Sheet 的候选成员：当前筛出来的同项目 + 同站点 SKU。
+   * 组规则要求成员同 Project + Marketplace（后端 `_validate_members` 两个维度都校验），
+   * 跨项目或跨站点的行都不能进同一组，否则提交必现 422。
    */
   const reviewGroupCandidates = useMemo<SkuCandidate[]>(() => {
     if (!reviewGroupRow) return []
     return items
-      .filter((item) => item.country === reviewGroupRow.country)
+      .filter(
+        (item) =>
+          item.country === reviewGroupRow.country &&
+          item.project_name === reviewGroupRow.project_name
+      )
       .map((item) => ({
         id: item.id,
         sku: item.sku,

@@ -218,3 +218,68 @@ describe('ReviewGroupSheet 编辑与停用', () => {
     )
   })
 })
+
+describe('ReviewGroupSheet 换代表同时移除旧代表（后端中间态 422 规避）', () => {
+  it('拆两次 PATCH：先保留旧代表并切代表，再移除旧代表', async () => {
+    patchReviewGroup.mockResolvedValue(GROUP)
+    renderSheet()
+    await screen.findByTestId('review-group-3')
+
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }))
+
+    // 成员多选（非「代表 ASIN」那个 combobox）里取消勾选 SKU-A（原代表 101）
+    const memberTrigger = screen
+      .getAllByRole('combobox')
+      .find((trigger) => trigger.getAttribute('aria-label') !== '代表 ASIN')
+    expect(memberTrigger).toBeTruthy()
+    fireEvent.pointerDown(memberTrigger!, { pointerType: 'mouse', ctrlKey: false })
+    fireEvent.click(memberTrigger!)
+    fireEvent.click(await screen.findByRole('option', { name: /SKU-A · B0AAAAAAA1/ }))
+
+    // 成员变化会清掉失效代表，这里重新指定 SKU-B（102）
+    const repTrigger = screen.getByRole('combobox', { name: '代表 ASIN' })
+    fireEvent.pointerDown(repTrigger, { pointerType: 'mouse', ctrlKey: false })
+    fireEvent.click(repTrigger)
+    fireEvent.click(await screen.findByRole('option', { name: 'SKU-B · B0BBBBBBB2' }))
+
+    fireEvent.click(screen.getByRole('button', { name: '保存修改' }))
+
+    await waitFor(() => expect(patchReviewGroup).toHaveBeenCalledTimes(2))
+    // 第一次：最终成员 ∪ {旧代表} + 新代表（旧代表仍在成员内 → 中间态合法）
+    expect(patchReviewGroup).toHaveBeenNthCalledWith(1, 3, {
+      name: '组 A',
+      description: null,
+      memberIds: [102, 101],
+      representativeId: 102,
+    })
+    // 第二次：移除旧代表（此时当前代表已是 102，仍在成员内）
+    expect(patchReviewGroup).toHaveBeenNthCalledWith(2, 3, { memberIds: [102] })
+  })
+
+  it('不换代表时只提交一次 PATCH', async () => {
+    patchReviewGroup.mockResolvedValue(GROUP)
+    renderSheet()
+    await screen.findByTestId('review-group-3')
+
+    fireEvent.click(screen.getByRole('button', { name: '编辑' }))
+    fireEvent.change(screen.getByLabelText('组名'), { target: { value: '组 A3' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存修改' }))
+
+    await waitFor(() => expect(patchReviewGroup).toHaveBeenCalledTimes(1))
+  })
+
+  it('组名超过 255 字符时前置拦截，不提交', async () => {
+    renderSheet()
+    await screen.findByTestId('review-group-3')
+
+    fireEvent.change(screen.getByLabelText('组名'), { target: { value: 'x'.repeat(256) } })
+    fireEvent.click(screen.getByRole('button', { name: '创建共享组' }))
+
+    await waitFor(() =>
+      expect(notify).toHaveBeenCalledWith(
+        expect.objectContaining({ title: '组名不能超过 255 个字符' })
+      )
+    )
+    expect(createReviewGroup).not.toHaveBeenCalled()
+  })
+})

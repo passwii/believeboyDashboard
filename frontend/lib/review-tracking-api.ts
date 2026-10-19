@@ -275,17 +275,21 @@ export function formatCount(value: number | null): string {
  *   exact       → 精确数字（如 `3`）
  *   estimated   → `≈3`（按页面百分比与评分数推算，不冒称精确）
  *   unavailable → `—`（本次没取到数量，仅有百分比时只显示百分比）
+ *
+ * 未知 / 空字符串口径同样返回 `—`：认不出口径时**不能**当精确数量渲染，
+ * 否则等于静默宣称「这是精确值」。与 `captureStatusLabel` 等枚举文案的未知兜底同一原则（fail-closed）。
  */
 export function formatStarCount(count: number | null, quality: string): string {
   const known = asStarCountQuality(quality)
-  if (count === null || known === 'unavailable') return MISSING_VALUE
+  if (count === null || known === null || known === 'unavailable') return MISSING_VALUE
   if (known === 'estimated') return `≈${formatNumber(count)}`
   return formatNumber(count)
 }
 
+/** 口径未知时视为「不可用」：宁可不展示数量，也不冒称精确。 */
 export function isStarCountAvailable(count: number | null, quality: string): boolean {
   const known = asStarCountQuality(quality)
-  return count !== null && known !== 'unavailable'
+  return count !== null && (known === 'exact' || known === 'estimated')
 }
 
 function buildStars(
