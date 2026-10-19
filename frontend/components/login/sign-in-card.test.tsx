@@ -467,6 +467,45 @@ describe('Terminal 登录页', () => {
     expect(screen.queryByText(/无法连接到服务器/)).not.toBeInTheDocument()
   })
 
+  it('后端给了不认识的 code 时也不归因为密码错误，并附后端错误码', async () => {
+    signInImpl = async () => ({ error: 'CredentialsSignin', code: 'unknown_backend_reason' })
+    setLoginErrorHint({ backendCode: 'LOGIN_MFA_REQUIRED', requestId: 'abc12345deadbeef' })
+    render(<SignInCard />)
+    fillAndSubmit()
+
+    const message = await screen.findByText(/登录未成功，请稍后重试或联系管理员/)
+    expect(message).toHaveTextContent('错误码 LOGIN_MFA_REQUIRED')
+    expect(message).toHaveTextContent('请求 ID abc12345')
+    expect(screen.queryByText(/邮箱或密码错误/)).not.toBeInTheDocument()
+  })
+
+  it('限流倒计时归零后展示静态文案且停止每秒空转', async () => {
+    vi.useFakeTimers()
+    const clearSpy = vi.spyOn(window, 'clearInterval')
+    signInImpl = async () => ({ error: 'CredentialsSignin', code: 'rate_limited' })
+    setLoginErrorHint({ backendCode: 'LOGIN_RATE_LIMITED', retryAfterSeconds: 2 })
+    render(<SignInCard />)
+    fillAndSubmit()
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(500) })
+    expect(screen.getByText('登录失败次数过多，请 2 秒后重试。')).toBeInTheDocument()
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    expect(screen.getByText('登录失败次数过多，请稍后重试。')).toBeInTheDocument()
+    expect(clearSpy).toHaveBeenCalled()
+    clearSpy.mockRestore()
+  })
+
+  it('登录成功后清掉上一条失败的 hint cookie，不会带到下一次失败', async () => {
+    signInImpl = async () => ({ url: undefined })
+    setLoginErrorHint({ backendCode: 'LOGIN_INTERNAL_ERROR', requestId: 'abc12345deadbeef' })
+    render(<SignInCard />)
+    fillAndSubmit()
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/dashboard'))
+    expect(document.cookie).not.toContain(LOGIN_ERROR_HINT_COOKIE)
+  })
+
   it('认证确定失败时只尝试一次，不触发自动重试', async () => {
     const signInMock = vi.fn(async () => ({ error: 'CredentialsSignin', code: 'invalid_credentials' }))
     signInImpl = signInMock

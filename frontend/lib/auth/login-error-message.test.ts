@@ -56,6 +56,17 @@ describe('buildLoginErrorMessage', () => {
     expect(message).not.toContain('邮箱或密码错误')
   })
 
+  it('后端给了不认识的 code 时给匿名兜底文案 + 错误码 + 请求 ID', () => {
+    const message = buildLoginErrorMessage({
+      code: 'unknown_backend_reason',
+      hint: { backendCode: 'LOGIN_MFA_REQUIRED', requestId: '9f2c1a8e77aa4d3f9e0b1c2d3e4f5a6b' },
+    })
+    expect(message).toContain('登录未成功，请稍后重试或联系管理员')
+    expect(message).toContain('错误码 LOGIN_MFA_REQUIRED')
+    expect(message).toContain('请求 ID 9f2c1a8e')
+    expect(message).not.toContain('邮箱或密码错误')
+  })
+
   it('没有排查线索时不留空括号', () => {
     const message = buildLoginErrorMessage({ code: 'internal_error', hint: null })
     expect(message).toBe('登录服务内部错误，请稍后重试。')

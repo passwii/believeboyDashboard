@@ -2,7 +2,7 @@ import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 
 import { LoginFailureError } from '@/lib/auth/login-auth-error'
-import { pageCodeFromBackendCode, pageCodeFromStatus } from '@/lib/auth/login-error-code'
+import { pageCodeForBackendFailure } from '@/lib/auth/login-error-code'
 import { NetworkAuthError } from '@/lib/auth/network-auth-error'
 import { BackendHttpError, backendFetchJson } from '@/lib/server/backend-api'
 import { rememberLoginErrorHint } from '@/lib/server/login-error-hint'
@@ -66,10 +66,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           if (err instanceof LoginFailureError) throw err
 
           // 1) 后端明确返回了失败响应：按稳定 code 选页面 code（BLF-1383）。
-          //    `code` 缺省时按 HTTP 状态兜底，覆盖「前端先上线、后端还是旧版」的窗口
-          //    ——旧后端 500 是纯文本，也能落到 internal_error，不再显示「后端连接错误」。
+          //    优先级见 `pageCodeForBackendFailure`：认识的 code → 无 code 时按状态兜底
+          //    （覆盖「前端先上线、后端还是旧版」的窗口，旧后端 500 是纯文本也能落到
+          //    internal_error）→ code 存在但不认识时走匿名兜底，**不**按状态归成密码错。
           if (err instanceof BackendHttpError) {
-            const pageCode = pageCodeFromBackendCode(err.code) ?? pageCodeFromStatus(err.status, err.message)
+            const pageCode = pageCodeForBackendFailure(err.code, err.status, err.message)
             // 排查线索（请求 ID / 等待秒数）走短 TTL cookie，因为 Auth.js 只透传 code。
             await rememberLoginErrorHint({
               backendCode: err.code,

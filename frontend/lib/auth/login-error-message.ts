@@ -53,8 +53,12 @@ export function buildLoginErrorMessage({
       return NETWORK_MESSAGE
     case 'generic_credentials':
       return '邮箱或密码错误，或账号已停用。'
+    case 'unknown_backend_reason':
+      // 后端给了 code 但前端还没适配（契约「只增不改」，属正常窗口）：不归因为密码错，
+      // 附上后端 code + 请求 ID，用户报障就能定位到新增的失败原因。
+      return `登录未成功，请稍后重试或联系管理员。${diagnosticSuffix(hint, { withCode: true })}`
     default:
-      // 未知 code（例如后端新增了前端还没适配的失败原因）：不归因为密码错误。
+      // 未知 code（例如 Auth.js 自己的 `Configuration`）：同样不归因为密码错误。
       return `登录未成功，请稍后重试；若持续出现，请联系管理员。${diagnosticSuffix(hint, { withCode: true })}`
   }
 }

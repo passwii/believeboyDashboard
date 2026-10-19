@@ -83,14 +83,27 @@ const SignInCard = () => {
       setRateLimitRemaining(null)
       return
     }
+    let timer: number | null = null
     const tick = () => {
       const remaining = Math.max(0, Math.ceil((rateLimitDeadline - Date.now()) / 1000))
       if (!mountedRef.current) return
       setRateLimitRemaining(remaining > 0 ? remaining : null)
+      if (remaining <= 0) {
+        // 归零后停止每秒空转：remaining 已是 null，再 tick 也不会有任何变化。
+        if (timer !== null) {
+          window.clearInterval(timer)
+          timer = null
+        }
+        return
+      }
+      // 惰性启动：deadline 已过期时不建 interval（
+      // 否则要等下一次 tick 才把自己清掉）。
+      if (timer === null) timer = window.setInterval(tick, RATE_LIMIT_TICK_MS)
     }
     tick()
-    const timer = window.setInterval(tick, RATE_LIMIT_TICK_MS)
-    return () => window.clearInterval(timer)
+    return () => {
+      if (timer !== null) window.clearInterval(timer)
+    }
   }, [rateLimitDeadline])
 
   // 文案完全由 code + 排查线索派生；倒计时每秒刷新一次，避免状态里存中文文案。
@@ -221,6 +234,9 @@ const SignInCard = () => {
         return
       }
 
+      // 登录成功就清掉上一条失败的排查线索：否则 120s 内紧接着的失败（例如
+      // account_disabled）会显示上一次的请求 ID，误导排查。
+      clearLoginErrorHint()
       let nextPath = '/dashboard'
       try {
         const callbackTarget = new URL(callbackUrl, window.location.origin)

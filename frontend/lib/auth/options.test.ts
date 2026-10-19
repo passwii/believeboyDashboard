@@ -150,6 +150,21 @@ describe('authorize 错误码映射', () => {
     )
   })
 
+  it('后端给了前端不认识的 code 时不归成密码错（含 401）', async () => {
+    // 回归点（BLF-1383 review）：code 存在但不认识时，不能回落到状态码兜底。
+    mocks.backendFetchJson.mockRejectedValue(
+      backendError(401, { code: 'LOGIN_MFA_REQUIRED', requestId: 'req-mfa' }),
+    )
+
+    const result = authorize()(credentials)
+    await expect(result).rejects.toMatchObject({ code: 'unknown_backend_reason' })
+    await expect(result).rejects.not.toMatchObject({ code: 'invalid_credentials' })
+    // 后端 code 仍要进排查线索 cookie，页面上要能看到到底是哪个新原因。
+    expect(mocks.rememberLoginErrorHint).toHaveBeenCalledWith(
+      expect.objectContaining({ backendCode: 'LOGIN_MFA_REQUIRED', requestId: 'req-mfa' }),
+    )
+  })
+
   it('旧后端 500 没有 code 时按状态归成 internal_error（不再冒充密码错）', async () => {
     mocks.backendFetchJson.mockRejectedValue(backendError(500))
 

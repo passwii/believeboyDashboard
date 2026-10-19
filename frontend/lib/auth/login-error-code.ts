@@ -17,6 +17,14 @@ export type LoginPageErrorCode =
   | 'network_error'
   /** NextAuth 默认的 `credentials`（authorize 返回 null，未给具体原因）。 */
   | 'generic_credentials'
+  /**
+   * 后端给了 `code`，但前端不认识（后端契约「只增不改」，属正常的新旧版本窗口）。
+   *
+   * 必须与「后端没给 code」区分开：前者不能按 HTTP 状态兜底，否则将来新增的
+   * 401 类 code（MFA、密码过期…）会被归成「邮箱或密码错误」，正是 BLF-1383
+   * 要消灭的误归因。文案走 `buildLoginErrorMessage` 的匿名兜底分支。
+   */
+  | 'unknown_backend_reason'
 
 export type ResolvedLoginPageErrorCode = LoginPageErrorCode | 'unknown'
 
@@ -37,6 +45,7 @@ const PAGE_CODES: ReadonlySet<string> = new Set<LoginPageErrorCode>([
   'invalid_client_id',
   'network_error',
   'generic_credentials',
+  'unknown_backend_reason',
 ])
 
 const KNOWN_BACKEND_CODES: ReadonlySet<string> = new Set(
@@ -56,10 +65,13 @@ export function isKnownBackendCode(code: string | undefined | null): boolean {
 }
 
 /**
- * 后端没给（或不认识）`code` 时按 HTTP 状态码兜底。
+ * 后端**没给** `code` 时按 HTTP 状态码兜底（只适用于旧后端 / 网关纯文本响应）。
  *
  * 主要服务「前端先升级、后端还是旧版」的窗口：旧后端 401 只有 `detail` 文本，
  * 429 只有 `Retry-After` 头。这里不把 500 归成密码错，正是本次报障的核心修复点。
+ *
+ * ❗ 不要用它处理「后端给了 code 但前端不认识」：那条路必须走
+ * `pageCodeForBackendFailure`，归成 `unknown_backend_reason`，而不是按 401 回退成密码错。
  */
 export function pageCodeFromStatus(status: number, detail?: string | null): LoginPageErrorCode {
   if (status === 429) return 'rate_limited'
@@ -71,6 +83,29 @@ export function pageCodeFromStatus(status: number, detail?: string | null): Logi
     return 'invalid_credentials'
   }
   return 'generic_credentials'
+}
+
+/**
+ * 后端失败响应 → 页面 code 的唯一入口（BLF-1383）。
+ *
+ * 三条优先级，顺序不可调换：
+ *
+ * 1. 后端给了**认识**的 `code` → 按 code 映射（后端契约「只增不改」）；
+ * 2. 后端**没给** `code`（旧后端 / 网关纯文本 5xx）→ 按 HTTP 状态兜底；
+ * 3. 后端给了 `code` 但前端**不认识** → `unknown_backend_reason`，**不**降级成状态兜底。
+ *
+ * 第 3 条是关键：后端将来新增 401 类 code（MFA、密码过期…）时，若走状态兜底会
+ * 显示「邮箱或密码错误」，那是错误归因；宁可给匿名兜底文案 + 错误码 + 请求 ID。
+ */
+export function pageCodeForBackendFailure(
+  code: string | undefined | null,
+  status: number,
+  detail?: string | null,
+): LoginPageErrorCode {
+  const mapped = pageCodeFromBackendCode(code)
+  if (mapped) return mapped
+  if (typeof code === 'string' && code.trim()) return 'unknown_backend_reason'
+  return pageCodeFromStatus(status, detail)
 }
 
 /**
