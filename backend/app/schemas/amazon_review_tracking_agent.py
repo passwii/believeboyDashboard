@@ -15,17 +15,23 @@ W1 提交采集结果的**形态**校验层（语义校验仍在
   落两行 run），与 ``Idempotency-Key`` 头全空白 → 400 的口径不一致，因此在
   schema 层直接 400；
 * ``reviews`` 一次最多 ``MAX_REVIEWS_PER_RUN``（500）条——与 R1 下发的
-  ``crawl_rules.max_reviews_per_run`` 同一数字（单源引用常量模块）。
+  ``crawl_rules.max_reviews_per_run`` 同一数字（单源引用常量模块）；
+* 计数类字段（``rating_count`` / ``review_count`` / ``star_counts[]`` /
+  ``helpful_count``）加上 ``INT4_MAX`` 上限——目标列是 PostgreSQL ``Integer``
+  （int4），超限值能过服务层 ``_validate_capture``（只校验非负整数），直到
+  ``flush`` 才抛 ``NumericValueOutOfRange``，被路由的 ``except Exception``
+  兜成 500。在 schema 层按列宽收敛为 400，与字符串长度对齐列宽同理。
 """
 
 from __future__ import annotations
 
 from datetime import date
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
 
 from app.constants.amazon_review_crawl_rules import (
+    INT4_MAX,
     MAX_IDEMPOTENCY_KEY_LENGTH,
     MAX_REVIEWS_PER_RUN,
 )
@@ -33,6 +39,9 @@ from app.constants.amazon_review_crawl_rules import (
 AgentCaptureStatus = Literal["success", "partial", "failed"]
 AgentStarCountQuality = Literal["exact", "estimated", "unavailable"]
 AgentIdConfidence = Literal["original", "derived"]
+
+#: 非负 int4 计数（目标列是 ``Integer``，超限落库会 ``NumericValueOutOfRange``）。
+Int4Count = Annotated[int, Field(ge=0, le=INT4_MAX)]
 
 
 class AgentRatingCapture(BaseModel):
@@ -45,12 +54,12 @@ class AgentRatingCapture(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     average_rating: float | None = Field(default=None, ge=0, le=5)
-    rating_count: int | None = Field(default=None, ge=0)
-    review_count: int | None = Field(default=None, ge=0)
+    rating_count: Int4Count | None = None
+    review_count: Int4Count | None = None
     #: 1..5 星百分比（页面原始比例，合计可能因舍入不等于 100）。
     star_percentages: list[float] | None = Field(default=None, min_length=5, max_length=5)
     #: 1..5 星绝对数（页面给出精确数时才有）。
-    star_counts: list[int] | None = Field(default=None, min_length=5, max_length=5)
+    star_counts: list[Int4Count] | None = Field(default=None, min_length=5, max_length=5)
     star_count_quality: AgentStarCountQuality = "unavailable"
 
 
@@ -68,7 +77,7 @@ class AgentReviewCapture(BaseModel):
     reviewer_name: str | None = Field(default=None, max_length=255)
     review_date: date | None = None
     verified_purchase: bool | None = None
-    helpful_count: int | None = Field(default=None, ge=0)
+    helpful_count: Int4Count | None = None
 
 
 class AgentCrawlResultRequest(BaseModel):

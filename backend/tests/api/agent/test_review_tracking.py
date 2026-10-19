@@ -1234,3 +1234,163 @@ class TestSubmitCrawlResult:
         hint = stale.json()["error"]["agent_hint"]
         assert "晚于" in hint
         assert "时钟" not in hint
+
+    # ------------------------------------------------------------
+    # 第三轮复审（BLF-1378 第 3 次 @-back）：并发去重语义 + int4 列宽上限
+    # ------------------------------------------------------------
+
+    def _audit_count(self, db, run_id) -> int:
+        return len(
+            query_operation_audit_log(
+                db,
+                target_type="amazon_review_crawl_run",
+                target_id=str(run_id),
+            )
+        )
+
+    def test_concurrent_duplicate_key_loser_reports_replayed(
+        self, client, make_api_key, rt_env, monkeypatch
+    ):
+        """并发同键的「输家」必须报 ``replayed=true``，且不多写一条审计。
+
+        真并发下两个请求在各自预检 ``_find_run`` 时都看不到对方（未提交），输家
+        只在服务层唯一键冲突后的 savepoint 去重里被识别。这里的复现同时把两处
+        「看不到对方」都置空：路由预检 ``_find_run`` 恒返回 ``None``，服务层第一次
+        ``_existing_run`` 也返回 ``None``（模拟对方尚未提交），第二次才看到——其余
+        全部走真实代码路径。
+        """
+        from app.api.v1.endpoints.agent import review_tracking as endpoint_module
+        from app.services import amazon_review_ingestion_service as service_module
+
+        _agent_id, headers = _make_headers(make_api_key)
+        body = _run_body(
+            captured_at=_captured_at(minutes_ago=30), idempotency_key="concurrent-1"
+        )
+        first = client.post(_runs_url(rt_env["target_id"]), json=body, headers=headers)
+        assert first.status_code == 200, first.text
+        assert first.json()["data"]["replayed"] is False
+        first_run_id = first.json()["data"]["run_id"]
+
+        # 输家的视角：预检看不到已提交的对方（模拟「对方尚未提交」的窗口）
+        monkeypatch.setattr(endpoint_module, "_find_run", lambda *a, **k: None)
+        # 服务层第一次查也看不到，冲突后才看到 → 强制走 savepoint 去重分支
+        real_existing_run = service_module._existing_run
+        calls = {"n": 0}
+
+        def _blind_first_call(*args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return None
+            return real_existing_run(*args, **kwargs)
+
+        monkeypatch.setattr(service_module, "_existing_run", _blind_first_call)
+
+        second = client.post(_runs_url(rt_env["target_id"]), json=body, headers=headers)
+        assert second.status_code == 200, second.text
+        data = second.json()["data"]
+        assert data["run_id"] == first_run_id
+        assert data["replayed"] is True, "并发输家必须如实报 replayed=true"
+        assert data["snapshot_updated"] is False
+        assert data["reviews_upserted"] == 0
+
+        db = SessionLocal()
+        try:
+            assert (
+                _count_rows(db, AmazonReviewCrawlRun, target_id=rt_env["target_id"])
+                == 1
+            )
+            # 重放不是写 → 只有首次那条审计
+            assert self._audit_count(db, first_run_id) == 1
+        finally:
+            db.close()
+
+    #: 非负 int4 上限（测试侧独立写死，避免与被测常量同源导致两端同时错）
+    _INT4_MAX = 2_147_483_647
+
+    @staticmethod
+    def _int4_override(field: str, value: int) -> dict:
+        """只覆盖单个计数类字段的最小 payload（其余保持合法）。"""
+        if field in {"rating_count", "review_count"}:
+            return {"rating": {field: value}}
+        if field == "star_counts":
+            return {
+                "rating": {
+                    "star_counts": [value] * 5,
+                    "star_count_quality": "exact",
+                }
+            }
+        if field == "helpful_count":
+            return {
+                "reviews": [
+                    {
+                        "review_key": "R-INT4",
+                        "id_confidence": "original",
+                        "helpful_count": value,
+                    }
+                ]
+            }
+        raise AssertionError(f"unknown field: {field}")
+
+    @pytest.mark.parametrize(
+        "field", ["rating_count", "review_count", "star_counts", "helpful_count"]
+    )
+    def test_int4_max_counter_accepted(
+        self, client, make_api_key, rt_env, field
+    ):
+        """正好等于 int4 上限 → 200（上限是收的，不把合法极值挡掉）。"""
+        _agent_id, headers = _make_headers(make_api_key)
+        resp = client.post(
+            _runs_url(rt_env["target_id"]),
+            json=_run_body(
+                captured_at=_captured_at(minutes_ago=10),
+                **self._int4_override(field, self._INT4_MAX),
+            ),
+            headers=headers,
+        )
+        assert resp.status_code == 200, resp.text
+
+        db = SessionLocal()
+        try:
+            review_count_rows = _count_rows(
+                db, AmazonReviewCrawlRun, target_id=rt_env["target_id"]
+            )
+            assert review_count_rows == 1
+        finally:
+            db.close()
+
+    @pytest.mark.parametrize(
+        "field", ["rating_count", "review_count", "star_counts", "helpful_count"]
+    )
+    def test_int4_overflow_counter_400_not_500(
+        self, client, make_api_key, rt_env, field
+    ):
+        """超 int4 上限 1 → 400（不是落库时才 NumericValueOutOfRange → 500）。"""
+        _agent_id, headers = _make_headers(make_api_key)
+        resp = client.post(
+            _runs_url(rt_env["target_id"]),
+            json=_run_body(
+                captured_at=_captured_at(minutes_ago=10),
+                **self._int4_override(field, self._INT4_MAX + 1),
+            ),
+            headers=headers,
+        )
+        assert resp.status_code == 400, resp.text
+        assert resp.json()["error"]["code"] == "VALIDATION_FAILED"
+
+        db = SessionLocal()
+        try:
+            assert (
+                _count_rows(db, AmazonReviewCrawlRun, target_id=rt_env["target_id"])
+                == 0
+            )
+            assert (
+                _count_rows(
+                    db, AmazonReviewRatingSnapshot, target_id=rt_env["target_id"]
+                )
+                == 0
+            )
+            assert (
+                _count_rows(db, AmazonReviewReview, target_id=rt_env["target_id"]) == 0
+            )
+        finally:
+            db.close()

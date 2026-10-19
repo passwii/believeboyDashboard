@@ -482,7 +482,9 @@ def submit_crawl_result(
       重放不写入，其 `captured_at` 是历史值，本就不该与当前水位比较；
     * 请求体语义校验失败（服务层 ``IngestionError``）→ 400 ``VALIDATION_FAILED``；
     * 同幂等键重复提交 → 返回首次 ``run_id`` 且 ``replayed=true``，不新增行、
-      不写审计（重放不是写）；并发路径由服务层 savepoint + 重查保证唯一。
+      不写审计（重放不是写）；并发路径由服务层 savepoint + 重查保证唯一，
+      ``replayed`` 取服务层 ``CrawlResult.replayed``（真并发下这个请求自己的
+      预检看不到未提交的对方，只能由服务层告知）。
       ``capture_date`` 一律取**已持久化 run 的** ``started_at`` 推业务日，
       不用本次 payload 的 ``captured_at``（否则重放会把首次 run 的 status
       和重试 payload 的日期拼在一起，调用方会误以为那天有快照）。
@@ -548,7 +550,11 @@ def submit_crawl_result(
             source=body.source or DEFAULT_SOURCE,
             error_message=body.error_message,
         )
-        replayed = existing is not None
+        # ``replayed`` 必须由服务层如实告知：真并发下两个请求都能在各自的预检
+        # ``_find_run`` 里看不到对方（未提交），输家只在服务层唯一键冲突后的
+        # savepoint 去重里才被识别——本地 ``existing`` 仍是 ``None``，只能依赖
+        # ``result.replayed``（``existing is not None`` 仅作兜底）。
+        replayed = result.replayed or existing is not None
         # 一律用已持久化 run 的 started_at 推业务日：重放（incl. 并发命中）时不能
         # 用本次 payload 的 captured_at，否则 run_id/status 与 capture_date 跨次拼接。
         run = db.get(AmazonReviewCrawlRun, result.run_id)

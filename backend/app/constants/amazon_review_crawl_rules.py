@@ -35,6 +35,16 @@ MAX_REVIEWS_PER_RUN: Final[int] = 500
 #: 幂等键上限：与 ``operation_audit_logs.idempotency_key`` 列宽（64）对齐。
 MAX_IDEMPOTENCY_KEY_LENGTH: Final[int] = 64
 
+#: PostgreSQL ``Integer``（int4）上限。
+#:
+#: 计数类字段（``rating_count`` / ``review_count`` / ``star_counts[]`` /
+#: ``helpful_count``）的目标列都是 int4，超限值在 schema 与服务层
+#: ``_validate_capture``（只校验非负整数）都能过，直到 ``flush`` 才抛
+#: ``NumericValueOutOfRange``，被路由的 ``except Exception`` 兜成 **500**。
+#: 这里在 schema 层就按列宽收敛为 400（与字符串长度对齐列宽同理）。
+#: 只取上限不取 ``SmallInteger`` 等更窄的类型——模型列是 ``Integer``，以它为准。
+INT4_MAX: Final[int] = 2_147_483_647
+
 #: ``captured_at`` 允许超出服务器当前时间的上限（容忍采集端时钟漂移）。
 #:
 #: 采集语义是「**现在**抓、**现在**报」，``captured_at`` 代表采集时刻，合法值
@@ -61,6 +71,7 @@ CRAWL_RULES: Final[dict[str, Any]] = {
     },
     "max_reviews_per_run": MAX_REVIEWS_PER_RUN,
     "max_captured_at_future_seconds": int(MAX_CAPTURED_AT_FUTURE.total_seconds()),
+    "max_count_value": INT4_MAX,
     "status_values": list(get_args(CaptureStatus)),
     "star_count_quality_values": list(get_args(StarCountQuality)),
     "id_confidence_values": list(get_args(IdConfidence)),
@@ -71,5 +82,6 @@ CRAWL_RULES: Final[dict[str, Any]] = {
         "同一目标同一业务日期只有一份快照，同日重试更新当天快照并保留每次运行记录",
         "captured_at 不能晚于服务器当前时间 2 小时：超限按客户端时钟/时区标错拒绝，"
         "不会写入快照或抬高风险水位",
+        "计数类字段（评分数/评论数/星数/helpful）上限 2147483647，超限 400 而不是 500",
     ],
 }

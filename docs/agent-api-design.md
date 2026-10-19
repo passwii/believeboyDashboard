@@ -299,7 +299,11 @@ external link 的 shop 所属项目判定即可。
 `asin_scraped`、`error_message`、`source`。
 
 - **幂等**：唯一键 `(target_id, idempotency_key)`；重复提交返回**首次** `run_id`
-  且 `replayed=true`，不新增行、不写审计（重放不是写）。`idempotency_key`
+  且 `replayed=true`，不新增行、不写审计（重放不是写）。`replayed` 取服务层
+  `CrawlResult.replayed`（两处去重分支：进入前命中既有 run、唯一键冲突后
+  savepoint 重查命中），**不靠路由预检自己判断**——真并发下两个请求的预检
+  都看不到对方（未提交），输家只有服务层知道，否则会误报 `replayed=false`
+  并多写一条审计。`idempotency_key`
   取值 body 字段优先，缺省回退 `Idempotency-Key` 头；两者都给且不一致 →
   400 `VALIDATION_FAILED`（避免「body 去重 A、审计记 B」）。上限 64 字符
   （与审计列宽一致）。**body 里 strip 后为空的键（如 `"   "`）同样 400**——
@@ -315,7 +319,10 @@ external link 的 shop 所属项目判定即可。
   `record_crawl_result` 前查该 target 的 ``max(started_at)``（落库时就等于
   `captured_at`），`body.captured_at` 早于它 → 409（响应 `details` 带
   `latest_started_at` 供自纠）。同一业务日重跑天然是更晚的 `captured_at`，不受
-  影响；幂等重放走既有 run 短路（先查幂等键，命中则跳过两道校验），也不受影响。
+  影响；幂等重放走既有 run 短路（先查幂等键，命中则跳过**顺序**校验，因为重放
+  不写入、其 `captured_at` 是历史值），也不受影响。**注意未来上限对重放照常
+  生效**——`_captured_at_is_future` 在 `_find_run` 之前，带错钟的重放会先吃
+  400（见下条）。
   水位**只统计真的写过当前态、且时间可信的 run**：排除 `status='failed'`（服务层对
   `failed` 跳过快照与评论，它不可能倒退当前态；若把它也算进水位，「09:31 首次尝试
   失败 → 09:30 重试成功」这条采集器常见路径会被 409 永久挡住），并排除 `started_at`
@@ -338,6 +345,14 @@ external link 的 shop 所属项目判定即可。
   同时 `REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER` 的 `agent_hint` 按水位是否落在未来
   分叉：水位（容差内的）未来 → 提示核对时钟/时区、等墙钟越过，**不再**引导「用更晚
   的 captured_at 重试」（照做会写出更远的未来快照、锁得更死）。
+- **计数类字段 int4 上限（超限 → 400 `VALIDATION_FAILED`）**：`rating_count` /
+  `review_count` / `star_counts[]` / `helpful_count` 的目标列都是 PostgreSQL
+  `Integer`（int4，上限 2,147,483,647，常量 `INT4_MAX` 与其它上限同在
+  `app/constants/amazon_review_crawl_rules.py`）。只校验 `ge=0` 时，超限值能过
+  schema、也能过服务层 `_validate_capture`（只校验非负整数），落库时才抛
+  `NumericValueOutOfRange`，被路由的 `except Exception` 兜成 **500**——本域是
+  对外采集写路由，采集侧解析/累加算错就会触发。现在 schema 层按列宽收敛为
+  400（正好等于上限仍收，与字符串长度对齐列宽同理）。
 - **重放响应的 `capture_date`**：一律由**已持久化 run 的 `started_at`** 推业务日
   （`business_date(run.started_at)`），不用本次 payload 的 `captured_at`；否则重放
   会把首次 run 的 `run_id` / `status` 与重试 payload 的日期拼在一起，调用方会

@@ -2790,7 +2790,9 @@ export interface paths {
          *       重放不写入，其 `captured_at` 是历史值，本就不该与当前水位比较；
          *     * 请求体语义校验失败（服务层 ``IngestionError``）→ 400 ``VALIDATION_FAILED``；
          *     * 同幂等键重复提交 → 返回首次 ``run_id`` 且 ``replayed=true``，不新增行、
-         *       不写审计（重放不是写）；并发路径由服务层 savepoint + 重查保证唯一。
+         *       不写审计（重放不是写）；并发路径由服务层 savepoint + 重查保证唯一，
+         *       ``replayed`` 取服务层 ``CrawlResult.replayed``（真并发下这个请求自己的
+         *       预检看不到未提交的对方，只能由服务层告知）。
          *       ``capture_date`` 一律取**已持久化 run 的** ``started_at`` 推业务日，
          *       不用本次 payload 的 ``captured_at``（否则重放会把首次 run 的 status
          *       和重试 payload 的日期拼在一起，调用方会误以为那天有快照）。
