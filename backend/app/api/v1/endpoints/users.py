@@ -1,5 +1,7 @@
 import logging
+from collections.abc import Mapping
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
@@ -16,6 +18,7 @@ from app.services.audit_log_service import (
 from app.services.infra import delete_user_sessions
 from app.services.r2_lifecycle import record_delete_failure
 from app.services.r2_service import extract_key_from_url, try_delete_file_from_r2
+from app.services.rate_limit_service import clear_login_failures
 from app.services.user_api_key_service import revoke_user_key
 
 logger = logging.getLogger(__name__)
@@ -70,7 +73,12 @@ class UpdateUserResponse(BaseModel):
     item: UserItem
 
 
-def _to_item(row: dict) -> UserItem:
+def _to_item(row: Mapping[str, Any]) -> UserItem:
+    """把 ``user_accounts`` 查询行转成响应模型。
+
+    入参是 SQLAlchemy 的 ``RowMapping``（不是 ``dict``），注解成 ``dict`` 会被
+    类型检查器判为不兼容；用 ``Mapping`` 同时兼容两者。
+    """
     return UserItem(
         id=str(row["id"]),
         name=str(row["name"]),
@@ -83,7 +91,9 @@ def _to_item(row: dict) -> UserItem:
         ),
         is_admin=bool(row["is_admin"]),
         is_active=bool(row["is_active"]),
-        role_type=UserRoleType(row["role_type"]) if row.get("role_type") else (UserRoleType.admin if row.get("is_admin") else UserRoleType.operator),
+        role_type=UserRoleType(row["role_type"])
+        if row.get("role_type")
+        else (UserRoleType.admin if row.get("is_admin") else UserRoleType.operator),
         created_at=str(row["created_at"]),
         updated_at=str(row["updated_at"]),
     )
@@ -190,9 +200,11 @@ def create_user(
         )
     except Exception as exc:
         db.rollback()
+        # 先打日志再转 HTTP 错误：吞掉原始异常会让线上「创建失败」无从排查（BLF-1381）。
+        logger.exception("users.create failed email=%s", payload.email)
         if (
             getattr(exc, "orig", None) is not None
-            and "duplicate key value" in str(exc.orig).lower()
+            and "duplicate key value" in str(exc.orig).lower()  # type: ignore[attr-defined]
         ):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail="邮箱已存在"
@@ -220,6 +232,9 @@ def create_user(
         request=request,
     )
     db.commit()
+    # BLF-1381：清掉该邮箱的历史登录失败桶。删除后重建拿到的是新 id，而桶是按
+    # 邮箱计数的 —— 不清就会「新账号、新密码，还没登录就被 429 挡 30 分钟」。
+    clear_login_failures(item.email)
     return CreateUserResponse(item=item)
 
 
@@ -267,10 +282,12 @@ def update_user(
     )
     is_admin = payload.is_admin if isinstance(payload.is_admin, bool) else None
     is_active = payload.is_active if isinstance(payload.is_active, bool) else None
-    role_type = payload.role_type.value if isinstance(payload.role_type, UserRoleType) else None
+    role_type = (
+        payload.role_type.value if isinstance(payload.role_type, UserRoleType) else None
+    )
     # Keep is_admin in sync with role_type: when role_type changes, auto-derive is_admin
     if role_type is not None:
-        is_admin = (role_type == UserRoleType.admin.value)
+        is_admin = role_type == UserRoleType.admin.value
     password = (
         payload.password
         if isinstance(payload.password, str) and payload.password
@@ -364,7 +381,19 @@ def update_user(
         try:
             delete_user_sessions(user_id)
         except Exception:
-            pass
+            # Redis 不可用时保留用户行已改的事实（改密已提交），只记日志。
+            logger.warning(
+                "delete_user_sessions failed user_id=%s", user_id, exc_info=True
+            )
+
+    # BLF-1381：重置密码后清掉该邮箱的登录失败计数。
+    #
+    # 现场症状就是「管理员点了重置密码，用户还是登不进去」：重置前用户用旧密码
+    # 试错几次把 login_email_fail（5 次 / 30 分钟）打满，而重置动作本身不碰这个
+    # 桶 —— 新密码完全正确也照样 429，用户只能干等半小时，看起来就像重置没生效。
+    # 放在 commit 之后：桶是旁路状态，清失败也不该把已经提交的改密回滚。
+    if password is not None:
+        clear_login_failures(item.email)
 
     return UpdateUserResponse(item=item)
 
@@ -406,14 +435,21 @@ def delete_user(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
 
     before_item = _to_item(before_row)
-    if before_item.name.lower() in ("yawei",) or before_item.email.lower().startswith("yawei@"):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Yawei 账号不允许删除")
+    if before_item.name.lower() in ("yawei",) or before_item.email.lower().startswith(
+        "yawei@"
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Yawei 账号不允许删除"
+        )
 
     # Capture R2 avatar key before row is deleted. Without this, the avatar
     # PNG stays in R2 forever as orphan sediment (LEAK-005).
     captured_avatar_key = _avatar_url_to_key(before_row.get("avatar_url"))
 
-    db.execute(text("delete from public.user_accounts where id::text = :user_id"), {"user_id": user_id})
+    db.execute(
+        text("delete from public.user_accounts where id::text = :user_id"),
+        {"user_id": user_id},
+    )
     # NOTE: legacy raw-SQL DELETE — user_accounts is not in SQLAlchemy ORM.
     # caller's db.commit() happens via get_db_session dependency; no explicit
     # commit needed here. R2 cleanup happens AFTER DB transaction so we don't
@@ -429,8 +465,26 @@ def delete_user(
             request=request,
         )
     except Exception:
-        pass  # non-critical
+        # 审计日志失败不该阻碍删除（用户已经答应删了）；记日志留痕迹。
+        logger.warning(
+            "users.delete audit log failed user_id=%s", user_id, exc_info=True
+        )
     db.commit()
+
+    # BLF-1381：删除账号后把该邮箱的登录失败桶与 Redis 会话一起回收。
+    #
+    # 桶按**邮箱**计数，删除重建虽换了新 user_id 却仍挂同一邮箱上 —— 不清就会
+    # 「新账号第一次登录就 429」；会话不清则旧 key 最多再活 8 小时（与改密 /
+    # 停用路径对齐）。两者都是旁路状态，失败不回撅已提交的删除。
+    clear_login_failures(before_item.email)
+    try:
+        delete_user_sessions(user_id)
+    except Exception:
+        logger.warning(
+            "delete_user_sessions failed on user delete user_id=%s",
+            user_id,
+            exc_info=True,
+        )
 
     # P1 LEAK-005: clean up user's R2 avatar after DB commit.
     # Failure -> dead-letter (sync delete + never raise).
@@ -463,6 +517,7 @@ def _cleanup_user_avatar_r2(r2_key: str, *, context: dict) -> None:
     """
     try:
         from app.core.config import get_settings
+
         settings = get_settings()
         result = try_delete_file_from_r2(settings, r2_key, log_failure=False)
     except Exception:
@@ -475,10 +530,12 @@ def _cleanup_user_avatar_r2(r2_key: str, *, context: dict) -> None:
     if not result.success:
         logger.warning(
             "[r2] failed to delete avatar key=%s err=%s - dead-lettered",
-            r2_key, result.error_class,
+            r2_key,
+            result.error_class,
         )
         record_delete_failure(
-            r2_key, result,
+            r2_key,
+            result,
             source="user_delete",
             context=context,
         )
@@ -493,10 +550,16 @@ def revoke_user_sessions(
 ) -> dict:
     """Admin endpoint: revoke all sessions for a specific user."""
     # Verify user exists
-    row = db.execute(
-        text("select id::text as id from public.user_accounts where id::text = :user_id"),
-        {"user_id": user_id},
-    ).mappings().first()
+    row = (
+        db.execute(
+            text(
+                "select id::text as id from public.user_accounts where id::text = :user_id"
+            ),
+            {"user_id": user_id},
+        )
+        .mappings()
+        .first()
+    )
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
 
