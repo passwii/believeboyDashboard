@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Any, Final, get_args
 
 from app.services.amazon_review_ingestion_service import (
@@ -34,6 +35,17 @@ MAX_REVIEWS_PER_RUN: Final[int] = 500
 #: 幂等键上限：与 ``operation_audit_logs.idempotency_key`` 列宽（64）对齐。
 MAX_IDEMPOTENCY_KEY_LENGTH: Final[int] = 64
 
+#: ``captured_at`` 允许超出服务器当前时间的上限（容忍采集端时钟漂移）。
+#:
+#: 采集语义是「**现在**抓、**现在**报」，``captured_at`` 代表采集时刻，合法值
+#: 恒在过去；这里留 2 小时只用于容忍机器间时钟漂移 / 微小偏差。口径取比仓库
+#: 既有 ``observed_at 不晚于 now()+24h`` 更紧的值，原因：``captured_at`` 直接
+#: 决定 ``amazon_review_rating_snapshots.capture_date``（运营报表口径）与 W1 的
+#: 顺序水位，一旦被误报到未来，既污染当天之后的快照日期，也会让真实采集在
+#: 水位追上之前一直 409。收紧到 2h 把这两个影响的最大窗口压到 2 小时，
+#: 且超限时返回可自纠的 400（提示核对时钟 / 时区），不会产生任何写入。
+MAX_CAPTURED_AT_FUTURE: Final[timedelta] = timedelta(hours=2)
+
 CRAWL_RULES: Final[dict[str, Any]] = {
     "schema_version": 1,
     "business_timezone": str(BUSINESS_TZ),
@@ -48,6 +60,7 @@ CRAWL_RULES: Final[dict[str, Any]] = {
         "max_length": MAX_IDEMPOTENCY_KEY_LENGTH,
     },
     "max_reviews_per_run": MAX_REVIEWS_PER_RUN,
+    "max_captured_at_future_seconds": int(MAX_CAPTURED_AT_FUTURE.total_seconds()),
     "status_values": list(get_args(CaptureStatus)),
     "star_count_quality_values": list(get_args(StarCountQuality)),
     "id_confidence_values": list(get_args(IdConfidence)),
@@ -56,5 +69,7 @@ CRAWL_RULES: Final[dict[str, Any]] = {
         "评分与评论分开处理：本次没有抓到评论也要提交已取得的评分快照",
         "1–5 星百分比是页面原始比例，不能据此声称精确星数",
         "同一目标同一业务日期只有一份快照，同日重试更新当天快照并保留每次运行记录",
+        "captured_at 不能晚于服务器当前时间 2 小时：超限按客户端时钟/时区标错拒绝，"
+        "不会写入快照或抬高风险水位",
     ],
 }

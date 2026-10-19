@@ -1,6 +1,6 @@
 # Agent API 设计文档（v0.15 — 评论追踪采集域乱序护栏）
 
-> **状态**：v0.15 — 评论追踪采集域补时序护栏 + 幂等键空白校验 + 重放 `capture_date` 口径（BLF-1378 阶段 D 复审修复）；v0.14 — 新增评论追踪采集域（`review_tracking`，BLF-1378 阶段 D）；v0.13 — shipments W1 新建货件缺省参数自动生成（BLF-1347）；v0.12 — 固化 Agent 文件型资源二进制响应规范；v0.11 — FBA 发货模板改为 XLSX 二进制流（BLF-1178）；v0.10 — shipments 新增 FBA 发货模板导出（BLF-1178）；v0.9 — report-upload-status 移除库存分类账 2 类状态（BLF-649）；v0.8 响应补充中文字段（BLF-648）；v0.7 新增报表上传状态域（BLF-484，1 条读路由）。
+> **状态**：v0.16 — 评论追踪采集域修复时序护栏的未来上限与 failed 水位口径（BLF-1378 阶段 D 第二轮复审）；v0.15 — 评论追踪采集域补时序护栏 + 幂等键空白校验 + 重放 `capture_date` 口径（BLF-1378 阶段 D 复审修复）；v0.14 — 新增评论追踪采集域（`review_tracking`，BLF-1378 阶段 D）；v0.13 — shipments W1 新建货件缺省参数自动生成（BLF-1347）；v0.12 — 固化 Agent 文件型资源二进制响应规范；v0.11 — FBA 发货模板改为 XLSX 二进制流（BLF-1178）；v0.10 — shipments 新增 FBA 发货模板导出（BLF-1178）；v0.9 — report-upload-status 移除库存分类账 2 类状态（BLF-649）；v0.8 响应补充中文字段（BLF-648）；v0.7 新增报表上传状态域（BLF-484，1 条读路由）。
 > **范围**：定义 `/api/v1/agent/*` 命名空间的鉴权契约、危险动作 confirm 流、响应壳、错误码、审计归因与路径迁移策略。**P0 不做 scope/权限细分**——只做"你是哪个 agent"的身份校验。
 
 ---
@@ -312,13 +312,32 @@ external link 的 shop 所属项目判定即可。
   无条件在当前 `missing_streak` 上 +1。放行乱序提交会：① 把当前态评论正文 /
   `last_seen_at` 倒退（补采一条更旧的结果即可覆盖现网数据）；② 按陈旧数据再记
   一次「缺失」，直接产出错误的「疑似移除」结论。因此路由层在进入
-  `record_crawl_result` 前查该 target 的 `max(started_at)`（落库时就等于
+  `record_crawl_result` 前查该 target 的 ``max(started_at)``（落库时就等于
   `captured_at`），`body.captured_at` 早于它 → 409（响应 `details` 带
   `latest_started_at` 供自纠）。同一业务日重跑天然是更晚的 `captured_at`，不受
-  影响；幂等重放走既有 run 短路（先查幂等键，命中则跳过顺序校验），也不受影响。
+  影响；幂等重放走既有 run 短路（先查幂等键，命中则跳过两道校验），也不受影响。
+  水位**只统计真的写过当前态、且时间可信的 run**：排除 `status='failed'`（服务层对
+  `failed` 跳过快照与评论，它不可能倒退当前态；若把它也算进水位，「09:31 首次尝试
+  失败 → 09:30 重试成功」这条采集器常见路径会被 409 永久挡住），并排除 `started_at`
+  超出未来容差的 run（本版写入端已无法产生这种值，库里的只能是旧版本脏数据；把它
+  当水位等于让该 target 永久锁死——本域没有删 run / 重置水位的入口）。后者是**唯一**
+  的自动恢复路径，必须与下条的未来上限配对存在：写入端挡住新的未来值，读取端
+  忽略旧版遗留的未来值。
   护栏是**尽力而为**：两个携带不同幂等键的并发请求可能同时通过检查（无数据库级
   约束）。若要真正允许补采，必须先给当前态表加版本或改成「以 `captured_at` 为准
   的条件更新」，再补定向测试证明影响可接受，不能只去掉这道检查。
+- **`captured_at` 未来上限（超限 → 400 `VALIDATION_FAILED`）**：`captured_at` 是
+  采集时刻，合法值恒在过去；上限取 `now + MAX_CAPTURED_AT_FUTURE`（当前 2 小时，
+  见 `app/constants/amazon_review_crawl_rules.py`），`reason=captured_at_in_future`，
+  `details.max_future_seconds` 告知容差，不落 run、不写快照。口径比仓库既有
+  `observed_at 不晚于 now()+24h` 更紧，原因是 `captured_at` 同时决定快照
+  `capture_date`（运营报表口径）与顺序水位：不设上限时，一次客户端时区标错就能
+  ① 写出未来日期的快照污染报表，② 把水位抬到未来 → 之后所有真实采集 409 直到
+  墙上时钟追上，而**产品内没有删 run / 重置水位的入口**（只能改库），永久锁死。
+  收紧到 2h 把这两个影响的最大窗口压到 2 小时且可自纠（400 带时钟/时区提示）。
+  同时 `REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER` 的 `agent_hint` 按水位是否落在未来
+  分叉：水位（容差内的）未来 → 提示核对时钟/时区、等墙钟越过，**不再**引导「用更晚
+  的 captured_at 重试」（照做会写出更远的未来快照、锁得更死）。
 - **重放响应的 `capture_date`**：一律由**已持久化 run 的 `started_at`** 推业务日
   （`business_date(run.started_at)`），不用本次 payload 的 `captured_at`；否则重放
   会把首次 run 的 `run_id` / `status` 与重试 payload 的日期拼在一起，调用方会
@@ -472,7 +491,8 @@ P2 货件域再扩展（`SHIPMENT_*`）。
 | `CONFIRM_TOKEN_INVALID` | 400 | token 不存在或与 body hash 不匹配 |
 | `CONFIRM_TOKEN_EXPIRED` | 409 | token 过期 |
 | `IDEMPOTENCY_KEY_CONFLICT` | 409 | 同一 Idempotency-Key 被用于不同请求体 |
-| `REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER` | 409 | 评论追踪 W1：`captured_at` 早于该目标最近一次 run（乱序提交会倒退当前态） |
+| `REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER` | 409 | 评论追踪 W1：`captured_at` 早于该目标最近一次**非 failed** run（乱序提交会倒退当前态） |
+| `VALIDATION_FAILED`（`reason=captured_at_in_future`） | 400 | 评论追踪 W1：`captured_at` 晚于 `now + 2h`（时区/时钟标错，不落 run） |
 | `INTERNAL_ERROR` | 500 | 未分类异常（不向 Agent 暴露堆栈） |
 | （confirm 预览，非错误） | **200** | `ok:false, requires_confirmation:true`（见 §3.1） |
 
@@ -729,6 +749,25 @@ Sunset/Link 提示头（2026-08-09 上线，`Sunset: 2026-12-31` 预告）；**v
 ---
 
 ## 修订记录
+
+- **v0.16（2026-10-19）**：评论追踪采集域（`review_tracking`）第二轮复审修复
+  （BLF-1378 阶段 D）——时序护栏把「客户端时间错误」变成永久锁死的问题：
+  1. 水位只统计真的写过当前态、且时间可信的 run：排除 `status='failed'`（原先被
+     计入，使「09:31 首次尝试失败 → 09:30 重试成功」永久 409），并排除
+     `started_at` 超出未来容差的 run（旧版本无上限时写进的脏数据；若不排除，该
+     target 就会一直 409 直到墙钟追上——本域无删 run / 重置水位的入口，故读取端
+     忽略是唯一的自动恢复路径）；
+  2. 新增 `captured_at` **未来上限**（`now + MAX_CAPTURED_AT_FUTURE`，2 小时）→
+     400 `VALIDATION_FAILED`（`reason=captured_at_in_future`）。原先无上限时一次
+     误报就会写出未来 `capture_date` 的快照并抬高水位；口径比既有
+     `observed_at ≤ now()+24h` 更紧，因为这里同时决定报表日期与水位，见 §3.6；
+  3. `REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER` 的 `agent_hint` 按水位是否落在未来
+     分叉（未来 → 提示核对时钟/时区、等墙钟越过，不再引导伪造更晚的 `captured_at`）；
+  4. `crawl_rules` 增 `max_captured_at_future_seconds` 与对应 notes，让采集侧
+     预先知道容差；补 8 条定向用例（failed 抬水位不锁死、future failed 不落库、
+     未来 `captured_at` 400 且不留 run/快照/评论、容差内（+30min）仍可提交、
+     未来时间的重放同样 400、容差内未来水位 hint 提时钟、超容差旧版脏水位被
+     忽略并自愈、常规乱序仍保留「用更晚时间重跑」hint）。
 
 - **v0.15（2026-10-19）**：评论追踪采集域（`review_tracking`）复审修复（BLF-1378 阶段 D）——
   1. 新增路由层**提交时序护栏**：`captured_at` 早于该 target 最近一次 run 的

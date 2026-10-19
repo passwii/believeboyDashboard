@@ -23,7 +23,19 @@
 ``body.captured_at`` 早于它 → 409 ``REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER``。
 
 * 同一业务日重跑天然是更晚的 ``captured_at``，不受影响；
-* 幂等重放走既有 run 短路（先查幂等键，命中则不校验顺序），也不受响；
+* 幂等重放走既有 run 短路（先查幂等键，命中则不校验顺序）；但 ``captured_at`` 的
+  未来上限是**输入合法性**，重放也照常 400（带上错钟应先修正，而不是静默拿到
+  首次 run 的结果）；
+* 水位只统计**真的写过当前态、且时间可信的 run**（排除 ``status='failed'`` 与
+  超出未来容差的旧版脏数据）——failed 在服务层跳过快照与评论，不可能造成当前态
+  倒退，抬水位只会把「先失败后重试成功」这条正常路径永久 409；旧版写下的未来
+  脏 run 不计入水位，否则该 target 就永久锁死（本域没有删 run / 重置水位的入口）；
+* ``captured_at`` 有**未来上限**（``now + MAX_CAPTURED_AT_FUTURE``，见常量模块）：
+  超限 → 400 ``VALIDATION_FAILED``（``reason=captured_at_in_future``），不落 run、
+  不写快照。不设上限会把「一次客户端时区标错」变成永久锁死（水位落在未来 → 之后
+  所有真实采集全 409，而产品内没有删 run / 重置水位的入口），且会写出未来
+  ``capture_date`` 的快照污染运营报表；
+* 护栏的提示按水位是否落在未来分叉（未来 → 核对时钟/时区，不引导伪造更晚时间）；
 * 护栏是**尽力而为**：两个携带不同幂等键的并发请求可能同时通过检查
  （无数据库级约束，需真正串行化时得另加唯一索引 / advisory lock）。
   若产品确实需要允许补采，则必须先给当前态表加版本或改成「以 captured_at 为准
@@ -51,7 +63,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -65,6 +77,7 @@ from app.api.agent.scope import SCOPE_ALL, _parse_scope, require_project_scope
 from app.api.deps import get_primary_db_session, get_read_db_session
 from app.constants.amazon_review_crawl_rules import (
     CRAWL_RULES,
+    MAX_CAPTURED_AT_FUTURE,
     MAX_IDEMPOTENCY_KEY_LENGTH,
 )
 from app.db.session import SessionLocal
@@ -382,15 +395,58 @@ def _last_runs(db: Session, target_ids: list[int]) -> dict[int, dict[str, Any]]:
 
 
 def _latest_started_at(db: Session, target_id: int) -> datetime | None:
-    """该 target 已提交 run 中最大的 ``started_at``（无 run → ``None``）。
+    """该 target 的有效采集水位（无有效 run → ``None``）。
 
     ``started_at`` 落库时就等于调用方给的 ``captured_at``，所以它也就是「最近一次
-    采集时间」，用于 W1 的乱序护栏。
+    采集时间」，用于 W1 的乱序护栏。两种 run 不参与水位：
+
+    * ``status='failed'``——服务层对 failed 跳过快照与评论（``record_crawl_result``
+      里两处 ``status != "failed"``），它不可能造成当前态倒退，抬水位只会把
+      「09:31 首次尝试失败 → 09:30 重试成功」这条正常路径永久 409；
+    * ``started_at`` 超出未来容差（``now + MAX_CAPTURED_AT_FUTURE``）——本版本的
+      写入端已不可能产生这种值，库里的只能是旧版本（无未来上限时）留下的脏数据。
+      把它当水位就等于让这个 target 永久锁死（本域没有删 run / 重置水位的入口），
+      所以不计入；脏快照行仍留在库里可见，由运营清理。这是**唯一**的自动恢复路径，
+      因此必须与写入端的未来上限配对存在。
     """
     return db.scalar(
         select(func.max(AmazonReviewCrawlRun.started_at)).where(
-            AmazonReviewCrawlRun.target_id == target_id
+            AmazonReviewCrawlRun.target_id == target_id,
+            AmazonReviewCrawlRun.status != "failed",
+            AmazonReviewCrawlRun.started_at
+            <= datetime.now(timezone.utc) + MAX_CAPTURED_AT_FUTURE,
         )
+    )
+
+
+def _captured_at_is_future(captured_at: datetime) -> bool:
+    """``captured_at`` 是否超出「现在 + ``MAX_CAPTURED_AT_FUTURE``」容许窗口。
+
+    ``captured_at`` 是**采集时刻**，合法值恒在过去；容许窗口只为容忍采集端时钟
+    漂移 / 时区标错。不设上限的后果是永久锁死：一次误报到未来的提交会写出一张
+    未来日期的快照（污染运营报表），并把顺序水位抬到未来，之后所有真实采集都
+    409 直到墙上时钟追上；而产品内没有删 run / 重置水位的入口（只能改库）。
+    """
+    return captured_at > datetime.now(timezone.utc) + MAX_CAPTURED_AT_FUTURE
+
+
+def _out_of_order_hint(latest_started_at: datetime) -> str:
+    """按水位是否落在未来分叉提示，避免把调用方引向伪造更远的未来。
+
+    水位落在（容差内的）未来 → 提示核对时钟 / 时区，**不能**按默认 hint 让调用方
+    「用更晚的 captured_at 重试」，那会写出更远的未来快照、锁得更死。
+    正常乱序场景保留原来的「用当天更晚的时间点重跑」。
+    """
+    if latest_started_at > datetime.now(timezone.utc):
+        return (
+            "该目标的采集水位落在未来（最近一次提交的 captured_at 标到了未来），请核对"
+            "客户端时钟与 tz 偏移；等墙上时钟越过 details.latest_started_at 后即可恢复"
+            "提交，不要为了通过校验伪造更晚的时间"
+        )
+    return (
+        "请用晚于 details.latest_started_at 的 captured_at 重试；同一业务日重跑用"
+        "当天更晚的时间点，如需补采历史请先与运营确认（当前态评论表无版本，乱序"
+        "写入会覆盖现网数据）"
     )
 
 
@@ -416,9 +472,14 @@ def submit_crawl_result(
     * 内部目标不在凭据 ``project_scope`` → 403 ``AGENT_PROJECT_OUT_OF_SCOPE``
       （与 404 **可区分**：403 表示目标存在但无权，404 表示不存在 / 已停用；
       这是有意的「可自纠」取舍，与其它写域一致）；
-    * ``captured_at`` 早于该目标最近一次 run → 409
+    * ``captured_at`` 晚于服务器当前时间 ``MAX_CAPTURED_AT_FUTURE`` → 400
+      ``VALIDATION_FAILED``（``reason=captured_at_in_future``；容忍时钟漂移，
+      但不容忍时区标错写出未来快照、把顺序水位抬到未来。这是**输入合法性**，
+      幂等重放也照样检查）；
+    * ``captured_at`` 早于该目标最近一次**非 failed** run → 409
       ``REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER``（乱序提交会覆盖当前态评论 / 误判
-      疑似移除，见模块 docstring 的「提交顺序护栏」）；幂等重放不受此限；
+      疑似移除，见模块 docstring 的「提交顺序护栏」）；幂等重放跳过这道校验——
+      重放不写入，其 `captured_at` 是历史值，本就不该与当前水位比较；
     * 请求体语义校验失败（服务层 ``IngestionError``）→ 400 ``VALIDATION_FAILED``；
     * 同幂等键重复提交 → 返回首次 ``run_id`` 且 ``replayed=true``，不新增行、
       不写审计（重放不是写）；并发路径由服务层 savepoint + 重查保证唯一。
@@ -438,6 +499,26 @@ def submit_crawl_result(
         # 内部目标：严格按凭据项目范围（403 语义与其它写域一致）。
         require_project_scope(int(target.project_id), request)
 
+    # ``captured_at`` 的未来上限是**输入合法性**（与 tz-aware 同层），对首次提交与
+    # 幂等重放一律生效：带上错误时钟时应该先修正，而不是静默拿到首次 run 的结果。
+    # 放在目标 / 范围校验之后，保证 404 / 403 的报告优先级不被时间合法性抢走。
+    if _captured_at_is_future(body.captured_at):
+        raise AgentApiError(
+            ErrorCode.VALIDATION_FAILED,
+            reason="captured_at_in_future",
+            human_message=(
+                f"captured_at {body.captured_at.isoformat()} 晚于服务器当前时间"
+                f" {int(MAX_CAPTURED_AT_FUTURE.total_seconds() // 3600)} 小时"
+            ),
+            agent_hint=(
+                "captured_at 是采集时刻，应为过去时间。请核对客户端时钟与时区偏移"
+                "（含夏令时）后重试；超限不会写入 run 或快照"
+            ),
+            details={
+                "max_future_seconds": int(MAX_CAPTURED_AT_FUTURE.total_seconds()),
+            },
+        )
+
     existing = _find_run(db, target_id, idempotency_key)
     if existing is None:
         latest_started_at = _latest_started_at(db, target_id)
@@ -449,6 +530,7 @@ def submit_crawl_result(
                     f"captured_at {body.captured_at.isoformat()} 早于该目标最近一次"
                     f"采集时间 {latest_started_at.isoformat()}"
                 ),
+                agent_hint=_out_of_order_hint(latest_started_at),
                 details={"latest_started_at": latest_started_at.isoformat()},
             )
 

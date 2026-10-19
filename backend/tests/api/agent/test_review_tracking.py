@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -41,6 +42,7 @@ from app.models.amazon_review_tracking import (
     AmazonReviewTarget,
 )
 from app.services.amazon_review_external_service import register_external_target
+from app.services.amazon_review_ingestion_service import BUSINESS_TZ
 from app.services.amazon_review_tracking_service import create_group
 from app.services.audit_log_service import query_operation_audit_log
 
@@ -251,6 +253,26 @@ def _make_headers(
     }
 
 
+def _captured_at(*, minutes_ago: float = 0) -> str:
+    """相对当前时刻的**过去**时间（ISO 8601，tz-aware）。
+
+    与 ``captured_at`` 相关的用例一律用它，不写硬编码绝对时间：绝对时间今天可能是
+    “几小时后”（撞 ``captured_at`` 的未来上限），明天就变成过去——用例必须与墙钟无关。
+    """
+    return (datetime.now(timezone.utc) - timedelta(minutes=minutes_ago)).isoformat()
+
+
+def _future_captured_at(*, hours: float) -> str:
+    """相对当前时刻的未来时间（用于验证未来上限）。"""
+    return (datetime.now(timezone.utc) + timedelta(hours=hours)).isoformat()
+
+
+def _business_date_iso(iso_captured_at: str) -> str:
+    """按业务时区（Asia/Shanghai）推 ISO 日期，与 ``business_date()`` 同口径。"""
+    parsed = datetime.fromisoformat(iso_captured_at)
+    return parsed.astimezone(BUSINESS_TZ).date().isoformat()
+
+
 def _run_body(**overrides) -> dict:
     body = {
         "captured_at": "2026-10-19T09:30:00+08:00",
@@ -330,8 +352,8 @@ class TestAuthShell:
 
 class TestListTargets:
     def _items(self, client, headers, **params) -> dict:
-        # ``BLF_test`` 是持久库，历史目标可能远超默认单页 200 条（例如 394 条）；
-        # 断言要能稳定命中本测试新建的目标，因此显式取到上限 500。
+        # ``BLF_test`` 是持久库，历史目标会持续累积（可超过单页上限 500）；
+        # 要稳定命中本测试新建的目标，查询时带 ``project_id`` 把范围收到本测试项目。
         resp = client.get(TARGETS_URL, params={"limit": 500, **params}, headers=headers)
         assert resp.status_code == 200, resp.text
         return resp.json()["data"]
@@ -340,7 +362,7 @@ class TestListTargets:
         self, client, make_api_key, rt_env
     ):
         _agent_id, headers = _make_headers(make_api_key)
-        data = self._items(client, headers)
+        data = self._items(client, headers, project_id=rt_env["project_id"])
         assert data["crawl_rules"] == CRAWL_RULES
         assert data["crawl_rules"]["business_timezone"] == "Asia/Shanghai"
         item = next(
@@ -439,7 +461,9 @@ class TestListTargets:
 
         item = next(
             i
-            for i in self._items(client, headers)["items"]
+            for i in self._items(
+                client, headers, project_id=rt_env["project_id"]
+            )["items"]
             if i["target_id"] == rt_env["target_id"]
         )
         assert item["last_run"]["run_id"] == second.json()["data"]["run_id"]
@@ -837,32 +861,35 @@ class TestSubmitCrawlResult:
             db.close()
 
     def test_same_day_later_rerun_allowed(self, client, make_api_key, rt_env):
-        """同日更晚的 captured_at（重跑）不受顺序护栏影响。"""
+        """同日更晚的 captured_at（重跑）不受顺序护栏限制。"""
         _agent_id, headers = _make_headers(make_api_key)
+        earlier = _captured_at(minutes_ago=120)
+        later = _captured_at(minutes_ago=30)
         first = client.post(
             _runs_url(rt_env["target_id"]),
-            json=_run_body(captured_at="2026-10-19T09:30:00+08:00"),
+            json=_run_body(captured_at=earlier),
             headers=headers,
         )
         second = client.post(
             _runs_url(rt_env["target_id"]),
-            json=_run_body(captured_at="2026-10-19T18:30:00+08:00"),
+            json=_run_body(captured_at=later),
             headers=headers,
         )
         assert first.status_code == 200, first.text
         assert second.status_code == 200, second.text
+        # 同日重跑确实更新了当天快照（不是空过）
+        assert second.json()["data"]["snapshot_updated"] is True
 
     def test_replay_skips_order_guard(self, client, make_api_key, rt_env):
         """幂等重放即使 captured_at 更早也照常返回首次 run（重放不是写）。"""
         _agent_id, headers = _make_headers(make_api_key)
-        body = _run_body(
-            captured_at="2026-10-10T09:30:00+08:00", idempotency_key="replay-old"
-        )
+        old_captured_at = _captured_at(minutes_ago=90)
+        body = _run_body(captured_at=old_captured_at, idempotency_key="replay-old")
         first = client.post(_runs_url(rt_env["target_id"]), json=body, headers=headers)
         assert first.status_code == 200, first.text
         newer = client.post(
             _runs_url(rt_env["target_id"]),
-            json=_run_body(captured_at="2026-10-19T09:30:00+08:00"),
+            json=_run_body(captured_at=_captured_at(minutes_ago=30)),
             headers=headers,
         )
         assert newer.status_code == 200, newer.text
@@ -873,27 +900,27 @@ class TestSubmitCrawlResult:
         assert data["replayed"] is True
         assert data["run_id"] == first.json()["data"]["run_id"]
         # 重放返回首次 run 的业务日，不是更晚那次
-        assert data["capture_date"] == "2026-10-10"
+        assert data["capture_date"] == _business_date_iso(old_captured_at)
 
     def test_replay_returns_capture_date_of_first_run(
         self, client, make_api_key, rt_env
     ):
         """重试 payload 换了 captured_at，响应日期仍取已持久化 run 的 started_at。"""
         _agent_id, headers = _make_headers(make_api_key)
+        first_captured_at = _captured_at(minutes_ago=120)
         first = client.post(
             _runs_url(rt_env["target_id"]),
-            json=_run_body(
-                captured_at="2026-10-19T09:30:00+08:00", idempotency_key="k-1"
-            ),
+            json=_run_body(captured_at=first_captured_at, idempotency_key="k-1"),
             headers=headers,
         )
         assert first.status_code == 200, first.text
-        assert first.json()["data"]["capture_date"] == "2026-10-19"
+        first_date = _business_date_iso(first_captured_at)
+        assert first.json()["data"]["capture_date"] == first_date
 
         retry = client.post(
             _runs_url(rt_env["target_id"]),
             json=_run_body(
-                captured_at="2026-10-25T09:30:00+08:00", idempotency_key="k-1"
+                captured_at=_captured_at(minutes_ago=20), idempotency_key="k-1"
             ),
             headers=headers,
         )
@@ -901,7 +928,7 @@ class TestSubmitCrawlResult:
         data = retry.json()["data"]
         assert data["replayed"] is True
         assert data["run_id"] == first.json()["data"]["run_id"]
-        assert data["capture_date"] == "2026-10-19"
+        assert data["capture_date"] == first_date
 
     def test_blank_body_idempotency_key_400(self, client, make_api_key, rt_env):
         """body 里全空白的幂等键必须 400，不能静默降级成 None（假幂等）。"""
@@ -959,3 +986,251 @@ class TestSubmitCrawlResult:
             assert (zero_log[0].after_json or {})["reviews_seen"] == 0
         finally:
             db.close()
+
+    # 第二轮复审（BLF-1378 第 2 次 @-back）：护栏不得造成永久锁死
+    # ------------------------------------------------------------
+
+    def test_failed_run_does_not_raise_watermark(self, client, make_api_key, rt_env):
+        """``failed`` 不写当前态 → 不抬高水位，之后更早的成功提交照常 200。
+
+        真实的采集器路径：09:31 首次尝试失败，重试成功但按**计划采集时刻**
+        09:30 上报。若水位把 failed 算进去，这条路径会被 409 永久挡住。
+        """
+        _agent_id, headers = _make_headers(make_api_key)
+        failed = client.post(
+            _runs_url(rt_env["target_id"]),
+            json=_run_body(
+                captured_at=_captured_at(minutes_ago=60),
+                status="failed",
+                rating=None,
+                reviews=None,
+                is_complete_list=False,
+                error_message="页面 503",
+            ),
+            headers=headers,
+        )
+        assert failed.status_code == 200, failed.text
+
+        # 重试成功，按更早的计划采集时刻上报 → 必须放行
+        retry = client.post(
+            _runs_url(rt_env["target_id"]),
+            json=_run_body(captured_at=_captured_at(minutes_ago=90)),
+            headers=headers,
+        )
+        assert retry.status_code == 200, retry.text
+        assert retry.json()["data"]["status"] == "success"
+        assert retry.json()["data"]["snapshot_updated"] is True
+
+        db = SessionLocal()
+        try:
+            # 两次 run 都落库（failed 只落 run，不写快照 / 评论）
+            assert (
+                _count_rows(db, AmazonReviewCrawlRun, target_id=rt_env["target_id"])
+                == 2
+            )
+            review = db.execute(
+                select(AmazonReviewReview).where(
+                    AmazonReviewReview.target_id == rt_env["target_id"]
+                )
+            ).scalar_one()
+            assert review.visibility_status == "visible"
+        finally:
+            db.close()
+
+    def test_failed_run_in_future_does_not_lock_target(
+        self, client, make_api_key, rt_env
+    ):
+        """未来时间的 ``failed`` 既被上限拒掉，也不会（即使落库）抬高水位。"""
+        _agent_id, headers = _make_headers(make_api_key)
+        rejected = client.post(
+            _runs_url(rt_env["target_id"]),
+            json=_run_body(
+                captured_at=_future_captured_at(hours=72),
+                status="failed",
+                rating=None,
+                reviews=None,
+                is_complete_list=False,
+                error_message="页面 503",
+            ),
+            headers=headers,
+        )
+        assert rejected.status_code == 400, rejected.text
+        assert rejected.json()["error"]["reason"] == "captured_at_in_future"
+
+        db = SessionLocal()
+        try:
+            assert (
+                _count_rows(db, AmazonReviewCrawlRun, target_id=rt_env["target_id"])
+                == 0
+            )
+        finally:
+            db.close()
+
+    def test_future_captured_at_rejected_without_writes(
+        self, client, make_api_key, rt_env
+    ):
+        """``captured_at`` 超出未来上限 → 400，且不落 run / 快照 / 评论。
+
+        不设上限的后果是永久锁死：水位被抬到未来后，该 target 之后所有真实采集
+        全部 409 直到墙上时钟追上，而产品内没有删 run / 重置水位的入口。
+        """
+        _agent_id, headers = _make_headers(make_api_key)
+        resp = client.post(
+            _runs_url(rt_env["target_id"]),
+            json=_run_body(captured_at=_future_captured_at(hours=24 * 220)),
+            headers=headers,
+        )
+        assert resp.status_code == 400, resp.text
+        error = resp.json()["error"]
+        assert error["code"] == "VALIDATION_FAILED"
+        assert error["reason"] == "captured_at_in_future"
+        assert error["details"]["max_future_seconds"] > 0
+        assert "时钟" in error["agent_hint"]
+
+        db = SessionLocal()
+        try:
+            assert (
+                _count_rows(db, AmazonReviewCrawlRun, target_id=rt_env["target_id"])
+                == 0
+            )
+            assert (
+                _count_rows(
+                    db, AmazonReviewRatingSnapshot, target_id=rt_env["target_id"]
+                )
+                == 0
+            )
+            assert (
+                _count_rows(db, AmazonReviewReview, target_id=rt_env["target_id"]) == 0
+            )
+        finally:
+            db.close()
+
+    def test_captured_at_within_future_tolerance_accepted(
+        self, client, make_api_key, rt_env
+    ):
+        """轻微时钟漂移（上限内）照常收录，不误杀正常采集。"""
+        _agent_id, headers = _make_headers(make_api_key)
+        resp = client.post(
+            _runs_url(rt_env["target_id"]),
+            json=_run_body(captured_at=_future_captured_at(hours=0.5)),
+            headers=headers,
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["data"]["snapshot_updated"] is True
+
+    def test_replay_of_future_captured_at_still_400(self, client, make_api_key, rt_env):  # noqa: E501
+        """未来上限是输入合法性，不是守卫重放的写护栏：重放同样 400。"""
+        _agent_id, headers = _make_headers(make_api_key)
+        body = _run_body(
+            captured_at=_future_captured_at(hours=48), idempotency_key="future-key"
+        )
+        first = client.post(_runs_url(rt_env["target_id"]), json=body, headers=headers)
+        assert first.status_code == 400, first.text
+        # 重放同一（非法）请求体依旧 400，不能默默返回首次 run
+        replay = client.post(_runs_url(rt_env["target_id"]), json=body, headers=headers)
+        assert replay.status_code == 400, replay.text
+        db = SessionLocal()
+        try:
+            assert (
+                _count_rows(db, AmazonReviewCrawlRun, target_id=rt_env["target_id"])
+                == 0
+            )
+        finally:
+            db.close()
+
+    def _seed_future_run(self, target_id: int, *, hours_ahead: float) -> None:
+        """直接写入一条未来 run，模拟旧版本已把脏数据写进来的现场。"""
+        started_at = datetime.now(timezone.utc) + timedelta(hours=hours_ahead)
+        db = SessionLocal()
+        try:
+            db.add(
+                AmazonReviewCrawlRun(
+                    target_id=target_id,
+                    started_at=started_at,
+                    finished_at=started_at,
+                    status="success",
+                    is_complete_list=False,
+                    ratings_captured=False,
+                )
+            )
+            db.commit()
+        finally:
+            db.close()
+
+    def test_out_of_order_hint_mentions_clock_when_watermark_in_future(
+        self, client, make_api_key, rt_env
+    ):
+        """水位在上限窗口内落在未来 → 提示核对时钟/等待自愈，不引导伪造更晚时间。"""
+        _agent_id, headers = _make_headers(make_api_key)
+        # 30 分钟对应上一次时间略超容差被接收的现场（旧版本行为）
+        self._seed_future_run(rt_env["target_id"], hours_ahead=0.5)
+
+        resp = client.post(
+            _runs_url(rt_env["target_id"]),
+            json=_run_body(captured_at=_captured_at(minutes_ago=10)),
+            headers=headers,
+        )
+        assert resp.status_code == 409, resp.text
+        error = resp.json()["error"]
+        assert error["code"] == "REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER"
+        hint = error["agent_hint"]
+        # 关键：不能是「请用更晚的时间重试」——那会写出更远的未来
+        assert "时钟" in hint
+        assert "不要" in hint
+        assert "晚于 details.latest_started_at 的 captured_at 重试" not in hint
+
+    def test_far_future_legacy_watermark_is_ignored_and_self_heals(
+        self, client, make_api_key, rt_env
+    ):
+        """旧版本留下的超容差未来水位不计入护栏——真实采集能自己恢复，不会永久锁死。
+
+        旧版本没有未来上限，可能已把一条 2027 年的 run 写进库；若不排除它，
+        这个 target 会一直 409 到 2027，而产品内没有删 run / 重置水位的入口。
+        """
+        _agent_id, headers = _make_headers(make_api_key)
+        self._seed_future_run(rt_env["target_id"], hours_ahead=24 * 200)
+
+        resp = client.post(
+            _runs_url(rt_env["target_id"]),
+            json=_run_body(captured_at=_captured_at(minutes_ago=10)),
+            headers=headers,
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["data"]["snapshot_updated"] is True
+
+        db = SessionLocal()
+        try:
+            # 脏 run 仍在库（可见、可清理），但它没有阻挡真实写入
+            assert (
+                _count_rows(db, AmazonReviewCrawlRun, target_id=rt_env["target_id"])
+                == 2
+            )
+            review = db.execute(
+                select(AmazonReviewReview).where(
+                    AmazonReviewReview.target_id == rt_env["target_id"]
+                )
+            ).scalar_one()
+            assert review.visibility_status == "visible"
+        finally:
+            db.close()
+
+    def test_normal_out_of_order_keeps_later_time_hint(
+        self, client, make_api_key, rt_env
+    ):
+        """水位在过去（真正乱序）时保留「用当天更晚的时间点重跑」提示。"""
+        _agent_id, headers = _make_headers(make_api_key)
+        first = client.post(
+            _runs_url(rt_env["target_id"]),
+            json=_run_body(captured_at=_captured_at(minutes_ago=30)),
+            headers=headers,
+        )
+        assert first.status_code == 200, first.text
+        stale = client.post(
+            _runs_url(rt_env["target_id"]),
+            json=_run_body(captured_at=_captured_at(minutes_ago=180)),
+            headers=headers,
+        )
+        assert stale.status_code == 409, stale.text
+        hint = stale.json()["error"]["agent_hint"]
+        assert "晚于" in hint
+        assert "时钟" not in hint
