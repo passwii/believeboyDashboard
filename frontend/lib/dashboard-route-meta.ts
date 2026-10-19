@@ -32,6 +32,7 @@ export const DASHBOARD_PAGE_TITLES: Array<{ match: string; title: string }> = [
   { match: '/finance/platform-revenue', title: '平台回款' },
   { match: '/operations/platform-inspection', title: '平台巡检' },
   { match: '/operations/complaint-center', title: '客户消息' },
+  { match: '/operations/review-tracking', title: '评论追踪' },
   { match: '/agent-center/overview', title: '数据流总览' },
   { match: '/agent-center/employees', title: 'Agent 员工' },
   { match: '/operations/site-navigation', title: '跨境平台书签导航' },
