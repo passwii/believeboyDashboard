@@ -72,9 +72,9 @@ try:
 except ImportError:  # pragma: no cover - 脚本被拷到别处 / 代码未部署时
     # 本脚本可能在代码部署前先跑（只需前缀列表，不依赖新代码）。
     # 与 app/services/r2_service.py 的 PRIVATE_KEY_PREFIXES 保持一致。
-    # 注意 var/ 是 pgBackRest 的 repo1-path=/var/lib/pgbackrest/backups 去开头
-    # 斜杠后的首段（不是 backups/）。
-    PRIVATE_KEY_PREFIXES = frozenset({"crm-proposals", "db-backups", "var"})
+    # 注意：pgBackRest 的仓库前缀（var/lib/pgbackrest/backups）**不在**本表 ——
+    # 它走自己的 repo1-s3-* 配置、不经应用层路由，单独由 is_pgbackrest_key 判定。
+    PRIVATE_KEY_PREFIXES = frozenset({"crm-proposals", "db-backups"})
 
 
 def _client(settings):

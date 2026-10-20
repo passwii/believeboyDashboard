@@ -100,18 +100,31 @@ def test_resolve_bucket_with_leading_slash_routes_to_private():
     assert resolve_bucket(s, "/crm-proposals/1/v1/raw.html") == "believeboy-private"
 
 
-def test_private_prefixes_include_var_defense_in_depth():
-    """``var`` 前缀是纵深防御：pgBackRest 的 key = <repo1-path 去开头斜杠>/...，
-    而 repo1-path=/var/lib/pgbackrest/backups ⇒ key 以 ``var/`` 开头
-    （**不是** ``backups/`` —— 那是本地路径的末两段）。
+def test_private_prefixes_exclude_var_namespace():
+    """``var`` **不能**整体进敏感前缀表 —— 它是合法的项目名（key 首段）。
 
-    pgBackRest 不经应用层路由，这条前缀管不到它；但若将来有任何代码把备份
-    写进应用层 key 空间，这一条能确保它仍被判为敏感。
+    项目名会被原样保留成 key 第一段，所以名为 var 的店铺的正常报表 / 截图
+    若被判成敏感：私有桶未配 → 上传 503；私有桶已配 → 被挪进私有桶、丢掉
+    公开 URL。
     """
-    assert "var" in PRIVATE_KEY_PREFIXES
-    assert is_private_key("var/lib/pgbackrest/backups/blf/2026/x") is True
-    # 旧的错误前缀不应再存在
+    assert "var" not in PRIVATE_KEY_PREFIXES
+    # 项目名 var 的正常内容 → 不是敏感
+    assert is_private_key("var/inspection-screenshots/a.jpg") is False
+    assert is_private_key("var/scheduled-reports/full/b.png") is False
+    # 旧的错误前缀也不该在
     assert "backups" not in PRIVATE_KEY_PREFIXES
+
+
+def test_pgbackrest_repo_prefix_is_sensitive():
+    """pgBackRest 的仓库前缀（完整路径）仍判为敏感（纵深防御）。
+
+    pgBackRest 走自己的 repo1-s3-* 配置、不经应用层路由 → 这条对 pgBackRest
+    实际不生效；但万一将来有代码把备份写进应用层 key 空间，它能兜住。
+    """
+    assert is_private_key("var/lib/pgbackrest/backups/blf/2026/x") is True
+    assert is_private_key("var/lib/pgbackrest/backups/blf/archive/wal") is True
+    # 相邻但不同的路径不误伤
+    assert is_private_key("var/lib/other/thing") is False
 
 
 def test_resolve_bucket_routes_private_prefix_to_private_bucket():
@@ -941,3 +954,50 @@ def test_cleanup_script_scans_private_bucket():
     assert "CrmProposalVersion" in src, (
         "私有桶的引用判定必须认 crm_proposal_versions 的 raw/adapted key"
     )
+
+
+def test_private_orphan_pass_only_touches_proposals():
+    """私有桶的孤儿扫描**只管 crm-proposals/**。
+
+    私有桶是共享桶：还有 db-backups/（数据库备份）与 pgBackRest 的
+    var/lib/pgbackrest/backups/... 仓库 —— 它们没有 crm_proposal_versions 引用，
+    但它们是**有效数据**（备份 + WAL 归档，有独立的 retention 策略）。
+    全桶扫会把它们全判成孤儿删掉。
+    """
+    import inspect
+    import sys
+    from pathlib import Path
+
+    backend = Path(__file__).resolve().parents[2]
+    if str(backend) not in sys.path:
+        sys.path.insert(0, str(backend))
+    from scripts import cleanup_r2_orphaned_files as cl
+
+    src = inspect.getsource(cl.find_private_orphaned_files)
+    assert 'key.startswith("crm-proposals/")' in src, (
+        "私有桶的孤儿扫描必须限定在 crm-proposals/ 前缀"
+    )
+    # 文档里也要写明原因
+    assert "db-backups" in src, "docstring 要说明为什么排除其它前缀"
+
+
+def test_private_orphan_pass_respects_min_age():
+    """私有桶那轮也要受 --min-age 保护。
+
+    方案上传是「先写 R2 对象、再插 crm_proposal_versions 行」，所以一个并发的
+    --min-age 30 --execute 可能看到一个刚上传、还没有 DB 行的对象 → 立刻删掉
+    → 随后提交的那行版本就读不出来了。
+    """
+    import inspect
+    import sys
+    from pathlib import Path
+
+    backend = Path(__file__).resolve().parents[2]
+    if str(backend) not in sys.path:
+        sys.path.insert(0, str(backend))
+    from scripts import cleanup_r2_orphaned_files as cl
+
+    src = inspect.getsource(cl.main)
+    private_at = src.index("private_orphaned = find_private_orphaned_files")
+    assert "cutoff" in src[private_at:], "私有桶那轮必须用 --min-age 的 cutoff 过滤"
+    assert "private_orphaned = [" in src[private_at:], "私有桶的过滤必须作用于 private_orphaned"

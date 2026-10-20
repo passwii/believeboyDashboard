@@ -260,10 +260,15 @@ def find_private_orphaned_files(
     settings: Settings,
     r2_client,
 ) -> list[dict]:
-    """找私有桶里**没有 DB 引用**的对象（客户方案上传失败留下的孤儿）。
+    """找私有桶里**没有 DB 引用**的客户方案对象（上传失败留下的孤儿）。
 
-    与公开桶的扫描分开：私有桶的对象是敏感的，判定依据必须完整
-    （``crm_proposal_versions.raw_r2_key`` / ``adapted_r2_key``）。
+    ⚠️ **只处理 ``crm-proposals/`` 前缀**（BLF-1418 review 修）：
+    私有桶是**共享桶**，里面还有 ``db-backups/``（数据库备份）与 pgBackRest 的
+    ``var/lib/pgbackrest/backups/...`` 仓库 —— 它们**没有** crm_proposal_versions
+    引用，但它们是**有效数据**（备份 + WAL 归档），有独立的保留策略
+    （``repo1-retention-full=7``），不由本脚本管。全桶扫会把它们全判成孤儿删掉。
+
+    判定依据：``crm_proposal_versions.raw_r2_key`` / ``adapted_r2_key``。
 
     Returns:
         [{'key': str, 'size': int, 'last_modified': datetime, 'bucket': str}, ...]
@@ -276,6 +281,9 @@ def find_private_orphaned_files(
 
     orphaned: list[dict] = []
     for key in all_keys:
+        # 只管客户方案前缀 —— 其它前缀（db-backups / var/…）有各自的保留策略
+        if not key.startswith("crm-proposals/"):
+            continue
         if key in referenced:
             continue
         try:
@@ -502,6 +510,7 @@ def main():
         orphaned = find_orphaned_files(db, settings, r2_client, args.project)
 
         # 按时间过滤
+        cutoff = None
         if args.min_age > 0:
             from datetime import timedelta
             cutoff = datetime.now() - timedelta(days=args.min_age)
@@ -533,6 +542,15 @@ def main():
         # 单独确认是因为它删的是**敏感数据**，且判定依据是另一套 DB 引用
         # （crm_proposal_versions）—— 与公开桶那轮不是一回事。
         private_orphaned = find_private_orphaned_files(db, settings, r2_client)
+        # 同样的 --min-age 保护要作用在私有桶这一轮（BLF-1418 review 修）：
+        # 方案上传是「先写 R2 对象、再插 crm_proposal_versions 行」，所以一个
+        # 并发的 --min-age 30 --execute 可能看到一个**刚上传、还没有 DB 行**的
+        # 对象 → 立刻删掉 → 随后提交的那行版本就读不出来了。
+        if cutoff is not None:
+            private_orphaned = [
+                f for f in private_orphaned
+                if f.get('last_modified') is None or f['last_modified'] < cutoff
+            ]
         if private_orphaned:
             print(f"\n[私有桶] {settings.r2_private_bucket_resolved} 中有 "
                   f"{len(private_orphaned)} 个无 DB 引用的对象")
