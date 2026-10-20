@@ -329,6 +329,35 @@ describe('buildUsageText · 业务域分支（BLF-448）', () => {
     expect(text).not.toContain('尚未接入 Agent API')
   })
 
+  it('domain=review_tracking 的 W1 示例只给幂等键一处，且 captured_at / 幂等键是每次生成的占位（BLF-1376 复审 P1）', () => {
+    const text = buildUsageText({
+      plaintextKey: 'bbx_test',
+      agentId: 'agent-1',
+      domain: 'review_tracking',
+    })
+    // 提取 W1 示例的 curl 块（从提交采集结果到 body 结束）
+    const w1Start = text.indexOf('/review-tracking/targets/$TARGET_ID/runs')
+    expect(w1Start).toBeGreaterThan(-1)
+    const w1 = text.slice(w1Start, text.indexOf('\n\n', w1Start))
+
+    // ① 幂等键只保留一处：示例只在 Idempotency-Key 头上给，body 不再带 idempotency_key
+    //    （头 + body 同时给且不一致 → 后端 400 VALIDATION_FAILED）
+    expect(w1).toContain('-H "Idempotency-Key: ')
+    expect(w1).not.toContain('"idempotency_key":')
+    // 旧的钉死字面量占位符与固定 target-12 key 一并清掉
+    expect(w1).not.toContain('Idempotency-Key: <≤64 字符>')
+    expect(w1).not.toContain('target-12')
+
+    // ② captured_at / 幂等键必须一眼看出是每次生成的占位，不能钉成一次性字面量
+    const bodyMatch = w1.match(/-d '(\{.*\})'/)
+    expect(bodyMatch).not.toBeNull()
+    const body = JSON.parse(bodyMatch![1]) as Record<string, unknown>
+    expect(String(body.captured_at).startsWith('<')).toBe(true)
+    // 保留时区格式示范
+    expect(String(body.captured_at)).toContain('+08:00')
+    expect(body.idempotency_key).toBeUndefined()
+  })
+
   it('未知域输出占位说明', () => {
     const text = buildUsageText({
       plaintextKey: 'bbx_test',

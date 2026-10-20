@@ -1046,18 +1046,21 @@ function buildReviewTrackingGuide(opts: {
   curl -X POST "${apiBase}/api/v1/agent/review-tracking/targets/$TARGET_ID/runs" \\
     -H "Authorization: Bearer ${key}" \\
     -H "X-Agent-Id: ${agentId}" \\
-    -H "Idempotency-Key: <≤64 字符>" \\
+    -H "Idempotency-Key: <本次运行的幂等键，每次运行新生成，≤64 字符>" \\
     -H "Content-Type: application/json" \\
-    -d '{"captured_at":"2026-10-19T09:30:00+08:00","status":"success","rating":{"average_rating":4.3,"rating_count":128,"review_count":96,"star_percentages":[7,3,6,20,64],"star_counts":null,"star_count_quality":"estimated"},"reviews":[{"review_key":"R1F90C6R6GV8L6","id_confidence":"original","rating":5,"title":"好用","body":"……","review_date":"2026-10-10","verified_purchase":true,"helpful_count":3}],"is_complete_list":true,"idempotency_key":"2026-10-19:target-12:us","asin_scraped":"B0G6C865B6"}'
+    -d '{"captured_at":"<ISO8601 带时区，如 2026-10-19T09:30:00+08:00>","status":"success","rating":{"average_rating":4.3,"rating_count":128,"review_count":96,"star_percentages":[7,3,6,20,64],"star_counts":null,"star_count_quality":"estimated"},"reviews":[{"review_key":"R1F90C6R6GV8L6","id_confidence":"original","rating":5,"title":"好用","body":"……","review_date":"2026-10-10","verified_purchase":true,"helpful_count":3}],"is_complete_list":true,"asin_scraped":"B0G6C865B6"}'
 
-  body：captured_at（**必须带时区**，naive → 400）、status（success|partial|failed）、
+  body：captured_at（**必须带时区**，naive → 400；**每次运行取当次采集时刻**，且要晚于
+  该目标最近一次非 failed run，见下方顺序护栏）、status（success|partial|failed）、
   rating（均分 / 评分数 / 评论数 / 1–5 星百分比或绝对数 + star_count_quality）、
   reviews[]（最多 500 条；review_key / id_confidence / 星级 / 标题 / 正文 / 日期 /
-  verified / helpful）、is_complete_list、idempotency_key、asin_scraped、
-  error_message、source。
+  verified / helpful）、is_complete_list、idempotency_key（可选，与头二选一）、
+  asin_scraped、error_message、source。
   **幂等**：唯一键 (target_id, idempotency_key)；重复提交返回**首次** run_id 且
-  replayed=true，不新增行、不写审计。幂等键 body 字段优先，缺省回退
-  Idempotency-Key 头；两者都给且不一致 → 400 VALIDATION_FAILED。
+  replayed=true，不新增行、不写审计。幂等键**每次运行都要新生成**——沿用旧键会命中
+  重放，看起来「成功」其实什么都没写。幂等键 body 字段优先，缺省回退
+  Idempotency-Key 头；两者都给且不一致 → 400 VALIDATION_FAILED（**示例只在头上给**，
+  body 里不传 idempotency_key）。
   **失败语义**：status=failed 只落运行记录，不写评分快照与评论；本次没抓到评论
   也要提交已取得的评分快照。
   **顺序护栏**：captured_at 早于或等于该目标最近一次**非 failed** run → 409
