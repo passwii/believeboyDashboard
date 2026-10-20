@@ -51,6 +51,30 @@ describe('ProposalCreateForm', () => {
     })
   })
 
+  /**
+   * BLF-1407：新增「调研方案」类型（`research`）。类型下拉是枚举驱动的
+   * （map `PROPOSAL_TYPE_ORDER`），这里钉住「下拉里能选到 research 且
+   * 提交时原样带上」—— 防止有人只改 union 不改 ORDER/LABELS。
+   */
+  it('类型下拉可选「调研方案」并原样提交', async () => {
+    const onSubmit = vi.fn()
+    render(<ProposalCreateForm customers={[]} onSubmit={onSubmit} />)
+
+    const typeSelect = screen.getByLabelText('方案类型') as HTMLSelectElement
+    const options = Array.from(typeSelect.options).map((o) => ({
+      value: o.value,
+      label: o.textContent,
+    }))
+    expect(options).toContainEqual({ value: 'research', label: '调研方案' })
+
+    selectFile('proposal-file-input', htmlFile())
+    fireEvent.change(typeSelect, { target: { value: 'research' } })
+    fireEvent.click(screen.getByRole('button', { name: '上传并创建' }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(onSubmit.mock.calls[0][0].proposalType).toBe('research')
+  })
+
   it('标题留空则传 undefined（后端回退文件名）', async () => {
     const onSubmit = vi.fn()
     render(<ProposalCreateForm customers={[]} onSubmit={onSubmit} />)
