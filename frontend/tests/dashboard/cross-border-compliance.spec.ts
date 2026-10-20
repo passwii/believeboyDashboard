@@ -10,8 +10,10 @@ import { addBLF611FixtureAuth } from '../setup/blf611-fixture'
  * 3. 来源提示「根据用户提供的课件整理」与限制性提示可见；
  * 4. 勾选首单材料 → 进度文本变化（已核对 n/N · 完成 p%）；
  * 5. 「重置」回到 0/N · 完成 0%；
- * 6. 375px 窄屏无整体横向溢出（表格自身在 overflow-x-auto 容器内横滑，不算溢出）；
- * 7. 明暗主题切换下页面仍可读、进度交互仍生效（主题令牌在两态下都可解析）。
+ * 6. 窄屏（375 / 390 / 768px）无整体横向溢出（表格自身在 overflow-x-auto 容器内横滑，不算溢出），
+ *    且 5 个页内锚点逐个可跳转、目标区块进入视口；
+ * 7. 明暗主题切换下页面仍可读、进度交互仍生效（主题令牌在两态下都可解析）；
+ * 8. 勾选/取消/重置全程零非 GET 请求 → 勾选状态确实只存在于本地 state。
  *
  * 自包含：session cookie 用 next-auth/jwt encode 伪造（BLF611_FIXTURE_SECRET，与
  * playwright.config webServer.env 一致），**不依赖真实后端 / 真实账号**；
@@ -138,6 +140,17 @@ test.describe('跨境电商合规页用户流程（BLF-1393）', () => {
 
   test('勾选首单材料后进度文本变化，「重置」回到 0/N', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 })
+
+    // AC4 后半句：勾选状态**不得**发往后端（纯本地）。记录本页所有非 GET 请求，
+    // 勾选/取消/重置三态跑完后断言其数量为 0。
+    const mutatingRequests: string[] = []
+    page.on('request', (request) => {
+      const method = request.method().toUpperCase()
+      if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+        mutatingRequests.push(`${method} ${request.url()}`)
+      }
+    })
+
     await page.goto('/dashboard/tools/cross-border-compliance')
 
     const progress = page.getByTestId('material-progress')
@@ -162,23 +175,42 @@ test.describe('跨境电商合规页用户流程（BLF-1393）', () => {
     await expect(progress).toHaveText(`已核对 0/${TOTAL_MATERIALS} · 完成 0%`)
     await expect(checkboxes.nth(0)).not.toBeChecked()
     await expect(checkboxes.nth(11)).not.toBeChecked()
+
+    // 勾选/取消/重置全程零非 GET 请求 → 勾选状态确实只存在于组件本地 state。
+    expect(mutatingRequests, '勾选状态不得发往后端（应为零非 GET 请求）').toEqual([])
   })
 
-  test('375px 窄屏无整体横向溢出，且页内锚点可跳转', async ({ page }) => {
+  test('窄屏无整体横向溢出，且 5 个页内锚点逐个可跳转', async ({ page }) => {
+    // 三档窄屏视口逐档验证「页面整体无横向滚动」。
+    // 375 / 390 / 768 是设计稿点名的三档；这里显式 setViewportSize（不依赖 project
+    // 的 Pixel 5 = 393px），保证三档都被真正覆盖。
+    for (const width of [375, 390, 768]) {
+      await page.setViewportSize({ width, height: 812 })
+      await page.goto('/dashboard/tools/cross-border-compliance')
+      await expect(page.getByRole('heading', { level: 1, name: '跨境电商合规' })).toBeVisible()
+      await expectNoPageHorizontalOverflow(page)
+    }
+
+    // 页内锚点：5 个分组锚点逐个点击，每个都必须把目标区块滚进视口。
     await page.setViewportSize({ width: 375, height: 812 })
     await page.goto('/dashboard/tools/cross-border-compliance')
 
-    await expect(page.getByRole('heading', { level: 1, name: '跨境电商合规' })).toBeVisible()
-    await expectNoPageHorizontalOverflow(page)
+    const anchors = [
+      { id: 'chain', label: /业务证据链/ },
+      { id: 'modes', label: /监管模式对照/ },
+      { id: 'admission', label: /企业准入办理/ },
+      { id: 'materials', label: /9810 退税与首单清单/ },
+      { id: 'fields', label: /报关字段速查/ },
+    ] as const
 
-    // 页内锚点：点击「05 报关字段速查」应把目标区块滚进视口。
-    const fieldsSection = page.locator('#fields')
-    await expect(fieldsSection).toBeAttached()
-    await page.getByRole('link', { name: /报关字段速查/ }).first().click()
-    await expect(fieldsSection).toBeInViewport({ timeout: 5000 })
-
-    // 锚点跳转后仍不得引入整体横向溢出。
-    await expectNoPageHorizontalOverflow(page)
+    for (const anchor of anchors) {
+      const section = page.locator(`#${anchor.id}`)
+      await expect(section).toBeAttached()
+      await page.getByRole('link', { name: anchor.label }).first().click()
+      await expect(section).toBeInViewport({ timeout: 5000 })
+      // 锚点跳转后仍不得引入整体横向溢出。
+      await expectNoPageHorizontalOverflow(page)
+    }
   })
 
   test('明暗主题切换下标题、来源提示与勾选交互均可用', async ({ page }) => {
