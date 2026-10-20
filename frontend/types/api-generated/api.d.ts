@@ -4454,6 +4454,8 @@ export interface paths {
          *     方案域**全员可见**（BLF-1403 / BLF-1410）：非 admin 的 ``scope=all`` **不降级**
          *     （用 ``resolve_proposal_scope``，不动 CRM 全域的 ``resolve_scope`` 私海保护）；
          *     ``scope=mine`` 仍只看自己名下（前端「我的 / 全部」切换继续可用）。
+         *
+         *     ``scope`` 取值仅限 ``{mine, all}``，其它值 400（见 ``resolve_proposal_scope``）。
          */
         get: operations["list_proposals_api_v1_crm_proposals_get"];
         put?: never;

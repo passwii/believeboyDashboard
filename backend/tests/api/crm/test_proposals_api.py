@@ -545,6 +545,19 @@ def test_list_default_scope_is_all(client, operator_headers, businessdev_headers
     assert {i["title"] for i in default_items["items"]} == {"我的方案", "别人的方案"}
 
 
+@pytest.mark.parametrize("scope", ["sea", "x", "All", "ALL", "public", " "])
+def test_list_rejects_unknown_scope(client, operator_headers, scope):
+    """方案域 scope **值域收口**：白名单 ``{mine, all}`` 外一律 400。
+
+    收口前是个既有绕过口子：服务层只判 ``scope == "mine"``，**任何**其它字符串
+    都等于「不加 owner 过滤 = 看全部」→ 非 admin 传 ``scope=sea`` 就能看到
+    全部方案（``resolve_scope`` 对方案域只挡字面量 ``"all"``）。
+    """
+    res = client.get(f"/api/v1/crm/proposals?scope={scope}", headers=operator_headers)
+    assert res.status_code == 400, res.text
+    assert "不支持的 scope" in res.json()["detail"]
+
+
 def test_list_admin_sees_all(client, operator_headers, admin_headers):
     _mk_proposal(client, operator_headers, title="销售的方案")
     _mk_proposal(client, admin_headers, title="管理员的方案")

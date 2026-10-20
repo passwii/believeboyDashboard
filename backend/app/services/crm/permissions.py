@@ -14,12 +14,21 @@
   ——后者是客户 / 线索 / 任务 / 跟进 / 漏斗等全域共用的「私海保护」，动了会连带拆掉那些域的边界。
 - 方案域的**写操作**（编辑 / 删除 / 追加版本）仍受 ``require_owner_or_admin`` 保护：
   全员可读 ≠ 全员可改。
+- 方案域的 scope **值域收口**为 ``{mine, all}``（``PROPOSAL_SCOPES``）：白名单外一律 400。
+  原因：服务层只判 ``scope == "mine"``，**任何**其它字符串都等于「不加 owner 过滤 = 看全部」，
+  而端点层的 scope 是无校验的自由字符串 → 收口前非 admin 传 ``scope=sea`` / ``scope=x``
+  就能看到全部方案（``resolve_scope`` 对方案域只挡字面量 ``"all"``）。
 """
 from __future__ import annotations
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+
+# 方案域 scope 白名单——只有 ``mine``（自己名下）与 ``all``（全员）两个语义。
+# 服务层 ``list_proposals`` 只判 ``scope == "mine"``，其余任何值都等于「不加
+# owner 过滤 = 看全部」→ 端点层必须收口（见 ``resolve_proposal_scope``）。
+PROPOSAL_SCOPES = ("mine", "all")
 
 
 def resolve_scope(scope: str, is_admin: bool) -> str:
@@ -35,7 +44,7 @@ def resolve_scope(scope: str, is_admin: bool) -> str:
 
 
 def resolve_proposal_scope(scope: str, is_admin: bool) -> str:
-    """方案域 scope：**``all`` 不降级**（客户方案全员可见，BLF-1403 / BLF-1410）。
+    """方案域 scope：白名单 ``{mine, all}``，``all`` **不降级**（客户方案全员可见）。
 
     与 ``resolve_scope`` 的区别：``resolve_scope`` 是 CRM 全域的「私海保护」，
     非 admin 的 ``all`` 会被降级为 ``mine``；客户方案按业务要求全员可见，
@@ -46,7 +55,21 @@ def resolve_proposal_scope(scope: str, is_admin: bool) -> str:
 
     参数 ``is_admin`` 保留是为了与 ``resolve_scope`` 形状一致（便于对照与单测），
     当前口径下不依赖它——admin 与非 admin 在方案域的可见性相同。
+
+    ⚠️ **值域收口（白名单外一律 400）不是洁癖，是补一个既有绕过口子**：
+    服务层 ``list_proposals`` 只判 ``if scope == "mine"``——**任何其它字符串**
+    都等于「不加 owner 过滤 = 看全部」。而 ``scope`` 在端点层是**无校验的自由字符串**，
+    所以改动前非 admin 传 ``scope=sea`` / ``scope=x`` / ``scope=All`` 就能看到
+    全部方案：``resolve_scope`` 对方案域**只挡字面量 ``"all"``**。
+
+    收口后：未知 scope 直接 400（与同屋檐下 ``sort_by`` 未知值 400 的做法一致），
+    「全员可见」只从**明确的** ``scope=all`` 进入，不再靠「默认值恰好是 mine」的巧合。
     """
+    if scope not in PROPOSAL_SCOPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"不支持的 scope: {scope}",
+        )
     return scope
 
 

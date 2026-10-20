@@ -15,6 +15,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.services.crm.permissions import (
+    PROPOSAL_SCOPES,
     require_owner_or_admin,
     require_proposal_readable,
     resolve_proposal_scope,
@@ -47,13 +48,34 @@ def test_resolve_scope_keeps_private_sea_protection(scope, is_admin, expected):
         ("all", True, "all"),
         ("mine", False, "mine"),
         ("mine", True, "mine"),
-        ("sea", False, "sea"),
-        ("sea", True, "sea"),
     ],
 )
 def test_resolve_proposal_scope_does_not_downgrade(scope, is_admin, expected):
     """方案域 resolve_proposal_scope：all 原样透传（客户方案全员可见）。"""
     assert resolve_proposal_scope(scope, is_admin) == expected
+
+
+@pytest.mark.parametrize("scope", ["sea", "x", "All", "ALL", "", "mine ", "public"])
+def test_resolve_proposal_scope_rejects_unknown_values(scope):
+    """方案域 scope **值域收口**：白名单外一律 400。
+
+    为什么必须收口：服务层 ``list_proposals`` 只判 ``if scope == "mine"``——
+    **任何**其它字符串都等于「不加 owner 过滤 = 看全部」。而 scope 在端点层是
+    无校验的自由字符串 → 收口前非 admin 传 ``scope=sea`` 就能看到全部方案
+    （``resolve_scope`` 对方案域只挡字面量 ``"all"``）。
+
+    「全员可见」只应从**明确的** ``scope=all`` 进入，而不是「默认值恰好是 mine」
+    的巧合。
+    """
+    with pytest.raises(HTTPException) as exc:
+        resolve_proposal_scope(scope, False)
+    assert exc.value.status_code == 400
+    assert "不支持的 scope" in exc.value.detail
+
+
+def test_proposal_scopes_whitelist_is_exactly_mine_and_all():
+    """白名单本身就是契约：只有 mine / all 两个语义。"""
+    assert set(PROPOSAL_SCOPES) == {"mine", "all"}
 
 
 def test_resolve_proposal_scope_differs_from_global_scope():
