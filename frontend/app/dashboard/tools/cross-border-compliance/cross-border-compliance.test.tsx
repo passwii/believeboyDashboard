@@ -6,6 +6,8 @@ import CrossBorderComplianceClient from './cross-border-compliance-client'
 import {
   CUSTOMS_FIELDS,
   FIRST_ORDER_MATERIAL_GROUPS,
+  MODE_COMPARISON_0110_9810,
+  MODE_SCENARIO_ROWS,
   REGULATORY_MODES,
   TOTAL_MATERIAL_COUNT,
 } from './compliance-data'
@@ -104,6 +106,19 @@ describe('CrossBorderComplianceClient', () => {
     // 不出现「推荐 / 更优 / 适用」类结论
     expect(screen.queryByText(/推荐使用/)).not.toBeInTheDocument()
     expect(screen.queryByText(/更优/)).not.toBeInTheDocument()
+
+    // 课件「到底选0110还是9810?」场景对照表：5 行齐全
+    for (const row of MODE_SCENARIO_ROWS) {
+      expect(within(modes).getByText(row.business)).toBeInTheDocument()
+      expect(within(modes).getByText(row.advice)).toBeInTheDocument()
+    }
+    expect(MODE_SCENARIO_ROWS).toHaveLength(5)
+
+    // 课件「0110 与 9810 核心区别」六维度对照
+    for (const row of MODE_COMPARISON_0110_9810) {
+      expect(within(modes).getByText(row.dimension)).toBeInTheDocument()
+    }
+    expect(MODE_COMPARISON_0110_9810).toHaveLength(6)
   })
 
   it('区块 4：企业准入办理六项事项按课件顺序呈现', () => {

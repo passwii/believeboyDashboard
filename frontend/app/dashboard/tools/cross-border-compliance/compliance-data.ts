@@ -1,7 +1,8 @@
 /**
  * 跨境电商合规操作台 —— 静态内容单一来源（BLF-1391 / S1）。
  *
- * 内容全部来自用户提供的 16 张课件照片（见 PR 正文「素材来源」与「交付缺漏清单」）。
+ * 内容全部来自用户提供的 16 张课件照片（`~/Downloads/跨境电商合规/`，见 PR 正文
+ * 「素材来源」与「交付缺漏清单」）。
  * **硬红线**：只转录课件中可辨认的内容；无法准确辨认的条目一律省略并列入交付缺漏清单，
  * 不用外部搜索 / 推断 / 常识补写法规条件、税额、报关值或填报对错。
  *
@@ -24,6 +25,14 @@ export const DISCLAIMER =
 /** 模式对照区的场景参考标签（硬性验收项）。 */
 export const MODE_SCENARIO_LABEL = '课件场景参考'
 
+/** 模式区限定语：不做推荐、不做适用性判断、不给「哪个更优」的结论。 */
+export const MODE_DISCLAIMER =
+  '以下为课件场景参考，不构成推荐、适用性判断或优劣结论；实际申报模式需结合业务事实及主管机关口径确认。'
+
+/** 模式场景表的口径说明：课件原文转录 ≠ 本平台推荐。 */
+export const MODE_TABLE_NOTE =
+  '表中「建议」列为课件原文转录，不代表本平台的推荐或适用性判断；是否采用、何时采用由企业结合自身业务事实并向主管机关确认。'
+
 /** 首单材料区的口径说明。 */
 export const MATERIAL_SCOPE_NOTE =
   '以下仅为课件所列材料，具体清单以属地主管部门要求为准；勾选进度不代表退税资格审核或申报通过率。'
@@ -41,7 +50,7 @@ export const ANCHORS = {
   fields: 'fields',
 } as const
 
-// ── 区块 2：出口业务证据链 ─────────────────────────────────────────────────
+// ── 区块 2：出口业务证据链（课件「总结」页） ─────────────────────────────
 
 export interface ChainStep {
   /** 锚点 id（页内导航可跳转）。 */
@@ -105,62 +114,207 @@ export const CHAIN_STEPS: ChainStep[] = [
   },
 ]
 
-// ── 区块 3：监管模式对照 ──────────────────────────────────────────────────
+/** 课件「总结」页的标题句。 */
+export const CHAIN_SUMMARY = '出口全链条阳光化是合规的基础'
+
+/** 课件「总结」页的小标题。 */
+export const CHAIN_SUBTITLE = '五个方面五个合规'
+
+// ── 区块 3A：监管模式对照（课件「六大业务模式核心要素对比」表可见行） ──────
 
 export interface RegulatoryMode {
   /** 监管代码。 */
   code: string
-  /** 课件中该代码对应的出口模式名。 */
+  /** 课件中的出口模式名。 */
   name: string
-  /** 课件中用于区分该模式的业务场景。 */
+  /** 课件「核心特征」列。课件未展开的模式此处为空字符串。 */
+  feature: string
+  /** 课件「到底选0110还是9810?」表中的业务模式场景。课件未出现的模式此处为空字符串。 */
   scene: string
-  /** 课件中该模式的其他可辨认要点。 */
-  highlights: string[]
+  /** 课件「是否可退税」列。 */
+  refundable: string
+  /** 课件「优势」列。 */
+  strengths: string
+  /** 课件「缺点」列。 */
+  weaknesses: string
+  /** 课件流程图可辨认的节点与流向。 */
+  flow: string[]
+  /** 课件「核心要求 / 核心要点 / 核心要点」原话。 */
+  core: string
+  /** 课件「适用主体」（仅 9810 页有此栏）。 */
+  audience: string
 }
 
 export const REGULATORY_MODES: RegulatoryMode[] = [
   {
     code: '0110',
-    name: '一般贸易（跨境电商 0110 出口模式）',
-    scene:
-      '传统 B2B 大宗出口；课件以「设立一家合规的境外公司作为出口交易对手」为核心做法。',
-    highlights: [
-      '痛点：收汇与报关不一致',
-      '痛点：业务模式不合规',
-      '中间环节常需借助境外公司（如香港公司）',
+    name: '一般贸易出口',
+    feature: '',
+    scene: '多店铺（店群）+ 有专票 + 想退税',
+    refundable: '',
+    strengths: '',
+    weaknesses: '',
+    flow: [
+      '供应商 →（有进项发票采购）→ 跨境电商卖家或者出口公司',
+      '跨境电商卖家或者出口公司 ⇄ 香港公司（结算申请退税）',
+      '第三方收汇平台 →（收入）→ 香港公司',
+      '亚马逊平台注册店铺 →（下单）→ 用户',
     ],
+    core:
+      '0110 出口合规模式的核心在于设立一家合规的境外公司作为出口交易对手，确保出口公司能以自身名义完成出口流程，并通过合法渠道实现货款的入境结汇。',
+    audience: '',
   },
   {
     code: '9610',
     name: '9610',
-    scene: '课件场景：单店或少店 + 小包直邮。',
-    highlights: ['课件未展开 9610 的逐项讲解，此处仅保留可辨认的场景描述。'],
+    feature: '',
+    scene: '单店或少店 + 小包直邮',
+    refundable: '',
+    strengths: '',
+    weaknesses: '',
+    flow: [],
+    core: '',
+    audience: '',
   },
   {
     code: '9710',
     name: '跨境电商 B2B 直接出口',
-    scene: '企业通过电商平台与境外企业交易，直接发货至境外企业。',
-    highlights: ['核心要求：出口的货物必须是真实的销售', '可退税（进项税发票）'],
+    feature: '企业通过电商平台与境外企业交易，直接发货至境外企业',
+    scene: '',
+    refundable: '可退税（进项税发票）',
+    strengths: '类似 0110 模式',
+    weaknesses: '/',
+    flow: [
+      '供应商 →（有进项发票采购）→ 出口公司（9710）',
+      '境内跨境电商公司（一般纳税人）→ 运营公司',
+      '跨境电商平台 →（下单）→ 第三方收汇平台 →（结汇申请退税）→ 出口公司',
+      '出口公司 →（B2B 出口直运）→ 境外',
+    ],
+    core:
+      '9710 出口模式出口的货物必须是真实的销售，而不是仅仅为了存储或者……境外企业。',
+    audience: '',
   },
   {
     code: '9810',
     name: '跨境电商 B2B 出口海外仓',
-    scene: '货物先出口海外仓，再用海外仓配送至境外消费者，课件称为「离境即退税」。',
-    highlights: [
-      '核心要求：完成出口报关，获取进项税发票',
-      '出口预退税',
-      '合规，符合法律规定；后续需要核销',
+    feature: '货物先出口海外仓，再用海外仓配送至境外消费者，"离境即退税"',
+    scene: '',
+    refundable: '出口预退税',
+    strengths: '合规，符合法律规定',
+    weaknesses: '后续需要核销',
+    flow: [
+      '跨境电商境内公司 →（前置备货）→ 跨境电商出口海外仓（9810）',
+      '跨境电商出口海外仓（9810）→（① 报关出口 / 头程运输）→ 海外仓',
+      '海外仓 →（④ 尾程派送）→ 客户 →（② 客户下单）→ 跨境电商平台',
+      '跨境电商平台 →（③ 发送订单信息）→ 海外仓',
+      '跨境电商平台 →（⑤ 分批收款）→ 第三方收汇平台 →（⑥ 回到对公账户）→ 卖家对公账户',
     ],
+    core: '9810 出口模式的核心要求是，完成出口报关，获取进项税发票。',
+    audience:
+      'FBA 卖家：适配亚马逊平台，将货物批量备至美、欧、日等 FBA 仓。自建仓 / 第三方仓卖家：使用自建或租赁海外仓，需规范报关与资金回流。',
   },
   {
     code: '1039',
     name: '市场采购',
-    scene: '课件标注货值 15 万美元（含 15 万美元）以下。',
-    highlights: ['不可申请退税', '解决无票采购出口', '只能在试点区域开展'],
+    feature: '货值 15 万美元（含 15 万美元）以下',
+    scene: '',
+    refundable: '不可申请退税',
+    strengths: '解决无票采购出口',
+    weaknesses: '只能在试点区域开展',
+    flow: [],
+    core: '',
+    audience: '',
   },
 ]
 
-// ── 区块 4：企业准入办理 ──────────────────────────────────────────────────
+// ── 区块 3B：课件「到底选0110还是9810?」场景对照表 ──────────────────────
+
+export interface ModeScenarioRow {
+  /** 课件「业务模式」列。 */
+  business: string
+  /** 课件「建议」列原文。 */
+  advice: string
+  /** 课件「适用监管代码」列。 */
+  code: string
+}
+
+export const MODE_SCENARIO_ROWS: ModeScenarioRow[] = [
+  {
+    business: '多店铺（店群）+ 有专票 + 想退税',
+    advice: '做赛维模式、搭建香港公司，归集到 1 家出口公司，流程成熟稳定',
+    code: '0110',
+  },
+  {
+    business: '精品单店 + SKU 少 + 想退税',
+    advice: '尝试 9810，但先和主管税局确认落地可行性',
+    code: '9810',
+  },
+  {
+    business: '多店铺 + 免税即可',
+    advice: '9810 免税通道',
+    code: '9810',
+  },
+  {
+    business: '单店或少店 + 小包直邮',
+    advice: '选 9610',
+    code: '9610',
+  },
+  {
+    business: '多种合规模式并存',
+    advice: '高客单价高利润产品走 9810，铺货类 SKU 走 0110，不冲突',
+    code: '9810 + 0110 双通道',
+  },
+]
+
+// ── 区块 3C：课件「0110 和 9810 核心区别」六维度对照 ────────────────────
+
+export interface ModeComparisonDimension {
+  /** 维度名。 */
+  dimension: string
+  /** 0110（一般贸易）列。 */
+  generalTrade: string
+  /** 9810（跨境电商出口海外仓）列。 */
+  overseasWarehouse: string
+}
+
+export const MODE_COMPARISON_0110_9810: ModeComparisonDimension[] = [
+  {
+    dimension: '适用场景',
+    generalTrade:
+      '传统 B2B 大宗贸易，如境内企业向境外批发商、品牌商批量供货；适合线下交易',
+    overseasWarehouse: '专为跨境电商"先备货、后销售"模式设计',
+  },
+  {
+    dimension: '业务本质',
+    generalTrade: 'B2B 直接出口，货物离境即视为交易完成。',
+    overseasWarehouse:
+      'B2B2C 备货模式，货物离境仅为物流转移，实际销售发生在海外消费者下单之后。',
+  },
+  {
+    dimension: '收汇要求',
+    generalTrade: '需全额收汇',
+    overseasWarehouse: '支持"轧差结算"，',
+  },
+  {
+    dimension: '出口退税政策',
+    generalTrade:
+      '需在货物出口且收汇核销后，凭报关单、增值税专用发票等材料申报退税，周期较长（通常 3-6 个月）。',
+    overseasWarehouse: '实行"离境预退税"政策（2025 年新政）首单需销售再退税',
+  },
+  {
+    dimension: '企业资质要求',
+    generalTrade: '完成海关注册登记，取得进出口经营权即可。',
+    overseasWarehouse: '除海关注册外，还需完成"跨境电商企业备案"。',
+  },
+  {
+    dimension: '中间环节依赖',
+    generalTrade:
+      '常需借助"香港公司"作为境外采购方，以满足 B2B 贸易真实性要求。',
+    overseasWarehouse: '无需离岸公司中转，国内主体可直接操作，链路更短。',
+  },
+]
+
+// ── 区块 4：企业准入办理（课件「跨境电商出口监管模式与准入指南」） ──────────
 
 export interface AdmissionStep {
   /** 事项名。 */
@@ -172,7 +326,7 @@ export interface AdmissionStep {
 export const ADMISSION_STEPS: AdmissionStep[] = [
   {
     name: '经营范围确认或变更',
-    detail: '营业执照上需有「货物进出口、互联网销售」等字样。',
+    detail: '营业执照上需有"货物进出口、互联网销售"等字样。',
   },
   {
     name: '海关资质备案',
@@ -196,7 +350,10 @@ export const ADMISSION_STEPS: AdmissionStep[] = [
   },
 ]
 
-// ── 区块 5A：9810 出口退税必备条件 ────────────────────────────────────────
+/** 课件小标题。 */
+export const ADMISSION_SUBTITLE = '跨境电商资质获取'
+
+// ── 区块 5A：9810 出口退税必备条件（课件原表） ────────────────────────────
 
 export interface RefundCondition {
   /** 序号（课件原表序号）。 */
@@ -231,14 +388,18 @@ export const REFUND_CONDITIONS_9810: RefundCondition[] = [
   },
 ]
 
-// ── 区块 5B：首单核查材料（本地勾选自查） ─────────────────────────────────
+/** 课件发票开具口径（Part 05 页左侧要点）。 */
+export const INVOICE_SEPARATION_NOTE =
+  '国际货运代理费发票、报关费发票、国内运输费发票应分开开票。'
+
+// ── 区块 5B：首单核查材料（本地勾选自查） ────────────────────────────────
 
 export interface MaterialGroup {
   /** 分组 id（用于 checkbox id 前缀）。 */
   id: string
   /** 分组名（课件原表分组）。 */
   name: string
-  /** 材料条目（按课件原表序号）。 */
+  /** 材料条目。 */
   items: string[]
 }
 
@@ -301,7 +462,7 @@ export const TOTAL_MATERIAL_COUNT = FIRST_ORDER_MATERIAL_GROUPS.reduce(
 /** 课件原表的一条通用注记（复印件需每页加盖公章）。 */
 export const MATERIAL_COPY_NOTE = '注意：所有复印件均要每页加盖公章！！！'
 
-// ── 区块 5C：报关字段速查 ────────────────────────────────────────────────
+// ── 区块 6：报关字段速查（课件「9810 报关单实务解读」系列） ──────────────
 
 export interface CustomsField {
   /** 字段名。 */
@@ -333,7 +494,7 @@ export const CUSTOMS_FIELDS: CustomsField[] = [
   {
     name: '商品编号',
     hint:
-      '出口商品的海关编码，出口商品对应的 HS 编码（有出口过的产品可以填之前归类税号，以便参考）。',
+      '出口商品的海关编码，出口商品对应的 HS 编码（有出口过的产品可以填之前归类税号，以便参考）；',
   },
   {
     name: '商品名称',

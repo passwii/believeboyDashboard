@@ -9,15 +9,23 @@ import { cn } from '@/lib/utils'
 
 import {
   ADMISSION_STEPS,
+  ADMISSION_SUBTITLE,
   ANCHORS,
   CHAIN_STEPS,
+  CHAIN_SUBTITLE,
+  CHAIN_SUMMARY,
   CUSTOMS_FIELDS,
   DISCLAIMER,
   FIRST_ORDER_MATERIAL_GROUPS,
+  INVOICE_SEPARATION_NOTE,
   LOCAL_ONLY_NOTE,
   MATERIAL_COPY_NOTE,
   MATERIAL_SCOPE_NOTE,
+  MODE_COMPARISON_0110_9810,
+  MODE_DISCLAIMER,
   MODE_SCENARIO_LABEL,
+  MODE_SCENARIO_ROWS,
+  MODE_TABLE_NOTE,
   PAGE_SUBTITLE,
   PAGE_TITLE,
   REFUND_CONDITIONS_9810,
@@ -58,7 +66,10 @@ export default function CrossBorderComplianceClient() {
   // 进度统计一律用 useMemo 派生：渲染期不写状态，避免无限渲染循环（计划 §6 R5）。
   const checkedCount = useMemo(() => checked.size, [checked])
   const progressPercent = useMemo(
-    () => (TOTAL_MATERIAL_COUNT === 0 ? 0 : Math.round((checkedCount / TOTAL_MATERIAL_COUNT) * 100)),
+    () =>
+      TOTAL_MATERIAL_COUNT === 0
+        ? 0
+        : Math.round((checkedCount / TOTAL_MATERIAL_COUNT) * 100),
     [checkedCount]
   )
 
@@ -105,10 +116,17 @@ export default function CrossBorderComplianceClient() {
       {/* ── 区块 2：出口业务证据链 ───────────────────────────────────── */}
       <TermPanel
         title="01 / 出口业务证据链"
-        actions={<span className="font-mono text-xs text-term-faint">采购 → 销售 → 报关 → 物流 → 收汇</span>}
+        actions={
+          <span className="font-mono text-xs text-term-faint">
+            采购 → 销售 → 报关 → 物流 → 收汇
+          </span>
+        }
         bodyClassName="p-2"
       >
         <section id={ANCHORS.chain} className="scroll-mt-2">
+          <p className="mb-2 text-xs leading-5 text-term-muted">
+            {CHAIN_SUMMARY} · {CHAIN_SUBTITLE}
+          </p>
           <ol className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-5">
             {CHAIN_STEPS.map((step, index) => (
               <li
@@ -147,14 +165,141 @@ export default function CrossBorderComplianceClient() {
       {/* ── 区块 3：监管模式对照 ─────────────────────────────────────── */}
       <TermPanel
         title="02 / 监管模式对照"
-        actions={<span className="font-mono text-xs text-term-faint">{MODE_SCENARIO_LABEL}</span>}
+        actions={
+          <span className="font-mono text-xs text-term-faint">{MODE_SCENARIO_LABEL}</span>
+        }
         bodyClassName="p-2"
       >
         <section id={ANCHORS.modes} className="scroll-mt-2">
-          <p className="mb-2 text-xs leading-5 text-term-muted">
-            以下为{MODE_SCENARIO_LABEL}，不构成推荐、适用性判断或优劣结论；实际申报模式需结合业务事实及主管机关口径确认。
+          <p className="mb-2 text-xs leading-5 text-term-muted">{MODE_DISCLAIMER}</p>
+
+          {/* 3A：课件场景对照表 */}
+          <div className="min-w-0 overflow-x-auto">
+            <table className="w-full min-w-[560px] border-collapse text-xs">
+              <caption className="pb-1 text-left font-mono text-[11px] uppercase tracking-wider text-term-faint">
+                课件场景参考 · 业务模式对照
+              </caption>
+              <thead>
+                <tr className="border-b border-term-border text-left text-term-faint">
+                  <th scope="col" className="px-1 py-1 font-normal">
+                    业务模式
+                  </th>
+                  <th scope="col" className="px-1 py-1 font-normal">
+                    建议（课件原文）
+                  </th>
+                  <th scope="col" className="w-32 px-1 py-1 font-normal">
+                    适用监管代码
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {MODE_SCENARIO_ROWS.map((row) => (
+                  <tr key={row.business} className="border-b border-term-border align-top">
+                    <td className="px-1 py-1 font-semibold text-term-text">
+                      {row.business}
+                    </td>
+                    <td className="px-1 py-1 leading-5 text-term-muted">{row.advice}</td>
+                    <td className="px-1 py-1 font-mono text-term-muted">{row.code}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-1 text-xs leading-5 text-term-faint">{MODE_TABLE_NOTE}</p>
+
+          {/* 3B：六大业务模式核心要素对比（课件可见行） */}
+          <div className="mt-3 min-w-0 overflow-x-auto">
+            <table className="w-full min-w-[640px] border-collapse text-xs">
+              <caption className="pb-1 text-left font-mono text-[11px] uppercase tracking-wider text-term-faint">
+                课件场景参考 · 核心要素对比
+              </caption>
+              <thead>
+                <tr className="border-b border-term-border text-left text-term-faint">
+                  <th scope="col" className="px-1 py-1 font-normal">
+                    模式
+                  </th>
+                  <th scope="col" className="px-1 py-1 font-normal">
+                    出口模式
+                  </th>
+                  <th scope="col" className="px-1 py-1 font-normal">
+                    核心特征
+                  </th>
+                  <th scope="col" className="px-1 py-1 font-normal">
+                    是否可退税
+                  </th>
+                  <th scope="col" className="px-1 py-1 font-normal">
+                    优势
+                  </th>
+                  <th scope="col" className="px-1 py-1 font-normal">
+                    缺点
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {REGULATORY_MODES.filter((mode) => mode.feature !== '').map((mode) => (
+                  <tr key={mode.code} className="border-b border-term-border align-top">
+                    <td className="px-1 py-1 font-mono font-semibold text-term-text">
+                      {mode.code}
+                    </td>
+                    <td className="px-1 py-1 leading-5 text-term-muted">{mode.name}</td>
+                    <td className="px-1 py-1 leading-5 text-term-muted">{mode.feature}</td>
+                    <td className="px-1 py-1 leading-5 text-term-muted">
+                      {mode.refundable || '—'}
+                    </td>
+                    <td className="px-1 py-1 leading-5 text-term-muted">
+                      {mode.strengths || '—'}
+                    </td>
+                    <td className="px-1 py-1 leading-5 text-term-muted">
+                      {mode.weaknesses || '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-1 text-xs leading-5 text-term-faint">
+            课件该表只拍到序号 4 / 5 / 6 行（9710 / 9810 / 1039），序号 1-3 行未出现在照片中，故本表只列可辨认的三行。
           </p>
-          <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+
+          {/* 3C：0110 与 9810 核心区别（六维度） */}
+          <div className="mt-3 min-w-0 overflow-x-auto">
+            <table className="w-full min-w-[640px] border-collapse text-xs">
+              <caption className="pb-1 text-left font-mono text-[11px] uppercase tracking-wider text-term-faint">
+                课件场景参考 · 0110 与 9810 核心区别
+              </caption>
+              <thead>
+                <tr className="border-b border-term-border text-left text-term-faint">
+                  <th scope="col" className="w-28 px-1 py-1 font-normal">
+                    维度
+                  </th>
+                  <th scope="col" className="px-1 py-1 font-normal">
+                    0110（一般贸易）
+                  </th>
+                  <th scope="col" className="px-1 py-1 font-normal">
+                    9810（跨境电商出口海外仓）
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {MODE_COMPARISON_0110_9810.map((row) => (
+                  <tr key={row.dimension} className="border-b border-term-border align-top">
+                    <td className="px-1 py-1 font-semibold text-term-text">
+                      {row.dimension}
+                    </td>
+                    <td className="px-1 py-1 leading-5 text-term-muted">
+                      {row.generalTrade}
+                    </td>
+                    <td className="px-1 py-1 leading-5 text-term-muted">
+                      {row.overseasWarehouse}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* 3D：各模式流程与核心要求 */}
+          <div className="mt-3 grid min-w-0 grid-cols-1 gap-2 lg:grid-cols-2">
             {REGULATORY_MODES.map((mode) => (
               <article
                 key={mode.code}
@@ -167,16 +312,40 @@ export default function CrossBorderComplianceClient() {
                   >
                     {mode.code}
                   </span>
-                  <span className="text-xs text-term-muted">{mode.name}</span>
+                  {mode.name !== mode.code ? (
+                    <span className="text-xs text-term-muted">{mode.name}</span>
+                  ) : null}
                 </div>
-                <p className="text-xs leading-5 text-term-muted">{mode.scene}</p>
-                <ul className="space-y-0.5">
-                  {mode.highlights.map((item) => (
-                    <li key={item} className="text-xs leading-5 text-term-faint">
-                      · {item}
-                    </li>
-                  ))}
-                </ul>
+
+                {mode.scene ? (
+                  <p className="text-xs leading-5 text-term-muted">
+                    课件业务模式：{mode.scene}
+                  </p>
+                ) : null}
+
+                {mode.core ? (
+                  <p className="text-xs leading-5 text-term-muted">
+                    <span className="font-semibold text-term-text">核心要点：</span>
+                    {mode.core}
+                  </p>
+                ) : null}
+
+                {mode.audience ? (
+                  <p className="text-xs leading-5 text-term-muted">
+                    <span className="font-semibold text-term-text">适用主体：</span>
+                    {mode.audience}
+                  </p>
+                ) : null}
+
+                {mode.flow.length > 0 ? (
+                  <ul className="space-y-0.5">
+                    {mode.flow.map((line) => (
+                      <li key={line} className="text-xs leading-5 text-term-faint">
+                        · {line}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
               </article>
             ))}
           </div>
@@ -186,12 +355,14 @@ export default function CrossBorderComplianceClient() {
       {/* ── 区块 4：企业准入办理 ─────────────────────────────────────── */}
       <TermPanel
         title="03 / 企业准入办理"
-        actions={<span className="font-mono text-xs text-term-faint">课件梳理顺序</span>}
+        actions={
+          <span className="font-mono text-xs text-term-faint">{ADMISSION_SUBTITLE}</span>
+        }
         bodyClassName="p-2"
       >
         <section id={ANCHORS.admission} className="scroll-mt-2">
           <p className="mb-2 text-xs leading-5 text-term-muted">
-            以下为课件展示的办理事项及其逻辑关系，不宣称所有企业均须按此固定顺序办理；实际条件和顺序因地区及企业情况可能不同。
+          以下为课件展示的办理事项及其逻辑关系，不宣称所有企业均须按此固定顺序办理；实际条件和顺序因地区及企业情况可能不同。
           </p>
           <ol className="min-w-0">
             {ADMISSION_STEPS.map((step, index) => (
@@ -253,6 +424,7 @@ export default function CrossBorderComplianceClient() {
               </tbody>
             </table>
           </div>
+          <p className="mt-1 text-xs leading-5 text-term-faint">{INVOICE_SEPARATION_NOTE}</p>
 
           {/* 5B：首单材料清单（本地勾选自查） */}
           <div className="mt-3 flex min-w-0 flex-wrap items-center justify-between gap-2">
@@ -283,9 +455,8 @@ export default function CrossBorderComplianceClient() {
                   {group.name}
                 </legend>
                 <ul className="space-y-1">
-                  {group.items.map((item) => {
-                    const id = `${group.id}-${group.items.indexOf(item)}`
-                    const itemId = `material-${id}`
+                  {group.items.map((item, itemIndex) => {
+                    const itemId = `material-${group.id}-${itemIndex}`
                     return (
                       <li key={itemId} className="flex min-w-0 items-start gap-2">
                         <Checkbox
@@ -316,7 +487,11 @@ export default function CrossBorderComplianceClient() {
       {/* ── 区块 6：报关字段速查 ─────────────────────────────────────── */}
       <TermPanel
         title="05 / 报关字段速查"
-        actions={<span className="font-mono text-xs text-term-faint">{CUSTOMS_FIELDS.length} FIELDS</span>}
+        actions={
+          <span className="font-mono text-xs text-term-faint">
+            {CUSTOMS_FIELDS.length} FIELDS
+          </span>
+        }
         bodyClassName="p-2"
       >
         <section id={ANCHORS.fields} className="scroll-mt-2">
@@ -332,7 +507,9 @@ export default function CrossBorderComplianceClient() {
                 <dt className="shrink-0 text-xs font-semibold text-term-text md:w-32">
                   {field.name}
                 </dt>
-                <dd className="min-w-0 flex-1 text-xs leading-5 text-term-muted">{field.hint}</dd>
+                <dd className="min-w-0 flex-1 text-xs leading-5 text-term-muted">
+                  {field.hint}
+                </dd>
               </div>
             ))}
           </dl>
