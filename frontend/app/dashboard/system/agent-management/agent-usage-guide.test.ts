@@ -407,6 +407,63 @@ describe('buildUsageText · 业务域分支（BLF-448）', () => {
     expect(text).toContain('不能提交 []')
   })
 
+  it('domain=review_tracking 的 W1 文档写清星级数组顺序、review_key 去重与 W1 响应（BLF-1376 复审第 4 轮自查）', () => {
+    const text = buildUsageText({
+      plaintextKey: 'bbx_test',
+      agentId: 'agent-1',
+      domain: 'review_tracking',
+    })
+
+    const w1Start = text.indexOf('/review-tracking/targets/$TARGET_ID/runs')
+    expect(w1Start).toBeGreaterThan(-1)
+    const w1 = text.slice(w1Start, text.indexOf('\n\n', w1Start))
+    const bodyMatch = w1.match(/-d '(\{.*\})'/)
+    expect(bodyMatch).not.toBeNull()
+    const body = JSON.parse(bodyMatch![1]) as {
+      rating?: { star_percentages?: number[] }
+    }
+
+    // ① 星级百分比数组的顺序：服务端按下标 0=1★ … 下标 4=5★ 落库，
+    //    而 Amazon 页面直出是 5★→1★。不写清顺序，采集端照页面顺序填就会把
+    //    5 星占比写进 1 星桶，运营页星级分布整条错位。
+    expect(text).toContain('1 星 → 5 星')
+    expect(text).toContain('采集端必须自己按星级重排')
+    // 示例数组本身也必须是 1→5 序（[7,3,6,20,64] = 1★7% … 5★64%）
+    expect(body.rating?.star_percentages).toEqual([7, 3, 6, 20, 64])
+    // 合计不必等于 100：页面原始比例有舍入，别为了凑 100 调数
+    expect(text).toContain('合计不必等于 100')
+
+    // ② reviews[] 内 review_key 重复会被服务端静默去重（只留最后一条），
+    //    且 review_key 是当前态唯一键 —— 必须写明，否则采集端以为能同键多传。
+    expect(text).toContain('reviews[] 内 review_key 重复')
+    expect(text).toContain('UNIQUE(target_id, review_key)')
+    expect(text).toContain('derived')
+
+    // ③ W1 响应字段要写出来（采集端要靠 reviews_suspected_removed 判断是否
+    //    真有评论被标记疑似移除）
+    expect(text).toContain('reviews_suspected_removed')
+    expect(text).toContain('replayed')
+
+    // ④ 凭据缺该业务域 → 403（与项目越权 403 不是同一个码）
+    expect(text).toContain('AGENT_BUSINESS_OUT_OF_SCOPE')
+    // ⑤ marketplace 长度上限 2，避免照抄超长值白跑一次 400
+    expect(text).toContain('2 个字母')
+
+    // ⑥ 共享页脚的限流字面量：后端写桶已由 BLF-782 从 30 提到 120/minute，
+    //    但页脚一直写着 30 —— 照着它做批处理的 Agent 会白白把频率压到 1/4。
+    expect(text).toContain('读 300 次/分钟，写 120 次/分钟')
+    expect(text).not.toContain('写 30 次/分钟')
+
+    // ⑦ star_count_quality 描述的是「绝对星数」的口径，不是百分比的口径：
+    //    把百分比反推的数当 exact 填，运营页就会把估算值显示成确定值。
+    expect(text).toContain('star_count_quality 描述的是 star_counts')
+    expect(text).not.toContain('star_count_quality 描述的是 star_percentages')
+
+    // ⑧ 同日重跑不受「同日一快照」限制，但仍受顺序护栏（必须更晚的 captured_at）
+    expect(text).toContain('同一业务日重跑')
+    expect(text).toContain('仍受上面这条顺序护栏')
+  })
+
   it('未知域输出占位说明', () => {
     const text = buildUsageText({
       plaintextKey: 'bbx_test',

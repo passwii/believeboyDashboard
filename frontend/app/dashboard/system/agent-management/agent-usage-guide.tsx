@@ -1031,8 +1031,9 @@ function buildReviewTrackingGuide(opts: {
   目标（item 里的 kind 字段区分），加了过滤就只会拿到其中一半，竞品 ASIN 那半边
   永远拿不到 target_id、无法提交采集结果。需要只看某一类时，在**响应里**按
   item.kind 分流处理，不要靠 URL 参数砍掉另一半。
-  query：marketplace（US/DE/UK…，大写归一）、kind（internal_group / external_asin，
-  可选，默认两种都返回）、project_id、limit（1..500，默认 200）、offset。
+  query：marketplace（**2 个字母**，US/DE/UK…，大写归一；传 3 个字母以上 → 400）、
+  kind（internal_group / external_asin，可选，默认两种都返回）、project_id、
+  limit（1..500，默认 200）、offset。
   **必须翻完所有分页**：limit 默认 200、offset 默认 0，响应里的 total 是**符合条件
   的目标总数**。只发一次默认请求只会拿到前 200 条，第 201 条之后的目标永远排不进
   采集队列——要按 offset=0,200,400… 递增请求，直到「已取条数 ≥ total」为止（末页
@@ -1040,6 +1041,7 @@ function buildReviewTrackingGuide(opts: {
   响应 data：{ items, total, crawl_rules }。item 字段：target_id、kind、group_id、
   project_id、marketplace、asin、display_name、external_shop_ids、last_run
   （{ run_id, status, started_at }，含 failed；无 run 则 null）。
+  external_shop_ids 是**外部目标**的 active 店铺关联（内部目标恒为 []，不是 null）。
   只返回 is_active=true 的目标（组停用 / 外部目标停用后不再采集）。
   asin 对内部目标是**组代表 ASIN**、对外部目标是竞品 ASIN——形态一致，不需要分支解析。
   **项目范围口径**：内部目标严格按凭据 project_scope 过滤（越权 → 403
@@ -1058,6 +1060,18 @@ function buildReviewTrackingGuide(opts: {
     -H "Content-Type: application/json" \\
     -d '{"captured_at":"<ISO8601 带时区，如 2026-10-19T09:30:00+08:00>","status":"success","rating":{"average_rating":4.3,"rating_count":128,"review_count":96,"star_percentages":[7,3,6,20,64],"star_counts":null,"star_count_quality":"estimated"},"reviews":[{"review_key":"R1F90C6R6GV8L6","id_confidence":"original","rating":5,"title":"好用","body":"……","review_date":"2026-10-10","verified_purchase":true,"helpful_count":3}],"is_complete_list":false,"asin_scraped":"B0G6C865B6"}'
 
+  **star_percentages / star_counts 的数组顺序是「1 星 → 5 星」**（下标 0 = 1 星，
+  下标 4 = 5 星），**不是** Amazon 页面直出的「5 星 → 1 星」顺序——页面给的是
+  5★16%、4★16%、3★15%、2★16%、1★37%，照页面顺序直接填会把 5 星占比写进 1 星
+  桶，运营页星级分布整条错位。**采集端必须自己按星级重排**（把 5★ 放到下标 4）。
+  上例 [7,3,6,20,64] 就是「1★=7%、2★=3%、3★=6%、4★=20%、5★=64%」的 1→5 序。
+  长度必须恰好 5（4 项或 6 项 → 400）；每项 0..100；**合计不必等于 100**
+  （页面原始比例有舍入，别为了凑 100 去调数）。
+  **star_count_quality 描述的是 star_counts（绝对星数）不是百分比**：只有页面给出
+  绝对星数才能填 exact；只有百分比时，要么 star_counts 填 null（运营页不展示数量），
+  要么自己按百分比**估算**后填估算值并把 quality 填 estimated——**绝不能**把百分比
+  反推的数当 exact 填（运营页会把 estimated 显示成「≈」而 exact 显示成确定值，
+  填错就是冒称精确）。
   body：captured_at（**必须带时区**，naive → 400；**每次运行取当次采集时刻**，且要晚于
   该目标最近一次非 failed run，见下方顺序护栏）、status（success|partial|failed）、
   rating（均分 / 评分数 / 评论数 / 1–5 星百分比或绝对数 + star_count_quality）、
@@ -1072,6 +1086,12 @@ function buildReviewTrackingGuide(opts: {
   **reviews 三种语义不可合并**：null（本次没抓评论列表，不参与移除判定）、[]（抓到
   了**完整的空列表**，真的一条都没有）、[...]（抓到 N 条）。「没抓到」要提交 null，
   不能提交 []。
+  **reviews[] 内 review_key 重复**：服务端按 review_key 去重，**同键只保留数组里最后
+  出现的那条**（前面的被覆盖）——同一目标不要提交两条同键评论，否则先写的那条内容
+  会被静默丢弃。review_key 是**当前态唯一键**（UNIQUE(target_id, review_key)），
+  取原生 Review ID 时填 original；页面没给稳定 ID 才用指纹推导并填 derived
+  （指纹含标题/正文/日期，正文一改就变成新评论，不能当稳定 ID 用）。
+  **asin_scraped 填本次实际抓取的 ASIN**（≤20 字符留痕），别留空也别填目标 id。
   **幂等**：唯一键 (target_id, idempotency_key)；重复提交返回**首次** run_id 且
   replayed=true，不新增行、不写审计。幂等键**每次运行都要新生成**——沿用旧键会命中
   重放，看起来「成功」其实什么都没写。幂等键 body 字段优先，缺省回退
@@ -1081,12 +1101,18 @@ function buildReviewTrackingGuide(opts: {
   也要提交已取得的评分快照。
   **顺序护栏**：captured_at 早于或等于该目标最近一次**非 failed** run → 409
   REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER（乱序会倒退当前态评论、误判「疑似移除」）。
-  同一业务日重跑要用**更晚的** captured_at，不受这条限制。
+  同一业务日重跑**不受「同日一快照」限制**（同日只留一份快照，重跑覆盖更新），但
+  **仍受上面这条顺序护栏**：必须用比上次**更晚**的 captured_at。
   **captured_at 未来上限**：晚于服务器当前时间 2 小时 → 400 VALIDATION_FAILED
   （reason=captured_at_in_future，容忍时钟漂移但不接受时区标错；超限不写任何行）。
   目标不存在 / 已停用 → 404 RESOURCE_NOT_FOUND；内部目标项目越权 → 403
-  AGENT_PROJECT_OUT_OF_SCOPE（403 与 404 可区分，便于自纠）。
+  AGENT_PROJECT_OUT_OF_SCOPE（403 与 404 可区分，便于自纠）；凭据没这个业务域 →
+  403 AGENT_BUSINESS_OUT_OF_SCOPE；请求体形态不合法（naive 时间、星级数组不是 5 项、
+  枚举值非法、字段多写）→ 400 VALIDATION_FAILED；写桶限流 → 429。
   写审计：action=review_tracking.crawl_run，operator=NULL + agent_id 归因。
+  响应 data：{ target_id, run_id, status, capture_date, snapshot_updated,
+  reviews_upserted, reviews_suspected_removed, replayed }。capture_date 是**按
+  已落库 run 的采集时刻**推的业务日（Asia/Shanghai），不是请求里的 captured_at。
 
 【4. 采集节奏与移除判定】
 
@@ -1180,7 +1206,7 @@ ${domainGuide}
 - 明文 Key 只在创建时展示一次，请妥善保存；库中只存 SHA-256
 - 吊销后该凭据立即失效，Agent 需换新卡
 - 写操作涉及费用/不可逆状态变更，确认流是强制安全门
-- 限流：读 300 次/分钟，写 30 次/分钟（按 Agent ID 计）`
+- 限流：读 300 次/分钟，写 120 次/分钟（按 Agent ID 计）`
 }
 
 export function AgentUsageGuide() {
