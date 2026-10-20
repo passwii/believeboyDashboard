@@ -87,6 +87,22 @@ def test_is_private_key():
     assert is_private_key("") is False
 
 
+def test_is_private_key_does_not_collide_with_project_names():
+    """项目名会被原样保留成 key 第一段 → crm-proposals / db-backups / var
+    **都是合法的项目名**，不能被当成敏感前缀。
+
+    否则同名店铺的正常报表 / PDF：私有桶未配 → 上传 503；已配 → 被挪进私有桶、
+    丢掉公开 URL（R2-only 的 PDF 直接打不开）。
+    """
+    assert is_private_key("crm-proposals/我的店铺/报表.pdf") is False
+    assert is_private_key("db-backups/我的店铺/报表.pdf") is False
+    assert is_private_key("var/inspection-screenshots/a.jpg") is False
+    assert is_private_key("crm-proposals-report/summary.pdf") is False
+    # 精确形状的客户方案仍然敏感
+    assert is_private_key("crm-proposals/1/v1/raw.html") is True
+    assert is_private_key("crm-proposals/12/v3/adapted.html") is True
+
+
 def test_is_private_key_tolerates_leading_slash():
     """前导斜杠也必须判为敏感 —— 否则多写一个 ``/`` 就能绕开私有桶路由。"""
     assert is_private_key("/crm-proposals/1/v1/raw.html") is True

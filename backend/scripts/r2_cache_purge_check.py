@@ -58,6 +58,12 @@ except ImportError:  # pragma: no cover - 代码未部署时
     # 注意：pgBackRest 的仓库前缀（var/lib/pgbackrest/backups）**不在**本表 ——
     # 它走自己的 repo1-s3-* 配置、不经应用层路由，单独由 is_pgbackrest_key 判定。
     PRIVATE_KEY_PREFIXES = frozenset({"crm-proposals", "db-backups"})
+    # 客户方案按精确布局匹配（crm-proposals/{数字}/v{数字}/{文件名}），
+    # 其余按前缀匹配 —— 与 app/services/r2_service.py 一致。
+    PRIVATE_KEY_LAYOUTS = (
+        "db-backups/pgbackrest/",
+        "var/lib/pgbackrest/backups/",
+    )
 
 
 def _client(settings):

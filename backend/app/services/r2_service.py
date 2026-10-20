@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import io
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import BinaryIO, Iterator
@@ -69,31 +70,41 @@ def get_r2_client(settings: Settings) -> BaseClient:
 # 是不挂域名的私有桶，匿名不可读。二者用同一套 S3 凭据访问（同一 R2 账户），
 # 所以**只换桶名**就能把对象从「任何人可下载」挪到「只有持凭据的后端能读」。
 
-#: 私有桶里存放敏感对象的 key 前缀（**第一段**）。
-#: 这些前缀下的对象**绝不能**生成公开 URL —— 只能经后端鉴权转发。
+#: 敏感对象的 key **布局**（完整前缀，精确到路径形状）。
 #:
-#: - ``crm-proposals``：客户方案，含报价与客户信息（key 可枚举）。
-#: - ``db-backups``：数据库备份，含用户账号 / 密码哈希 / 业务全量数据
-#:   （key 同样可枚举，且支持 Range 分片下载）。
+#: 为什么不用「第一段」当判据：项目名会被原样保留成 key 的第一段
+#: （``upload_service._safe_project_folder_name``），所以 ``crm-proposals`` /
+#: ``db-backups`` / ``var`` **都是合法的项目名**。拿它们当首段前缀判敏感，会让
+#: 同名店铺的正常报表 / PDF：
+#:   - 私有桶未配置 → 上传直接 503（fail-closed 拦下）；
+#:   - 私有桶已配置 → 被挪进私有桶、``url`` 变空 → R2-only 的 PDF 打不开。
 #:
-#: ⚠️ **不要**把 ``var`` 整体加进来（BLF-1418 review 修）：项目名会被原样
-#: 保留成 key 的第一段（``upload_service._safe_project_folder_name``），所以
-#: ``var`` 也是一个**合法的项目名** → 把整个 ``var/`` 命名空间判成敏感会让
-#: 名为 var 的店铺的正常报表 / 截图上传直接 503（私有桶未配）或被挪进私有桶
-#: （配了）而丢掉公开 URL。
-#: pgBackRest 的备份仓库前缀由**专用**判定（见 ``is_pgbackrest_key``），
-#: 不占��本表。
-PRIVATE_KEY_PREFIXES: frozenset[str] = frozenset(
-    {"crm-proposals", "db-backups"}
+#: 所以这里按**专用布局**精确匹配（BLF-1418 review 修）：
+#: - 客户方案：``crm-proposals/{proposal_id}/v{version_no}/{raw,adapted}.html``
+#:   （``crm-proposals`` 是应用层的 ``project_slug``，后面固定跟数字版本目录）；
+#: - 数据库备份：``db-backups/pgbackrest/{filename}``（后端备份任务专用布局）；
+#: - pgBackRest 仓库：``var/lib/pgbackrest/backups/...``（走自己的 repo1-s3-*，
+#:   不经应用层路由，仅作纵深防御）。
+PRIVATE_KEY_LAYOUTS: tuple[str, ...] = (
+    "db-backups/pgbackrest/",
+    "var/lib/pgbackrest/backups/",
 )
 
-#: pgBackRest 备份 / WAL 仓库的 key 前缀（专用，不占用项目命名空间）。
-#: pgBackRest 用 S3 repo 时 key = ``<repo1-path 去开头斜杠>/<stanza>/...``，
-#: 而 ``repo1-path=/var/lib/pgbackrest/backups`` ⇒ key 以
-#: ``var/lib/pgbackrest/backups/`` 开头（**不是** ``backups/`` —— 那是本地
-#: 路径的末两段，容易看错）。
-PGBACKREST_KEY_PREFIXES: frozenset[str] = frozenset(
-    {"var/lib/pgbackrest/backups"}
+#: 客户方案的 key 布局（**精确**形状）：``crm-proposals/{数字}/v{数字}/{文件名}``。
+#:
+#: 为什么要精确到这一层：项目名会被原样保留成 key 的第一段，所以
+#: ``crm-proposals`` 本身是一个**合法的项目名**。若只判「以 crm-proposals/ 开头」，
+#: 名为 crm-proposals 的店铺的正常报表（``crm-proposals/我的店铺/报表.pdf``）
+#: 也会被判成敏感 → 上传 503（私有桶未配）或被挪进私有桶、丢掉公开 URL（已配）。
+#: 而客户方案的 key 第二段一定是**数字**（proposal_id）、第三段是 ``v{数字}``。
+CRM_PROPOSAL_KEY_RE = re.compile(
+    r"^crm-proposals/\d+/v\d+/[^/]+$"
+)
+
+#: 保留的首段前缀（仅供**展示 / 迁移脚本**枚举用；**不**用于敏感判定 ——
+#: 判定走 ``PRIVATE_KEY_LAYOUTS``，避免与合法项目名冲突）。
+PRIVATE_KEY_PREFIXES: frozenset[str] = frozenset(
+    {"crm-proposals", "db-backups"}
 )
 
 
@@ -160,10 +171,14 @@ def delete_bucket_candidates(settings: Settings, key: str) -> list[str]:
 def is_private_key(key: str) -> bool:
     """True = 该 key 属于「绝不能公开」的对象。
 
-    判定：key 的**第一段**命中 ``PRIVATE_KEY_PREFIXES``（如 ``crm-proposals``），
-    或命中 pgBackRest 的**完整**仓库前缀 ``var/lib/pgbackrest/backups/``
-    （BLF-1418 review 修：不能把整个 ``var/`` 判敏感 —— 项目名 var 是合法的
-    key 首段，会误伤正常店铺内容）。
+    判定：key 命中 ``PRIVATE_KEY_LAYOUTS`` 里的**专用布局**（如
+    ``crm-proposals/1/v1/raw.html``）。
+
+    为什么不用「第一段」当判据：项目名会被原样保留成 key 的第一段
+    （``upload_service._safe_project_folder_name``），所以 ``crm-proposals`` /
+    ``db-backups`` / ``var`` **都是合法的项目名** —— 拿它们当首段前缀判敏感
+    会让同名店铺的正常报表 / PDF 上传直接 503（私有桶未配）或被挪进私有桶、
+    丢掉公开 URL（配了）。
 
     前导斜杠容错：``/crm-proposals/1/v1/raw.html`` 也算敏感 ——
     否则一个多写的前导 ``/`` 就能让敏感 key 绕开私有桶路由（落到公开桶）。
@@ -171,9 +186,9 @@ def is_private_key(key: str) -> bool:
     if not key:
         return False
     normalized = key.lstrip("/")
-    if normalized.split("/", 1)[0] in PRIVATE_KEY_PREFIXES:
+    if CRM_PROPOSAL_KEY_RE.match(normalized):
         return True
-    return is_pgbackrest_key(normalized)
+    return any(normalized.startswith(prefix) for prefix in PRIVATE_KEY_LAYOUTS)
 
 
 def is_pgbackrest_key(key: str) -> bool:
@@ -187,9 +202,7 @@ def is_pgbackrest_key(key: str) -> bool:
     if not key:
         return False
     normalized = key.lstrip("/")
-    return any(
-        normalized.startswith(prefix) for prefix in PGBACKREST_KEY_PREFIXES
-    )
+    return normalized.startswith("var/lib/pgbackrest/backups/")
 
 
 def _sanitize_key(key: str) -> str:
