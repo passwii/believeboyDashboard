@@ -2784,10 +2784,11 @@ export interface paths {
          *       ``VALIDATION_FAILED``（``reason=captured_at_in_future``；容忍时钟漂移，
          *       但不容忍时区标错写出未来快照、把顺序水位抬到未来。这是**输入合法性**，
          *       幂等重放也照样检查）；
-         *     * ``captured_at`` 早于该目标最近一次**非 failed** run → 409
-         *       ``REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER``（乱序提交会覆盖当前态评论 / 误判
-         *       疑似移除，见模块 docstring 的「提交顺序护栏」）；幂等重放跳过这道校验——
-         *       重放不写入，其 `captured_at` 是历史值，本就不该与当前水位比较；
+         *     * ``captured_at`` 早于或等于该目标最近一次**非 failed** run → 409
+         *       ``REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER``（乱序提交会覆盖当前态评论，同一时刻重复
+         *       完整列表会误判疑似移除，见模块 docstring 的「提交顺序护栏」）；幂等重放跳过这道校验——
+         *       重放不写入，其 `captured_at` 是历史值，本就不该与当前水位比较；等值时路由先按
+         *       幂等键重查一次，已存在的同键 run 返回重放，不同键则拒绝；
          *     * 请求体语义校验失败（服务层 ``IngestionError``）→ 400 ``VALIDATION_FAILED``；
          *     * 同幂等键重复提交 → 返回首次 ``run_id`` 且 ``replayed=true``，不新增行、
          *       不写审计（重放不是写）；并发路径由服务层 savepoint + 重查保证唯一，
