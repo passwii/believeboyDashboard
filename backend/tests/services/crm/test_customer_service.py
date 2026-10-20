@@ -382,6 +382,45 @@ class TestImportToSea:
         assert (2, "rating") in reasons
         assert (3, "contact_email") in reasons
 
+    def test_import_accepts_self_developed_source(self, db_session: Session):
+        """BLF-1408：来源「自主开发」(self_developed) 必须能导入成功，不落「来源无效」。"""
+        result = import_customers_to_sea(
+            db_session,
+            [_row("自主开发客户", source="self_developed")],
+            user_id=ALICE,
+        )
+        assert result["created"] == 1
+        assert result["failed"] == []
+        cust = db_session.execute(
+            select(CrmCustomer).where(CrmCustomer.name == "自主开发客户")
+        ).scalar_one()
+        assert cust.source == "self_developed"
+
+    def test_import_source_whitelist_covers_all_six_values(self, db_session: Session):
+        """BLF-1408：6 个合法来源值全部可导入（回归：新增不得挤掉既有 5 值）。"""
+        for src in (
+            "referral",
+            "exhibition",
+            "online_ad",
+            "cold_call",
+            "self_developed",
+            "other",
+        ):
+            result = import_customers_to_sea(
+                db_session, [_row(f"来源客户-{src}", source=src)], user_id=ALICE
+            )
+            assert result["created"] == 1, f"{src} 应导入成功"
+            assert result["failed"] == [], f"{src} 不应报错：{result['failed']}"
+
+    def test_import_rejects_unknown_source(self, db_session: Session):
+        """BLF-1408：非法来源仍被拒（白名单不能变成放行一切）。"""
+        result = import_customers_to_sea(
+            db_session, [_row("瞎写客户", source="瞎写")], user_id=ALICE
+        )
+        assert result["created"] == 0
+        assert len(result["failed"]) == 1
+        assert result["failed"][0]["field"] == "source"
+
     def test_partial_success_single_commit(self, db_session: Session):
         result = import_customers_to_sea(
             db_session, [_row("成A"), _row(""), _row("成B")], user_id=ALICE

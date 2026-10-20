@@ -58,7 +58,8 @@ class CustomerSeaImportRow(BaseModel):
     interested_service: str | None = None  # 代运营/AI运营/运营服务/其他
     rating: str | None = None  # A/B/C/D；None → 默认 C
     status: str | None = None  # active/lost/signed/on_hold；None → active
-    source: str | None = None  # referral/exhibition/online_ad/cold_call/other
+    # 来源枚举：referral/exhibition/online_ad/cold_call/self_developed/other
+    source: str | None = None
     address: str | None = None
     website: str | None = None
     annual_revenue: float | None = None

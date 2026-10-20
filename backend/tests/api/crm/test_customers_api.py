@@ -221,6 +221,38 @@ def test_import_sea_happy_path(client, admin_headers, test_admin):
     assert b["contact_name"] == "联系人B"
 
 
+def test_import_sea_accepts_self_developed_source(client, admin_headers):
+    """BLF-1408：来源「自主开发」(self_developed) 导入成功，不落「来源无效」。"""
+    resp = client.post(
+        "/api/v1/crm/customers/import-sea",
+        headers=admin_headers,
+        json={"rows": [{"name": "自主开发导入", "source": "self_developed"}]},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["created"] == 1
+    assert body["failed"] == []
+    sea = client.get(
+        "/api/v1/crm/customers", headers=admin_headers, params={"scope": "sea"}
+    ).json()
+    hit = next(c for c in sea["items"] if c["name"] == "自主开发导入")
+    assert hit["source"] == "self_developed"
+
+
+def test_import_sea_rejects_invalid_source(client, admin_headers):
+    """BLF-1408：非法来源仍被拒（白名单不得变成放行一切）。"""
+    resp = client.post(
+        "/api/v1/crm/customers/import-sea",
+        headers=admin_headers,
+        json={"rows": [{"name": "非法来源导入", "source": "瞎写"}]},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["created"] == 0
+    assert len(body["failed"]) == 1
+    assert body["failed"][0]["field"] == "source"
+
+
 def test_import_sea_partial_and_dedupe(client, admin_headers):
     client.post(
         "/api/v1/crm/customers/import-sea",

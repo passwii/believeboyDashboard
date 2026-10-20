@@ -327,7 +327,14 @@ def claim_from_sea(
 # ── 公海批量导入 ─────────────────────────────────────────────────────────────
 _RATINGS = {"A", "B", "C", "D"}
 _STATUSES = {"active", "lost", "signed", "on_hold"}
-_SOURCES = {"referral", "exhibition", "online_ad", "cold_call", "other"}
+_SOURCES = {
+    "referral",
+    "exhibition",
+    "online_ad",
+    "cold_call",
+    "self_developed",
+    "other",
+}
 _CUSTOMER_TYPES = {"工厂", "贸易商", "同行", "其他"}
 _INTERESTED_SERVICES = {"代运营", "AI运营", "运营服务", "其他"}
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
