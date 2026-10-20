@@ -158,7 +158,7 @@ sudo /opt/postgresql/backup/restore.sh "2024-01-15 14:30:00"
 ## R2 存储结构
 
 ```
-believeboy-dash/                    # R2 Bucket
+believeboy-private/                 # R2 Bucket（私有桶，不挂自定义域名）BLF-1418
 └── backups/
     └── blf/                        # Stanza name
         └── repo/
@@ -191,7 +191,7 @@ repo1-retention-diff=7
 
 | 配置项 | 说明 | 当前值 |
 |--------|------|--------|
-| `repo1-s3-bucket` | R2 Bucket 名称 | believeboy-dash |
+| `repo1-s3-bucket` | R2 Bucket 名称 | believeboy-private（私有桶，BLF-1418） |
 | `repo1-s3-endpoint` | R2 Endpoint URL | 见配置文件 |
 | `repo1-s3-key` | R2 Access Key | 见配置文件 |
 | `repo1-s3-key-secret` | R2 Secret Key | 见配置文件 |
@@ -217,7 +217,7 @@ STANZA=custom-db /opt/postgresql/backup/backup-info.sh
 
 ```bash
 # 测试 R2 连接
-rclone copy test-file pg-backups:believeboy-dash/test --dry-run
+rclone copy test-file pg-backups:believeboy-private/test --dry-run
 
 # 检查 endpoint 是否正确
 # 正确的格式: https://xxx.r2.cloudflarestorage.com

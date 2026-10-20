@@ -68,7 +68,11 @@ def get_r2_client(settings: Settings) -> boto3.client:
 
 #: 私有桶里存放敏感对象的 key 前缀（第一段）。
 #: 这些前缀下的对象**绝不能**生成公开 URL —— 只能经后端鉴权转发。
-PRIVATE_KEY_PREFIXES: frozenset[str] = frozenset({"crm-proposals"})
+#:
+#: - ``crm-proposals``：客户方案，含报价与客户信息（key 可枚举）。
+#: - ``db-backups``：数据库备份，含用户账号 / 密码哈希 / 业务全量数据
+#:   （key 同样可枚举，且支持 Range 分片下载）。
+PRIVATE_KEY_PREFIXES: frozenset[str] = frozenset({"crm-proposals", "db-backups"})
 
 
 def resolve_bucket(settings: Settings, key: str) -> str:

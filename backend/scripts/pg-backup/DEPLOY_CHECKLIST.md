@@ -4,7 +4,8 @@
 
 - **VPS**: 你的 VPS (Ubuntu/Debian)
 - **数据库**: PostgreSQL
-- **目标存储**: Cloudflare R2 (Bucket: `believeboy-dash`)
+- **目标存储**: Cloudflare R2 (Bucket: `believeboy-private`，**私有桶** —— BLF-1418：
+  备份含生产库全量数据，不能放在挂了自定义域名的公开桶 `believeboy-dash` 上)
 
 ---
 

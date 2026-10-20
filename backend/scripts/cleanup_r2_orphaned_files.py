@@ -18,14 +18,12 @@ R2 Storage Cleanup Script
 """
 
 import argparse
-import re
 from collections import defaultdict
 from datetime import datetime
-from pathlib import Path
 
 import boto3
 from botocore.config import Config
-from sqlalchemy import create_engine, select, func
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
@@ -67,7 +65,6 @@ def collect_referenced_keys(db: Session, project_slug: str | None = None) -> set
     from app.models import (
         MonthlyReport,
         PlatformRevenue,
-        AnalysisSourceFile,
         ScheduledReportDeliveryLog,
     )
 

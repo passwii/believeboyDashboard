@@ -33,18 +33,31 @@ GET 任意 key，且 key 可枚举（``crm-proposals/{id}/v{n}/raw.html``）。
 from __future__ import annotations
 
 import argparse
+import hashlib
+import os
 import sys
 from pathlib import Path
 
 BACKEND = Path(__file__).resolve().parents[1]
 if str(BACKEND) not in sys.path:
     sys.path.insert(0, str(BACKEND))
+# 脚本被拷到 /tmp 等其它位置运行时，__file__ 相对路径会指错位置；
+# 补上当前工作目录（backend/）保证 `import app` 仍能解析。
+_CWD = str(Path.cwd())
+if _CWD not in sys.path:
+    sys.path.insert(0, _CWD)
 
 import boto3  # noqa: E402
 from botocore.config import Config  # noqa: E402
 
 from app.core.config import get_settings  # noqa: E402
-from app.services.r2_service import PRIVATE_KEY_PREFIXES  # noqa: E402
+
+try:
+    from app.services.r2_service import PRIVATE_KEY_PREFIXES
+except ImportError:  # pragma: no cover - 脚本被拷到别处 / 代码未部署时
+    # 本脚本可能在代码部署前先跑（只需前缀列表，不依赖新代码）。
+    # 与 app/services/r2_service.py 的 PRIVATE_KEY_PREFIXES 保持一致。
+    PRIVATE_KEY_PREFIXES = frozenset({"crm-proposals", "db-backups"})
 
 
 def _client(settings):
@@ -78,6 +91,49 @@ def _head(client, bucket: str, key: str) -> dict | None:
         return client.head_object(Bucket=bucket, Key=key)
     except Exception:
         return None
+
+
+def _sha256(client, bucket: str, key: str) -> str:
+    """整流读取算 SHA-256（对象级完整性校验）。
+
+    不能只看 ETag：R2 对 multipart 上传的对象返回 ``<md5>-<part数>`` 形式
+    的 ETag（与整文件摘要不同），直接比 ETag 会误判「不一致」。
+    这里算整文件 SHA-256，两份副本同法计算后逐一比对。
+    """
+    h = hashlib.sha256()
+    body = client.get_object(Bucket=bucket, Key=key)["Body"]
+    try:
+        while True:
+            chunk = body.read(1024 * 1024)
+            if not chunk:
+                break
+            h.update(chunk)
+    finally:
+        close = getattr(body, "close", None)
+        if callable(close):
+            close()
+    return h.hexdigest()
+
+
+def _private_bucket_from_env_file() -> str:
+    """从 backend/.env 读 R2_PRIVATE_BUCKET_NAME（代码尚未部署时用）。
+
+    线上跑的 Settings 类可能还没有这个字段（pydantic 会忽略未知 env），
+    因此这里直接解析 .env 文件，保证迁移脚本可以**先于**代码部署执行。
+    """
+    env_path = Path("/root/believeboyDashboard/backend/.env")
+    if not env_path.exists():
+        env_path = BACKEND / ".env"
+    if not env_path.exists():
+        return ""
+    for raw in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        if key.strip() == "R2_PRIVATE_BUCKET_NAME":
+            return val.strip().strip('"').strip("'")
+    return ""
 
 
 def main() -> int:
@@ -121,9 +177,23 @@ def main() -> int:
 
     settings = get_settings()
     public_bucket = settings.r2_bucket_name
-    private_bucket = settings.r2_private_bucket_resolved
+    # 私有桶名：优先用新代码的派生属性；代码尚未部署时从 env / .env 读
+    # （迁移可以先于代码部署跑）。
+    private_bucket = (
+        getattr(settings, "r2_private_bucket_resolved", None)
+        or os.environ.get("R2_PRIVATE_BUCKET_NAME", "").strip()
+        or _private_bucket_from_env_file()
+        or settings.r2_bucket_name
+    )
+    isolated = getattr(settings, "r2_private_bucket_isolated", None)
+    if isolated is None:
+        _env_name = (
+            os.environ.get("R2_PRIVATE_BUCKET_NAME", "").strip()
+            or _private_bucket_from_env_file()
+        )
+        isolated = bool(_env_name) and _env_name != settings.r2_bucket_name
 
-    if not settings.r2_private_bucket_isolated and (args.copy or args.copy_back):
+    if not isolated and (args.copy or args.copy_back):
         print(
             "错误：私有桶未配置（R2_PRIVATE_BUCKET_NAME 为空或与公开桶同名）。\n"
             "      先在 .env 里配置一个**不挂自定义域名**的私有桶，再运行本脚本。\n"
@@ -197,11 +267,23 @@ def main() -> int:
                 copied += 1
 
             if args.delete:
-                # 安全阀：只有目标桶里确实存在同 key 对象时才删源
+                # 安全阀 1：私有桶里必须存在同 key 对象
                 head = _head(client, private_bucket, key)
                 if not head:
                     print("      !! 私有桶无此对象 → 拒绝删除源（保持公开副本以免丢数据）")
                     continue
+                # 安全阀 2：大小一致
+                if head.get("ContentLength") != obj["size"]:
+                    print("      !! 私有桶副本大小不一致 → 拒绝删除源")
+                    continue
+                # 安全阀 3：内容一致（整文件 SHA-256；ETag 对 multipart 不可直接比）
+                if args.execute:
+                    src_hash = _sha256(client, public_bucket, key)
+                    dst_hash = _sha256(client, private_bucket, key)
+                    if src_hash != dst_hash:
+                        print("      !! 私有桶副本内容不一致 → 拒绝删除源")
+                        continue
+                    print(f"      内容校验通过 (sha256={src_hash[:16]}…)")
                 if not args.execute:
                     print("      [DRY-RUN] 将删除公开桶副本")
                     continue
