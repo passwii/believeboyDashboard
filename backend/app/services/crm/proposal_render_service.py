@@ -75,7 +75,7 @@ def validate_html_upload(
         )
 
     if max_bytes <= 0:
-        max_bytes = 5 * 1024 * 1024
+        max_bytes = 20 * 1024 * 1024
 
     chunks: list[bytes] = []
     total = 0
