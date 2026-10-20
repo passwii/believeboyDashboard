@@ -380,10 +380,11 @@ class Settings(BaseSettings):
     # ``r2_bucket_name``，行为与 BLF-1418 之前完全一致（不改变既有部署），
     # 但**不代表安全**——见 ``r2_private_bucket_isolated``。
     r2_private_bucket_name: str = Field(default="", max_length=100)
-    # 私有桶的公开 URL 基址。私有桶不应有公开基址；留空表示「不生成公开 URL」。
-    # 若确实需要给私有对象发 presigned URL，用 r2_service.generate_presigned_url()
-    # （走 S3 签名，不依赖本字段）。
-    r2_private_public_url: str = Field(default="", max_length=500)
+    # 注：私有桶**没有**公开 URL 基址字段（刻意不提供）。
+    # 私有桶的对象只能经后端鉴权转发，或用 r2_service.generate_presigned_url()
+    # 签发带签名的临时 URL（走 S3 签名，与自定义域名无关）。
+    # 之前这里有个 r2_private_public_url 字段，但**无任何读取方**（死配置），
+    # 留着会让运维误以为填了它就能给私有桶开公开基址 —— 已删除。
 
     @property
     def r2_enabled(self) -> bool:

@@ -13,6 +13,7 @@ from typing import BinaryIO, Iterator
 from urllib.parse import quote
 
 import boto3
+from botocore.client import BaseClient
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
@@ -39,10 +40,12 @@ class R2DeleteResult:
 
 
 # Singleton client
-_r2_client: boto3.client | None = None
+# 类型用 botocore.client.BaseClient：``boto3.client`` 是工厂**函数**而非类，
+# 不能用作类型注解（boto3.client() 的返回值实际是 BaseClient 子类）。
+_r2_client: BaseClient | None = None
 
 
-def get_r2_client(settings: Settings) -> boto3.client:
+def get_r2_client(settings: Settings) -> BaseClient:
     """Get or create R2 S3 client."""
     global _r2_client
     if _r2_client is None:
@@ -72,7 +75,13 @@ def get_r2_client(settings: Settings) -> boto3.client:
 #: - ``crm-proposals``：客户方案，含报价与客户信息（key 可枚举）。
 #: - ``db-backups``：数据库备份，含用户账号 / 密码哈希 / 业务全量数据
 #:   （key 同样可枚举，且支持 Range 分片下载）。
-PRIVATE_KEY_PREFIXES: frozenset[str] = frozenset({"crm-proposals", "db-backups"})
+#: - ``backups``：纵深防御 —— pgBackRest 走自己的 ``repo1-s3-*`` 配置写桶，
+#:   **不经过**应用层的 ``resolve_bucket()`` 路由，所以那条路径上的前缀
+#:   不受本表管辖。但若将来有任何代码把备份对象写进应用层 key 空间，
+#:   这一条能确保它仍被判为敏感、不会被拼成公开 URL。
+PRIVATE_KEY_PREFIXES: frozenset[str] = frozenset(
+    {"crm-proposals", "db-backups", "backups"}
+)
 
 
 def resolve_bucket(settings: Settings, key: str) -> str:
@@ -108,11 +117,32 @@ def bucket_candidates(settings: Settings, key: str) -> list[str]:
     return [primary, other]
 
 
+def delete_bucket_candidates(settings: Settings, key: str) -> list[str]:
+    """删除时需要清理的桶。
+
+    **只对敏感 key** 清两个桶（私有桶 + 公开桶的迁移旧副本）。
+    非敏感 key 只会存在公开桶里（私有桶根本没有它的对象），多删一次只是
+    白跑一个 API 调用，没必要。
+
+    为什么敏感 key 必须双桶删除：BLF-1418 的迁移窗口期内，公开桶里还留着
+    同一 key 的副本。若此时删方案 → DB 行删了、私有副本删了，**公开桶副本
+    还在**；而迁移脚本 ``--delete`` 的安全阀（私有桶无此对象 → 拒绝删源）
+    此后永远不会再删它 → 变成永久公开可下载的孤儿。
+    """
+    if not is_private_key(key) or not settings.r2_private_bucket_isolated:
+        return [resolve_bucket(settings, key)]
+    return bucket_candidates(settings, key)
+
+
 def is_private_key(key: str) -> bool:
-    """True = 该 key 属于「绝不能公开」的对象（按第一段前缀判定）。"""
+    """True = 该 key 属于「绝不能公开」的对象（按第一段前缀判定）。
+
+    前导斜杠容错：``/crm-proposals/1/v1/raw.html`` 也算敏感 ——
+    否则一个多写的前导 ``/`` 就能让敏感 key 绕开私有桶路由（落到公开桶）。
+    """
     if not key:
         return False
-    return key.split("/", 1)[0] in PRIVATE_KEY_PREFIXES
+    return key.lstrip("/").split("/", 1)[0] in PRIVATE_KEY_PREFIXES
 
 
 def _sanitize_key(key: str) -> str:
@@ -249,23 +279,35 @@ def try_delete_file_from_r2(
         return R2DeleteResult(success=True, key=key or "")
 
     client = get_r2_client(settings)
-    try:
-        client.delete_object(Bucket=resolve_bucket(settings, key), Key=key)
-        return R2DeleteResult(success=True, key=key)
-    except (ClientError, BotoCoreError, OSError) as exc:
-        if log_failure:
-            logger.warning(
-                "[r2] delete failed key=%s err=%s",
-                key,
-                exc.__class__.__name__,
-                exc_info=True,
-            )
+    # BLF-1418：敏感 key 要把**两个桶**都删（私有桶 + 公开桶的旧副本）。
+    # 只删 resolve_bucket()（私有桶）会漏掉公开副本：迁移窗口期内删方案 →
+    # DB 行删了、私有副本删了、**公开桶副本还在**，而迁移脚本 --delete 的
+    # 安全阀（私有桶无此对象 → 拒绝删源）此后永远不会再删它 →
+    # 变成永久公开可下载的孤儿。
+    # S3 删不存在的 key 返 204，天然幂等。
+    buckets = delete_bucket_candidates(settings, key)
+    last_error: Exception | None = None
+    for bucket in buckets:
+        try:
+            client.delete_object(Bucket=bucket, Key=key)
+        except (ClientError, BotoCoreError, OSError) as exc:
+            last_error = exc
+            if log_failure:
+                logger.warning(
+                    "[r2] delete failed key=%s bucket=%s err=%s",
+                    key,
+                    bucket,
+                    exc.__class__.__name__,
+                    exc_info=True,
+                )
+    if last_error is not None:
         return R2DeleteResult(
             success=False,
             key=key,
-            error_class=exc.__class__.__name__,
-            error_message=str(exc),
+            error_class=last_error.__class__.__name__,
+            error_message=str(last_error),
         )
+    return R2DeleteResult(success=True, key=key)
 
 
 def get_file_url(settings: Settings, key: str) -> str:

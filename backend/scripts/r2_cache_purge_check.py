@@ -54,7 +54,8 @@ from app.core.config import get_settings  # noqa: E402
 try:
     from app.services.r2_service import PRIVATE_KEY_PREFIXES
 except ImportError:  # pragma: no cover - 代码未部署时
-    PRIVATE_KEY_PREFIXES = frozenset({"crm-proposals", "db-backups"})
+    # 与 app/services/r2_service.py 的 PRIVATE_KEY_PREFIXES 保持一致。
+    PRIVATE_KEY_PREFIXES = frozenset({"crm-proposals", "db-backups", "backups"})
 
 
 def _client(settings):
@@ -104,21 +105,38 @@ def _probe(url: str, method: str) -> tuple[int, dict[str, str]]:
         return 0, {"error": type(exc).__name__}
 
 
-def _known_deleted(settings, prefixes: list[str]) -> list[str]:
-    """已从 origin 删掉、但**可能仍被边缘缓存**的历史 key。
+def _keys_from_db(prefixes: list[str]) -> list[str]:
+    """从数据库推导历史上传过的敏感 key（即使已从 origin 删除）。
 
-    这些对象 origin 已不存在（list 不出来），但边缘缓存可能还在吐旧内容。
-    本脚本按已知命名规律枚举它们（备份 = db-backups/pgbackrest/*.tar.gz，
-    客户方案 = crm-proposals/{id}/v{n}/{raw,adapted}.html），逐个探测。
+    客户方案的 R2 key 存在 ``crm_proposal_versions.raw_r2_key`` /
+    ``adapted_r2_key`` —— 方案被删后 DB 行也没了，但**边缘缓存可能还在吐旧内容**。
+    这就是「origin 已删 ≠ 公开不可下载」的来源。
+
+    删掉的对象 origin list 不出来，只能靠 DB 历史或显式清单补齐，
+    否则诊断脚本会输出「✅ 没有残留」这个**危险的假阴性**。
     """
-    out: list[str] = []
-    for prefix in prefixes:
-        if not prefix.startswith("db-backups/"):
-            continue
-        # 备份文件名形如 blf_{YYYY-MM-DD}_{type}_{id}.tar.gz
-        for stem in ("blf_2026-08-04_full_5",):
-            out.append(f"db-backups/pgbackrest/{stem}.tar.gz")
-    return out
+    out: set[str] = set()
+    if not any(p.startswith("crm-proposals/") for p in prefixes):
+        return sorted(out)
+    try:
+        from sqlalchemy import select
+
+        from app.db.session import SessionLocal
+        from app.models.crm import CrmProposalVersion
+    except Exception:  # noqa: BLE001 - 诊断脚本，DB 不可用时降级
+        return sorted(out)
+    try:
+        with SessionLocal() as db:
+            rows = db.execute(
+                select(CrmProposalVersion.raw_r2_key, CrmProposalVersion.adapted_r2_key)
+            ).all()
+        for raw_key, adapted_key in rows:
+            for key in (raw_key, adapted_key):
+                if key and any(key.startswith(p) for p in prefixes):
+                    out.add(key)
+    except Exception:  # noqa: BLE001 - 诊断脚本，DB 不可用时降级
+        return sorted(out)
+    return sorted(out)
 
 
 def main() -> int:
@@ -130,6 +148,22 @@ def main() -> int:
         action="append",
         default=None,
         help=f"要检查的 key 前缀（可重复）。默认全部敏感前缀: {sorted(PRIVATE_KEY_PREFIXES)}",
+    )
+    parser.add_argument(
+        "--key",
+        action="append",
+        default=None,
+        help=(
+            "要额外检查的 R2 key（可重复）。用于检查**已从 origin 删除**、"
+            "但可能仍被边缘缓存的对象（如已删的备份）。"
+            "不接受这个参数时，脚本无法发现 origin 已删的对象 → 会输出假阴性。"
+        ),
+    )
+    parser.add_argument(
+        "--url",
+        action="append",
+        default=None,
+        help="要额外检查的完整 URL（可重复）。优先于 --key。",
     )
     args = parser.parse_args()
 
@@ -148,29 +182,63 @@ def main() -> int:
     print()
 
     need_purge: list[str] = []
+    # origin 已删但边缘可能仍缓存的 key，三个来源合并：
+    #   (A) DB 历史（客户方案的 raw/adapted key）
+    #   (B) --key 显式清单（已删的备份等 DB 里没有的）
+    #   (C) --url 显式清单（完整 URL）
+    db_keys = _keys_from_db(prefixes)
+    explicit_keys = list(args.key or [])
+    explicit_urls = list(args.url or [])
+    if db_keys:
+        print(f"[DB] 从 crm_proposal_versions 推导到 {len(db_keys)} 个历史 key")
+    if explicit_keys:
+        print(f"[--key] 额外指定 {len(explicit_keys)} 个 key")
+    if explicit_urls:
+        print(f"[--url] 额外指定 {len(explicit_urls)} 个 URL")
+    print()
+
+    def _probe_and_report(url: str) -> None:
+        head_code, _ = _probe(url, "HEAD")
+        get_code, get_hdr = _probe(url, "GET")
+        cache = get_hdr.get("cf-cache-status", "?")
+        age = get_hdr.get("age", "-")
+        flag = ""
+        if head_code in (403, 404) and get_code == 200:
+            flag = "  ← ⚠️ 边缘缓存残留，必须 purge"
+            need_purge.append(url)
+        elif cache == "HIT":
+            flag = "  ← 边缘已缓存（origin 仍在，删 origin 后会残留）"
+            need_purge.append(url)
+        print(f"  HEAD={head_code} GET={get_code} cache={cache} age={age}\n    {url}{flag}")
+
+    seen_urls: set[str] = set()
     for prefix in prefixes:
-        keys = _list(client, settings.r2_bucket_name, prefix)
+        origin_keys = _list(client, settings.r2_bucket_name, prefix)
         # origin 里已删、但边缘可能仍缓存的历史 key（origin 删了不代表边缘没了）
-        known = _known_deleted(settings, [prefix])
-        keys = sorted(set(keys) | set(known))
-        print(f"[{prefix}] 待检查 {len(keys)} 个 URL（origin 现有 {len(set(keys) & set(_list(client, settings.r2_bucket_name, prefix)))} 个）")
+        known = [k for k in db_keys if k.startswith(prefix)]
+        keys = sorted(set(origin_keys) | set(known))
+        print(
+            f"[{prefix}] 待检查 {len(keys)} 个 URL"
+            f"（origin 现有 {len(origin_keys)} 个，DB 历史 {len(known)} 个）"
+        )
         for key in keys:
             url = f"{base}/{key}"
-            head_code, head_hdr = _probe(url, "HEAD")
-            get_code, get_hdr = _probe(url, "GET")
-            cache = get_hdr.get("cf-cache-status", "?")
-            age = get_hdr.get("age", "-")
-            flag = ""
-            if head_code in (403, 404) and get_code == 200:
-                flag = "  ← ⚠️ 边缘缓存残留，必须 purge"
-                need_purge.append(url)
-            elif cache == "HIT":
-                flag = "  ← 边缘已缓存（origin 仍在，删 origin 后会残留）"
-                need_purge.append(url)
-            print(
-                f"  HEAD={head_code} GET={get_code} cache={cache} age={age}\n"
-                f"    {url}{flag}"
-            )
+            seen_urls.add(url)
+            _probe_and_report(url)
+        print()
+
+    # 显式指定的 key / URL（可能是任意前缀，如已删的备份）
+    extra: list[str] = []
+    for key in explicit_keys:
+        extra.append(key if key.startswith("http") else f"{base}/{key}")
+    extra.extend(explicit_urls)
+    if extra:
+        print("[显式指定]")
+        for url in extra:
+            if url in seen_urls:
+                continue
+            seen_urls.add(url)
+            _probe_and_report(url)
         print()
 
     print("=" * 72)

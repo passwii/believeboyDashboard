@@ -57,7 +57,7 @@ try:
 except ImportError:  # pragma: no cover - 脚本被拷到别处 / 代码未部署时
     # 本脚本可能在代码部署前先跑（只需前缀列表，不依赖新代码）。
     # 与 app/services/r2_service.py 的 PRIVATE_KEY_PREFIXES 保持一致。
-    PRIVATE_KEY_PREFIXES = frozenset({"crm-proposals", "db-backups"})
+    PRIVATE_KEY_PREFIXES = frozenset({"crm-proposals", "db-backups", "backups"})
 
 
 def _client(settings):
@@ -193,9 +193,15 @@ def main() -> int:
         )
         isolated = bool(_env_name) and _env_name != settings.r2_bucket_name
 
-    if not isolated and (args.copy or args.copy_back):
+    # 隔离守卫：**任何**写操作前都必须确认私有桶已配置且与公开桶不同名。
+    # 旧实现漏了 args.delete：私有桶未配置时 private_bucket 回落到公开桶，
+    # 三重安全阀就变成「公开桶对象跟自己比大小、跟自己比 SHA-256」→ 全过，
+    # --delete 直接把**唯一副本**删光（与脚本声明的「先确认私有副本存在才删源」相反）。
+    if not isolated:
         print(
             "错误：私有桶未配置（R2_PRIVATE_BUCKET_NAME 为空或与公开桶同名）。\n"
+            "      **任何**写操作（--copy / --copy-back / --delete）都要求私有桶先配置好，\n"
+            "      否则脚本无从判断「源」与「副本」谁是谁，会误删唯一副本。\n"
             "      先在 .env 里配置一个**不挂自定义域名**的私有桶，再运行本脚本。\n"
             "      提示：本仓库的 R2 凭据可直接创建桶：\n"
             "        aws s3api create-bucket --bucket <新桶名> "
@@ -223,8 +229,11 @@ def main() -> int:
     skipped = 0
 
     for prefix in prefixes:
-        objects = _list(client, public_bucket, prefix)
-        print(f"[{prefix}] 公开桶里 {len(objects)} 个对象")
+        # --copy-back 是**回滚**路径：源在私有桶（--delete 已把公开桶清空），
+        # 所以必须列私有桶；否则公开桶已空 → 循环 0 条 → 什么都 restore 不回来。
+        source_bucket = private_bucket if args.copy_back else public_bucket
+        objects = _list(client, source_bucket, prefix)
+        print(f"[{prefix}] {source_bucket} 里 {len(objects)} 个对象")
         for obj in objects:
             key = obj["key"]
             total_objects += 1
@@ -263,6 +272,11 @@ def main() -> int:
                     Key=key,
                     CopySource={"Bucket": private_bucket, "Key": key},
                 )
+                # 回滚也要校验：复制后确认公开桶确实有同 key 对象且大小一致
+                head = _head(client, public_bucket, key)
+                if not head or head.get("ContentLength") != obj["size"]:
+                    print("      !! 回滚复制后校验失败")
+                    continue
                 print("      已复制回公开桶 ✓")
                 copied += 1
 

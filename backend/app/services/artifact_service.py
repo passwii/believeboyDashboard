@@ -20,7 +20,6 @@ from app.services.r2_service import (
     check_file_exists,
     delete_file_from_r2,
     download_file_to_path,
-    get_r2_client,
     upload_file_to_r2,
 )
 
@@ -58,8 +57,8 @@ class ArtifactService:
         注意：SQLAlchemy 2.0 的 Base.registry 只持有已被 import 的 mapper。
         所以此处显式 import app.models 以确保所有模型都已注册。
         """
-        from app.db.session import Base  # noqa: F401
         import app.models  # noqa: F401  确保所有 model class 已被 import 过
+        from app.db.session import Base  # noqa: F401
 
         result: set[tuple[str, str]] = set()
         for mapper in Base.registry.mappers:
@@ -107,6 +106,11 @@ class ArtifactService:
         """
         构建 R2 公开访问 URL。
 
+        委托给 ``r2_service.get_file_url()`` —— 「敏感 key 不出公开 URL」这条
+        不变量必须**只在一处**守住（BLF-1418）。本函数曾是第二个独立实现
+        （无条件拼 ``r2_public_url/{key}``），一旦有人新增敏感前缀而忘了改这里，
+        就会漏出公开 URL。
+
         优先使用 r2_public_url（自定义域名），否则使用 r2_endpoint_url/bucket_name。
         自动对 key 进行 URL 编码以保留中文等 Unicode 字符。
 
@@ -114,11 +118,11 @@ class ArtifactService:
             key: R2 对象 key
 
         Returns:
-            公开访问 URL
+            公开访问 URL；敏感 key 返回空串（不生成公开 URL）
         """
-        settings = get_settings()
-        base = settings.r2_public_url or f"{settings.r2_endpoint_url}/{settings.r2_bucket_name}"
-        return f"{base}/{quote(key, safe='/')}"
+        from app.services.r2_service import get_file_url
+
+        return get_file_url(get_settings(), key)
 
     @staticmethod
     def extract_key_from_url(url: str, settings: Settings | None = None) -> str | None:

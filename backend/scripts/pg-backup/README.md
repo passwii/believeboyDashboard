@@ -20,10 +20,15 @@ pg-backup/
 ```
 PostgreSQL (VPS)
     │
-    ├── WAL 文件 ──(archive-push)──> R2: backups/blf/repo/archive/
+    ├── WAL 文件 ──(archive-push)──> R2: believeboy-private/<repo1-path>/archive/
     │
-    └── 每日全量备份 ──(pgBackRest backup)──> R2: backups/blf/repo/backup/
+    └── 每日全量备份 ──(pgBackRest backup)──> R2: believeboy-private/<repo1-path>/backup/
 ```
+
+> **BLF-1418**：备份桶从公开桶 `believeboy-dash` 改为私有桶 `believeboy-private`
+> （公开桶挂着 `bucket.believeboy.com` 自定义域名，整桶公开可读）。
+> 注意：pgBackRest 用自己的 `repo1-s3-*` 配置写桶，**不经**应用层的
+> `resolve_bucket()` 路由 —— 所以备份的桶名只在 `conf/pgbackrest.conf` 里定义。
 
 ## 前提条件
 
@@ -159,15 +164,20 @@ sudo /opt/postgresql/backup/restore.sh "2024-01-15 14:30:00"
 
 ```
 believeboy-private/                 # R2 Bucket（私有桶，不挂自定义域名）BLF-1418
-└── backups/
-    └── blf/                        # Stanza name
-        └── repo/
-            ├── backup/            # 备份数据
-            │   ├── 20240115-030000_ful/
-            │   └── 20240116-030000_ful/
-            └── archive/           # WAL 归档
-                └── 0000000100000000/
-                    └── 000000010000000000000001
+└── <repo1-path>/                   # pgbackrest.conf 里的 repo1-path
+    └── repo/                       # pgBackRest 自己的 repo 布局
+        ├── backup/                 # 备份数据
+        │   ├── 20240115-030000_ful/
+        │   └── 20240116-030000_ful/
+        └── archive/                # WAL 归档
+            └── 0000000100000000/
+                └── 000000010000000000000001
+```
+
+> ⚠️ **别把这里的路径与应用层的 key 前缀混为一谈**：
+> pgBackRest 直接按 `repo1-s3-bucket` + `repo1-path` 写桶，**不经过**应用代码。
+> 应用层敏感前缀里的 `db-backups/`（后端备份任务用的 `project_slug`）是**另一条**
+> 写入路径 —— 两条路径的对象布局不同，但都写进同一个（私有）桶。
 ```
 
 ## 备份保留策略

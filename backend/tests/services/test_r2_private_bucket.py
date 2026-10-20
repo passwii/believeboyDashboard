@@ -87,6 +87,26 @@ def test_is_private_key():
     assert is_private_key("") is False
 
 
+def test_is_private_key_tolerates_leading_slash():
+    """前导斜杠也必须判为敏感 —— 否则多写一个 ``/`` 就能绕开私有桶路由。"""
+    assert is_private_key("/crm-proposals/1/v1/raw.html") is True
+    assert is_private_key("//crm-proposals/1/v1/raw.html") is True
+    assert is_private_key("/db-backups/pgbackrest/x.tar.gz") is True
+    assert is_private_key("/华洋泛航/a.jpg") is False
+
+
+def test_resolve_bucket_with_leading_slash_routes_to_private():
+    s = _settings()
+    assert resolve_bucket(s, "/crm-proposals/1/v1/raw.html") == "believeboy-private"
+
+
+def test_private_prefixes_include_backups_defense_in_depth():
+    """``backups`` 前缀是纵深防御：pgBackRest 不经应用层路由，但列入敏感前缀
+    可确保将来任何把备份写进应用层 key 空间的代码仍被判为敏感。"""
+    assert "backups" in PRIVATE_KEY_PREFIXES
+    assert is_private_key("backups/blf/repo/backup/x") is True
+
+
 def test_resolve_bucket_routes_private_prefix_to_private_bucket():
     s = _settings()
     assert s.r2_private_bucket_isolated is True
@@ -226,20 +246,33 @@ def test_get_file_url_public_for_public_key():
 
 
 def test_delete_uses_private_bucket(fake_client):
+    """敏感 key 的删除：私有桶 + 公开桶**两个都删**（BLF-1418 review 修 #1）。
+
+    只删私有桶会漏掉迁移窗口期内的公开副本 —— 方案删了但公开桶里的旧对象
+    永远残留，变成公开可下载的孤儿。
+    """
     s = _settings()
     delete_file_from_r2(s, CRM_KEY)
-    fake_client.delete_object.assert_called_once_with(
-        Bucket="believeboy-private", Key=CRM_KEY
-    )
+    called = {c.kwargs["Bucket"] for c in fake_client.delete_object.call_args_list}
+    assert called == {"believeboy-private", "believeboy-dash"}
+    for c in fake_client.delete_object.call_args_list:
+        assert c.kwargs["Key"] == CRM_KEY
 
 
 def test_try_delete_uses_private_bucket(fake_client):
     s = _settings()
     result = try_delete_file_from_r2(s, CRM_KEY)
     assert result.success is True
-    fake_client.delete_object.assert_called_once_with(
-        Bucket="believeboy-private", Key=CRM_KEY
-    )
+    called = {c.kwargs["Bucket"] for c in fake_client.delete_object.call_args_list}
+    assert called == {"believeboy-private", "believeboy-dash"}
+
+
+def test_delete_sensitive_key_removes_public_copy(fake_client):
+    """回归锁定：敏感 key 的公开副本必须一并删除（review 修 #1 的核心）。"""
+    s = _settings()
+    delete_file_from_r2(s, CRM_KEY)
+    buckets = [c.kwargs["Bucket"] for c in fake_client.delete_object.call_args_list]
+    assert "believeboy-dash" in buckets, "公开桶副本未被删除 → 会变成永久公开的孤儿"
 
 
 def test_delete_public_key_uses_public_bucket(fake_client):
@@ -248,6 +281,28 @@ def test_delete_public_key_uses_public_bucket(fake_client):
     fake_client.delete_object.assert_called_once_with(
         Bucket="believeboy-dash", Key=PUBLIC_KEY
     )
+
+
+def test_delete_not_isolated_single_bucket(fake_client):
+    """未隔离时只删一个桶（没有第二个桶可删）。"""
+    s = _settings(private_bucket=None)
+    delete_file_from_r2(s, CRM_KEY)
+    fake_client.delete_object.assert_called_once_with(
+        Bucket="believeboy-dash", Key=CRM_KEY
+    )
+
+
+def test_delete_reports_failure_when_all_buckets_fail(fake_client):
+    """两个桶都失败 → success=False（让上层登记死信）。"""
+    from botocore.exceptions import ClientError
+
+    s = _settings()
+    fake_client.delete_object.side_effect = ClientError(
+        {"Error": {"Code": "500"}}, "DeleteObject"
+    )
+    result = try_delete_file_from_r2(s, CRM_KEY)
+    assert result.success is False
+    assert result.error_class == "ClientError"
 
 
 def test_check_file_exists_uses_private_bucket(fake_client):
@@ -486,3 +541,106 @@ def test_upload_bytes_result_shape_unchanged(fake_client):
     assert set(res) == {"key", "url", "bucket", "size"}
     assert res["size"] == 1
     assert res["key"] == "华洋泛航/t/a.jpg"
+
+
+# ---------------------------------------------------------------------------
+# (9) artifact_service.build_public_url —— 第二个公开 URL 构造器必须复用同一处
+#     （BLF-1418 review 修 #7：敏感 key 不出公开 URL 的不变量只能守在一处）
+# ---------------------------------------------------------------------------
+
+
+def test_artifact_build_public_url_empty_for_sensitive_key():
+    """敏感 key 经 artifact_service 也不得生成公开 URL。"""
+    from app.services.artifact_service import ArtifactService
+
+    with patch(
+        "app.services.artifact_service.get_settings",
+        return_value=_settings(),
+    ):
+        assert ArtifactService.build_public_url(CRM_KEY) == ""
+
+
+def test_artifact_build_public_url_public_for_public_key():
+    """公开 key 仍照旧生成公开 URL（行为不变）。"""
+    from app.services.artifact_service import ArtifactService
+
+    with patch(
+        "app.services.artifact_service.get_settings",
+        return_value=_settings(),
+    ):
+        url = ArtifactService.build_public_url(PUBLIC_KEY)
+    assert url.startswith("https://bucket.believeboy.com/")
+    assert "inspection-screenshots/abc.jpg" in url
+
+
+def test_artifact_build_public_url_delegates_to_get_file_url():
+    """回归锁定：artifact_service 不得再自己拼公开 URL（必须委托 get_file_url）。
+
+    用 AST 判断「代码里有没有引用 r2_public_url」，而不是字符串匹配 ——
+    docstring 里可以提到它作为说明，但实现里不能读它。
+    """
+    import ast
+    import inspect
+    import textwrap
+
+    from app.services.artifact_service import ArtifactService
+
+    src = textwrap.dedent(inspect.getsource(ArtifactService.build_public_url))
+    assert "get_file_url" in src, "必须复用 r2_service.get_file_url()（单一守卫点）"
+
+    tree = ast.parse(src)
+    attrs = {
+        node.attr
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Attribute)
+    }
+    assert "r2_public_url" not in attrs, (
+        "不得在本函数里直接读 settings.r2_public_url（必须走 get_file_url 守卫）"
+    )
+
+
+# ---------------------------------------------------------------------------
+# (10) 迁移脚本守卫（BLF-1418 review 修 #2 / #3）
+# ---------------------------------------------------------------------------
+
+
+def test_migrate_script_requires_isolation_for_all_write_actions():
+    """任何写操作（--copy / --copy-back / --delete）都要求私有桶已隔离。
+
+    旧实现漏了 --delete：私有桶未配置时 private_bucket 回落到公开桶，
+    三重安全阀变成「自己跟自己比」→ 全过 → 把唯一副本删光。
+    """
+    import inspect
+    import sys
+    from pathlib import Path
+
+    backend = Path(__file__).resolve().parents[2]
+    if str(backend) not in sys.path:
+        sys.path.insert(0, str(backend))
+    from scripts import migrate_r2_private_prefix as mig
+
+    src = inspect.getsource(mig.main)
+    guard_at = src.index("if not isolated:")
+    # 守卫必须在任何写动作之前，且不能再按动作分别判断
+    assert "if not isolated and (args.copy" not in src, (
+        "隔离守卫不能只覆盖部分动作 —— --delete 同样会误删唯一副本"
+    )
+    assert guard_at < src.index("client.delete_object"), "守卫必须早于删除动作"
+    assert guard_at < src.index("client.copy_object"), "守卫必须早于复制动作"
+
+
+def test_migrate_script_copy_back_lists_private_bucket():
+    """--copy-back 是回滚路径：源在私有桶（公开桶已空），必须列私有桶。"""
+    import inspect
+    import sys
+    from pathlib import Path
+
+    backend = Path(__file__).resolve().parents[2]
+    if str(backend) not in sys.path:
+        sys.path.insert(0, str(backend))
+    from scripts import migrate_r2_private_prefix as mig
+
+    src = inspect.getsource(mig.main)
+    assert "source_bucket = private_bucket if args.copy_back else public_bucket" in src, (
+        "--copy-back 必须列私有桶，否则公开桶已空 → 什么都 restore 不回来"
+    )
