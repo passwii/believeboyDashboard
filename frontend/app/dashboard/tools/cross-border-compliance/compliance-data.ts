@@ -216,7 +216,10 @@ export const REGULATORY_MODES: RegulatoryMode[] = [
   {
     code: '9810',
     name: '跨境电商 B2B 出口海外仓',
-    feature: '货物先出口海外仓，再用海外仓配送至境外消费者，"离境即退税"',
+    // 课件该处写「离境即退税」，与下方「出口退税政策」行的「离境预退税」为同一政策的两
+    // 种措辞。2026-10-20 BLF-1380 上 Yawei 拍板：本页统一采用「离境预退税」，不保留
+    // 「离境即退税」这个更像一个即时结论的变体。仅改措辞，未补写任何法条内容。
+    feature: '货物先出口海外仓，再用海外仓配送至境外消费者，"离境预退税"',
     scene: '',
     refundable: '出口预退税',
     strengths: '合规，符合法律规定',
@@ -322,6 +325,8 @@ export const MODE_COMPARISON_0110_9810: ModeComparisonDimension[] = [
     dimension: '出口退税政策',
     generalTrade:
       '需在货物出口且收汇核销后，凭报关单、增值税专用发票等材料申报退税，周期较长（通常 3-6 个月）。',
+    // 措辞经用户 2026-10-20 在 BLF-1380 拍板保留（全页统一用「离境预退税」）；
+    // 「2025 年新政」为课件原文，时效以本页 SOURCE_NOTE / MODE_TABLE_NOTE 口径承担。
     overseasWarehouse: '实行"离境预退税"政策（2025 年新政）首单需销售再退税',
   },
   {
