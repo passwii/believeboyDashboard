@@ -42,6 +42,7 @@ class CrmCustomerSource(str):
     EXHIBITION = "exhibition"
     ONLINE_AD = "online_ad"
     COLD_CALL = "cold_call"
+    SELF_DEVELOPED = "self_developed"  # 自主开发
     OTHER = "other"
 
 
