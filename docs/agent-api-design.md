@@ -1,6 +1,6 @@
-# Agent API 设计文档（v0.15 — 评论追踪采集域乱序护栏）
+# Agent API 设计文档（v0.17 — 评论追踪采集域等值时序护栏）
 
-> **状态**：v0.16 — 评论追踪采集域修复时序护栏的未来上限与 failed 水位口径（BLF-1378 阶段 D 第二轮复审）；v0.15 — 评论追踪采集域补时序护栏 + 幂等键空白校验 + 重放 `capture_date` 口径（BLF-1378 阶段 D 复审修复）；v0.14 — 新增评论追踪采集域（`review_tracking`，BLF-1378 阶段 D）；v0.13 — shipments W1 新建货件缺省参数自动生成（BLF-1347）；v0.12 — 固化 Agent 文件型资源二进制响应规范；v0.11 — FBA 发货模板改为 XLSX 二进制流（BLF-1178）；v0.10 — shipments 新增 FBA 发货模板导出（BLF-1178）；v0.9 — report-upload-status 移除库存分类账 2 类状态（BLF-649）；v0.8 响应补充中文字段（BLF-648）；v0.7 新增报表上传状态域（BLF-484，1 条读路由）。
+> **状态**：v0.17 — 评论追踪采集域封堵等值时间戳重复推进当前态（BLF-1378 阶段 D 第四轮复审）；v0.16 — 评论追踪采集域修复时序护栏的未来上限与 failed 水位口径（BLF-1378 阶段 D 第二轮复审）；v0.15 — 评论追踪采集域补时序护栏 + 幂等键空白校验 + 重放 `capture_date` 口径（BLF-1378 阶段 D 复审修复）；v0.14 — 新增评论追踪采集域（`review_tracking`，BLF-1378 阶段 D）；v0.13 — shipments W1 新建货件缺省参数自动生成（BLF-1347）；v0.12 — 固化 Agent 文件型资源二进制响应规范；v0.11 — FBA 发货模板改为 XLSX 二进制流（BLF-1178）；v0.10 — shipments 新增 FBA 发货模板导出（BLF-1178）；v0.9 — report-upload-status 移除库存分类账 2 类状态（BLF-649）；v0.8 响应补充中文字段（BLF-648）；v0.7 新增报表上传状态域（BLF-484，1 条读路由）。
 > **范围**：定义 `/api/v1/agent/*` 命名空间的鉴权契约、危险动作 confirm 流、响应壳、错误码、审计归因与路径迁移策略。**P0 不做 scope/权限细分**——只做"你是哪个 agent"的身份校验。
 
 ---
@@ -318,9 +318,10 @@ external link 的 shop 所属项目判定即可。
   一次「缺失」，直接产出错误的「疑似移除」结论。因此路由层在进入
   `record_crawl_result` 前查该 target 的 ``max(started_at)``（落库时就等于
   `captured_at`），`body.captured_at` 早于它 → 409（响应 `details` 带
-  `latest_started_at` 供自纠）。同一业务日重跑天然是更晚的 `captured_at`，不受
-  影响；幂等重放走既有 run 短路（先查幂等键，命中则跳过**顺序**校验，因为重放
-  不写入、其 `captured_at` 是历史值），也不受影响。**注意未来上限对重放照常
+  `latest_started_at` 供自纠）。同一业务日重跑天然是更晚的 `captured_at`，不受影响；
+  幂等重放走既有 run 短路（先查幂等键，命中则跳过**顺序**校验，因为重放不写入、
+  其 `captured_at` 是历史值），也不受影响。
+  **注意未来上限对重放照常
   生效**——`_captured_at_is_future` 在 `_find_run` 之前，带错钟的重放会先吃
   400（见下条）。
   水位**只统计真的写过当前态、且时间可信的 run**：排除 `status='failed'`（服务层对
@@ -506,7 +507,7 @@ P2 货件域再扩展（`SHIPMENT_*`）。
 | `CONFIRM_TOKEN_INVALID` | 400 | token 不存在或与 body hash 不匹配 |
 | `CONFIRM_TOKEN_EXPIRED` | 409 | token 过期 |
 | `IDEMPOTENCY_KEY_CONFLICT` | 409 | 同一 Idempotency-Key 被用于不同请求体 |
-| `REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER` | 409 | 评论追踪 W1：`captured_at` 早于该目标最近一次**非 failed** run（乱序提交会倒退当前态） |
+| `REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER` | 409 | 评论追踪 W1：`captured_at` 早于或等于该目标最近一次**非 failed** run（乱序或等值重复提交会倒退/重复推进当前态） |
 | `VALIDATION_FAILED`（`reason=captured_at_in_future`） | 400 | 评论追踪 W1：`captured_at` 晚于 `now + 2h`（时区/时钟标错，不落 run） |
 | `INTERNAL_ERROR` | 500 | 未分类异常（不向 Agent 暴露堆栈） |
 | （confirm 预览，非错误） | **200** | `ok:false, requires_confirmation:true`（见 §3.1） |
@@ -764,6 +765,11 @@ Sunset/Link 提示头（2026-08-09 上线，`Sunset: 2026-12-31` 预告）；**v
 ---
 
 ## 修订记录
+
+- **v0.17（2026-10-20）**：评论追踪采集域（`review_tracking`）第四轮复审修复：
+  顺序护栏改为早于或等于最近非 failed run 时拒绝，防止同一 `captured_at` 用不同
+  幂等键重复推进完整列表的 `missing_streak`；等值时重查幂等键，保留并发同键重放行为；
+  新增等值不同键拒绝及同键重放回归用例。
 
 - **v0.16（2026-10-19）**：评论追踪采集域（`review_tracking`）第二轮复审修复
   （BLF-1378 阶段 D）——时序护栏把「客户端时间错误」变成永久锁死的问题：

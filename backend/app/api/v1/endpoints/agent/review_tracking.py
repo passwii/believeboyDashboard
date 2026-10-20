@@ -20,10 +20,11 @@
 把当前态评论正文 / ``last_seen_at`` **倒退**，并按陈旧数据再记一次「缺失」，直接
 产出错误的「疑似移除」结论。因此本阶段在**路由层**加护栏（issue 要求不改服务层
 签名 / 行为）：进入 ``record_crawl_result`` 前查该 target 的 ``max(started_at)``，
-``body.captured_at`` 早于它 → 409 ``REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER``。
+``body.captured_at`` 早于或等于它 → 409 ``REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER``。
 
-* 同一业务日重跑天然是更晚的 ``captured_at``，不受影响；
-* 幂等重放走既有 run 短路（先查幂等键，命中则不校验顺序）；但 ``captured_at`` 的
+* 同一业务日更晚重跑不受影响；同一时间戳的新观察必须拒绝，避免同一批观测推进两次；
+* 幂等重放走既有 run 短路（先查幂等键，命中则不校验顺序）；等值水位时如果首次预检
+  因并发看不到对方，会再按幂等键查一次，保留同键并发输家的重放行为；但 ``captured_at`` 的
   未来上限是**输入合法性**，重放也照常 400（带上错钟应先修正，而不是静默拿到
   首次 run 的结果）；
 * 水位只统计**真的写过当前态、且时间可信的 run**（排除 ``status='failed'`` 与
@@ -476,10 +477,11 @@ def submit_crawl_result(
       ``VALIDATION_FAILED``（``reason=captured_at_in_future``；容忍时钟漂移，
       但不容忍时区标错写出未来快照、把顺序水位抬到未来。这是**输入合法性**，
       幂等重放也照样检查）；
-    * ``captured_at`` 早于该目标最近一次**非 failed** run → 409
-      ``REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER``（乱序提交会覆盖当前态评论 / 误判
-      疑似移除，见模块 docstring 的「提交顺序护栏」）；幂等重放跳过这道校验——
-      重放不写入，其 `captured_at` 是历史值，本就不该与当前水位比较；
+    * ``captured_at`` 早于或等于该目标最近一次**非 failed** run → 409
+      ``REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER``（乱序提交会覆盖当前态评论，同一时刻重复
+      完整列表会误判疑似移除，见模块 docstring 的「提交顺序护栏」）；幂等重放跳过这道校验——
+      重放不写入，其 `captured_at` 是历史值，本就不该与当前水位比较；等值时路由先按
+      幂等键重查一次，已存在的同键 run 返回重放，不同键则拒绝；
     * 请求体语义校验失败（服务层 ``IngestionError``）→ 400 ``VALIDATION_FAILED``；
     * 同幂等键重复提交 → 返回首次 ``run_id`` 且 ``replayed=true``，不新增行、
       不写审计（重放不是写）；并发路径由服务层 savepoint + 重查保证唯一，
@@ -524,17 +526,23 @@ def submit_crawl_result(
     existing = _find_run(db, target_id, idempotency_key)
     if existing is None:
         latest_started_at = _latest_started_at(db, target_id)
-        if latest_started_at is not None and body.captured_at < latest_started_at:
-            raise AgentApiError(
-                ErrorCode.REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER,
-                reason="captured_at_before_latest_run",
-                human_message=(
-                    f"captured_at {body.captured_at.isoformat()} 早于该目标最近一次"
-                    f"采集时间 {latest_started_at.isoformat()}"
-                ),
-                agent_hint=_out_of_order_hint(latest_started_at),
-                details={"latest_started_at": latest_started_at.isoformat()},
-            )
+        if latest_started_at is not None and body.captured_at <= latest_started_at:
+            # 同一采集时刻的不同请求也只能推进一次当前态（尤其是完整列表缺失
+            # 判定）。但真并发的同键输家可能在首次预检时看不到对方，故等值时
+            # 再按幂等键查一次；命中后交给服务层返回 replayed=True。
+            if body.captured_at == latest_started_at:
+                existing = _find_run(db, target_id, idempotency_key)
+            if existing is None:
+                raise AgentApiError(
+                    ErrorCode.REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER,
+                    reason="captured_at_before_latest_run",
+                    human_message=(
+                        f"captured_at {body.captured_at.isoformat()} 早于或等于该目标最近一次"
+                        f"采集时间 {latest_started_at.isoformat()}"
+                    ),
+                    agent_hint=_out_of_order_hint(latest_started_at),
+                    details={"latest_started_at": latest_started_at.isoformat()},
+                )
 
     try:
         result = record_crawl_result(

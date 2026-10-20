@@ -358,6 +358,17 @@ class TestListTargets:
         assert resp.status_code == 200, resp.text
         return resp.json()["data"]
 
+    def _all_items(self, client, headers, **params) -> list[dict]:
+        """分页读取全量匹配目标；外部目标全局共享，不能按测试项目收窄。"""
+        items: list[dict] = []
+        offset = 0
+        while True:
+            data = self._items(client, headers, offset=offset, **params)
+            items.extend(data["items"])
+            offset += len(data["items"])
+            if offset >= data["total"] or not data["items"]:
+                return items
+
     def test_returns_active_target_with_representative_asin(
         self, client, make_api_key, rt_env
     ):
@@ -396,11 +407,11 @@ class TestListTargets:
         # 白名单指向另一个项目 → 本项目内部目标不可见；外部目标仍可见（跨项目口径）
         other_project = f"{rt_env['project_id'] + 900000}"
         _agent_id, headers = _make_headers(make_api_key, project_scope=other_project)
-        data = self._items(client, headers)
-        ids = {i["target_id"] for i in data["items"]}
+        items = self._all_items(client, headers)
+        ids = {i["target_id"] for i in items}
         assert rt_env["target_id"] not in ids
         external = next(
-            i for i in data["items"] if i["target_id"] == external_target["target_id"]
+            i for i in items if i["target_id"] == external_target["target_id"]
         )
         assert external["kind"] == "external_asin"
         assert external["project_id"] is None
@@ -418,10 +429,9 @@ class TestListTargets:
 
     def test_marketplace_and_kind_filters(self, client, make_api_key, rt_env):
         _agent_id, headers = _make_headers(make_api_key)
-        data = self._items(
+        items = self._all_items(
             client, headers, kind="internal_group", marketplace="US"
         )
-        items = data["items"]
         assert all(i["kind"] == "internal_group" for i in items)
         assert all(i["marketplace"] == "US" for i in items)
         assert rt_env["target_id"] in {i["target_id"] for i in items}
@@ -816,6 +826,99 @@ class TestSubmitCrawlResult:
             assert (
                 _count_rows(db, AmazonReviewCrawlRun, target_id=rt_env["target_id"]) == 1
             )
+        finally:
+            db.close()
+
+    def test_equal_timestamp_different_keys_rejected_without_advancing_missing_streak(
+        self, client, make_api_key, rt_env
+    ):
+        """同一观测时刻不能用不同幂等键重复推进完整列表缺失计数。"""
+        _agent_id, headers = _make_headers(make_api_key)
+        captured_at = _captured_at(minutes_ago=30)
+        first = client.post(
+            _runs_url(rt_env["target_id"]),
+            json=_run_body(
+                captured_at=captured_at,
+                idempotency_key="equal-ts-seen",
+                reviews=[
+                    {
+                        "review_key": "R1",
+                        "id_confidence": "original",
+                        "rating": 5,
+                        "body": "首条观察",
+                    }
+                ],
+            ),
+            headers=headers,
+        )
+        assert first.status_code == 200, first.text
+
+        miss1 = client.post(
+            _runs_url(rt_env["target_id"]),
+            json=_run_body(
+                captured_at=captured_at,
+                idempotency_key="equal-ts-miss-1",
+                reviews=[],
+            ),
+            headers=headers,
+        )
+        assert miss1.status_code == 409, miss1.text
+        assert miss1.json()["error"]["code"] == "REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER"
+
+        db = SessionLocal()
+        try:
+            review = db.execute(
+                select(AmazonReviewReview).where(
+                    AmazonReviewReview.target_id == rt_env["target_id"]
+                )
+            ).scalar_one()
+            assert review.missing_streak == 0
+            assert review.visibility_status == "visible"
+            assert (
+                _count_rows(db, AmazonReviewCrawlRun, target_id=rt_env["target_id"])
+                == 1
+            )
+        finally:
+            db.close()
+
+    def test_equal_timestamp_idempotent_replay_still_allowed(
+        self, client, make_api_key, rt_env, monkeypatch
+    ):
+        """首次预查并发暂时不可见时，等值水位重查仍识别同键重放。"""
+        from app.api.v1.endpoints.agent import review_tracking as endpoint_module
+
+        _agent_id, headers = _make_headers(make_api_key)
+        body = _run_body(
+            captured_at=_captured_at(minutes_ago=30),
+            idempotency_key="equal-ts-replay",
+        )
+        first = client.post(_runs_url(rt_env["target_id"]), json=body, headers=headers)
+        assert first.status_code == 200, first.text
+
+        real_find_run = endpoint_module._find_run
+        calls = {"n": 0}
+
+        def _blind_first_lookup(*args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return None
+            return real_find_run(*args, **kwargs)
+
+        monkeypatch.setattr(endpoint_module, "_find_run", _blind_first_lookup)
+        replay = client.post(_runs_url(rt_env["target_id"]), json=body, headers=headers)
+        assert replay.status_code == 200, replay.text
+        assert calls["n"] == 2
+        assert replay.json()["data"]["replayed"] is True
+        assert replay.json()["data"]["run_id"] == first.json()["data"]["run_id"]
+        assert replay.json()["data"]["snapshot_updated"] is False
+
+        db = SessionLocal()
+        try:
+            assert (
+                _count_rows(db, AmazonReviewCrawlRun, target_id=rt_env["target_id"])
+                == 1
+            )
+            assert self._audit_count(db, first.json()["data"]["run_id"]) == 1
         finally:
             db.close()
 
@@ -1253,11 +1356,9 @@ class TestSubmitCrawlResult:
     ):
         """并发同键的「输家」必须报 ``replayed=true``，且不多写一条审计。
 
-        真并发下两个请求在各自预检 ``_find_run`` 时都看不到对方（未提交），输家
-        只在服务层唯一键冲突后的 savepoint 去重里被识别。这里的复现同时把两处
-        「看不到对方」都置空：路由预检 ``_find_run`` 恒返回 ``None``，服务层第一次
-        ``_existing_run`` 也返回 ``None``（模拟对方尚未提交），第二次才看到——其余
-        全部走真实代码路径。
+        真并发下两个请求在预检时都看不到对方（未提交），输家在服务层唯一键冲突后的
+        savepoint 去重里被识别。这里模拟水位查询与幂等预检都看不到未提交的 run，
+        服务层先盲查、插入冲突后再看见——其余全部走真实代码路径。
         """
         from app.api.v1.endpoints.agent import review_tracking as endpoint_module
         from app.services import amazon_review_ingestion_service as service_module
@@ -1271,22 +1372,24 @@ class TestSubmitCrawlResult:
         assert first.json()["data"]["replayed"] is False
         first_run_id = first.json()["data"]["run_id"]
 
-        # 输家的视角：预检看不到已提交的对方（模拟「对方尚未提交」的窗口）
+        # 输家看不到尚未提交的对方：幂等预检与时序水位查询都为空。
         monkeypatch.setattr(endpoint_module, "_find_run", lambda *a, **k: None)
-        # 服务层第一次查也看不到，冲突后才看到 → 强制走 savepoint 去重分支
+        monkeypatch.setattr(endpoint_module, "_latest_started_at", lambda *a, **k: None)
+        # 服务层首次查也看不到，冲突后才看到 → 强制走 savepoint 去重分支
         real_existing_run = service_module._existing_run
-        calls = {"n": 0}
+        service_calls = {"n": 0}
 
-        def _blind_first_call(*args, **kwargs):
-            calls["n"] += 1
-            if calls["n"] == 1:
+        def _blind_first_service_lookup(*args, **kwargs):
+            service_calls["n"] += 1
+            if service_calls["n"] == 1:
                 return None
             return real_existing_run(*args, **kwargs)
 
-        monkeypatch.setattr(service_module, "_existing_run", _blind_first_call)
+        monkeypatch.setattr(service_module, "_existing_run", _blind_first_service_lookup)
 
         second = client.post(_runs_url(rt_env["target_id"]), json=body, headers=headers)
         assert second.status_code == 200, second.text
+        assert service_calls["n"] == 2  # 插入冲突前 + savepoint 后重查
         data = second.json()["data"]
         assert data["run_id"] == first_run_id
         assert data["replayed"] is True, "并发输家必须如实报 replayed=true"

@@ -131,7 +131,7 @@ _DEFAULTS: dict[ErrorCode, tuple[str, str]] = {
         "新请求请生成新的 Idempotency-Key；confirm 重放请保持原 key 与请求体一致",
     ),
     ErrorCode.REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER: (
-        "采集时间早于该目标最近一次有效采集（failed 不计）",
+        "采集时间早于或等于该目标最近一次有效采集（failed 不计）",
         "请用晚于 details.latest_started_at 的 captured_at 重试；同一业务日重跑用当天更晚的"
         "时间点，如需补采历史请先与运营确认（当前态评论表无版本，乱序写入会覆盖现网数据）。"
         "若 latest_started_at 晚于当前时间，说明此前某次提交的客户端时钟/时区标错，"
