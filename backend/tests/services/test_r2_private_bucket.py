@@ -1049,3 +1049,55 @@ def test_cleanup_cutoff_is_timezone_aware():
     assert "datetime.now() - timedelta" not in src, (
         "不能用 naive 的 datetime.now()（与 boto3 的 aware LastModified 不可比）"
     )
+
+
+def test_private_orphan_pass_excludes_unknown_age():
+    """时间戳读不出来的对象**不得**进入删除候选。
+
+    head_object 失败时 last_modified=None；旧实现用
+    ``f.get('last_modified') is None or ...`` → 保留它 → 绕过了年龄下限。
+    于是一次瞬时的元数据读取失败，就可能删掉刚上传、还没插 DB 行的方案对象。
+    """
+    import inspect
+    import sys
+    from pathlib import Path
+
+    backend = Path(__file__).resolve().parents[2]
+    if str(backend) not in sys.path:
+        sys.path.insert(0, str(backend))
+    from scripts import cleanup_r2_orphaned_files as cl
+
+    src = inspect.getsource(cl.main)
+    private_at = src.index("private_orphaned = find_private_orphaned_files")
+    segment = src[private_at:]
+    assert "f.get('last_modified') is not None" in segment, (
+        "私有桶那轮必须排除时间戳未知（last_modified is None）的对象"
+    )
+    assert "f.get('last_modified') is None or" not in segment, (
+        "时间戳未知的对象不能被年龄过滤保留下来"
+    )
+
+
+def test_copy_verifies_content_before_skipping_existing():
+    """--copy 跳过已存在的私有副本前**必须比内容**（不只比大小）。
+
+    私有桶里若已有一份同名、同大小但**内容不同**的对象，只比大小就会永久跳过
+    → 迁移无法自愈（--delete 会因 SHA-256 不一致拒绝删源，重跑 --copy 又继续跳过）。
+    """
+    import inspect
+    import sys
+    from pathlib import Path
+
+    backend = Path(__file__).resolve().parents[2]
+    if str(backend) not in sys.path:
+        sys.path.insert(0, str(backend))
+    from scripts import migrate_r2_private_prefix as mig
+
+    src = inspect.getsource(mig.main)
+    copy_at = src.index("if args.copy:")
+    segment = src[copy_at:]
+    assert "_sha256(client, public_bucket, key)" in segment, (
+        "跳过已存在的私有副本前必须比对内容（SHA-256）"
+    )
+    assert "src_hash == dst_hash" in segment, "内容一致才允许跳过"
+    assert "覆盖重拷" in segment, "内容不一致时必须覆盖重拷（保证可自愈）"

@@ -568,7 +568,8 @@ def main():
         before = len(private_orphaned)
         private_orphaned = [
             f for f in private_orphaned
-            if f.get('last_modified') is None or f['last_modified'] < private_cutoff
+            if f.get('last_modified') is not None
+            and f['last_modified'] < private_cutoff
         ]
         if before != len(private_orphaned):
             print(

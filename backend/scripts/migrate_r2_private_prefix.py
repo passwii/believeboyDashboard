@@ -313,9 +313,24 @@ def main() -> int:
             if args.copy:
                 head = _head(client, private_bucket, key)
                 if head and head.get("ContentLength") == obj["size"]:
-                    print("      私有桶已存在且大小一致 → 跳过")
-                    skipped += 1
-                    continue
+                    # 只比大小**不够**（BLF-1418 review 修）：私有桶里若已有一份
+                    # 同名但**内容不同、恰好同大小**的对象（比如上一次跑崩了、
+                    # 或有人手工放过东西），只比大小就会永久跳过它 → 迁移**无法自愈**：
+                    # 后续 --delete 会因 SHA-256 不一致而拒绝删源，重跑 --copy 又
+                    # 继续跳过 → 只能人工去私有桶删掉那份才能修好。
+                    # → 比内容（整文件 SHA-256；ETag 对 multipart 不可直接比）。
+                    if args.execute:
+                        src_hash = _sha256(client, public_bucket, key)
+                        dst_hash = _sha256(client, private_bucket, key)
+                        if src_hash == dst_hash:
+                            print("      私有桶已存在且内容一致 → 跳过")
+                            skipped += 1
+                            continue
+                        print("      私有桶已有同名但内容不同 → 覆盖重拷")
+                    else:
+                        print("      私有桶已存在且大小一致（执行时会校验内容）→ 将跳过")
+                        skipped += 1
+                        continue
                 if not args.execute:
                     print("      [DRY-RUN] 将复制到私有桶")
                     continue
