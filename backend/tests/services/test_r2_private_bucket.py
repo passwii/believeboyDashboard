@@ -641,6 +641,96 @@ def test_migrate_script_copy_back_lists_private_bucket():
     from scripts import migrate_r2_private_prefix as mig
 
     src = inspect.getsource(mig.main)
-    assert "source_bucket = private_bucket if args.copy_back else public_bucket" in src, (
+    assert "if args.copy_back:" in src, "--copy-back 必须走私有桶分支"
+    assert "source_bucket = private_bucket" in src, (
         "--copy-back 必须列私有桶，否则公开桶已空 → 什么都 restore 不回来"
     )
+    # 且 list_only（--dry-run 单独用）列的是公开桶
+    assert "source_bucket = public_bucket" in src
+
+
+# ---------------------------------------------------------------------------
+# (11) 迁移脚本第二轮 review 修的三处
+#     (a) --dry-run 必须真的可用（文档与 PR 正文都用了它）
+#     (b) --delete 后必须输出待 purge 的 URL（删 origin ≠ 公开不可下载）
+#     (c) --copy-back 要求私有桶仍配置着（回滚顺序）
+# ---------------------------------------------------------------------------
+
+
+def test_migrate_script_registers_dry_run_flag():
+    """``--dry-run`` 必须在 parser 里注册 —— 文档与 PR 正文都拿它当预检命令。"""
+    import sys
+    from pathlib import Path
+
+    backend = Path(__file__).resolve().parents[2]
+    if str(backend) not in sys.path:
+        sys.path.insert(0, str(backend))
+    from scripts import migrate_r2_private_prefix as mig
+
+    src = Path(mig.__file__).read_text(encoding="utf-8")
+    assert '"--dry-run"' in src, "--dry-run 必须是一个真实注册的 flag"
+
+
+def test_migrate_script_dry_run_is_accepted_without_action():
+    """``--dry-run`` 单独用不能被 argparse 拒（不要求再给 --copy/--delete）。"""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    backend = Path(__file__).resolve().parents[2]
+    script = backend / "scripts" / "migrate_r2_private_prefix.py"
+    proc = subprocess.run(
+        [sys.executable, str(script), "--dry-run", "--help"],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "--dry-run" in proc.stdout
+
+
+def test_migrate_script_emits_purge_targets_on_delete():
+    """删掉 origin 后必须输出待 purge 的 URL 清单。
+
+    删 origin ≠ 公开不可下载：R2 自定义域名对部分对象启用 Cloudflare 边缘缓存，
+    边缘副本在 purge 前仍可被匿名下载。脚本必须把 purge 目标显式交出来。
+    """
+    import inspect
+    import sys
+    from pathlib import Path
+
+    backend = Path(__file__).resolve().parents[2]
+    if str(backend) not in sys.path:
+        sys.path.insert(0, str(backend))
+    from scripts import migrate_r2_private_prefix as mig
+
+    src = inspect.getsource(mig.main)
+    assert "purge_targets" in src, "必须收集待 purge 的 URL"
+    assert "purge_cache" in src, "必须打印 Cloudflare purge 的执行方式"
+    # 删除动作后必须把 URL 记进 purge_targets
+    delete_at = src.index("client.delete_object")
+    append_at = src.index("purge_targets.append")
+    assert append_at > delete_at, "purge 目标必须在删除之后记录"
+
+
+def test_migrate_script_copy_back_requires_private_bucket_configured():
+    """--copy-back 同样要求私有桶已配置（回滚时要知道从哪个桶恢复）。
+
+    文档里的回滚顺序必须是「先 --copy-back，再考虑清 R2_PRIVATE_BUCKET_NAME」——
+    清早了脚本就没有源桶可读，回滚无从下手。
+    """
+    import inspect
+    import sys
+    from pathlib import Path
+
+    backend = Path(__file__).resolve().parents[2]
+    if str(backend) not in sys.path:
+        sys.path.insert(0, str(backend))
+    from scripts import migrate_r2_private_prefix as mig
+
+    src = inspect.getsource(mig.main)
+    # 守卫是无条件的（不按动作分别判断）→ --copy-back 也在内
+    assert "if not isolated and (args.copy" not in src
+    assert "if not isolated:" in src
+    # 错误提示里要写明回滚顺序
+    assert "回滚" in src, "错误提示需说明 --copy-back 要在私有桶仍配置时跑"

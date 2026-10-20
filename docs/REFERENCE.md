@@ -136,6 +136,16 @@ cd backend
 
 读取路径「私有桶优先、公开桶兜底」，因此「已复制、未删源」的窗口期内不会读不到。
 
+> ⚠️ **`--delete` 之后必须再做一次 Cloudflare 边缘 purge**。R2 自定义域名对部分对象
+> （实测：`application/octet-stream` 的大文件，如 146MB 备份）会启用 Cloudflare 边缘缓存
+> （`cf-cache-status: HIT` + `age`），**删掉 origin 副本不等于公开不可下载** —— 边缘仍会
+> 继续吐旧内容，直到缓存过期或被 purge。脚本在删完后会打印**待 purge 的 URL 清单**，
+> 照着 purge 即可。复查用 `scripts/r2_cache_purge_check.py`（它同时对比 HEAD 走 origin、
+> GET 走边缘缓存，能识别「origin 已 404 但 GET 仍 200」的残留）。
+>
+> 回滚顺序：`--delete` 之后要回滚，**先**跑 `--copy-back`（它要求私有桶仍配置着 ——
+> 脚本要知道从哪个桶恢复），**再**考虑清 `R2_PRIVATE_BUCKET_NAME`。
+
 ---
 
 ## 数据库与迁移（Database）

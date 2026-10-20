@@ -16,18 +16,27 @@ GET 任意 key，且 key 可枚举（``crm-proposals/{id}/v{n}/raw.html``）。
   - 默认 DRY-RUN：只报告将要迁/删什么，不动任何数据。
   - ``--execute`` 才真正动手（``--delete`` 额外需要 ``--confirm-delete``）。
   - ``--copy`` 幂等：目标已存在且大小一致 → 跳过。
-  - ``--delete`` 只删**已成功复制**到私有桶的对象（先验证目标存在），避免删源失���。
+  - ``--delete`` 只删**已成功复制**到私有桶的对象（先验证目标存在 + 大小一致 +
+    整文件 SHA-256 一致），避免删源失联。
+  - **任何**写操作都要求私有桶已配置且与公开桶不同名（否则「源」与「副本」
+    分不清，会把唯一副本删光）。
+  - ``--delete`` 删掉 origin 后会输出**待 purge 的 URL 清单**：R2 自定义域名对
+    部分对象启用 Cloudflare 边缘缓存，删 origin ≠ 公开不可下载，**必须再 purge**。
 
 运行（VPS 上，prod .env 提供 R2 凭证）：
   cd /root/believeboyDashboard/backend
   .venv/bin/python scripts/migrate_r2_private_prefix.py --dry-run
   .venv/bin/python scripts/migrate_r2_private_prefix.py --copy --execute
   .venv/bin/python scripts/migrate_r2_private_prefix.py --delete --execute --confirm-delete
+  # → 按脚本输出的 URL 清单做一次 Cloudflare 边缘 purge，再用
+  #   scripts/r2_cache_purge_check.py --key <key> 复查
 
 回滚
 ----
-``--delete`` 之后若需回滚：把 ``R2_PRIVATE_BUCKET_NAME`` 改回空 / 改回公开桶名，
-并用 ``--copy-back`` 把对象复制回公开桶（前提是公开桶的自定义域名仍指向它）。
+``--delete`` 之后若需回滚：**先**跑 ``--copy-back``（它要求私有桶仍配置着，
+因为脚本要知道从哪个桶恢复），**再**考虑要不要清 ``R2_PRIVATE_BUCKET_NAME``。
+清早了会让回滚无从下手（脚本不知道源桶）。
+前提是公开桶的自定义域名仍指向它。
 """
 
 from __future__ import annotations
@@ -157,6 +166,11 @@ def main() -> int:
     parser.add_argument("--copy-back", action="store_true", help="复制回公开桶（回滚用）")
     parser.add_argument("--delete", action="store_true", help="删除公开桶里的副本")
     parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="只报告将做什么，不做任何改动（等价于不加 --execute）",
+    )
+    parser.add_argument(
         "--execute",
         action="store_true",
         help="真正动手（默认 DRY-RUN，只报告）",
@@ -168,8 +182,20 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    if not (args.copy or args.copy_back or args.delete):
-        parser.error("至少指定一个动作：--copy / --copy-back / --delete")
+    # --dry-run 单独用 = 「只看不改」的预检：默认列出各敏感前缀在公开桶里的对象。
+    # 没给任何动作时，把它当成隐式的「只读列举」，而不是 argparse 报错。
+    if args.dry_run and not (args.copy or args.copy_back or args.delete):
+        args.copy = False
+        args.copy_back = False
+        args.delete = False
+        args.list_only = True
+    else:
+        args.list_only = False
+        if not (args.copy or args.copy_back or args.delete):
+            parser.error(
+                "至少指定一个动作：--copy / --copy-back / --delete\n"
+                "（只看不改就直接用 --dry-run，或用这些动作但**不加** --execute）"
+            )
 
     if args.delete and not args.confirm_delete:
         print("拒绝执行：--delete 必须同时给 --confirm-delete（删除不可逆）")
@@ -197,11 +223,16 @@ def main() -> int:
     # 旧实现漏了 args.delete：私有桶未配置时 private_bucket 回落到公开桶，
     # 三重安全阀就变成「公开桶对象跟自己比大小、跟自己比 SHA-256」→ 全过，
     # --delete 直接把**唯一副本**删光（与脚本声明的「先确认私有副本存在才删源」相反）。
+    #
+    # 注意 --copy-back 也要这个守卫：回滚的前提就是「私有桶仍然配着」——
+    # 若先把 R2_PRIVATE_BUCKET_NAME 清掉，脚本根本不知道该从哪个桶恢复。
     if not isolated:
         print(
             "错误：私有桶未配置（R2_PRIVATE_BUCKET_NAME 为空或与公开桶同名）。\n"
             "      **任何**写操作（--copy / --copy-back / --delete）都要求私有桶先配置好，\n"
             "      否则脚本无从判断「源」与「副本」谁是谁，会误删唯一副本。\n"
+            "      回滚（--copy-back）也必须在**私有桶仍配置着**的时候做：\n"
+            "      先跑 --copy-back，再考虑要不要清 R2_PRIVATE_BUCKET_NAME。\n"
             "      先在 .env 里配置一个**不挂自定义域名**的私有桶，再运行本脚本。\n"
             "      提示：本仓库的 R2 凭据可直接创建桶：\n"
             "        aws s3api create-bucket --bucket <新桶名> "
@@ -227,11 +258,21 @@ def main() -> int:
     copied = 0
     deleted = 0
     skipped = 0
+    purge_targets: list[str] = []
+    public_base = settings.r2_public_url or (
+        f"{settings.r2_endpoint_url}/{settings.r2_bucket_name}"
+    )
 
     for prefix in prefixes:
         # --copy-back 是**回滚**路径：源在私有桶（--delete 已把公开桶清空），
         # 所以必须列私有桶；否则公开桶已空 → 循环 0 条 → 什么都 restore 不回来。
-        source_bucket = private_bucket if args.copy_back else public_bucket
+        # --list_only（--dry-run 单独用）列公开桶 —— 预检要看的是「公开桶里有什么」。
+        if args.copy_back:
+            source_bucket = private_bucket
+        elif args.list_only:
+            source_bucket = public_bucket
+        else:
+            source_bucket = public_bucket
         objects = _list(client, source_bucket, prefix)
         print(f"[{prefix}] {source_bucket} 里 {len(objects)} 个对象")
         for obj in objects:
@@ -304,6 +345,10 @@ def main() -> int:
                 client.delete_object(Bucket=public_bucket, Key=key)
                 print("      已删除公开桶副本 ✓")
                 deleted += 1
+                # 删掉 origin **不等于**公开不可下载：R2 自定义域名对部分对象
+                # （如 application/octet-stream 的大文件）会启用 Cloudflare 边缘缓存，
+                # 边缘副本在 purge 前仍可被匿名下载。必须把 purge 目标记下来。
+                purge_targets.append(f"{public_base}/{key}")
         print()
 
     print("=" * 68)
@@ -311,6 +356,18 @@ def main() -> int:
         f"对象 {total_objects} 个 / {total_bytes / 1024 / 1024:.2f} MB"
         f" | 复制 {copied} | 删除 {deleted} | 跳过 {skipped}"
     )
+    if purge_targets:
+        print()
+        print("⚠️  以下 URL 刚删除了 origin 副本，但**边缘缓存可能仍在吐旧内容**：")
+        for url in purge_targets:
+            print(f"  {url}")
+        print()
+        print("必须做一次 Cloudflare 边缘 purge（否则匿名仍可下载）：")
+        print("  Dashboard: https://dash.cloudflare.com/<zone>/<domain>/caching/cache-purge")
+        print("             → Purge by URL → 粘上面这些 URL")
+        print("  API      : POST https://api.cloudflare.com/client/v4/zones/<zone_id>/purge_cache")
+        print('             {"files": [<上面这些 URL>]}')
+        print("  复查     : .venv/bin/python scripts/r2_cache_purge_check.py --key <key> ...")
     if not args.execute:
         print("DRY-RUN 结束：未做任何改动。去掉 --execute 才会真正执行。")
     else:
