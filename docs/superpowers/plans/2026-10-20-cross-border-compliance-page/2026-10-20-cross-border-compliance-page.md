@@ -82,15 +82,15 @@
 
 - **角色**：frontend（Seth）执行、Tia 复核
 - **依赖**：S2 已合并
-- **产出**：无新增业务代码；只在需要时补回归修复 + PR 描述里的验证记录。
+- **产出**：新增一个 Playwright spec（登录 → 侧栏入口 → 页面 → 勾选/重置 → 窄屏）+ 验证记录；只在需要时补回归修复。
 - **验收标准**：
-  - C1 本地 dev 走完「登录 → 工具箱 → 合规页 → 勾选若干 → 重置 → 切明暗主题 → 375px → 页内锚点」全流程，逐项截图/记录（Playwright 或手动皆可；涉及登录与权限，按 AGENTS.md E2E 口径走 `TESTING.md` 准备）
+  - C1 **自动 E2E 为必需项**（AGENTS.md §E2E 不按 T 档一刀切：涉及登录 / 权限隔离 / NextAuth / 前后端代理时必须跑 Playwright，手动截图不能替代）。新增 `frontend/tests/dashboard/cross-border-compliance.spec.ts`，覆盖：登录后从「工具箱」进入 `/dashboard/tools/cross-border-compliance` → 页面标题与来源提示可见 → 勾选若干首单材料后进度文本变化 → 「重置」回 0/N → 375px 视角无整体横向溢出。按 `TESTING.md` / `backend/scripts/agent_testing/README.md` 准备测试数据库与前后端服务后跑 `cd frontend && pnpm test:ui -- tests/dashboard/cross-border-compliance.spec.ts`；目视与截图作为**补充留痕**（明暗主题切换、页内锚点跳转可目视）
   - C2 前端全量**不无条件重跑**（AGENTS.md §失败集对账）：S3 折进 S2 PR 时直接沿用 S2 已经跑过的那一次全量结果；只有 S3 自身产生新的代码改动，或 S2 全量存在需要确认的失败时，才跑目标集 / 定向重跑失败用例。按当次实测记录 `Test Files / Tests` 数字；若有失败，与 `origin/main` 同命令对账一次，确认是既有失败还是本次引入（**不得 `skip` / `xfail` 掩盖**）
   - C3 `pnpm check:mocks` + `pnpm lint` 通过
   - C4 设计稿「验收标准」7 条逐条对照 PR 正文打勾；交付缺漏清单（S1 的省略条目）显式列给用户
   - C5 Vercel preview / production 部署成功
 
-> S3 若发现只是「验证 + 列出缺漏」而无代码改动，可作为 S2 PR 的验证章节合并执行——由 Seth 判断，**不要为了凑 stage 造空 PR**。届时把 S3 的结论写进 S2 的 PR 描述与 issue 评论即可。
+> S3 若发现只需「补 E2E + 列缺漏」而无业务代码改动，可与 S2 同 PR 交付（S2 PR 包含该 spec 即满足）——由 Seth 判断，**不要为了凑 stage 造空 PR**。届时把 S3 的结论写进 S2 的 PR 描述与 issue 评论即可。但 C1 那条 Playwright spec **不能省**（它是自动门禁，不是手动项）。
 
 ---
 
@@ -113,7 +113,7 @@
 | --- | --- | --- | --- |
 | S1 | **T2** | `pnpm vitest run app/dashboard/tools/cross-border-compliance` + `pnpm check:mocks` + `pnpm lint` | 不跑 |
 | S2 | **T3**（改公共侧栏配置） | `pnpm check:mocks` → `pnpm test` 全量 + `pnpm lint` | 不跑 |
-| S3 | 收尾 | 折进 S2 PR 时**不重跑全量**（沿用 S2 那一次结果，只做失败集对账）；S3 自带代码改动才按新档位跑。E2E / 目视流程照跑 | 不跑 |
+| S3 | 收尾 | 新增/跑 `pnpm test:ui` 目标 spec（必需）+ 失败集对账；折进 S2 PR 时**不重跑全量**（沿用 S2 那一次结果）。目视流程作补充 | 不跑 |
 
 - 全量耗时参考：本仓库 2026-10-05/06 实测 235 文件 / 1660 例 / **~43s（空闲）～ ~2min（同机满载）**。判「卡住」不看绝对秒数，看是否在推进（AGENTS.md：60s 无 `Test Files` 汇总 + 单 worker 长时间 100% CPU = 无限渲染循环，`--testTimeout` 救不了）。
 - **不做**：`pnpm build`（交 Vercel）、后端全量（零后端改动）、`pytest -n auto`（共享 `BLF_test` 会互相死锁）。
