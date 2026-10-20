@@ -31,6 +31,8 @@ const ACTION_TITLES: Record<string, string> = {
   'platform_inspection.delete_screenshot': '删除巡检截图',
   // 客诉中心域
   'complaint_center.batch_write': '批量写入客诉',
+  // 评论追踪采集域
+  'review_tracking.crawl_run': '提交评论采集结果',
   // 凭据签发域
   'agent_key.create': '自助签发凭据',
   'api_key.create': '创建凭据',
@@ -142,6 +144,10 @@ const ACCESS_ROUTE_LABELS: AccessRouteLabel[] = [
   route('POST', /\/platform-inspection\/periods\/\d+\/projects\/\d+\/submit\/?$/, '提交平台巡检'),
   route('POST', /\/platform-inspection\/periods\/\d+\/projects\/\d+\/screenshots\/?$/, '上传巡检截图'),
   route('DELETE', /\/platform-inspection\/screenshots\/\d+\/?$/, '删除巡检截图'),
+
+  // 评论追踪采集域（R1 读目标 / W1 回传采集结果）。
+  route('GET', /\/review-tracking\/targets\/?$/, '查询评论采集目标'),
+  route('POST', /\/review-tracking\/targets\/[^/]+\/runs\/?$/, '提交评论采集结果'),
 
   // 销售、广告与报表。
   route('GET', /\/projects\/\d+\/sales\/summary\/?$/, '查询销售数据汇总'),

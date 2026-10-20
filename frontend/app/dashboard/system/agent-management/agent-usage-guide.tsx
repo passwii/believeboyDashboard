@@ -1008,6 +1008,97 @@ function buildPlatformInspectionGuide(opts: {
   截图请引导用户去前端「平台巡检」页面。`
 }
 
+/** 评论追踪采集域调用说明（BLF-1378）：R1 读目标 + W1 提交采集结果，共 2 条路由。 */
+function buildReviewTrackingGuide(opts: {
+  key?: string
+  agentId?: string
+  apiBase: string
+}): string {
+  const { key, agentId, apiBase } = opts
+  return `【1. 存活探针】
+
+  curl ${apiBase}/api/v1/agent/health \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+【2. 读取采集目标（R1 GET，读桶，不落审计）】
+
+  curl "${apiBase}/api/v1/agent/review-tracking/targets" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}"
+
+  **不要在 URL 上加 ?kind= 过滤**：不传 kind 时服务端同时返回内部目标与外部竞品
+  目标（item 里的 kind 字段区分），加了过滤就只会拿到其中一半，竞品 ASIN 那半边
+  永远拿不到 target_id、无法提交采集结果。需要只看某一类时，在**响应里**按
+  item.kind 分流处理，不要靠 URL 参数砍掉另一半。
+  query：marketplace（US/DE/UK…，大写归一）、kind（internal_group / external_asin，
+  可选，默认两种都返回）、project_id、limit（1..500，默认 200）、offset。
+  **必须翻完所有分页**：limit 默认 200、offset 默认 0，响应里的 total 是**符合条件
+  的目标总数**。只发一次默认请求只会拿到前 200 条，第 201 条之后的目标永远排不进
+  采集队列——要按 offset=0,200,400… 递增请求，直到「已取条数 ≥ total」为止（末页
+  可能不满 200 条）。别拿第一页就当「全部目标」。
+  响应 data：{ items, total, crawl_rules }。item 字段：target_id、kind、group_id、
+  project_id、marketplace、asin、display_name、external_shop_ids、last_run
+  （{ run_id, status, started_at }，含 failed；无 run 则 null）。
+  只返回 is_active=true 的目标（组停用 / 外部目标停用后不再采集）。
+  asin 对内部目标是**组代表 ASIN**、对外部目标是竞品 ASIN——形态一致，不需要分支解析。
+  **项目范围口径**：内部目标严格按凭据 project_scope 过滤（越权 → 403
+  AGENT_PROJECT_OUT_OF_SCOPE）；**外部目标跨项目可见**（project_id 为空，是全局
+  共享数据，待产品确认）。
+  crawl_rules 是**常量下发**（业务时区 Asia/Shanghai、同日一快照、两连缺失判疑似
+  移除、单次评论上限 500、计数上限 2147483647 等服务端已强制的语义），**不含**
+  分页大小 / 抓取频率 / UA——这些由采集侧自己决定。
+
+【3. 提交采集结果（W1 POST，幂等，不 confirm）】
+
+  curl -X POST "${apiBase}/api/v1/agent/review-tracking/targets/$TARGET_ID/runs" \\
+    -H "Authorization: Bearer ${key}" \\
+    -H "X-Agent-Id: ${agentId}" \\
+    -H "Idempotency-Key: <本次运行的幂等键，每次运行新生成，≤64 字符>" \\
+    -H "Content-Type: application/json" \\
+    -d '{"captured_at":"<ISO8601 带时区，如 2026-10-19T09:30:00+08:00>","status":"success","rating":{"average_rating":4.3,"rating_count":128,"review_count":96,"star_percentages":[7,3,6,20,64],"star_counts":null,"star_count_quality":"estimated"},"reviews":[{"review_key":"R1F90C6R6GV8L6","id_confidence":"original","rating":5,"title":"好用","body":"……","review_date":"2026-10-10","verified_purchase":true,"helpful_count":3}],"is_complete_list":false,"asin_scraped":"B0G6C865B6"}'
+
+  body：captured_at（**必须带时区**，naive → 400；**每次运行取当次采集时刻**，且要晚于
+  该目标最近一次非 failed run，见下方顺序护栏）、status（success|partial|failed）、
+  rating（均分 / 评分数 / 评论数 / 1–5 星百分比或绝对数 + star_count_quality）、
+  reviews[]（最多 500 条；review_key / id_confidence / 星级 / 标题 / 正文 / 日期 /
+  verified / helpful）、is_complete_list、idempotency_key（可选，与头二选一）、
+  asin_scraped、error_message、source。
+  **is_complete_list 只在「确实拿到了完整评论列表」时才置 true**：置 true 时，本次
+  reviews 里没出现的**之前可见**评论会被计一次缺失，连续两次缺失就标记「疑似移除」
+  ——抓取被截断（评论数超过单次 500 条上限、被限流、只拿到前 N 条）却置 true，会把
+  还在售的评论误判成疑似移除。**抓不全就置 false**（示例默认 false）。示例里的
+  reviews 只有 1 条是因为它只示范字段形状，不是因为「只抓到 1 条就是完整列表」。
+  **reviews 三种语义不可合并**：null（本次没抓评论列表，不参与移除判定）、[]（抓到
+  了**完整的空列表**，真的一条都没有）、[...]（抓到 N 条）。「没抓到」要提交 null，
+  不能提交 []。
+  **幂等**：唯一键 (target_id, idempotency_key)；重复提交返回**首次** run_id 且
+  replayed=true，不新增行、不写审计。幂等键**每次运行都要新生成**——沿用旧键会命中
+  重放，看起来「成功」其实什么都没写。幂等键 body 字段优先，缺省回退
+  Idempotency-Key 头；两者都给且不一致 → 400 VALIDATION_FAILED（**示例只在头上给**，
+  body 里不传 idempotency_key）。
+  **失败语义**：status=failed 只落运行记录，不写评分快照与评论；本次没抓到评论
+  也要提交已取得的评分快照。
+  **顺序护栏**：captured_at 早于或等于该目标最近一次**非 failed** run → 409
+  REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER（乱序会倒退当前态评论、误判「疑似移除」）。
+  同一业务日重跑要用**更晚的** captured_at，不受这条限制。
+  **captured_at 未来上限**：晚于服务器当前时间 2 小时 → 400 VALIDATION_FAILED
+  （reason=captured_at_in_future，容忍时钟漂移但不接受时区标错；超限不写任何行）。
+  目标不存在 / 已停用 → 404 RESOURCE_NOT_FOUND；内部目标项目越权 → 403
+  AGENT_PROJECT_OUT_OF_SCOPE（403 与 404 可区分，便于自纠）。
+  写审计：action=review_tracking.crawl_run，operator=NULL + agent_id 归因。
+
+【4. 采集节奏与移除判定】
+
+  建议「一周 1–2 次」；同一目标同一业务日只有一份快照，同日重跑更新当天快照并
+  保留每次运行记录。**只有 success + is_complete_list=true** 的提交才参与「疑似
+  移除」判定：连续两次完整列表里缺失同一条评论才标记疑似移除（single miss 不算）。
+  注意「完整列表」的前提——抓不全时置 true 会把还在售的评论误判成疑似移除，详见
+  上面 W1 段对 is_complete_list 的说明。
+  1–5 星百分比是页面原始比例，**不能据此声称精确星数**——精确星数请填 star_counts
+  并把 star_count_quality 设为 exact。`
+}
+
 /** 规划中/未知域的通用占位说明。 */
 function buildPlaceholderGuide(opts: { key?: string; agentId?: string; apiBase: string }): string {
   const { key, agentId, apiBase } = opts
@@ -1070,6 +1161,8 @@ export function buildUsageText(opts?: {
     domainGuide = buildSkuInfoGuide({ key, agentId, apiBase })
   } else if (domain === 'platform_inspection') {
     domainGuide = buildPlatformInspectionGuide({ key, agentId, apiBase })
+  } else if (domain === 'review_tracking') {
+    domainGuide = buildReviewTrackingGuide({ key, agentId, apiBase })
   } else {
     domainGuide = buildPlaceholderGuide({ key, agentId, apiBase })
   }

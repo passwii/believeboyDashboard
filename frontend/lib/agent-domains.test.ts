@@ -207,6 +207,22 @@ describe('AGENT_DOMAINS 注册表', () => {
     expect(domain?.capabilities).toEqual({ read: false, write: true })
   })
 
+  it('review_tracking 已接入且 routeCount=2、读写（BLF-1378）', () => {
+    const domain = getAgentDomain('review_tracking')
+    expect(domain).toEqual({
+      code: 'review_tracking',
+      label: '评论追踪',
+      description:
+        '评论追踪采集域：R1 读 active 采集目标 + 抓取规则，W1 按目标回传采集结果（读 1 + 写 1，BLF-1378）',
+      status: 'live',
+      routeCount: 2,
+      capabilities: { read: true, write: true },
+      dashboardPath: '/dashboard/operations/review-tracking',
+    })
+    expect(liveAgentDomains()).toContain(domain)
+    expect(AGENT_DOMAINS.filter((d) => d.code === 'review_tracking')).toHaveLength(1)
+  })
+
   it('注册表有规划中域（roadmap 待迁移）', () => {
     expect(AGENT_DOMAINS.some((d) => d.status === 'planned')).toBe(true)
   })

@@ -171,6 +171,15 @@ export const AGENT_DOMAINS: AgentDomain[] = [
     capabilities: { read: true, write: true },
   },
   {
+    code: 'review_tracking',
+    dashboardPath: '/dashboard/operations/review-tracking',
+    label: '评论追踪',
+    description: '评论追踪采集域：R1 读 active 采集目标 + 抓取规则，W1 按目标回传采集结果（读 1 + 写 1，BLF-1378）',
+    status: 'live',
+    routeCount: 2,
+    capabilities: { read: true, write: true },
+  },
+  {
     code: 'agent_provisioning',
     dashboardPath: '/dashboard/system/agent-management',
     label: '凭据签发',

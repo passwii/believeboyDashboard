@@ -311,6 +311,102 @@ describe('buildUsageText · 业务域分支（BLF-448）', () => {
     expect(text).not.toContain('尚未接入 Agent API')
   })
 
+  it('domain=review_tracking 输出评论追踪采集示例（BLF-1378，R1+W1 共 2 条路由）', () => {
+    const text = buildUsageText({
+      plaintextKey: 'bbx_test',
+      agentId: 'agent-1',
+      domain: 'review_tracking',
+    })
+    expect(text).toContain('评论追踪')
+    expect(text).toContain('/review-tracking/targets')
+    expect(text).toContain('/review-tracking/targets/$TARGET_ID/runs')
+    // 幂等与顺序护栏是本域最容易踩的语义，必须在派发文档里写明
+    expect(text).toContain('replayed=true')
+    expect(text).toContain('REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER')
+    expect(text).toContain('captured_at_in_future')
+    expect(text).toContain('is_complete_list')
+    expect(text).not.toContain('/shipments?page_size=20')
+    expect(text).not.toContain('尚未接入 Agent API')
+  })
+
+  it('domain=review_tracking 的 W1 示例只给幂等键一处，且 captured_at / 幂等键是每次生成的占位（BLF-1376 复审 P1）', () => {
+    const text = buildUsageText({
+      plaintextKey: 'bbx_test',
+      agentId: 'agent-1',
+      domain: 'review_tracking',
+    })
+    // 提取 W1 示例的 curl 块（从提交采集结果到 body 结束）
+    const w1Start = text.indexOf('/review-tracking/targets/$TARGET_ID/runs')
+    expect(w1Start).toBeGreaterThan(-1)
+    const w1 = text.slice(w1Start, text.indexOf('\n\n', w1Start))
+
+    // ① 幂等键只保留一处：示例只在 Idempotency-Key 头上给，body 不再带 idempotency_key
+    //    （头 + body 同时给且不一致 → 后端 400 VALIDATION_FAILED）
+    expect(w1).toContain('-H "Idempotency-Key: ')
+    expect(w1).not.toContain('"idempotency_key":')
+    // 旧的钉死字面量占位符与固定 target-12 key 一并清掉
+    expect(w1).not.toContain('Idempotency-Key: <≤64 字符>')
+    expect(w1).not.toContain('target-12')
+
+    // ② captured_at / 幂等键必须一眼看出是每次生成的占位，不能钉成一次性字面量
+    const bodyMatch = w1.match(/-d '(\{.*\})'/)
+    expect(bodyMatch).not.toBeNull()
+    const body = JSON.parse(bodyMatch![1]) as Record<string, unknown>
+    expect(String(body.captured_at).startsWith('<')).toBe(true)
+    // 保留时区格式示范
+    expect(String(body.captured_at)).toContain('+08:00')
+    expect(body.idempotency_key).toBeUndefined()
+  })
+
+  it('domain=review_tracking 的 R1 示例不过滤 kind，外部竞品目标也要能被采集（BLF-1376 复审 P1 第 2 轮）', () => {
+    const text = buildUsageText({
+      plaintextKey: 'bbx_test',
+      agentId: 'agent-1',
+      domain: 'review_tracking',
+    })
+    // 提取 R1 示例的 curl 块（从读取采集目标到第一个空行）
+    const r1Start = text.indexOf('/review-tracking/targets')
+    expect(r1Start).toBeGreaterThan(-1)
+    const r1 = text.slice(r1Start, text.indexOf('\n\n', r1Start))
+
+    // 后端 kind 参数可空：不传时同时返回 internal_group 与 external_asin。
+    // 示例里一旦带上 ?kind=internal_group，采集 Agent 就永远拿不到竞品 ASIN 那半边，
+    // 也无法为它们提交采集结果。
+    expect(r1).not.toContain('?kind=')
+    expect(r1).not.toContain('kind=internal_group')
+    expect(r1).not.toContain('kind=external_asin')
+    // URL 必须保持裸路径（不带任何 query），否则示例就预设了过滤
+    expect(r1).toContain('review-tracking/targets"')
+    // 文档里要写明「按 item.kind 分流」而不是「靠 URL 参数砍掉一半」
+    expect(text).toContain('item.kind')
+  })
+
+  it('domain=review_tracking 的 R1 示例要求翻完全部分页，W1 示例默认 is_complete_list=false（BLF-1376 复审 P1 第 3 轮）', () => {
+    const text = buildUsageText({
+      plaintextKey: 'bbx_test',
+      agentId: 'agent-1',
+      domain: 'review_tracking',
+    })
+
+    // ① 分页：R1 的 limit 默认 200、offset 默认 0，只发一次默认请求只能拿到前 200 条，
+    //    第 201 条之后的目标永远排不进采集队列。文档必须要求按 offset 递增翻到 total。
+    expect(text).toContain('必须翻完所有分页')
+    expect(text).toContain('offset=0,200,400')
+
+    // ② is_complete_list：置 true 时，本次 reviews 里没出现的可见评论会被计缺失，
+    //    连续两次就误判「疑似移除」。抓不全却置 true 是假数据，示例必须默认 false。
+    const w1Start = text.indexOf('/review-tracking/targets/$TARGET_ID/runs')
+    expect(w1Start).toBeGreaterThan(-1)
+    const w1 = text.slice(w1Start, text.indexOf('\n\n', w1Start))
+    const bodyMatch = w1.match(/-d '(\{.*\})'/)
+    expect(bodyMatch).not.toBeNull()
+    const body = JSON.parse(bodyMatch![1]) as Record<string, unknown>
+    expect(body.is_complete_list).toBe(false)
+    // 三种 reviews 语义（null / [] / [...]）不可合并，必须在文档里写明
+    expect(text).toContain('reviews 三种语义不可合并')
+    expect(text).toContain('不能提交 []')
+  })
+
   it('未知域输出占位说明', () => {
     const text = buildUsageText({
       plaintextKey: 'bbx_test',
