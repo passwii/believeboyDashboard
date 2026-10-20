@@ -422,6 +422,7 @@ def create_proposal(
         CrmProposalType.ONBOARDING,
         CrmProposalType.OPERATION,
         CrmProposalType.QUOTATION,
+        CrmProposalType.RESEARCH,
         CrmProposalType.OTHER,
     ):
         raise HTTPException(

@@ -21452,7 +21452,7 @@ export interface components {
             /** Customer Id */
             customer_id?: number | null;
             /** Proposal Type */
-            proposal_type?: ("onboarding" | "operation" | "quotation" | "other") | null;
+            proposal_type?: ("onboarding" | "operation" | "quotation" | "research" | "other") | null;
             /** Status */
             status?: ("draft" | "published" | "archived") | null;
             /** Title */

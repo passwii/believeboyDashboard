@@ -643,6 +643,7 @@ class CrmProposalType(str):
     ONBOARDING = "onboarding"  # 入驻方案
     OPERATION = "operation"  # 运营方案
     QUOTATION = "quotation"  # 报价方案
+    RESEARCH = "research"  # 调研方案
     OTHER = "other"
 
 

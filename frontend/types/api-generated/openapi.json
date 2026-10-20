@@ -30686,6 +30686,7 @@
                   "onboarding",
                   "operation",
                   "quotation",
+                  "research",
                   "other"
                 ],
                 "type": "string"
