@@ -1523,8 +1523,6 @@ export class MockCrmClient implements CrmClient {
 
   async listProposals(params: ProposalListParams): Promise<Paginated<Proposal>> {
     await this.delay('listProposals')
-    // 口径 = 后端「客户方案全员可见」（BLF-1403 / BLF-1410）：
-    // scope='all' 不过滤（非 admin 也不降级），scope='mine' 才只看自己的。
     let items = applyScope(this.state.proposals, params.scope ?? 'mine', this.currentUserId, 'ownerId')
     items = applyKeyword(items, params.keyword, ['title', 'customerName'])
     items = applyFilters(items, params.filters)
@@ -1534,9 +1532,6 @@ export class MockCrmClient implements CrmClient {
 
   async getProposal(id: string): Promise<ProposalDetail> {
     await this.delay('getProposal')
-    // 不做 owner 校验——与后端放开只读门禁后的口径一致（方案域全员可读）。
-    // ⚠️ 注意：mock 的**写**方法也不校验 owner，故 mock 下非 owner 的写操作会「成功」，
-    // 而后端会 403（写操作仍限 owner/admin）——校验写操作 UI 时必须用 http 模式验证。
     const proposal = this.state.proposals.find((p) => p.id === id)
     if (!proposal) throw new Error(`方案不存在: ${id}`)
     return { ...proposal, versions: this.proposalVersionsOf(id) }
