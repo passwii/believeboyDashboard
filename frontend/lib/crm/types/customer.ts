@@ -1,5 +1,11 @@
 export type CustomerStatus = 'active' | 'lost' | 'signed' | 'on_hold'
-export type CustomerSource = 'referral' | 'exhibition' | 'online_ad' | 'cold_call' | 'other'
+export type CustomerSource =
+  | 'referral'
+  | 'exhibition'
+  | 'online_ad'
+  | 'cold_call'
+  | 'self_developed'
+  | 'other'
 export type CustomerRating = 'A' | 'B' | 'C' | 'D'
 
 /** 客户身上携带的类目摘要（简版：id + name）。 */
