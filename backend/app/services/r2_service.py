@@ -132,8 +132,18 @@ def delete_bucket_candidates(settings: Settings, key: str) -> list[str]:
     还在**；而迁移脚本 ``--delete`` 的安全阀（私有桶无此对象 → 拒绝删源）
     此后永远不会再删它 → 变成永久公开可下载的孤儿。
     """
-    if not is_private_key(key) or not settings.r2_private_bucket_isolated:
+    if not is_private_key(key):
         return [resolve_bucket(settings, key)]
+    if not settings.r2_private_bucket_isolated:
+        # 未隔离时（回滚后清掉了私有桶名）也要把私有桶列进来。
+        # 否则删方案只删公开桶那份，私有桶里的原件留着 —— 而它没被登记死信
+        # （公开桶那次删除成功了），孤立文件清理脚本又只扫公开桶
+        # → 私有桶里的副本变成谁也找不到的孤儿。
+        # 私有桶名已知就用它；连名字都没了（配置被彻底清空）就只能清公开桶。
+        private_name = settings.r2_private_bucket_name.strip()
+        if not private_name or private_name == settings.r2_bucket_name:
+            return [settings.r2_bucket_name]
+        return [settings.r2_bucket_name, private_name]
     return bucket_candidates(settings, key)
 
 

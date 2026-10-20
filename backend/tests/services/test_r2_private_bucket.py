@@ -805,3 +805,68 @@ def test_migrate_script_failure_exit_is_reachable():
         ):
             rc = mig.main()
     assert rc != 0, "删除失败时退出码必须非 0（不能报「完成」）"
+
+
+# ---------------------------------------------------------------------------
+# (13) 第六轮 Codex review 修：回滚后私有桶的副本不能变成没人能找到的孤儿
+# ---------------------------------------------------------------------------
+
+
+def test_copy_back_also_removes_private_copy_by_default():
+    """回滚 = 回到迁移前状态 → ``--copy-back`` 默认也要删掉私有桶里的副本。
+
+    否则：副本留在私有桶 → 操作者按文档清掉 R2_PRIVATE_BUCKET_NAME → 之后删方案
+    只会清公开桶那份（私有桶那份不在孤立文件清理脚本的扫描范围里、也没有死信
+    记录）→ 变成谁也找不到的孤儿。
+    """
+    import inspect
+    import sys
+    from pathlib import Path
+
+    backend = Path(__file__).resolve().parents[2]
+    if str(backend) not in sys.path:
+        sys.path.insert(0, str(backend))
+    from scripts import migrate_r2_private_prefix as mig
+
+    src = inspect.getsource(mig.main)
+    assert "if not args.keep_private:" in src, (
+        "--copy-back 必须能删掉私有桶里的副本（否则回滚留下没人能找到的孤儿）"
+    )
+    assert "client.delete_object(Bucket=private_bucket, Key=key)" in src
+    # 且要提供保留开关
+    assert '"--keep-private"' in Path(mig.__file__).read_text(encoding="utf-8")
+
+
+def test_delete_bucket_candidates_keeps_private_bucket_after_rollback():
+    """回滚态（私有桶名被清掉）下，敏感 key 的删除仍要覆盖私有桶。
+
+    私有桶名已知时 → 两个桶都清；名字也被清空时 → 只能清公开桶。
+    """
+    from app.services.r2_service import delete_bucket_candidates
+
+    # 回滚态：配置里私有桶名仍是旧值，但与公开桶同名 → isolated=False
+    s_same = Settings(
+        r2_bucket_name="believeboy-dash",
+        r2_private_bucket_name="believeboy-dash",
+        r2_endpoint_url="https://x",
+        r2_access_key_id="a",
+        r2_secret_access_key="b",
+    )
+    assert delete_bucket_candidates(s_same, CRM_KEY) == ["believeboy-dash"]
+
+    # 名字彻底清空 → 只能清公开桶（无从知道私有桶是哪个）
+    s_cleared = Settings(
+        r2_bucket_name="believeboy-dash",
+        r2_private_bucket_name="",
+        r2_endpoint_url="https://x",
+        r2_access_key_id="a",
+        r2_secret_access_key="b",
+    )
+    assert delete_bucket_candidates(s_cleared, CRM_KEY) == ["believeboy-dash"]
+
+    # 正常隔离态 → 两个桶
+    s_ok = _settings()
+    assert set(delete_bucket_candidates(s_ok, CRM_KEY)) == {
+        "believeboy-private",
+        "believeboy-dash",
+    }

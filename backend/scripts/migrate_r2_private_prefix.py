@@ -36,6 +36,12 @@ GET 任意 key，且 key 可枚举（``crm-proposals/{id}/v{n}/raw.html``）。
 ``--delete`` 之后若需回滚：**先**跑 ``--copy-back``（它要求私有桶仍配置着，
 因为脚本要知道从哪个桶恢复），**再**考虑要不要清 ``R2_PRIVATE_BUCKET_NAME``。
 清早了会让回滚无从下手（脚本不知道源桶）。
+
+``--copy-back`` 默认**同时删掉私有桶里的副本** —— 回滚就是回到迁移前状态，
+私有桶不该留下没人能找到的孤儿（后续清掉 R2_PRIVATE_BUCKET_NAME 后，
+删方案只会清公开桶那份，私有桶那份既不在任何清理脚本的扫描范围里、也没有
+死信记录 → 变成谁也找不到的孤儿）。确实要保留时用 ``--keep-private``。
+
 前提是公开桶的自定义域名仍指向它。
 """
 
@@ -166,6 +172,14 @@ def main() -> int:
     )
     parser.add_argument("--copy", action="store_true", help="复制到私有桶")
     parser.add_argument("--copy-back", action="store_true", help="复制回公开桶（回滚用）")
+    parser.add_argument(
+        "--keep-private",
+        action="store_true",
+        help=(
+            "--copy-back 时保留私有桶里的副本（默认会删：回滚 = 回到迁移前状态，"
+            "私有桶不该留下没人能找到的孤儿）"
+        ),
+    )
     parser.add_argument("--delete", action="store_true", help="删除公开桶里的副本")
     parser.add_argument(
         "--dry-run",
@@ -336,6 +350,13 @@ def main() -> int:
                     continue
                 print("      已复制回公开桶 ✓")
                 copied += 1
+                # 回滚 = 回到迁移前状态 → 私有桶里的副本也该删掉。
+                # 否则：副本留在私有桶，之后操作者按文档清掉 R2_PRIVATE_BUCKET_NAME
+                # → 删方案只会删公开桶那份（私有桶那份不在任何清理脚本的扫描
+                # 范围里，孤立文件清理脚本只扫公开桶）→ 变成谁也找不到的孤儿。
+                if not args.keep_private:
+                    client.delete_object(Bucket=private_bucket, Key=key)
+                    print("      已删除私有桶副本 ✓")
 
             if args.delete:
                 # 安全阀 1：私有桶里必须存在同 key 对象
