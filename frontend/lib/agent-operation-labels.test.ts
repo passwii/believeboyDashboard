@@ -26,6 +26,7 @@ describe('operationActionLabel', () => {
       'platform_inspection.upload_screenshot': '上传巡检截图',
       'platform_inspection.delete_screenshot': '删除巡检截图',
       'complaint_center.batch_write': '批量写入客诉',
+      'review_tracking.crawl_run': '提交评论采集结果',
       'agent_key.create': '自助签发凭据',
       'api_key.create': '创建凭据',
       'agent_key.update': '更新凭据权限',
@@ -96,6 +97,23 @@ describe('accessOperationLabel', () => {
         'complaint_center'
       )
     ).toBe('查询客诉列表')
+  })
+
+  it('评论追踪域的两条路由有行级中文名（BLF-1376）', () => {
+    expect(
+      accessOperationLabel(
+        'GET',
+        '/api/v1/agent/review-tracking/targets',
+        'review_tracking'
+      )
+    ).toBe('查询评论采集目标')
+    expect(
+      accessOperationLabel(
+        'POST',
+        '/api/v1/agent/review-tracking/targets/12/runs',
+        'review_tracking'
+      )
+    ).toBe('提交评论采集结果')
   })
 
   it('访问日志中的写路径复用 action 语义', () => {
