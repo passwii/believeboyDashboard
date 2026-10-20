@@ -62,6 +62,12 @@ class CrawlResult:
     snapshot_updated: bool
     reviews_upserted: int
     reviews_suspected_removed: int
+    #: 本次调用是否命中幂等去重（既有 run），即「没有新增行」。
+    #:
+    #: 只读的**结果事实**，不是入参：两处去重分支（进入前 ``_existing_run`` 命中、
+    #: 唯一键冲突后 savepoint 重查命中）都置 ``True``。调用方不能靠「调用前自己查一次」
+    #: 判断重放——真并发下两个请求都查不到对方（未提交），输家只有服务层能知道。
+    replayed: bool = False
 
 
 def business_date(captured_at: datetime) -> date:
@@ -236,6 +242,7 @@ def record_crawl_result(
             target_id=target_id, run_id=existing.id,
             capture_date=capture_date or business_date(captured_at),
             snapshot_updated=False, reviews_upserted=0, reviews_suspected_removed=0,
+            replayed=True,
         )
 
     effective_date = capture_date or business_date(captured_at)
@@ -259,6 +266,7 @@ def record_crawl_result(
             return CrawlResult(
                 target_id=target_id, run_id=existing.id, capture_date=effective_date,
                 snapshot_updated=False, reviews_upserted=0, reviews_suspected_removed=0,
+                replayed=True,
             )
         raise
 

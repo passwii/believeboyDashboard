@@ -182,6 +182,17 @@ class TestParseAuditPathMeta:
                 8,
                 "shop_calculations",
             ),
+            # BLF-1378：评论追踪采集域（路径无 project_id，项目归属在 handler 内校验）
+            (
+                "/api/v1/agent/review-tracking/targets",
+                None,
+                "review_tracking",
+            ),
+            (
+                "/api/v1/agent/review-tracking/targets/12/runs",
+                None,
+                "review_tracking",
+            ),
             # v3 下线（BLF-571）后 /orders/ 片段已从审计映射移除 → 归 None。
             ("/api/v1/external/projects/10/orders/summary", 10, None),
             ("/api/v1/agent/projects/10/sales/summary", 10, "sales"),
@@ -247,6 +258,7 @@ class TestAgentPathDomainMapCoverage:
         "account_health",
         "platform_inspection",
         "agent_provisioning",
+        "review_tracking",
     }
 
     def test_all_registered_domains_have_path_fragments(self):

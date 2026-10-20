@@ -27,6 +27,8 @@ class ErrorCode(str, Enum):
     AGENT_RATE_LIMIT_EXCEEDED = "AGENT_RATE_LIMIT_EXCEEDED"
     # 幂等
     IDEMPOTENCY_KEY_CONFLICT = "IDEMPOTENCY_KEY_CONFLICT"
+    # 评论追踪采集域（BLF-1378 阶段 D）：captured_at 早于该目标最近一次 run
+    REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER = "REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER"
     # confirm（CONFIRM_REQUIRED 是协议正常一步，直接构造 200 壳，不走异常）
     CONFIRM_TOKEN_INVALID = "CONFIRM_TOKEN_INVALID"
     CONFIRM_TOKEN_EXPIRED = "CONFIRM_TOKEN_EXPIRED"
@@ -74,6 +76,7 @@ _HTTP_STATUS: dict[ErrorCode, int] = {
     ErrorCode.AGENT_BUSINESS_OUT_OF_SCOPE: 403,
     ErrorCode.AGENT_RATE_LIMIT_EXCEEDED: 429,
     ErrorCode.IDEMPOTENCY_KEY_CONFLICT: 409,
+    ErrorCode.REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER: 409,
     ErrorCode.CONFIRM_TOKEN_INVALID: 400,
     ErrorCode.CONFIRM_TOKEN_EXPIRED: 409,
     ErrorCode.SHIPMENT_DUPLICATE_NO: 409,
@@ -126,6 +129,13 @@ _DEFAULTS: dict[ErrorCode, tuple[str, str]] = {
     ErrorCode.IDEMPOTENCY_KEY_CONFLICT: (
         "Idempotency-Key 已被用于不同的请求体",
         "新请求请生成新的 Idempotency-Key；confirm 重放请保持原 key 与请求体一致",
+    ),
+    ErrorCode.REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER: (
+        "采集时间早于或等于该目标最近一次有效采集（failed 不计）",
+        "请用晚于 details.latest_started_at 的 captured_at 重试；同一业务日重跑用当天更晚的"
+        "时间点，如需补采历史请先与运营确认（当前态评论表无版本，乱序写入会覆盖现网数据）。"
+        "若 latest_started_at 晚于当前时间，说明此前某次提交的客户端时钟/时区标错，"
+        "请先校准再按真实时间重试，不要提交更远的未来时间",
     ),
     ErrorCode.CONFIRM_TOKEN_INVALID: (
         "确认凭证无效或与请求体不匹配",
