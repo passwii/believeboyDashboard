@@ -267,6 +267,11 @@ def main() -> int:
     copied = 0
     deleted = 0
     skipped = 0
+    # 失败计数：复制 / 删除 / 回滚任一对象失败都必须**让命令失败**。
+    # 旧实现只 print 警告然后 continue，末尾照样打「完成。」并 return 0 ——
+    # 操作者（或自动化）会把「敏感对象没拷过去 / 公开副本没删掉」当成迁移成功。
+    copy_failures = 0
+    delete_failures = 0
     purge_targets: list[str] = []
     public_base = settings.r2_public_url or (
         f"{settings.r2_endpoint_url}/{settings.r2_bucket_name}"
@@ -309,6 +314,7 @@ def main() -> int:
                 head = _head(client, private_bucket, key)
                 if not head or head.get("ContentLength") != obj["size"]:
                     print("      !! 复制后校验失败，跳过删除")
+                    copy_failures += 1
                     continue
                 print("      已复制到私有桶 ✓")
                 copied += 1
@@ -326,6 +332,7 @@ def main() -> int:
                 head = _head(client, public_bucket, key)
                 if not head or head.get("ContentLength") != obj["size"]:
                     print("      !! 回滚复制后校验失败")
+                    copy_failures += 1
                     continue
                 print("      已复制回公开桶 ✓")
                 copied += 1
@@ -335,10 +342,12 @@ def main() -> int:
                 head = _head(client, private_bucket, key)
                 if not head:
                     print("      !! 私有桶无此对象 → 拒绝删除源（保持公开副本以免丢数据）")
+                    delete_failures += 1
                     continue
                 # 安全阀 2：大小一致
                 if head.get("ContentLength") != obj["size"]:
                     print("      !! 私有桶副本大小不一致 → 拒绝删除源")
+                    delete_failures += 1
                     continue
                 # 安全阀 3：内容一致（整文件 SHA-256；ETag 对 multipart 不可直接比）
                 if args.execute:
@@ -346,6 +355,7 @@ def main() -> int:
                     dst_hash = _sha256(client, private_bucket, key)
                     if src_hash != dst_hash:
                         print("      !! 私有桶副本内容不一致 → 拒绝删除源")
+                        delete_failures += 1
                         continue
                     print(f"      内容校验通过 (sha256={src_hash[:16]}…)")
                 if not args.execute:
@@ -382,6 +392,19 @@ def main() -> int:
     else:
         print("完成。")
     print("=" * 68)
+
+    # 有对象没处理成功 → **命令必须失败**（非零退出）。
+    # 旧实现只 print 警告就 return 0，操作者/自动化会把「敏感对象没拷过去」
+    # 或「公开副本没删掉」当成迁移成功 —— 那正是这个 P0 最不能出的错。
+    if copy_failures or delete_failures:
+        print()
+        print(f"✗ 迁移未完全成功：复制失败 {copy_failures} 个，删除失败 {delete_failures} 个。")
+        if delete_failures:
+            print("  删除失败的对象**仍留在公开桶**，仍可被匿名下载 —— 需处理后重跑。")
+        if copy_failures:
+            print("  复制失败的对象**没有私有副本**，未受保护。")
+        print("=" * 68)
+        return 1
     return 0
 
 

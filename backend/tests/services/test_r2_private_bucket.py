@@ -741,3 +741,67 @@ def test_migrate_script_copy_back_requires_private_bucket_configured():
     assert "if not isolated:" in src
     # 错误提示里要写明回滚顺序
     assert "回滚" in src, "错误提示需说明 --copy-back 要在私有桶仍配置时跑"
+
+
+# ---------------------------------------------------------------------------
+# (12) 第四轮 Codex review 修：对象没处理成功时命令必须失败
+#     （旧实现只 print 警告然后 return 0 —— 敏感对象没拷过去 / 公开副本没删掉
+#      都会被当成「迁移成功」，那正是这个 P0 最不能出的错）
+# ---------------------------------------------------------------------------
+
+
+def test_migrate_script_counts_failures_and_returns_nonzero():
+    """复制 / 删除失败必须被计数，并以非零退出码结束。"""
+    import inspect
+    import sys
+    from pathlib import Path
+
+    backend = Path(__file__).resolve().parents[2]
+    if str(backend) not in sys.path:
+        sys.path.insert(0, str(backend))
+    from scripts import migrate_r2_private_prefix as mig
+
+    src = inspect.getsource(mig.main)
+    assert "copy_failures" in src and "delete_failures" in src, (
+        "必须统计失败的对象数"
+    )
+    # 每个失败分支都要计数
+    assert src.count("copy_failures += 1") >= 2, "复制/回滚失败都要计数"
+    assert src.count("delete_failures += 1") >= 3, "三条删除安全阀都要计数"
+    # 末尾必须按失败数返回非零
+    assert "if copy_failures or delete_failures:" in src
+    assert "return 1" in src, "有对象未处理成功时必须以非零退出码结束"
+
+
+def test_migrate_script_failure_exit_is_reachable():
+    """端到端：删除失败时退出码必须非 0（用 mock 掉 S3 客户端做真调用）。"""
+    import sys
+    from pathlib import Path
+    from unittest.mock import MagicMock, patch
+
+    backend = Path(__file__).resolve().parents[2]
+    if str(backend) not in sys.path:
+        sys.path.insert(0, str(backend))
+    from scripts import migrate_r2_private_prefix as mig
+
+    client = MagicMock()
+    # 公开桶有 1 个对象；私有桶里没有 → 安全阀 1 触发 → 删除失败
+    client.get_paginator.return_value.paginate.return_value = [
+        {"Contents": [{"Key": "crm-proposals/1/v1/raw.html", "Size": 100, "ETag": '"x"'}]}
+    ]
+    client.head_object.side_effect = Exception("not found")
+
+    with patch.object(mig, "_client", return_value=client), patch.object(
+        mig, "get_settings"
+    ) as fake_settings:
+        s = MagicMock()
+        s.r2_bucket_name = "believeboy-dash"
+        s.r2_private_bucket_resolved = "believeboy-private"
+        s.r2_private_bucket_isolated = True
+        s.r2_public_url = "https://bucket.believeboy.com"
+        fake_settings.return_value = s
+        with patch.object(
+            sys, "argv", ["migrate", "--delete", "--execute", "--confirm-delete"]
+        ):
+            rc = mig.main()
+    assert rc != 0, "删除失败时退出码必须非 0（不能报「完成」）"
