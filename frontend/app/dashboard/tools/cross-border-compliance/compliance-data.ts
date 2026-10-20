@@ -33,6 +33,13 @@ export const MODE_DISCLAIMER =
 export const MODE_TABLE_NOTE =
   '表中「建议」列为课件原文转录，不代表本平台的推荐或适用性判断；是否采用、何时采用由企业结合自身业务事实并向主管机关确认。'
 
+/**
+ * 转录省略说明：课件原文中被遮挡 / 截断、无法准确辨认的部分一律省略，不拼接、不补写。
+ * 对应交付缺漏清单第 4、11 条。
+ */
+export const MODE_OMISSION_NOTE =
+  '课件原文中被遮挡或截断、无法准确辨认的部分已省略，未拼接、未补写；如需完整原文请以原始课件为准。'
+
 /** 首单材料区的口径说明。 */
 export const MATERIAL_SCOPE_NOTE =
   '以下仅为课件所列材料，具体清单以属地主管部门要求为准；勾选进度不代表退税资格审核或申报通过率。'
@@ -190,8 +197,9 @@ export const REGULATORY_MODES: RegulatoryMode[] = [
       '跨境电商平台 →（下单）→ 第三方收汇平台 →（结汇申请退税）→ 出口公司',
       '出口公司 →（B2B 出口直运）→ 境外',
     ],
-    core:
-      '9710 出口模式出口的货物必须是真实的销售，而不是仅仅为了存储或者……境外企业。',
+    // 课件横幅中段被前景人头遮挡，只保留可独立成立的前半句；
+    // 遮挡处与横幅结尾的残句一并省略，不拼接、不补写。
+    core: '9710 出口模式出口的货物必须是真实的销售',
     audience: '',
   },
   {
@@ -293,7 +301,8 @@ export const MODE_COMPARISON_0110_9810: ModeComparisonDimension[] = [
   {
     dimension: '收汇要求',
     generalTrade: '需全额收汇',
-    overseasWarehouse: '支持"轧差结算"，',
+    // 课件原文该格以逗号结束（后续内容不在本格内），只转录可辨认的事实，省略悬空逗号。
+    overseasWarehouse: '支持"轧差结算"',
   },
   {
     dimension: '出口退税政策',

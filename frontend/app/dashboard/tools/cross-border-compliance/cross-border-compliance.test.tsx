@@ -7,6 +7,7 @@ import {
   CUSTOMS_FIELDS,
   FIRST_ORDER_MATERIAL_GROUPS,
   MODE_COMPARISON_0110_9810,
+  MODE_OMISSION_NOTE,
   MODE_SCENARIO_ROWS,
   REGULATORY_MODES,
   TOTAL_MATERIAL_COUNT,
@@ -119,6 +120,29 @@ describe('CrossBorderComplianceClient', () => {
       expect(within(modes).getByText(row.dimension)).toBeInTheDocument()
     }
     expect(MODE_COMPARISON_0110_9810).toHaveLength(6)
+  })
+
+  it('转录省略：被遮挡 / 截断的课件原文不得以残句或悬空标点呈现', () => {
+    render(<CrossBorderComplianceClient />)
+
+    // 9710 横幅：课件原文被前景人头遮挡，只保留可独立成立的前半句。
+    const mode9710 = REGULATORY_MODES.find((m) => m.code === '9710')
+    expect(mode9710?.core).toBe('9710 出口模式出口的货物必须是真实的销售')
+    // 不得出现遮挡拼接痕迹 / 省略号占位 / 断句残句
+    expect(mode9710?.core).not.toMatch(/……|\.\.\.|境外企业。|为了存储/)
+
+    // 9810「收汇要求」：课件原文以逗号结束，只保留可辨认的事实。
+    const settleRow = MODE_COMPARISON_0110_9810.find(
+      (r) => r.dimension === '收汇要求'
+    )
+    expect(settleRow?.overseasWarehouse).toBe('支持"轧差结算"')
+    expect(settleRow?.overseasWarehouse).not.toMatch(/[，,]\s*$/)
+
+    // 页面显式说明省略口径，不留空壳、不伪装成完整原句
+    expect(screen.getByText(MODE_OMISSION_NOTE)).toBeInTheDocument()
+    expect(
+      screen.queryByText(/9710 出口模式出口的货物必须是真实的销售，而不是/)
+    ).not.toBeInTheDocument()
   })
 
   it('区块 4：企业准入办理六项事项按课件顺序呈现', () => {

@@ -23,6 +23,7 @@ import {
   MATERIAL_SCOPE_NOTE,
   MODE_COMPARISON_0110_9810,
   MODE_DISCLAIMER,
+  MODE_OMISSION_NOTE,
   MODE_SCENARIO_LABEL,
   MODE_SCENARIO_ROWS,
   MODE_TABLE_NOTE,
@@ -297,6 +298,7 @@ export default function CrossBorderComplianceClient() {
               </tbody>
             </table>
           </div>
+          <p className="mt-1 text-xs leading-5 text-term-faint">{MODE_OMISSION_NOTE}</p>
 
           {/* 3D：各模式流程与核心要求 */}
           <div className="mt-3 grid min-w-0 grid-cols-1 gap-2 lg:grid-cols-2">
