@@ -67,7 +67,7 @@ python run.py --once     # 单次扫描
 
 | Unit | 进程 | 关键参数 |
 |---|---|---|
-| `believeboy-api.service` | `uvicorn app.main:app` | `--host 127.0.0.1 --port 8100 --workers 1`（OpenAPI 在 `/docs`，对外由 nginx 反代） |
+| `believeboy-api.service` | `uvicorn app.main:app` | `--host 127.0.0.1 --port 8100 --workers 1`（OpenAPI 在 `/docs`，对外由 **Caddy** 反代） |
 | `believeboy-celery.service` | Celery worker（主） | `-Q default,reports,insights,ai_summary --concurrency=1 --max-tasks-per-child=50` |
 | `believeboy-celery-scheduled.service` | Celery worker（定时报告专用） | `-Q scheduled -c 2 --max-tasks-per-child=50`（Playwright 截图内存隔离） |
 | `believeboy-beat.service` | Celery beat（**必须单实例**） | `-A app.tasks.celery_beat_app beat`，`--schedule=/var/lib/believeboy/celerybeat-schedule` |
@@ -102,6 +102,39 @@ systemd 会拉起新进程但可能读旧代码 / 旧 `.env`、撞端口，进�
 
 **Backend**（`backend/.env`）：`API_KEY`（须匹配前端 `BACKEND_API_KEY`）、`UPLOAD_ROOT` / `RESULT_ROOT` / `MAX_UPLOAD_BYTES`、`AI_CHAT_PROVIDER_*`、`AI_CHAT_WEB_SEARCH_*`、`REDIS_*`（可选，presence 用）。
 > 注（BEL-376 更新）：`backend/.env` 现已**直接写入** `DATABASE_URL`，指向本地生产快照 `postgresql+psycopg://damon:<pw>@localhost:5432/BLF`（旧值曾误指向死端口 `55432`；更早的本地开发曾直连远程 VPS `145.79.143.98:5432`，均已弃用）。`TEST_DATABASE_URL` 仍在 `backend/.env.test`（gitignored）→ 本机 `brew` Postgres 的 `BLF_test`，供自动化 pytest / Playwright 隔离用（见 [TESTING.md](../../TESTING.md#本地服务mac--brew)）。
+
+### R2 存储：公开桶 vs 私有桶（BLF-1418）
+
+线上 R2 账户 `b2ed6ca0544b57982275dedfa7bca46c` 有多个桶，**是否公开**取决于有没有挂
+自定义域名 / r2.dev 子域 —— 挂了就是**整桶公开可读**（无鉴权即可 GET 任意 key）。
+
+| 桶 | 环境变量 | 公开性 | 放什么 |
+| --- | --- | --- | --- |
+| `believeboy-dash` | `R2_BUCKET_NAME` | **公开**（挂 `bucket.believeboy.com` 自定义域名） | 店铺报表 / 巡检截图 / 定时报告截图 / 特殊功能页（`/p/{id}` 按设计就是免鉴权公开页） |
+| 私有桶 | `R2_PRIVATE_BUCKET_NAME` | **私有**（不挂任何域名） | 客户方案（`crm-proposals/`，含报价与客户信息） |
+
+**为什么必须分桶**：客户方案的 key 是 `crm-proposals/{递增数字}/v{版本}/raw.html` —— **可枚举**。
+应用层「不签发公开 URL」只挡住了应用，挡不住直连桶：知道（或猜到）key 就能匿名下载。
+
+**配置要点**：
+1. 私有桶必须是**另一个**桶，且**不挂自定义域名、不开 r2.dev** —— 挂了就不私有了。
+2. 同一 R2 账户 → 复用同一套 `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY`，无需新密钥。
+3. 未配置 `R2_PRIVATE_BUCKET_NAME` 时：客户方案上传 **fail-closed 返回 503**（不会落进公开桶），
+   其余公开内容行为不变（不破坏既有部署）。
+
+**敏感前缀**：`backend/app/services/r2_service.py` 的 `PRIVATE_KEY_PREFIXES`。
+新增敏感前缀时，把该前缀加进去 → 写入自动路由到私有桶、且不再生成公开 URL。
+
+**迁移存量对象**（`backend/scripts/migrate_r2_private_prefix.py`）：
+
+```bash
+cd backend
+.venv/bin/python scripts/migrate_r2_private_prefix.py --dry-run            # 只报告
+.venv/bin/python scripts/migrate_r2_private_prefix.py --copy --execute     # 复制到私有桶
+.venv/bin/python scripts/migrate_r2_private_prefix.py --delete --execute --confirm-delete
+```
+
+读取路径「私有桶优先、公开桶兜底」，因此「已复制、未删源」的窗口期内不会读不到。
 
 ---
 

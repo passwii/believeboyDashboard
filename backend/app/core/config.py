@@ -14,7 +14,10 @@ class Settings(BaseSettings):
 
     app_name: str = "believeboy-backend"
     app_env: str = "development"
-    app_host: str = "0.0.0.0"
+    # 实际绑定由 systemd 单元硬编码的 `--host 127.0.0.1` 决定（见
+    # docs/REFERENCE.md §服务清单）；本字段无任何读取方，属死配置。
+    # 已知开放项（S104）：默认值的去留由单独决策处理，不在本 PR 范围内。
+    app_host: str = "0.0.0.0"  # noqa: S104
     app_port: int = 8100
 
     database_url: str = Field(default="")
@@ -362,6 +365,26 @@ class Settings(BaseSettings):
     r2_bucket_name: str = Field(default="", max_length=100)
     r2_region: str = Field(default="auto", max_length=50)
 
+    # ------------------------------------------------------------------
+    # 私有桶（BLF-1418）—— 与 r2_bucket_name 分桶存放敏感对象
+    # ------------------------------------------------------------------
+    # 背景：``r2_bucket_name`` 挂在 Cloudflare R2 自定义域名
+    # ``bucket.believeboy.com`` 上，**整个桶是公开读的**（无鉴权、无 Cookie
+    # 即可 GET 任意 key）。仅靠应用层「不签发公开 URL」挡不住直连桶的请求。
+    #
+    # 本桶用于存放**绝不能公开**的对象（当前：客户方案 ``crm-proposals/``）。
+    # 它**不挂任何自定义域名**，也没有 r2.dev 子域 → 匿名 GET 一律 400/403，
+    # 只能通过后端鉴权转发（presigned URL / 服务端流式代理）访问。
+    #
+    # 留空 = 未配置私有桶：此时 ``r2_private_bucket_name`` 解析回落到
+    # ``r2_bucket_name``，行为与 BLF-1418 之前完全一致（不改变既有部署），
+    # 但**不代表安全**——见 ``r2_private_bucket_isolated``。
+    r2_private_bucket_name: str = Field(default="", max_length=100)
+    # 私有桶的公开 URL 基址。私有桶不应有公开基址；留空表示「不生成公开 URL」。
+    # 若确实需要给私有对象发 presigned URL，用 r2_service.generate_presigned_url()
+    # （走 S3 签名，不依赖本字段）。
+    r2_private_public_url: str = Field(default="", max_length=500)
+
     @property
     def r2_enabled(self) -> bool:
         """Check if R2 is properly configured."""
@@ -370,6 +393,23 @@ class Settings(BaseSettings):
             and self.r2_access_key_id
             and self.r2_secret_access_key
             and self.r2_bucket_name
+        )
+
+    @property
+    def r2_private_bucket_resolved(self) -> str:
+        """私有桶名（未配置时回落到公开桶名 = 退化到旧行为）。"""
+        return self.r2_private_bucket_name or self.r2_bucket_name
+
+    @property
+    def r2_private_bucket_isolated(self) -> bool:
+        """True = 私有桶与公开桶确实是两个不同的桶。
+
+        False 表示 ``R2_PRIVATE_BUCKET_NAME`` 未配置（或与公开桶同名），
+        敏感对象仍会落进公开可读的桶 —— 调用方据此**拒绝**走公开 URL 路径，
+        不允许「静默降级成公开」。
+        """
+        return bool(self.r2_private_bucket_name) and (
+            self.r2_private_bucket_name != self.r2_bucket_name
         )
 
     @property

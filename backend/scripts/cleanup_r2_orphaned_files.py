@@ -29,6 +29,7 @@ from sqlalchemy import create_engine, select, func
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
+from app.services.r2_service import is_private_key
 
 
 def get_r2_client(settings: Settings):
@@ -128,8 +129,12 @@ def collect_local_files_references(db: Session, settings: Settings, project_slug
         if row:
             local_paths.add(row)
 
-    # AnalysisSourceFile.result_file_path
-    for row in db.execute(select(AnalysisSourceFile.result_file_path)).scalars():
+    # AnalysisPT1Calculation.result_file_path - 本地缓存路径
+    # （注：result_file_path 属于 AnalysisPT1Calculation，不是 AnalysisSourceFile；
+    #  原代码写错了类，运行到这一行会 AttributeError —— 连带整个清理脚本崩溃。）
+    from app.models.product_analysis_source import AnalysisPT1Calculation
+
+    for row in db.execute(select(AnalysisPT1Calculation.result_file_path)).scalars():
         if row:
             local_paths.add(row)
 
@@ -191,17 +196,19 @@ def find_orphaned_files(
 
     print("[4/4] 分析孤立文件...")
     orphaned = []
-    # 注意：扩展名白名单同时覆盖业务文件类型。'.webp'/'.png'/'.jpg' 是
-    # 产品图/汇率备注/巡检 PNG 共用的格式，必须在白名单里，否则会被误删。
-    KNOWN_EXTENSIONS = ('.pdf', '.csv', '.xlsx', '.txt',
-                        '.webp', '.png', '.jpg', '.jpeg', '.gif',
-                        '.mp4', '.mov', '.zip', '.tar.gz')
     for key in all_r2_keys:
         # 检查是否被引用。优先级 (避免 line 184-187 原版的括号 bug)：
         #   (A) key 已经被 DB 反查到
         #   (B) key 出现在本地路径反查里 (本地 cache 路径 -> R2 key)
         # 否则 -> orphan
         is_referenced = key in all_referenced or key in r2_keys_from_local
+
+        # BLF-1418：敏感前缀（当前 = 客户方案）**一律不删**。
+        # 这些对象含报价与客户信息，存放在私有桶；本脚本只扫公开桶，
+        # 无法反查私有桶的引用关系 → 误判为孤儿并删除会造成不可恢复的数据丢失。
+        # 私有桶的清理由业务代码（proposal_service.delete_proposal）负责。
+        if is_private_key(key):
+            continue
 
         if not is_referenced:
             # 获取文件元数据
@@ -229,11 +236,12 @@ def find_orphaned_files(
 
 def format_size(size_bytes: int) -> str:
     """格式化文件大小"""
+    size: float = float(size_bytes)
     for unit in ['B', 'KB', 'MB', 'GB']:
-        if size_bytes < 1024:
-            return f"{size_bytes:.1f} {unit}"
-        size_bytes /= 1024
-    return f"{size_bytes:.1f} TB"
+        if size < 1024:
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} TB"
 
 
 def print_orphaned_summary(orphaned: list[dict], show_details: bool = False):
@@ -241,7 +249,7 @@ def print_orphaned_summary(orphaned: list[dict], show_details: bool = False):
     total_size = sum(f.get('size', 0) for f in orphaned)
 
     print(f"\n{'='*60}")
-    print(f"孤立文件清理报告")
+    print("孤立文件清理报告")
     print(f"{'='*60}")
     print(f"总计: {len(orphaned)} 个孤立文件")
     print(f"总大小: {format_size(total_size)}")
@@ -260,7 +268,7 @@ def print_orphaned_summary(orphaned: list[dict], show_details: bool = False):
         print(f"  {folder}/: {len(files)} 个文件 ({format_size(folder_size)})")
 
     if show_details:
-        print(f"\n详细列表 (前 50 个):")
+        print("\n详细列表 (前 50 个):")
         for i, f in enumerate(sorted(orphaned, key=lambda x: x['key'])[:50]):
             mod_time = f.get('last_modified', '')
             if mod_time:
@@ -306,7 +314,7 @@ def _print_config() -> int:
     # Bucket / endpoint 配置
     from app.core.config import get_settings
     settings = get_settings()
-    print(f"\n[Bucket]")
+    print("\n[Bucket]")
     print(f"  bucket_name    : {settings.r2_bucket_name}")
     print(f"  endpoint_url   : {settings.r2_endpoint_url}")
     print(f"  public_url     : {settings.r2_public_url}")
@@ -320,7 +328,7 @@ def _print_config() -> int:
         print(f"  - {model}.{col}")
 
     # R2 prefix 推算（基于业务已知的 prefix 模式）
-    print(f"\n[Known R2 prefixes] (heuristic, may not be complete)")
+    print("\n[Known R2 prefixes] (heuristic, may not be complete)")
     prefixes = [
         "monthly_reports/*",
         "platform-revenue/*/payment_screenshot/*",
@@ -338,10 +346,10 @@ def _print_config() -> int:
     for p in prefixes:
         print(f"  - {p}")
 
-    print(f"\n[Behavior]")
-    print(f"  default action : DRY-RUN (only lists). Pass --execute to actually delete.")
-    print(f"  batch delete   : sequential delete_object (slow but simple)")
-    print(f"  run again next : use --project / --min-age to scope")
+    print("\n[Behavior]")
+    print("  default action : DRY-RUN (only lists). Pass --execute to actually delete.")
+    print("  batch delete   : sequential delete_object (slow but simple)")
+    print("  run again next : use --project / --min-age to scope")
     print()
     return 0
 

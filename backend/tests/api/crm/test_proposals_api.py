@@ -56,6 +56,18 @@ def mock_r2():
         "r2_enabled",
         new_callable=PropertyMock,
         return_value=True,
+    ), patch.object(
+        # BLF-1418：客户方案必须落在**私有桶**（不挂自定义域名，匿名不可读）。
+        # 私有桶未配置时写入口 fail-closed 返回 503，因此这里给出隔离配置。
+        type(get_settings()),
+        "r2_private_bucket_isolated",
+        new_callable=PropertyMock,
+        return_value=True,
+    ), patch.object(
+        type(get_settings()),
+        "r2_private_bucket_resolved",
+        new_callable=PropertyMock,
+        return_value="fake-private",
     ):
         yield
 

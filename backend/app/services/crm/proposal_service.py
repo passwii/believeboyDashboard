@@ -134,6 +134,21 @@ def _require_r2(settings: Settings) -> None:
         )
 
 
+def _require_private_bucket(settings: Settings) -> None:
+    """客户方案的**写入**前提：私有桶必须已配置（BLF-1418）。
+
+    客户方案含报价与客户信息，绝不能落进挂在公开自定义域名上的桶
+    （``bucket.believeboy.com`` 整桶公开可读，key 可枚举）。
+    私有桶未配置时**拒绝写入**（fail-closed）：宁可上传失败 503，
+    也不能把敏感方案静默写进公开桶。
+    """
+    if not settings.r2_private_bucket_isolated:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="私有存储桶未配置，客户方案暂不可上传，请联系管理员",
+        )
+
+
 def _sanitize_title(raw: str | None, *, fallback: str) -> str:
     """标题清洗：去控制字符 + HTML 语义字符，clamp 200。
 
@@ -418,6 +433,7 @@ def create_proposal(
     任一步失败由端点 rollback，不会留下半截记录。
     """
     _require_r2(settings)
+    _require_private_bucket(settings)
     if proposal_type not in (
         CrmProposalType.ONBOARDING,
         CrmProposalType.OPERATION,
@@ -502,6 +518,7 @@ def add_version(
 ) -> tuple[ProposalVersionItem, list[str]]:
     """给已有方案追加新版本（append-only：旧版本与旧 R2 对象都不动）。"""
     _require_r2(settings)
+    _require_private_bucket(settings)
     ext, raw_bytes = render.validate_html_upload(
         file, max_bytes=settings.crm_proposal_max_bytes
     )
