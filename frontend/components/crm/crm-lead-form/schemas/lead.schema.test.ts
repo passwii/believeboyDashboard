@@ -21,6 +21,11 @@ describe('leadSchema', () => {
     expect(leadSchema.safeParse(valid).success).toBe(true)
   })
 
+  it('source=自主开发（self_developed）通过', () => {
+    const r = leadSchema.safeParse({ ...valid, source: 'self_developed' })
+    expect(r.success).toBe(true)
+  })
+
   it('name 必填', () => {
     const r = leadSchema.safeParse({ ...valid, name: '' })
     expect(r.success).toBe(false)

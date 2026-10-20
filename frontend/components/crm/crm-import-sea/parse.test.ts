@@ -40,6 +40,15 @@ describe('rowsFromGrid', () => {
 })
 
 describe('validateRows', () => {
+  it('来源=自主开发 → 解析为 self_developed 且不报错', () => {
+    const { rows } = rowsFromGrid([
+      ['客户名', '来源'],
+      ['甲公司', '自主开发'],
+    ])
+    expect(rows[0].source).toBe('self_developed')
+    expect(validateRows(rows)).toEqual([])
+  })
+
   it('缺名/非法枚举 → error；有电话无联系人 → warn', () => {
     const issues = validateRows([
       { name: '' },

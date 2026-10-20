@@ -182,6 +182,7 @@ const SOURCES: readonly CustomerSource[] = [
   'exhibition',
   'online_ad',
   'cold_call',
+  'self_developed',
   'other',
 ]
 const CUSTOMER_STATUSES: readonly CustomerStatus[] = [
