@@ -314,6 +314,57 @@ def test_create_invalid_type_400(client, operator_headers):
     assert r.status_code == 400
 
 
+# ---------- 方案类型枚举（BLF-1406：新增 research / 调研方案） ----------
+
+
+def test_create_research_type_201(client, operator_headers):
+    """新建「调研方案」→ 201，且回显 proposal_type == "research"。"""
+    body = _mk_proposal(
+        client, operator_headers, title="调研方案A", proposal_type="research"
+    )
+    assert body["proposal"]["proposal_type"] == "research"
+
+
+@pytest.mark.parametrize(
+    "proposal_type",
+    ["onboarding", "operation", "quotation", "research", "other"],
+)
+def test_create_all_valid_types_201(client, operator_headers, proposal_type):
+    """5 个合法类型（含新增 research）都放行。"""
+    body = _mk_proposal(
+        client,
+        operator_headers,
+        title=f"方案-{proposal_type}",
+        proposal_type=proposal_type,
+    )
+    assert body["proposal"]["proposal_type"] == proposal_type
+
+
+def test_update_to_research_type_200(client, operator_headers):
+    """PATCH 改成 research → 200（ProposalUpdate.proposal_type 的 Literal 放行）。"""
+    body = _mk_proposal(client, operator_headers)
+    pid = body["proposal"]["id"]
+    r = client.patch(
+        f"/api/v1/crm/proposals/{pid}",
+        headers=operator_headers,
+        json={"proposal_type": "research"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["proposal_type"] == "research"
+
+
+def test_update_to_invalid_type_422(client, operator_headers):
+    """PATCH 成非法类型 → 422（schema Literal 拦截，不是 500）。"""
+    body = _mk_proposal(client, operator_headers)
+    pid = body["proposal"]["id"]
+    r = client.patch(
+        f"/api/v1/crm/proposals/{pid}",
+        headers=operator_headers,
+        json={"proposal_type": "bogus"},
+    )
+    assert r.status_code == 422, r.text
+
+
 # ---------- 版本 ----------
 
 

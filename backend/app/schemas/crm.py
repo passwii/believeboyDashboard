@@ -826,7 +826,7 @@ class SavedViewItem(BaseModel):
 # 层级：crm_customers → crm_proposals → crm_proposal_versions。
 # 文件不是独立一层，而是版本的载荷（raw/adapted 两份 R2 对象）。
 ProposalStatus = Literal["draft", "published", "archived"]
-ProposalType = Literal["onboarding", "operation", "quotation", "other"]
+ProposalType = Literal["onboarding", "operation", "quotation", "research", "other"]
 
 
 class ProposalVersionItem(BaseModel):
