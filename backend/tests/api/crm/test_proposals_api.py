@@ -490,9 +490,25 @@ def test_list_scope_mine_only_own(client, operator_headers, businessdev_headers)
     assert [i["title"] for i in mine["items"]] == ["我的方案"]
     assert mine["total"] == 1
 
-    # 非 admin 的 scope=all 降级为 mine
-    degraded = client.get("/api/v1/crm/proposals?scope=all", headers=operator_headers).json()
-    assert degraded["total"] == 1
+
+def test_list_scope_all_not_downgraded_for_nonadmin(client, operator_headers, businessdev_headers):
+    """方案域全员可见（BLF-1403 / BLF-1410）：非 admin 的 scope=all **不降级**。"""
+    _mk_proposal(client, operator_headers, title="我的方案")
+    _mk_proposal(client, businessdev_headers, title="别人的方案")
+
+    all_items = client.get("/api/v1/crm/proposals?scope=all", headers=operator_headers).json()
+    assert all_items["total"] == 2
+    assert {i["title"] for i in all_items["items"]} == {"我的方案", "别人的方案"}
+
+
+def test_list_default_scope_is_all(client, operator_headers, businessdev_headers):
+    """列表端点 scope 默认值 = all（与其它 CRM 列表端点对齐）。"""
+    _mk_proposal(client, operator_headers, title="我的方案")
+    _mk_proposal(client, businessdev_headers, title="别人的方案")
+
+    default_items = client.get("/api/v1/crm/proposals", headers=operator_headers).json()
+    assert default_items["total"] == 2
+    assert {i["title"] for i in default_items["items"]} == {"我的方案", "别人的方案"}
 
 
 def test_list_admin_sees_all(client, operator_headers, admin_headers):
@@ -536,15 +552,29 @@ def test_list_rejects_non_eq_filter(client, operator_headers):
     assert r.status_code == 400
 
 
-def test_foreign_proposal_forbidden(client, operator_headers, businessdev_headers):
+def test_foreign_proposal_readable_but_not_writable(client, operator_headers, businessdev_headers):
+    """方案域全员可读（BLF-1403 / BLF-1410），但**写**仍限 owner/admin。
+
+    - 只读（详情 / 预览 / 下载）→ 200
+    - 写（编辑 / 删除 / 追加版本）→ 403
+    """
     body = _mk_proposal(client, operator_headers)
     pid = body["proposal"]["id"]
-    for method, url in [
-        ("get", f"/api/v1/crm/proposals/{pid}"),
-        ("get", f"/api/v1/crm/proposals/{pid}/versions/1/content"),
-        ("get", f"/api/v1/crm/proposals/{pid}/versions/1/download"),
-    ]:
-        assert getattr(client, method)(url, headers=businessdev_headers).status_code == 403
+
+    # 只读：全员可读（含跨私海）
+    assert client.get(f"/api/v1/crm/proposals/{pid}", headers=businessdev_headers).status_code == 200
+    res = client.get(
+        f"/api/v1/crm/proposals/{pid}/versions/1/content", headers=businessdev_headers
+    )
+    assert res.status_code == 200, res.text
+    assert "bb-proposal-theme" in res.json()["content"]
+    res = client.get(
+        f"/api/v1/crm/proposals/{pid}/versions/1/download", headers=businessdev_headers
+    )
+    assert res.status_code == 200, res.text
+    assert "bb-proposal-theme" in res.text
+
+    # 写：非 owner 仍 403
     assert (
         client.patch(
             f"/api/v1/crm/proposals/{pid}", headers=businessdev_headers, json={"title": "x"}
@@ -553,6 +583,14 @@ def test_foreign_proposal_forbidden(client, operator_headers, businessdev_header
     )
     assert (
         client.delete(f"/api/v1/crm/proposals/{pid}", headers=businessdev_headers).status_code
+        == 403
+    )
+    assert (
+        client.post(
+            f"/api/v1/crm/proposals/{pid}/versions",
+            headers=businessdev_headers,
+            files=_upload("<html></html>"),
+        ).status_code
         == 403
     )
 

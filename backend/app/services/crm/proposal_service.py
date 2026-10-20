@@ -308,7 +308,10 @@ def list_proposals(
 ) -> tuple[list[ProposalItem], int]:
     """列表：keyword + 白名单筛选 + 白名单排序 + 分页。
 
-    scope：mine=owner_id==当前用户；all=不加 owner 过滤（端点层已 resolve_scope 降级）。
+    scope：mine=owner_id==当前用户；all=不加 owner 过滤。
+    方案域的 scope 语义由端点层的 ``resolve_proposal_scope`` 决定
+    （非 admin 的 all **不降级**——客户方案全员可见，BLF-1403 / BLF-1410）；
+    ``resolve_scope`` 的全域私海降级**不适用于**方案域。
     """
     cur = (user_id or "").strip() or None
     stmt = select(CrmProposal)
