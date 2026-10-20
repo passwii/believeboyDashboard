@@ -358,6 +358,29 @@ describe('buildUsageText · 业务域分支（BLF-448）', () => {
     expect(body.idempotency_key).toBeUndefined()
   })
 
+  it('domain=review_tracking 的 R1 示例不过滤 kind，外部竞品目标也要能被采集（BLF-1376 复审 P1 第 2 轮）', () => {
+    const text = buildUsageText({
+      plaintextKey: 'bbx_test',
+      agentId: 'agent-1',
+      domain: 'review_tracking',
+    })
+    // 提取 R1 示例的 curl 块（从读取采集目标到第一个空行）
+    const r1Start = text.indexOf('/review-tracking/targets')
+    expect(r1Start).toBeGreaterThan(-1)
+    const r1 = text.slice(r1Start, text.indexOf('\n\n', r1Start))
+
+    // 后端 kind 参数可空：不传时同时返回 internal_group 与 external_asin。
+    // 示例里一旦带上 ?kind=internal_group，采集 Agent 就永远拿不到竞品 ASIN 那半边，
+    // 也无法为它们提交采集结果。
+    expect(r1).not.toContain('?kind=')
+    expect(r1).not.toContain('kind=internal_group')
+    expect(r1).not.toContain('kind=external_asin')
+    // URL 必须保持裸路径（不带任何 query），否则示例就预设了过滤
+    expect(r1).toContain('review-tracking/targets"')
+    // 文档里要写明「按 item.kind 分流」而不是「靠 URL 参数砍掉一半」
+    expect(text).toContain('item.kind')
+  })
+
   it('未知域输出占位说明', () => {
     const text = buildUsageText({
       plaintextKey: 'bbx_test',

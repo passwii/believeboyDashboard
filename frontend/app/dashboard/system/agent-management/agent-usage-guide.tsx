@@ -1023,12 +1023,16 @@ function buildReviewTrackingGuide(opts: {
 
 【2. 读取采集目标（R1 GET，读桶，不落审计）】
 
-  curl "${apiBase}/api/v1/agent/review-tracking/targets?kind=internal_group" \\
+  curl "${apiBase}/api/v1/agent/review-tracking/targets" \\
     -H "Authorization: Bearer ${key}" \\
     -H "X-Agent-Id: ${agentId}"
 
-  query：marketplace（US/DE/UK…，大写归一）、kind（internal_group / external_asin）、
-  project_id、limit（1..500，默认 200）、offset。
+  **不要在 URL 上加 ?kind= 过滤**：不传 kind 时服务端同时返回内部目标与外部竞品
+  目标（item 里的 kind 字段区分），加了过滤就只会拿到其中一半，竞品 ASIN 那半边
+  永远拿不到 target_id、无法提交采集结果。需要只看某一类时，在**响应里**按
+  item.kind 分流处理，不要靠 URL 参数砍掉另一半。
+  query：marketplace（US/DE/UK…，大写归一）、kind（internal_group / external_asin，
+  可选，默认两种都返回）、project_id、limit（1..500，默认 200）、offset。
   响应 data：{ items, total, crawl_rules }。item 字段：target_id、kind、group_id、
   project_id、marketplace、asin、display_name、external_shop_ids、last_run
   （{ run_id, status, started_at }，含 failed；无 run 则 null）。
