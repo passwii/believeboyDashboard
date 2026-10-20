@@ -106,6 +106,12 @@ def _upload_version_objects(
 
     key 布局：``crm-proposals/{proposal_id}/v{version_no}/raw.html`` /
     ``.../adapted.html``（版本隔离，旧对象永不被覆盖）。
+
+    失败时**补偿删除**已上传的那份（BLF-1418 review 修）：方案上传到一半失败
+    （第二次上传报错，或后续 DB / 审计提交失败 → 端点 rollback）时，已经写进
+    私有桶的对象会**没有** ``crm_proposal_versions`` 行 → 没有任何地方引用它；
+    而孤立文件清理脚本只扫公开桶，**永远发现不了它** → 对象在私有桶里永久
+    堆积（占存储，且私有桶重新启用后会被读到）。故这里失败即清理。
     """
     folder = f"{proposal_id}/v{version_no}"
     raw_result = upload_bytes_to_r2(
@@ -116,14 +122,19 @@ def _upload_version_objects(
         file_type=folder,
         content_type=raw_content_type or "text/html",
     )
-    adapted_result = upload_bytes_to_r2(
-        settings,
-        adapted_bytes,
-        "adapted.html",
-        project_slug=R2_PROJECT_SLUG,
-        file_type=folder,
-        content_type="text/html; charset=utf-8",
-    )
+    try:
+        adapted_result = upload_bytes_to_r2(
+            settings,
+            adapted_bytes,
+            "adapted.html",
+            project_slug=R2_PROJECT_SLUG,
+            file_type=folder,
+            content_type="text/html; charset=utf-8",
+        )
+    except Exception:
+        # 第二份失败 → 清掉已经写进去的第一份（best-effort，不掩盖原始异常）
+        try_delete_file_from_r2(settings, raw_result["key"], log_failure=True)
+        raise
     return raw_result["key"], adapted_result["key"]
 
 

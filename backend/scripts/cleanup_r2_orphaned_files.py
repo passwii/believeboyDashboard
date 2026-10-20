@@ -101,6 +101,20 @@ def collect_referenced_keys(db: Session, project_slug: str | None = None) -> set
     # thumbnail 路径格式: {project}/exchange-rate-thumb/{filename}
     # 这部分由 exchange_rates 端点动态生成，需要单独处理
 
+    # 5. CrmProposalVersion 的 raw_r2_key / adapted_r2_key（BLF-1418）
+    #    客户方案对象现在落在**私有桶**，方案上传中途失败会留下没有 DB 行的
+    #    孤儿（补偿删除只能覆盖「同一次上传内」的部分失败；跨请求的失败
+    #    仍会漏）。私有桶必须被单独扫一遍才能发现它们。
+    from app.models.crm import CrmProposalVersion
+
+    cpv_query = select(
+        CrmProposalVersion.raw_r2_key, CrmProposalVersion.adapted_r2_key
+    )
+    for raw_key, adapted_key in db.execute(cpv_query).all():
+        for key in (raw_key, adapted_key):
+            if key:
+                referenced.add(key)
+
     return referenced
 
 
@@ -173,6 +187,16 @@ def find_orphaned_files(
     all_r2_keys = list_all_r2_files(r2_client, settings.r2_bucket_name)
     print(f"      R2 中共有 {len(all_r2_keys)} 个文件")
 
+    # BLF-1418：**私有桶也要扫**。客户方案对象落在私有桶，方案上传中途失败
+    # 会留下没有 DB 行的孤儿（补偿删除只覆盖「同一次上传内」的部分失败）。
+    # 只扫公开桶 → 私有桶里的孤儿永远发现不了 → 永久堆积。
+    private_keys: set[str] = set()
+    private_bucket = ""
+    if settings.r2_private_bucket_isolated:
+        private_bucket = settings.r2_private_bucket_resolved
+        private_keys = list_all_r2_files(r2_client, private_bucket)
+        print(f"      私有桶 {private_bucket} 中共有 {len(private_keys)} 个文件")
+
     print("[2/4] 收集数据库中被引用的 R2 key...")
     referenced_keys = collect_referenced_keys(db, project_slug)
     print(f"      找到 {len(referenced_keys)} 个被引用的 R2 key")
@@ -228,6 +252,49 @@ def find_orphaned_files(
                     'error': str(e),
                 })
 
+    return orphaned
+
+
+def find_private_orphaned_files(
+    db: Session,
+    settings: Settings,
+    r2_client,
+) -> list[dict]:
+    """找私有桶里**没有 DB 引用**的对象（客户方案上传失败留下的孤儿）。
+
+    与公开桶的扫描分开：私有桶的对象是敏感的，判定依据必须完整
+    （``crm_proposal_versions.raw_r2_key`` / ``adapted_r2_key``）。
+
+    Returns:
+        [{'key': str, 'size': int, 'last_modified': datetime, 'bucket': str}, ...]
+    """
+    if not settings.r2_private_bucket_isolated:
+        return []
+    private_bucket = settings.r2_private_bucket_resolved
+    all_keys = list_all_r2_files(r2_client, private_bucket)
+    referenced = collect_referenced_keys(db)
+
+    orphaned: list[dict] = []
+    for key in all_keys:
+        if key in referenced:
+            continue
+        try:
+            response = r2_client.head_object(Bucket=private_bucket, Key=key)
+            orphaned.append({
+                'key': key,
+                'size': response.get('ContentLength', 0),
+                'last_modified': response.get('LastModified'),
+                'storage_class': response.get('StorageClass', 'STANDARD'),
+                'bucket': private_bucket,
+            })
+        except Exception as e:  # noqa: BLE001 - 审计脚本，吞掉单对象异常
+            orphaned.append({
+                'key': key,
+                'size': 0,
+                'last_modified': None,
+                'error': str(e),
+                'bucket': private_bucket,
+            })
     return orphaned
 
 
@@ -461,6 +528,32 @@ def main():
 
         # 执行删除
         delete_orphaned_files(r2_client, settings.r2_bucket_name, orphaned, args.dry_run)
+
+        # BLF-1418：私有桶的孤儿（客户方案上传失败残留）单独一轮。
+        # 单独确认是因为它删的是**敏感数据**，且判定依据是另一套 DB 引用
+        # （crm_proposal_versions）—— 与公开桶那轮不是一回事。
+        private_orphaned = find_private_orphaned_files(db, settings, r2_client)
+        if private_orphaned:
+            print(f"\n[私有桶] {settings.r2_private_bucket_resolved} 中有 "
+                  f"{len(private_orphaned)} 个无 DB 引用的对象")
+            for f in private_orphaned:
+                print(f"  - {f['key']}  ({format_size(f.get('size', 0))})")
+            if not args.dry_run:
+                if not args.yes:
+                    confirm = input(
+                        "确认删除这些私有桶孤儿？输入 'yes' 继续，其它任意键取消: "
+                    )
+                    if confirm.lower() != 'yes':
+                        print("取消删除")
+                        return 0
+                else:
+                    print("(已通过 --yes 跳过交互确认)")
+                delete_orphaned_files(
+                    r2_client,
+                    settings.r2_private_bucket_resolved,
+                    private_orphaned,
+                    args.dry_run,
+                )
 
     finally:
         db.close()

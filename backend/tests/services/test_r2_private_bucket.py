@@ -870,3 +870,74 @@ def test_delete_bucket_candidates_keeps_private_bucket_after_rollback():
         "believeboy-private",
         "believeboy-dash",
     }
+
+
+# ---------------------------------------------------------------------------
+# (14) 第七轮 Codex review 修：
+#     (a) purge 复查：探测失败 / 仍有残留 → 必须非零退出（不能报「已清干净」）
+#     (b) 方案上传中途失败 → 私有桶里的已上传对象要补偿删除
+#     (c) 孤立文件清理脚本要能发现私有桶里的孤儿
+# ---------------------------------------------------------------------------
+
+
+def test_purge_check_fails_when_probe_indeterminate_or_residue():
+    """复查脚本：探测失败或仍有残留 → 退出码非 0。
+
+    旧实现一律 return 0：操作者（或自动化）会把 purge 复查「通过」当成
+    「备份已不可下载」—— 而实际可能仍能下载。
+    """
+    import inspect
+    import sys
+    from pathlib import Path
+
+    backend = Path(__file__).resolve().parents[2]
+    if str(backend) not in sys.path:
+        sys.path.insert(0, str(backend))
+    from scripts import r2_cache_purge_check as chk
+
+    src = inspect.getsource(chk.main)
+    assert "indeterminate" in src, "必须区分「探测失败」与「无残留」"
+    assert "if head_code == 0 or get_code == 0:" in src, (
+        "探测返回 0（网络/TLS/超时）时结论不确定，不能当成「没残留」"
+    )
+    assert "if need_purge or indeterminate:" in src
+    assert "return 1" in src, "有残留或结论不确定时必须非零退出"
+
+
+def test_proposal_upload_cleans_up_on_second_upload_failure():
+    """第二次上传失败 → 必须删掉已经写进去的第一份（否则成私有桶孤儿）。"""
+    import inspect
+    import sys
+    from pathlib import Path
+
+    backend = Path(__file__).resolve().parents[2]
+    if str(backend) not in sys.path:
+        sys.path.insert(0, str(backend))
+    from app.services.crm import proposal_service
+
+    src = inspect.getsource(proposal_service._upload_version_objects)
+    assert "except Exception:" in src, "第二次上传失败要进补偿分支"
+    assert "try_delete_file_from_r2(settings, raw_result[\"key\"]" in src, (
+        "第二次上传失败时必须补偿删除已上传的第一份"
+    )
+    assert "raise" in src, "补偿清理后要重新抛出原始异常"
+
+
+def test_cleanup_script_scans_private_bucket():
+    """孤立文件清理脚本必须能发现私有桶里的孤儿（只扫公开桶发现不了）。"""
+    import inspect
+    import sys
+    from pathlib import Path
+
+    backend = Path(__file__).resolve().parents[2]
+    if str(backend) not in sys.path:
+        sys.path.insert(0, str(backend))
+    from scripts import cleanup_r2_orphaned_files as cl
+
+    assert hasattr(cl, "find_private_orphaned_files"), (
+        "清理脚本必须有私有桶的孤儿扫描（方案上传失败会留下无 DB 引用的对象）"
+    )
+    src = inspect.getsource(cl.collect_referenced_keys)
+    assert "CrmProposalVersion" in src, (
+        "私有桶的引用判定必须认 crm_proposal_versions 的 raw/adapted key"
+    )

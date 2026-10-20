@@ -184,6 +184,8 @@ def main() -> int:
     print()
 
     need_purge: list[str] = []
+    # 探测不确定的 URL（网络 / TLS / 超时）—— 不能当成「没残留」。
+    indeterminate: list[str] = []
     # origin 已删但边缘可能仍缓存的 key，三个来源合并：
     #   (A) DB 历史（客户方案的 raw/adapted key）
     #   (B) --key 显式清单（已删的备份等 DB 里没有的）
@@ -205,7 +207,12 @@ def main() -> int:
         cache = get_hdr.get("cf-cache-status", "?")
         age = get_hdr.get("age", "-")
         flag = ""
-        if head_code in (403, 404) and get_code == 200:
+        if head_code == 0 or get_code == 0:
+            # 探测本身失败（DNS / TLS / 超时）→ **结论不确定**。
+            # 不能当成「没残留」：那会让操作者把「备份其实还能下载」误判成已清干净。
+            flag = "  ← ⚠️ 探测失败（网络/TLS/超时），结论不确定"
+            indeterminate.append(url)
+        elif head_code in (403, 404) and get_code == 200:
             flag = "  ← ⚠️ 边缘缓存残留，必须 purge"
             need_purge.append(url)
         elif cache == "HIT":
@@ -253,9 +260,21 @@ def main() -> int:
         print("  Dashboard: https://dash.cloudflare.com/<zone>/believeboy.com/caching/cache-purge")
         print("  API      : POST https://api.cloudflare.com/client/v4/zones/<zone_id>/purge_cache")
         print('             {"files": ["<上面的 URL>"]}')
-    else:
+    if indeterminate:
+        print()
+        print(f"⚠️  {len(indeterminate)} 个 URL 探测失败（网络 / TLS / 超时），结论不确定：")
+        for url in indeterminate:
+            print(f"  {url}")
+        print("  这些 URL **不能**当作「已清干净」—— 网络恢复后重跑本脚本。")
+    if not need_purge and not indeterminate:
         print("✅ 没有检测到边缘缓存残留。")
     print("=" * 72)
+
+    # 结论不确定 / 仍有残留 → **必须以非零退出**。
+    # 旧实现一律 return 0：操作者（或自动化）会把 purge 复查「通过」当成
+    # 「备份已不可下载」—— 而实际可能仍能下载（这个 P0 最不能出的错）。
+    if need_purge or indeterminate:
+        return 1
     return 0
 
 
