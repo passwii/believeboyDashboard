@@ -66,7 +66,9 @@ try:
 except ImportError:  # pragma: no cover - 脚本被拷到别处 / 代码未部署时
     # 本脚本可能在代码部署前先跑（只需前缀列表，不依赖新代码）。
     # 与 app/services/r2_service.py 的 PRIVATE_KEY_PREFIXES 保持一致。
-    PRIVATE_KEY_PREFIXES = frozenset({"crm-proposals", "db-backups", "backups"})
+    # 注意 var/ 是 pgBackRest 的 repo1-path=/var/lib/pgbackrest/backups 去开头
+    # 斜杠后的首段（不是 backups/）。
+    PRIVATE_KEY_PREFIXES = frozenset({"crm-proposals", "db-backups", "var"})
 
 
 def _client(settings):
@@ -181,6 +183,13 @@ def main() -> int:
         help="--delete 的二次确认（必须同时给，否则拒绝删除）",
     )
     args = parser.parse_args()
+
+    # --dry-run 与 --execute 矛盾：--dry-run 的承诺是「不做任何改动」，
+    # 而 --execute 是「真动手」。两者同时给时，--dry-run 必须胜出
+    # （否则 --delete --dry-run --execute --confirm-delete 会真删）。
+    if args.dry_run and args.execute:
+        print("--dry-run 与 --execute 矛盾：按 --dry-run 处理（不做任何改动）")
+        args.execute = False
 
     # --dry-run 单独用 = 「只看不改」的预检：默认列出各敏感前缀在公开桶里的对象。
     # 没给任何动作时，把它当成隐式的「只读列举」，而不是 argparse 报错。

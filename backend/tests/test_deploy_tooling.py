@@ -106,6 +106,34 @@ def test_beat_is_restarted_by_deploy_and_rollback():
     assert "believeboy-beat.service" in restart_cmd
 
 
+def test_deploy_verifies_pgbackrest_targets_private_bucket():
+    """BLF-1418：部署必须校验 /etc/pgbackrest.conf 的备份桶指向私有桶。
+
+    pgBackRest 读的是 /etc/pgbackrest.conf（不在仓库 deploy/ 目录里），
+    部署链不同步它 → 合并部署后 WAL 归档 / 每日全量备份仍写进**公开桶**。
+    仓库里的 conf 是占位符密钥，不能直接覆盖线上文件，所以部署只做**校验**。
+    """
+    commands = "\n".join(deploy_vps.DEPLOY_COMMANDS)
+    assert "/etc/pgbackrest.conf" in commands, "部署链必须校验 pgbackrest 配置"
+    assert "believeboy-private" in commands, "必须核对 repo1-s3-bucket 指向私有桶"
+    # 不能覆盖线上文件（会把真密钥写成占位符，备份当场坏掉）
+    pg_cmd = next(
+        c for c in deploy_vps.DEPLOY_COMMANDS if "/etc/pgbackrest.conf" in c
+    )
+    assert " cp " not in pg_cmd, (
+        "不得 cp 覆盖 /etc/pgbackrest.conf（线上含真实密钥，仓库里是占位符）"
+    )
+
+
+def test_pgbackrest_conf_in_repo_points_to_private_bucket():
+    """仓库里的 pgbackrest.conf 也要指向私有桶（它是新装环境的唯一来源）。"""
+    conf = (
+        REPO_ROOT / "backend/scripts/pg-backup/conf/pgbackrest.conf"
+    ).read_text(encoding="utf-8")
+    assert "repo1-s3-bucket=believeboy-private" in conf
+    assert "repo1-s3-bucket=believeboy-dash" not in conf
+
+
 def test_workers_are_stopped_before_mutating_migration():
     """BLF-1111：改数据的迁移必须「先停后台单元 → 迁 → 再起」，顺序本身要锁住。
 

@@ -104,6 +104,26 @@ DEPLOY_COMMANDS = [
     f"&& chmod 0644 /etc/cron.d/believeboy-dockerd-watchdog "
     f"&& chmod +x {PROJECT_DIR}backend/deploy/scripts/dockerd_watchdog.sh "
     f"&& systemctl daemon-reload",
+    # BLF-1418：pgBackRest 配置校验（/etc/pgbackrest.conf）。
+    # 备份桶从公开桶 believeboy-dash 改为私有桶 believeboy-private；
+    # pgBackRest 读的是 /etc/pgbackrest.conf（不在仓库的 deploy/ 目录里），
+    # 不同步的话合并部署后 WAL 归档 / 每日全量备份仍会写进**公开桶**。
+    #
+    # 为什么只校验不覆盖：仓库里的 conf 用的是占位符密钥
+    # （<REDACTED-ROTATE-IN-CLOUDFLARE-R2>），线上 /etc/pgbackrest.conf 是带真实
+    # 密钥的手工文件 —— 直接 cp 覆盖会把真密钥写成占位符，备份当场坏掉。
+    # 所以：文件不存在 → 提示（pgBackRest 未装）；已存在 → 核对桶名，不一致就告警。
+    #
+    # 注意：命令体里**不能用单引号**（见 test_deploy_commands_have_no_nested_single_quotes），
+    # 所以 grep 模式用双引号包、且不含单引号。
+    (
+        "if [ -f /etc/pgbackrest.conf ]; then "
+        "grep -q \"^repo1-s3-bucket=believeboy-private\" /etc/pgbackrest.conf "
+        "&& echo \"[BLF-1418] pgbackrest repo1-s3-bucket=believeboy-private OK\" "
+        "|| echo \"[BLF-1418] WARNING pgbackrest repo1-s3-bucket is not believeboy-private, "
+        "backups still go to the public bucket\"; "
+        "else echo \"[BLF-1418] /etc/pgbackrest.conf missing (pgBackRest not installed), skipped\"; fi"
+    ),
     # 启用新单元（首次部署时 enable，后续幂等）
     "systemctl enable believeboy-celery.service believeboy-celery-scheduled.service believeboy-beat.service 2>/dev/null || true",
     "systemctl restart believeboy-api",
@@ -598,7 +618,9 @@ def deploy(dry_run=False, auto_confirm=False):
                 )
                 print(f"    {START_WORKERS_CMD} -> exit {start_rc}")
                 states = (status_out or status_err).strip().splitlines()
-                for unit, state in zip(WORKER_UNITS.split(), states):
+                # strict=False：保留原行为（两列表可能不等长时不报错），
+                # 显式写出来是为了表明这是有意为之而非遗漏。
+                for unit, state in zip(WORKER_UNITS.split(), states, strict=False):
                     print(f"      {unit}: {state}")
                 if start_rc != 0 or status_rc != 0:
                     print(

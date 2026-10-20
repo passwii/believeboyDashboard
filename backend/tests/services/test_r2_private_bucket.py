@@ -100,11 +100,18 @@ def test_resolve_bucket_with_leading_slash_routes_to_private():
     assert resolve_bucket(s, "/crm-proposals/1/v1/raw.html") == "believeboy-private"
 
 
-def test_private_prefixes_include_backups_defense_in_depth():
-    """``backups`` 前缀是纵深防御：pgBackRest 不经应用层路由，但列入敏感前缀
-    可确保将来任何把备份写进应用层 key 空间的代码仍被判为敏感。"""
-    assert "backups" in PRIVATE_KEY_PREFIXES
-    assert is_private_key("backups/blf/repo/backup/x") is True
+def test_private_prefixes_include_var_defense_in_depth():
+    """``var`` 前缀是纵深防御：pgBackRest 的 key = <repo1-path 去开头斜杠>/...，
+    而 repo1-path=/var/lib/pgbackrest/backups ⇒ key 以 ``var/`` 开头
+    （**不是** ``backups/`` —— 那是本地路径的末两段）。
+
+    pgBackRest 不经应用层路由，这条前缀管不到它；但若将来有任何代码把备份
+    写进应用层 key 空间，这一条能确保它仍被判为敏感。
+    """
+    assert "var" in PRIVATE_KEY_PREFIXES
+    assert is_private_key("var/lib/pgbackrest/backups/blf/2026/x") is True
+    # 旧的错误前缀不应再存在
+    assert "backups" not in PRIVATE_KEY_PREFIXES
 
 
 def test_resolve_bucket_routes_private_prefix_to_private_bucket():

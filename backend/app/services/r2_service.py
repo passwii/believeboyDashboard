@@ -75,12 +75,15 @@ def get_r2_client(settings: Settings) -> BaseClient:
 #: - ``crm-proposals``：客户方案，含报价与客户信息（key 可枚举）。
 #: - ``db-backups``：数据库备份，含用户账号 / 密码哈希 / 业务全量数据
 #:   （key 同样可枚举，且支持 Range 分片下载）。
-#: - ``backups``：纵深防御 —— pgBackRest 走自己的 ``repo1-s3-*`` 配置写桶，
-#:   **不经过**应用层的 ``resolve_bucket()`` 路由，所以那条路径上的前缀
-#:   不受本表管辖。但若将来有任何代码把备份对象写进应用层 key 空间，
-#:   这一条能确保它仍被判为敏感、不会被拼成公开 URL。
+#: - ``var``：pgBackRest 写的备份 / WAL 仓库。pgBackRest 用 S3 repo 时，
+#:   key = ``<repo1-path 去开头斜杠>/<stanza>/...``，而
+#:   ``repo1-path=/var/lib/pgbackrest/backups`` ⇒ key 以 ``var/`` 开头
+#:   （**不是** ``backups/`` —— 那是本地路径的末两段，容易看错）。
+#:   纵深防御：pgBackRest 走自己的 ``repo1-s3-*`` 配置、不经应用层的
+#:   ``resolve_bucket()`` 路由，所以这条前缀管不到它；但若将来有任何代码把
+#:   备份写进应用层 key 空间，这一条能确保它仍被判为敏感、不被拼成公开 URL。
 PRIVATE_KEY_PREFIXES: frozenset[str] = frozenset(
-    {"crm-proposals", "db-backups", "backups"}
+    {"crm-proposals", "db-backups", "var"}
 )
 
 

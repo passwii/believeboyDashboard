@@ -55,7 +55,9 @@ try:
     from app.services.r2_service import PRIVATE_KEY_PREFIXES
 except ImportError:  # pragma: no cover - 代码未部署时
     # 与 app/services/r2_service.py 的 PRIVATE_KEY_PREFIXES 保持一致。
-    PRIVATE_KEY_PREFIXES = frozenset({"crm-proposals", "db-backups", "backups"})
+    # 注意 var/ 是 pgBackRest 的 repo1-path=/var/lib/pgbackrest/backups 去开头
+    # 斜杠后的首段（不是 backups/）。
+    PRIVATE_KEY_PREFIXES = frozenset({"crm-proposals", "db-backups", "var"})
 
 
 def _client(settings):
