@@ -9,7 +9,7 @@ import {
   TERM_SELECT_NATIVE,
 } from '@/components/crm/term-shared'
 import { cn } from '@/lib/utils'
-import { PROPOSAL_MAX_UPLOAD_MB } from '@/lib/crm/constants/proposal'
+import { PROPOSAL_EFFECTIVE_UPLOAD_LIMIT_MB } from '@/lib/crm/constants/proposal'
 import {
   PROPOSAL_TYPE_LABELS,
   PROPOSAL_TYPE_ORDER,
@@ -18,7 +18,7 @@ import {
   type ProposalVersionInput,
 } from '@/lib/crm/types'
 
-const MAX_SIZE_MB = PROPOSAL_MAX_UPLOAD_MB
+const MAX_SIZE_MB = PROPOSAL_EFFECTIVE_UPLOAD_LIMIT_MB
 const WRONG_EXT_ERROR = '仅支持单个 HTML 文件（.html / .htm）'
 
 export interface CustomerOption {
