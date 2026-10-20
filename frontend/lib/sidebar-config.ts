@@ -400,6 +400,7 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
       { title: 'Markdown/HTML 渲染', url: '/dashboard/tools/page-render', icon: IconMap.FileCode },
       { title: '品牌备案示例', url: '/dashboard/tools/brand-registration-example', icon: IconMap.Package },
       { title: '产品标签制作', url: '/dashboard/tools/product-label', icon: IconMap.Tag },
+      { title: '跨境电商合规', url: '/dashboard/tools/cross-border-compliance', icon: IconMap.ClipboardCheck },
     ],
   },
 

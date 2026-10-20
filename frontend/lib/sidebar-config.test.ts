@@ -144,6 +144,33 @@ describe('SIDEBAR_TOP_GROUPS — 运营统一分组', () => {
     expect(findGroupByPathname(SIDEBAR_TOP_GROUPS, '/dashboard/tools/product-label')).toBe('tools')
   })
 
+  it('跨境电商合规归入工具箱且 URL 唯一（BLF-1392）', () => {
+    const tools = urlsOf('tools')
+    expect(tools).toContain('/dashboard/tools/cross-border-compliance')
+    expect(
+      flattenAllItems().filter((item) => item.url === '/dashboard/tools/cross-border-compliance')
+    ).toHaveLength(1)
+    expect(findGroupByPathname(SIDEBAR_TOP_GROUPS, '/dashboard/tools/cross-border-compliance')).toBe(
+      'tools'
+    )
+  })
+
+  it('跨境电商合规追加在工具箱末位，不改动工具箱既有项顺序', () => {
+    const tools = urlsOf('tools')
+    expect(tools).toEqual([
+      '/dashboard/tools/markdown-to-word',
+      '/dashboard/tools/page-render',
+      '/dashboard/tools/brand-registration-example',
+      '/dashboard/tools/product-label',
+      '/dashboard/tools/cross-border-compliance',
+    ])
+    const items = SIDEBAR_TOP_GROUPS.find((group) => group.id === 'tools')?.items ?? []
+    expect(items[items.length - 1]).toMatchObject({
+      title: '跨境电商合规',
+      url: '/dashboard/tools/cross-border-compliance',
+    })
+  })
+
   it('客户消息 /list 子页命中 operations 分组（matchPrefixes）', () => {
     expect(
       findGroupByPathname(SIDEBAR_TOP_GROUPS, '/dashboard/operations/complaint-center/list')

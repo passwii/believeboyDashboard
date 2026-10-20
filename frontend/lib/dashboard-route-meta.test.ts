@@ -11,6 +11,16 @@ describe('getDashboardPageTitle', () => {
     expect(getDashboardPageTitle('/dashboard/tools/product-label')).toBe('产品标签制作')
   })
 
+  it('跨境电商合规路由显示对应标题（BLF-1392）', () => {
+    expect(getDashboardPageTitle('/dashboard/tools/cross-border-compliance')).toBe('跨境电商合规')
+  })
+
+  it('跨境电商合规标题不被工具箱其他条目抢先匹配', () => {
+    expect(getDashboardPageTitle('/dashboard/tools/cross-border-compliance')).not.toBe('Dashboard')
+    expect(getDashboardPageTitle('/dashboard/tools/product-label')).toBe('产品标签制作')
+    expect(getDashboardPageTitle('/dashboard/tools/brand-registration-example')).toBe('品牌备案示例')
+  })
+
   it('Shipping Plan 与 Shipment Management 使用准确标题且保留原页面路由', () => {
     expect(getDashboardPageTitle('/dashboard/operations/shipping-plan')).toBe('发货规划')
     expect(getDashboardPageTitle('/dashboard/operations/shipment-management')).toBe('货件管理')
