@@ -88,8 +88,13 @@ describe('ProposalVersionForm', () => {
  * BLF-1404：本地预校验上限与后端 `crm_proposal_max_bytes`（20MB）同口径。
  * 之前上限硬编码在组件里（5 → 20 各改一处），现抽到
  * `lib/crm/constants/proposal.ts` —— 这里钉住“常量与提示文案仍一致”。
+ *
+ * ⚠️ BLF-1404 复核：预校验上限是**模式相关**的 ——
+ * - mock 模式（默认，本地 / 单测）→ 文件只进 localStorage，不过网关 → 20MB；
+ * - http 模式（生产）→ 经 Next 代理 → Vercel 网关 4.5MB 硬卡 → 4MB。
+ * 本文件跑在 mock 模式（`NEXT_PUBLIC_CRM_API_MODE` 未设置）→ 断言 20MB。
  */
-describe('上传大小本地预校验（20MB 上限）', () => {
+describe('上传大小本地预校验（mock 模式 = 20MB 上限）', () => {
   it('超过上限的文件被拦下并提示 20MB', () => {
     render(<ProposalCreateForm customers={[]} onSubmit={vi.fn()} />)
     // 用 21MB 的假 File（只声明 size，不真造字节）。

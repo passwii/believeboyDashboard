@@ -121,13 +121,31 @@ describe('BLF-1404: 方案上传失败的错误文案分档', () => {
   }
 
   it('413 → 「文件过大」并带 20MB 上限', async () => {
-    client.createProposal.mockRejectedValue(new ApiError(413, '文件超过 20971520 字节上限'))
+    client.createProposal.mockRejectedValue(
+      new ApiError(413, '文件超过 20971520 字节上限', { detail: '文件超过 20971520 字节上限' })
+    )
 
     const call = await submitAndCatch()
 
     expect(call.type).toBe('error')
     expect(call.title).toBe('文件过大')
     expect(call.message).toContain('20MB')
+  })
+
+  /**
+   * BLF-1404 复核（Codex P1）：平台网关 413（非 JSON 体）不能报 20MB ——
+   * 用户传 5MB 也会撞 Vercel 4.5MB 网关，报「超过 20MB」是误导，
+   * 且会把用户引向「再压缩」这个无效动作。
+   */
+  it('平台网关 413（非 JSON 体）→ 不提 20MB，改报平台体积限制', async () => {
+    // body 为 undefined = 网关在函数之前拒了（纯文本错误体，res.json() 抛错）
+    client.createProposal.mockRejectedValue(new ApiError(413, 'CRM 请求失败（413）'))
+
+    const call = await submitAndCatch()
+
+    expect(call.title).toBe('文件过大')
+    expect(call.message).not.toContain('20MB')
+    expect(call.message).toContain('4MB')
   })
 
   it('504 → 「上传超时」并建议重试', async () => {
