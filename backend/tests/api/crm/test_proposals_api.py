@@ -620,6 +620,53 @@ def test_delete_missing_404(client, operator_headers):
     )
 
 
+def test_delete_records_dead_letter_when_r2_delete_fails(
+    client, operator_headers, db_session
+):
+    """R2 删除失败必须登记到 r2_delete_failures 死信表（BLF-1418 review 修）。
+
+    敏感 key 的删除要清两个桶（私有桶 + 公开桶的迁移旧副本）。若公开桶那次
+    删除失败而返回值被丢掉：DB 行被提交删除 → 公开桶里的对象还在 → 孤立文件
+    清理脚本又会跳过所有敏感前缀 → 变成**永久公开可下载**的孤儿。
+    """
+    body = _mk_proposal(client, operator_headers)
+    pid = body["proposal"]["id"]
+
+    def _boom(settings, key, log_failure=True):
+        from app.services.r2_service import R2DeleteResult
+
+        return R2DeleteResult(
+            success=False,
+            key=key,
+            error_class="ClientError",
+            error_message="boom",
+        )
+
+    with patch(
+        "app.services.crm.proposal_service.try_delete_file_from_r2",
+        side_effect=_boom,
+    ):
+        res = client.delete(f"/api/v1/crm/proposals/{pid}", headers=operator_headers)
+    # 业务删除不因 R2 失败而失败（避免卡死业务）
+    assert res.status_code == 204
+
+    rows = db_session.execute(
+        text(
+            "select r2_key, source from r2_delete_failures "
+            "where source = 'crm_proposal_delete' and r2_key like :like"
+        ),
+        {"like": f"crm-proposals/{pid}/%"},
+    ).all()
+    # 死信表在用例之间（甚至跨运行）**不会**被清空 —— 这正是它的设计：
+    # 失败记录要能跨进程存活以供重试。所以这里断言「本次方案的两个版本对象
+    # 都被登记了」（按去重后的 key 集合），而不是全表行数。
+    registered = {r[0] for r in rows}
+    assert registered == {
+        f"crm-proposals/{pid}/v1/raw.html",
+        f"crm-proposals/{pid}/v1/adapted.html",
+    }, f"两个版本对象（raw + adapted）都应登记死信，实际: {registered}"
+
+
 # ---------- 审计 ----------
 
 

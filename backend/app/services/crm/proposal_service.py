@@ -36,6 +36,7 @@ from app.schemas.crm import (
     ProposalVersionItem,
 )
 from app.services.crm import proposal_render_service as render
+from app.services.r2_lifecycle import record_delete_failure
 from app.services.r2_service import (
     iter_file_from_r2,
     try_delete_file_from_r2,
@@ -602,8 +603,15 @@ def delete_proposal(
 ) -> None:
     """删方案：先尽力删掉全部版本的 R2 对象，再删行（版本随 FK CASCADE 走）。
 
-    R2 删除失败不阻断（登记 r2_delete_failures 由 try_delete_file_from_r2 处理），
-    避免对象存储抖动卡死业务删除。
+    R2 删除失败不阻断（避免对象存储抖动卡死业务删除），但**必须登记到
+    r2_delete_failures 死信表**（BLF-1418 review 修）：
+
+    敏感 key 的删除现在要清**两个桶**（私有桶 + 公开桶的迁移旧副本）。若公开桶
+    那次删除失败而我们把返回值丢掉，那么：
+      1. DB 行被提交删除 → 方案彻底没了；
+      2. 公开桶里的对象**还在**，仍可被匿名下载；
+      3. 而孤立文件清理脚本会跳过所有敏感前缀 → 永远不会再发现它。
+    → 结果是一个**永久公开可下载**的孤儿。登记死信才能被重试/巡检捞出来。
     """
     keys = (
         db.execute(
@@ -614,8 +622,16 @@ def delete_proposal(
         .all()
     )
     for raw_key, adapted_key in keys:
-        try_delete_file_from_r2(settings, raw_key, log_failure=True)
-        try_delete_file_from_r2(settings, adapted_key, log_failure=True)
+        for key in (raw_key, adapted_key):
+            result = try_delete_file_from_r2(settings, key, log_failure=True)
+            if not result.success:
+                # 用独立 Session 写死信表（不能污染调用方事务）
+                record_delete_failure(
+                    key,
+                    result,
+                    source="crm_proposal_delete",
+                    context={"proposal_id": proposal.id},
+                )
     db.delete(proposal)
     db.flush()
     if commit:
