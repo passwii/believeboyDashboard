@@ -17,7 +17,7 @@ import {
   type ProposalVersionInput,
 } from '@/lib/crm/types'
 
-const MAX_SIZE_MB = 5
+const MAX_SIZE_MB = 20
 const WRONG_EXT_ERROR = '仅支持单个 HTML 文件（.html / .htm）'
 
 export interface CustomerOption {
