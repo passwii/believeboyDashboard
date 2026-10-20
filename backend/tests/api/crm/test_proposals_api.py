@@ -13,7 +13,7 @@ from urllib.parse import unquote
 import pytest
 from sqlalchemy import text
 
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 
 # ---------- R2 假实现 ----------
 
@@ -149,6 +149,131 @@ def test_create_rejects_oversize(client, operator_headers, monkeypatch):
         files=_upload(b"x" * 4096, "a.html"),
     )
     assert r.status_code == 413
+
+
+# ---------- 上传体积上限（BLF-1405：5MB → 20MB 放宽的验收证据） ----------
+
+# 旧的 5MB 上限（#753 之前）。放宽到 20MB 后，这个尺寸必须能建方案成功。
+_FORMER_LIMIT_BYTES = 5 * 1024 * 1024
+# 新的 20MB 上限（#753 之后）。见 app/core/config.py 的 crm_proposal_max_bytes。
+_CURRENT_LIMIT_BYTES = 20 * 1024 * 1024
+# 取一个 > 旧上限、< 新上限的尺寸：6MB。
+_OVER_FORMER_LIMIT_BYTES = 6 * 1024 * 1024
+
+
+def _big_html(size: int) -> bytes:
+    """构造指定字节数的单个 .html（内存态，不落盘）。
+
+    体积用重复字节填充，但开头补一段真实 HTML 骨架 —— 后端会把它当 HTML
+    解析（找相对引用 / 注入主题样式），纯字节流虽不报错但语义不真实。
+    """
+    head = (
+        '<html><head><meta charset="utf-8"><title>大方案</title></head>'
+        "<body><h1>大方案正文</h1>"
+    ).encode("utf-8")
+    tail = "</body></html>".encode("utf-8")
+    filler = b"x" * (size - len(head) - len(tail))
+    return head + filler + tail
+
+
+def test_create_accepts_payload_over_former_5mb_limit(
+    client, operator_headers, monkeypatch
+):
+    """6MB 的 HTML 现在必须能建方案成功（201，而不是 413）。
+
+    这是 #753（5MB → 20MB）在测试层面的**端到端证据**：没有这条用例，
+    上限是否真的放宽无法从测试结果判定。
+    """
+    # 把上限显式钉在 20MB：本用例要验的是「业务代码按 20MB 放行 6MB」，
+    # 不能被 .env / 进程环境里的合法部署覆盖（CRM_PROPOSAL_MAX_BYTES）改写，
+    # 否则「部署配置变了」和「上传链路坏了」会共用同一个红信号。
+    monkeypatch.setattr(
+        get_settings(), "crm_proposal_max_bytes", _CURRENT_LIMIT_BYTES, raising=False
+    )
+    payload = _big_html(_OVER_FORMER_LIMIT_BYTES)
+    assert len(payload) > _FORMER_LIMIT_BYTES
+    assert len(payload) < _CURRENT_LIMIT_BYTES
+
+    r = client.post(
+        "/api/v1/crm/proposals",
+        headers=operator_headers,
+        files=_upload(payload, "big.html"),
+        data={"title": "6MB 方案"},
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    # 版本上记录的体积 = 原始上传字节数（不含 multipart 包装）。
+    assert body["version"]["file_size"] == len(payload)
+    assert body["version"]["original_filename"] == "big.html"
+
+
+def test_create_accepts_payload_near_current_20mb_limit(
+    client, operator_headers, monkeypatch
+):
+    """贴着新上限（20MB - 余量）的 HTML 也要能建方案成功。"""
+    # 同上：钉住 20MB，避免部署覆盖把这条用例变成「配置值断言」。
+    monkeypatch.setattr(
+        get_settings(), "crm_proposal_max_bytes", _CURRENT_LIMIT_BYTES, raising=False
+    )
+    payload = _big_html(_CURRENT_LIMIT_BYTES - 1024)
+    r = client.post(
+        "/api/v1/crm/proposals",
+        headers=operator_headers,
+        files=_upload(payload, "huge.html"),
+        data={"title": "20MB 方案"},
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["version"]["file_size"] == len(payload)
+
+
+def test_create_rejects_payload_over_current_limit(
+    client, operator_headers, monkeypatch
+):
+    """超过新上限 → 413（用 monkeypatch 缩小上限，不真传 20MB+）。"""
+    monkeypatch.setattr(get_settings(), "crm_proposal_max_bytes", 1024, raising=False)
+    r = client.post(
+        "/api/v1/crm/proposals",
+        headers=operator_headers,
+        files=_upload(_big_html(4096), "a.html"),
+    )
+    assert r.status_code == 413
+    assert "上限" in r.json()["detail"]
+
+
+def test_create_limit_is_20mb_by_default(client, operator_headers):
+    """**声明式默认**上限就是 20MB（防止有人把配置改回 5MB 而测试无感）。
+
+    读 ``Settings.model_fields`` 的声明式默认值，而不是运行时 ``get_settings()``：
+    后者会吃 ``backend/.env`` 与进程环境（``CRM_PROPOSAL_MAX_BYTES``），
+    任何一次合法的部署覆盖都会让本用例误报。
+    """
+    assert (
+        Settings.model_fields["crm_proposal_max_bytes"].default == _CURRENT_LIMIT_BYTES
+    )
+
+
+def test_add_version_accepts_payload_over_former_5mb_limit(
+    client, operator_headers, monkeypatch
+):
+    """追加版本走同一个开关：6MB 的新版本也要能成功。"""
+    # 同上：钉住 20MB，让本用例只守「追加版本路径按上限放行」这一件事。
+    monkeypatch.setattr(
+        get_settings(), "crm_proposal_max_bytes", _CURRENT_LIMIT_BYTES, raising=False
+    )
+    created = _mk_proposal(client, operator_headers)
+    pid = created["proposal"]["id"]
+    payload = _big_html(_OVER_FORMER_LIMIT_BYTES)
+
+    r = client.post(
+        f"/api/v1/crm/proposals/{pid}/versions",
+        headers=operator_headers,
+        files=_upload(payload, "big-v2.html"),
+        data={"change_note": "大版本"},
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["version"]["version_no"] == 2
+    assert body["version"]["file_size"] == len(payload)
 
 
 def test_create_warns_on_relative_refs(client, operator_headers):
