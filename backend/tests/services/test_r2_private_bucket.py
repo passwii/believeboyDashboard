@@ -999,5 +999,53 @@ def test_private_orphan_pass_respects_min_age():
 
     src = inspect.getsource(cl.main)
     private_at = src.index("private_orphaned = find_private_orphaned_files")
-    assert "cutoff" in src[private_at:], "私有桶那轮必须用 --min-age 的 cutoff 过滤"
+    assert "private_cutoff" in src[private_at:], "私有桶那轮必须用 cutoff 过滤"
     assert "private_orphaned = [" in src[private_at:], "私有桶的过滤必须作用于 private_orphaned"
+
+
+def test_private_orphan_pass_has_mandatory_age_floor():
+    """私有桶那轮必须有**安全年龄下限**（不依赖操作者传 --min-age）。
+
+    --min-age 默认 0 → cutoff 为 None → 过滤整个失效 → 刚上传、还没插 DB 行的
+    对象会被立刻删掉（随后提交的那行版本就读不出内容）。
+    """
+    import inspect
+    import sys
+    from pathlib import Path
+
+    backend = Path(__file__).resolve().parents[2]
+    if str(backend) not in sys.path:
+        sys.path.insert(0, str(backend))
+    from scripts import cleanup_r2_orphaned_files as cl
+
+    assert cl.PRIVATE_ORPHAN_MIN_AGE_DAYS >= 1, "私有桶清理必须有年龄下限"
+    src = inspect.getsource(cl.main)
+    private_at = src.index("private_orphaned = find_private_orphaned_files")
+    assert "max(args.min_age, PRIVATE_ORPHAN_MIN_AGE_DAYS)" in src[private_at:], (
+        "私有桶那轮必须强制应用安全下限（不能只看操作者传的 --min-age）"
+    )
+
+
+def test_cleanup_cutoff_is_timezone_aware():
+    """cutoff 必须是 timezone-aware —— boto3 的 LastModified 带 tzinfo。
+
+    拿 naive 的 datetime.now() 去比会抛
+    TypeError: can't compare offset-naive and offset-aware datetimes
+    → 私有桶那轮直接崩掉，什么都报不出来。
+    """
+    import inspect
+    import sys
+    from pathlib import Path
+
+    backend = Path(__file__).resolve().parents[2]
+    if str(backend) not in sys.path:
+        sys.path.insert(0, str(backend))
+    from scripts import cleanup_r2_orphaned_files as cl
+
+    src = inspect.getsource(cl.main)
+    assert "datetime.now(timezone.utc)" in src, (
+        "cutoff 必须用 timezone-aware 的 datetime.now(timezone.utc)"
+    )
+    assert "datetime.now() - timedelta" not in src, (
+        "不能用 naive 的 datetime.now()（与 boto3 的 aware LastModified 不可比）"
+    )

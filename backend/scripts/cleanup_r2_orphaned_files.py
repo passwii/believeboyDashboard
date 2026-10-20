@@ -19,7 +19,7 @@ R2 Storage Cleanup Script
 
 import argparse
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 import boto3
 from botocore.config import Config
@@ -28,6 +28,16 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.services.r2_service import is_private_key
+
+#: 私有桶孤儿清理的**安全年龄下限**（天）。
+#:
+#: 方案上传是「先写 R2 对象 → 再插 crm_proposal_versions 行」，所以一个
+#: 并发的清理可能看到一个**刚上传、还没有 DB 行**的对象。不设下限时
+#: （``--min-age`` 默认 0 → cutoff 为 None → 过滤整个失效）这类对象会被
+#: 立刻删掉，随后提交的那行版本就读不出内容。
+#:
+#: 公开桶那轮不受影响（它只删真正的商店级陈旧文件）。
+PRIVATE_ORPHAN_MIN_AGE_DAYS = 1
 
 
 def get_r2_client(settings: Settings):
@@ -510,10 +520,13 @@ def main():
         orphaned = find_orphaned_files(db, settings, r2_client, args.project)
 
         # 按时间过滤
+        # cutoff 必须是 **timezone-aware**：boto3 返回的 LastModified 带 tzinfo
+        # （R2 给的是 UTC），拿 naive 的 datetime.now() 去比会抛
+        # TypeError: can't compare offset-naive and offset-aware datetimes
+        # （BLF-1418 review 修 —— 那会让私有桶那轮直接崩掉，什么都报不出来）。
         cutoff = None
         if args.min_age > 0:
-            from datetime import timedelta
-            cutoff = datetime.now() - timedelta(days=args.min_age)
+            cutoff = datetime.now(timezone.utc) - timedelta(days=args.min_age)
             orphaned = [
                 f for f in orphaned
                 if f.get('last_modified') is None or f['last_modified'] < cutoff
@@ -544,13 +557,24 @@ def main():
         private_orphaned = find_private_orphaned_files(db, settings, r2_client)
         # 同样的 --min-age 保护要作用在私有桶这一轮（BLF-1418 review 修）：
         # 方案上传是「先写 R2 对象、再插 crm_proposal_versions 行」，所以一个
-        # 并发的 --min-age 30 --execute 可能看到一个**刚上传、还没有 DB 行**的
-        # 对象 → 立刻删掉 → 随后提交的那行版本就读不出来了。
-        if cutoff is not None:
-            private_orphaned = [
-                f for f in private_orphaned
-                if f.get('last_modified') is None or f['last_modified'] < cutoff
-            ]
+        # 并发的清理可能看到一个**刚上传、还没有 DB 行**的对象 → 立刻删掉 →
+        # 随后提交的那行版本就读不出来了。
+        #
+        # 私有桶这一轮还要求一个**安全下限**（默认 1 天）：不加 --min-age 时
+        # cutoff 是 None → 过滤整个失效 → 刚上传的对象会被立刻删掉。
+        # 公开桶那轮不受影响（它只删真正的商店级陈旧文件）。
+        private_min_age = max(args.min_age, PRIVATE_ORPHAN_MIN_AGE_DAYS)
+        private_cutoff = datetime.now(timezone.utc) - timedelta(days=private_min_age)
+        before = len(private_orphaned)
+        private_orphaned = [
+            f for f in private_orphaned
+            if f.get('last_modified') is None or f['last_modified'] < private_cutoff
+        ]
+        if before != len(private_orphaned):
+            print(
+                f"\n[私有桶] 按 {private_min_age} 天的安全下限过滤："
+                f"{before} → {len(private_orphaned)} 个"
+            )
         if private_orphaned:
             print(f"\n[私有桶] {settings.r2_private_bucket_resolved} 中有 "
                   f"{len(private_orphaned)} 个无 DB 引用的对象")
