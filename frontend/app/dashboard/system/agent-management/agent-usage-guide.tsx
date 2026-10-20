@@ -1033,6 +1033,10 @@ function buildReviewTrackingGuide(opts: {
   item.kind 分流处理，不要靠 URL 参数砍掉另一半。
   query：marketplace（US/DE/UK…，大写归一）、kind（internal_group / external_asin，
   可选，默认两种都返回）、project_id、limit（1..500，默认 200）、offset。
+  **必须翻完所有分页**：limit 默认 200、offset 默认 0，响应里的 total 是**符合条件
+  的目标总数**。只发一次默认请求只会拿到前 200 条，第 201 条之后的目标永远排不进
+  采集队列——要按 offset=0,200,400… 递增请求，直到「已取条数 ≥ total」为止（末页
+  可能不满 200 条）。别拿第一页就当「全部目标」。
   响应 data：{ items, total, crawl_rules }。item 字段：target_id、kind、group_id、
   project_id、marketplace、asin、display_name、external_shop_ids、last_run
   （{ run_id, status, started_at }，含 failed；无 run 则 null）。
@@ -1052,7 +1056,7 @@ function buildReviewTrackingGuide(opts: {
     -H "X-Agent-Id: ${agentId}" \\
     -H "Idempotency-Key: <本次运行的幂等键，每次运行新生成，≤64 字符>" \\
     -H "Content-Type: application/json" \\
-    -d '{"captured_at":"<ISO8601 带时区，如 2026-10-19T09:30:00+08:00>","status":"success","rating":{"average_rating":4.3,"rating_count":128,"review_count":96,"star_percentages":[7,3,6,20,64],"star_counts":null,"star_count_quality":"estimated"},"reviews":[{"review_key":"R1F90C6R6GV8L6","id_confidence":"original","rating":5,"title":"好用","body":"……","review_date":"2026-10-10","verified_purchase":true,"helpful_count":3}],"is_complete_list":true,"asin_scraped":"B0G6C865B6"}'
+    -d '{"captured_at":"<ISO8601 带时区，如 2026-10-19T09:30:00+08:00>","status":"success","rating":{"average_rating":4.3,"rating_count":128,"review_count":96,"star_percentages":[7,3,6,20,64],"star_counts":null,"star_count_quality":"estimated"},"reviews":[{"review_key":"R1F90C6R6GV8L6","id_confidence":"original","rating":5,"title":"好用","body":"……","review_date":"2026-10-10","verified_purchase":true,"helpful_count":3}],"is_complete_list":false,"asin_scraped":"B0G6C865B6"}'
 
   body：captured_at（**必须带时区**，naive → 400；**每次运行取当次采集时刻**，且要晚于
   该目标最近一次非 failed run，见下方顺序护栏）、status（success|partial|failed）、
@@ -1060,6 +1064,14 @@ function buildReviewTrackingGuide(opts: {
   reviews[]（最多 500 条；review_key / id_confidence / 星级 / 标题 / 正文 / 日期 /
   verified / helpful）、is_complete_list、idempotency_key（可选，与头二选一）、
   asin_scraped、error_message、source。
+  **is_complete_list 只在「确实拿到了完整评论列表」时才置 true**：置 true 时，本次
+  reviews 里没出现的**之前可见**评论会被计一次缺失，连续两次缺失就标记「疑似移除」
+  ——抓取被截断（评论数超过单次 500 条上限、被限流、只拿到前 N 条）却置 true，会把
+  还在售的评论误判成疑似移除。**抓不全就置 false**（示例默认 false）。示例里的
+  reviews 只有 1 条是因为它只示范字段形状，不是因为「只抓到 1 条就是完整列表」。
+  **reviews 三种语义不可合并**：null（本次没抓评论列表，不参与移除判定）、[]（抓到
+  了**完整的空列表**，真的一条都没有）、[...]（抓到 N 条）。「没抓到」要提交 null，
+  不能提交 []。
   **幂等**：唯一键 (target_id, idempotency_key)；重复提交返回**首次** run_id 且
   replayed=true，不新增行、不写审计。幂等键**每次运行都要新生成**——沿用旧键会命中
   重放，看起来「成功」其实什么都没写。幂等键 body 字段优先，缺省回退
@@ -1081,6 +1093,8 @@ function buildReviewTrackingGuide(opts: {
   建议「一周 1–2 次」；同一目标同一业务日只有一份快照，同日重跑更新当天快照并
   保留每次运行记录。**只有 success + is_complete_list=true** 的提交才参与「疑似
   移除」判定：连续两次完整列表里缺失同一条评论才标记疑似移除（single miss 不算）。
+  注意「完整列表」的前提——抓不全时置 true 会把还在售的评论误判成疑似移除，详见
+  上面 W1 段对 is_complete_list 的说明。
   1–5 星百分比是页面原始比例，**不能据此声称精确星数**——精确星数请填 star_counts
   并把 star_count_quality 设为 exact。`
 }

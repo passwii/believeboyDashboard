@@ -381,6 +381,32 @@ describe('buildUsageText · 业务域分支（BLF-448）', () => {
     expect(text).toContain('item.kind')
   })
 
+  it('domain=review_tracking 的 R1 示例要求翻完全部分页，W1 示例默认 is_complete_list=false（BLF-1376 复审 P1 第 3 轮）', () => {
+    const text = buildUsageText({
+      plaintextKey: 'bbx_test',
+      agentId: 'agent-1',
+      domain: 'review_tracking',
+    })
+
+    // ① 分页：R1 的 limit 默认 200、offset 默认 0，只发一次默认请求只能拿到前 200 条，
+    //    第 201 条之后的目标永远排不进采集队列。文档必须要求按 offset 递增翻到 total。
+    expect(text).toContain('必须翻完所有分页')
+    expect(text).toContain('offset=0,200,400')
+
+    // ② is_complete_list：置 true 时，本次 reviews 里没出现的可见评论会被计缺失，
+    //    连续两次就误判「疑似移除」。抓不全却置 true 是假数据，示例必须默认 false。
+    const w1Start = text.indexOf('/review-tracking/targets/$TARGET_ID/runs')
+    expect(w1Start).toBeGreaterThan(-1)
+    const w1 = text.slice(w1Start, text.indexOf('\n\n', w1Start))
+    const bodyMatch = w1.match(/-d '(\{.*\})'/)
+    expect(bodyMatch).not.toBeNull()
+    const body = JSON.parse(bodyMatch![1]) as Record<string, unknown>
+    expect(body.is_complete_list).toBe(false)
+    // 三种 reviews 语义（null / [] / [...]）不可合并，必须在文档里写明
+    expect(text).toContain('reviews 三种语义不可合并')
+    expect(text).toContain('不能提交 []')
+  })
+
   it('未知域输出占位说明', () => {
     const text = buildUsageText({
       plaintextKey: 'bbx_test',
