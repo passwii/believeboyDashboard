@@ -11,9 +11,9 @@ import { addBLF611FixtureAuth } from '../setup/blf611-fixture'
  * 4. 勾选首单材料 → 进度文本变化（已核对 n/N · 完成 p%）；
  * 5. 「重置」回到 0/N · 完成 0%；
  * 6. 窄屏（375 / 390 / 768px）无整体横向溢出（表格自身在 overflow-x-auto 容器内横滑，不算溢出），
- *    且 5 个页内锚点逐个可跳转、目标区块进入视口；
+ *    且 5 个页内锚点逐个可跳转、目标区块进入视口（并断言 URL hash 真的切到该锚点）；
  * 7. 明暗主题切换下页面仍可读、进度交互仍生效（主题令牌在两态下都可解析）；
- * 8. 勾选/取消/重置全程零非 GET 请求 → 勾选状态确实只存在于本地 state。
+ * 8. 勾选 / **取消勾选** / 重置全程零非 GET 请求 → 勾选状态确实只存在于本地 state。
  *
  * 自包含：session cookie 用 next-auth/jwt encode 伪造（BLF611_FIXTURE_SECRET，与
  * playwright.config webServer.env 一致），**不依赖真实后端 / 真实账号**；
@@ -170,13 +170,25 @@ test.describe('跨境电商合规页用户流程（BLF-1393）', () => {
     await checkboxes.nth(11).click()
     await expect(progress).toHaveText(`已核对 3/${TOTAL_MATERIALS} · 完成 15%`)
 
+    // 取消勾选（组件里的 `next.has(id)` 删除分支）：进度必须回落。
+    // 必须真的走一遍「取消」——否则「取消勾选也零非 GET 请求」这条断言是空的：
+    // 一个只在删除分支发 POST 的回归会整条溜过去。
+    await checkboxes.nth(4).click()
+    await expect(progress).toHaveText(`已核对 2/${TOTAL_MATERIALS} · 完成 10%`)
+    await expect(checkboxes.nth(4)).not.toBeChecked()
+
+    // 再勾回来 → 3/N · 15%（取消不是单向的，进度可增可减）。
+    await checkboxes.nth(4).click()
+    await expect(progress).toHaveText(`已核对 3/${TOTAL_MATERIALS} · 完成 15%`)
+    await expect(checkboxes.nth(4)).toBeChecked()
+
     // 「重置」恢复 0/N · 完成 0%
     await page.getByRole('button', { name: '重置' }).click()
     await expect(progress).toHaveText(`已核对 0/${TOTAL_MATERIALS} · 完成 0%`)
     await expect(checkboxes.nth(0)).not.toBeChecked()
     await expect(checkboxes.nth(11)).not.toBeChecked()
 
-    // 勾选/取消/重置全程零非 GET 请求 → 勾选状态确实只存在于组件本地 state。
+    // 勾选 / 取消勾选 / 重置全程零非 GET 请求 → 勾选状态确实只存在于组件本地 state。
     expect(mutatingRequests, '勾选状态不得发往后端（应为零非 GET 请求）').toEqual([])
   })
 
@@ -206,7 +218,16 @@ test.describe('跨境电商合规页用户流程（BLF-1393）', () => {
     for (const anchor of anchors) {
       const section = page.locator(`#${anchor.id}`)
       await expect(section).toBeAttached()
+
+      // 必须断言「点击真的换了 hash」，不能只看 toBeInViewport：
+      // 首个锚点 `chain` 在页面载入时（滚到顶部）本来就已在视口内，
+      // 一个 href 写坏 / 点击无反应的回归会让 toBeInViewport 空转通过。
+      // 先记下点击前的 hash，再断言它切实切到了本锚点的 hash。
+      const hashBefore = await page.evaluate(() => window.location.hash)
+      expect(hashBefore, `锚点 ${anchor.id} 点击前不应已经是目标 hash`).not.toBe(`#${anchor.id}`)
+
       await page.getByRole('link', { name: anchor.label }).first().click()
+      await expect(page).toHaveURL(new RegExp(`#${anchor.id}$`))
       await expect(section).toBeInViewport({ timeout: 5000 })
       // 锚点跳转后仍不得引入整体横向溢出。
       await expectNoPageHorizontalOverflow(page)
