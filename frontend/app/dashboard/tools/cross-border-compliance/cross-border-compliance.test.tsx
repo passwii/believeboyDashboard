@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import CrossBorderComplianceClient from './cross-border-compliance-client'
+import * as complianceData from './compliance-data'
 import {
   CUSTOMS_FIELDS,
   FIRST_ORDER_MATERIAL_GROUPS,
@@ -125,24 +126,63 @@ describe('CrossBorderComplianceClient', () => {
   it('转录省略：被遮挡 / 截断的课件原文不得以残句或悬空标点呈现', () => {
     render(<CrossBorderComplianceClient />)
 
-    // 9710 横幅：课件原文被前景人头遮挡，只保留可独立成立的前半句。
+    // 9710 横幅：课件原文中段被前景人头遮挡、句子不成立 → 整条不转录，只留省略标注。
     const mode9710 = REGULATORY_MODES.find((m) => m.code === '9710')
-    expect(mode9710?.core).toBe('9710 出口模式出口的货物必须是真实的销售')
+    expect(mode9710?.core).toBe('')
+    expect(mode9710?.coreOmitted).toBe(complianceData.CORE_OMITTED_LABEL)
     // 不得出现遮挡拼接痕迹 / 省略号占位 / 断句残句
     expect(mode9710?.core).not.toMatch(/……|\.\.\.|境外企业。|为了存储/)
 
-    // 9810「收汇要求」：课件原文以逗号结束，只保留可辨认的事实。
+    // 9810「收汇要求」：课件原文以逗号结束 → 去掉悬空逗号并显式标注截断。
     const settleRow = MODE_COMPARISON_0110_9810.find(
       (r) => r.dimension === '收汇要求'
     )
-    expect(settleRow?.overseasWarehouse).toBe('支持"轧差结算"')
+    expect(settleRow?.overseasWarehouse).toBe(
+      `支持"轧差结算"${complianceData.TRUNCATION_MARK}`
+    )
     expect(settleRow?.overseasWarehouse).not.toMatch(/[，,]\s*$/)
+
+    // 报关字段「商品编号」：课件原文以分号结束 → 同样去掉悬空分号并显式标注截断。
+    const hsField = CUSTOMS_FIELDS.find((f) => f.name === '商品编号')
+    expect(hsField?.hint).toBe(
+      `出口商品的海关编码，出口商品对应的 HS 编码（有出口过的产品可以填之前归类税号，以便参考）${complianceData.TRUNCATION_MARK}`
+    )
+    expect(hsField?.hint).not.toMatch(/[；;]\s*$/)
 
     // 页面显式说明省略口径，不留空壳、不伪装成完整原句
     expect(screen.getByText(MODE_OMISSION_NOTE)).toBeInTheDocument()
     expect(
-      screen.queryByText(/9710 出口模式出口的货物必须是真实的销售，而不是/)
+      screen.queryByText(/9710 出口模式出口的货物必须是真实的销售/)
     ).not.toBeInTheDocument()
+    // 9710 卡片显式写出「课件此句中段被遮挡，未转录」
+    expect(
+      screen.getAllByText(complianceData.CORE_OMITTED_LABEL).length
+    ).toBeGreaterThan(0)
+  })
+
+  it('防回归：转录数据中不得有以悬空标点 / 省略号收尾的条目', () => {
+    // 递归收集 compliance-data.ts 导出的所有字符串（页面只 map 本文件，不内联文案）。
+    const collect = (value: unknown, acc: string[] = []): string[] => {
+      if (typeof value === 'string') {
+        acc.push(value)
+      } else if (Array.isArray(value)) {
+        for (const item of value) collect(item, acc)
+      } else if (value && typeof value === 'object') {
+        for (const item of Object.values(value as Record<string, unknown>)) {
+          collect(item, acc)
+        }
+      }
+      return acc
+    }
+
+    const strings = collect(complianceData)
+    expect(strings.length).toBeGreaterThan(0)
+
+    const offenders = strings.filter(
+      (s) =>
+        /[，,；;、：:]$/.test(s.trim()) || /……|\.\.\./.test(s) || /[（(]$/.test(s.trim())
+    )
+    expect(offenders).toEqual([])
   })
 
   it('区块 4：企业准入办理六项事项按课件顺序呈现', () => {

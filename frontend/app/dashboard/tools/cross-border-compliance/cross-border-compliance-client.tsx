@@ -330,6 +330,11 @@ export default function CrossBorderComplianceClient() {
                     <span className="font-semibold text-term-text">核心要点：</span>
                     {mode.core}
                   </p>
+                ) : mode.coreOmitted ? (
+                  <p className="text-xs leading-5 text-term-faint">
+                    <span className="font-semibold text-term-text">核心要点：</span>
+                    {mode.coreOmitted}
+                  </p>
                 ) : null}
 
                 {mode.audience ? (
