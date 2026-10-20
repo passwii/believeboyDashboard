@@ -71,8 +71,11 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
 
   // Endpoint-tiered timeout: stream → no timeout, AI / report → 30-60s,
   // detail / list → 5-10s. See `backend-proxy-timeout-policy.ts` for the
-  // tier table and matching rules.
-  const timeoutMs = getProxyTimeoutMs(backendPath, requestAccept)
+  // tier table and matching rules. The request method participates because
+  // some endpoints share one path across methods with very different cost
+  // profiles (BLF-1404: `POST /crm/proposals` uploads a 20MB HTML while
+  // `GET /crm/proposals` is a cheap list).
+  const timeoutMs = getProxyTimeoutMs(backendPath, requestAccept, request.method)
   const timeoutSignal = timeoutMs === 0 ? undefined : AbortSignal.timeout(timeoutMs)
   // Preserve client cancellation (including streams) while adding the proxy
   // deadline. If either signal aborts, cancel the upstream request promptly.

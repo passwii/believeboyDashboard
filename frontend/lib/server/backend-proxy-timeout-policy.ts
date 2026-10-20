@@ -21,6 +21,13 @@
  * `application/x-ndjson` — the caller's `Accept` is the most reliable
  * signal because it works for endpoints that are not yet on the
  * `STREAM_PATH_PATTERNS` list.
+ *
+ * Some endpoints share one path across methods and need **different**
+ * budgets (BLF-1404: `POST /crm/proposals` = 20MB HTML upload, but
+ * `GET /crm/proposals` = cheap list). Path alone cannot tell them apart,
+ * so a tier may narrow itself with `methods` — such a tier is skipped when
+ * the request method is not in the list, and matching continues with the
+ * next tier.
  */
 export type TimeoutTier = {
   /** Human-readable label — used for log lines and review breadcrumbs. */
@@ -33,6 +40,12 @@ export type TimeoutTier = {
    * identify streaming endpoints that the path pattern does not cover.
    */
   readonly acceptContains?: ReadonlyArray<string>
+  /**
+   * If set, the tier only applies to these HTTP methods (uppercase).
+   * Used to split same-path endpoints with different cost profiles
+   * (see `crm-proposal-upload` vs the `list` tier).
+   */
+  readonly methods?: ReadonlyArray<string>
   /** Timeout in ms. `0` means "no timeout" — let the connection close naturally. */
   readonly timeoutMs: number
 }
@@ -58,6 +71,17 @@ const REPORT_PATH_PATTERNS: ReadonlyArray<RegExp> = [
   // 产品标签制作：服务端要跑 pypdf + pdfplumber + reportlab 的完整叠加管线，
   // 冷启动导入这三个库本身就占掉大部分 5s 预算，默认档必超时。
   /\/product-label\/generate$/,
+]
+
+// BLF-1404：客户方案上传（单个自包含 HTML，上限 20MB）。
+// 后端链路 = 读流 → 解析 HTML → 找相对引用 → 适配主题 → 传 R2（raw + adapted
+// 两份）。20MB 内联 base64 图的文档光传输就吃掉数秒，默认 5s 档必然掐断。
+//
+// ⚠️ 建方案与列表**同路径**（`GET|POST api/v1/crm/proposals`），路径正则无法
+// 区分 → 本档用 `methods: ['POST']` 收窄（见 TimeoutTier.methods）。
+// 追加版本 `POST api/v1/crm/proposals/{id}/versions` 同理。
+const CRM_PROPOSAL_UPLOAD_PATH_PATTERNS: ReadonlyArray<RegExp> = [
+  /\/crm\/proposals(?:\/[^/]+\/versions)?$/,
 ]
 
 const AI_PATH_PATTERNS: ReadonlyArray<RegExp> = [
@@ -103,6 +127,9 @@ const LIST_PATH_PATTERNS: ReadonlyArray<RegExp> = [
   /\/exchange-rates$/,
   /\/inventory-replenishment-snapshots$/,
   /\/inventory-replenishment-snapshots\?/,
+  // BLF-1404：方案列表与建方案同路径，靠 `crm-proposal-upload` 档的 method
+  // 收窄把 POST 分流走，GET 落到这里（5s）。
+  /\/crm\/proposals$/,
 ]
 
 export const TIMEOUT_TIERS: ReadonlyArray<TimeoutTier> = [
@@ -113,6 +140,14 @@ export const TIMEOUT_TIERS: ReadonlyArray<TimeoutTier> = [
     timeoutMs: 0,
   },
   { label: 'report', pathPattern: matchAny(REPORT_PATH_PATTERNS), timeoutMs: 60_000 },
+  {
+    // BLF-1404：方案上传 20MB HTML。必须排在 `list` 档之前 —— 同路径的 GET
+    // 会被 `methods` 跳过并继续往下匹配到 list 档（5s）。
+    label: 'crm-proposal-upload',
+    pathPattern: matchAny(CRM_PROPOSAL_UPLOAD_PATH_PATTERNS),
+    methods: ['POST'],
+    timeoutMs: 60_000,
+  },
   { label: 'ai', pathPattern: matchAny(AI_PATH_PATTERNS), timeoutMs: 30_000 },
   {
     label: 'order-info-read',
@@ -127,27 +162,54 @@ export const TIMEOUT_TIERS: ReadonlyArray<TimeoutTier> = [
 
 const DEFAULT_TIMEOUT_MS = 5_000
 
+/** 兜底档（无 pathPattern、无 methods）—— 与 TIMEOUT_TIERS 末尾的 default 同源。 */
+const DEFAULT_TIER: TimeoutTier = { label: 'default', timeoutMs: DEFAULT_TIMEOUT_MS }
+
 /**
- * Returns the timeout (ms) the proxy should use for the given backend path
- * and inbound `Accept` header. `0` means "no timeout" (let the connection
- * close naturally — used for SSE / NDJSON streams).
+ * Returns the timeout (ms) the proxy should use for the given backend path,
+ * inbound `Accept` header and HTTP method. `0` means "no timeout" (let the
+ * connection close naturally — used for SSE / NDJSON streams).
  *
  * The first matching tier wins; the `stream` tier is the only one that
  * consults the `Accept` header, and it short-circuits every other check.
+ * A tier that declares `methods` is skipped when the request method does
+ * not match, so matching continues with the next tier.
  */
-export function getProxyTimeoutMs(backendPath: string, acceptHeader: string | null): number {
+export function getProxyTimeoutMs(
+  backendPath: string,
+  acceptHeader: string | null,
+  method: string
+): number {
+  return resolveProxyTimeoutTier(backendPath, acceptHeader, method).timeoutMs
+}
+
+/**
+ * Same matching as `getProxyTimeoutMs`, but returns the matched tier itself
+ * (label + timeout) instead of just the milliseconds.
+ *
+ * Why expose the tier: several endpoints deliberately share one path across
+ * methods (BLF-1404 `POST|GET /crm/proposals`), so "the timeout is 60_000"
+ * alone does not prove *which* branch of the table produced it. Tests assert
+ * on `label` to pin the routing decision itself.
+ */
+export function resolveProxyTimeoutTier(
+  backendPath: string,
+  acceptHeader: string | null,
+  method: string
+): TimeoutTier {
   const accept = (acceptHeader || '').toLowerCase()
+  const httpMethod = (method || 'GET').toUpperCase()
 
   for (const tier of TIMEOUT_TIERS) {
     if (tier.acceptContains && tier.acceptContains.some((token) => accept.includes(token))) {
-      return tier.timeoutMs
+      return tier
     }
-    if (tier.pathPattern && tier.pathPattern.test(backendPath)) {
-      return tier.timeoutMs
-    }
+    if (!tier.pathPattern || !tier.pathPattern.test(backendPath)) continue
+    if (tier.methods && !tier.methods.includes(httpMethod)) continue
+    return tier
   }
 
-  return DEFAULT_TIMEOUT_MS
+  return DEFAULT_TIER
 }
 
 function matchAny(patterns: ReadonlyArray<RegExp>): RegExp {
