@@ -13,7 +13,7 @@ from urllib.parse import unquote
 import pytest
 from sqlalchemy import text
 
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 
 # ---------- R2 假实现 ----------
 
@@ -176,12 +176,20 @@ def _big_html(size: int) -> bytes:
     return head + filler + tail
 
 
-def test_create_accepts_payload_over_former_5mb_limit(client, operator_headers):
+def test_create_accepts_payload_over_former_5mb_limit(
+    client, operator_headers, monkeypatch
+):
     """6MB 的 HTML 现在必须能建方案成功（201，而不是 413）。
 
     这是 #753（5MB → 20MB）在测试层面的**端到端证据**：没有这条用例，
     上限是否真的放宽无法从测试结果判定。
     """
+    # 把上限显式钉在 20MB：本用例要验的是「业务代码按 20MB 放行 6MB」，
+    # 不能被 .env / 进程环境里的合法部署覆盖（CRM_PROPOSAL_MAX_BYTES）改写，
+    # 否则「部署配置变了」和「上传链路坏了」会共用同一个红信号。
+    monkeypatch.setattr(
+        get_settings(), "crm_proposal_max_bytes", _CURRENT_LIMIT_BYTES, raising=False
+    )
     payload = _big_html(_OVER_FORMER_LIMIT_BYTES)
     assert len(payload) > _FORMER_LIMIT_BYTES
     assert len(payload) < _CURRENT_LIMIT_BYTES
@@ -199,8 +207,14 @@ def test_create_accepts_payload_over_former_5mb_limit(client, operator_headers):
     assert body["version"]["original_filename"] == "big.html"
 
 
-def test_create_accepts_payload_near_current_20mb_limit(client, operator_headers):
+def test_create_accepts_payload_near_current_20mb_limit(
+    client, operator_headers, monkeypatch
+):
     """贴着新上限（20MB - 余量）的 HTML 也要能建方案成功。"""
+    # 同上：钉住 20MB，避免部署覆盖把这条用例变成「配置值断言」。
+    monkeypatch.setattr(
+        get_settings(), "crm_proposal_max_bytes", _CURRENT_LIMIT_BYTES, raising=False
+    )
     payload = _big_html(_CURRENT_LIMIT_BYTES - 1024)
     r = client.post(
         "/api/v1/crm/proposals",
@@ -227,12 +241,25 @@ def test_create_rejects_payload_over_current_limit(
 
 
 def test_create_limit_is_20mb_by_default(client, operator_headers):
-    """默认上限就是 20MB（防止有人把配置改回 5MB 而测试无感）。"""
-    assert get_settings().crm_proposal_max_bytes == _CURRENT_LIMIT_BYTES
+    """**声明式默认**上限就是 20MB（防止有人把配置改回 5MB 而测试无感）。
+
+    读 ``Settings.model_fields`` 的声明式默认值，而不是运行时 ``get_settings()``：
+    后者会吃 ``backend/.env`` 与进程环境（``CRM_PROPOSAL_MAX_BYTES``），
+    任何一次合法的部署覆盖都会让本用例误报。
+    """
+    assert (
+        Settings.model_fields["crm_proposal_max_bytes"].default == _CURRENT_LIMIT_BYTES
+    )
 
 
-def test_add_version_accepts_payload_over_former_5mb_limit(client, operator_headers):
+def test_add_version_accepts_payload_over_former_5mb_limit(
+    client, operator_headers, monkeypatch
+):
     """追加版本走同一个开关：6MB 的新版本也要能成功。"""
+    # 同上：钉住 20MB，让本用例只守「追加版本路径按上限放行」这一件事。
+    monkeypatch.setattr(
+        get_settings(), "crm_proposal_max_bytes", _CURRENT_LIMIT_BYTES, raising=False
+    )
     created = _mk_proposal(client, operator_headers)
     pid = created["proposal"]["id"]
     payload = _big_html(_OVER_FORMER_LIMIT_BYTES)
