@@ -105,6 +105,38 @@ describe('客户方案 Head 刷新', () => {
 })
 
 /**
+ * BLF-1407：新增「调研方案」类型（`research`）。
+ *
+ * 列表页的「按类型筛选」下拉是枚举驱动的（map `PROPOSAL_TYPE_ORDER`），
+ * 这里钉住两件事：
+ *   1. 下拉里能选到「调研方案」；
+ *   2. 选了之后真的把 `proposal_type eq research` 传给后端。
+ * 只改 union 不改 ORDER/LABELS 时，第 1 条就会红。
+ */
+describe('BLF-1407: 类型筛选支持「调研方案」', () => {
+  it('筛选下拉含「调研方案」，选中后按 proposal_type=research 查询', async () => {
+    render(<ProposalsPage />)
+    await screen.findByText('北美春季方案')
+
+    const typeSelect = screen.getByLabelText('按类型筛选') as HTMLSelectElement
+    const options = Array.from(typeSelect.options).map((o) => ({
+      value: o.value,
+      label: o.textContent,
+    }))
+    expect(options).toContainEqual({ value: 'research', label: '调研方案' })
+
+    fireEvent.change(typeSelect, { target: { value: 'research' } })
+    await waitFor(() =>
+      expect(client.listProposals).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          filters: [{ field: 'proposal_type', op: 'eq', value: 'research' }],
+        })
+      )
+    )
+  })
+})
+
+/**
  * BLF-1404：上传失败按状态码给可区分文案（413 文件过大 / 504 超时 / 其它保留原文）。
  * 这里验证的是**页面真的接上了** `proposalUploadErrorCopy`（单元逻辑在
  * `lib/crm/method/proposal-upload-error.test.ts`）。

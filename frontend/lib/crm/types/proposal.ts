@@ -10,7 +10,7 @@
 import type { FilterCondition } from '../api/crm-client'
 
 export type ProposalStatus = 'draft' | 'published' | 'archived'
-export type ProposalType = 'onboarding' | 'operation' | 'quotation' | 'other'
+export type ProposalType = 'onboarding' | 'operation' | 'quotation' | 'research' | 'other'
 
 /** 一个方案版本（append-only，不可改写）。 */
 export interface ProposalVersion {
@@ -106,6 +106,7 @@ export const PROPOSAL_TYPE_LABELS: Record<ProposalType, string> = {
   onboarding: '入驻方案',
   operation: '运营方案',
   quotation: '报价方案',
+  research: '调研方案',
   other: '其他',
 }
 
@@ -114,6 +115,7 @@ export const PROPOSAL_TYPE_ORDER: ProposalType[] = [
   'onboarding',
   'operation',
   'quotation',
+  'research',
   'other',
 ]
 
