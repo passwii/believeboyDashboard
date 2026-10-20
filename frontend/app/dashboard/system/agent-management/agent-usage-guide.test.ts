@@ -311,6 +311,24 @@ describe('buildUsageText · 业务域分支（BLF-448）', () => {
     expect(text).not.toContain('尚未接入 Agent API')
   })
 
+  it('domain=review_tracking 输出评论追踪采集示例（BLF-1378，R1+W1 共 2 条路由）', () => {
+    const text = buildUsageText({
+      plaintextKey: 'bbx_test',
+      agentId: 'agent-1',
+      domain: 'review_tracking',
+    })
+    expect(text).toContain('评论追踪')
+    expect(text).toContain('/review-tracking/targets')
+    expect(text).toContain('/review-tracking/targets/$TARGET_ID/runs')
+    // 幂等与顺序护栏是本域最容易踩的语义，必须在派发文档里写明
+    expect(text).toContain('replayed=true')
+    expect(text).toContain('REVIEW_TRACKING_CAPTURE_OUT_OF_ORDER')
+    expect(text).toContain('captured_at_in_future')
+    expect(text).toContain('is_complete_list')
+    expect(text).not.toContain('/shipments?page_size=20')
+    expect(text).not.toContain('尚未接入 Agent API')
+  })
+
   it('未知域输出占位说明', () => {
     const text = buildUsageText({
       plaintextKey: 'bbx_test',

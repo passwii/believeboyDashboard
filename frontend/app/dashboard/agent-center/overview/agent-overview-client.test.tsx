@@ -61,11 +61,11 @@ describe('AgentOverviewClient 数据流总览', () => {
     expect(screen.getByRole('heading', { level: 2, name: '业务域活动矩阵' })).toBeInTheDocument()
     expect(
       screen.getByText(
-        '共 18 个业务域、17 个已接入,产出域置顶。 「今日产出」为实时业务数据,运行时活动与 30d 错误率由 domain-summary 提供;已接入域在 30 天内无调用时显示 0 和「无调用」,接口不可用时显示「—」。'
+        '共 19 个业务域、18 个已接入,产出域置顶。 「今日产出」为实时业务数据,运行时活动与 30d 错误率由 domain-summary 提供;已接入域在 30 天内无调用时显示 0 和「无调用」,接口不可用时显示「—」。'
       )
     ).toBeInTheDocument()
   })
-  it('每个注册表域渲染一行(18 域 + 表头)', () => {
+  it('每个注册表域渲染一行(19 域 + 表头)', () => {
     render(<AgentOverviewClient />)
     expect(screen.getAllByRole('row')).toHaveLength(AGENT_DOMAINS.length + 1)
   })
