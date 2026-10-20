@@ -160,6 +160,33 @@ describe('CrossBorderComplianceClient', () => {
     ).toBeGreaterThan(0)
   })
 
+  it('退税措辞：全页统一用「离境预退税」，不出现「离境即退税」变体', () => {
+    // 用户 2026-10-20 在 BLF-1380 拍板：课件里「离境即退税」与「离境预退税」两种写法
+    // 统一保留后者。本页不把任何一个读起来像即时结论的变体交给读者。
+    const collect = (value: unknown, acc: string[] = []): string[] => {
+      if (typeof value === 'string') {
+        acc.push(value)
+      } else if (Array.isArray(value)) {
+        for (const item of value) collect(item, acc)
+      } else if (value && typeof value === 'object') {
+        for (const item of Object.values(value as Record<string, unknown>)) {
+          collect(item, acc)
+        }
+      }
+      return acc
+    }
+
+    const strings = collect(complianceData)
+    expect(strings.filter((s) => s.includes('离境即退税'))).toEqual([])
+    // 9810 卡片与 0110/9810 对照表两处均使用拍板后的措辞
+    const mode9810 = REGULATORY_MODES.find((m) => m.code === '9810')
+    expect(mode9810?.feature).toContain('离境预退税')
+    const refundRow = MODE_COMPARISON_0110_9810.find(
+      (r) => r.dimension === '出口退税政策'
+    )
+    expect(refundRow?.overseasWarehouse).toContain('离境预退税')
+  })
+
   it('防回归：转录数据中不得有以悬空标点 / 省略号收尾的条目', () => {
     // 递归收集 compliance-data.ts 导出的所有字符串（页面只 map 本文件，不内联文案）。
     const collect = (value: unknown, acc: string[] = []): string[] => {
