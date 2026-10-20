@@ -31,13 +31,19 @@ vi.mock('@/hooks/use-crm-data-scope', () => ({
 vi.mock('@/components/notifications', () => ({ useNotifications: () => ({ notify }) }))
 vi.mock('@/hooks/use-confirm', () => ({ useConfirm: () => ({ confirm: vi.fn().mockResolvedValue(false) }) }))
 vi.mock('@/components/crm/proposal', () => ({
-  ProposalCreateForm: () => null,
+  // 暴露一个触发 onSubmit 的按钮，让用例能驱动上传失败路径（BLF-1404）。
+  ProposalCreateForm: ({ onSubmit }: { onSubmit: (input: unknown) => void }) => (
+    <button type="button" onClick={() => onSubmit({ file: new File(['x'], 'a.html') })}>
+      触发上传
+    </button>
+  ),
   ProposalStatusPill: ({ status }: { status: string }) => <span>{status}</span>,
   ProposalTypePill: ({ type }: { type: string }) => <span>{type}</span>,
 }))
 vi.mock('../customers/components/scope-toggle', () => ({ ScopeToggle: () => null }))
 
 import ProposalsPage from './page'
+import { ApiError } from '@/lib/crm/api/http-crm-client'
 
 const PROPOSALS = [{
   id: 'proposal-1',
@@ -95,5 +101,52 @@ describe('客户方案 Head 刷新', () => {
     }))
     expect(screen.getByLabelText('搜索方案标题')).toHaveValue('春季')
     expect(screen.getByLabelText('按状态筛选')).toHaveValue('draft')
+  })
+})
+
+/**
+ * BLF-1404：上传失败按状态码给可区分文案（413 文件过大 / 504 超时 / 其它保留原文）。
+ * 这里验证的是**页面真的接上了** `proposalUploadErrorCopy`（单元逻辑在
+ * `lib/crm/method/proposal-upload-error.test.ts`）。
+ */
+describe('BLF-1404: 方案上传失败的错误文案分档', () => {
+  async function submitAndCatch() {
+    render(<ProposalsPage />)
+    await screen.findByText('北美春季方案')
+    // 上传表单在「新建方案」弹窗里（默认关闭）→ 先开弹窗再点上传。
+    fireEvent.click(screen.getByRole('button', { name: '新建方案' }))
+    fireEvent.click(await screen.findByRole('button', { name: '触发上传' }))
+    await waitFor(() => expect(notify).toHaveBeenCalled())
+    return notify.mock.calls.at(-1)?.[0] as { type: string; title: string; message: string }
+  }
+
+  it('413 → 「文件过大」并带 20MB 上限', async () => {
+    client.createProposal.mockRejectedValue(new ApiError(413, '文件超过 20971520 字节上限'))
+
+    const call = await submitAndCatch()
+
+    expect(call.type).toBe('error')
+    expect(call.title).toBe('文件过大')
+    expect(call.message).toContain('20MB')
+  })
+
+  it('504 → 「上传超时」并建议重试', async () => {
+    client.createProposal.mockRejectedValue(new ApiError(504, '请求后端服务超时，请稍后重试。'))
+
+    const call = await submitAndCatch()
+
+    expect(call.title).toBe('上传超时')
+    expect(call.message).toContain('重试')
+  })
+
+  it('其它错误 → 保留后端 detail 原文', async () => {
+    client.createProposal.mockRejectedValue(
+      new ApiError(400, '不支持的文件类型：仅接受单个 HTML 文件（.html / .htm）')
+    )
+
+    const call = await submitAndCatch()
+
+    expect(call.title).toBe('创建失败')
+    expect(call.message).toContain('不支持的文件类型')
   })
 })

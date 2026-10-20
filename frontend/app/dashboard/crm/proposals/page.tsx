@@ -29,6 +29,7 @@ import { useConfirm } from '@/hooks/use-confirm'
 import { downloadBlob } from '@/lib/download-blob'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import { useCrmDataScope } from '@/hooks/use-crm-data-scope'
+import { proposalUploadErrorCopy } from '@/lib/crm/method/proposal-upload-error'
 import {
   PROPOSAL_STATUS_LABELS,
   PROPOSAL_STATUS_ORDER,
@@ -148,11 +149,13 @@ export default function ProposalsPage() {
           notify({ type: 'success', title: '方案已创建', message: `${result.proposal.title} · v1` })
         }
       } catch (e) {
-        notify({
-          type: 'error',
+        // BLF-1404：按状态码区分 413（文件超 20MB）/ 504（上传超时）/ 其它，
+        // 避免三类根因都落成同一句「创建失败」。
+        const copy = proposalUploadErrorCopy(e, {
           title: '创建失败',
-          message: e instanceof Error ? e.message : '创建方案失败',
+          message: '创建方案失败',
         })
+        notify({ type: 'error', title: copy.title, message: copy.message })
       } finally {
         setCreating(false)
       }

@@ -31,6 +31,7 @@ import { downloadBlob } from '@/lib/download-blob'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import { useCrmDataScope } from '@/hooks/use-crm-data-scope'
+import { proposalUploadErrorCopy } from '@/lib/crm/method/proposal-upload-error'
 import {
   PROPOSAL_STATUS_LABELS,
   PROPOSAL_STATUS_ORDER,
@@ -199,11 +200,12 @@ export default function ProposalDetailPage() {
           })
         }
       } catch (e) {
-        notify({
-          type: 'error',
+        // BLF-1404：按状态码区分 413（文件超 20MB）/ 504（上传超时）/ 其它。
+        const copy = proposalUploadErrorCopy(e, {
           title: '上传失败',
-          message: e instanceof Error ? e.message : '上传失败',
+          message: '上传失败',
         })
+        notify({ type: 'error', title: copy.title, message: copy.message })
       } finally {
         setUploading(false)
       }
