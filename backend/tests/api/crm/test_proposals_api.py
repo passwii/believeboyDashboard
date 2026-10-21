@@ -60,6 +60,40 @@ def mock_r2():
         yield
 
 
+@pytest.fixture(autouse=True)
+def mock_r2_private_bucket():
+    """隔离私有桶（BLF-1418 / PR #764 的 fail-closed 前置）。
+
+    #764 落地后，方案写入要求**隔离的私有桶**（未配置 → ``create_proposal`` /
+    ``add_version`` 直接 503）→ 本文件的用例全部依赖上传夹具，若不带这层
+    隔离配置，#764 合入后**本文件整体会红**。
+
+    这里刻意写成**独立 fixture**（而不是塞进上面的 ``mock_r2``）：
+
+    - 合并顺序无关：无论 #764 先合还是本 PR 先合，测试都绿；
+    - 冲突面为 0：#764 改的是 ``mock_r2`` 的 ``with`` 块内部，本 fixture 是
+      **追加**在其后的一段，两边不碰同一行 → rebase 无冲突、不断言。
+
+    ``create=True`` 是关键：#764 合入前 ``Settings`` 上还没有这两个属性，
+    不加 ``create=True`` 会在本 PR 单独跑时直接抛 ``AttributeError``；
+    #764 合入后它们变成真属性，patch 语义不变。
+    """
+    with patch.object(
+        type(get_settings()),
+        "r2_private_bucket_isolated",
+        new_callable=PropertyMock,
+        return_value=True,
+        create=True,
+    ), patch.object(
+        type(get_settings()),
+        "r2_private_bucket_resolved",
+        new_callable=PropertyMock,
+        return_value="fake-private",
+        create=True,
+    ):
+        yield
+
+
 # ---------- helpers ----------
 
 _HTML = (
@@ -490,9 +524,38 @@ def test_list_scope_mine_only_own(client, operator_headers, businessdev_headers)
     assert [i["title"] for i in mine["items"]] == ["我的方案"]
     assert mine["total"] == 1
 
-    # 非 admin 的 scope=all 降级为 mine
-    degraded = client.get("/api/v1/crm/proposals?scope=all", headers=operator_headers).json()
-    assert degraded["total"] == 1
+
+def test_list_scope_all_not_downgraded_for_nonadmin(client, operator_headers, businessdev_headers):
+    """方案域全员可见（BLF-1403 / BLF-1410）：非 admin 的 scope=all **不降级**。"""
+    _mk_proposal(client, operator_headers, title="我的方案")
+    _mk_proposal(client, businessdev_headers, title="别人的方案")
+
+    all_items = client.get("/api/v1/crm/proposals?scope=all", headers=operator_headers).json()
+    assert all_items["total"] == 2
+    assert {i["title"] for i in all_items["items"]} == {"我的方案", "别人的方案"}
+
+
+def test_list_default_scope_is_all(client, operator_headers, businessdev_headers):
+    """列表端点 scope 默认值 = all（与其它 CRM 列表端点对齐）。"""
+    _mk_proposal(client, operator_headers, title="我的方案")
+    _mk_proposal(client, businessdev_headers, title="别人的方案")
+
+    default_items = client.get("/api/v1/crm/proposals", headers=operator_headers).json()
+    assert default_items["total"] == 2
+    assert {i["title"] for i in default_items["items"]} == {"我的方案", "别人的方案"}
+
+
+@pytest.mark.parametrize("scope", ["sea", "x", "All", "ALL", "public", " "])
+def test_list_rejects_unknown_scope(client, operator_headers, scope):
+    """方案域 scope **值域收口**：白名单 ``{mine, all}`` 外一律 400。
+
+    收口前是个既有绕过口子：服务层只判 ``scope == "mine"``，**任何**其它字符串
+    都等于「不加 owner 过滤 = 看全部」→ 非 admin 传 ``scope=sea`` 就能看到
+    全部方案（``resolve_scope`` 对方案域只挡字面量 ``"all"``）。
+    """
+    res = client.get(f"/api/v1/crm/proposals?scope={scope}", headers=operator_headers)
+    assert res.status_code == 400, res.text
+    assert "不支持的 scope" in res.json()["detail"]
 
 
 def test_list_admin_sees_all(client, operator_headers, admin_headers):
@@ -536,15 +599,29 @@ def test_list_rejects_non_eq_filter(client, operator_headers):
     assert r.status_code == 400
 
 
-def test_foreign_proposal_forbidden(client, operator_headers, businessdev_headers):
+def test_foreign_proposal_readable_but_not_writable(client, operator_headers, businessdev_headers):
+    """方案域全员可读（BLF-1403 / BLF-1410），但**写**仍限 owner/admin。
+
+    - 只读（详情 / 预览 / 下载）→ 200
+    - 写（编辑 / 删除 / 追加版本）→ 403
+    """
     body = _mk_proposal(client, operator_headers)
     pid = body["proposal"]["id"]
-    for method, url in [
-        ("get", f"/api/v1/crm/proposals/{pid}"),
-        ("get", f"/api/v1/crm/proposals/{pid}/versions/1/content"),
-        ("get", f"/api/v1/crm/proposals/{pid}/versions/1/download"),
-    ]:
-        assert getattr(client, method)(url, headers=businessdev_headers).status_code == 403
+
+    # 只读：全员可读（含跨私海）
+    assert client.get(f"/api/v1/crm/proposals/{pid}", headers=businessdev_headers).status_code == 200
+    res = client.get(
+        f"/api/v1/crm/proposals/{pid}/versions/1/content", headers=businessdev_headers
+    )
+    assert res.status_code == 200, res.text
+    assert "bb-proposal-theme" in res.json()["content"]
+    res = client.get(
+        f"/api/v1/crm/proposals/{pid}/versions/1/download", headers=businessdev_headers
+    )
+    assert res.status_code == 200, res.text
+    assert "bb-proposal-theme" in res.text
+
+    # 写：非 owner 仍 403
     assert (
         client.patch(
             f"/api/v1/crm/proposals/{pid}", headers=businessdev_headers, json={"title": "x"}
@@ -553,6 +630,14 @@ def test_foreign_proposal_forbidden(client, operator_headers, businessdev_header
     )
     assert (
         client.delete(f"/api/v1/crm/proposals/{pid}", headers=businessdev_headers).status_code
+        == 403
+    )
+    assert (
+        client.post(
+            f"/api/v1/crm/proposals/{pid}/versions",
+            headers=businessdev_headers,
+            files=_upload("<html></html>"),
+        ).status_code
         == 403
     )
 
@@ -566,6 +651,68 @@ def test_admin_can_operate_others(client, operator_headers, admin_headers):
     )
     assert r.status_code == 200
     assert r.json()["status"] == "archived"
+
+
+def test_ownerless_proposal_readable_but_not_writable(
+    client, operator_headers, businessdev_headers
+):
+    """**无主方案**（owner_id IS NULL）：读侧 200，写侧 403。
+
+    线上确实存在无主方案：``create_proposal`` 的 owner 取自请求头
+    ``X-User-Id``（``proposal_service.py``：
+    ``owner_id = (user_id or "").strip() or None``）——请求不带该头时
+    就是无主（``owner_id`` 落库为 NULL）。
+
+    口径 A（全员可见）下它必须**可读**（否则又会出现「列表看得到、
+    点进去 403」的静默回归）；但**写**仍 403（``require_owner_or_admin``
+    对无主记录已正确 403）。
+    """
+    # 不带 X-User-Id → owner_id 落库为 NULL（无主方案）
+    ownerless_headers = {
+        k: v for k, v in operator_headers.items() if k != "X-User-Id"
+    }
+    body = _mk_proposal(client, ownerless_headers, title="无主方案")
+    pid = body["proposal"]["id"]
+    assert body["proposal"]["owner_id"] is None
+
+    # 只读：全员可读（含无主方案）
+    res = client.get(f"/api/v1/crm/proposals/{pid}", headers=businessdev_headers)
+    assert res.status_code == 200, res.text
+    assert res.json()["owner_id"] is None
+    res = client.get(
+        f"/api/v1/crm/proposals/{pid}/versions/1/content", headers=businessdev_headers
+    )
+    assert res.status_code == 200, res.text
+    res = client.get(
+        f"/api/v1/crm/proposals/{pid}/versions/1/download", headers=businessdev_headers
+    )
+    assert res.status_code == 200, res.text
+
+    # 列表：scope=all 能看到无主方案；scope=mine 不含（owner_id IS NULL ≠ 当前用户）
+    all_items = client.get("/api/v1/crm/proposals?scope=all", headers=businessdev_headers).json()
+    assert "无主方案" in {i["title"] for i in all_items["items"]}
+    mine_items = client.get("/api/v1/crm/proposals?scope=mine", headers=businessdev_headers).json()
+    assert "无主方案" not in {i["title"] for i in mine_items["items"]}
+
+    # 写：无主方案对非 admin 仍 403（含 admin 以外的所有人）
+    assert (
+        client.patch(
+            f"/api/v1/crm/proposals/{pid}", headers=businessdev_headers, json={"title": "x"}
+        ).status_code
+        == 403
+    )
+    assert (
+        client.delete(f"/api/v1/crm/proposals/{pid}", headers=businessdev_headers).status_code
+        == 403
+    )
+    assert (
+        client.post(
+            f"/api/v1/crm/proposals/{pid}/versions",
+            headers=businessdev_headers,
+            files=_upload("<html></html>"),
+        ).status_code
+        == 403
+    )
 
 
 # ---------- 更新 / 删除 ----------

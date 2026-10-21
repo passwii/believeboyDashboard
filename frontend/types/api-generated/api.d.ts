@@ -4449,7 +4449,13 @@ export interface paths {
         };
         /**
          * List Proposals
-         * @description 方案列表：scope=mine/all（非 admin 的 all 降级 mine）+ 白名单筛选/排序。
+         * @description 方案列表：scope=mine/all + 白名单筛选/排序。
+         *
+         *     方案域**全员可见**（BLF-1403 / BLF-1410）：非 admin 的 ``scope=all`` **不降级**
+         *     （用 ``resolve_proposal_scope``，不动 CRM 全域的 ``resolve_scope`` 私海保护）；
+         *     ``scope=mine`` 仍只看自己名下（前端「我的 / 全部」切换继续可用）。
+         *
+         *     ``scope`` 取值仅限 ``{mine, all}``，其它值 400（见 ``resolve_proposal_scope``）。
          */
         get: operations["list_proposals_api_v1_crm_proposals_get"];
         put?: never;
@@ -4473,7 +4479,7 @@ export interface paths {
         };
         /**
          * Get Proposal
-         * @description 方案详情：含完整版本链；owner/admin 可见。
+         * @description 方案详情：含完整版本链；**全员可读**（方案域只读不设 owner 门禁）。
          */
         get: operations["get_proposal_api_v1_crm_proposals__proposal_id__get"];
         put?: never;
@@ -4524,6 +4530,7 @@ export interface paths {
          * @description 预览内容：返回 HTML 文本，前端塞进 sandbox iframe 的 srcDoc。
          *
          *     内容从 R2 读出后经后端鉴权转发——**不返回公开 URL**。
+         *     方案域**全员可读**（BLF-1403 / BLF-1410），故只读不设 owner 门禁。
          */
         get: operations["get_version_content_api_v1_crm_proposals__proposal_id__versions__version_no__content_get"];
         put?: never;
@@ -4547,6 +4554,7 @@ export interface paths {
          *
          *     默认下载「适配版」（带本项目主题令牌，仍自包含单文件）；
          *     ``raw=1`` 下载「原始上传版」（保真交付 / 审计）。响应流式转发 + 鉴权。
+         *     方案域**全员可读**（BLF-1403 / BLF-1410），故只读不设 owner 门禁。
          */
         get: operations["download_version_api_v1_crm_proposals__proposal_id__versions__version_no__download_get"];
         put?: never;

@@ -44,7 +44,11 @@ from app.schemas.crm import (
     ProposalUploadResponse,
 )
 from app.services.crm import audit_service, proposal_service
-from app.services.crm.permissions import require_owner_or_admin, resolve_scope
+from app.services.crm.permissions import (
+    require_owner_or_admin,
+    require_proposal_readable,
+    resolve_proposal_scope,
+)
 
 router = APIRouter(
     prefix="/crm/proposals", tags=["crm-proposals"], dependencies=[Depends(protected)]
@@ -100,7 +104,7 @@ def _require_proposal(db: Session, proposal_id: int):
 
 @router.get("", response_model=ProposalListResponse)
 def list_proposals(
-    scope: str = Query("mine"),
+    scope: str = Query("all"),
     keyword: str | None = Query(None, max_length=200),
     filters: str | None = Query(None),
     sort_by: str = "updated_at",
@@ -111,12 +115,19 @@ def list_proposals(
     user_id: str | None = Depends(get_request_user_id),
     is_admin: bool = Depends(get_request_is_admin),
 ):
-    """方案列表：scope=mine/all（非 admin 的 all 降级 mine）+ 白名单筛选/排序。"""
+    """方案列表：scope=mine/all + 白名单筛选/排序。
+
+    方案域**全员可见**（BLF-1403 / BLF-1410）：非 admin 的 ``scope=all`` **不降级**
+    （用 ``resolve_proposal_scope``，不动 CRM 全域的 ``resolve_scope`` 私海保护）；
+    ``scope=mine`` 仍只看自己名下（前端「我的 / 全部」切换继续可用）。
+
+    ``scope`` 取值仅限 ``{mine, all}``，其它值 400（见 ``resolve_proposal_scope``）。
+    """
     try:
         items, total = proposal_service.list_proposals(
             db,
             user_id=user_id,
-            scope=resolve_scope(scope, is_admin),
+            scope=resolve_proposal_scope(scope, is_admin),
             filters=_flatten_filters(_parse_filters(filters)),
             keyword=keyword,
             sort_by=sort_by,
@@ -139,9 +150,9 @@ def get_proposal(
     user_id: str | None = Depends(get_request_user_id),
     is_admin: bool = Depends(get_request_is_admin),
 ):
-    """方案详情：含完整版本链；owner/admin 可见。"""
+    """方案详情：含完整版本链；**全员可读**（方案域只读不设 owner 门禁）。"""
     proposal = _require_proposal(db, proposal_id)
-    require_owner_or_admin(proposal.owner_id, user_id, is_admin)
+    require_proposal_readable(proposal.owner_id, user_id, is_admin)
     item = proposal_service.get_proposal(db, proposal_id)
     assert item is not None
     return ProposalDetail(
@@ -336,9 +347,10 @@ def get_version_content(
     """预览内容：返回 HTML 文本，前端塞进 sandbox iframe 的 srcDoc。
 
     内容从 R2 读出后经后端鉴权转发——**不返回公开 URL**。
+    方案域**全员可读**（BLF-1403 / BLF-1410），故只读不设 owner 门禁。
     """
     proposal = _require_proposal(db, proposal_id)
-    require_owner_or_admin(proposal.owner_id, user_id, is_admin)
+    require_proposal_readable(proposal.owner_id, user_id, is_admin)
     version = proposal_service.get_version(db, proposal_id, version_no)
     if version is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="版本不存在")
@@ -365,9 +377,10 @@ def download_version(
 
     默认下载「适配版」（带本项目主题令牌，仍自包含单文件）；
     ``raw=1`` 下载「原始上传版」（保真交付 / 审计）。响应流式转发 + 鉴权。
+    方案域**全员可读**（BLF-1403 / BLF-1410），故只读不设 owner 门禁。
     """
     proposal = _require_proposal(db, proposal_id)
-    require_owner_or_admin(proposal.owner_id, user_id, is_admin)
+    require_proposal_readable(proposal.owner_id, user_id, is_admin)
     version = proposal_service.get_version(db, proposal_id, version_no)
     if version is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="版本不存在")
