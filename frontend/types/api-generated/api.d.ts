@@ -4470,6 +4470,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/crm/proposals/uploads/init": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Init Proposal Chunked Upload
+         * @description 新建方案的 >4MB 分段上传：只创建会话，不上传字节。
+         */
+        post: operations["init_proposal_chunked_upload_api_v1_crm_proposals_uploads_init_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/proposals/uploads/{upload_id}/chunks/{index}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Proposal Chunk
+         * @description 写入一段原始字节（``application/octet-stream``）。
+         */
+        post: operations["upload_proposal_chunk_api_v1_crm_proposals_uploads__upload_id__chunks__index__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/proposals/uploads/{upload_id}/finalize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Finalize Proposal Chunked Upload
+         * @description 合并分段 → 校验/适配 HTML → 复用现有 R2 上传 → 落库。
+         */
+        post: operations["finalize_proposal_chunked_upload_api_v1_crm_proposals_uploads__upload_id__finalize_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/crm/proposals/{proposal_id}": {
         parameters: {
             query?: never;
@@ -4512,6 +4572,26 @@ export interface paths {
          * @description 给已有方案追加新版本（append-only，旧版本与旧 R2 对象不动）。
          */
         post: operations["add_version_api_v1_crm_proposals__proposal_id__versions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crm/proposals/{proposal_id}/versions/uploads/init": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Init Proposal Version Chunked Upload
+         * @description 已有方案追加版本的 >4MB 分段上传：只创建会话。
+         */
+        post: operations["init_proposal_version_chunked_upload_api_v1_crm_proposals__proposal_id__versions_uploads_init_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -21341,6 +21421,60 @@ export interface components {
             templates: components["schemas"]["ProjectWorkflowTemplateOption"][];
         };
         /**
+         * ProposalChunkUploadResponse
+         * @description 单段写入结果（用于前端校验/重试）。
+         */
+        ProposalChunkUploadResponse: {
+            /** Received */
+            received: number;
+            /** Size */
+            size: number;
+        };
+        /**
+         * ProposalChunkedUploadInitRequest
+         * @description 分段上传初始化：只传元数据，不传文件字节。
+         */
+        ProposalChunkedUploadInitRequest: {
+            /** Change Note */
+            change_note?: string | null;
+            /**
+             * Content Type
+             * @default text/html
+             */
+            content_type: string;
+            /** Customer Id */
+            customer_id?: number | null;
+            /** Filename */
+            filename: string;
+            /**
+             * Proposal Type
+             * @default other
+             * @enum {string}
+             */
+            proposal_type: "onboarding" | "operation" | "quotation" | "research" | "other";
+            /** Size */
+            size: number;
+            /** Title */
+            title?: string | null;
+        };
+        /**
+         * ProposalChunkedUploadInitResponse
+         * @description 分段上传会话：前端按 ``chunk_size`` 切片，逐段 POST。
+         */
+        ProposalChunkedUploadInitResponse: {
+            /** Chunk Size */
+            chunk_size: number;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Total Chunks */
+            total_chunks: number;
+            /** Upload Id */
+            upload_id: string;
+        };
+        /**
          * ProposalContentResponse
          * @description 预览内容：前端把 ``content`` 塞进 sandbox iframe 的 srcDoc。
          */
@@ -35574,6 +35708,123 @@ export interface operations {
             };
         };
     };
+    init_proposal_chunked_upload_api_v1_crm_proposals_uploads_init_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProposalChunkedUploadInitRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalChunkedUploadInitResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_proposal_chunk_api_v1_crm_proposals_uploads__upload_id__chunks__index__post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                upload_id: string;
+                index: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalChunkUploadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    finalize_proposal_chunked_upload_api_v1_crm_proposals_uploads__upload_id__finalize_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalUploadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_proposal_api_v1_crm_proposals__proposal_id__get: {
         parameters: {
             query?: {
@@ -35719,6 +35970,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProposalUploadResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    init_proposal_version_chunked_upload_api_v1_crm_proposals__proposal_id__versions_uploads_init_post: {
+        parameters: {
+            query?: {
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+                "X-User-Id"?: string | null;
+                "X-Is-Admin"?: string | null;
+            };
+            path: {
+                proposal_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProposalChunkedUploadInitRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProposalChunkedUploadInitResponse"];
                 };
             };
             /** @description Validation Error */

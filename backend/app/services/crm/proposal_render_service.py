@@ -100,6 +100,38 @@ def validate_html_upload(
     return ext, b"".join(chunks)
 
 
+def validate_html_bytes(
+    raw_bytes: bytes, *, filename: str, max_bytes: int
+) -> str:
+    """字节版 ``validate_html_upload``：供分段上传 finalize 使用。
+
+    与上传文件路径保持同一口径：扩展名硬校验、大小上限、非空。
+    返回 ``ext``（如 ``.html``）。
+    """
+    ext = filename[filename.rfind(".") :].lower() if "." in filename else ""
+    if _format_from_ext(ext) is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="不支持的文件类型：仅接受单个 HTML 文件（.html / .htm）",
+        )
+
+    if max_bytes <= 0:
+        max_bytes = 20 * 1024 * 1024
+
+    if len(raw_bytes) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="文件为空",
+        )
+    if len(raw_bytes) > max_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=f"文件超过 {max_bytes} 字节上限",
+        )
+
+    return ext
+
+
 class _RefCollector(HTMLParser):
     """收集 ``href`` / ``src`` 属性值（用于相对引用探测）。"""
 

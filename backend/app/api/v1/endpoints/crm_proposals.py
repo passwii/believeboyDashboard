@@ -36,6 +36,9 @@ from app.api.deps import (
 )
 from app.core.config import Settings, get_settings
 from app.schemas.crm import (
+    ProposalChunkUploadResponse,
+    ProposalChunkedUploadInitRequest,
+    ProposalChunkedUploadInitResponse,
     ProposalContentResponse,
     ProposalDetail,
     ProposalItem,
@@ -43,7 +46,11 @@ from app.schemas.crm import (
     ProposalUpdate,
     ProposalUploadResponse,
 )
-from app.services.crm import audit_service, proposal_service
+from app.services.crm import (
+    audit_service,
+    proposal_chunked_upload,
+    proposal_service,
+)
 from app.services.crm.permissions import (
     require_owner_or_admin,
     require_proposal_readable,
@@ -158,6 +165,209 @@ def get_proposal(
     return ProposalDetail(
         **item.model_dump(),
         versions=proposal_service.list_versions(db, proposal_id),
+    )
+
+
+# ---------- 分段上传（>4MB，绕开 Vercel 请求体上限） ----------
+
+
+@router.post(
+    "/uploads/init",
+    response_model=ProposalChunkedUploadInitResponse,
+)
+def init_proposal_chunked_upload(
+    payload: ProposalChunkedUploadInitRequest,
+    db: Session = Depends(get_primary_db_session),
+    settings: Settings = Depends(get_settings),
+    user_id: str | None = Depends(get_request_user_id),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """新建方案的 >4MB 分段上传：只创建会话，不上传字节。"""
+    proposal_service._assert_proposal_type(payload.proposal_type)
+    proposal_service._assert_customer_visible(
+        db, payload.customer_id, user_id=user_id, is_admin=is_admin
+    )
+    meta = proposal_chunked_upload.init_upload(
+        settings,
+        owner_id=user_id,
+        filename=payload.filename,
+        size=payload.size,
+        content_type=payload.content_type,
+        title=payload.title,
+        proposal_type=payload.proposal_type,
+        customer_id=payload.customer_id,
+        change_note=payload.change_note,
+    )
+    return ProposalChunkedUploadInitResponse(
+        upload_id=meta["upload_id"],
+        chunk_size=meta["chunk_size"],
+        total_chunks=meta["total_chunks"],
+        expires_at=meta["expires_at"],
+    )
+
+
+@router.post(
+    "/{proposal_id}/versions/uploads/init",
+    response_model=ProposalChunkedUploadInitResponse,
+)
+def init_proposal_version_chunked_upload(
+    proposal_id: int,
+    payload: ProposalChunkedUploadInitRequest,
+    db: Session = Depends(get_primary_db_session),
+    settings: Settings = Depends(get_settings),
+    user_id: str | None = Depends(get_request_user_id),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """已有方案追加版本的 >4MB 分段上传：只创建会话。"""
+    proposal = _require_proposal(db, proposal_id)
+    require_owner_or_admin(proposal.owner_id, user_id, is_admin)
+    meta = proposal_chunked_upload.init_upload(
+        settings,
+        owner_id=user_id,
+        filename=payload.filename,
+        size=payload.size,
+        content_type=payload.content_type,
+        title=None,
+        proposal_type=None,
+        customer_id=None,
+        change_note=payload.change_note,
+        proposal_id=proposal.id,
+    )
+    return ProposalChunkedUploadInitResponse(
+        upload_id=meta["upload_id"],
+        chunk_size=meta["chunk_size"],
+        total_chunks=meta["total_chunks"],
+        expires_at=meta["expires_at"],
+    )
+
+
+@router.post(
+    "/uploads/{upload_id}/chunks/{index}",
+    response_model=ProposalChunkUploadResponse,
+)
+async def upload_proposal_chunk(
+    upload_id: str,
+    index: int,
+    request: Request,
+    settings: Settings = Depends(get_settings),
+    user_id: str | None = Depends(get_request_user_id),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """写入一段原始字节（``application/octet-stream``）。"""
+    data = await request.body()
+    size = proposal_chunked_upload.write_chunk(
+        settings,
+        upload_id,
+        index,
+        data,
+        owner_id=user_id,
+        is_admin=is_admin,
+    )
+    return ProposalChunkUploadResponse(received=index, size=size)
+
+
+@router.post(
+    "/uploads/{upload_id}/finalize",
+    response_model=ProposalUploadResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def finalize_proposal_chunked_upload(
+    upload_id: str,
+    db: Session = Depends(get_primary_db_session),
+    settings: Settings = Depends(get_settings),
+    user_id: str | None = Depends(get_request_user_id),
+    is_admin: bool = Depends(get_request_is_admin),
+):
+    """合并分段 → 校验/适配 HTML → 复用现有 R2 上传 → 落库。"""
+    meta = proposal_chunked_upload.read_meta(
+        settings, upload_id, owner_id=user_id, is_admin=is_admin
+    )
+    # 幂等：网络抖动导致客户端重试 finalize 时，返回首次结果。
+    if meta.get("status") == "finalized":
+        proposal = proposal_service.get_proposal(
+            db, int(meta["proposal_id_final"])
+        )
+        version = proposal_service.get_version_item(
+            db, int(meta["proposal_id_final"]), int(meta["version_no"])
+        )
+        if proposal is None or version is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="上传已收尾但结果不可读取",
+            )
+        return ProposalUploadResponse(
+            proposal=proposal, version=version, warnings=[]
+        )
+
+    raw_bytes, meta = proposal_chunked_upload.assemble(
+        settings, upload_id, owner_id=user_id, is_admin=is_admin
+    )
+
+    try:
+        if meta.get("proposal_id"):
+            proposal = _require_proposal(db, int(meta["proposal_id"]))
+            require_owner_or_admin(proposal.owner_id, user_id, is_admin)
+            version, warnings = proposal_service.add_version_from_bytes(
+                db,
+                proposal,
+                raw_bytes=raw_bytes,
+                filename=meta.get("filename"),
+                content_type=meta.get("content_type"),
+                change_note=meta.get("change_note"),
+                user_id=user_id,
+                settings=settings,
+                commit=False,
+            )
+            item = proposal_service.get_proposal(db, proposal.id)
+            assert item is not None
+            audit_service.record_log(
+                db,
+                entity_type="proposal",
+                entity_id=proposal.id,
+                action="update",
+                actor_id=user_id,
+                summary=f"上传方案新版本 v{version.version_no}（分段）",
+            )
+        else:
+            item, version, warnings = proposal_service.create_proposal_from_bytes(
+                db,
+                raw_bytes=raw_bytes,
+                filename=meta.get("filename"),
+                content_type=meta.get("content_type"),
+                title=meta.get("title"),
+                proposal_type=meta.get("proposal_type") or "other",
+                customer_id=meta.get("customer_id"),
+                user_id=user_id,
+                is_admin=is_admin,
+                settings=settings,
+                commit=False,
+            )
+            audit_service.record_log(
+                db,
+                entity_type="proposal",
+                entity_id=item.id,
+                action="create",
+                actor_id=user_id,
+                summary=f"新建客户方案 {item.title}（v1，分段）",
+            )
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:  # noqa: BLE001
+        db.rollback()
+        raise HTTPException(
+            status_code=500, detail=f"方案上传失败：{exc}"
+        ) from exc
+
+    db.commit()
+    proposal_chunked_upload.mark_finalized(
+        settings,
+        upload_id,
+        proposal_id=item.id,
+        version_no=version.version_no,
+    )
+    return ProposalUploadResponse(
+        proposal=item, version=version, warnings=warnings
     )
 
 

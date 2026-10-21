@@ -40,21 +40,30 @@ const runsSelfContainedSpec = process.argv.some(
     arg.includes('@mobile-blf620') ||
     arg.includes('ai-mobile-blf619') ||
     arg.includes('@mobile-blf619') ||
+    // CRM mock 用例：依赖 MockCrmClient 的 localStorage 数据
+    arg.includes('crm/lead-to-customer') ||
+    arg.includes('crm/sea-flow') ||
     // 跨境电商合规页（BLF-1393）：非 mobile-only，但同样用 fixture 伪造 session + mock 后端
     arg.includes('cross-border-compliance')
 )
 let envFileBackup: string | null = null
+let envFileExisted = false
 
-if (runsSelfContainedSpec && fs.existsSync(ENV_FILE)) {
-  envFileBackup = fs.readFileSync(ENV_FILE, 'utf8')
+if (runsSelfContainedSpec) {
+  envFileExisted = fs.existsSync(ENV_FILE)
+  if (envFileExisted) envFileBackup = fs.readFileSync(ENV_FILE, 'utf8')
   fs.writeFileSync(
     ENV_FILE,
-    `# TEMPORARILY REPLACED by playwright (self-contained fixture specs) — restored on exit.\nNEXTAUTH_SECRET=${BLF611_FIXTURE_SECRET}\n`
+    `# TEMPORARILY REPLACED by playwright (self-contained fixture specs) — restored on exit.\nNEXTAUTH_SECRET=${BLF611_FIXTURE_SECRET}\nNEXT_PUBLIC_CRM_API_MODE=mock\n`
   )
   const restoreEnvFile = () => {
     if (envFileBackup !== null) {
       fs.writeFileSync(ENV_FILE, envFileBackup)
       envFileBackup = null
+      return
+    }
+    if (!envFileExisted && fs.existsSync(ENV_FILE)) {
+      fs.unlinkSync(ENV_FILE)
     }
   }
   process.on('exit', restoreEnvFile)

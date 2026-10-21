@@ -282,6 +282,17 @@ def get_version(
     ).scalar_one_or_none()
 
 
+def get_version_item(
+    db: Session, proposal_id: int, version_no: int
+) -> ProposalVersionItem | None:
+    """版本 ORM → 响应模型（分段上传幂等返回用）。"""
+    version = get_version(db, proposal_id, version_no)
+    if version is None:
+        return None
+    names = _user_names_map(db, {version.created_by} if version.created_by else set())
+    return _version_to_item(version, names)
+
+
 def get_latest_version(
     db: Session, proposal_id: int
 ) -> CrmProposalVersion | None:
@@ -403,24 +414,19 @@ def _assert_customer_visible(
         )
 
 
-def create_proposal(
-    db: Session,
-    *,
-    file: UploadFile,
-    title: str | None,
-    proposal_type: str,
-    customer_id: int | None,
-    user_id: str | None,
-    is_admin: bool,
-    settings: Settings,
-    commit: bool = False,
-) -> tuple[ProposalItem, ProposalVersionItem, list[str]]:
-    """建方案 + 首版（v1）。校验 → 落库 → 上传 R2 → 建版本。
+def _analyze_html(raw_bytes: bytes) -> tuple[list[str], bytes]:
+    """解码 + 相对引用提示 + 主题适配，返回 ``(warnings, adapted_bytes)``。"""
+    raw_text = _decode_html(raw_bytes)
+    warnings = [
+        f"检测到相对引用 {ref}：方案只保存单个 HTML，该引用在查看时不可达，"
+        "建议内联或改为绝对地址"
+        for ref in render.find_unreachable_refs(raw_text)
+    ]
+    adapted_bytes = render.adapt_html(raw_text).encode("utf-8")
+    return warnings, adapted_bytes
 
-    顺序保证：先 flush 拿到 proposal.id（决定 R2 key），再上传；
-    任一步失败由端点 rollback，不会留下半截记录。
-    """
-    _require_r2(settings)
+
+def _assert_proposal_type(proposal_type: str) -> None:
     if proposal_type not in (
         CrmProposalType.ONBOARDING,
         CrmProposalType.OPERATION,
@@ -432,23 +438,27 @@ def create_proposal(
             status_code=status.HTTP_400_BAD_REQUEST, detail="无效的方案类型"
         )
 
-    _assert_customer_visible(db, customer_id, user_id=user_id, is_admin=is_admin)
 
-    ext, raw_bytes = render.validate_html_upload(
-        file, max_bytes=settings.crm_proposal_max_bytes
-    )
-    raw_text = _decode_html(raw_bytes)
-    warnings = [
-        f"检测到相对引用 {ref}：方案只保存单个 HTML，该引用在查看时不可达，"
-        "建议内联或改为绝对地址"
-        for ref in render.find_unreachable_refs(raw_text)
-    ]
-    adapted_text = render.adapt_html(raw_text)
-    adapted_bytes = adapted_text.encode("utf-8")
-
+def _create_proposal_rows(
+    db: Session,
+    *,
+    ext: str,
+    raw_bytes: bytes,
+    warnings: list[str],
+    adapted_bytes: bytes,
+    filename: str | None,
+    content_type: str | None,
+    title: str | None,
+    proposal_type: str,
+    customer_id: int | None,
+    user_id: str | None,
+    settings: Settings,
+    commit: bool,
+) -> tuple[ProposalItem, ProposalVersionItem, list[str]]:
+    """落库 + 上传 R2 的公共尾段（一次性上传与分段 finalize 共用）。"""
     owner_id = (user_id or "").strip() or None
     proposal = CrmProposal(
-        title=_sanitize_title(title, fallback=file.filename or "未命名方案"),
+        title=_sanitize_title(title, fallback=filename or "未命名方案"),
         proposal_type=proposal_type,
         status=CrmProposalStatus.DRAFT,
         customer_id=customer_id,
@@ -465,7 +475,7 @@ def create_proposal(
         version_no=1,
         raw_bytes=raw_bytes,
         adapted_bytes=adapted_bytes,
-        raw_content_type=(file.content_type or "").lower(),
+        raw_content_type=(content_type or "").lower(),
     )
 
     version = CrmProposalVersion(
@@ -474,8 +484,8 @@ def create_proposal(
         raw_r2_key=raw_key,
         adapted_r2_key=adapted_key,
         adapted_sha256=render.sha256_hex(adapted_bytes),
-        original_filename=(file.filename or f"proposal.{ext.lstrip('.')}")[:255],
-        content_type=(file.content_type or "text/html")[:64],
+        original_filename=(filename or f"proposal.{ext.lstrip('.')}")[:255],
+        content_type=(content_type or "text/html")[:64],
         file_size=len(raw_bytes),
         change_note="初始版本",
         created_by=owner_id,
@@ -489,8 +499,138 @@ def create_proposal(
 
     item = get_proposal(db, proposal.id)
     assert item is not None
-    version_item = _version_to_item(version, _user_names_map(db, {owner_id} if owner_id else set()))
+    version_item = _version_to_item(
+        version, _user_names_map(db, {owner_id} if owner_id else set())
+    )
     return item, version_item, warnings
+
+
+def create_proposal(
+    db: Session,
+    *,
+    file: UploadFile,
+    title: str | None,
+    proposal_type: str,
+    customer_id: int | None,
+    user_id: str | None,
+    is_admin: bool,
+    settings: Settings,
+    commit: bool = False,
+) -> tuple[ProposalItem, ProposalVersionItem, list[str]]:
+    """建方案 + 首版（v1）。校验 → 落库 → 上传 R2 → 建版本。"""
+    _require_r2(settings)
+    _assert_proposal_type(proposal_type)
+    _assert_customer_visible(db, customer_id, user_id=user_id, is_admin=is_admin)
+
+    ext, raw_bytes = render.validate_html_upload(
+        file, max_bytes=settings.crm_proposal_max_bytes
+    )
+    warnings, adapted_bytes = _analyze_html(raw_bytes)
+    return _create_proposal_rows(
+        db,
+        ext=ext,
+        raw_bytes=raw_bytes,
+        warnings=warnings,
+        adapted_bytes=adapted_bytes,
+        filename=file.filename,
+        content_type=file.content_type,
+        title=title,
+        proposal_type=proposal_type,
+        customer_id=customer_id,
+        user_id=user_id,
+        settings=settings,
+        commit=commit,
+    )
+
+
+def create_proposal_from_bytes(
+    db: Session,
+    *,
+    raw_bytes: bytes,
+    filename: str | None,
+    content_type: str | None,
+    title: str | None,
+    proposal_type: str,
+    customer_id: int | None,
+    user_id: str | None,
+    is_admin: bool,
+    settings: Settings,
+    commit: bool = False,
+) -> tuple[ProposalItem, ProposalVersionItem, list[str]]:
+    """分段上传 finalize 版：与 ``create_proposal`` 同一落库/适配/R2 口径。"""
+    _require_r2(settings)
+    _assert_proposal_type(proposal_type)
+    _assert_customer_visible(db, customer_id, user_id=user_id, is_admin=is_admin)
+
+    ext = render.validate_html_bytes(
+        raw_bytes, filename=filename or "", max_bytes=settings.crm_proposal_max_bytes
+    )
+    warnings, adapted_bytes = _analyze_html(raw_bytes)
+    return _create_proposal_rows(
+        db,
+        ext=ext,
+        raw_bytes=raw_bytes,
+        warnings=warnings,
+        adapted_bytes=adapted_bytes,
+        filename=filename,
+        content_type=content_type,
+        title=title,
+        proposal_type=proposal_type,
+        customer_id=customer_id,
+        user_id=user_id,
+        settings=settings,
+        commit=commit,
+    )
+
+
+def _add_version_rows(
+    db: Session,
+    proposal: CrmProposal,
+    *,
+    ext: str,
+    raw_bytes: bytes,
+    warnings: list[str],
+    adapted_bytes: bytes,
+    filename: str | None,
+    content_type: str | None,
+    change_note: str | None,
+    user_id: str | None,
+    settings: Settings,
+    commit: bool,
+) -> tuple[ProposalVersionItem, list[str]]:
+    next_no = (proposal.current_version_no or 0) + 1
+    creator = (user_id or "").strip() or None
+
+    raw_key, adapted_key = _upload_version_objects(
+        settings=settings,
+        proposal_id=proposal.id,
+        version_no=next_no,
+        raw_bytes=raw_bytes,
+        adapted_bytes=adapted_bytes,
+        raw_content_type=(content_type or "").lower(),
+    )
+
+    version = CrmProposalVersion(
+        proposal_id=proposal.id,
+        version_no=next_no,
+        raw_r2_key=raw_key,
+        adapted_r2_key=adapted_key,
+        adapted_sha256=render.sha256_hex(adapted_bytes),
+        original_filename=(filename or f"proposal.{ext.lstrip('.')}")[:255],
+        content_type=(content_type or "text/html")[:64],
+        file_size=len(raw_bytes),
+        change_note=(change_note or "").strip()[:500] or None,
+        created_by=creator,
+    )
+    db.add(version)
+    proposal.current_version_no = next_no
+    db.flush()
+
+    if commit:
+        db.commit()
+
+    user_names = _user_names_map(db, {creator} if creator else set())
+    return _version_to_item(version, user_names), warnings
 
 
 def add_version(
@@ -508,47 +648,55 @@ def add_version(
     ext, raw_bytes = render.validate_html_upload(
         file, max_bytes=settings.crm_proposal_max_bytes
     )
-    raw_text = _decode_html(raw_bytes)
-    warnings = [
-        f"检测到相对引用 {ref}：方案只保存单个 HTML，该引用在查看时不可达，"
-        "建议内联或改为绝对地址"
-        for ref in render.find_unreachable_refs(raw_text)
-    ]
-    adapted_bytes = render.adapt_html(raw_text).encode("utf-8")
-
-    next_no = (proposal.current_version_no or 0) + 1
-    creator = (user_id or "").strip() or None
-
-    raw_key, adapted_key = _upload_version_objects(
-        settings=settings,
-        proposal_id=proposal.id,
-        version_no=next_no,
+    warnings, adapted_bytes = _analyze_html(raw_bytes)
+    return _add_version_rows(
+        db,
+        proposal,
+        ext=ext,
         raw_bytes=raw_bytes,
+        warnings=warnings,
         adapted_bytes=adapted_bytes,
-        raw_content_type=(file.content_type or "").lower(),
+        filename=file.filename,
+        content_type=file.content_type,
+        change_note=change_note,
+        user_id=user_id,
+        settings=settings,
+        commit=commit,
     )
 
-    version = CrmProposalVersion(
-        proposal_id=proposal.id,
-        version_no=next_no,
-        raw_r2_key=raw_key,
-        adapted_r2_key=adapted_key,
-        adapted_sha256=render.sha256_hex(adapted_bytes),
-        original_filename=(file.filename or f"proposal.{ext.lstrip('.')}")[:255],
-        content_type=(file.content_type or "text/html")[:64],
-        file_size=len(raw_bytes),
-        change_note=(change_note or "").strip()[:500] or None,
-        created_by=creator,
+
+def add_version_from_bytes(
+    db: Session,
+    proposal: CrmProposal,
+    *,
+    raw_bytes: bytes,
+    filename: str | None,
+    content_type: str | None,
+    change_note: str | None,
+    user_id: str | None,
+    settings: Settings,
+    commit: bool = False,
+) -> tuple[ProposalVersionItem, list[str]]:
+    """分段上传 finalize 版：与 ``add_version`` 同一落库/适配/R2 口径。"""
+    _require_r2(settings)
+    ext = render.validate_html_bytes(
+        raw_bytes, filename=filename or "", max_bytes=settings.crm_proposal_max_bytes
     )
-    db.add(version)
-    proposal.current_version_no = next_no
-    db.flush()
-
-    if commit:
-        db.commit()
-
-    user_names = _user_names_map(db, {creator} if creator else set())
-    return _version_to_item(version, user_names), warnings
+    warnings, adapted_bytes = _analyze_html(raw_bytes)
+    return _add_version_rows(
+        db,
+        proposal,
+        ext=ext,
+        raw_bytes=raw_bytes,
+        warnings=warnings,
+        adapted_bytes=adapted_bytes,
+        filename=filename,
+        content_type=content_type,
+        change_note=change_note,
+        user_id=user_id,
+        settings=settings,
+        commit=commit,
+    )
 
 
 def update_proposal(

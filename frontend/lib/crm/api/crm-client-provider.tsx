@@ -7,7 +7,13 @@ import { HttpCrmClient } from './http-crm-client'
 
 const CrmClientContext = createContext<CrmClient | null>(null)
 
-const apiMode = process.env.NEXT_PUBLIC_CRM_API_MODE ?? 'mock'
+const apiMode = process.env.NEXT_PUBLIC_CRM_API_MODE ?? 'http'
+if (apiMode !== 'http' && apiMode !== 'mock') {
+  throw new Error(`Unknown NEXT_PUBLIC_CRM_API_MODE: ${apiMode}`)
+}
+if (process.env.NODE_ENV === 'production' && apiMode === 'mock') {
+  throw new Error('CRM mock client is disabled in production')
+}
 
 interface CrmClientProviderProps {
   children: React.ReactNode

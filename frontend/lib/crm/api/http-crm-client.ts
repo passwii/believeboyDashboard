@@ -38,6 +38,7 @@ import type {
   ProposalUploadResult,
   ProposalVersionInput,
 } from '@/lib/crm/types'
+import { PROPOSAL_CHUNK_THRESHOLD_BYTES } from '@/lib/crm/constants/proposal'
 import {
   mapAuditLog,
   mapCategory,
@@ -187,6 +188,90 @@ async function requestBlob(path: string): Promise<Blob> {
     throw await parseApiError(res, `下载失败（${res.status}）`)
   }
   return res.blob()
+}
+
+// ===== 方案分段上传（>4MB，绕开 Vercel 请求体上限） =====
+
+interface ProposalChunkedInitDto {
+  upload_id: string
+  chunk_size: number
+  total_chunks: number
+  expires_at: string
+}
+
+/** 超过该阈值走分段；≤ 阈值保持原一次性 multipart（零回归）。 */
+const PROPOSAL_CHUNK_THRESHOLD = PROPOSAL_CHUNK_THRESHOLD_BYTES
+
+/**
+ * 写一段原始字节。4xx 立即失败；5xx / 网络错误重试 3 次（指数退避）。
+ */
+async function uploadProposalChunk(
+  uploadId: string,
+  index: number,
+  chunk: Blob
+): Promise<void> {
+  let lastError: unknown
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const res = await fetch(`${BASE}/proposals/uploads/${uploadId}/chunks/${index}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: chunk,
+      })
+      if (res.ok) return
+      if (res.status < 500) {
+        throw await parseApiError(res, `分段上传失败（${res.status}）`)
+      }
+      lastError = new ApiError(res.status, `分段上传失败（${res.status}）`)
+    } catch (e) {
+      if (e instanceof ApiError && e.status < 500) throw e
+      lastError = e
+    }
+    await new Promise((resolve) => setTimeout(resolve, 300 * (attempt + 1)))
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new Error('分段上传失败，请重试')
+}
+
+async function initProposalChunkedUpload(
+  path: string,
+  input: {
+    file: File
+    title?: string
+    proposalType?: string
+    customerId?: string | null
+    changeNote?: string
+  }
+): Promise<ProposalChunkedInitDto> {
+  return request<ProposalChunkedInitDto>(path, {
+    method: 'POST',
+    body: JSON.stringify({
+      filename: input.file.name,
+      size: input.file.size,
+      content_type: input.file.type || 'text/html',
+      title: input.title,
+      proposal_type: input.proposalType,
+      customer_id: input.customerId ? Number(input.customerId) : null,
+      change_note: input.changeNote,
+    }),
+  })
+}
+
+async function uploadFileChunked(
+  initPath: string,
+  finalizePath: (uploadId: string) => string,
+  input: { file: File; title?: string; proposalType?: string; customerId?: string | null; changeNote?: string }
+): Promise<ProposalUploadResultDto> {
+  const init = await initProposalChunkedUpload(initPath, input)
+  for (let index = 0; index < init.total_chunks; index += 1) {
+    const start = index * init.chunk_size
+    const chunk = input.file.slice(start, start + init.chunk_size)
+    await uploadProposalChunk(init.upload_id, index, chunk)
+  }
+  return request<ProposalUploadResultDto>(finalizePath(init.upload_id), {
+    method: 'POST',
+  })
 }
 
 /** ListParams → 后端 query string。filters（高级筛选）序列化为 JSON 数组入站（Task B2 后端支持）。 */
@@ -569,10 +654,19 @@ export class HttpCrmClient implements CrmClient {
     return mapProposalDetail(await request<ProposalDetailDto>(`/proposals/${id}`))
   }
   async createProposal(input: ProposalCreateInput): Promise<ProposalUploadResult> {
+    if (input.file.size <= PROPOSAL_CHUNK_THRESHOLD) {
+      return mapProposalUploadResult(
+        await requestForm<ProposalUploadResultDto>(
+          '/proposals',
+          toProposalCreateFormData(input)
+        )
+      )
+    }
     return mapProposalUploadResult(
-      await requestForm<ProposalUploadResultDto>(
-        '/proposals',
-        toProposalCreateFormData(input)
+      await uploadFileChunked(
+        '/proposals/uploads/init',
+        (uploadId) => `/proposals/uploads/${uploadId}/finalize`,
+        input
       )
     )
   }
@@ -580,10 +674,19 @@ export class HttpCrmClient implements CrmClient {
     id: string,
     input: ProposalVersionInput
   ): Promise<ProposalUploadResult> {
+    if (input.file.size <= PROPOSAL_CHUNK_THRESHOLD) {
+      return mapProposalUploadResult(
+        await requestForm<ProposalUploadResultDto>(
+          `/proposals/${id}/versions`,
+          toProposalVersionFormData(input)
+        )
+      )
+    }
     return mapProposalUploadResult(
-      await requestForm<ProposalUploadResultDto>(
-        `/proposals/${id}/versions`,
-        toProposalVersionFormData(input)
+      await uploadFileChunked(
+        `/proposals/${id}/versions/uploads/init`,
+        (uploadId) => `/proposals/uploads/${uploadId}/finalize`,
+        input
       )
     )
   }

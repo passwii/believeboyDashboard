@@ -82,6 +82,10 @@ const REPORT_PATH_PATTERNS: ReadonlyArray<RegExp> = [
 // 追加版本 `POST api/v1/crm/proposals/{id}/versions` 同理。
 const CRM_PROPOSAL_UPLOAD_PATH_PATTERNS: ReadonlyArray<RegExp> = [
   /\/crm\/proposals(?:\/[^/]+\/versions)?$/,
+  /\/crm\/proposals\/uploads\/init$/,
+  /\/crm\/proposals\/uploads\/[0-9a-f]{32}\/chunks\/\d+$/,
+  /\/crm\/proposals\/uploads\/[0-9a-f]{32}\/finalize$/,
+  /\/crm\/proposals\/[^/]+\/versions\/uploads\/init$/,
 ]
 
 const AI_PATH_PATTERNS: ReadonlyArray<RegExp> = [

@@ -903,3 +903,31 @@ class ProposalUploadResponse(BaseModel):
     proposal: ProposalItem
     version: ProposalVersionItem
     warnings: list[str] = []
+
+
+class ProposalChunkedUploadInitRequest(BaseModel):
+    """分段上传初始化：只传元数据，不传文件字节。"""
+
+    filename: str = Field(min_length=1, max_length=255)
+    size: int = Field(gt=0)
+    content_type: str = "text/html"
+    title: str | None = Field(default=None, max_length=200)
+    proposal_type: ProposalType = "other"
+    customer_id: int | None = None
+    change_note: str | None = Field(default=None, max_length=500)
+
+
+class ProposalChunkedUploadInitResponse(BaseModel):
+    """分段上传会话：前端按 ``chunk_size`` 切片，逐段 POST。"""
+
+    upload_id: str
+    chunk_size: int
+    total_chunks: int
+    expires_at: datetime
+
+
+class ProposalChunkUploadResponse(BaseModel):
+    """单段写入结果（用于前端校验/重试）。"""
+
+    received: int
+    size: int
