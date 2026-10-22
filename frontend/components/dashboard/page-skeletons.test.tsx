@@ -114,11 +114,13 @@ describe('page-skeletons 组合骨架', () => {
     expect(screen.queryByTestId('page-skeleton-table')).toBeNull()
   })
 
-  it('CRM 客户方案详情骨架包含宽预览和窄版时间线', () => {
+  it('CRM 客户方案详情骨架按左栏信息/版本链、右栏大预览占位', () => {
     render(<CrmProposalDetailPageLoading />)
-    expect(screen.getByTestId('page-skeleton-proposal-detail')).toBeInTheDocument()
-    expect(screen.getByTestId('page-skeleton-proposal-detail').children).toHaveLength(3)
-    expect(screen.getByTestId('page-skeleton-proposal-detail')).toHaveAttribute('aria-busy', 'true')
+    const root = screen.getByTestId('page-skeleton-proposal-detail')
+    expect(root).toBeInTheDocument()
+    // 左栏信息面板 + 左栏版本链 + 右栏预览（右栏跨两行）+ sr-only 状态文案
+    expect(root.children).toHaveLength(4)
+    expect(root).toHaveAttribute('aria-busy', 'true')
     expect(screen.getByRole('status')).toHaveTextContent('页面加载中')
   })
 

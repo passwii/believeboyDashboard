@@ -1,9 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { ArrowLeft, Download, Loader2, Pencil, Upload } from 'lucide-react'
+import { ArrowLeft, Loader2, Pencil, Upload } from 'lucide-react'
 
 import {
   ProposalPreview,
@@ -27,6 +27,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useNotifications } from '@/components/notifications'
+import { cn } from '@/lib/utils'
 import { downloadBlob } from '@/lib/download-blob'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
@@ -42,6 +43,19 @@ import {
   type ProposalStatus,
   type ProposalType,
 } from '@/lib/crm/types'
+
+/**
+ * 预览模式开关（适配版 / 原始版）：2 个字的紧凑按钮，
+ * 取代原先压在预览上方整行的「预览 · vN（适配版）/ 查看原始版 / 下载此版本」。
+ */
+function previewModeButtonClass(active: boolean) {
+  return cn(
+    'border px-1.5 py-0.5 font-mono text-[11px] uppercase tracking-wider transition-colors',
+    active
+      ? 'border-term-border-strong bg-term-raised text-term-text'
+      : 'border-transparent text-term-faint hover:text-term-muted'
+  )
+}
 
 export default function ProposalDetailPage() {
   const params = useParams<{ id: string }>()
@@ -92,11 +106,6 @@ export default function ProposalDetailPage() {
   const refreshRef = useRef(load)
   refreshRef.current = load
   useHeaderRefresh(() => refreshRef.current(), { loading })
-
-  const selectedVersion = useMemo(
-    () => detail?.versions.find((v) => v.versionNo === selectedVersionNo) ?? null,
-    [detail, selectedVersionNo]
-  )
 
   // 预览内容：从后端取（经鉴权转发），不直连 R2、不用公开 URL。
   useEffect(() => {
@@ -253,102 +262,101 @@ export default function ProposalDetailPage() {
   }
 
   return (
-    <CrmPageShell>
-      {error ? (
-        <div role="alert" className="border border-term-neg/50 bg-term-neg/10 px-2 py-1 font-mono text-xs text-term-neg">
-          ERR · {error}
-        </div>
-      ) : null}
-      <div className="flex flex-wrap items-center gap-2">
-        <Link
-          href="/dashboard/crm/proposals"
-          className={`${TERM_BUTTON} h-7 px-1.5`}
-          aria-label="返回方案列表"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-        </Link>
-        <h1 className="min-w-0 truncate text-sm text-term-text" title={detail.title}>
-          {detail.title}
-        </h1>
-        <ProposalStatusPill status={detail.status} />
-        <ProposalTypePill type={detail.proposalType} />
-        <span className="font-mono text-xs text-term-muted">
-          客户：{detail.customerName ?? '未关联'}
-        </span>
-        <span className="font-mono text-xs text-term-faint">
-          负责人：{detail.ownerName ?? detail.ownerId ?? '—'}
-        </span>
-
-        <div className="ml-auto flex items-center gap-1.5">
-          <button type="button" onClick={openEdit} className={`${TERM_BUTTON} gap-1.5`}>
-            <Pencil className="h-3.5 w-3.5" />
-            编辑
-          </button>
-          <button
-            type="button"
-            onClick={() => setVersionOpen(true)}
-            className={`${TERM_BUTTON} gap-1.5`}
+    /**
+     * 布局（BLF 待定 · 方案预览重排）：左栏 = 方案信息 + 版本链，右栏 = 大预览。
+     * 右栏负 margin + calc 高度抵消 #main-content 的 p-1/md:p-2 内边距，
+     * 让 iframe 直接贴住 Top Header 与 Footer（左侧保留原有 8px 留白对齐其他页）。
+     */
+    <CrmPageShell className="min-h-0 lg:-mb-2 lg:-mr-2 lg:-mt-2 lg:grid lg:h-[calc(100%+1rem)] lg:grid-cols-[320px_minmax(0,1fr)] lg:grid-rows-[auto_minmax(0,1fr)] lg:overflow-hidden">
+      {/* 左栏 · 方案信息 */}
+      <div className="flex flex-col gap-2 lg:col-start-1 lg:row-start-1">
+        {error ? (
+          <div
+            role="alert"
+            className="border border-term-neg/50 bg-term-neg/10 px-2 py-1 font-mono text-xs text-term-neg"
           >
-            <Upload className="h-3.5 w-3.5" />
-            上传新版本
-          </button>
+            ERR · {error}
+          </div>
+        ) : null}
+        <div className="flex flex-col gap-2 border border-term-border bg-term-panel p-2">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <Link
+              href="/dashboard/crm/proposals"
+              className={`${TERM_BUTTON} h-7 shrink-0 px-1.5`}
+              aria-label="返回方案列表"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+            </Link>
+            <h1 className="min-w-0 flex-1 truncate text-sm text-term-text" title={detail.title}>
+              {detail.title}
+            </h1>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            <ProposalStatusPill status={detail.status} />
+            <ProposalTypePill type={detail.proposalType} />
+          </div>
+
+          <div className="flex flex-col gap-0.5 font-mono text-[11px]">
+            <span className="truncate text-term-muted" title={detail.customerName ?? undefined}>
+              客户：{detail.customerName ?? '未关联'}
+            </span>
+            <span
+              className="truncate text-term-faint"
+              title={detail.ownerName ?? detail.ownerId ?? undefined}
+            >
+              负责人：{detail.ownerName ?? detail.ownerId ?? '—'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={openEdit}
+              className={`${TERM_BUTTON} h-7 flex-1 justify-center gap-1.5`}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              编辑
+            </button>
+            <button
+              type="button"
+              onClick={() => setVersionOpen(true)}
+              className={`${TERM_BUTTON} h-7 flex-1 justify-center gap-1.5`}
+            >
+              <Upload className="h-3.5 w-3.5" />
+              上传新版本
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-2 lg:grid-cols-[1fr_320px]">
-        {/* 预览 */}
-        <div className="flex min-w-0 flex-col gap-1.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-xs text-term-muted">
-              预览 · v{selectedVersionNo ?? detail.currentVersionNo}
-              {previewRaw ? '（原始上传版）' : '（适配版）'}
-            </span>
-            <label className="flex items-center gap-1 font-mono text-[11px] text-term-faint">
-              <input
-                type="checkbox"
-                checked={previewRaw}
-                onChange={(e) => setPreviewRaw(e.target.checked)}
-              />
-              查看原始版
-            </label>
-            <button
-              type="button"
-              onClick={() => void handleDownload(selectedVersionNo ?? detail.currentVersionNo)}
-              className={`${TERM_BUTTON} h-7 gap-1.5 px-1.5`}
-            >
-              {downloadingVersionNo === (selectedVersionNo ?? detail.currentVersionNo) ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Download className="h-3.5 w-3.5" />
-              )}
-              下载此版本
-            </button>
-          </div>
-
-          {contentLoading && !content ? (
-            <div className="flex min-h-[70vh] items-center justify-center border border-term-border">
-              <span className="font-mono text-xs text-term-faint">加载预览…</span>
-            </div>
-          ) : content ? (
-            <ProposalPreview content={content} title={detail.title} />
-          ) : (
-            <div className="flex min-h-[70vh] items-center justify-center border border-term-border">
-              <span className="font-mono text-xs text-term-faint">暂无内容</span>
-            </div>
-          )}
-
-          {selectedVersion?.changeNote ? (
-            <p className="font-mono text-[11px] text-term-faint">
-              变更说明：{selectedVersion.changeNote}
-            </p>
-          ) : null}
-        </div>
-
-        {/* 版本链 */}
-        <div className="flex min-h-0 flex-col gap-1.5">
-          <h2 className="font-mono text-xs uppercase text-term-faint">
+      {/* 左栏 · 版本链（列表内部滚动，标题行固定） */}
+      <div className="flex min-h-0 flex-col gap-1.5 max-lg:order-3 lg:col-start-1 lg:row-start-2">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="font-mono text-[11px] uppercase tracking-wider text-term-faint">
             版本历史（{detail.versionCount}）
           </h2>
+          {/* 原「预览 · vN（适配版）/ 查看原始版」整行已收进这里：只留 2 个字的模式开关 */}
+          <div role="group" aria-label="预览模式" className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setPreviewRaw(false)}
+              aria-pressed={!previewRaw}
+              className={previewModeButtonClass(!previewRaw)}
+            >
+              适配版
+            </button>
+            <button
+              type="button"
+              onClick={() => setPreviewRaw(true)}
+              aria-pressed={previewRaw}
+              className={previewModeButtonClass(previewRaw)}
+            >
+              原始版
+            </button>
+          </div>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto term-scroll">
           <ProposalVersionTimeline
             versions={detail.versions}
             currentVersionNo={detail.currentVersionNo}
@@ -359,6 +367,25 @@ export default function ProposalDetailPage() {
           />
         </div>
       </div>
+
+      {/* 右栏 · 预览（撑满整列，贴住 Header / Footer） */}
+      <section className="flex min-h-0 min-w-0 flex-col max-lg:order-2 lg:col-start-2 lg:row-span-2 lg:row-start-1">
+        {contentLoading && !content ? (
+          <div className="flex min-h-[70vh] items-center justify-center border border-term-border lg:min-h-0 lg:flex-1">
+            <span className="font-mono text-xs text-term-faint">加载预览…</span>
+          </div>
+        ) : content ? (
+          <ProposalPreview
+            content={content}
+            title={detail.title}
+            heightClassName="min-h-[70vh] lg:h-full lg:min-h-0"
+          />
+        ) : (
+          <div className="flex min-h-[70vh] items-center justify-center border border-term-border lg:min-h-0 lg:flex-1">
+            <span className="font-mono text-xs text-term-faint">暂无内容</span>
+          </div>
+        )}
+      </section>
 
       <Dialog open={versionOpen} onOpenChange={setVersionOpen}>
         <DialogContent className="sm:max-w-xl">
