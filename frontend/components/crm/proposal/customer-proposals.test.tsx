@@ -60,6 +60,15 @@ describe('CustomerProposals', () => {
     expect(link.getAttribute('href')).toBe('/dashboard/crm/proposals/p-1')
   })
 
+  it('数字客户 id 以 number 传筛选值（后端 int 列，字符串会 500）', async () => {
+    render(<CustomerProposals customerId="42" />)
+
+    await waitFor(() => expect(client.listProposals).toHaveBeenCalledTimes(1))
+    expect(client.listProposals.mock.calls[0][0].filters).toEqual([
+      { field: 'customer_id', op: 'eq', value: 42 },
+    ])
+  })
+
   it('没有关联方案时给出空状态引导', async () => {
     client.listProposals.mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 50 })
     render(<CustomerProposals customerId="c-1" />)
