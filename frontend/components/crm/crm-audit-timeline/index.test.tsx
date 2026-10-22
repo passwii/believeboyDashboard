@@ -1,18 +1,36 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { CrmAuditTimeline } from './index'
-import type { AuditLog, Paginated } from '@/lib/crm/types'
+import type { AuditLog } from '@/lib/crm/types'
+import type { Paginated } from '@/lib/crm/api/crm-client'
 
 // 用 vi.hoisted 提升 mock，规避 vi.mock 工厂的变量提升限制。
 // client 必须是稳定对象（生产 provider 用 useMemo 返回稳定 client），
 // 否则每次 render 新对象 → load useCallback 依赖抖动 → useEffect 循环。
-const { mockClient, mockListContacts, mockListAuditLogs } = vi.hoisted(() => {
+const { mockClient, mockListContacts, mockListAuditLogs, mockUsers } = vi.hoisted(() => {
   const mockListContacts = vi.fn()
   const mockListAuditLogs = vi.fn()
+  const mockUsers = [
+    {
+      id: 'e86f15be-357e-4659-8bb5-aa2c698388a5',
+      name: 'Buck',
+      email: 'buck@believeboy.com',
+      roleType: 'admin' as const,
+      isActive: true,
+    },
+    {
+      id: '497d5d63-9162-4927-b3e7-3498e73b575c',
+      name: 'DamonROCK',
+      email: 'rock@believeboy.com',
+      roleType: 'admin' as const,
+      isActive: true,
+    },
+  ]
   return {
     mockClient: { listContacts: mockListContacts, listAuditLogs: mockListAuditLogs },
     mockListContacts,
     mockListAuditLogs,
+    mockUsers,
   }
 })
 
@@ -24,6 +42,12 @@ vi.mock('@/lib/crm/api/crm-client-provider', async (importOriginal) => {
     useCrmClient: () => mockClient,
   }
 })
+
+// BLF-1440：审计摘要的 uuid → 姓名依赖用户目录（生产由 CrmUsersProvider 提供）。
+vi.mock('@/hooks/use-crm-users', () => ({
+  useCrmUsers: () => mockUsers,
+  useCrmUsersSafe: () => mockUsers,
+}))
 
 const now = new Date().toISOString()
 
@@ -95,5 +119,31 @@ describe('CrmAuditTimeline (P5-9 客户抽屉联系人审计)', () => {
     const query = mockListAuditLogs.mock.calls[0][0]
     expect(query.entityTypes).toBeUndefined()
     expect(query.entityType).toBe('lead')
+  })
+
+  it('BLF-1440：负责人变更摘要里的 uuid 显示为姓名', async () => {
+    const aliceId = 'e86f15be-357e-4659-8bb5-aa2c698388a5'
+    const bobId = '497d5d63-9162-4927-b3e7-3498e73b575c'
+    mockListAuditLogs.mockResolvedValue(
+      auditPage([
+        {
+          id: 'a2',
+          entityType: 'customer',
+          entityId: '5',
+          action: 'update',
+          actorId: 'u1',
+          actorName: '小王',
+          summary: `负责人: ${aliceId}→${bobId}`,
+          createdAt: now,
+        },
+      ])
+    )
+
+    render(<CrmAuditTimeline entityType="lead" entityId="5" />)
+
+    expect(await screen.findByText('负责人: Buck→DamonROCK')).toBeTruthy()
+    // 原始 uuid 不再出现在界面上
+    expect(document.body.textContent).not.toContain(aliceId)
+    expect(document.body.textContent).not.toContain(bobId)
   })
 })

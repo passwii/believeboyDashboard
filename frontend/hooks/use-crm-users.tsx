@@ -52,3 +52,16 @@ export function useCrmUsers(): User[] {
   }
   return ctx.users
 }
+
+/**
+ * 安全版：组件在无 CrmUsersProvider 的场景（单测、独立渲染）降级为空列表，
+ * 不抛错。用于「有则映射、无则原样展示」的只读展示（审计摘要 uuid → 姓名）。
+ */
+export function useCrmUsersSafe(): User[] {
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- 无条件调用，仅捕获 provider 缺失
+    return useCrmUsers()
+  } catch {
+    return []
+  }
+}
