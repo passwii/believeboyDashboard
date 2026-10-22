@@ -317,34 +317,31 @@ export function SimplePageLoading() {
   )
 }
 
-/** CRM 方案详情：宽预览画布 + 窄版时间线，匹配阅读与版本导航布局。 */
+/** CRM 方案详情：左栏信息 + 版本链、右栏大预览，与页面的左右分栏一致。 */
 export function CrmProposalDetailPageLoading() {
   return (
     <div
-      className="grid min-h-[70vh] gap-3 lg:grid-cols-[minmax(0,1fr)_320px]"
+      className="grid min-h-[70vh] gap-2 lg:min-h-0 lg:h-[calc(100%+1rem)] lg:grid-cols-[320px_minmax(0,1fr)] lg:grid-rows-[auto_minmax(0,1fr)]"
       aria-busy="true"
       data-testid="page-skeleton-proposal-detail"
     >
       <span className="sr-only" role="status" aria-live="polite">页面加载中</span>
-      <section className="space-y-3 border border-term-border bg-term-panel p-3">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-term-border pb-2">
-          <Skeleton className="h-4 w-56 rounded-none" />
-          <div className="flex gap-2">
-            <Skeleton className="h-8 w-24 rounded-none" />
-            <Skeleton className="h-8 w-28 rounded-none" />
-          </div>
+      <section className="space-y-2 border border-term-border bg-term-panel p-2 lg:col-start-1 lg:row-start-1">
+        <Skeleton className="h-7 w-full rounded-none" />
+        <div className="flex gap-2">
+          <Skeleton className="h-4 w-14 rounded-none" />
+          <Skeleton className="h-4 w-16 rounded-none" />
         </div>
-        <Skeleton className="min-h-[60vh] w-full rounded-none" />
+        <Skeleton className="h-3 w-28 rounded-none" />
+        <Skeleton className="h-7 w-full rounded-none" />
       </section>
-      <aside className="space-y-3 border border-term-border bg-term-panel p-3">
+      <aside className="space-y-2 lg:col-start-1 lg:row-start-2">
         <Skeleton className="h-4 w-32 rounded-none" />
-        {Array.from({ length: 5 }).map((_, index) => (
-          <div key={index} className="space-y-2 border-b border-term-border pb-3">
-            <Skeleton className="h-4 w-24 rounded-none" />
-            <Skeleton className="h-3 w-36 rounded-none" />
-          </div>
+        {Array.from({ length: 4 }).map((_, index) => (
+          <Skeleton key={index} className="h-9 w-full rounded-none" />
         ))}
       </aside>
+      <Skeleton className="min-h-[60vh] w-full rounded-none lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:min-h-0" />
     </div>
   )
 }
