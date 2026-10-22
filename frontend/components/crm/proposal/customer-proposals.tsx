@@ -22,6 +22,18 @@ export interface CustomerProposalsProps {
   className?: string
 }
 
+/**
+ * `customer_id` 在后端是 int 列，筛选值必须传 number。
+ *
+ * 传数字字符串时 SQLAlchemy 按 varchar 绑参，PostgreSQL 会报
+ * `operator does not exist: integer = character varying`，整个列表接口 500
+ * （客户抽屉「关联方案」即由此打不开）。demo / mock 的客户 id 是 `c-xxx`
+ * 形式，非纯数字时按原值传，保持 mock 端可筛。
+ */
+function toCustomerFilterValue(customerId: string): string | number {
+  return /^\d+$/.test(customerId) ? Number(customerId) : customerId
+}
+
 export function CustomerProposals({ customerId, className }: CustomerProposalsProps) {
   const client = useCrmClient()
   const { scope } = useCrmDataScope()
@@ -38,8 +50,9 @@ export function CustomerProposals({ customerId, className }: CustomerProposalsPr
       try {
         const page = await client.listProposals({
           scope,
-          // 值保持字符串（mock 与 DTO 的 id 都是字符串；后端 int 列可隐式转换）。
-          filters: [{ field: 'customer_id', op: 'eq', value: customerId }],
+          filters: [
+            { field: 'customer_id', op: 'eq', value: toCustomerFilterValue(customerId) },
+          ],
           sortBy: 'updated_at',
           sortOrder: 'desc',
           pageSize: 50,
