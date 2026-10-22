@@ -2,7 +2,11 @@
 
 层级：``crm_customers`` → ``crm_proposals`` → ``crm_proposal_versions``。
 文件不是独立一层——它是版本的载荷（``raw_r2_key`` / ``adapted_r2_key``），
-因为输入约束是「单个 HTML」，一个版本恒等于一个文件。
+因为输入约束是「单个 HTML 或 PDF」，一个版本恒等于一个文件。
+
+载荷格式（``version_file_format``）：
+- HTML：解析 + 注入主题，冻结 raw.html / adapted.html 两份对象；
+- PDF：不解析、不适配，只存一份 raw.pdf（两列 key 指向同一对象）。
 
 职责分工（与设计一致）：
 - R2 只负责「存」和「发」（字节仓库）；
@@ -98,23 +102,31 @@ def _upload_version_objects(
     proposal_id: int,
     version_no: int,
     raw_bytes: bytes,
-    adapted_bytes: bytes,
+    adapted_bytes: bytes | None,
     raw_content_type: str,
+    file_format: str = "html",
 ) -> tuple[str, str]:
-    """上传 raw + adapted 两份对象，返回 ``(raw_key, adapted_key)``。
+    """上传版本的 R2 对象，返回 ``(raw_key, adapted_key)``。
 
     key 布局：``crm-proposals/{proposal_id}/v{version_no}/raw.html`` /
     ``.../adapted.html``（版本隔离，旧对象永不被覆盖）。
+
+    PDF 没有适配产物：只存一份 ``raw.pdf``，``adapted_key`` 与 ``raw_key``
+    指向同一对象（两列非空且读取侧等价，不额外复制一份字节）。
     """
     folder = f"{proposal_id}/v{version_no}"
+    is_pdf = file_format == "pdf"
     raw_result = upload_bytes_to_r2(
         settings,
         raw_bytes,
-        "raw.html",
+        "raw.pdf" if is_pdf else "raw.html",
         project_slug=R2_PROJECT_SLUG,
         file_type=folder,
         content_type=raw_content_type or "text/html",
     )
+    if adapted_bytes is None:
+        return raw_result["key"], raw_result["key"]
+
     adapted_result = upload_bytes_to_r2(
         settings,
         adapted_bytes,
@@ -426,6 +438,17 @@ def _analyze_html(raw_bytes: bytes) -> tuple[list[str], bytes]:
     return warnings, adapted_bytes
 
 
+def _analyze_upload(raw_bytes: bytes, *, ext: str) -> tuple[list[str], bytes | None]:
+    """按载荷格式决定是否解析适配，返回 ``(warnings, adapted_bytes)``。
+
+    PDF 是二进制成品：不解析、不适配、不做相对引用提示，``adapted_bytes``
+    为 ``None``（上游据此只存一份对象）。
+    """
+    if render.format_from_ext(ext) == "pdf":
+        return [], None
+    return _analyze_html(raw_bytes)
+
+
 def _assert_proposal_type(proposal_type: str) -> None:
     if proposal_type not in (
         CrmProposalType.ONBOARDING,
@@ -445,7 +468,8 @@ def _create_proposal_rows(
     ext: str,
     raw_bytes: bytes,
     warnings: list[str],
-    adapted_bytes: bytes,
+    adapted_bytes: bytes | None,
+    file_format: str,
     filename: str | None,
     content_type: str | None,
     title: str | None,
@@ -469,13 +493,15 @@ def _create_proposal_rows(
     db.add(proposal)
     db.flush()  # 拿 proposal.id，用于拼 R2 key
 
+    version_content_type = render.normalize_content_type(filename, content_type)[:64]
     raw_key, adapted_key = _upload_version_objects(
         settings=settings,
         proposal_id=proposal.id,
         version_no=1,
         raw_bytes=raw_bytes,
         adapted_bytes=adapted_bytes,
-        raw_content_type=(content_type or "").lower(),
+        raw_content_type=version_content_type,
+        file_format=file_format,
     )
 
     version = CrmProposalVersion(
@@ -483,9 +509,12 @@ def _create_proposal_rows(
         version_no=1,
         raw_r2_key=raw_key,
         adapted_r2_key=adapted_key,
-        adapted_sha256=render.sha256_hex(adapted_bytes),
+        # PDF 没有适配产物：指纹记原始字节，仍可用于完整性核对。
+        adapted_sha256=render.sha256_hex(
+            adapted_bytes if adapted_bytes is not None else raw_bytes
+        ),
         original_filename=(filename or f"proposal.{ext.lstrip('.')}")[:255],
-        content_type=(content_type or "text/html")[:64],
+        content_type=version_content_type,
         file_size=len(raw_bytes),
         change_note="初始版本",
         created_by=owner_id,
@@ -525,13 +554,14 @@ def create_proposal(
     ext, raw_bytes = render.validate_html_upload(
         file, max_bytes=settings.crm_proposal_max_bytes
     )
-    warnings, adapted_bytes = _analyze_html(raw_bytes)
+    warnings, adapted_bytes = _analyze_upload(raw_bytes, ext=ext)
     return _create_proposal_rows(
         db,
         ext=ext,
         raw_bytes=raw_bytes,
         warnings=warnings,
         adapted_bytes=adapted_bytes,
+        file_format=render.format_from_ext(ext) or "html",
         filename=file.filename,
         content_type=file.content_type,
         title=title,
@@ -565,13 +595,14 @@ def create_proposal_from_bytes(
     ext = render.validate_html_bytes(
         raw_bytes, filename=filename or "", max_bytes=settings.crm_proposal_max_bytes
     )
-    warnings, adapted_bytes = _analyze_html(raw_bytes)
+    warnings, adapted_bytes = _analyze_upload(raw_bytes, ext=ext)
     return _create_proposal_rows(
         db,
         ext=ext,
         raw_bytes=raw_bytes,
         warnings=warnings,
         adapted_bytes=adapted_bytes,
+        file_format=render.format_from_ext(ext) or "html",
         filename=filename,
         content_type=content_type,
         title=title,
@@ -590,7 +621,8 @@ def _add_version_rows(
     ext: str,
     raw_bytes: bytes,
     warnings: list[str],
-    adapted_bytes: bytes,
+    adapted_bytes: bytes | None,
+    file_format: str,
     filename: str | None,
     content_type: str | None,
     change_note: str | None,
@@ -601,13 +633,15 @@ def _add_version_rows(
     next_no = (proposal.current_version_no or 0) + 1
     creator = (user_id or "").strip() or None
 
+    version_content_type = render.normalize_content_type(filename, content_type)[:64]
     raw_key, adapted_key = _upload_version_objects(
         settings=settings,
         proposal_id=proposal.id,
         version_no=next_no,
         raw_bytes=raw_bytes,
         adapted_bytes=adapted_bytes,
-        raw_content_type=(content_type or "").lower(),
+        raw_content_type=version_content_type,
+        file_format=file_format,
     )
 
     version = CrmProposalVersion(
@@ -615,9 +649,12 @@ def _add_version_rows(
         version_no=next_no,
         raw_r2_key=raw_key,
         adapted_r2_key=adapted_key,
-        adapted_sha256=render.sha256_hex(adapted_bytes),
+        # PDF 没有适配产物：指纹记原始字节，仍可用于完整性核对。
+        adapted_sha256=render.sha256_hex(
+            adapted_bytes if adapted_bytes is not None else raw_bytes
+        ),
         original_filename=(filename or f"proposal.{ext.lstrip('.')}")[:255],
-        content_type=(content_type or "text/html")[:64],
+        content_type=version_content_type,
         file_size=len(raw_bytes),
         change_note=(change_note or "").strip()[:500] or None,
         created_by=creator,
@@ -648,7 +685,7 @@ def add_version(
     ext, raw_bytes = render.validate_html_upload(
         file, max_bytes=settings.crm_proposal_max_bytes
     )
-    warnings, adapted_bytes = _analyze_html(raw_bytes)
+    warnings, adapted_bytes = _analyze_upload(raw_bytes, ext=ext)
     return _add_version_rows(
         db,
         proposal,
@@ -656,6 +693,7 @@ def add_version(
         raw_bytes=raw_bytes,
         warnings=warnings,
         adapted_bytes=adapted_bytes,
+        file_format=render.format_from_ext(ext) or "html",
         filename=file.filename,
         content_type=file.content_type,
         change_note=change_note,
@@ -682,7 +720,7 @@ def add_version_from_bytes(
     ext = render.validate_html_bytes(
         raw_bytes, filename=filename or "", max_bytes=settings.crm_proposal_max_bytes
     )
-    warnings, adapted_bytes = _analyze_html(raw_bytes)
+    warnings, adapted_bytes = _analyze_upload(raw_bytes, ext=ext)
     return _add_version_rows(
         db,
         proposal,
@@ -690,6 +728,7 @@ def add_version_from_bytes(
         raw_bytes=raw_bytes,
         warnings=warnings,
         adapted_bytes=adapted_bytes,
+        file_format=render.format_from_ext(ext) or "html",
         filename=filename,
         content_type=content_type,
         change_note=change_note,
@@ -747,9 +786,14 @@ def delete_proposal(
         )
         .all()
     )
+    deleted: set[str] = set()
     for raw_key, adapted_key in keys:
-        try_delete_file_from_r2(settings, raw_key, log_failure=True)
-        try_delete_file_from_r2(settings, adapted_key, log_failure=True)
+        # PDF 版本 raw / adapted 指向同一对象，避免重复删除同一 key。
+        for key in (raw_key, adapted_key):
+            if not key or key in deleted:
+                continue
+            deleted.add(key)
+            try_delete_file_from_r2(settings, key, log_failure=True)
     db.delete(proposal)
     db.flush()
     if commit:
@@ -761,13 +805,25 @@ def delete_proposal(
 # ---------------------------------------------------------------------------
 
 
+def version_file_format(version: CrmProposalVersion) -> str:
+    """版本载荷格式（``html`` / ``pdf``）：扩展名硬口径，MIME 软识别。"""
+    return render.resolve_file_format(version.original_filename, version.content_type)
+
+
 def read_version_text(
     version: CrmProposalVersion, *, settings: Settings, raw: bool = False
 ) -> str:
-    """把某个版本读成 str（预览用）。
+    """把某个版本读成 str（HTML 预览用）。
 
     适配产物恒为 UTF-8；raw 分支沿用原编码，交给调用方处理（预览默认读 adapted）。
+    PDF 是二进制、没有 HTML 文本，调用方应改用下载端点拿字节 → 这里明确 415，
+    避免把 PDF 字节按 HTML 解码成乱码。
     """
+    if version_file_format(version) == "pdf":
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="PDF 版本没有 HTML 文本，请使用下载端点获取字节",
+        )
     key = version.raw_r2_key if raw else version.adapted_r2_key
     data = b"".join(iter_file_from_r2(settings, key))
     if raw:
@@ -778,21 +834,31 @@ def read_version_text(
 def iter_version_bytes(
     version: CrmProposalVersion, *, settings: Settings, raw: bool = False
 ) -> Iterator[bytes]:
-    """流式读取某个版本（下载用；每次请求都过鉴权，不签发免鉴权 URL）。"""
+    """流式读取某个版本（下载用；每次请求都过鉴权，不签发免鉴权 URL）。
+
+    PDF 版本的 raw / adapted 是同一对象，``raw`` 参数对其无影响。
+    """
     key = version.raw_r2_key if raw else version.adapted_r2_key
     return iter_file_from_r2(settings, key)
 
 
 def build_download_filename(
-    proposal_title: str, version_no: int, *, raw: bool = False
+    proposal_title: str,
+    version_no: int,
+    *,
+    raw: bool = False,
+    file_format: str = "html",
 ) -> str:
-    """下载文件名：``<标题>-v<N>.html`` / ``<标题>-v<N>-原始.html``。
+    """下载文件名：``<标题>-v<N>.html|pdf`` / ``<标题>-v<N>-原始.html``。
 
+    PDF 没有「适配版」概念，``raw`` 不产生 ``-原始`` 后缀。
     Content-Disposition 由端点按 RFC 5987 编码（中文标题不能裸进 header）。
     """
     safe_title = _sanitize_title(proposal_title, fallback="方案")
-    suffix = "-原始" if raw else ""
-    return f"{safe_title}-v{version_no}{suffix}.html"
+    is_pdf = file_format == "pdf"
+    suffix = "-原始" if raw and not is_pdf else ""
+    ext = "pdf" if is_pdf else "html"
+    return f"{safe_title}-v{version_no}{suffix}.{ext}"
 
 
 __all__ = [
@@ -811,4 +877,5 @@ __all__ = [
     "list_versions",
     "read_version_text",
     "update_proposal",
+    "version_file_format",
 ]

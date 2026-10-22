@@ -1,4 +1,4 @@
-"""客户方案（Proposal）端点：上传 / 解析适配 / 版本管理 / 预览 / 下载。
+"""客户方案（Proposal）端点：上传（HTML / PDF）/ 版本管理 / 预览 / 下载。
 
 设计要点（见 docs/superpowers/specs/2026-10-17-crm-proposal-page-design.md）：
 - 层级：crm_customers → crm_proposals → crm_proposal_versions；文件是版本的载荷。
@@ -278,7 +278,7 @@ def finalize_proposal_chunked_upload(
     user_id: str | None = Depends(get_request_user_id),
     is_admin: bool = Depends(get_request_is_admin),
 ):
-    """合并分段 → 校验/适配 HTML → 复用现有 R2 上传 → 落库。"""
+    """合并分段 → 校验（HTML 适配 / PDF 直存）→ 复用现有 R2 上传 → 落库。"""
     meta = proposal_chunked_upload.read_meta(
         settings, upload_id, owner_id=user_id, is_admin=is_admin
     )
@@ -387,7 +387,7 @@ def create_proposal(
     user_id: str | None = Depends(get_request_user_id),
     is_admin: bool = Depends(get_request_is_admin),
 ):
-    """新建方案并落首版（v1）：解析 → 适配 → 冻结到 R2（raw + adapted）。"""
+    """新建方案并落首版（v1）：HTML 解析适配 / PDF 直存 → 冻结到 R2。"""
     try:
         item, version, warnings = proposal_service.create_proposal(
             db,
@@ -558,6 +558,9 @@ def get_version_content(
 
     内容从 R2 读出后经后端鉴权转发——**不返回公开 URL**。
     方案域**全员可读**（BLF-1403 / BLF-1410），故只读不设 owner 门禁。
+
+    PDF 版本没有 HTML 文本：明确 415，前端改用下载端点拿字节转 blob 预览，
+    避免把 PDF 二进制按 HTML 解码成乱码。
     """
     proposal = _require_proposal(db, proposal_id)
     require_proposal_readable(proposal.owner_id, user_id, is_admin)
@@ -583,10 +586,12 @@ def download_version(
     user_id: str | None = Depends(get_request_user_id),
     is_admin: bool = Depends(get_request_is_admin),
 ):
-    """下载某个版本（仍是单个 HTML 文件）。
+    """下载某个版本（单个 HTML 或 PDF 文件）。
 
-    默认下载「适配版」（带本项目主题令牌，仍自包含单文件）；
-    ``raw=1`` 下载「原始上传版」（保真交付 / 审计）。响应流式转发 + 鉴权。
+    HTML：默认下载「适配版」（带本项目主题令牌，仍自包含单文件）；
+    ``raw=1`` 下载「原始上传版」（保真交付 / 审计）。
+    PDF：没有适配产物，``raw`` 不改变字节（返回原始 PDF）。
+    响应流式转发 + 鉴权；媒体类型 / 文件名后缀按版本格式给。
     方案域**全员可读**（BLF-1403 / BLF-1410），故只读不设 owner 门禁。
     """
     proposal = _require_proposal(db, proposal_id)
@@ -595,16 +600,19 @@ def download_version(
     if version is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="版本不存在")
 
+    file_format = proposal_service.version_file_format(version)
+    is_pdf = file_format == "pdf"
     filename = proposal_service.build_download_filename(
-        proposal.title, version_no, raw=raw
+        proposal.title, version_no, raw=raw, file_format=file_format
     )
+    fallback = "fallback.pdf" if is_pdf else "fallback.html"
     disposition = (
-        f"attachment; filename=\"fallback.html\"; "
+        f"attachment; filename=\"{fallback}\"; "
         f"filename*=UTF-8''{quote(filename)}"
     )
     return StreamingResponse(
         proposal_service.iter_version_bytes(version, settings=settings, raw=raw),
-        media_type="text/html; charset=utf-8",
+        media_type="application/pdf" if is_pdf else "text/html; charset=utf-8",
         headers={
             "Content-Disposition": disposition,
             "Cache-Control": "private, no-store",

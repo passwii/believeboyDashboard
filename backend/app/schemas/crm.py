@@ -823,9 +823,9 @@ class SavedViewItem(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# ---------- 客户方案（Proposal，单个 HTML + 版本管理） ----------
+# ---------- 客户方案（Proposal，单个 HTML / PDF + 版本管理） ----------
 # 层级：crm_customers → crm_proposals → crm_proposal_versions。
-# 文件不是独立一层，而是版本的载荷（raw/adapted 两份 R2 对象）。
+# 文件不是独立一层，而是版本的载荷（HTML 为 raw/adapted 两份 R2 对象；PDF 一份）。
 ProposalStatus = Literal["draft", "published", "archived"]
 ProposalType = Literal["onboarding", "operation", "quotation", "research", "other"]
 
