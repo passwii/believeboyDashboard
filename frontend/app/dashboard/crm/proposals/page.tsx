@@ -35,6 +35,7 @@ import {
   PROPOSAL_STATUS_ORDER,
   PROPOSAL_TYPE_LABELS,
   PROPOSAL_TYPE_ORDER,
+  proposalBlobFormat,
   proposalDownloadFilename,
   type Proposal,
   type ProposalStatus,
@@ -172,7 +173,15 @@ export default function ProposalsPage() {
           proposal.currentVersionNo,
           { raw }
         )
-        downloadBlob(blob, proposalDownloadFilename(proposal.title, proposal.currentVersionNo, raw))
+        downloadBlob(
+          blob,
+          proposalDownloadFilename(
+            proposal.title,
+            proposal.currentVersionNo,
+            raw,
+            proposalBlobFormat(blob)
+          )
+        )
       } catch (e) {
         notify({
           type: 'error',
@@ -300,7 +309,7 @@ export default function ProposalsPage() {
             ) : items.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-2 py-16 text-center font-mono text-xs text-term-faint">
-                  还没有方案 · 点右上「新建方案」上传第一个单个 HTML
+                  还没有方案 · 点右上「新建方案」上传第一个 HTML / PDF
                 </td>
               </tr>
             ) : (
@@ -380,7 +389,7 @@ export default function ProposalsPage() {
           <DialogHeader>
             <DialogTitle>新建客户方案</DialogTitle>
             <DialogDescription>
-              上传单个 HTML 文件；系统会解析并注入本项目主题令牌后固化保存为 v1。
+              上传单个 HTML 或 PDF 文件。HTML 会解析并注入本项目主题令牌，PDF 原样保存；两者都固化为 v1。
             </DialogDescription>
           </DialogHeader>
           <ProposalCreateForm

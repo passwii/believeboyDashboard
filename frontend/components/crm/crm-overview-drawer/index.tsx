@@ -1,7 +1,15 @@
 'use client'
 
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
-import { FileText, History, ListTodo, Pencil, PhoneCall, Users } from 'lucide-react'
+import {
+  FileStack,
+  FileText,
+  History,
+  ListTodo,
+  Pencil,
+  PhoneCall,
+  Users,
+} from 'lucide-react'
 import {
   Sheet,
   SheetContent,
@@ -19,6 +27,7 @@ import { CrmFollowTimeline } from '@/components/crm/crm-follow-timeline'
 import { CrmContactList } from '@/components/crm/crm-contact-list'
 import { CrmAuditTimeline } from '@/components/crm/crm-audit-timeline'
 import { CrmTaskTab } from '@/components/crm/crm-task-tab'
+import { CustomerProposals } from '@/components/crm/proposal/customer-proposals'
 import { cn } from '@/lib/utils'
 import type { CustomerInput } from '@/lib/crm/types/customer'
 import type { CrmOverviewDrawerProps } from './types'
@@ -33,6 +42,7 @@ const CrmFormCreate = lazy(() =>
  * 通用详情抽屉（v1.2）：详情 Tab（crm-detail-card，按 FIELD_DEFS 渲染）
  * + 跟进 Tab（crm-follow-timeline，多态复用）+ 编辑 Tab（crm-form-create）。
  * 客户/线索/商机复用同一抽屉，仅换 entityType / fields / onSave。
+ * 客户额外有「方案」Tab（该客户关联的客户方案，只读 + 跳详情）。
  */
 export function CrmOverviewDrawer<T extends object>({
   open,
@@ -113,13 +123,26 @@ export function CrmOverviewDrawer<T extends object>({
 
         <Tabs defaultValue="detail" className="flex h-full flex-col">
           <div className="px-5 pt-3">
-            {/* 移动规则（总则 1/2）：6 个 tab 手机端 3 列×2 行（sm+ 恢复单行横排）；
-                BLF-883 全局统一 variant="term" + 前置 icon，h-auto 容纳换行。 */}
-            <TabsList variant="term" className={cn('grid h-auto w-full grid-cols-3 sm:grid-cols-6', !isCustomer && 'sm:grid-cols-5')}>
+            {/* 移动规则（总则 1/2）：客户 7 个 tab 手机端 4 列×2 行、线索/商机 5 个
+                （sm+ 恢复单行横排）；BLF-883 全局统一 variant="term" + 前置 icon，
+                h-auto 容纳换行。 */}
+            <TabsList
+              variant="term"
+              className={cn(
+                'grid h-auto w-full grid-cols-4 sm:grid-cols-7',
+                !isCustomer && 'sm:grid-cols-5'
+              )}
+            >
               <TabsTrigger value="detail" variant="term">
                 <FileText aria-hidden />
                 详情
               </TabsTrigger>
+              {isCustomer && (
+                <TabsTrigger value="proposals" variant="term">
+                  <FileStack aria-hidden />
+                  方案
+                </TabsTrigger>
+              )}
               <TabsTrigger value="follow" variant="term">
                 <PhoneCall aria-hidden />
                 跟进
@@ -162,6 +185,12 @@ export function CrmOverviewDrawer<T extends object>({
               )}
               <CrmDetailCard fields={fields} data={data as Record<string, unknown>} />
             </TabsContent>
+
+            {isCustomer && (
+              <TabsContent value="proposals" className="mt-0">
+                <CustomerProposals customerId={entityId} />
+              </TabsContent>
+            )}
 
             <TabsContent value="follow" className="mt-0">
               {followLoading ? (

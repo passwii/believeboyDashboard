@@ -5,12 +5,20 @@ import { NotificationsProvider } from '@/components/notifications'
 import { CUSTOMER_FIELD_DEFS } from '@/lib/crm/field-defs/customer'
 import type { Customer } from '@/lib/crm/types'
 
-vi.mock('@/lib/crm/api/crm-client-provider', () => ({
-  useCrmClient: () => ({
+// 稳定引用：useCrmClient 每次渲染返回新对象会让依赖 client 的 effect 反复重跑
+const { client } = vi.hoisted(() => ({
+  client: {
     updateValueScores: vi.fn(),
     listCategories: vi.fn().mockResolvedValue([]),
     setCustomerCategories: vi.fn(),
-  }),
+    listProposals: vi.fn().mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 50 }),
+  },
+}))
+
+vi.mock('@/lib/crm/api/crm-client-provider', () => ({ useCrmClient: () => client }))
+
+vi.mock('@/hooks/use-crm-data-scope', () => ({
+  useCrmDataScope: () => ({ scope: 'all', setScope: vi.fn(), currentUserId: 'u1' }),
 }))
 
 const customer: Customer = {
@@ -58,6 +66,36 @@ describe('CrmOverviewDrawer', () => {
   it('actions 槽渲染自定义按钮（线索转客户/公海领取）', () => {
     renderDrawer({ actions: <button type="button">转为客户</button> })
     expect(screen.getByText('转为客户')).toBeTruthy()
+  })
+
+  it('客户抽屉有「方案」tab，点开后展示关联方案（空态引导）', async () => {
+    renderDrawer()
+    const proposalsTab = screen.getByRole('tab', { name: '方案' })
+    fireEvent.mouseDown(proposalsTab)
+    fireEvent.click(proposalsTab)
+    expect(await screen.findByText(/该客户还没有关联方案/)).toBeTruthy()
+  })
+
+  it('非客户实体（线索）不渲染「方案」tab', () => {
+    render(
+      <NotificationsProvider>
+        <CrmOverviewDrawer<Record<string, unknown>>
+          open
+          onOpenChange={vi.fn()}
+          entityType="lead"
+          entityId="l1"
+          data={{}}
+          fields={[]}
+          title="线索甲"
+          users={[]}
+          loadFollows={vi.fn().mockResolvedValue([])}
+          createFollow={vi.fn().mockResolvedValue({})}
+          onSave={vi.fn()}
+        />
+      </NotificationsProvider>
+    )
+    expect(screen.queryByRole('tab', { name: '方案' })).toBeNull()
+    expect(screen.getByRole('tab', { name: '详情' })).toBeTruthy()
   })
 
   it('编辑 tab 进入编辑模式', async () => {

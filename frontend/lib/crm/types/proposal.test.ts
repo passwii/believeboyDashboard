@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 
 import {
   formatFileSize,
+  proposalBlobFormat,
   proposalDownloadFilename,
+  proposalFileFormat,
   PROPOSAL_STATUS_LABELS,
   PROPOSAL_TYPE_LABELS,
   PROPOSAL_TYPE_ORDER,
@@ -26,6 +28,43 @@ describe('proposalDownloadFilename', () => {
 
   it('空标题回退「方案」', () => {
     expect(proposalDownloadFilename('   ', 1)).toBe('方案-v1.html')
+  })
+
+  it('PDF：扩展名跟着格式走（原始版同样）', () => {
+    expect(proposalDownloadFilename('报价方案', 3, false, 'pdf')).toBe('报价方案-v3.pdf')
+    expect(proposalDownloadFilename('报价方案', 3, true, 'pdf')).toBe('报价方案-v3-原始.pdf')
+  })
+})
+
+describe('proposalFileFormat', () => {
+  it('按扩展名识别 PDF（后端可能把 MIME 报成 octet-stream）', () => {
+    expect(
+      proposalFileFormat({
+        originalFilename: 'quote.PDF',
+        contentType: 'application/octet-stream',
+      })
+    ).toBe('pdf')
+  })
+
+  it('按 MIME 兜底识别 PDF', () => {
+    expect(
+      proposalFileFormat({ originalFilename: 'blob', contentType: 'application/pdf' })
+    ).toBe('pdf')
+  })
+
+  it('其余都按 HTML 处理', () => {
+    expect(
+      proposalFileFormat({ originalFilename: 'plan.html', contentType: 'text/html' })
+    ).toBe('html')
+    expect(proposalFileFormat({ originalFilename: '', contentType: '' })).toBe('html')
+  })
+})
+
+describe('proposalBlobFormat', () => {
+  it('从 blob MIME 反推格式', () => {
+    expect(proposalBlobFormat(new Blob(['x'], { type: 'application/pdf' }))).toBe('pdf')
+    expect(proposalBlobFormat(new Blob(['x'], { type: 'text/html' }))).toBe('html')
+    expect(proposalBlobFormat(new Blob(['x']))).toBe('html')
   })
 })
 

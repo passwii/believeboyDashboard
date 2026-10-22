@@ -11,24 +11,29 @@ import {
 import { cn } from '@/lib/utils'
 import { PROPOSAL_EFFECTIVE_UPLOAD_LIMIT_MB } from '@/lib/crm/constants/proposal'
 import {
+  PROPOSAL_ACCEPT,
   PROPOSAL_TYPE_LABELS,
   PROPOSAL_TYPE_ORDER,
   type ProposalCreateInput,
+  type ProposalFileFormat,
   type ProposalType,
   type ProposalVersionInput,
 } from '@/lib/crm/types'
 
 const MAX_SIZE_MB = PROPOSAL_EFFECTIVE_UPLOAD_LIMIT_MB
-const WRONG_EXT_ERROR = '仅支持单个 HTML 文件（.html / .htm）'
+const WRONG_EXT_ERROR = '仅支持单个 HTML（.html / .htm）或 PDF（.pdf）文件'
 
 export interface CustomerOption {
   id: string
   name: string
 }
 
-function isHtmlFile(file: File): boolean {
+/** 按扩展名判定格式（与后端同口径：扩展名硬约束，MIME 只做软校验）。 */
+function fileFormat(file: File): ProposalFileFormat | null {
   const lower = file.name.toLowerCase()
-  return lower.endsWith('.html') || lower.endsWith('.htm')
+  if (lower.endsWith('.html') || lower.endsWith('.htm')) return 'html'
+  if (lower.endsWith('.pdf')) return 'pdf'
+  return null
 }
 
 /** 本地文件大小校验（后端也会再校一次，这里只是即时反馈）。 */
@@ -39,7 +44,7 @@ function sizeError(file: File | null): string | null {
   return null
 }
 
-/** 通用的「选单个 HTML」输入：受控文件名 + 本地校验提示。 */
+/** 通用的「选单个 HTML / PDF」输入：受控文件名 + 本地校验提示。 */
 function FileField({
   file,
   onPick,
@@ -57,7 +62,7 @@ function FileField({
       <input
         ref={inputRef}
         type="file"
-        accept=".html,.htm,text/html"
+        accept={PROPOSAL_ACCEPT}
         className="hidden"
         data-testid={testId}
         onChange={(e) => onPick(e.target.files?.[0] ?? null)}
@@ -69,7 +74,7 @@ function FileField({
         className={cn(TERM_BUTTON, 'gap-1.5')}
       >
         <FileUp className="h-3.5 w-3.5" />
-        选择 HTML
+        选择文件
       </button>
       {file ? (
         <span className="flex min-w-0 items-center gap-1 font-mono text-xs text-term-text">
@@ -103,7 +108,7 @@ export interface ProposalCreateFormProps {
   submitText?: string
 }
 
-/** 新建方案（首版）：单个 HTML + 标题 / 类型 / 关联客户。 */
+/** 新建方案（首版）：单个 HTML / PDF + 标题 / 类型 / 关联客户。 */
 export function ProposalCreateForm({
   customers,
   submitting = false,
@@ -126,7 +131,7 @@ export function ProposalCreateForm({
       setPickerError(null)
       return
     }
-    if (!isHtmlFile(selected)) {
+    if (!fileFormat(selected)) {
       setFile(null)
       setPickerError(WRONG_EXT_ERROR)
       return
@@ -206,7 +211,7 @@ export function ProposalCreateForm({
 
       {touched && !file ? (
         <p role="alert" className="font-mono text-xs text-term-neg">
-          请选择要上传的 HTML 文件
+          请选择要上传的 HTML 或 PDF 文件
         </p>
       ) : null}
 
@@ -225,7 +230,7 @@ export interface ProposalVersionFormProps {
   onSubmit: (input: ProposalVersionInput) => void | Promise<void>
 }
 
-/** 追加新版本：单个 HTML + 变更说明。 */
+/** 追加新版本：单个 HTML / PDF + 变更说明。 */
 export function ProposalVersionForm({
   submitting = false,
   onSubmit,
@@ -244,7 +249,7 @@ export function ProposalVersionForm({
       setPickerError(null)
       return
     }
-    if (!isHtmlFile(selected)) {
+    if (!fileFormat(selected)) {
       setFile(null)
       setPickerError(WRONG_EXT_ERROR)
       return
@@ -284,7 +289,7 @@ export function ProposalVersionForm({
 
       {touched && !file ? (
         <p role="alert" className="font-mono text-xs text-term-neg">
-          请选择要上传的 HTML 文件
+          请选择要上传的 HTML 或 PDF 文件
         </p>
       ) : null}
 

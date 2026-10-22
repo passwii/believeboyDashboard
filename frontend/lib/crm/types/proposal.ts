@@ -12,6 +12,15 @@ import type { FilterCondition } from '../api/crm-client'
 export type ProposalStatus = 'draft' | 'published' | 'archived'
 export type ProposalType = 'onboarding' | 'operation' | 'quotation' | 'research' | 'other'
 
+/** 版本载荷格式：HTML（解析 + 注入主题）或 PDF（原样存储）。 */
+export type ProposalFileFormat = 'html' | 'pdf'
+
+/**
+ * 上传允许的扩展名 / MIME（前端即时校验；后端仍做硬校验）。
+ * HTML 与 PDF 二选一，单文件。
+ */
+export const PROPOSAL_ACCEPT = '.html,.htm,.pdf,text/html,application/pdf'
+
 /** 一个方案版本（append-only，不可改写）。 */
 export interface ProposalVersion {
   id: string
@@ -120,17 +129,39 @@ export const PROPOSAL_TYPE_ORDER: ProposalType[] = [
 ]
 
 /**
+ * 判断某个版本是 HTML 还是 PDF。
+ *
+ * 扩展名是硬口径（与后端一致）；MIME 只做软校验——浏览器/网关经常把 PDF
+ * 报成 `application/octet-stream`，所以扩展名命中即认。
+ */
+export function proposalFileFormat(
+  version: Pick<ProposalVersion, 'originalFilename' | 'contentType'>
+): ProposalFileFormat {
+  const name = (version.originalFilename ?? '').toLowerCase()
+  const type = (version.contentType ?? '').toLowerCase()
+  if (name.endsWith('.pdf') || type.includes('pdf')) return 'pdf'
+  return 'html'
+}
+
+/** 从下载回来的 blob MIME 反推格式（列表页没有版本元数据时用）。 */
+export function proposalBlobFormat(blob: Blob): ProposalFileFormat {
+  return (blob.type ?? '').toLowerCase().includes('pdf') ? 'pdf' : 'html'
+}
+
+/**
  * 下载文件名（与后端 build_download_filename 同口径）：
- * `<标题>-v<N>.html` / `<标题>-v<N>-原始.html`。
+ * `<标题>-v<N>.html|pdf` / `<标题>-v<N>-原始.html|pdf`。
  * 前端自行计算是为了不依赖响应头（blob 下载拿不到跨域 Content-Disposition）。
  */
 export function proposalDownloadFilename(
   title: string,
   versionNo: number,
-  raw = false
+  raw = false,
+  format: ProposalFileFormat = 'html'
 ): string {
   const safe = title.replace(/[\\/:*?"<>|\u0000-\u001f\u007f]/g, '').trim() || '方案'
-  return `${safe}-v${versionNo}${raw ? '-原始' : ''}.html`
+  const ext = format === 'pdf' ? 'pdf' : 'html'
+  return `${safe}-v${versionNo}${raw ? '-原始' : ''}.${ext}`
 }
 
 /** 人类可读文件大小。 */

@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation'
 import { ArrowLeft, Loader2, Pencil, Upload } from 'lucide-react'
 
 import {
+  ProposalPdfPreview,
   ProposalPreview,
   ProposalStatusPill,
   ProposalTypePill,
@@ -39,7 +40,9 @@ import {
   PROPOSAL_TYPE_LABELS,
   PROPOSAL_TYPE_ORDER,
   proposalDownloadFilename,
+  proposalFileFormat,
   type ProposalDetail,
+  type ProposalFileFormat,
   type ProposalStatus,
   type ProposalType,
 } from '@/lib/crm/types'
@@ -107,9 +110,18 @@ export default function ProposalDetailPage() {
   refreshRef.current = load
   useHeaderRefresh(() => refreshRef.current(), { loading })
 
+  // 当前版本的载荷格式：PDF 走原生阅读器（blob URL），HTML 走 sandbox iframe。
+  const selectedVersion =
+    detail?.versions.find((v) => v.versionNo === selectedVersionNo) ?? null
+  const selectedFormat: ProposalFileFormat = selectedVersion
+    ? proposalFileFormat(selectedVersion)
+    : 'html'
+
   // 预览内容：从后端取（经鉴权转发），不直连 R2、不用公开 URL。
   useEffect(() => {
     if (!detail || selectedVersionNo == null) return
+    // PDF 版本没有 HTML 文本，改由 ProposalPdfPreview 拉字节。
+    if (selectedFormat === 'pdf') return
     let cancelled = false
     setContentLoading(true)
     void (async () => {
@@ -134,7 +146,13 @@ export default function ProposalDetailPage() {
     return () => {
       cancelled = true
     }
-  }, [client, detail, selectedVersionNo, previewRaw, notify])
+  }, [client, detail, selectedVersionNo, previewRaw, notify, selectedFormat])
+
+  // PDF 字节：同样经后端鉴权转发，前端只把字节转成 blob URL 给内嵌阅读器。
+  const loadPdf = useCallback(async () => {
+    if (!detail || selectedVersionNo == null) throw new Error('未选择版本')
+    return client.downloadProposalVersion(detail.id, selectedVersionNo, { raw: previewRaw })
+  }, [client, detail, selectedVersionNo, previewRaw])
 
   const openEdit = useCallback(() => {
     if (!detail) return
@@ -228,7 +246,9 @@ export default function ProposalDetailPage() {
       setDownloadingVersionNo(versionNo)
       try {
         const blob = await client.downloadProposalVersion(detail.id, versionNo, opts)
-        downloadBlob(blob, proposalDownloadFilename(detail.title, versionNo, opts?.raw))
+        const version = detail.versions.find((v) => v.versionNo === versionNo)
+        const format = version ? proposalFileFormat(version) : 'html'
+        downloadBlob(blob, proposalDownloadFilename(detail.title, versionNo, opts?.raw, format))
       } catch (e) {
         notify({
           type: 'error',
@@ -336,25 +356,32 @@ export default function ProposalDetailPage() {
           <h2 className="font-mono text-[11px] uppercase tracking-wider text-term-faint">
             版本历史（{detail.versionCount}）
           </h2>
-          {/* 原「预览 · vN（适配版）/ 查看原始版」整行已收进这里：只留 2 个字的模式开关 */}
-          <div role="group" aria-label="预览模式" className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setPreviewRaw(false)}
-              aria-pressed={!previewRaw}
-              className={previewModeButtonClass(!previewRaw)}
-            >
-              适配版
-            </button>
-            <button
-              type="button"
-              onClick={() => setPreviewRaw(true)}
-              aria-pressed={previewRaw}
-              className={previewModeButtonClass(previewRaw)}
-            >
-              原始版
-            </button>
-          </div>
+          {/* 原「预览 · vN（适配版）/ 查看原始版」整行已收进这里：只留 2 个字的模式开关。
+              PDF 没有适配产物，展示格式标签代替模式开关。 */}
+          {selectedFormat === 'pdf' ? (
+            <span className="border border-term-border px-1.5 py-0.5 font-mono text-[11px] uppercase tracking-wider text-term-muted">
+              PDF
+            </span>
+          ) : (
+            <div role="group" aria-label="预览模式" className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setPreviewRaw(false)}
+                aria-pressed={!previewRaw}
+                className={previewModeButtonClass(!previewRaw)}
+              >
+                适配版
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreviewRaw(true)}
+                aria-pressed={previewRaw}
+                className={previewModeButtonClass(previewRaw)}
+              >
+                原始版
+              </button>
+            </div>
+          )}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto term-scroll">
           <ProposalVersionTimeline
@@ -370,7 +397,16 @@ export default function ProposalDetailPage() {
 
       {/* 右栏 · 预览（撑满整列，贴住 Header / Footer） */}
       <section className="flex min-h-0 min-w-0 flex-col max-lg:order-2 lg:col-start-2 lg:row-span-2 lg:row-start-1">
-        {contentLoading && !content ? (
+        {selectedFormat === 'pdf' ? (
+          <ProposalPdfPreview
+            title={detail.title}
+            load={loadPdf}
+            heightClassName="min-h-[70vh] lg:h-full lg:min-h-0"
+            onError={(message) =>
+              notify({ type: 'error', title: 'PDF 预览失败', message })
+            }
+          />
+        ) : contentLoading && !content ? (
           <div className="flex min-h-[70vh] items-center justify-center border border-term-border lg:min-h-0 lg:flex-1">
             <span className="font-mono text-xs text-term-faint">加载预览…</span>
           </div>
