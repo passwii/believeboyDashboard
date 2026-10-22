@@ -18,6 +18,22 @@ def test_list_customers_requires_auth(client):
     assert resp.status_code in (401, 403)
 
 
+# ── 列表分页上限 ─────────────────────────────────────────────────────────────
+def test_list_customers_accepts_page_size_200(client, admin_headers):
+    """客户方案页的关联客户下拉按 page_size=200 拉取。
+
+    后端上限低于 200 时请求会被 422 拒绝，前端 catch 后把候选客户置空，
+    表现为「新建客户后在方案页关联不到任何客户」。此处锁住该契约。
+    """
+    created = [_create(client, admin_headers, name=f"下拉客户{i}") for i in range(3)]
+
+    resp = client.get("/api/v1/crm/customers?page_size=200", headers=admin_headers)
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["page_size"] == 200
+    assert {c["id"] for c in body["items"]} >= {c["id"] for c in created}
+
+
 # ── CRUD ─────────────────────────────────────────────────────────────────────
 def test_create_customer_defaults_owner_to_creator(client, admin_headers, test_admin):
     item = _create(client, admin_headers, name="默认归属")

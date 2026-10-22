@@ -141,7 +141,9 @@ def list_customers(
     keyword: str | None = None,
     filters: str | None = Query(None),
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    # 上限 200：CRM 方案页「关联客户」下拉一次拉候选（page_size=200）。上限若
+    # 回落到 100，请求会被 422 拒绝、前端 catch 后静默清空下拉（BLF-1437）。
+    page_size: int = Query(20, ge=1, le=200),
     sort_by: str = "updated_at",
     sort_order: str = "desc",
     db: Session = Depends(get_read_db_session),
