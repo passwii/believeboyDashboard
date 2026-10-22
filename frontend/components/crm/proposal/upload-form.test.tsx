@@ -7,6 +7,11 @@ function htmlFile(name = 'plan.html', content = '<html></html>') {
   return new File([content], name, { type: 'text/html' })
 }
 
+// 内容不必是真 PDF：前端只做扩展名 / 大小校验，字节由后端转存。
+function pdfFile(name = 'quote.pdf') {
+  return new File(['%PDF-1.7'], name, { type: 'application/pdf' })
+}
+
 function selectFile(testId: string, file: File) {
   fireEvent.change(screen.getByTestId(testId), { target: { files: [file] } })
 }
@@ -17,11 +22,21 @@ describe('ProposalCreateForm', () => {
     expect(screen.getByRole('button', { name: '上传并创建' })).toBeDisabled()
   })
 
-  it('拒绝非 HTML 文件并提示', () => {
+  it('拒绝既不是 HTML 也不是 PDF 的文件并提示', () => {
     render(<ProposalCreateForm customers={[]} onSubmit={vi.fn()} />)
     selectFile('proposal-file-input', new File(['x'], 'a.md', { type: 'text/markdown' }))
-    expect(screen.getByText('仅支持单个 HTML 文件（.html / .htm）')).toBeTruthy()
+    expect(screen.getByText('仅支持单个 HTML（.html / .htm）或 PDF（.pdf）文件')).toBeTruthy()
     expect(screen.getByRole('button', { name: '上传并创建' })).toBeDisabled()
+  })
+
+  it('接受单个 PDF 并提交', async () => {
+    const onSubmit = vi.fn()
+    render(<ProposalCreateForm customers={[]} onSubmit={onSubmit} />)
+    const file = pdfFile()
+    selectFile('proposal-file-input', file)
+    fireEvent.click(screen.getByRole('button', { name: '上传并创建' }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(onSubmit.mock.calls[0][0].file).toBe(file)
   })
 
   it('提交时带上文件 + 标题 + 类型 + 关联客户', async () => {
@@ -105,6 +120,15 @@ describe('ProposalVersionForm', () => {
     selectFile('proposal-version-file', htmlFile('empty.html', ''))
     expect(screen.getByText('文件为空')).toBeTruthy()
     expect(screen.getByRole('button', { name: '上传新版本' })).toBeDisabled()
+  })
+
+  it('接受 PDF 新版本', async () => {
+    const onSubmit = vi.fn()
+    render(<ProposalVersionForm onSubmit={onSubmit} />)
+    selectFile('proposal-version-file', pdfFile('quote-v2.pdf'))
+    fireEvent.click(screen.getByRole('button', { name: '上传新版本' }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(onSubmit.mock.calls[0][0].file.name).toBe('quote-v2.pdf')
   })
 })
 

@@ -354,6 +354,33 @@ function evaluateCondition(condition: FilterCondition, row: Record<string, unkno
   }
 }
 
+/** 是否 PDF 上传（mock 需要按格式存正文）。 */
+function isPdfFile(file: File): boolean {
+  return file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf'
+}
+
+const PDF_DATA_URL_PREFIX = 'data:application/pdf;base64,'
+
+/**
+ * mock 没有 R2：HTML 直接存文本，PDF 存成 data URL，下载时还原成真正的
+ * PDF 字节（否则内嵌阅读器会拿到乱码）。
+ */
+async function readFileBody(file: File): Promise<string> {
+  if (!isPdfFile(file)) return file.text()
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  let binary = ''
+  for (const b of bytes) binary += String.fromCharCode(b)
+  return `${PDF_DATA_URL_PREFIX}${btoa(binary)}`
+}
+
+function dataUrlToBlob(body: string): Blob | null {
+  if (!body.startsWith(PDF_DATA_URL_PREFIX)) return null
+  const binary = atob(body.slice(PDF_DATA_URL_PREFIX.length))
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i)
+  return new Blob([bytes], { type: 'application/pdf' })
+}
+
 function applyFilters<T>(items: T[], filters?: FilterCondition[]): T[] {
   if (!filters || filters.length === 0) return items
   return items.filter((item) =>
@@ -1540,11 +1567,14 @@ export class MockCrmClient implements CrmClient {
   async createProposal(input: ProposalCreateInput): Promise<ProposalUploadResult> {
     await this.delay('createProposal')
     const id = genId('p')
-    const content = await input.file.text()
+    const content = await readFileBody(input.file)
     const customer = this.state.customers.find((c) => c.id === input.customerId)
     const proposal: Proposal = {
       id,
-      title: input.title?.trim() || input.file.name.replace(/\.html?$/i, '') || '未命名方案',
+      title:
+        input.title?.trim() ||
+        input.file.name.replace(/\.(html?|pdf)$/i, '') ||
+        '未命名方案',
       proposalType: input.proposalType ?? 'other',
       status: 'draft',
       customerId: input.customerId ?? undefined,
@@ -1581,7 +1611,7 @@ export class MockCrmClient implements CrmClient {
     const proposal = this.state.proposals.find((p) => p.id === id)
     if (!proposal) throw new Error(`方案不存在: ${id}`)
     const versionNo = proposal.currentVersionNo + 1
-    const content = await input.file.text()
+    const content = await readFileBody(input.file)
     const version: ProposalVersion = {
       id: `pv-${id}-${versionNo}`,
       versionNo,
@@ -1659,6 +1689,7 @@ export class MockCrmClient implements CrmClient {
 
   async downloadProposalVersion(id: string, versionNo: number): Promise<Blob> {
     await this.delay('downloadProposalVersion')
-    return new Blob([this.readBody(id, versionNo)], { type: 'text/html;charset=utf-8' })
+    const body = this.readBody(id, versionNo)
+    return dataUrlToBlob(body) ?? new Blob([body], { type: 'text/html;charset=utf-8' })
   }
 }

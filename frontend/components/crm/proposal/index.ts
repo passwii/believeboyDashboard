@@ -1,4 +1,6 @@
 export { ProposalPreview, applyPreviewTheme, type ProposalPreviewProps } from './preview'
+export { ProposalPdfPreview, type ProposalPdfPreviewProps } from './pdf-preview'
+export { CustomerProposals, type CustomerProposalsProps } from './customer-proposals'
 export {
   ProposalStatusPill,
   ProposalTypePill,
