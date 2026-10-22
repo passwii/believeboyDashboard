@@ -101,6 +101,9 @@ _HTML = (
     "<body><h1>方案正文</h1><link href=\"./x.css\"></body></html>"
 )
 
+# 最小 PDF 头尾（后端不解析 PDF，只做扩展名 / 大小 / 非空校验）
+_PDF = b"%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<<>>\n%%EOF\n"
+
 
 def _upload(content: bytes | str, filename: str = "plan.html", content_type: str = "text/html"):
     if isinstance(content, str):
@@ -114,11 +117,20 @@ def _mk_customer(client, headers, name="客户A"):
     return r.json()
 
 
-def _mk_proposal(client, headers, *, content=_HTML, title="客户方案A", **form):
+def _mk_proposal(
+    client,
+    headers,
+    *,
+    content=_HTML,
+    title="客户方案A",
+    filename="plan.html",
+    content_type="text/html",
+    **form,
+):
     r = client.post(
         "/api/v1/crm/proposals",
         headers=headers,
-        files=_upload(content),
+        files=_upload(content, filename, content_type),
         data={"title": title, **form},
     )
     assert r.status_code == 201, r.text
@@ -511,6 +523,160 @@ def test_download_raw(client, operator_headers):
         "客户方案A-v1-原始.html"
     )
     assert "bb-proposal-theme" not in res.text
+
+
+# ---------- PDF 载荷（直存 / 预览 / 下载） ----------
+
+
+def test_create_pdf_skips_adaptation_and_stores_one_object(client, operator_headers):
+    body = _mk_proposal(
+        client,
+        operator_headers,
+        content=_PDF,
+        filename="quote.pdf",
+        content_type="application/pdf",
+        title="PDF 方案",
+    )
+    version = body["version"]
+    assert version["original_filename"] == "quote.pdf"
+    assert version["content_type"] == "application/pdf"
+    assert version["file_size"] == len(_PDF)
+    # PDF 不做相对引用提示（HTML 才解析）
+    assert body["warnings"] == []
+
+    keys = [k for k in _FAKE_BUCKET if k.startswith("crm-proposals/")]
+    assert len(keys) == 1
+    assert keys[0].endswith("/raw.pdf")
+
+
+def test_create_pdf_normalizes_octet_stream_mime(client, operator_headers):
+    body = _mk_proposal(
+        client,
+        operator_headers,
+        content=_PDF,
+        filename="quote.pdf",
+        content_type="application/octet-stream",
+    )
+    assert body["version"]["content_type"] == "application/pdf"
+
+
+def test_pdf_detail_exposes_mime_for_frontend_detection(client, operator_headers):
+    body = _mk_proposal(
+        client,
+        operator_headers,
+        content=_PDF,
+        filename="quote.pdf",
+        content_type="application/pdf",
+    )
+    pid = body["proposal"]["id"]
+    detail = client.get(f"/api/v1/crm/proposals/{pid}", headers=operator_headers)
+    assert detail.status_code == 200
+    row = detail.json()["versions"][0]
+    assert row["original_filename"] == "quote.pdf"
+    assert row["content_type"] == "application/pdf"
+
+
+def test_download_pdf_returns_pdf_media_type_and_suffix(client, operator_headers):
+    body = _mk_proposal(
+        client,
+        operator_headers,
+        content=_PDF,
+        filename="quote.pdf",
+        content_type="application/pdf",
+        title="PDF 方案",
+    )
+    pid = body["proposal"]["id"]
+    res = client.get(
+        f"/api/v1/crm/proposals/{pid}/versions/1/download", headers=operator_headers
+    )
+    assert res.status_code == 200
+    assert res.headers["content-type"] == "application/pdf"
+    disp = res.headers["content-disposition"]
+    assert unquote(disp.split("filename*=UTF-8''")[1]) == "PDF 方案-v1.pdf"
+    assert res.content == _PDF
+
+
+def test_download_pdf_ignores_raw_flag(client, operator_headers):
+    """PDF 没有适配产物：前端预览复用此端点，raw 不应改变字节 / 文件名。"""
+    body = _mk_proposal(
+        client,
+        operator_headers,
+        content=_PDF,
+        filename="quote.pdf",
+        content_type="application/pdf",
+        title="PDF 方案",
+    )
+    pid = body["proposal"]["id"]
+    res = client.get(
+        f"/api/v1/crm/proposals/{pid}/versions/1/download?raw=true",
+        headers=operator_headers,
+    )
+    assert res.status_code == 200
+    assert res.headers["content-type"] == "application/pdf"
+    assert unquote(res.headers["content-disposition"].split("filename*=UTF-8''")[1]) == (
+        "PDF 方案-v1.pdf"
+    )
+    assert res.content == _PDF
+
+
+def test_content_rejects_pdf_with_415(client, operator_headers):
+    body = _mk_proposal(
+        client,
+        operator_headers,
+        content=_PDF,
+        filename="quote.pdf",
+        content_type="application/pdf",
+    )
+    pid = body["proposal"]["id"]
+    res = client.get(
+        f"/api/v1/crm/proposals/{pid}/versions/1/content", headers=operator_headers
+    )
+    assert res.status_code == 415
+    assert "PDF" in res.json()["detail"]
+
+
+def test_add_pdf_version_mixes_formats_per_version(client, operator_headers):
+    body = _mk_proposal(client, operator_headers)  # v1 = HTML
+    pid = body["proposal"]["id"]
+
+    r = client.post(
+        f"/api/v1/crm/proposals/{pid}/versions",
+        headers=operator_headers,
+        files=_upload(_PDF, "v2.pdf", "application/pdf"),
+        data={"change_note": "改 PDF"},
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["version"]["version_no"] == 2
+    assert r.json()["version"]["content_type"] == "application/pdf"
+
+    v1 = client.get(
+        f"/api/v1/crm/proposals/{pid}/versions/1/download", headers=operator_headers
+    )
+    assert v1.headers["content-type"].startswith("text/html")
+    v2 = client.get(
+        f"/api/v1/crm/proposals/{pid}/versions/2/download", headers=operator_headers
+    )
+    assert v2.headers["content-type"] == "application/pdf"
+    assert unquote(v2.headers["content-disposition"].split("filename*=UTF-8''")[1]) == (
+        "客户方案A-v2.pdf"
+    )
+    assert v2.content == _PDF
+
+
+def test_delete_pdf_removes_single_object(client, operator_headers):
+    body = _mk_proposal(
+        client,
+        operator_headers,
+        content=_PDF,
+        filename="quote.pdf",
+        content_type="application/pdf",
+    )
+    pid = body["proposal"]["id"]
+    assert len(_FAKE_BUCKET) == 1
+
+    res = client.delete(f"/api/v1/crm/proposals/{pid}", headers=operator_headers)
+    assert res.status_code == 204
+    assert _FAKE_BUCKET == {}
 
 
 # ---------- 列表 / scope / 权限 ----------

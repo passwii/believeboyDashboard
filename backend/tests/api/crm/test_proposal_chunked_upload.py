@@ -21,6 +21,13 @@ def _html_of_size(size: int) -> bytes:
     return body
 
 
+def _pdf_of_size(size: int) -> bytes:
+    """PDF 头 + 二进制填充（分段按字节合并，后端不解析）。"""
+    head = b"%PDF-1.7\n"
+    tail = b"\n%%EOF\n"
+    return head + b"\x00" * (size - len(head) - len(tail)) + tail
+
+
 _FAKE_BUCKET: dict[str, bytes] = {}
 
 
@@ -70,14 +77,14 @@ def _tmp_upload_root(tmp_path, monkeypatch, settings):
     yield
 
 
-def _init(client, headers, *, size, filename="big.html"):
+def _init(client, headers, *, size, filename="big.html", content_type="text/html"):
     r = client.post(
         "/api/v1/crm/proposals/uploads/init",
         headers=headers,
         json={
             "filename": filename,
             "size": size,
-            "content_type": "text/html",
+            "content_type": content_type,
             "title": "大方案",
             "proposal_type": "other",
         },
@@ -99,13 +106,14 @@ def _send_chunks(client, headers, init, body: bytes):
         assert r.json()["size"] == len(chunk)
 
 
-def test_init_rejects_non_html(client, admin_headers):
+def test_init_rejects_unsupported_extension(client, admin_headers):
     r = client.post(
         "/api/v1/crm/proposals/uploads/init",
         headers=admin_headers,
-        json={"filename": "x.pdf", "size": 100, "content_type": "application/pdf"},
+        json={"filename": "x.md", "size": 100, "content_type": "text/markdown"},
     )
     assert r.status_code == 400
+    assert "PDF" in r.json()["detail"]
 
 
 def test_init_rejects_oversize(client, admin_headers, settings):
@@ -138,6 +146,45 @@ def test_chunked_create_flow(client, admin_headers):
     assert len(keys) == 2
     assert any(k.endswith("/raw.html") for k in keys)
     assert any(k.endswith("/adapted.html") for k in keys)
+
+
+def test_chunked_pdf_create_flow_stores_single_object(client, admin_headers):
+    """PDF 分段合并后直存：一份 raw.pdf，下载按 application/pdf 返回。"""
+    size = CHUNK + 1024
+    body = _pdf_of_size(size)
+    init = _init(
+        client,
+        admin_headers,
+        size=size,
+        filename="big.pdf",
+        content_type="application/pdf",
+    )
+    assert init["total_chunks"] == 2
+    _send_chunks(client, admin_headers, init, body)
+
+    r = client.post(
+        f"/api/v1/crm/proposals/uploads/{init['upload_id']}/finalize",
+        headers=admin_headers,
+    )
+    assert r.status_code == 201, r.text
+    payload = r.json()
+    pid = payload["proposal"]["id"]
+    assert payload["version"]["content_type"] == "application/pdf"
+    assert payload["version"]["original_filename"] == "big.pdf"
+    assert payload["version"]["file_size"] == size
+    assert payload["warnings"] == []
+
+    keys = [k for k in _FAKE_BUCKET if k.startswith("crm-proposals/")]
+    assert len(keys) == 1
+    assert keys[0].endswith("/raw.pdf")
+
+    download = client.get(
+        f"/api/v1/crm/proposals/{pid}/versions/1/download",
+        headers=admin_headers,
+    )
+    assert download.status_code == 200
+    assert download.headers["content-type"] == "application/pdf"
+    assert download.content == body
 
 
 def test_finalize_requires_all_chunks(client, admin_headers):

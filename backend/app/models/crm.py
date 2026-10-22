@@ -653,7 +653,7 @@ class CrmProposal(Base):
 
     层级：crm_customers → crm_proposals → crm_proposal_versions。
     文件不是独立一层——它是版本的载荷（raw_r2_key / adapted_r2_key），
-    因为输入约束是「单个 HTML」，一个版本恒等于一个文件。
+    因为输入约束是「单个 HTML 或 PDF」，一个版本恒等于一个文件。
 
     - customer_id 可空：允许「未关联方案」（模板/先行产出）；
       客户端删为软删，此处 ondelete=SET NULL 仅作硬删兜底。
@@ -698,10 +698,12 @@ class CrmProposal(Base):
 class CrmProposalVersion(Base):
     """方案版本（append-only，永不 UPDATE 内容）。
 
-    每个版本冻结两份 R2 对象：
-    - raw_r2_key：原始上传的单个 HTML（交付保真 / 回滚用）；
-    - adapted_r2_key：注入本项目设计令牌后的单个 HTML（查看/默认下载用）。
-    adapted_sha256 供完整性与去重核对。
+    载荷格式由 original_filename / content_type 判定（扩展名硬口径）：
+    - HTML：冻结两份 R2 对象——raw_r2_key（原始上传，交付保真 / 回滚用）与
+      adapted_r2_key（注入本项目设计令牌，查看 / 默认下载用）；
+    - PDF：不解析、不适配，只存一份 raw.pdf；adapted_r2_key 与 raw_r2_key
+      指向同一对象（两列非空，读取侧等价）。
+    adapted_sha256 供完整性与去重核对（PDF 记原始字节指纹）。
     """
 
     __tablename__ = "crm_proposal_versions"

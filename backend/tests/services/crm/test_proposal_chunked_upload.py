@@ -16,13 +16,15 @@ def _settings(settings, tmp_path):
     return settings.model_copy(update={"upload_root": tmp_path})
 
 
-def _init(s, *, size=CHUNK * 2, owner="u1", filename="plan.html"):
+def _init(
+    s, *, size=CHUNK * 2, owner="u1", filename="plan.html", content_type="text/html"
+):
     return up.init_upload(
         s,
         owner_id=owner,
         filename=filename,
         size=size,
-        content_type="text/html",
+        content_type=content_type,
         title="方案",
         proposal_type="other",
         customer_id=None,
@@ -39,11 +41,19 @@ def test_init_computes_chunk_count_and_meta(settings, tmp_path):
     assert (tmp_path / up._ROOT_NAME / meta["upload_id"] / "meta.json").exists()
 
 
-def test_init_rejects_non_html(settings, tmp_path):
+def test_init_rejects_unsupported_extension(settings, tmp_path):
     s = _settings(settings, tmp_path)
     with pytest.raises(HTTPException) as exc:
-        _init(s, filename="plan.pdf")
+        _init(s, filename="plan.md")
     assert exc.value.status_code == 400
+    assert "PDF" in exc.value.detail
+
+
+def test_init_accepts_pdf_and_normalizes_mime(settings, tmp_path):
+    s = _settings(settings, tmp_path)
+    meta = _init(s, filename="plan.pdf", content_type="application/octet-stream")
+    assert meta["filename"] == "plan.pdf"
+    assert meta["content_type"] == "application/pdf"
 
 
 def test_init_rejects_oooversize(settings, tmp_path):

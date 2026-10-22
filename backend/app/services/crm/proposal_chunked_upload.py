@@ -1,7 +1,8 @@
 """CRM 方案分段上传的临时存储（本地磁盘，不碰 R2）。
 
 设计约束（2026-10-21）：
-- 为解决 Vercel 函数约 4.5MB 请求体硬上限，前端把大 HTML 按 3MB 分段上传；
+- 为解决 Vercel 函数约 4.5MB 请求体硬上限，前端把大文件（HTML / PDF）按 3MB
+  分段上传；
 - 分段落在 ``settings.upload_root/_crm_proposal_tmp/<upload_id>/``，finalize
   合并后再走**现有** ``upload_bytes_to_r2``；
 - 不引入 presigned URL、不改 R2 桶、不改其他上传模块、不新增 DB 表；
@@ -9,6 +10,9 @@
 
 并发假设：线上 API 以 ``--workers 1`` 运行（见 deploy/systemd），同一进程内
 顺序写盘即可。若未来多实例，需要把临时目录换成共享存储（NFS/Redis/S3）。
+
+分段按字节合并，格式无关：PDF 与 HTML 走同一条链路；扩展名校验与
+``proposal_render_service`` 同一口径（这里提前把关，避免白传字节）。
 """
 
 from __future__ import annotations
@@ -23,6 +27,8 @@ from pathlib import Path
 
 from fastapi import HTTPException, status
 
+from app.services.crm import proposal_render_service as render
+
 #: 单段大小。3MB 远低于 Vercel 函数 4.5MB 请求体上限，留足头/边界余量。
 CHUNK_SIZE = 3 * 1024 * 1024
 
@@ -31,8 +37,6 @@ UPLOAD_TTL_SECONDS = 2 * 60 * 60
 
 _UPLOAD_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 _ROOT_NAME = "_crm_proposal_tmp"
-
-_ALLOWED_EXTS = (".html", ".htm")
 
 
 def _root(settings) -> Path:
@@ -139,10 +143,10 @@ def init_upload(
         )
 
     ext = Path(filename or "").suffix.lower()
-    if ext not in _ALLOWED_EXTS:
+    if ext not in render.PROPOSAL_EXTS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="不支持的文件类型：仅接受单个 HTML 文件（.html / .htm）",
+            detail="不支持的文件类型：仅接受单个 HTML（.html / .htm）或 PDF（.pdf）文件",
         )
 
     cleanup_expired(settings)
@@ -158,7 +162,7 @@ def init_upload(
         "owner_id": (owner_id or "").strip() or None,
         "filename": (filename or "proposal.html")[:255],
         "size": size,
-        "content_type": (content_type or "text/html")[:64],
+        "content_type": render.normalize_content_type(filename, content_type)[:64],
         "title": title,
         "proposal_type": proposal_type,
         "customer_id": customer_id,

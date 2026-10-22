@@ -1,4 +1,8 @@
-"""客户方案 HTML 解析 / 适配（BLF proposal 模块）。
+"""客户方案上传校验 / HTML 解析适配（BLF proposal 模块）。
+
+支持的载荷格式（扩展名是硬约束）：
+- HTML（``.html`` / ``.htm``）：解析 + 适配，冻结 raw / adapted 两份产物；
+- PDF（``.pdf``）：**不解析、不适配**，字节原样冻结（没有适配产物）。
 
 职责边界（与设计一致）：
 - R2 只负责「存」和「发」；本模块负责**解析**与**适配**（R2 没有计算能力）。
@@ -6,7 +10,7 @@
   → 保证「所见即所下载」。
 
 适配做什么（刻意保持轻量，零新依赖）：
-1. 校验扩展名 / 大小 / 非空（.html / .htm）；
+1. 校验扩展名 / 大小 / 非空（.html / .htm / .pdf）；
 2. 探测「不可达的相对引用」（``./a.css`` / ``assets/x.js``）——项目只存单个
    HTML，这些引用存下来必然 404，需要提示用户改自包含，但不阻断；
 3. 规范化文档骨架：补 ``<!DOCTYPE>`` / ``<html>`` / ``<meta charset>`` /
@@ -31,6 +35,15 @@ from html.parser import HTMLParser
 from fastapi import HTTPException, UploadFile, status
 
 HTML_EXTS = {".html", ".htm"}
+PDF_EXTS = {".pdf"}
+PROPOSAL_EXTS = HTML_EXTS | PDF_EXTS
+
+_FORMAT_BY_EXT = {
+    **{ext: "html" for ext in HTML_EXTS},
+    **{ext: "pdf" for ext in PDF_EXTS},
+}
+
+_UNSUPPORTED_DETAIL = "不支持的文件类型：仅接受单个 HTML（.html / .htm）或 PDF（.pdf）文件"
 
 # 设计令牌单一来源：与 frontend/app/globals.css 的 :root / .dark 对齐（精选子集）。
 # 只带「画布 / 文字 / 强调 / 分割线 / 圆角 / 字体」这些跨文档通用的令牌，
@@ -54,8 +67,53 @@ def sha256_hex(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def _format_from_ext(ext: str) -> str | None:
-    return "html" if ext in HTML_EXTS else None
+def _ext_of(filename: str | None) -> str:
+    name = filename or ""
+    return name[name.rfind(".") :].lower() if "." in name else ""
+
+
+def format_from_ext(ext: str | None) -> str | None:
+    """扩展名 → 载荷格式（``html`` / ``pdf``）；不支持的后缀返回 ``None``。"""
+    return _FORMAT_BY_EXT.get((ext or "").lower())
+
+
+def format_from_filename(filename: str | None) -> str | None:
+    """文件名 → 载荷格式；无扩展名 / 不支持的后缀返回 ``None``。"""
+    return format_from_ext(_ext_of(filename))
+
+
+def resolve_file_format(
+    original_filename: str | None, content_type: str | None
+) -> str:
+    """版本载荷格式：扩展名是硬口径，MIME 只做 PDF 软识别，兜底 ``html``。
+
+    与前端 ``proposalFileFormat`` 同口径——浏览器 / 网关经常把 PDF 报成
+    ``application/octet-stream``，所以扩展名命中即认；扩展名缺失时再看 MIME。
+    """
+    by_name = format_from_filename(original_filename)
+    if by_name is not None:
+        return by_name
+    if "pdf" in (content_type or "").lower():
+        return "pdf"
+    return "html"
+
+
+def normalize_content_type(
+    filename: str | None, content_type: str | None
+) -> str:
+    """落库 / 落 R2 的 MIME：扩展名是硬口径，MIME 归一后再存。
+
+    - ``.pdf`` 恒记 ``application/pdf``（上传方常报 octet-stream，不可信）；
+    - ``.html`` 不接受 ``pdf`` 声明（否则查看 / 下载会按 PDF 渲染）；
+    - 其他情况保留上传声明，缺失兜底 ``text/html``。
+    """
+    fmt = format_from_filename(filename)
+    declared = (content_type or "").strip()
+    if fmt == "pdf":
+        return "application/pdf"
+    if fmt == "html" and "pdf" in declared.lower():
+        return "text/html"
+    return declared or "text/html"
 
 
 def validate_html_upload(
@@ -63,15 +121,15 @@ def validate_html_upload(
 ) -> tuple[str, bytes]:
     """校验扩展名 / 大小 / 非空，返回 ``(ext, content)``。
 
-    扩展名是硬约束（MIME 只做软校验——浏览器经常把 .html 报成
+    扩展名是硬约束（MIME 只做软校验——浏览器经常把 .html / .pdf 报成
     application/octet-stream）。与 page_render_service 同款口径。
     """
     filename = file.filename or ""
     ext = filename[filename.rfind(".") :].lower() if "." in filename else ""
-    if _format_from_ext(ext) is None:
+    if format_from_ext(ext) is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="不支持的文件类型：仅接受单个 HTML 文件（.html / .htm）",
+            detail=_UNSUPPORTED_DETAIL,
         )
 
     if max_bytes <= 0:
@@ -106,13 +164,13 @@ def validate_html_bytes(
     """字节版 ``validate_html_upload``：供分段上传 finalize 使用。
 
     与上传文件路径保持同一口径：扩展名硬校验、大小上限、非空。
-    返回 ``ext``（如 ``.html``）。
+    返回 ``ext``（如 ``.html`` / ``.pdf``）。
     """
     ext = filename[filename.rfind(".") :].lower() if "." in filename else ""
-    if _format_from_ext(ext) is None:
+    if format_from_ext(ext) is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="不支持的文件类型：仅接受单个 HTML 文件（.html / .htm）",
+            detail=_UNSUPPORTED_DETAIL,
         )
 
     if max_bytes <= 0:
@@ -304,8 +362,15 @@ hr { border: 0; border-top: 1px solid hsl(var(--bb-border)); }
 
 __all__ = [
     "HTML_EXTS",
+    "PDF_EXTS",
+    "PROPOSAL_EXTS",
     "adapt_html",
     "find_unreachable_refs",
+    "format_from_ext",
+    "format_from_filename",
+    "normalize_content_type",
+    "resolve_file_format",
     "sha256_hex",
+    "validate_html_bytes",
     "validate_html_upload",
 ]
