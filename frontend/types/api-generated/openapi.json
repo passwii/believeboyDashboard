@@ -67922,7 +67922,7 @@
             "required": false,
             "schema": {
               "default": 20,
-              "maximum": 100,
+              "maximum": 200,
               "minimum": 1,
               "title": "Page Size",
               "type": "integer"
