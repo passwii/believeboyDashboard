@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ShieldAlert } from 'lucide-react'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
+import { useCrmUsersSafe } from '@/hooks/use-crm-users'
+import { resolveAuditSummary } from '@/lib/crm/method/audit-summary'
 import { AUDIT_ACTION_LABELS } from '@/lib/crm/types'
 import type { AuditAction, AuditLog } from '@/lib/crm/types'
 import {
@@ -44,6 +46,8 @@ const PAGE_SIZE = 30
  */
 export default function CrmAuditPage() {
   const client = useCrmClient()
+  // BLF-1440：与详情抽屉一致，摘要里的 owner uuid 按用户目录还原姓名。
+  const users = useCrmUsersSafe()
   const [entityType, setEntityType] = useState<string>(ALL)
   const [action, setAction] = useState<string>(ALL)
   const [page, setPage] = useState(1)
@@ -196,8 +200,14 @@ export default function CrmAuditPage() {
                     </TermEnumPill>
                   </TermCell>
                   <TermCell className="whitespace-nowrap">{log.actorName ?? '系统'}</TermCell>
-                  <TermCell tone="muted" className="max-w-[360px]" title={log.summary ?? '-'}>
-                    <span className="line-clamp-2">{log.summary ?? '-'}</span>
+                  <TermCell
+                    tone="muted"
+                    className="max-w-[360px]"
+                    title={log.summary ? resolveAuditSummary(log.summary, users) : '-'}
+                  >
+                    <span className="line-clamp-2">
+                      {log.summary ? resolveAuditSummary(log.summary, users) : '-'}
+                    </span>
                   </TermCell>
                 </TermRow>
               ))

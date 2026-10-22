@@ -6,10 +6,12 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
+import { useCrmUsersSafe } from '@/hooks/use-crm-users'
 import { ApiError } from '@/lib/crm/api/http-crm-client'
 import { AUDIT_ACTION_LABELS } from '@/lib/crm/types'
 import type { AuditAction, AuditLog } from '@/lib/crm/types'
 import { formatRelativeTime } from '@/lib/crm/method/format'
+import { resolveAuditSummary } from '@/lib/crm/method/audit-summary'
 import { cn } from '@/lib/utils'
 import {
   AUDIT_ACTION_TERM,
@@ -69,6 +71,8 @@ export function CrmAuditTimeline({
   extraEntityIds,
 }: CrmAuditTimelineProps) {
   const client = useCrmClient()
+  // BLF-1440：后端摘要里的负责人是 owner_id（uuid），展示层按用户目录还原姓名。
+  const users = useCrmUsersSafe()
   const [items, setItems] = useState<AuditLog[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<{ kind: 'forbidden' | 'unauthorized' | 'server' | 'network' | 'unknown'; message: string } | null>(null)
@@ -178,7 +182,7 @@ export function CrmAuditTimeline({
               </div>
               {log.summary ? (
                 <p className="whitespace-pre-wrap text-sm leading-relaxed text-term-text">
-                  {log.summary}
+                  {resolveAuditSummary(log.summary, users)}
                 </p>
               ) : (
                 <p className="text-sm text-term-faint">（无变更详情）</p>
