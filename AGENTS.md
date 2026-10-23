@@ -1,5 +1,21 @@
 # AGENTS.md
 
+## ⚠️ 启动必做：先把本地代码更新到最新（重要备注）
+
+**每次启动 / 接手任务的第一件事不是读代码，而是同步代码。** 本地目录或当前分支落后 `origin/main` 时，你看到的是旧实现——容易重复修已修好的 bug、按旧签名改接口、迁移 `down_revision` 选错造出多 head，白跑一轮。
+
+```bash
+git status --short                                    # 有未提交改动先 commit / stash，别让更新覆盖
+git fetch origin
+git pull --ff-only origin main                        # 主工作区（main 分支）
+git rebase origin/main                                # 隔离 worktree 上的 agent/<角色>/<id> 分支
+git rev-list --left-right --count origin/main...HEAD  # 左侧计数为 0，才说明已跟上 main
+```
+
+- **Multica 隔离 worktree**（`multica repo checkout` 得到的 `agent/...` 分支）同样适用：动手前先 rebase 到最新 `origin/main`；更新后本地状态可能失效，重跑 `codegraph status .` 再按下面的 CodeGraph 流程定位代码。
+- **确实更新不了时**（离线 / 无权限 / 冲突需人决策）才继续，并在交付说明里写明「基于 `<sha>` 的旧代码」，不要默认自己是最新。
+- 这条与本文档其余规则同级：**先同步，再动手**。
+
 > **角色**：本文件是 **ZCode 加载的仓库指令文件**（ZCode 只读本文件，不读 `CLAUDE.md`）。
 > 本文件现为**权威指令源**；`CLAUDE.md` 已降级为薄壳（仅兼容旧链接），深度参考见 [`docs/REFERENCE.md`](./docs/REFERENCE.md)。
 
