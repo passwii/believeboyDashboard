@@ -32,6 +32,7 @@ const SESSION = {
     name: 'E2E',
     email: 'e2e@example.com',
     roleType: 'admin',
+    fullName: '纪亚伟',
     operatorNameZh: '纪亚伟',
   },
   expires: '2099-01-01T00:00:00.000Z',
@@ -72,6 +73,8 @@ async function forgeSessionToken(): Promise<string> {
       uid: '723c8e9a-8dbe-4b54-803e-0ec91430cee8',
       isAdmin: true,
       roleType: 'admin',
+      // BLF-1441：显示名唯一来源 full_name（此用例走真实账号，值应与库里一致）
+      fullName: '纪亚伟',
       operatorNameZh: '纪亚伟',
       sessionId: 'blf1072-e2e',
       name: 'Yawei',

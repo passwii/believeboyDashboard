@@ -34,6 +34,7 @@ import { MultiSelect, type Option } from '@/components/ui/multi-select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { buildBackendClientHeaders } from '@/lib/backend-auth'
+import { pickSessionDisplayName } from '@/lib/auth/display-name'
 import {
   getOrderStatusLabel,
   getOrderStatusTone,
@@ -366,16 +367,13 @@ function OrderInfoPageInner() {
     setPage(1)
   }, [skuKeyword, orderIdKeyword, asinKeyword])
 
-  // 当前登录用户名（默认填到 updated_by）
-  const currentUserName = useMemo(() => {
-    const u = session?.user
-    if (!u) return undefined
-    const candidates = [u.operatorNameZh, u.name, u.email]
-    for (const c of candidates) {
-      if (typeof c === 'string' && c.trim()) return c.trim()
-    }
-    return undefined
-  }, [session])
+  // 当前登录用户名（默认填到 updated_by）。
+  // BLF-1441：只取 user_accounts.full_name；没填姓名时留空让用户自己写，
+  // 不拿运营名 / 登录名 / 邮箱冒充（那是上一版的口径）。
+  const currentUserName = useMemo(
+    () => pickSessionDisplayName(session?.user) ?? undefined,
+    [session]
+  )
 
   // ====== 筛选项按需加载（首次打开筛选下拉触发，失败可重试） ======
   // BLF-1019：collect_filter_options 在大表上 3 个 distinct 全表扫会拖到 3–6s，

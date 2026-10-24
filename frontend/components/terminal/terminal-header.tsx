@@ -51,6 +51,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { NotificationListView } from '@/components/notifications/notification-list-view'
+import { formatDisplayName, pickSessionDisplayName } from '@/lib/auth/display-name'
 import { getDashboardPageTitle } from '@/lib/dashboard-route-meta'
 import { cn } from '@/lib/utils'
 
@@ -156,7 +157,9 @@ export function TerminalHeader({
 
   const activeGroup = groups.find((g) => g.id === activeGroupId)
   const pageTitle = React.useMemo(() => getDashboardPageTitle(pathname), [pathname])
-  const displayName = user?.name || 'User'
+  // BLF-1441：顶部用户名 = user_accounts.full_name（无姓名时显示「未命名」，
+  // 不回落登录名）。规则见 lib/auth/display-name.ts。
+  const displayName = user ? formatDisplayName(pickSessionDisplayName(user)) : 'User'
 
   return (
     <header

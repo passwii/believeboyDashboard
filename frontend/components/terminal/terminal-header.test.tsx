@@ -15,8 +15,11 @@ import { TrendingUp } from 'lucide-react'
 
 import { stableSession } from '@/test-utils/stable-mocks'
 
+// 会话可切换（BLF-1441 显示名用例）：默认仍是不带 fullName 的旧会话，
+// 既有用例的行为与之前完全一致。
+let sessionUser: Record<string, unknown> = { name: '测试用户' }
 vi.mock('next-auth/react', () => ({
-  useSession: () => stableSession(),
+  useSession: () => stableSession({ user: sessionUser }),
 }))
 
 const unreadMock = vi.fn()
@@ -299,5 +302,36 @@ describe('TerminalHeader 全局刷新按钮（BLF-826；BLF-881 全页面常驻�
     expect(screen.getByTestId('terminal-header-refresh-status')).toHaveTextContent(
       '刷新请求已返回；请确认页面内容已更新。'
     )
+  })
+})
+
+describe('TerminalHeader 用户名（BLF-1441：只取 user_accounts.full_name）', () => {
+  afterEach(() => {
+    sessionUser = { name: '测试用户' }
+  })
+
+  it('显示会话里的姓名，不是登录名', () => {
+    sessionUser = { name: 'Yawei', fullName: '纪亚伟', operatorNameZh: '运营A' }
+    renderHeader('/dashboard/profile')
+
+    expect(screen.getByTestId('terminal-header-user')).toHaveAccessibleName('用户菜单：纪亚伟')
+    expect(screen.getByText('纪亚伟')).toBeInTheDocument()
+    expect(screen.queryByText('Yawei')).not.toBeInTheDocument()
+  })
+
+  it('没有姓名时显示「未命名」，不回落登录名 / 运营名', () => {
+    sessionUser = { name: 'DamonROCK', fullName: null, operatorNameZh: '运营A' }
+    renderHeader('/dashboard/profile')
+
+    expect(screen.getByTestId('terminal-header-user')).toHaveAccessibleName('用户菜单：未命名')
+    expect(screen.queryByText('DamonROCK')).not.toBeInTheDocument()
+    expect(screen.queryByText('运营A')).not.toBeInTheDocument()
+  })
+
+  it('过渡期旧会话（没有 fullName 键）仍显示旧名字，不闪成「未命名」', () => {
+    sessionUser = { name: 'Yawei', operatorNameZh: '运营A' }
+    renderHeader('/dashboard/profile')
+
+    expect(screen.getByTestId('terminal-header-user')).toHaveAccessibleName('用户菜单：运营A')
   })
 })

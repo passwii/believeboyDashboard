@@ -42,6 +42,7 @@ import type {
   UploadQueueItem,
 } from '@/components/report-upload/types'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { pickSessionDisplayName } from '@/lib/auth/display-name'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { cn } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
@@ -296,13 +297,9 @@ interface ManualCalculationPanelProps {
 export default function ManualCalculationPanel(_props: ManualCalculationPanelProps) {
   const { data: session } = useSession()
   const isAdmin = Boolean(session?.user?.isAdmin)
-  const currentOperator = (
-    session?.user?.operatorNameZh ||
-    session?.user?.name ||
-    session?.user?.email ||
-    session?.user?.id ||
-    ''
-  ).trim()
+  // BLF-1441：操作人只取 user_accounts.full_name（无姓名时为空，
+  // 不回落运营名 / 登录名 / 邮箱）。规则见 lib/auth/display-name.ts。
+  const currentOperator = pickSessionDisplayName(session?.user) ?? ''
   const initialDateRange = getLastWeekRange()
 
   // ── Parameter state ──

@@ -1,6 +1,8 @@
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 
+import { normalizeFullName } from '@/lib/auth/display-name'
+import { fetchSessionIdentity } from '@/lib/auth/identity-refresh'
 import { LoginFailureError } from '@/lib/auth/login-auth-error'
 import { pageCodeForBackendFailure } from '@/lib/auth/login-error-code'
 import { NetworkAuthError } from '@/lib/auth/network-auth-error'
@@ -37,6 +39,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             id: string
             name: string
             email: string
+            /** BLF-1441：全局显示名唯一来源；旧后端没有这个字段。 */
+            full_name?: string | null
             operator_name_zh: string | null
             is_admin: boolean
             is_active: boolean
@@ -56,6 +60,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             id: account.id,
             name: account.name,
             email: account.email,
+            // `undefined`（旧后端）保留为 undefined，交给 pickSessionDisplayName
+            // 走过渡兜底；`null` 是「账号存在但没填姓名」，必须原样落进会话。
+            fullName: normalizeFullName(account.full_name),
             isAdmin: account.is_admin,
             operatorNameZh: account.operator_name_zh,
             roleType: account.role_type,
@@ -102,15 +109,42 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    // 注意：这里刻意不接 `session` 参数。`trigger === 'update'` 时客户端提交的
+    // `session.user` 是**不可信输入**，身份一律回源（见下方注释）。
+    async jwt({ token, user, trigger }) {
       if (user) {
         token.uid = user.id
         token.isAdmin = Boolean(user.isAdmin)
+        // BLF-1441：`undefined` 不写进 token（旧后端 / 旧 token 语义），
+        // `null` 写进去表示「账号存在但没填姓名」。
+        if (user.fullName !== undefined) {
+          token.fullName = typeof user.fullName === 'string' ? user.fullName : null
+        }
         token.operatorNameZh = typeof user.operatorNameZh === 'string' ? user.operatorNameZh : null
         token.roleType =
           (user.roleType as 'admin' | 'operator' | 'businessdev') ??
           (user.isAdmin ? 'admin' : 'operator')
         token.sessionId = user.sessionId
+      }
+
+      // `useSession().update(...)` 触发：资料页改完「姓名」后要立刻生效。
+      //
+      // 安全约束（review P1）：`update(data)` 就是 `POST /api/auth/session`，
+      // body 由客户端完全控制——任何已登录用户都能自己发。所以这里**绝不读**
+      // `session.user` 里的姓名：`X-Operator` 同时是项目鉴权键（后端拿它匹配
+      // `projects.project_operator`），写客户端给的值等于把项目权限交给客户端。
+      // 改为用 token 里服务端签发的身份回源 `GET /api/v1/auth/me` 取权威姓名；
+      // 回源失败保持 token 原值（不清空、不降级），详见 identity-refresh.ts。
+      if (trigger === 'update') {
+        const identity = await fetchSessionIdentity(token)
+        if (identity) {
+          if (identity.fullName !== undefined) {
+            token.fullName = identity.fullName
+          }
+          if (identity.name) {
+            token.name = identity.name
+          }
+        }
       }
       return token
     },
@@ -118,6 +152,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (session.user) {
         session.user.id = String(token.uid ?? '')
         session.user.isAdmin = Boolean(token.isAdmin)
+        // 三态透传：`undefined` = 旧 token（本改动前签发），由
+        // pickSessionDisplayName 走过渡兜底；`null` = 后端明确没填姓名。
+        session.user.fullName =
+          token.fullName === undefined
+            ? undefined
+            : typeof token.fullName === 'string'
+              ? token.fullName
+              : null
         session.user.operatorNameZh =
           typeof token.operatorNameZh === 'string' ? token.operatorNameZh : null
         session.user.roleType =

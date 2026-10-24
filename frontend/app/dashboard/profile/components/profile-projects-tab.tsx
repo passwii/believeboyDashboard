@@ -29,10 +29,19 @@ import {
 } from './profile-projects-tab-shared'
 
 interface ProfileProjectsTabProps {
-  /** Operator-name candidates for matching projects to this user.
-   *  Pulled from session in the parent so the operator-names logic stays
-   *  here (this tab is the only consumer). */
-  operatorNameCandidates: { name: string | null; operatorNameZh: string | null }
+  /** 用于匹配项目 `project_operator` / `assistant_operator` 的姓名候选。
+   *
+   *  BLF-1441：匹配键就是 `user_accounts.full_name`（后端
+   *  `list_project_operator_options` 只返回它，`X-Operator` 也发它），
+   *  所以这里不再混入运营名 / 登录名——混进去会让「我的项目」和真实
+   *  鉴权口径对不上。由父组件从资料接口取，逻辑留在本 tab。 */
+  operatorNameCandidates: { fullName: string | null }
+}
+
+/** 把资料里的 `full_name` 转成项目匹配用的姓名列表（空 / 空白 → 空列表）。 */
+export function projectOwnerNames(fullName: string | null | undefined): string[] {
+  const trimmed = fullName?.trim()
+  return trimmed ? [trimmed] : []
 }
 
 export function ProfileProjectsTab({ operatorNameCandidates }: ProfileProjectsTabProps) {
@@ -41,19 +50,10 @@ export function ProfileProjectsTab({ operatorNameCandidates }: ProfileProjectsTa
   const [items, setItems] = React.useState<ProjectItem[] | null>(null)
   const [error, setError] = React.useState<string | null>(null)
 
-  const operatorNames = React.useMemo(() => {
-    const candidates = [operatorNameCandidates.operatorNameZh, operatorNameCandidates.name]
-    const seen = new Set<string>()
-    const result: string[] = []
-    for (const value of candidates) {
-      if (!value) continue
-      const trimmed = value.trim()
-      if (!trimmed || seen.has(trimmed)) continue
-      seen.add(trimmed)
-      result.push(trimmed)
-    }
-    return result
-  }, [operatorNameCandidates.name, operatorNameCandidates.operatorNameZh])
+  const operatorNames = React.useMemo(
+    () => projectOwnerNames(operatorNameCandidates.fullName),
+    [operatorNameCandidates.fullName]
+  )
 
   React.useEffect(() => {
     let cancelled = false
@@ -207,7 +207,7 @@ export function ProfileProjectsTab({ operatorNameCandidates }: ProfileProjectsTa
 
       {!isAdmin && operatorNames.length === 0 ? (
         <p className="text-xs text-term-warn">
-          ⚠ 当前账号未设置运营名，列表为空。
+          ⚠ 当前账号未设置姓名（full_name），无法匹配项目运营，列表为空。
         </p>
       ) : null}
     </div>

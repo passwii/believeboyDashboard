@@ -1,5 +1,6 @@
 import type { Session } from 'next-auth'
 
+import { pickSessionDisplayName } from '@/lib/auth/display-name'
 import { getBackendApiKey } from '@/lib/server/backend-api'
 
 /**
@@ -41,6 +42,11 @@ import { getBackendApiKey } from '@/lib/server/backend-api'
  *
  * Anything that wants to talk to the backend MUST go through one of these
  * helpers — there is no fourth path.
+ *
+ * BLF-1441: `X-Operator` / `X-User-Name` carry `session.user.fullName`
+ * (`user_accounts.full_name`, the single global display-name source) instead of
+ * `operatorNameZh → name`. See `lib/auth/display-name.ts` for the rule table and
+ * for why an absent key (pre-upgrade JWT) still falls back during the 8h window.
  */
 
 type BuildBackendAuthHeadersOptions = {
@@ -67,17 +73,23 @@ function pickUserId(session: Session | null): string | null {
   return pickTrimmed(session, 'id')
 }
 
+/**
+ * 请求头里的人物显示名（BLF-1441）。
+ *
+ * 唯一来源是 `user_accounts.full_name`（见 `lib/auth/display-name.ts` 的口径表）；
+ * `X-Operator` 与 `X-User-Name` 都发它，后端 `get_request_operator` 优先读前者。
+ *
+ * 注意 `X-Operator` 同时是项目鉴权键（匹配 `projects.project_operator` 文本），
+ * 所以这里**不能**再混入 `operator_name_zh`——切换口径时已核对现网快照：
+ * `project_operator` 的取值就是 `full_name`，权限影响面为 0。
+ */
 function pickUserName(session: Session | null): string | null {
   if (!session) return null
-  return pickOperatorName(session) ?? pickTrimmed(session, 'name')
+  return pickSessionDisplayName(session.user)
 }
 
 function pickUserEmail(session: Session | null): string | null {
   return pickTrimmed(session, 'email')
-}
-
-function pickOperatorName(session: Session | null): string | null {
-  return pickTrimmed(session, 'operatorNameZh')
 }
 
 function pickSessionId(session: Session | null): string | null {
@@ -96,14 +108,17 @@ function applySessionContextHeaders(session: Session | null, headers: Headers): 
   const userId = pickUserId(session)
   if (userId) headers.set('X-User-Id', userId)
 
+  // X-User-Name 与 X-Operator 同源（full_name）：后端只在 X-Operator 缺失时读它，
+  // 保留是为了兼容旧的后端 / 旧调用点，不让两个头说出两个名字。
   const userName = pickUserName(session)
   if (userName) headers.set('X-User-Name', encodeURIComponent(userName))
 
   const userEmail = pickUserEmail(session)
   if (userEmail) headers.set('X-User-Email', encodeURIComponent(userEmail))
 
-  const operatorName = pickOperatorName(session)
-  if (operatorName) headers.set('X-Operator', encodeURIComponent(operatorName))
+  // 名字为空（账号存在但没填 full_name）时**不发**这个头：后端据此判 401 / 空列表，
+  // 与「回落登录名」是两回事——回落会把旧口径又装回去。
+  if (userName) headers.set('X-Operator', encodeURIComponent(userName))
 
   const roleType = pickRoleType(session)
   if (roleType) headers.set('X-Role-Type', roleType)

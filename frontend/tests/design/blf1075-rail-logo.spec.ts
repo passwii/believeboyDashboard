@@ -29,6 +29,8 @@ async function forgeSessionToken(): Promise<string> {
       uid: '1',
       isAdmin: true,
       roleType: 'admin',
+      // BLF-1441：会话显示名唯一来源是 full_name
+      fullName: 'E2E',
       operatorNameZh: 'E2E',
       sessionId: 'blf1075',
       name: 'E2E',

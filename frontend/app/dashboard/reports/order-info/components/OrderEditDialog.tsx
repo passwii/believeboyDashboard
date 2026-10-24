@@ -27,7 +27,7 @@ import { normalizeErrorMessage } from '@/lib/error-utils'
  *   carrier        string  物流商（UPS / USPS / FedEx / DHL / 顺丰 …）
  *   tracking_no    string  物流单号
  *   shipped_at     string  YYYY-MM-DD（北京时间当天的 UTC 零点）
- *   updated_by     string  操作人；默认取 session.user.name，可改
+ *   updated_by     string  操作人；默认取会话里的姓名（user_accounts.full_name），可改
  */
 
 export type OrderEditDialogProps = {
