@@ -21,7 +21,7 @@ import { addBLF611FixtureAuth } from '../setup/blf611-fixture'
  * 因此本 spec 可在无 .env.local、无后端的环境直接跑。
  *
  * 认证说明（关键）：proxy.ts（next-auth v5 auth 中间件）用 NextAuth `jwt` 回调读
- * token 字段 `uid` / `isAdmin` / `roleType` / `operatorNameZh` / `sessionId`，
+ * token 字段 `uid` / `isAdmin` / `roleType` / `sessionId`，
  * 而**不是** `session.user.id`。fixture 里的 token 正是按这几个字段编码的，
  * 故 uid='1' 的 admin 会话能通过 proxy 的 `/dashboard` 守卫。
  */
@@ -36,7 +36,6 @@ const SESSION = {
     email: 'e2e@example.com',
     roleType: 'admin',
     fullName: 'E2E',
-    operatorNameZh: 'E2E',
   },
   expires: '2099-01-01T00:00:00.000Z',
 }

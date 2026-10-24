@@ -22,8 +22,8 @@ import {
   type ReportProjectOwner,
 } from '../shared-project'
 
-const OWNER_A: ReportProjectOwner = { id: 'user-a', roleType: 'admin', operatorNameZh: '张三' }
-const OWNER_B: ReportProjectOwner = { id: 'user-b', roleType: 'operator', operatorNameZh: '李四' }
+const OWNER_A: ReportProjectOwner = { id: 'user-a', roleType: 'admin', name: '张三' }
+const OWNER_B: ReportProjectOwner = { id: 'user-b', roleType: 'operator', name: '李四' }
 
 // ── mocks ────────────────────────────────────────────────────────────────────
 

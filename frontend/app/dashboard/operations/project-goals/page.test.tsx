@@ -11,7 +11,7 @@ import userEvent from '@testing-library/user-event'
 // 稳定引用：mock 的 useSession / useNotifications 若每次 render 返回新对象，
 // 会让把它们放进 deps 的 effect 无限循环（真实实现里 context 值稳定）。
 const { SESSION_DATA, NOTIFY } = vi.hoisted(() => ({
-  SESSION_DATA: { user: { id: 'u1', roleType: 'admin', operatorNameZh: '测试' } },
+  SESSION_DATA: { user: { id: 'u1', roleType: 'admin', name: '测试' } },
   NOTIFY: { notify: vi.fn() },
 }))
 

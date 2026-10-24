@@ -22,8 +22,8 @@ import {
 } from '../shared-project'
 
 // ── 操作者身份（共享记忆按它隔离） ───────────────────────────────────────────
-const OWNER_A: ReportProjectOwner = { id: 'user-a', roleType: 'admin', operatorNameZh: '张三' }
-const OWNER_B: ReportProjectOwner = { id: 'user-b', roleType: 'operator', operatorNameZh: '李四' }
+const OWNER_A: ReportProjectOwner = { id: 'user-a', roleType: 'admin', name: '张三' }
+const OWNER_B: ReportProjectOwner = { id: 'user-b', roleType: 'operator', name: '李四' }
 
 const readMemo = (owner: ReportProjectOwner = OWNER_A) => readSharedReportProjectId(owner)
 const writeMemo = (projectId: string, owner: ReportProjectOwner = OWNER_A) =>

@@ -19,7 +19,7 @@ import { useSession } from 'next-auth/react'
  * localStorage 是浏览器维度、不随登录账号变化，固定键会让同一浏览器换账号后新账号
  * 读到上一个账号的项目 id，而 reconcile 调用的 available-reports 后端路由当前只做
  * 登录保护、不按操作者校验项目权限，会把上一个账号项目的数据（含 PDF URL）露给新账号。
- * 键 = `<前缀>:<roleType>:<operatorNameZh>:<userId>`，与项目列表客户端缓存
+ * 键 = `<前缀>:<roleType>:<username>:<userId>`，与项目列表客户端缓存
  * （lib/project-client-cache.ts）的作用域口径一致；session 未就绪或没有稳定身份时
  * 一律不读不写 —— 宁可不记忆，也不跨账号共享。
  *
@@ -33,12 +33,13 @@ export const SHARED_REPORT_PROJECT_STORAGE_PREFIX = 'bb.monthly-report.project-i
 /**
  * 当前操作者身份（取 session.user 的这三个字段）。
  * 用结构子集而不是 Session['user']，测试里可以只传需要的字段。
+ * BLF-1441 收口：作用域键用登录名（username），不用显示名。
  */
 export type ReportProjectOwner =
   | {
       id?: string | null
       roleType?: string | null
-      operatorNameZh?: string | null
+      name?: string | null
     }
   | null
   | undefined
@@ -49,13 +50,13 @@ function ownerPart(value: string | null | undefined, fallback: string): string {
 
 /**
  * 操作者作用域。返回空串 = 没有稳定身份（未登录 / session 未就绪）→ 不读也不写。
- * 与项目列表缓存同理：userId 缺失时用 operatorNameZh 兜底，两者都缺才判定无身份。
+ * 与项目列表缓存同理：userId 缺失时用登录名兜底，两者都缺才判定无身份。
  */
 export function reportProjectOwnerScope(owner: ReportProjectOwner): string {
   const userId = (owner?.id ?? '').trim()
-  const operatorName = (owner?.operatorNameZh ?? '').trim()
-  if (!userId && !operatorName) return ''
-  return `${ownerPart(owner?.roleType, 'unknown')}:${ownerPart(operatorName, 'none')}:${ownerPart(userId, 'none')}`
+  const username = (owner?.name ?? '').trim()
+  if (!userId && !username) return ''
+  return `${ownerPart(owner?.roleType, 'unknown')}:${ownerPart(username, 'none')}:${ownerPart(userId, 'none')}`
 }
 
 /** 共享记忆的存储键；没有稳定身份时为 null（调用方据此跳过读写） */

@@ -20,13 +20,12 @@ function headersFor(user: Record<string, unknown>): Headers {
 }
 
 describe('buildBackendClientHeaders · X-Operator / X-User-Name', () => {
-  it('发 full_name（URL 编码），不是运营名也不是登录名', () => {
+  it('发 full_name（URL 编码），不是登录名', () => {
     const headers = headersFor({
       id: 'u1',
       name: 'Yawei',
       email: 'yawei@believeboy.com',
       fullName: '纪亚伟',
-      operatorNameZh: '运营A',
       roleType: 'admin',
     })
 
@@ -41,7 +40,6 @@ describe('buildBackendClientHeaders · X-Operator / X-User-Name', () => {
       name: 'DamonROCK',
       email: 'rock@believeboy.com',
       fullName: null,
-      operatorNameZh: '运营A',
       roleType: 'operator',
     })
 
@@ -52,16 +50,15 @@ describe('buildBackendClientHeaders · X-Operator / X-User-Name', () => {
     expect(headers.get('X-User-Email')).toBe('rock%40believeboy.com')
   })
 
-  it('过渡期：旧 token 没有 fullName 键时仍发旧值，避免升级瞬间 401', () => {
+  it('过渡期：旧 token 没有 fullName 键时回落登录名，避免升级瞬间 401', () => {
     const headers = headersFor({
       id: 'u1',
       name: 'Yawei',
       email: 'yawei@believeboy.com',
-      operatorNameZh: '纪亚伟',
       roleType: 'admin',
     })
 
-    expect(decodeURIComponent(headers.get('X-Operator')!)).toBe('纪亚伟')
+    expect(decodeURIComponent(headers.get('X-Operator')!)).toBe('Yawei')
   })
 
   it('full_name 只有空白时不发头', () => {

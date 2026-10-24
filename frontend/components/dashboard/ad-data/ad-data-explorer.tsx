@@ -109,7 +109,7 @@ export function AdDataExplorer() {
   const isAggregate = mode === 'aggregate'
   const refreshKey = useAdClientRefreshKey()
   const sessionUser = session?.user as
-    | { id?: string | null; roleType?: string | null; operatorNameZh?: string | null }
+    | { id?: string | null; roleType?: string | null; name?: string | null }
     | undefined
   const querySignature = JSON.stringify([
     projectId,
@@ -119,7 +119,7 @@ export function AdDataExplorer() {
     selectedReportType,
     sessionUser?.id ?? null,
     sessionUser?.roleType ?? null,
-    sessionUser?.operatorNameZh ?? null,
+    sessionUser?.name ?? null,
   ])
   // Refreshes keep the current signature; changing any query scope hides prior rows immediately.
   const rows = useMemo(

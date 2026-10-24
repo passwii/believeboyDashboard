@@ -39,7 +39,7 @@ vi.mock('next/navigation', () => ({
 }))
 
 // 共享记忆按操作者身份隔离：这个身份就是测试里读写记忆用的身份
-const TEST_OWNER = { id: 'user-1', roleType: 'admin', operatorNameZh: '张三', isAdmin: true }
+const TEST_OWNER = { id: 'user-1', roleType: 'admin', name: '张三', isAdmin: true }
 vi.mock('next-auth/react', () => ({
   useSession: () => stableSession({ user: TEST_OWNER }),
 }))

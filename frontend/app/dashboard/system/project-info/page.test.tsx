@@ -3,7 +3,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 const { SESSION_DATA, NOTIFY, FETCH_MANAGED_PROJECTS_CACHED, FETCH_WORKFLOW_SUMMARY, REFRESH_HANDLER } = vi.hoisted(() => ({
-  SESSION_DATA: { user: { id: 'u1', roleType: 'admin', operatorNameZh: '测试' } },
+  SESSION_DATA: { user: { id: 'u1', roleType: 'admin', name: '测试' } },
   NOTIFY: { notify: vi.fn() },
   FETCH_MANAGED_PROJECTS_CACHED: vi.fn().mockResolvedValue([
     { id: 1, name: '店铺甲', country: 'US', country_name: '美国站', brand_name: '甲', project_operator: null, assistant_operator: null, commission_basis: null, commission_rate: null, sort_order: 0, is_active: true, source_file: null, has_context: true, project_tier: null, store_address: null },

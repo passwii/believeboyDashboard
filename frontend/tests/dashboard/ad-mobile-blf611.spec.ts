@@ -24,7 +24,7 @@ import { addBLF611FixtureAuth } from '../setup/blf611-fixture'
  */
 
 const SESSION = {
-  user: { id: '1', name: 'E2E', email: 'e2e@example.com', roleType: 'admin', fullName: '测试', operatorNameZh: '测试' },
+  user: { id: '1', name: 'E2E', email: 'e2e@example.com', roleType: 'admin', fullName: '测试' },
   expires: '2099-01-01T00:00:00.000Z',
 }
 

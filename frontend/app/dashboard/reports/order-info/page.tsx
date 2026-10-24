@@ -950,7 +950,7 @@ function OrderInfoPageInner() {
           <div className="space-y-0.5 leading-relaxed">
             <div>当前账号未关联任何店铺</div>
             <div className="text-term-muted">
-              本页订单数据已按账号权限过滤——你的中文运营名未出现在任何店铺的「主运营」或「运营助理」字段里。请联系管理员补录后访问。
+              本页订单数据已按账号权限过滤——你的姓名未出现在任何店铺的「主运营」或「运营助理」字段里。请联系管理员补录后访问。
             </div>
           </div>
         </div>

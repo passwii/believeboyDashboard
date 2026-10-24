@@ -173,7 +173,6 @@ async function forgeSessionToken(): Promise<string> {
       roleType: 'admin',
       // BLF-1441：显示名唯一来源 full_name（此用例走真实账号，值应与库里一致）
       fullName: '纪亚伟',
-      operatorNameZh: '纪亚伟',
       sessionId: 'blf1072-e2e',
       name: 'Yawei',
       email: 'yawei@believeboy.com',
@@ -236,7 +235,6 @@ test.describe('BLF-1072 高频 delta 回放', () => {
             email: 'yawei@believeboy.com',
             roleType: 'admin',
             fullName: '纪亚伟',
-            operatorNameZh: '纪亚伟',
           },
           expires: '2099-01-01T00:00:00.000Z',
         },

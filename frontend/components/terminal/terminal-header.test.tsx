@@ -311,7 +311,7 @@ describe('TerminalHeader 用户名（BLF-1441：只取 user_accounts.full_name�
   })
 
   it('显示会话里的姓名，不是登录名', () => {
-    sessionUser = { name: 'Yawei', fullName: '纪亚伟', operatorNameZh: '运营A' }
+    sessionUser = { name: 'Yawei', fullName: '纪亚伟' }
     renderHeader('/dashboard/profile')
 
     expect(screen.getByTestId('terminal-header-user')).toHaveAccessibleName('用户菜单：纪亚伟')
@@ -319,19 +319,18 @@ describe('TerminalHeader 用户名（BLF-1441：只取 user_accounts.full_name�
     expect(screen.queryByText('Yawei')).not.toBeInTheDocument()
   })
 
-  it('没有姓名时显示「未命名」，不回落登录名 / 运营名', () => {
-    sessionUser = { name: 'DamonROCK', fullName: null, operatorNameZh: '运营A' }
+  it('没有姓名时显示「未命名」，不回落登录名', () => {
+    sessionUser = { name: 'DamonROCK', fullName: null }
     renderHeader('/dashboard/profile')
 
     expect(screen.getByTestId('terminal-header-user')).toHaveAccessibleName('用户菜单：未命名')
     expect(screen.queryByText('DamonROCK')).not.toBeInTheDocument()
-    expect(screen.queryByText('运营A')).not.toBeInTheDocument()
   })
 
-  it('过渡期旧会话（没有 fullName 键）仍显示旧名字，不闪成「未命名」', () => {
-    sessionUser = { name: 'Yawei', operatorNameZh: '运营A' }
+  it('过渡期旧会话（没有 fullName 键）回落登录名，不闪成「未命名」', () => {
+    sessionUser = { name: 'Yawei' }
     renderHeader('/dashboard/profile')
 
-    expect(screen.getByTestId('terminal-header-user')).toHaveAccessibleName('用户菜单：运营A')
+    expect(screen.getByTestId('terminal-header-user')).toHaveAccessibleName('用户菜单：Yawei')
   })
 })

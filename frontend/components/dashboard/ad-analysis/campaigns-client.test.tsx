@@ -13,7 +13,7 @@ vi.mock('next/navigation', () => ({
 }))
 
 let mockSession: unknown = {
-  user: { id: 'user-1', roleType: 'admin', operatorNameZh: '测试用户' },
+  user: { id: 'user-1', roleType: 'admin', name: '测试用户' },
 }
 let mockStatus = 'authenticated'
 vi.mock('next-auth/react', () => ({

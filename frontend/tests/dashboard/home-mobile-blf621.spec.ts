@@ -29,7 +29,6 @@ async function forgeSessionToken(): Promise<string> {
       roleType: 'admin',
       // BLF-1441：会话显示名唯一来源是 full_name（不再回落运营名 / 登录名）
       fullName: 'E2E',
-      operatorNameZh: 'E2E',
       sessionId: 'e2e-session',
       name: 'E2E',
       email: 'e2e@example.com',
@@ -92,7 +91,6 @@ async function expectSameRow(
 
 // ── 主页 mock：projects + daily-analysis（当期 + 对比期 + 跨国家）──
 // BLF-1441：`project_operator` / `assistant_operator` 的匹配键是 `full_name`
-// （见 PROFILE.full_name = 'E2E 测试'），不再是 `operator_name_zh`。
 const PROJECTS = [
   {
     id: 1,
@@ -158,7 +156,6 @@ const PROFILE = {
   email: 'e2e@example.com',
   name: 'E2E',
   full_name: 'E2E 测试',
-  operator_name_zh: 'E2E 运营',
   is_admin: true,
   is_active: true,
   role_type: 'admin',

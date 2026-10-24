@@ -11,7 +11,7 @@ import {
 // ── mocks（稳定引用：effect 依赖 session/searchParams，引用抖动会引发重复拉取）──
 
 const { stableSession } = vi.hoisted(() => ({
-  stableSession: { user: { id: 'user-1', roleType: 'admin', operatorNameZh: '张三' } },
+  stableSession: { user: { id: 'user-1', roleType: 'admin', name: '张三' } },
 }))
 
 let mockSearchParams = new URLSearchParams('projectId=1&country=US')
