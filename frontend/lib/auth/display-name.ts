@@ -45,6 +45,24 @@ function trimOrNull(value: string | null | undefined): string | null {
 }
 
 /**
+ * 把后端 `full_name` 归一成「键存在 / 键缺失」两态（BLF-1441）。
+ *
+ * - `undefined`：响应里根本没有这个字段（前端先上线、后端还是旧版）→
+ *   保留 `undefined`，让 `pickSessionDisplayName` 走过渡兜底。
+ * - `null` / 空串 / 其它非字符串：后端明确说「这个账号没填姓名」→ 归一成 `null`，
+ *   会话里就带着这个 `null`，展示端按「未命名」处理，**不**回落登录名。
+ *
+ * 两个入口共用它：登录响应（`authorize`）与 `useSession().update()` 的
+ * 权威身份回源（`lib/auth/identity-refresh.ts`）。
+ */
+export function normalizeFullName(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed ? trimmed : null
+}
+
+/**
  * 会话里的显示名。返回 `null` 表示「没有可显示的名字」——调用方按场景决定是
  * 显示「未命名」还是不发送 `X-Operator` 头，**不要**在这里回落登录名。
  */

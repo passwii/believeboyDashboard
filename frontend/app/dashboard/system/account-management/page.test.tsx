@@ -290,4 +290,67 @@ describe('账号管理 · 新增账号要求填写姓名', () => {
       expect(body).not.toHaveProperty('operator_name_zh')
     })
   })
+
+  it('姓名全是空白字符时拒绝提交（HTML required 挡不住空格）', async () => {
+    const dialog = await openCreate()
+
+    await userEvent.type(within(dialog).getByLabelText('名称'), 'newbie')
+    await userEvent.type(within(dialog).getByLabelText('姓名'), '   ')
+    await userEvent.type(within(dialog).getByLabelText('邮箱'), 'newbie@believeboy.com')
+    await userEvent.type(within(dialog).getByLabelText('初始密码'), 'password123')
+
+    await userEvent.click(within(dialog).getByRole('button', { name: '创建账号' }))
+
+    await waitFor(() => {
+      expect(NOTIFY.notify).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'error', title: '请填写姓名' })
+      )
+    })
+    const postCall = fetchMock.mock.calls.find(
+      (call: unknown[]) =>
+        String(call[0]) === '/api/admin/users' &&
+        (call[1] as RequestInit | undefined)?.method === 'POST'
+    )
+    expect(postCall).toBeUndefined()
+    // 弹窗保持打开，用户可以直接补名字，不用重新填其他字段。
+    expect(screen.getByRole('dialog')).toBeTruthy()
+  })
+
+  it('提交前把姓名两端空格 trim 掉', async () => {
+    const dialog = await openCreate()
+
+    await userEvent.type(within(dialog).getByLabelText('名称'), 'newbie')
+    await userEvent.type(within(dialog).getByLabelText('姓名'), '  新同事  ')
+    await userEvent.type(within(dialog).getByLabelText('邮箱'), 'newbie@believeboy.com')
+    await userEvent.type(within(dialog).getByLabelText('初始密码'), 'password123')
+
+    fetchMock.mockImplementationOnce(async () =>
+      jsonResponse({
+        item: {
+          id: 'u9',
+          name: 'newbie',
+          email: 'newbie@believeboy.com',
+          fullName: '新同事',
+          operatorNameZh: null,
+          isActive: true,
+          roleType: 'operator',
+          createdAt: '2026-10-24T00:00:00Z',
+          updatedAt: '2026-10-24T00:00:00Z',
+        },
+      })
+    )
+
+    await userEvent.click(within(dialog).getByRole('button', { name: '创建账号' }))
+
+    await waitFor(() => {
+      const postCall = fetchMock.mock.calls.find(
+        (call: unknown[]) =>
+          String(call[0]) === '/api/admin/users' &&
+          (call[1] as RequestInit | undefined)?.method === 'POST'
+      )
+      expect(postCall).toBeTruthy()
+      const body = JSON.parse(String((postCall![1] as RequestInit).body))
+      expect(body.fullName).toBe('新同事')
+    })
+  })
 })

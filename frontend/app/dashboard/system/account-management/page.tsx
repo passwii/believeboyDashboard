@@ -185,6 +185,13 @@ export default function AccountManagementPage() {
 
   const onCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    // 姓名是全局唯一显示名，后端会 strip 后落库；只靠 HTML `required` 挡不住
+    // `'   '`（非空但不含内容），所以这里显式 trim 再判空，并把 trim 后的值发出去。
+    const fullName = createFullName.trim()
+    if (!fullName) {
+      notify({ type: 'error', title: '请填写姓名' })
+      return
+    }
     setCreating(true)
     try {
       const response = await fetch('/api/admin/users', {
@@ -192,7 +199,7 @@ export default function AccountManagementPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: createName,
-          fullName: createFullName,
+          fullName,
           email: createEmail,
           password: createPassword,
           roleType: createRoleType,

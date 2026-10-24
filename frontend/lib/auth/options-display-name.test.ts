@@ -49,6 +49,8 @@ vi.mock('@/lib/server/login-error-hint', () => ({
   rememberLoginErrorHint: vi.fn(async () => undefined),
 }))
 
+import { BackendHttpError } from '@/lib/server/backend-api'
+
 import '@/lib/auth/options'
 
 type Authorize = (credentials: { email?: string; password?: string }) => Promise<
@@ -150,25 +152,127 @@ describe('jwt callback · full_name', () => {
 
     expect('fullName' in token).toBe(false)
   })
+})
 
-  it('useSession().update 改姓名时同步进 token', async () => {
-    const token = await config().callbacks.jwt({
-      token: { uid: 'u1', fullName: '旧名字', operatorNameZh: '运营A' },
-      trigger: 'update',
-      session: { user: { name: 'Yawei', fullName: '新名字' } },
+/**
+ * review P1：`useSession().update(data)` 是客户端可自行构造的
+ * `POST /api/auth/session`，它提交的姓名**绝不能**成为 token 里的身份。
+ * 唯一可信来源是用 token 里服务端签发的 uid / email / sessionId 回源
+ * `GET /api/v1/auth/me` 的结果。
+ */
+describe('jwt callback · update 回源（客户端姓名不可信）', () => {
+  const IDENTITY = { uid: 'u1', email: 'yawei@believeboy.com', sessionId: 's1' }
+  const oldToken = () => ({ ...IDENTITY, fullName: '旧名字', name: 'Yawei', operatorNameZh: '运营A' })
+
+  it('客户端传别人的名字 → 不采纳，以后端返回值为准', async () => {
+    mocks.backendFetchJson.mockResolvedValue({
+      id: 'u1',
+      name: 'Yawei',
+      email: 'yawei@believeboy.com',
+      full_name: '旧名字',
     })
 
-    expect(token.fullName).toBe('新名字')
+    const token = await config().callbacks.jwt({
+      // 攻击姿势：临时账号把自己的 fullName 改成别人的名字，想拿别人的项目权限。
+      token: { ...oldToken(), fullName: '临时账号' },
+      trigger: 'update',
+      session: { user: { name: '纪亚伟', fullName: '纪亚伟' } },
+    })
+
+    expect(token.fullName).toBe('旧名字')
+    expect(token.name).toBe('Yawei')
   })
 
-  it('update 时把姓名清空 → token 里是 null，不回落运营名', async () => {
+  it('后端返回新姓名 → 以返回值为准落进 token', async () => {
+    mocks.backendFetchJson.mockResolvedValue({ name: 'Yawei', full_name: '纪亚伟' })
+
     const token = await config().callbacks.jwt({
-      token: { uid: 'u1', fullName: '旧名字', operatorNameZh: '运营A' },
+      token: oldToken(),
       trigger: 'update',
-      session: { user: { fullName: '   ' } },
+      session: { user: { fullName: '客户端乱写的名字' } },
+    })
+
+    expect(token.fullName).toBe('纪亚伟')
+  })
+
+  it('回源 401（会话吊销 / 账号停用）→ 保留 token 原值，不清空不降级', async () => {
+    mocks.backendFetchJson.mockRejectedValue(
+      new BackendHttpError('Session revoked', { status: 401 })
+    )
+
+    const token = await config().callbacks.jwt({
+      token: oldToken(),
+      trigger: 'update',
+      session: { user: { fullName: '客户端乱写的名字' } },
+    })
+
+    expect(token.fullName).toBe('旧名字')
+    expect(token.name).toBe('Yawei')
+  })
+
+  it('后端不可达 → 保留 token 原值', async () => {
+    mocks.backendFetchJson.mockRejectedValue(new Error('fetch failed'))
+
+    const token = await config().callbacks.jwt({
+      token: oldToken(),
+      trigger: 'update',
+      session: { user: { fullName: '客户端乱写的名字' } },
+    })
+
+    expect(token.fullName).toBe('旧名字')
+  })
+
+  it('token 缺 sessionId 时不发请求（不回源就不更新）', async () => {
+    const token = await config().callbacks.jwt({
+      token: { uid: 'u1', email: 'yawei@believeboy.com', fullName: '旧名字' },
+      trigger: 'update',
+      session: { user: { fullName: '客户端乱写的名字' } },
+    })
+
+    expect(mocks.backendFetchJson).not.toHaveBeenCalled()
+    expect(token.fullName).toBe('旧名字')
+  })
+
+  it('后端明确返回 full_name=null → token 置 null（不是保留旧值，也不回落运营名）', async () => {
+    mocks.backendFetchJson.mockResolvedValue({ name: 'DamonROCK', full_name: null })
+
+    const token = await config().callbacks.jwt({
+      token: { ...IDENTITY, fullName: '旧名字', operatorNameZh: '运营A' },
+      trigger: 'update',
+      session: { user: { fullName: '旧名字' } },
     })
 
     expect(token.fullName).toBeNull()
+  })
+
+  it('旧后端响应没有 full_name 键 → 保持 token 原值', async () => {
+    mocks.backendFetchJson.mockResolvedValue({ name: 'Yawei' })
+
+    const token = await config().callbacks.jwt({
+      token: oldToken(),
+      trigger: 'update',
+      session: { user: { fullName: '客户端乱写的名字' } },
+    })
+
+    expect(token.fullName).toBe('旧名字')
+  })
+
+  it('回源带 token 里的服务端身份，而不是客户端提交的任何东西', async () => {
+    mocks.backendFetchJson.mockResolvedValue({ name: 'Yawei', full_name: '纪亚伟' })
+
+    await config().callbacks.jwt({
+      token: oldToken(),
+      trigger: 'update',
+      session: { user: { id: 'u2', email: 'someone@else.com', fullName: '纪亚伟' } },
+    })
+
+    const [path, init] = mocks.backendFetchJson.mock.calls[0] as [string, RequestInit]
+    expect(path).toBe('/api/v1/auth/me')
+    expect(init.method).toBe('GET')
+    const headers = init.headers as Record<string, string>
+    expect(headers['X-User-Id']).toBe('u1')
+    expect(headers['X-User-Email']).toBe('yawei%40believeboy.com')
+    expect(headers['X-Session-Id']).toBe('s1')
   })
 })
 

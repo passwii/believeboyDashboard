@@ -1,6 +1,8 @@
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 
+import { normalizeFullName } from '@/lib/auth/display-name'
+import { fetchSessionIdentity } from '@/lib/auth/identity-refresh'
 import { LoginFailureError } from '@/lib/auth/login-auth-error'
 import { pageCodeForBackendFailure } from '@/lib/auth/login-error-code'
 import { NetworkAuthError } from '@/lib/auth/network-auth-error'
@@ -8,21 +10,6 @@ import { BackendHttpError, backendFetchJson } from '@/lib/server/backend-api'
 import { rememberLoginErrorHint } from '@/lib/server/login-error-hint'
 
 type UserCredentials = Partial<Record<'email' | 'password', unknown>>
-
-/**
- * 把后端 `full_name` 归一成「键存在 / 键缺失」两态（BLF-1441）。
- *
- * - `undefined`：登录响应里根本没有这个字段（前端先上线、后端还是旧版）→
- *   保留 `undefined`，让 `pickSessionDisplayName` 走过渡兜底。
- * - `null` / 空串：后端明确说「这个账号没填姓名」→ 归一成 `null`，
- *   会话里就带着这个 `null`，展示端按「未命名」处理，**不**回落登录名。
- */
-function normalizeFullName(value: string | null | undefined): string | null | undefined {
-  if (value === undefined) return undefined
-  if (value === null) return null
-  const trimmed = value.trim()
-  return trimmed ? trimmed : null
-}
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   // Cloudflare Tunnel 会改 Host 头；这里显式声明信任，避免 v5 在生产模式
@@ -122,7 +109,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token, user, trigger, session }) {
+    // 注意：这里刻意不接 `session` 参数。`trigger === 'update'` 时客户端提交的
+    // `session.user` 是**不可信输入**，身份一律回源（见下方注释）。
+    async jwt({ token, user, trigger }) {
       if (user) {
         token.uid = user.id
         token.isAdmin = Boolean(user.isAdmin)
@@ -139,19 +128,21 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
 
       // `useSession().update(...)` 触发：资料页改完「姓名」后要立刻生效。
-      // 不接这段的话，token 里的 fullName 会停在登录那一刻，顶部菜单与
-      // X-Operator 仍是旧名字，直到用户下次登录（最长 8 小时）。
-      if (trigger === 'update' && session && typeof session === 'object') {
-        const nextUser = (session as { user?: { fullName?: unknown; name?: unknown } }).user
-        if (nextUser && typeof nextUser === 'object') {
-          if ('fullName' in nextUser) {
-            token.fullName =
-              typeof nextUser.fullName === 'string'
-                ? (normalizeFullName(nextUser.fullName) ?? null)
-                : null
+      //
+      // 安全约束（review P1）：`update(data)` 就是 `POST /api/auth/session`，
+      // body 由客户端完全控制——任何已登录用户都能自己发。所以这里**绝不读**
+      // `session.user` 里的姓名：`X-Operator` 同时是项目鉴权键（后端拿它匹配
+      // `projects.project_operator`），写客户端给的值等于把项目权限交给客户端。
+      // 改为用 token 里服务端签发的身份回源 `GET /api/v1/auth/me` 取权威姓名；
+      // 回源失败保持 token 原值（不清空、不降级），详见 identity-refresh.ts。
+      if (trigger === 'update') {
+        const identity = await fetchSessionIdentity(token)
+        if (identity) {
+          if (identity.fullName !== undefined) {
+            token.fullName = identity.fullName
           }
-          if (typeof nextUser.name === 'string') {
-            token.name = nextUser.name
+          if (identity.name) {
+            token.name = identity.name
           }
         }
       }

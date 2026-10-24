@@ -51,19 +51,15 @@ export function useProfile(): UseProfileResult {
     async (patch: ProfileUpdate) => {
       const next = await updateProfile(patch)
       setProfile(next)
-      // Keep the JWT-derived session in sync so the sidebar reflects
-      // name / avatar changes immediately.
+      // BLF-1441：`fullName` 是全局显示名与 `X-Operator` 的唯一来源，改完
+      // 「姓名」要立刻生效，所以这里触发一次会话刷新。
       //
-      // BLF-1441：`fullName` 是全局显示名与 `X-Operator` 的唯一来源，
-      // 改完「姓名」必须一并写回会话（jwt 回调的 `trigger === 'update'`
-      // 分支负责落进 token），否则要等下次登录才生效。
-      await updateSession({
-        user: {
-          name: next.name,
-          fullName: next.full_name ?? null,
-          image: next.avatar_url ?? undefined,
-        },
-      })
+      // 注意**不传**姓名 / 登录名：`update(data)` 是客户端可自行构造的
+      // `POST /api/auth/session`，把姓名塞进 body 会诱导 jwt 回调信任客户端
+      // 输入（review P1 的越权路径）。服务端在 `trigger === 'update'` 时用
+      // token 里的身份回源 `/api/v1/auth/me` 取权威姓名，这里传什么都不会
+      // 进 token；留空是为了让「客户端说了不算」这件事在调用点就看得见。
+      await updateSession({})
       return next
     },
     [updateSession]
