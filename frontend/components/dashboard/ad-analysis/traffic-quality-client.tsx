@@ -83,11 +83,11 @@ export function AdAnalysisTrafficQualityClient() {
   const [errorResult, setErrorResult] = useState<{ signature: string; message: string } | null>(null)
   const refreshKey = useAdClientRefreshKey()
   const sessionUser = session?.user as
-    | { id?: string | null; roleType?: string | null; operatorNameZh?: string | null }
+    | { id?: string | null; roleType?: string | null; name?: string | null }
     | undefined
   const querySignature = JSON.stringify([
     projectId, country, dateFrom, dateTo, campaignFilter,
-    sessionUser?.id ?? null, sessionUser?.roleType ?? null, sessionUser?.operatorNameZh ?? null,
+    sessionUser?.id ?? null, sessionUser?.roleType ?? null, sessionUser?.name ?? null,
   ])
   const data = dataResult?.signature === querySignature ? dataResult.value : null
   const error = errorResult?.signature === querySignature ? errorResult.message : null

@@ -18,7 +18,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { stableSession } = vi.hoisted(() => ({
-  stableSession: { user: { id: '1', name: '测试用户', operatorNameZh: '运营A', roleType: 'admin' } },
+  stableSession: { user: { id: '1', name: '测试用户', roleType: 'admin' } },
 }))
 
 vi.mock('next-auth/react', () => ({

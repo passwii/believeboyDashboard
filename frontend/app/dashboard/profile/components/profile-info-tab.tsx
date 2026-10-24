@@ -29,7 +29,6 @@ export function ProfileInfoTab({ profile, loading, error, onUpdate }: ProfileInf
   const { notify } = useNotifications()
   const [name, setName] = React.useState('')
   const [fullName, setFullName] = React.useState('')
-  const [operatorName, setOperatorName] = React.useState('')
   const [submitting, setSubmitting] = React.useState(false)
   const [savedJustNow, setSavedJustNow] = React.useState(false)
   const [initialized, setInitialized] = React.useState(false)
@@ -40,7 +39,6 @@ export function ProfileInfoTab({ profile, loading, error, onUpdate }: ProfileInf
     if (!profile || initialized) return
     setName(profile.name ?? '')
     setFullName(profile.full_name ?? '')
-    setOperatorName(profile.operator_name_zh ?? '')
     setInitialized(true)
   }, [profile, initialized])
 
@@ -50,7 +48,6 @@ export function ProfileInfoTab({ profile, loading, error, onUpdate }: ProfileInf
     if (!profile) return
     setName(profile.name ?? '')
     setFullName(profile.full_name ?? '')
-    setOperatorName(profile.operator_name_zh ?? '')
   }, [profile])
 
   // Dirty state — used to guard against losing unsaved changes.
@@ -58,9 +55,8 @@ export function ProfileInfoTab({ profile, loading, error, onUpdate }: ProfileInf
     if (!profile) return false
     if (name.trim() !== (profile.name ?? '')) return true
     if (fullName.trim() !== (profile.full_name ?? '')) return true
-    if (operatorName.trim() !== (profile.operator_name_zh ?? '')) return true
     return false
-  }, [profile, name, fullName, operatorName])
+  }, [profile, name, fullName])
 
   // Page-level beforeunload warning when there are unsaved changes.
   React.useEffect(() => {
@@ -90,10 +86,6 @@ export function ProfileInfoTab({ profile, loading, error, onUpdate }: ProfileInf
     if ((trimmedFull || null) !== (profile.full_name ?? null)) {
       patch.full_name = trimmedFull || null
     }
-    const trimmedOperator = operatorName.trim()
-    if ((trimmedOperator || null) !== (profile.operator_name_zh ?? null)) {
-      patch.operator_name_zh = trimmedOperator || null
-    }
 
     if (Object.keys(patch).length === 0) {
       notify({ type: 'info', title: '没有需要保存的修改' })
@@ -117,7 +109,6 @@ export function ProfileInfoTab({ profile, loading, error, onUpdate }: ProfileInf
     if (!profile) return
     setName(profile.name ?? '')
     setFullName(profile.full_name ?? '')
-    setOperatorName(profile.operator_name_zh ?? '')
   }
 
   if (loading && !profile) {
@@ -190,30 +181,6 @@ export function ProfileInfoTab({ profile, loading, error, onUpdate }: ProfileInf
           <span>全局显示名唯一来源：日志 / 负责人 / 创建人 / 顶部菜单都取它；留空则显示「未命名」</span>
           <span className={counterClass(fullName.length)}>
             {fullName.length}/{MAX_LENGTH}
-          </span>
-        </p>
-      </div>
-
-      <div className="space-y-2 md:col-span-2">
-        <Label htmlFor="profile-operator-name" className="flex items-center gap-1.5">
-          <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-          运营名（历史别名）
-        </Label>
-        <Input
-          id="profile-operator-name"
-          value={operatorName}
-          onChange={(e) => setOperatorName(e.target.value)}
-          disabled={submitting}
-          maxLength={MAX_LENGTH}
-          placeholder="仅保留作历史别名"
-        />
-        <p className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>
-            ⚠ 不再参与任何显示；项目「运营 / 助理运营」的匹配已改用上面的「姓名」。
-            要调整项目归属请让管理员改项目，或核对姓名与项目里的运营名是否一致。
-          </span>
-          <span className={counterClass(operatorName.length)}>
-            {operatorName.length}/{MAX_LENGTH}
           </span>
         </p>
       </div>

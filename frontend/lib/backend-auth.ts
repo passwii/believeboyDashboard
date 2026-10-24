@@ -44,9 +44,11 @@ import { getBackendApiKey } from '@/lib/server/backend-api'
  * helpers — there is no fourth path.
  *
  * BLF-1441: `X-Operator` / `X-User-Name` carry `session.user.fullName`
- * (`user_accounts.full_name`, the single global display-name source) instead of
- * `operatorNameZh → name`. See `lib/auth/display-name.ts` for the rule table and
- * for why an absent key (pre-upgrade JWT) still falls back during the 8h window.
+ * (`user_accounts.full_name`, the single global display-name source). See
+ * `lib/auth/display-name.ts` for the rule table and for why an absent key
+ * (pre-#776 JWT) still falls back to the login name during the 8h window.
+ * Internal integration keys (client cache scopes) are NOT display names — they
+ * use `session.user.name` (username) instead.
  */
 
 type BuildBackendAuthHeadersOptions = {
@@ -80,8 +82,8 @@ function pickUserId(session: Session | null): string | null {
  * `X-Operator` 与 `X-User-Name` 都发它，后端 `get_request_operator` 优先读前者。
  *
  * 注意 `X-Operator` 同时是项目鉴权键（匹配 `projects.project_operator` 文本），
- * 所以这里**不能**再混入 `operator_name_zh`——切换口径时已核对现网快照：
- * `project_operator` 的取值就是 `full_name`，权限影响面为 0。
+ * 口径切换时已核对现网快照：`project_operator` 的取值就是 `full_name`，
+ * 权限影响面为 0。运营名（`operator_name_zh`）已从后端删除，不再参与任何口径。
  */
 function pickUserName(session: Session | null): string | null {
   if (!session) return null

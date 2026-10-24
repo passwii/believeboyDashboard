@@ -41,7 +41,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             email: string
             /** BLF-1441：全局显示名唯一来源；旧后端没有这个字段。 */
             full_name?: string | null
-            operator_name_zh: string | null
             is_admin: boolean
             is_active: boolean
             role_type: 'admin' | 'operator' | 'businessdev'
@@ -64,7 +63,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             // 走过渡兜底；`null` 是「账号存在但没填姓名」，必须原样落进会话。
             fullName: normalizeFullName(account.full_name),
             isAdmin: account.is_admin,
-            operatorNameZh: account.operator_name_zh,
             roleType: account.role_type,
             sessionId: account.session_id,
           }
@@ -120,7 +118,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (user.fullName !== undefined) {
           token.fullName = typeof user.fullName === 'string' ? user.fullName : null
         }
-        token.operatorNameZh = typeof user.operatorNameZh === 'string' ? user.operatorNameZh : null
         token.roleType =
           (user.roleType as 'admin' | 'operator' | 'businessdev') ??
           (user.isAdmin ? 'admin' : 'operator')
@@ -160,8 +157,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             : typeof token.fullName === 'string'
               ? token.fullName
               : null
-        session.user.operatorNameZh =
-          typeof token.operatorNameZh === 'string' ? token.operatorNameZh : null
         session.user.roleType =
           (token.roleType as 'admin' | 'operator' | 'businessdev') ??
           (token.isAdmin ? 'admin' : 'operator')

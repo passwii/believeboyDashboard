@@ -8,7 +8,6 @@ import { backendFetchJson } from '@/lib/server/backend-api'
 type PatchBody = {
   name?: string
   full_name?: string | null
-  operator_name_zh?: string | null
 }
 
 export async function GET() {
@@ -68,11 +67,6 @@ export async function PATCH(request: Request) {
     payload.full_name = body.full_name.trim() || null
   } else if (body.full_name === null) {
     payload.full_name = null
-  }
-  if (typeof body.operator_name_zh === 'string') {
-    payload.operator_name_zh = body.operator_name_zh.trim() || null
-  } else if (body.operator_name_zh === null) {
-    payload.operator_name_zh = null
   }
 
   if (Object.keys(payload).length === 0) {

@@ -5,7 +5,6 @@ export interface Profile {
   email: string
   name: string
   full_name: string | null
-  operator_name_zh: string | null
   is_admin: boolean
   is_active: boolean
   role_type: ProfileRoleType
@@ -18,5 +17,4 @@ export interface Profile {
 export type ProfileUpdate = {
   name?: string
   full_name?: string | null
-  operator_name_zh?: string | null
 }

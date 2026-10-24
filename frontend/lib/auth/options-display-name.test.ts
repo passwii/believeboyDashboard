@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * 三条规则在会话层的落点：
  *   - 后端给了 `full_name` → 原样进 token / session；
  *   - 后端给了 `null`（账号存在但没填姓名）→ token / session 里就是 `null`，
- *     **不**拿 `operator_name_zh` 或登录名补上；
+ *     **不**拿登录名补上（运营名字段已随后端 #778 删除）；
  *   - 后端压根没这个字段（旧后端）→ 不写进 token，保持 `undefined`，
  *     由 `pickSessionDisplayName` 走过渡兜底。
  */
@@ -83,7 +83,6 @@ const account = {
   name: 'Yawei',
   email: 'yawei@believeboy.com',
   full_name: '纪亚伟',
-  operator_name_zh: '运营A',
   is_admin: true,
   is_active: true,
   role_type: 'admin' as const,
@@ -102,16 +101,18 @@ describe('authorize · full_name 透传', () => {
 
     const user = await config().providers[0].options.authorize(credentials)
 
-    expect(user).toMatchObject({ fullName: '纪亚伟', operatorNameZh: '运营A', name: 'Yawei' })
+    expect(user).toMatchObject({ fullName: '纪亚伟', name: 'Yawei' })
+    // 运营名已删（#778）：authorize 不再透出这个字段。
+    expect(user).not.toHaveProperty('operatorNameZh')
   })
 
-  it('后端 full_name 为空串时归一成 null（不拿运营名顶替）', async () => {
+  it('后端 full_name 为空串时归一成 null（不拿登录名顶替）', async () => {
     mocks.backendFetchJson.mockResolvedValue({ ...account, full_name: '   ' })
 
     const user = await config().providers[0].options.authorize(credentials)
 
     expect(user?.fullName).toBeNull()
-    expect(user?.operatorNameZh).toBe('运营A')
+    expect(user).not.toHaveProperty('operatorNameZh')
   })
 
   it('旧后端没有 full_name 字段时保留 undefined（交给过渡兜底）', async () => {
@@ -128,7 +129,7 @@ describe('jwt callback · full_name', () => {
   it('登录时写入 token', async () => {
     const token = await config().callbacks.jwt({
       token: {},
-      user: { id: 'u1', fullName: '纪亚伟', operatorNameZh: '运营A', isAdmin: true },
+      user: { id: 'u1', fullName: '纪亚伟', isAdmin: true },
     })
 
     expect(token.fullName).toBe('纪亚伟')
@@ -137,17 +138,17 @@ describe('jwt callback · full_name', () => {
   it('登录时 fullName 为 null 也写进 token（表示「没填姓名」）', async () => {
     const token = await config().callbacks.jwt({
       token: {},
-      user: { id: 'u1', fullName: null, operatorNameZh: '运营A', isAdmin: false },
+      user: { id: 'u1', fullName: null, isAdmin: false },
     })
 
     expect(token.fullName).toBeNull()
-    expect(token.operatorNameZh).toBe('运营A')
+    expect(token).not.toHaveProperty('operatorNameZh')
   })
 
   it('旧后端（user 上没有 fullName 键）时不写 token，保持 undefined', async () => {
     const token = await config().callbacks.jwt({
       token: {},
-      user: { id: 'u1', operatorNameZh: '运营A', isAdmin: false },
+      user: { id: 'u1', isAdmin: false },
     })
 
     expect('fullName' in token).toBe(false)
@@ -162,7 +163,7 @@ describe('jwt callback · full_name', () => {
  */
 describe('jwt callback · update 回源（客户端姓名不可信）', () => {
   const IDENTITY = { uid: 'u1', email: 'yawei@believeboy.com', sessionId: 's1' }
-  const oldToken = () => ({ ...IDENTITY, fullName: '旧名字', name: 'Yawei', operatorNameZh: '运营A' })
+  const oldToken = () => ({ ...IDENTITY, fullName: '旧名字', name: 'Yawei' })
 
   it('客户端传别人的名字 → 不采纳，以后端返回值为准', async () => {
     mocks.backendFetchJson.mockResolvedValue({
@@ -233,11 +234,11 @@ describe('jwt callback · update 回源（客户端姓名不可信）', () => {
     expect(token.fullName).toBe('旧名字')
   })
 
-  it('后端明确返回 full_name=null → token 置 null（不是保留旧值，也不回落运营名）', async () => {
+  it('后端明确返回 full_name=null → token 置 null（不是保留旧值，也不回落登录名）', async () => {
     mocks.backendFetchJson.mockResolvedValue({ name: 'DamonROCK', full_name: null })
 
     const token = await config().callbacks.jwt({
-      token: { ...IDENTITY, fullName: '旧名字', operatorNameZh: '运营A' },
+      token: { ...IDENTITY, fullName: '旧名字', name: 'DamonROCK' },
       trigger: 'update',
       session: { user: { fullName: '旧名字' } },
     })
@@ -280,11 +281,12 @@ describe('session callback · full_name', () => {
   it('token 里有值 → session.user.fullName 有值', async () => {
     const session = await config().callbacks.session({
       session: { user: {}, expires: '2099-01-01T00:00:00.000Z' },
-      token: { uid: 'u1', fullName: '纪亚伟', operatorNameZh: '运营A', roleType: 'admin' },
+      token: { uid: 'u1', fullName: '纪亚伟', roleType: 'admin' },
     })
 
     expect(session.user?.fullName).toBe('纪亚伟')
-    expect(session.user?.operatorNameZh).toBe('运营A')
+    // 运营名已删（#778）：session 不再携带这个字段。
+    expect(session.user).not.toHaveProperty('operatorNameZh')
   })
 
   it('token 里是 null → session 里是 null（不是 undefined）', async () => {

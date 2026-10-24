@@ -96,7 +96,6 @@ const account = {
   id: 'u1',
   name: 'Damon',
   email: 'a@b.com',
-  operator_name_zh: '戴蒙',
   is_admin: true,
   is_active: true,
   role_type: 'admin' as const,

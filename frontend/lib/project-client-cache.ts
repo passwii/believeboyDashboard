@@ -22,9 +22,10 @@ function normalizeScopePart(value: string | null | undefined): string {
 
 function managedProjectsCacheKey(session?: Session | null, showInactive?: boolean): string {
   const roleType = session?.user?.roleType ?? 'unknown'
-  const operatorName = normalizeScopePart(session?.user?.operatorNameZh)
+  // BLF-1441 收口：缓存作用域键是内部对接，用登录名（username），不用显示名。
+  const username = normalizeScopePart(session?.user?.name)
   const userId = normalizeScopePart(session?.user?.id)
-  return `${PROJECT_CACHE_PREFIX}manage:${roleType}:${operatorName}:${userId}:showInactive:${showInactive ?? false}`
+  return `${PROJECT_CACHE_PREFIX}manage:${roleType}:${username}:${userId}:showInactive:${showInactive ?? false}`
 }
 
 async function parseError(response: Response, fallback: string): Promise<string> {

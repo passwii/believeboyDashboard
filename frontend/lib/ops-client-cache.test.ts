@@ -17,7 +17,7 @@ const SESSION = {
   user: {
     id: 'user-1',
     roleType: 'admin',
-    operatorNameZh: '张三',
+    name: '张三',
   },
 } as never
 
@@ -25,7 +25,7 @@ const OTHER_SESSION = {
   user: {
     id: 'user-2',
     roleType: 'operator',
-    operatorNameZh: '李四',
+    name: '李四',
   },
 } as never
 

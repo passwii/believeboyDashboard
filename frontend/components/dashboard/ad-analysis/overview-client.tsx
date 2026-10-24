@@ -150,7 +150,7 @@ export function AdAnalysisOverviewClient() {
   const [errorResult, setErrorResult] = useState<{ signature: string; message: string } | null>(null)
   const refreshKey = useAdClientRefreshKey()
   const sessionUser = session?.user as
-    | { id?: string | null; roleType?: string | null; operatorNameZh?: string | null }
+    | { id?: string | null; roleType?: string | null; name?: string | null }
     | undefined
   const querySignature = JSON.stringify([
     projectId,
@@ -159,7 +159,7 @@ export function AdAnalysisOverviewClient() {
     dateTo,
     sessionUser?.id ?? null,
     sessionUser?.roleType ?? null,
-    sessionUser?.operatorNameZh ?? null,
+    sessionUser?.name ?? null,
   ])
   // Header refresh keeps the same query signature; changed filters immediately hide stale data.
   const data = dataResult?.signature === querySignature ? dataResult.value : null

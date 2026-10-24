@@ -68,7 +68,6 @@ type UserItem = {
   name: string
   email: string
   fullName: string | null
-  operatorNameZh?: string | null
   isActive: boolean
   roleType: UserRoleType
   createdAt: string
@@ -118,7 +117,6 @@ export default function AccountManagementPage() {
   const [editOpen, setEditOpen] = useState(false)
   const [editUser, setEditUser] = useState<UserItem | null>(null)
   const [editFullName, setEditFullName] = useState('')
-  const [editOperatorNameZh, setEditOperatorNameZh] = useState('')
   const [editRoleType, setEditRoleType] = useState<UserRoleType>('operator')
   const [editBusy, setEditBusy] = useState(false)
 
@@ -260,10 +258,9 @@ export default function AccountManagementPage() {
 
   const onEditOpen = (user: UserItem) => {
     setEditUser(user)
-    // BLF-1441：两个字段各自回填各自的列，不再拿姓名回填运营名
-    // （旧实现回填 fullName、保存却写 operator_name_zh，等于悄悄改鉴权键）。
+    // BLF-1441：姓名（full_name）是唯一显示名；运营名（operator_name_zh）已随
+    // 后端 #778 删除，编辑弹窗不再有这一栏。
     setEditFullName(user.fullName ?? '')
-    setEditOperatorNameZh(user.operatorNameZh ?? '')
     setEditRoleType(user.roleType)
     setEditOpen(true)
   }
@@ -277,10 +274,8 @@ export default function AccountManagementPage() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          // 姓名（full_name）是全局显示名唯一来源；运营名（operator_name_zh）
-          // 是项目运营匹配 / 鉴权键，两者必须分开提交（BLF-1441）。
+          // 姓名（full_name）是全局显示名唯一来源（BLF-1441）；运营名已删除。
           fullName: editFullName.trim(),
-          operator_name_zh: editOperatorNameZh.trim() || null,
           // 路由层读的是 camelCase `roleType`（旧代码发 role_type 被静默丢弃，
           // 改角色属性实际不生效）。
           roleType: editRoleType,
@@ -361,7 +356,6 @@ export default function AccountManagementPage() {
                   <TableRow>
                     <TableHead>名称</TableHead>
                     <TableHead>姓名</TableHead>
-                    <TableHead>运营名</TableHead>
                     <TableHead>邮箱</TableHead>
                     <TableHead>角色属性</TableHead>
                     <TableHead>状态</TableHead>
@@ -372,12 +366,12 @@ export default function AccountManagementPage() {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center text-muted-foreground">
                         加载中...
                       </TableCell>
                     </TableRow>
                   ) : items.length === 0 ? (
-                    <EmptyTableState colSpan={8} message="暂无账号" />
+                    <EmptyTableState colSpan={7} message="暂无账号" />
                   ) : (
                     items.map((item) => {
                       const isProtected = isYaweiAccount(item)
@@ -390,9 +384,6 @@ export default function AccountManagementPage() {
                             ) : (
                               <span className="text-term-faint">{UNNAMED_DISPLAY_NAME}</span>
                             )}
-                          </TableCell>
-                          <TableCell className="text-term-muted">
-                            {item.operatorNameZh?.trim() || '-'}
                           </TableCell>
                           <TableCell className="font-mono text-xs">{item.email}</TableCell>
                           <TableCell>
@@ -480,9 +471,6 @@ export default function AccountManagementPage() {
                             ) : (
                               <span className="text-term-faint">{UNNAMED_DISPLAY_NAME}</span>
                             )}
-                          </div>
-                          <div className="text-xs text-term-faint">
-                            运营名：{item.operatorNameZh?.trim() || '-'}
                           </div>
                         </div>
                         <RoleTypeBadge roleType={item.roleType} />
@@ -689,11 +677,11 @@ export default function AccountManagementPage() {
           className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]"
         >
           <span id="edit-account-dialog-description" className="sr-only">
-            修改姓名、运营名和角色属性
+            修改姓名和角色属性
           </span>
           <DialogHeader>
             <DialogTitle>编辑账号</DialogTitle>
-            <DialogDescription>修改姓名、运营名和角色属性。</DialogDescription>
+            <DialogDescription>修改姓名和角色属性。</DialogDescription>
           </DialogHeader>
           <form className="space-y-4" onSubmit={onEdit}>
             <div className="space-y-2">
@@ -706,19 +694,6 @@ export default function AccountManagementPage() {
               />
               <p className="text-xs text-muted-foreground">
                 全局唯一的显示名。留空时各处显示「{UNNAMED_DISPLAY_NAME}」，不会回落登录名。
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-operator-name-zh">运营名</Label>
-              <Input
-                id="edit-operator-name-zh"
-                value={editOperatorNameZh}
-                onChange={(e) => setEditOperatorNameZh(e.target.value)}
-                placeholder="用于匹配项目运营 / 助理运营"
-              />
-              <p className="text-xs text-muted-foreground">
-                ⚠ 这是项目权限的匹配键（对应项目里的运营 / 助理运营），不是显示名；
-                改错会影响该账号能看到的项目。
               </p>
             </div>
             <div className="space-y-2">

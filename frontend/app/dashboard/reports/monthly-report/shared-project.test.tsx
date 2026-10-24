@@ -21,8 +21,8 @@ import {
   type ReportProjectOwner,
 } from './shared-project'
 
-const OWNER_A: ReportProjectOwner = { id: 'user-a', roleType: 'admin', operatorNameZh: '张三' }
-const OWNER_B: ReportProjectOwner = { id: 'user-b', roleType: 'operator', operatorNameZh: '李四' }
+const OWNER_A: ReportProjectOwner = { id: 'user-a', roleType: 'admin', name: '张三' }
+const OWNER_B: ReportProjectOwner = { id: 'user-b', roleType: 'operator', name: '李四' }
 
 // ── 可切换的 session：模拟同一浏览器上换账号（`useSession` 的 data 会变） ──────
 const sessionState = vi.hoisted(() => ({ current: null as unknown }))
@@ -88,10 +88,10 @@ describe('共享记忆读写（按操作者隔离）', () => {
     expect(readSharedReportProjectId(OWNER_B)).toBe('7')
   })
 
-  it('没有稳定身份（无 userId / operatorName）时不读也不写', () => {
+  it('没有稳定身份（无 userId / username）时不读也不写', () => {
     expect(reportProjectStorageKey(null)).toBeNull()
     expect(reportProjectStorageKey({})).toBeNull()
-    expect(reportProjectStorageKey({ operatorNameZh: '   ' })).toBeNull()
+    expect(reportProjectStorageKey({ name: '   ' })).toBeNull()
 
     writeSharedReportProjectId({}, '2')
     writeSharedReportProjectId(null, '2')

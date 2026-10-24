@@ -10,7 +10,6 @@ type UserItem = {
   name: string
   email: string
   full_name?: string | null
-  operator_name_zh?: string | null
   is_admin: boolean
   is_active: boolean
   role_type: 'admin' | 'operator' | 'businessdev'
@@ -24,7 +23,6 @@ function toFrontendUser(item: UserItem) {
     name: item.name,
     email: item.email,
     fullName: item.full_name ?? null,
-    operatorNameZh: item.operator_name_zh ?? null,
     isAdmin: item.is_admin,
     isActive: item.is_active,
     roleType: item.role_type,
@@ -49,7 +47,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     isActive?: boolean
     roleType?: 'admin' | 'operator' | 'businessdev'
     password?: string
-    operator_name_zh?: string | null
   }
 
   if (body.password && body.password.length < 8) {
@@ -75,7 +72,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           is_active: body.isActive,
           role_type: body.roleType,
           password: body.password,
-          operator_name_zh: body.operator_name_zh,
         }),
         cache: 'no-store',
       }

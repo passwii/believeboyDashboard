@@ -29,7 +29,6 @@ async function forgeSessionToken(): Promise<string> {
       roleType: 'admin',
       // BLF-1441：会话显示名唯一来源是 full_name（不再回落运营名 / 登录名）
       fullName: 'E2E',
-      operatorNameZh: 'E2E',
       sessionId: 'e2e-session',
       name: 'E2E',
       email: 'e2e@example.com',

@@ -26,7 +26,7 @@ vi.mock('@/hooks/use-confirm', () => ({
 // 注意：mock 必须返回**稳定引用**——组件内 fetch effect 依赖 [session]，
 // 每次渲染新对象会形成「新 session → 重新拉数 → setState → 新 session」死循环。
 const MOCK_SESSION = vi.hoisted(() => ({
-  data: { user: { roleType: 'admin', operatorNameZh: '测试', id: '1' } },
+  data: { user: { roleType: 'admin', name: '测试', id: '1' } },
   status: 'authenticated',
 }))
 vi.mock('next-auth/react', () => ({

@@ -30,13 +30,14 @@ const INFLIGHT = new Map<string, Promise<unknown>>()
 type AdUser = {
   id?: string | null
   roleType?: string | null
-  operatorNameZh?: string | null
+  /** 登录名（username）。BLF-1441 收口：缓存作用域键是内部对接，用 username 不用显示名。 */
+  name?: string | null
 }
 
 function userScope(session?: Session | null): string {
   const user = (session?.user ?? {}) as AdUser
   const roleType = user.roleType ?? 'unknown'
-  const operator = (user.operatorNameZh || '').trim() || 'none'
+  const operator = (user.name || '').trim() || 'none'
   const userId = (user.id || '').trim() || 'none'
   return `${roleType}:${operator}:${userId}`
 }

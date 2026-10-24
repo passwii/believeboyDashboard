@@ -3,13 +3,12 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
- * BLF-1441 · 账号管理页的显示名口径。
+ * BLF-1441 · 账号管理页的显示名口径（#778 收口后）。
  *
- * 1. 「姓名」列只显示 `full_name`；为空时显示「未命名」，**不**回落运营名
- *    （旧实现是 `fullName || operatorNameZh || '-'`，正是新口径禁止的兜底）。
- * 2. 「运营名」独立成列，避免两个语义不同的字段挤在一格里。
- * 3. 编辑弹窗拆成「姓名」「运营名」两栏，分别回填各自的列；保存时两个字段
- *    各自 PATCH，不再「回填姓名、只写运营名」。
+ * 1. 「姓名」列只显示 `full_name`；为空时显示「未命名」，**不**回落登录名。
+ * 2. 「运营名」列与编辑框已删除（`operator_name_zh` 随后端 #778 移除），
+ *    表格里不应再出现这一列，PATCH / POST 也不再携带这个键。
+ * 3. 编辑弹窗只剩「姓名」「角色属性」；新增账号仍必填姓名。
  */
 
 const { NOTIFY, SESSION } = vi.hoisted(() => ({
@@ -40,7 +39,6 @@ const USERS = {
       name: 'Yawei',
       email: 'yawei@believeboy.com',
       fullName: '纪亚伟',
-      operatorNameZh: '纪亚伟',
       isActive: true,
       roleType: 'admin',
       createdAt: '2026-01-01T00:00:00Z',
@@ -50,9 +48,8 @@ const USERS = {
       id: 'u2',
       name: 'DamonROCK',
       email: 'rock@believeboy.com',
-      // 账号存在但没填姓名：应显示「未命名」，不是 DamonROCK 也不是运营名。
+      // 账号存在但没填姓名：应显示「未命名」，不是 DamonROCK。
       fullName: null,
-      operatorNameZh: '临时运营',
       isActive: true,
       roleType: 'operator',
       createdAt: '2026-01-02T00:00:00Z',
@@ -63,7 +60,6 @@ const USERS = {
       name: 'Leo',
       email: 'leo@believeboy.com',
       fullName: '朱凤建',
-      operatorNameZh: null,
       isActive: true,
       roleType: 'admin',
       createdAt: '2026-01-03T00:00:00Z',
@@ -96,10 +92,6 @@ beforeEach(() => {
         item: {
           ...base,
           fullName: 'fullName' in patch ? (patch.fullName as string | null) : base.fullName,
-          operatorNameZh:
-            'operator_name_zh' in patch
-              ? (patch.operator_name_zh as string | null)
-              : base.operatorNameZh,
         },
       })
     }
@@ -115,7 +107,7 @@ afterEach(() => {
 async function renderPage() {
   render(<AccountManagementPage />)
   // 桌面表格 + 手机卡片两处都会渲染，按表头等待（唯一）。
-  await screen.findByRole('columnheader', { name: '运营名' })
+  await screen.findByRole('columnheader', { name: '姓名' })
 }
 
 /** 桌面表格（md:block 分支）里按「名称」列（登录名）定位一行。 */
@@ -135,41 +127,38 @@ describe('账号管理 · 姓名列只取 full_name', () => {
     await renderPage()
 
     const row = desktopRow('Yawei')
-    // 姓名列 = 第 2 格；运营名列 = 第 3 格（两列都叫「纪亚伟」时也要能分清）
+    // 姓名列 = 第 2 格
     expect(cellText(row, 1)).toBe('纪亚伟')
-    expect(cellText(row, 2)).toBe('纪亚伟')
   })
 
-  it('full_name 为空 → 姓名列显示「未命名」，不回落运营名与登录名', async () => {
+  it('full_name 为空 → 姓名列显示「未命名」，不回落登录名', async () => {
     await renderPage()
 
     const row = desktopRow('DamonROCK')
     expect(cellText(row, 1)).toBe('未命名')
-    // 运营名单独一列，不再被当成姓名显示
-    expect(cellText(row, 2)).toBe('临时运营')
     // 登录名只出现在「名称」列，绝不冒充姓名
     expect(cellText(row, 0)).toBe('DamonROCK')
   })
 
-  it('运营名独立成列（表头存在）', async () => {
+  it('「运营名」列已删除：表头只有姓名、没有运营名', async () => {
     await renderPage()
 
     const desktop = document.querySelector('.hidden.md\\:block') as HTMLElement
     const headers = within(desktop).getAllByRole('columnheader').map((el) => el.textContent)
     expect(headers).toContain('姓名')
-    expect(headers).toContain('运营名')
+    expect(headers).not.toContain('运营名')
   })
 
-  it('运营名为空时显示占位符，不与姓名混淆', async () => {
+  it('删列后姓名的下一格是邮箱（列序收紧）', async () => {
     await renderPage()
 
-    const row = desktopRow('朱凤建')
+    const row = desktopRow('Leo')
     expect(cellText(row, 1)).toBe('朱凤建')
-    expect(cellText(row, 2)).toBe('-')
+    expect(cellText(row, 2)).toBe('leo@believeboy.com')
   })
 })
 
-describe('账号管理 · 编辑弹窗拆两栏', () => {
+describe('账号管理 · 编辑弹窗（只剩姓名 / 角色属性）', () => {
   async function openEditFor(loginName: string) {
     await renderPage()
     const desktop = document.querySelector('.hidden.md\\:block') as HTMLElement
@@ -179,29 +168,25 @@ describe('账号管理 · 编辑弹窗拆两栏', () => {
     return screen.findByRole('dialog')
   }
 
-  it('姓名与运营名各自回填各自的列', async () => {
+  it('姓名回填 full_name 列；弹窗里没有「运营名」输入框', async () => {
     const dialog = await openEditFor('Yawei')
 
     expect(within(dialog).getByLabelText('姓名')).toHaveValue('纪亚伟')
-    expect(within(dialog).getByLabelText('运营名')).toHaveValue('纪亚伟')
+    expect(within(dialog).queryByLabelText('运营名')).toBeNull()
   })
 
-  it('full_name 为空时姓名框为空，不拿运营名填进去', async () => {
+  it('full_name 为空时姓名框为空', async () => {
     const dialog = await openEditFor('DamonROCK')
 
     expect(within(dialog).getByLabelText('姓名')).toHaveValue('')
-    expect(within(dialog).getByLabelText('运营名')).toHaveValue('临时运营')
   })
 
-  it('保存时两个字段分别提交（fullName + operator_name_zh）', async () => {
+  it('保存时只提交 fullName，不再携带 operator_name_zh', async () => {
     const dialog = await openEditFor('DamonROCK')
 
     const fullNameInput = within(dialog).getByLabelText('姓名')
     await userEvent.clear(fullNameInput)
     await userEvent.type(fullNameInput, '临时账号')
-    const operatorInput = within(dialog).getByLabelText('运营名')
-    await userEvent.clear(operatorInput)
-    await userEvent.type(operatorInput, '临时运营2')
 
     await userEvent.click(within(dialog).getByRole('button', { name: '保存' }))
 
@@ -214,14 +199,14 @@ describe('账号管理 · 编辑弹窗拆两栏', () => {
       expect(patchCall).toBeTruthy()
       const body = JSON.parse(String((patchCall![1] as RequestInit).body))
       expect(body.fullName).toBe('临时账号')
-      expect(body.operator_name_zh).toBe('临时运营2')
+      expect(body).not.toHaveProperty('operator_name_zh')
       // 路由层读 camelCase `roleType`；发 snake_case 会被静默丢弃（旧 bug）。
       expect(body.roleType).toBe('operator')
       expect(body).not.toHaveProperty('role_type')
     })
   })
 
-  it('清空姓名时提交空串（交给后端落 null），不回落运营名', async () => {
+  it('清空姓名时提交空串（交给后端落 null）', async () => {
     const dialog = await openEditFor('Yawei')
 
     await userEvent.clear(within(dialog).getByLabelText('姓名'))
@@ -236,7 +221,7 @@ describe('账号管理 · 编辑弹窗拆两栏', () => {
       expect(patchCall).toBeTruthy()
       const body = JSON.parse(String((patchCall![1] as RequestInit).body))
       expect(body.fullName).toBe('')
-      expect(body.operator_name_zh).toBe('纪亚伟')
+      expect(body).not.toHaveProperty('operator_name_zh')
     })
   })
 })
@@ -254,7 +239,7 @@ describe('账号管理 · 新增账号要求填写姓名', () => {
     expect(within(dialog).getByLabelText('姓名')).toBeRequired()
   })
 
-  it('创建时把姓名作为 fullName 提交（不是运营名）', async () => {
+  it('创建时把姓名作为 fullName 提交', async () => {
     const dialog = await openCreate()
 
     await userEvent.type(within(dialog).getByLabelText('名称'), 'newbie')
@@ -269,7 +254,6 @@ describe('账号管理 · 新增账号要求填写姓名', () => {
           name: 'newbie',
           email: 'newbie@believeboy.com',
           fullName: '新同事',
-          operatorNameZh: null,
           isActive: true,
           roleType: 'operator',
           createdAt: '2026-10-24T00:00:00Z',
@@ -331,7 +315,6 @@ describe('账号管理 · 新增账号要求填写姓名', () => {
           name: 'newbie',
           email: 'newbie@believeboy.com',
           fullName: '新同事',
-          operatorNameZh: null,
           isActive: true,
           roleType: 'operator',
           createdAt: '2026-10-24T00:00:00Z',

@@ -8,7 +8,7 @@ import userEvent from '@testing-library/user-event'
 //    role-info（运营信息）一个业务端点。
 
 const mockSession = {
-  user: { id: 'user-1', roleType: 'admin', operatorNameZh: '张三' },
+  user: { id: 'user-1', roleType: 'admin', name: '张三' },
 }
 vi.mock('next-auth/react', () => ({
   useSession: () => ({ data: mockSession, status: 'authenticated' }),
