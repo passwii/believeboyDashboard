@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+
 import pytest
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
@@ -206,7 +208,7 @@ class TestClaim:
         assert claim_from_sea(db_session, c.id, user_id=None) is None
 
 
-# ── owner_name join（UUID 类型匹配后应能正常解析）────────────────────────────
+# ── owner_name join（BLF-1441：显示名只取 full_name）────────────────────────
 
 
 class TestOwnerNameJoin:
@@ -218,7 +220,40 @@ class TestOwnerNameJoin:
         item = get_customer(db_session, c.id)
         assert item is not None
         assert item.owner_id == admin_id
-        assert item.owner_name == test_admin["name"]  # 类型匹配后非 None
+        # 显示名来源是 full_name（中文姓名），不是登录名 name
+        assert item.owner_name == test_admin["full_name"]
+
+    def test_owner_name_ignores_login_name(self, db_session: Session):
+        """登录名是英文 handle 时，客户负责人必须显示 full_name 中文姓名。
+
+        BLF-1441 回归：改动前负责人列取的是 ``user_accounts.name``，显示成
+        ``DamonROCK``；现在只取 ``full_name``。用临时账号避免动种子账号。
+        """
+        email = f"blf1441-owner-{uuid.uuid4().hex[:8]}@example.invalid"
+        owner_id = db_session.execute(
+            text(
+                """
+                insert into public.user_accounts
+                    (name, email, password_hash, full_name, is_active)
+                values ('DamonROCK', :email, :h, '纪亚伟', true)
+                returning id::text
+                """
+            ),
+            {"email": email, "h": "x" * 24},
+        ).scalar_one()
+        db_session.commit()
+        try:
+            c = _seed_customer(db_session, name="LoginNameOwner", owner_id=owner_id)
+            item = get_customer(db_session, c.id)
+            assert item is not None
+            assert item.owner_name == "纪亚伟"
+            assert item.owner_name != "DamonROCK"
+        finally:
+            db_session.execute(
+                text("delete from public.user_accounts where email = :email"),
+                {"email": email},
+            )
+            db_session.commit()
 
 
 # ── primary contact join ─────────────────────────────────────────────────────

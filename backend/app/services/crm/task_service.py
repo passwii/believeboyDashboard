@@ -24,6 +24,7 @@ from app.models.crm import (
     CrmTaskStatus,
 )
 from app.schemas.crm import TaskItem
+from app.services.user_display import resolve_display_names
 
 # 筛选白名单（防注入：未知字段直接 ValueError → 端点转 400）
 TASK_FILTER_FIELDS = (
@@ -62,19 +63,6 @@ def _current_user_id(user_id: str | None) -> str | None:
         return None
     uid = user_id.strip()
     return uid or None
-
-
-def _names_map(db: Session, ids: set[str]) -> dict[str, str]:
-    """批量查 user_accounts.name（owner/created_by 联查），避免 N+1。"""
-    from sqlalchemy import text
-
-    if not ids:
-        return {}
-    rows = db.execute(
-        text("select id, name from public.user_accounts where id = any(:ids)"),
-        {"ids": list(ids)},
-    ).all()
-    return {str(r[0]): r[1] for r in rows}
 
 
 def _customer_names_map(db: Session, ids: set[int]) -> dict[int, str]:
@@ -125,7 +113,9 @@ def _to_item(
 
 
 def _hydrate(db: Session, task: CrmTask) -> TaskItem:
-    user_names = _names_map(db, {t for t in (task.owner_id, task.created_by) if t})
+    user_names = resolve_display_names(
+        db, {t for t in (task.owner_id, task.created_by) if t}
+    )
     customer_names = _customer_names_map(
         db, {task.customer_id} if task.customer_id else set()
     )
@@ -218,7 +208,7 @@ def list_tasks(
     rows = db.execute(stmt).scalars().all()
 
     user_ids = {t for r in rows for t in (r.owner_id, r.created_by) if t}
-    user_names = _names_map(db, user_ids)
+    user_names = resolve_display_names(db, user_ids)
     customer_names = _customer_names_map(
         db, {r.customer_id for r in rows if r.customer_id}
     )

@@ -14,21 +14,10 @@ from sqlalchemy.orm import Session
 
 from app.models.crm import CrmCustomer, CrmFollow, CrmLead
 from app.schemas.crm import FollowUpGroups, FollowUpItem
+from app.services.user_display import resolve_display_names
 
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 _EXCLUDED_LEAD_STATUSES = ("converted", "discarded")
-
-
-def _owner_name_map(db: Session, owner_ids: set[str]) -> dict[str, str]:
-    from sqlalchemy import text
-
-    if not owner_ids:
-        return {}
-    rows = db.execute(
-        text("select id, name from public.user_accounts where id = any(:ids)"),
-        {"ids": list(owner_ids)},
-    ).all()
-    return {str(r[0]): r[1] for r in rows}
 
 
 def _latest_follow_map(db: Session, pairs: list[tuple[str, int]]) -> dict[tuple[str, int], CrmFollow]:
@@ -85,7 +74,7 @@ def list_follow_ups(
 
     # ---- 批量补字段 ----
     owner_ids = {c.owner_id for c in customers if c.owner_id} | {l.owner_id for l in leads if l.owner_id}
-    owner_names = _owner_name_map(db, owner_ids)
+    owner_names = resolve_display_names(db, owner_ids)
     pairs = [("customer", c.id) for c in customers] + [("lead", l.id) for l in leads]
     latest = _latest_follow_map(db, pairs)
 

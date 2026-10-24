@@ -31,22 +31,12 @@ from app.schemas.crm import (
     StageLeadItem,
 )
 from app.services.crm.permissions import require_admin
+from app.services.user_display import resolve_display_names
 
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 # 漏斗展示顺序（与 CrmLeadStatus 一致）
 _LEAD_STATUS_ORDER = ("new", "contacting", "qualified", "converted", "discarded")
 _STATUS_INDEX = {s: i for i, s in enumerate(_LEAD_STATUS_ORDER)}
-
-
-def _owner_name_map(db: Session, owner_ids: set[str]) -> dict[str, str]:
-    """批量查 user_accounts.name，避免 N+1（同 customer_service._owner_name_map）。"""
-    if not owner_ids:
-        return {}
-    rows = db.execute(
-        text("select id, name from public.user_accounts where id = any(:ids)"),
-        {"ids": list(owner_ids)},
-    ).all()
-    return {str(r[0]): r[1] for r in rows}
 
 
 def get_dashboard_stats(
@@ -113,7 +103,7 @@ def get_dashboard_stats(
     conv_by_owner = {str(oid): int(c) for oid, c in conv_rows}
 
     owner_ids = set(cust_by_owner) | set(conv_by_owner)
-    owner_names = _owner_name_map(db, owner_ids)
+    owner_names = resolve_display_names(db, owner_ids)
     per_owner = [
         OwnerPerformance(
             owner_id=oid,
@@ -228,7 +218,7 @@ def get_funnel_metrics(
         by_key: dict[str, dict[str, int]] = {}
         for oid, st, cnt in rows:
             by_key.setdefault(oid or "", _empty_funnel())[st] = int(cnt)
-        names = _owner_name_map(db, {k for k in by_key if k})
+        names = resolve_display_names(db, {k for k in by_key if k})
         items = [
             FunnelDimensionItem(
                 key=k, label=names.get(k) if k else None, funnel=by_key[k]
@@ -355,7 +345,7 @@ def get_stage_detail(
         .limit(page_size)
     ).all()
 
-    owner_names = _owner_name_map(
+    owner_names = resolve_display_names(
         db, {r.CrmLead.owner_id for r in rows if r.CrmLead.owner_id}
     )
     leads = []
@@ -470,18 +460,23 @@ def _parse_month(
 
 
 def _active_user_roster(db: Session) -> list[tuple[str, str]]:
-    """活跃用户 (id::text, name)，排名名单与总人数口径。"""
+    """活跃用户 (id::text, 显示名)，排名名单与总人数口径。
+
+    显示名只取 ``full_name``（BLF-1441）；``full_name`` 为空的账号仍计入人数，
+    只是名字为空（展示端按「未命名」处理，不回落到登录名）。
+    """
     rows = (
         db.execute(
             text(
-                "select id::text as id, name from public.user_accounts "
-                "where is_active = true order by name"
+                "select id::text as id, coalesce(trim(full_name), '') as display_name "
+                "from public.user_accounts "
+                "where is_active = true order by display_name"
             )
         )
         .mappings()
         .all()
     )
-    return [(str(r["id"]), r["name"]) for r in rows]
+    return [(str(r["id"]), r["display_name"]) for r in rows]
 
 
 def get_performance_board(

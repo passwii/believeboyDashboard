@@ -7,11 +7,12 @@ actor_name 查询时从 public.user_accounts 解析（不快照）。
 
 from __future__ import annotations
 
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.crm import CrmAuditLog
 from app.schemas.crm import AuditLogItem
+from app.services.user_display import resolve_display_names
 
 # 字段名 → 中文标签（摘要用；未收录字段回退原始字段名）
 CUSTOMER_FIELD_LABELS: dict[str, str] = {
@@ -105,17 +106,6 @@ def record_log(
     return log
 
 
-def _actor_name_map(db: Session, actor_ids: set[str]) -> dict[str, str]:
-    """批量查 user_accounts.name，避免 N+1。返回 {str(id): name}。"""
-    if not actor_ids:
-        return {}
-    rows = db.execute(
-        text("select id, name from public.user_accounts where id = any(:ids)"),
-        {"ids": list(actor_ids)},
-    ).all()
-    return {str(r[0]): str(r[1]) for r in rows}
-
-
 def list_audit_logs(
     db: Session,
     *,
@@ -154,7 +144,7 @@ def list_audit_logs(
         .limit(page_size)
     )
     rows = db.execute(stmt).scalars().all()
-    names = _actor_name_map(db, {r.actor_id for r in rows if r.actor_id})
+    names = resolve_display_names(db, {r.actor_id for r in rows if r.actor_id})
     items = [
         AuditLogItem(
             id=r.id,

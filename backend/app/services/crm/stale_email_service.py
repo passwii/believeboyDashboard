@@ -126,12 +126,17 @@ def _should_email(
 
 
 def _owner_email_map(db: Session, owner_ids: set[str]) -> dict[str, tuple[str, str]]:
-    """批量查 user_accounts 的 (name, email)；无邮箱的负责人不返回。返回 {owner_id: (name, email)}。"""
+    """批量查 user_accounts 的 (显示名, email)；无邮箱的负责人不返回。
+
+    显示名只取 ``full_name``（BLF-1441），不回落到登录名 ``name``；``full_name``
+    为空时名字为空串，邮件抬头按「您好」处理。返回 {owner_id: (display_name, email)}。
+    """
     if not owner_ids:
         return {}
     rows = db.execute(
         text(
-            "select id::text, name, email from public.user_accounts "
+            "select id::text, coalesce(trim(full_name), ''), email "
+            "from public.user_accounts "
             "where id = any(:ids)"
         ),
         {"ids": list(owner_ids)},
@@ -161,13 +166,15 @@ def _render_email_html(
           <td style="padding: 10px 14px; color: #DC2626; font-size: 13px; white-space: nowrap;">{it["stale_days"]} 天</td>
         </tr>"""
 
+    # 抬头只认 full_name（BLF-1441）：取不到时不留一个孤零零的「，」。
+    greeting = f"{owner_name}，" if owner_name else ""
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head><meta charset="utf-8"></head>
 <body style="font-family: -apple-system, 'Segoe UI', sans-serif; background: #F3F4F6; margin: 0; padding: 24px;">
   <div style="max-width: 640px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
     <div style="background: #1F2937; padding: 20px 24px;">
-      <h1 style="margin: 0; color: white; font-size: 18px; font-weight: 600;">⏰ {owner_name}，有 {len(items)} 个客户/线索超过 {days} 天未跟进</h1>
+      <h1 style="margin: 0; color: white; font-size: 18px; font-weight: 600;">⏰ {greeting}有 {len(items)} 个客户/线索超过 {days} 天未跟进</h1>
       <p style="margin: 4px 0 0; color: #9CA3AF; font-size: 13px;">请及时跟进，避免流失 · {now.strftime("%Y-%m-%d %H:%M")}</p>
     </div>
     <table style="width: 100%; border-collapse: collapse;">

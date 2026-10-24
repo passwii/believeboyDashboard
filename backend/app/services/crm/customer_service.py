@@ -15,6 +15,7 @@ from app.models.crm import (
 )
 from app.schemas.crm import ContactCreate, CustomerCreate, CustomerUpdate
 from app.services.crm import audit_service, contact_service
+from app.services.user_display import resolve_display_names
 
 
 def _current_user_id(user_id: str | None) -> str | None:
@@ -22,23 +23,6 @@ def _current_user_id(user_id: str | None) -> str | None:
         return None
     uid = user_id.strip()
     return uid or None
-
-
-def _owner_name_map(db: Session, owner_ids: set[str]) -> dict[str, str]:
-    """批量查 user_accounts.name，避免 N+1。
-
-    owner_id 现为 String(36)（user_accounts.id UUID），类型匹配，正常 join。
-    返回 {str(id): name}。
-    """
-    from sqlalchemy import text
-
-    if not owner_ids:
-        return {}
-    rows = db.execute(
-        text("select id, name from public.user_accounts where id = any(:ids)"),
-        {"ids": list(owner_ids)},
-    ).all()
-    return {str(r[0]): r[1] for r in rows}
 
 
 def _primary_contact_map(db: Session, customer_ids: list[int]) -> dict[int, CrmContact]:
@@ -173,7 +157,7 @@ def list_customers(
     stmt = stmt.offset((page - 1) * page_size).limit(page_size)
     rows = db.execute(stmt).scalars().all()
 
-    owner_names = _owner_name_map(db, {r.owner_id for r in rows if r.owner_id})
+    owner_names = resolve_display_names(db, {r.owner_id for r in rows if r.owner_id})
     primary_map = _primary_contact_map(db, [r.id for r in rows])
     cat_map = _category_map(db, [r.id for r in rows])
     items = [
@@ -191,7 +175,9 @@ def get_customer(db: Session, customer_id: int):
     ).scalar_one_or_none()
     if cust is None:
         return None
-    owner_names = _owner_name_map(db, {cust.owner_id} if cust.owner_id else set())
+    owner_names = resolve_display_names(
+        db, {cust.owner_id} if cust.owner_id else set()
+    )
     primary = _primary_contact_map(db, [cust.id]).get(cust.id)
     cats = _category_map(db, [cust.id]).get(cust.id, [])
     return _to_item(db, cust, owner_names, primary, cats)

@@ -4461,7 +4461,7 @@ export interface paths {
         put?: never;
         /**
          * Create Proposal
-         * @description 新建方案并落首版（v1）：解析 → 适配 → 冻结到 R2（raw + adapted）。
+         * @description 新建方案并落首版（v1）：HTML 解析适配 / PDF 直存 → 冻结到 R2。
          */
         post: operations["create_proposal_api_v1_crm_proposals_post"];
         delete?: never;
@@ -4521,7 +4521,7 @@ export interface paths {
         put?: never;
         /**
          * Finalize Proposal Chunked Upload
-         * @description 合并分段 → 校验/适配 HTML → 复用现有 R2 上传 → 落库。
+         * @description 合并分段 → 校验（HTML 适配 / PDF 直存）→ 复用现有 R2 上传 → 落库。
          */
         post: operations["finalize_proposal_chunked_upload_api_v1_crm_proposals_uploads__upload_id__finalize_post"];
         delete?: never;
@@ -4611,6 +4611,9 @@ export interface paths {
          *
          *     内容从 R2 读出后经后端鉴权转发——**不返回公开 URL**。
          *     方案域**全员可读**（BLF-1403 / BLF-1410），故只读不设 owner 门禁。
+         *
+         *     PDF 版本没有 HTML 文本：明确 415，前端改用下载端点拿字节转 blob 预览，
+         *     避免把 PDF 二进制按 HTML 解码成乱码。
          */
         get: operations["get_version_content_api_v1_crm_proposals__proposal_id__versions__version_no__content_get"];
         put?: never;
@@ -4630,10 +4633,12 @@ export interface paths {
         };
         /**
          * Download Version
-         * @description 下载某个版本（仍是单个 HTML 文件）。
+         * @description 下载某个版本（单个 HTML 或 PDF 文件）。
          *
-         *     默认下载「适配版」（带本项目主题令牌，仍自包含单文件）；
-         *     ``raw=1`` 下载「原始上传版」（保真交付 / 审计）。响应流式转发 + 鉴权。
+         *     HTML：默认下载「适配版」（带本项目主题令牌，仍自包含单文件）；
+         *     ``raw=1`` 下载「原始上传版」（保真交付 / 审计）。
+         *     PDF：没有适配产物，``raw`` 不改变字节（返回原始 PDF）。
+         *     响应流式转发 + 鉴权；媒体类型 / 文件名后缀按版本格式给。
          *     方案域**全员可读**（BLF-1403 / BLF-1410），故只读不设 owner 门禁。
          */
         get: operations["download_version_api_v1_crm_proposals__proposal_id__versions__version_no__download_get"];
@@ -17937,6 +17942,8 @@ export interface components {
             api_key: string;
             /** Email */
             email: string;
+            /** Full Name */
+            full_name?: string | null;
             /** Id */
             id: string;
             /** Is Active */
@@ -17959,6 +17966,8 @@ export interface components {
         MeResponse: {
             /** Email */
             email: string;
+            /** Full Name */
+            full_name?: string | null;
             /** Id */
             id: string;
             /** Is Active */
