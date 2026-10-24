@@ -32,10 +32,10 @@ def test_list_crm_users_only_active(db_session):
 
 
 def test_list_crm_users_field_mapping(db_session, test_admin):
-    """字段映射：name/email/role_type 与 user_accounts 一致。"""
+    """字段映射：name 承载显示名（= full_name，BLF-1441）；email/role_type 同账号。"""
     items = list_crm_users(db_session)
     mine = next(i for i in items if i.id == str(test_admin["id"]))
-    assert mine.name == test_admin["name"]
+    assert mine.name == test_admin["full_name"]
     assert mine.email == test_admin["email"]
     assert mine.role_type == test_admin.get("role_type")
 
@@ -52,7 +52,7 @@ def test_get_crm_user_found(db_session, test_admin):
     item = get_crm_user(db_session, str(test_admin["id"]))
     assert item is not None
     assert item.id == str(test_admin["id"])
-    assert item.name == test_admin["name"]
+    assert item.name == test_admin["full_name"]
     assert item.email == test_admin["email"]
     assert item.role_type == test_admin.get("role_type")
     assert item.is_active is True

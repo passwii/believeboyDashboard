@@ -45,6 +45,7 @@ from app.services.r2_service import (
     try_delete_file_from_r2,
     upload_bytes_to_r2,
 )
+from app.services.user_display import resolve_display_names
 
 logger = logging.getLogger(__name__)
 
@@ -166,18 +167,6 @@ def _sanitize_title(raw: str | None, *, fallback: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _user_names_map(db: Session, ids: set[str]) -> dict[str, str]:
-    from sqlalchemy import text
-
-    if not ids:
-        return {}
-    rows = db.execute(
-        text("select id, name from public.user_accounts where id = any(:ids)"),
-        {"ids": list(ids)},
-    ).all()
-    return {str(r[0]): r[1] for r in rows}
-
-
 def _customer_names_map(db: Session, ids: set[int]) -> dict[int, str]:
     if not ids:
         return {}
@@ -260,7 +249,9 @@ def list_versions(db: Session, proposal_id: int) -> list[ProposalVersionItem]:
         .scalars()
         .all()
     )
-    user_names = _user_names_map(db, {v.created_by for v in rows if v.created_by})
+    user_names = resolve_display_names(
+        db, {v.created_by for v in rows if v.created_by}
+    )
     return [_version_to_item(v, user_names) for v in rows]
 
 
@@ -269,7 +260,7 @@ def get_proposal(db: Session, proposal_id: int) -> ProposalItem | None:
     if proposal is None:
         return None
     counts = _version_counts(db, [proposal.id])
-    user_names = _user_names_map(
+    user_names = resolve_display_names(
         db, {p for p in (proposal.owner_id, proposal.created_by) if p}
     )
     customer_names = _customer_names_map(
@@ -301,7 +292,9 @@ def get_version_item(
     version = get_version(db, proposal_id, version_no)
     if version is None:
         return None
-    names = _user_names_map(db, {version.created_by} if version.created_by else set())
+    names = resolve_display_names(
+        db, {version.created_by} if version.created_by else set()
+    )
     return _version_to_item(version, names)
 
 
@@ -373,7 +366,7 @@ def list_proposals(
     total = int(db.execute(count_stmt).scalar_one())
 
     counts = _version_counts(db, [r.id for r in rows])
-    user_names = _user_names_map(
+    user_names = resolve_display_names(
         db,
         {
             uid
@@ -529,7 +522,7 @@ def _create_proposal_rows(
     item = get_proposal(db, proposal.id)
     assert item is not None
     version_item = _version_to_item(
-        version, _user_names_map(db, {owner_id} if owner_id else set())
+        version, resolve_display_names(db, {owner_id} if owner_id else set())
     )
     return item, version_item, warnings
 
@@ -666,7 +659,7 @@ def _add_version_rows(
     if commit:
         db.commit()
 
-    user_names = _user_names_map(db, {creator} if creator else set())
+    user_names = resolve_display_names(db, {creator} if creator else set())
     return _version_to_item(version, user_names), warnings
 
 

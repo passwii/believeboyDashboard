@@ -14,6 +14,7 @@ from app.schemas.crm import (
     LeadCreate,
     LeadUpdate,
 )
+from app.services.user_display import resolve_display_names
 
 
 class LeadAlreadyConverted(Exception):
@@ -36,23 +37,6 @@ def _current_user_id(user_id: str | None) -> str | None:
         return None
     uid = user_id.strip()
     return uid or None
-
-
-def _owner_name_map(db: Session, owner_ids: set[str]) -> dict[str, str]:
-    """批量查 user_accounts.name，避免 N+1。
-
-    owner_id 现为 String(36)（user_accounts.id UUID），类型匹配，正常 join。
-    返回 {str(id): name}。
-    """
-    from sqlalchemy import text
-
-    if not owner_ids:
-        return {}
-    rows = db.execute(
-        text("select id, name from public.user_accounts where id = any(:ids)"),
-        {"ids": list(owner_ids)},
-    ).all()
-    return {str(r[0]): r[1] for r in rows}
 
 
 def _to_item(db: Session, lead: CrmLead, owner_names: dict[str, str]):
@@ -125,7 +109,7 @@ def list_leads(
     stmt = stmt.offset((page - 1) * page_size).limit(page_size)
     rows = db.execute(stmt).scalars().all()
 
-    owner_names = _owner_name_map(db, {r.owner_id for r in rows if r.owner_id})
+    owner_names = resolve_display_names(db, {r.owner_id for r in rows if r.owner_id})
     items = [_to_item(db, r, owner_names) for r in rows]
     return items, int(total)
 
@@ -136,7 +120,9 @@ def get_lead(db: Session, lead_id: int):
     ).scalar_one_or_none()
     if lead is None:
         return None
-    owner_names = _owner_name_map(db, {lead.owner_id} if lead.owner_id else set())
+    owner_names = resolve_display_names(
+        db, {lead.owner_id} if lead.owner_id else set()
+    )
     return _to_item(db, lead, owner_names)
 
 

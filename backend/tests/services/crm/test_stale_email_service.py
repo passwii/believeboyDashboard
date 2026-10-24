@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -45,6 +46,15 @@ def _clean_crm_tables(db_session):
     finally:
         s.close()
     yield
+    # 清掉用例自建的临时账号（邮箱统一带 blf1441- 前缀），不动种子账号。
+    cleanup = SessionLocal()
+    try:
+        cleanup.execute(
+            text("delete from public.user_accounts where email like 'blf1441-%'")
+        )
+        cleanup.commit()
+    finally:
+        cleanup.close()
 
 
 def _owner_id(db) -> str:
@@ -54,6 +64,23 @@ def _owner_id(db) -> str:
             "select id::text from public.user_accounts where email is not null limit 1"
         )
     ).scalar_one()
+
+
+def _insert_account(db, *, name: str, full_name: str | None, email: str) -> str:
+    """插入一个临时账号作负责人（用例结束由 _cleanup_temp_account 删掉）。"""
+    user_id = db.execute(
+        text(
+            """
+            insert into public.user_accounts
+                (name, email, password_hash, full_name, is_active)
+            values (:name, :email, :h, :full_name, true)
+            returning id::text
+            """
+        ),
+        {"name": name, "email": email, "h": "x" * 24, "full_name": full_name},
+    ).scalar_one()
+    db.commit()
+    return str(user_id)
 
 
 def _mk_customer(db, name="客户A", owner=None, **kw):
@@ -331,3 +358,46 @@ def test_days_from_settings_used(db_session):
     _mk_customer(db_session, owner=owner, last_follow_at=NOW - timedelta(days=4))
     result = send_stale_reminder_emails(db_session, now=NOW, send_fn=lambda *a: True)
     assert result["customers"] == 1
+
+
+# ---------- 邮件抬头：显示名只取 full_name（BLF-1441）----------
+
+
+def test_email_greeting_uses_full_name(db_session):
+    """抬头是中文姓名，不是登录名。"""
+    email = f"blf1441-greet-{uuid.uuid4().hex[:8]}@example.invalid"
+    owner = _insert_account(
+        db_session, name="DamonROCK", full_name="纪亚伟", email=email
+    )
+    _mk_customer(
+        db_session, owner=owner, last_follow_at=NOW - timedelta(days=DAYS + 1)
+    )
+    calls: list = []
+
+    send_stale_reminder_emails(
+        db_session, now=NOW, days=DAYS, send_fn=lambda to, s, h: calls.append(h) or True
+    )
+
+    assert len(calls) == 1
+    assert "纪亚伟，有 1 个客户/线索" in calls[0]
+    assert "DamonROCK" not in calls[0]
+
+
+def test_email_greeting_omits_name_when_full_name_missing(db_session):
+    """full_name 为空 → 抬头不留孤零零的「，」，也不回落登录名。"""
+    email = f"blf1441-nogreet-{uuid.uuid4().hex[:8]}@example.invalid"
+    owner = _insert_account(
+        db_session, name="NoChineseName", full_name=None, email=email
+    )
+    _mk_customer(
+        db_session, owner=owner, last_follow_at=NOW - timedelta(days=DAYS + 1)
+    )
+    calls: list = []
+
+    send_stale_reminder_emails(
+        db_session, now=NOW, days=DAYS, send_fn=lambda to, s, h: calls.append(h) or True
+    )
+
+    assert len(calls) == 1
+    assert "⏰ 有 1 个客户/线索" in calls[0]
+    assert "NoChineseName" not in calls[0]

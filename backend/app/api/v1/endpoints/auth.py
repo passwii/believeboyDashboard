@@ -44,6 +44,9 @@ class LoginResponse(BaseModel):
     id: str
     name: str
     email: str
+    # BLF-1441：全局人物显示名唯一来源。前端会话 / 请求头（X-Operator）取它；
+    # name 仍是登录名，operator_name_zh 退化为「历史别名」。
+    full_name: str | None = None
     operator_name_zh: str | None = None
     is_admin: bool
     is_active: bool
@@ -58,6 +61,8 @@ class MeResponse(BaseModel):
     id: str
     email: str
     name: str
+    # BLF-1441：见 LoginResponse.full_name。
+    full_name: str | None = None
     operator_name_zh: str | None = None
     is_admin: bool
     is_active: bool
@@ -293,6 +298,7 @@ def login(
                   name,
                   email,
                   password_hash,
+                  full_name,
                   operator_name_zh,
                   is_admin,
                   is_active,
@@ -393,6 +399,10 @@ def login(
             id=str(row["id"]),
             name=str(row["name"]),
             email=str(row["email"]),
+            full_name=(
+                str(row["full_name"]).strip() if row["full_name"] is not None else None
+            )
+            or None,
             operator_name_zh=(
                 str(row["operator_name_zh"])
                 if row["operator_name_zh"] is not None
@@ -448,6 +458,7 @@ def get_current_user(
                   id::text as id,
                   name,
                   email,
+                  full_name,
                   operator_name_zh,
                   is_admin,
                   is_active,
@@ -501,6 +512,10 @@ def get_current_user(
             id=str(row["id"]),
             email=str(row["email"]),
             name=str(row["name"]),
+            full_name=(
+                str(row["full_name"]).strip() if row["full_name"] is not None else None
+            )
+            or None,
             operator_name_zh=(
                 str(row["operator_name_zh"]) if row["operator_name_zh"] else None
             ),

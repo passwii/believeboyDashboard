@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.models.crm import CrmCustomer, CrmFollow, CrmLead
 from app.schemas.crm import FollowCreate, FollowItem
 from app.services.crm.follow_up_reminder_service import resolve_entity_reminders
+from app.services.user_display import resolve_display_names
 
 
 def _current_user_id(user_id: str | None) -> str | None:
@@ -17,19 +18,6 @@ def _current_user_id(user_id: str | None) -> str | None:
         return None
     uid = user_id.strip()
     return uid or None
-
-
-def _created_by_name_map(db: Session, user_ids: set[str]) -> dict[str, str]:
-    """批量查 user_accounts.name，避免 N+1。返回 {str(id): name}。"""
-    from sqlalchemy import text
-
-    if not user_ids:
-        return {}
-    rows = db.execute(
-        text("select id, name from public.user_accounts where id = any(:ids)"),
-        {"ids": list(user_ids)},
-    ).all()
-    return {str(r[0]): r[1] for r in rows}
 
 
 def _to_item(db: Session, follow: CrmFollow, names: dict[str, str]) -> FollowItem:
@@ -59,7 +47,7 @@ def list_follows(db: Session, entity_type: str, entity_id: int) -> list[FollowIt
         .scalars()
         .all()
     )
-    names = _created_by_name_map(db, {r.created_by for r in rows if r.created_by})
+    names = resolve_display_names(db, {r.created_by for r in rows if r.created_by})
     return [_to_item(db, r, names) for r in rows]
 
 
@@ -114,5 +102,5 @@ def create_follow(
     if commit:
         db.commit()
     db.refresh(follow)
-    names = _created_by_name_map(db, {cur} if cur else set())
+    names = resolve_display_names(db, {cur} if cur else set())
     return _to_item(db, follow, names)

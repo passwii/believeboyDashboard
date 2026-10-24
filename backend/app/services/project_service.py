@@ -559,13 +559,18 @@ def list_project_options(db: Session) -> list[dict[str, str | int | None]]:
 
 
 def list_project_operator_options(db: Session) -> list[str]:
+    """项目「运营 / 助理运营」候选名单。
+
+    只取 ``full_name``（BLF-1441）。这个值同时是 ``projects.project_operator``
+    的匹配键（鉴权口径），所以**不能**再混入 ``operator_name_zh`` / 登录名，
+    否则下拉选出来的文本会与鉴权键对不上。
+    """
     rows = db.execute(
         text(
             """
-            select distinct
-              coalesce(nullif(trim(operator_name_zh), ''), nullif(trim(full_name), '')) as operator_name
+            select distinct nullif(trim(full_name), '') as operator_name
             from public.user_accounts
-            where coalesce(nullif(trim(operator_name_zh), ''), nullif(trim(full_name), '')) is not null
+            where nullif(trim(full_name), '') is not null
             order by operator_name asc
             """
         )

@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.models.crm import CrmCustomer, CrmLead, CrmSavedView
 from app.schemas.crm import SavedViewCreate, SavedViewUpdate
+from app.services.user_display import resolve_display_names
 
 
 def _require_can_manage(
@@ -65,22 +66,11 @@ def validate_filters(filters: list[dict] | None, entity_type: str) -> None:
     apply_filters(select(model), model, filters, allowed)
 
 
-def _owner_name_map(db: Session, owner_ids: set[str]) -> dict[str, str]:
-    """批量查 user_accounts.name（共享视图展示创建人；避免 N+1）。"""
-    from sqlalchemy import text
-
-    if not owner_ids:
-        return {}
-    rows = db.execute(
-        text("select id, name from public.user_accounts where id = any(:ids)"),
-        {"ids": list(owner_ids)},
-    ).all()
-    return {str(r[0]): r[1] for r in rows}
-
-
 def to_item(db: Session, view: CrmSavedView) -> dict:
     """单视图 → 响应 dict（含 owner_name；POST/PATCH 端点复用）。"""
-    owner_names = _owner_name_map(db, {view.owner_id} if view.owner_id else set())
+    owner_names = resolve_display_names(
+        db, {view.owner_id} if view.owner_id else set()
+    )
     return _to_dict(view, owner_names)
 
 
@@ -95,7 +85,7 @@ def list_views(
         stmt = stmt.where(CrmSavedView.entity_type == entity_type)
     stmt = stmt.order_by(CrmSavedView.updated_at.desc(), CrmSavedView.id.desc())
     rows = db.execute(stmt).scalars().all()
-    owner_names = _owner_name_map(db, {r.owner_id for r in rows if r.owner_id})
+    owner_names = resolve_display_names(db, {r.owner_id for r in rows if r.owner_id})
     return [_to_dict(r, owner_names) for r in rows]
 
 
