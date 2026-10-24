@@ -20,9 +20,10 @@ class ProfileResponse(BaseModel):
 
     id: str
     email: str
+    # ``name`` = 登录名（username），系统内部对接用的稳定标识；``full_name`` = 显示名。
+    # 运营名（原 ``operator_name_zh``）已删除：与 ``full_name`` 重复（BLF-1441）。
     name: str
     full_name: Optional[str] = None
-    operator_name_zh: Optional[str] = None
     is_admin: bool
     is_active: bool
     role_type: UserRoleType = UserRoleType.operator
@@ -42,7 +43,6 @@ class ProfileUpdate(BaseModel):
 
     name: Optional[str] = Field(default=None, min_length=1, max_length=255)
     full_name: Optional[str] = Field(default=None, max_length=255)
-    operator_name_zh: Optional[str] = Field(default=None, max_length=255)
 
 
 class AvatarUploadResponse(BaseModel):

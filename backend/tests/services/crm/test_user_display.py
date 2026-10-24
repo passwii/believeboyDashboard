@@ -1,7 +1,8 @@
 """user_display TDD tests — 全局人物显示名唯一来源 = user_accounts.full_name。
 
 BLF-1441 口径：
-  * 账号存在 → 只取 ``full_name``，**不**回落到登录名 ``name`` / ``operator_name_zh``；
+  * 账号存在 → 只取 ``full_name``，**不**回落到登录名 ``name``（运营名
+    ``operator_name_zh`` 已在第二轮删除，与 ``full_name`` 重复）；
   * ``full_name`` 为空 → 解析不到（键缺失），由调用方按「没有名字」处理；
   * 账号不存在（离职删号 / 从未有账号）→ 解析不到，历史自由文本原样保留。
 """
@@ -66,20 +67,6 @@ def test_prefers_full_name_over_login_name(db_session, temp_accounts):
     )
 
     assert resolve_display_names(db_session, {uid}) == {uid: "纪亚伟"}
-
-
-def test_does_not_fall_back_to_operator_name_zh(db_session, temp_accounts):
-    """operator_name_zh 已退化为历史别名，不参与展示。"""
-    email = _new_email("alias")
-    temp_accounts.append(email)
-    uid = _insert_account(db_session, name="Buck", full_name="桑喜刚", email=email)
-    db_session.execute(
-        text("update public.user_accounts set operator_name_zh = :v where id = :id"),
-        {"v": "桑工", "id": uid},
-    )
-    db_session.commit()
-
-    assert resolve_display_names(db_session, {uid}) == {uid: "桑喜刚"}
 
 
 def test_empty_full_name_is_not_resolved(db_session, temp_accounts):

@@ -19,7 +19,6 @@ create table if not exists public.user_accounts (
   email text not null check (position('@' in email) > 1),
   password_hash text not null check (length(password_hash) >= 20),
   full_name text,
-  operator_name_zh text,
   is_admin boolean not null default false,
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
@@ -27,7 +26,6 @@ create table if not exists public.user_accounts (
   password_changed_at timestamptz not null default now()
 );
 
-alter table public.user_accounts add column if not exists operator_name_zh text;
 alter table public.user_accounts add column if not exists full_name text;
 alter table public.user_accounts add column if not exists password_changed_at timestamptz not null default now();
 -- avatar_url stores the public R2 URL for the user profile picture.

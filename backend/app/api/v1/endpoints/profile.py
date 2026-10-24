@@ -57,7 +57,6 @@ def _load_profile_row(db: Session, user_id: str) -> Optional[dict]:
                   email,
                   name,
                   full_name,
-                  operator_name_zh,
                   is_admin,
                   is_active,
                   role_type,
@@ -89,7 +88,6 @@ def _serialize_profile(row: dict) -> ProfileResponse:
         email=str(row["email"]),
         name=str(row["name"]),
         full_name=(str(row["full_name"]) if row["full_name"] else None),
-        operator_name_zh=(str(row["operator_name_zh"]) if row["operator_name_zh"] else None),
         is_admin=bool(row["is_admin"]),
         is_active=bool(row["is_active"]),
         role_type=role,
@@ -137,9 +135,6 @@ def update_profile(
     if payload.full_name is not None:
         cleaned = payload.full_name.strip()
         updates["full_name"] = cleaned or None
-    if payload.operator_name_zh is not None:
-        cleaned = payload.operator_name_zh.strip()
-        updates["operator_name_zh"] = cleaned or None
 
     if not updates:
         # Nothing to do — return the current row so the frontend can rely on
@@ -164,7 +159,6 @@ def update_profile(
                   email,
                   name,
                   full_name,
-                  operator_name_zh,
                   is_admin,
                   is_active,
                   role_type,

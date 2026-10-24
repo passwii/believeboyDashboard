@@ -100,7 +100,7 @@ def _fetch_account(db: Session, email: str) -> dict:
         db.execute(
             text(
                 """
-                select id::text as id, email, name, full_name, operator_name_zh,
+                select id::text as id, email, name, full_name,
                        is_admin, is_active, role_type, avatar_url
                 from public.user_accounts
                 where lower(email) = lower(:email)

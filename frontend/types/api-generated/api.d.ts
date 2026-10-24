@@ -14142,8 +14142,6 @@ export interface components {
             is_admin: boolean;
             /** Name */
             name: string;
-            /** Operator Name Zh */
-            operator_name_zh?: string | null;
             /** Password */
             password: string;
             /** @default operator */
@@ -17952,8 +17950,6 @@ export interface components {
             is_admin: boolean;
             /** Name */
             name: string;
-            /** Operator Name Zh */
-            operator_name_zh?: string | null;
             /** @default operator */
             role_type: components["schemas"]["UserRoleType"];
             /**
@@ -17976,8 +17972,6 @@ export interface components {
             is_admin: boolean;
             /** Name */
             name: string;
-            /** Operator Name Zh */
-            operator_name_zh?: string | null;
             /** Password Changed At */
             password_changed_at?: string | null;
             /** @default operator */
@@ -20820,8 +20814,6 @@ export interface components {
             is_admin: boolean;
             /** Name */
             name: string;
-            /** Operator Name Zh */
-            operator_name_zh?: string | null;
             /** Password Changed At */
             password_changed_at?: string | null;
             /** @default operator */
@@ -20842,8 +20834,6 @@ export interface components {
             full_name?: string | null;
             /** Name */
             name?: string | null;
-            /** Operator Name Zh */
-            operator_name_zh?: string | null;
         };
         /**
          * ProjectContextResponse
@@ -25064,8 +25054,6 @@ export interface components {
             is_admin?: boolean | null;
             /** Name */
             name?: string | null;
-            /** Operator Name Zh */
-            operator_name_zh?: string | null;
             /** Password */
             password?: string | null;
             role_type?: components["schemas"]["UserRoleType"] | null;
@@ -25273,8 +25261,6 @@ export interface components {
             is_admin: boolean;
             /** Name */
             name: string;
-            /** Operator Name Zh */
-            operator_name_zh?: string | null;
             /** @default operator */
             role_type: components["schemas"]["UserRoleType"];
             /** Updated At */

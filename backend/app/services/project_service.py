@@ -569,8 +569,9 @@ def list_project_operator_options(db: Session) -> list[str]:
     相同：换键时读写要同批上线，否则管理员在下拉里选中的人打开自己的项目会
     过滤不到、``ensure_project_access`` 直接 403。
 
-    ``operator_name_zh`` 是历史别名，不再参与；``full_name`` 为空的账号不进候选
-    名单（空键落库后对谁都不匹配）。
+    ``full_name`` 为空的账号不进候选名单（空键落库后对谁都不匹配）。运营名
+    ``operator_name_zh`` 已删除；登录名（``user_accounts.name``，username）是系统
+    内部对接标识，不参与展示、也不该被选成鉴权键——两者的区分见 AGENTS.md。
     """
     rows = db.execute(
         text(

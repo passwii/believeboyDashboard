@@ -103,7 +103,7 @@ def _get_notification_recipients(db: Session, project_id: int) -> list[dict[str,
     """Get admin users for alert notification via raw SQL."""
     admins = db.execute(
         text(
-            "SELECT id, name, email, operator_name_zh FROM user_accounts WHERE is_admin = true AND is_active = true"
+            "SELECT id, name, full_name, email FROM user_accounts WHERE is_admin = true AND is_active = true"
         )
     ).fetchall()
     recipients = []
@@ -112,8 +112,8 @@ def _get_notification_recipients(db: Session, project_id: int) -> list[dict[str,
             {
                 "id": int(row[0]),
                 "name": row[1],
-                "email": row[2],
-                "operator_name_zh": row[3],
+                "full_name": row[2],
+                "email": row[3],
             }
         )
     return recipients
@@ -121,15 +121,15 @@ def _get_notification_recipients(db: Session, project_id: int) -> list[dict[str,
 
 def _get_user_by_id(db: Session, user_id: int) -> dict[str, Any] | None:
     row = db.execute(
-        text("SELECT id, name, email, operator_name_zh FROM users WHERE id = :uid"),
+        text("SELECT id, name, full_name, email FROM users WHERE id = :uid"),
         {"uid": user_id},
     ).fetchone()
     if row:
         return {
             "id": int(row[0]),
             "name": row[1],
-            "email": row[2],
-            "operator_name_zh": row[3],
+            "full_name": row[2],
+            "email": row[3],
         }
     return None
 

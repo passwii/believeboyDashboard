@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.schemas.crm import CrmUserItem
 
-# 显示名统一取 full_name（BLF-1441），不回落到登录名 name / operator_name_zh。
+# 显示名统一取 full_name（BLF-1441），不回落到登录名 name（运营名已随 BLF-1441 删除）。
 # CrmUserItem.name 承载的就是「展示给用户的人名」，故直接把 full_name 映射到它。
 _SELECT_USER = """
     select id::text as id, coalesce(trim(full_name), '') as name, email,
