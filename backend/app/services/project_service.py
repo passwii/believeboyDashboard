@@ -559,25 +559,25 @@ def list_project_options(db: Session) -> list[dict[str, str | int | None]]:
 
 
 def list_project_operator_options(db: Session) -> list[str]:
-    """项目「运营 / 助理运营」候选名单。
+    """项目「运营 / 助理运营」候选名单（与请求头 ``X-Operator`` 同口径）。
 
     这个值会原样写进 ``projects.project_operator``，是 ``list_project_items`` /
-    ``ensure_project_access`` 的匹配键（鉴权口径），**不是**展示名。所以它仍然
-    保持 ``operator_name_zh -> full_name``，与请求头 ``X-Operator``（当前取
-    ``operatorNameZh``）同口径。
+    ``ensure_project_access`` 的匹配键（鉴权口径），**不是**展示名。
 
-    BLF-1441 的「显示名只取 full_name」不适用于这里：请求头还没切到 ``full_name``，
-    若候选名单单方面先换键，管理员用新下拉选出的名字会让当事人过滤不到项目、
-    ``ensure_project_access`` 直接 403。等前端 ``pickUserName()`` 接上
-    ``full_name``、``X-Operator`` 同批切换时，这里再一起改。
+    口径 = ``user_accounts.full_name``，唯一来源。前端 ``pickUserName()`` 已把
+    ``X-Operator`` 切到 ``full_name``（BLF-1441 / #776），候选值必须与请求头逐字
+    相同：换键时读写要同批上线，否则管理员在下拉里选中的人打开自己的项目会
+    过滤不到、``ensure_project_access`` 直接 403。
+
+    ``operator_name_zh`` 是历史别名，不再参与；``full_name`` 为空的账号不进候选
+    名单（空键落库后对谁都不匹配）。
     """
     rows = db.execute(
         text(
             """
-            select distinct
-              coalesce(nullif(trim(operator_name_zh), ''), nullif(trim(full_name), '')) as operator_name
+            select distinct nullif(trim(full_name), '') as operator_name
             from public.user_accounts
-            where coalesce(nullif(trim(operator_name_zh), ''), nullif(trim(full_name), '')) is not null
+            where nullif(trim(full_name), '') is not null
             order by operator_name asc
             """
         )
