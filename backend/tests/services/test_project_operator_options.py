@@ -1,10 +1,12 @@
-"""项目「运营 / 助理运营」候选名单的取值口径（BLF-1441 / #775 review）。
+"""项目「运营 / 助理运营」候选名单的取值口径（BLF-1441 / #775 / #776）。
 
 这里**不是**展示名：候选值会原样写进 ``projects.project_operator``，是
 ``list_project_items`` / ``ensure_project_access`` 的匹配键（鉴权口径）。
-所以它保持 ``operator_name_zh -> full_name``，与请求头 ``X-Operator``
-（当前仍取 ``operatorNameZh``）同口径；等前端把 ``X-Operator`` 切到
-``full_name`` 时再同批改这里。
+口径 = ``user_accounts.full_name``，与请求头 ``X-Operator`` 同源；
+``operator_name_zh`` 是历史别名，不再参与。
+
+候选名单与请求头必须逐字同口径：任何一侧单独换键，管理员在下拉里选中的人
+打开自己的项目就会 403。
 """
 
 from __future__ import annotations
@@ -73,8 +75,8 @@ def _next_sort_order(db_session) -> int:
     return int(max_order) + 1000
 
 
-def test_options_prefer_operator_name_zh(db_session, temp_accounts):
-    """与 X-Operator 同口径：有运营名就取运营名，不取 full_name / 登录名。"""
+def test_options_take_full_name_not_operator_name_zh(db_session, temp_accounts):
+    """与 X-Operator 同口径：只取 full_name，运营名与登录名都不进候选。"""
     email = _new_email("both")
     temp_accounts.append(email)
     _insert_account(
@@ -87,15 +89,13 @@ def test_options_prefer_operator_name_zh(db_session, temp_accounts):
 
     options = list_project_operator_options(db_session)
 
-    assert "桑工" in options
-    assert "桑喜刚" not in options
+    assert "桑喜刚" in options
+    assert "桑工" not in options
     assert "Buck" not in options
 
 
-def test_options_fall_back_to_full_name_without_operator_name_zh(
-    db_session, temp_accounts
-):
-    """没有运营名的账号回落到 full_name（现网桑喜刚 / 临时账号就是这种）。"""
+def test_options_take_full_name_when_operator_name_zh_absent(db_session, temp_accounts):
+    """没有运营名的账号照常取 full_name（现网桑喜刚 / 临时账号就是这种）。"""
     email = _new_email("nofull")
     temp_accounts.append(email)
     _insert_account(
@@ -112,21 +112,42 @@ def test_options_fall_back_to_full_name_without_operator_name_zh(
     assert "Buck" not in options
 
 
-def test_options_exclude_accounts_without_any_name(db_session, temp_accounts):
-    """运营名与姓名都为空的账号不进候选名单（空键落库后对谁都不匹配）。"""
-    email = _new_email("noname")
-    temp_accounts.append(email)
+def test_options_exclude_accounts_without_full_name(db_session, temp_accounts):
+    """full_name 为空的账号不进候选，即使它有运营名（历史别名不再兜底）。
+
+    空键落库后对谁都不匹配，运营名兜底会造出「下拉里选得到、本人却 403」的键。
+    """
+    blank_email = _new_email("noname")
+    whitespace_email = _new_email("spaces")
+    alias_email = _new_email("alias")
+    temp_accounts.extend([blank_email, whitespace_email, alias_email])
     _insert_account(
         db_session,
         name="NoName",
         full_name=None,
         operator_name_zh="  ",
-        email=email,
+        email=blank_email,
+    )
+    _insert_account(
+        db_session,
+        name="Spaces",
+        full_name="   ",
+        operator_name_zh=None,
+        email=whitespace_email,
+    )
+    _insert_account(
+        db_session,
+        name="AliasOnly",
+        full_name=None,
+        operator_name_zh="只有运营名",
+        email=alias_email,
     )
 
     options = list_project_operator_options(db_session)
 
     assert "NoName" not in options
+    assert "Spaces" not in options
+    assert "只有运营名" not in options
     assert "" not in options
     assert all(option.strip() for option in options)
 
@@ -136,9 +157,9 @@ def test_option_value_passes_project_access_as_request_operator(
 ):
     """下拉选出的值，用同名 X-Operator 必须能通过 ``ensure_project_access``。
 
-    这是 #775 review 那条 P1 的回归锁：候选名单一旦单方面换键（比如只取
-    ``full_name``）而请求头仍是 ``operatorNameZh``，管理员在下拉里选中的人
-    打开自己的项目就会 403。
+    这是 #775 review 那条 P1 的回归锁：候选名单与请求头必须同口径。前端
+    ``X-Operator`` 取的是账号的 ``full_name``（#776），所以「下拉值」必须等于
+    「库里该账号的 full_name」——两边任一单独换键，这里就会 403。
     """
     email = _new_email("access")
     temp_accounts.append(email)
@@ -152,6 +173,12 @@ def test_option_value_passes_project_access_as_request_operator(
 
     options = list_project_operator_options(db_session)
     chosen = next(option for option in options if option in {"桑工", "桑喜刚"})
+    # 请求头 X-Operator 的独立来源：账号表里的 full_name，不是下拉的返回值。
+    request_operator = db_session.execute(
+        text("select full_name from public.user_accounts where email = :email"),
+        {"email": email},
+    ).scalar_one()
+    assert chosen == request_operator
 
     project = Project(
         project_name=f"blf1441-access-{uuid.uuid4().hex[:8]}",
@@ -162,9 +189,8 @@ def test_option_value_passes_project_access_as_request_operator(
     db_session.add(project)
     db_session.flush()
     try:
-        # 请求头 X-Operator 当前取的就是 operator_name_zh。
         row = ensure_project_access(
-            db_session, project.id, operator="桑工", is_admin=False
+            db_session, project.id, operator=request_operator, is_admin=False
         )
         assert row.id == project.id
     finally:
@@ -173,20 +199,21 @@ def test_option_value_passes_project_access_as_request_operator(
 
 
 def test_options_are_deduplicated_and_sorted(db_session, temp_accounts):
+    """同名（含前后空格差异）只出现一次，结果按字典序。"""
     email_a = _new_email("dup1")
     email_b = _new_email("dup2")
     temp_accounts.extend([email_a, email_b])
     _insert_account(
         db_session,
         name="A",
-        full_name="桑喜刚",
-        operator_name_zh="同名的人",
+        full_name="同名的人",
+        operator_name_zh="另一个别名",
         email=email_a,
     )
     _insert_account(
         db_session,
         name="B",
-        full_name="同名的人",
+        full_name="  同名的人  ",
         operator_name_zh=None,
         email=email_b,
     )
@@ -194,4 +221,5 @@ def test_options_are_deduplicated_and_sorted(db_session, temp_accounts):
     options = list_project_operator_options(db_session)
 
     assert options.count("同名的人") == 1
+    assert "另一个别名" not in options
     assert options == sorted(options)
