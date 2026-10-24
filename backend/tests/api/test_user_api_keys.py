@@ -1069,7 +1069,7 @@ class TestPasswordChangeRevokesKeys:
         try:
             resp = client.patch(
                 f"/api/v1/system-management/users/{test_operator['id']}",
-                json={"operator_name_zh": test_operator["operator_name_zh"]},
+                json={"full_name": test_operator["full_name"]},
                 headers=operator_headers,
             )
             assert resp.status_code == 200, resp.text

@@ -107,7 +107,6 @@ def test_get_profile_self_returns_user_fields(client, auth_headers, existing_use
     # Schema fields all present
     for key in [
         "full_name",
-        "operator_name_zh",
         "is_admin",
         "is_active",
         "role_type",

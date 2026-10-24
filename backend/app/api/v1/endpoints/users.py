@@ -29,11 +29,13 @@ router = APIRouter(
 
 
 class UserItem(BaseModel):
+    # ``name`` = 登录名（username），系统内部对接用的稳定标识；``full_name`` = 显示名。
+    # 运营名（原 ``operator_name_zh``）已于 BLF-1441 第二轮删除：它与 ``full_name``
+    # 对使用者是重复字段，全局只留一个显示名。
     id: str
     name: str
     email: str
     full_name: str | None = None
-    operator_name_zh: str | None = None
     is_admin: bool
     is_active: bool
     role_type: UserRoleType = UserRoleType.operator
@@ -49,7 +51,6 @@ class CreateUserRequest(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     email: str = Field(min_length=3, max_length=255)
     full_name: str | None = Field(default=None, max_length=255)
-    operator_name_zh: str | None = Field(default=None, max_length=255)
     password: str = Field(min_length=8, max_length=128)
     is_admin: bool = False
     role_type: UserRoleType = UserRoleType.operator
@@ -62,7 +63,6 @@ class CreateUserResponse(BaseModel):
 class UpdateUserRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
     full_name: str | None = Field(default=None, max_length=255)
-    operator_name_zh: str | None = Field(default=None, max_length=255)
     is_admin: bool | None = None
     is_active: bool | None = None
     role_type: UserRoleType | None = None
@@ -84,11 +84,6 @@ def _to_item(row: Mapping[str, Any]) -> UserItem:
         name=str(row["name"]),
         email=str(row["email"]),
         full_name=(str(row["full_name"]) if row["full_name"] is not None else None),
-        operator_name_zh=(
-            str(row["operator_name_zh"])
-            if row["operator_name_zh"] is not None
-            else None
-        ),
         is_admin=bool(row["is_admin"]),
         is_active=bool(row["is_active"]),
         role_type=UserRoleType(row["role_type"])
@@ -105,7 +100,6 @@ def _serialize_user_item(item: UserItem) -> dict[str, object | None]:
         "name": item.name,
         "email": item.email,
         "full_name": item.full_name,
-        "operator_name_zh": item.operator_name_zh,
         "is_admin": item.is_admin,
         "is_active": item.is_active,
         "role_type": item.role_type.value,
@@ -127,7 +121,6 @@ def list_users(
               name,
               email,
               full_name,
-              operator_name_zh,
               is_admin,
               is_active,
               role_type,
@@ -166,14 +159,13 @@ def create_user(
             db.execute(
                 text(
                     """
-                insert into public.user_accounts (name, email, full_name, operator_name_zh, password_hash, is_admin, role_type, is_active)
-                values (:name, :email, :full_name, :operator_name_zh, :password_hash, :is_admin, :role_type, true)
+                insert into public.user_accounts (name, email, full_name, password_hash, is_admin, role_type, is_active)
+                values (:name, :email, :full_name, :password_hash, :is_admin, :role_type, true)
                 returning
                   id::text as id,
                   name,
                   email,
                   full_name,
-                  operator_name_zh,
                   is_admin,
                   is_active,
                   role_type,
@@ -186,9 +178,6 @@ def create_user(
                     "email": payload.email.strip().lower(),
                     "full_name": payload.full_name.strip()
                     if payload.full_name
-                    else None,
-                    "operator_name_zh": payload.operator_name_zh.strip()
-                    if payload.operator_name_zh
                     else None,
                     "password_hash": password_hash,
                     "is_admin": bool(payload.is_admin),
@@ -255,7 +244,6 @@ def update_user(
               name,
               email,
               full_name,
-              operator_name_zh,
               is_admin,
               is_active,
               role_type,
@@ -274,11 +262,6 @@ def update_user(
     name = payload.name.strip() if isinstance(payload.name, str) else None
     full_name = (
         payload.full_name.strip() if isinstance(payload.full_name, str) else None
-    )
-    operator_name_zh = (
-        payload.operator_name_zh.strip() or None
-        if isinstance(payload.operator_name_zh, str)
-        else None
     )
     is_admin = payload.is_admin if isinstance(payload.is_admin, bool) else None
     is_active = payload.is_active if isinstance(payload.is_active, bool) else None
@@ -306,7 +289,6 @@ def update_user(
               is_admin = coalesce(:is_admin, is_admin),
               is_active = coalesce(:is_active, is_active),
               full_name = coalesce(:full_name, full_name),
-              operator_name_zh = coalesce(:operator_name_zh, operator_name_zh),
               role_type = coalesce(:role_type, role_type),
               password_hash = coalesce(:password_hash, password_hash),
               password_changed_at = coalesce(:password_changed_at, password_changed_at),
@@ -317,7 +299,6 @@ def update_user(
               name,
               email,
               full_name,
-              operator_name_zh,
               is_admin,
               is_active,
               role_type,
@@ -329,7 +310,6 @@ def update_user(
                 "user_id": user_id,
                 "name": name,
                 "full_name": full_name,
-                "operator_name_zh": operator_name_zh,
                 "is_admin": is_admin,
                 "is_active": is_active,
                 "role_type": role_type,
@@ -414,7 +394,6 @@ def delete_user(
               name,
               email,
               full_name,
-              operator_name_zh,
               is_admin,
               is_active,
               role_type,

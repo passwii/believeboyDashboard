@@ -1,8 +1,9 @@
 """全局人物显示名解析（BLF-1441）：唯一来源 ``user_accounts.full_name``。
 
 口径（业务方已定死）：全局 person 显示名**只取** ``public.user_accounts.full_name``，
-不做 ``operator_name_zh`` / ``name`` 的兜底链。``operator_name_zh`` 退化为
-「历史别名 / 项目匹配键」，``name`` 只是登录名，两者都不再参与展示。
+不做登录名 ``name`` 的兜底链。``name`` 是登录名（username），系统内部对接用的
+稳定标识，不参与展示；运营名 ``operator_name_zh`` 已在 BLF-1441 第二轮删除
+（与 ``full_name`` 对使用者是重复字段）。
 
 两种「取不到」要分开：
 

@@ -42,12 +42,12 @@ class LoginRequest(BaseModel):
 
 class LoginResponse(BaseModel):
     id: str
+    # 登录名（username）：系统内部对接 / 身份核对用的稳定标识，**不是**显示名。
     name: str
     email: str
-    # BLF-1441：全局人物显示名唯一来源。前端会话 / 请求头（X-Operator）取它；
-    # name 仍是登录名，operator_name_zh 退化为「历史别名」。
+    # BLF-1441：全局人物显示名唯一来源。前端会话 / 请求头（X-Operator）取它。
+    # 运营名（原 operator_name_zh）已删除——它与 full_name 对使用者是重复字段。
     full_name: str | None = None
-    operator_name_zh: str | None = None
     is_admin: bool
     is_active: bool
     role_type: UserRoleType = UserRoleType.operator
@@ -60,10 +60,10 @@ class LoginResponse(BaseModel):
 class MeResponse(BaseModel):
     id: str
     email: str
+    # 登录名（username），见 LoginResponse.name。
     name: str
     # BLF-1441：见 LoginResponse.full_name。
     full_name: str | None = None
-    operator_name_zh: str | None = None
     is_admin: bool
     is_active: bool
     role_type: UserRoleType = UserRoleType.operator
@@ -299,7 +299,6 @@ def login(
                   email,
                   password_hash,
                   full_name,
-                  operator_name_zh,
                   is_admin,
                   is_active,
                   role_type
@@ -403,11 +402,6 @@ def login(
                 str(row["full_name"]).strip() if row["full_name"] is not None else None
             )
             or None,
-            operator_name_zh=(
-                str(row["operator_name_zh"])
-                if row["operator_name_zh"] is not None
-                else None
-            ),
             is_admin=bool(row["is_admin"]),
             is_active=bool(row["is_active"]),
             role_type=UserRoleType(row["role_type"])
@@ -459,7 +453,6 @@ def get_current_user(
                   name,
                   email,
                   full_name,
-                  operator_name_zh,
                   is_admin,
                   is_active,
                   role_type,
@@ -516,9 +509,6 @@ def get_current_user(
                 str(row["full_name"]).strip() if row["full_name"] is not None else None
             )
             or None,
-            operator_name_zh=(
-                str(row["operator_name_zh"]) if row["operator_name_zh"] else None
-            ),
             is_admin=bool(row["is_admin"]),
             is_active=bool(row["is_active"]),
             role_type=UserRoleType(row["role_type"])

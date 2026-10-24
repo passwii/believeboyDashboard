@@ -165,9 +165,11 @@ def _determine_severity(match_rate: float) -> str:
 def _get_project_admins(db: Session, project_id: int) -> list[dict[str, Any]]:
     """Get admin users for a project via raw SQL."""
     admins = db.execute(
-        text("SELECT id, name, email, operator_name_zh FROM user_accounts WHERE is_admin = true AND is_active = true")
+        text(
+            "SELECT id, name, full_name, email FROM user_accounts WHERE is_admin = true AND is_active = true"
+        )
     ).fetchall()
-    return [{"id": int(row[0]), "name": row[1], "email": row[2]} for row in admins if row[2]]
+    return [{"id": int(row[0]), "name": row[1], "email": row[3]} for row in admins if row[3]]
 
 
 def _send_reconciliation_email(

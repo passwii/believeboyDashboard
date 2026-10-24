@@ -125,7 +125,6 @@ def main() -> int:
             "email": settings.test_admin_email,
             "name": "测试管理员",
             "full_name": "测试管理员",
-            "operator_name_zh": "测试管理员",
             "role_type": "admin",
             "is_admin": True,
         },
@@ -133,7 +132,6 @@ def main() -> int:
             "email": settings.test_operator_email,
             "name": "测试运营",
             "full_name": "测试运营",
-            "operator_name_zh": "测试运营",
             "role_type": "operator",
             "is_admin": False,
         },
@@ -141,7 +139,6 @@ def main() -> int:
             "email": settings.test_businessdev_email,
             "name": "测试招商",
             "full_name": "测试招商",
-            "operator_name_zh": "测试招商",
             "role_type": "businessdev",
             "is_admin": False,
         },
@@ -156,15 +153,14 @@ def main() -> int:
                 upsert_sql = text(
                     """
                     INSERT INTO public.user_accounts
-                        (name, email, full_name, password_hash, is_admin, is_active, role_type, operator_name_zh)
+                        (name, email, full_name, password_hash, is_admin, is_active, role_type)
                     VALUES
-                        (:name, :email, :full_name, :password_hash, :is_admin, true, :role_type, :operator_name_zh)
+                        (:name, :email, :full_name, :password_hash, :is_admin, true, :role_type)
                     ON CONFLICT ((lower(email)))
                     DO UPDATE SET
                         name = excluded.name,
                         full_name = excluded.full_name,
                         role_type = excluded.role_type,
-                        operator_name_zh = excluded.operator_name_zh,
                         is_active = true,
                         is_admin = excluded.is_admin,
                         password_hash = excluded.password_hash,
@@ -175,15 +171,14 @@ def main() -> int:
                 upsert_sql = text(
                     """
                     INSERT INTO public.user_accounts
-                        (name, email, full_name, password_hash, is_admin, is_active, role_type, operator_name_zh)
+                        (name, email, full_name, password_hash, is_admin, is_active, role_type)
                     VALUES
-                        (:name, :email, :full_name, :password_hash, :is_admin, true, :role_type, :operator_name_zh)
+                        (:name, :email, :full_name, :password_hash, :is_admin, true, :role_type)
                     ON CONFLICT ((lower(email)))
                     DO UPDATE SET
                         name = excluded.name,
                         full_name = excluded.full_name,
                         role_type = excluded.role_type,
-                        operator_name_zh = excluded.operator_name_zh,
                         is_active = true,
                         is_admin = excluded.is_admin,
                         updated_at = now()
@@ -200,7 +195,6 @@ def main() -> int:
                         "password_hash": hash_password(passwords[role]),
                         "is_admin": account["is_admin"],
                         "role_type": account["role_type"],
-                        "operator_name_zh": account["operator_name_zh"],
                     },
                 )
                 print(

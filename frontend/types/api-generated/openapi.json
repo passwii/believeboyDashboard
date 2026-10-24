@@ -10701,18 +10701,6 @@
             "title": "Name",
             "type": "string"
           },
-          "operator_name_zh": {
-            "anyOf": [
-              {
-                "maxLength": 255,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Operator Name Zh"
-          },
           "password": {
             "maxLength": 128,
             "minLength": 8,
@@ -21364,17 +21352,6 @@
             "title": "Name",
             "type": "string"
           },
-          "operator_name_zh": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Operator Name Zh"
-          },
           "role_type": {
             "$ref": "#/components/schemas/UserRoleType",
             "default": "operator"
@@ -21427,17 +21404,6 @@
           "name": {
             "title": "Name",
             "type": "string"
-          },
-          "operator_name_zh": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Operator Name Zh"
           },
           "password_changed_at": {
             "anyOf": [
@@ -28464,17 +28430,6 @@
             "title": "Name",
             "type": "string"
           },
-          "operator_name_zh": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Operator Name Zh"
-          },
           "password_changed_at": {
             "anyOf": [
               {
@@ -28541,18 +28496,6 @@
               }
             ],
             "title": "Name"
-          },
-          "operator_name_zh": {
-            "anyOf": [
-              {
-                "maxLength": 255,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Operator Name Zh"
           }
         },
         "title": "ProfileUpdate",
@@ -40863,18 +40806,6 @@
             ],
             "title": "Name"
           },
-          "operator_name_zh": {
-            "anyOf": [
-              {
-                "maxLength": 255,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Operator Name Zh"
-          },
           "password": {
             "anyOf": [
               {
@@ -41467,17 +41398,6 @@
           "name": {
             "title": "Name",
             "type": "string"
-          },
-          "operator_name_zh": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Operator Name Zh"
           },
           "role_type": {
             "$ref": "#/components/schemas/UserRoleType",
