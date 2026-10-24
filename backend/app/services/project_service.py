@@ -561,16 +561,23 @@ def list_project_options(db: Session) -> list[dict[str, str | int | None]]:
 def list_project_operator_options(db: Session) -> list[str]:
     """项目「运营 / 助理运营」候选名单。
 
-    只取 ``full_name``（BLF-1441）。这个值同时是 ``projects.project_operator``
-    的匹配键（鉴权口径），所以**不能**再混入 ``operator_name_zh`` / 登录名，
-    否则下拉选出来的文本会与鉴权键对不上。
+    这个值会原样写进 ``projects.project_operator``，是 ``list_project_items`` /
+    ``ensure_project_access`` 的匹配键（鉴权口径），**不是**展示名。所以它仍然
+    保持 ``operator_name_zh -> full_name``，与请求头 ``X-Operator``（当前取
+    ``operatorNameZh``）同口径。
+
+    BLF-1441 的「显示名只取 full_name」不适用于这里：请求头还没切到 ``full_name``，
+    若候选名单单方面先换键，管理员用新下拉选出的名字会让当事人过滤不到项目、
+    ``ensure_project_access`` 直接 403。等前端 ``pickUserName()`` 接上
+    ``full_name``、``X-Operator`` 同批切换时，这里再一起改。
     """
     rows = db.execute(
         text(
             """
-            select distinct nullif(trim(full_name), '') as operator_name
+            select distinct
+              coalesce(nullif(trim(operator_name_zh), ''), nullif(trim(full_name), '')) as operator_name
             from public.user_accounts
-            where nullif(trim(full_name), '') is not null
+            where coalesce(nullif(trim(operator_name_zh), ''), nullif(trim(full_name), '')) is not null
             order by operator_name asc
             """
         )

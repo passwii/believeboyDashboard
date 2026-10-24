@@ -20,9 +20,16 @@ def list_crm_users(db: Session) -> list[CrmUserItem]:
 
     user_accounts.id 是 UUID，CrmUserItem.id 为 str，故取 id::text。
     显示名取 ``full_name``；为空时返回空串（前端展示「未命名」），不回落登录名。
+
+    ``full_name`` 为空的账号不进候选名单：空白项照样能被选中，落库后负责人 /
+    操作人对谁都匹配不上（#775 review 第三节），不如一开始就不给人选。
     """
     rows = db.execute(
-        text(f"{_SELECT_USER} where is_active = true order by name")
+        text(
+            f"{_SELECT_USER} "
+            "where is_active = true and coalesce(trim(full_name), '') <> '' "
+            "order by name"
+        )
     ).mappings().all()
     return [
         CrmUserItem(
