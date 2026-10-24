@@ -21,7 +21,7 @@ import complaintsOverviewWithRun from '../fixtures/complaints-overview-with-run.
 const OUT_DIR = path.join(__dirname, '../../test-results/blf1027')
 
 const SESSION = {
-  user: { id: '1', name: 'E2E', email: 'e2e@example.com', roleType: 'admin', operatorNameZh: '测试' },
+  user: { id: '1', name: 'E2E', email: 'e2e@example.com', roleType: 'admin', fullName: '测试', operatorNameZh: '测试' },
   expires: '2099-01-01T00:00:00.000Z',
 }
 
@@ -31,6 +31,8 @@ async function forgeSessionToken(): Promise<string> {
       uid: '1',
       isAdmin: true,
       roleType: 'admin',
+      // BLF-1441：会话显示名唯一来源是 full_name
+      fullName: 'E2E',
       operatorNameZh: 'E2E',
       sessionId: 'blf1027',
       name: 'E2E',

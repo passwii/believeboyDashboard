@@ -98,10 +98,7 @@ export default function ProfileClient() {
               </TabsContent>
               <TabsContent value="projects" hidden={tab !== 'projects'}>
                 <ProfileProjectsTab
-                  operatorNameCandidates={{
-                    name: profile?.name ?? null,
-                    operatorNameZh: profile?.operator_name_zh ?? null,
-                  }}
+                  operatorNameCandidates={{ fullName: profile?.full_name ?? null }}
                 />
               </TabsContent>
             </DirectionalTabTransition>

@@ -79,7 +79,8 @@ export function ProfileInfoTab({ profile, loading, error, onUpdate }: ProfileInf
 
     const trimmedName = name.trim()
     if (!trimmedName) {
-      notify({ type: 'error', title: '姓名不能为空' })
+      // 这个字段是登录名（英文 handle），后端 `name` 非空是硬约束。
+      notify({ type: 'error', title: '登录名不能为空' })
       return
     }
 
@@ -154,7 +155,7 @@ export function ProfileInfoTab({ profile, loading, error, onUpdate }: ProfileInf
       <div className="space-y-2">
         <Label htmlFor="profile-name" className="flex items-center gap-1.5">
           <User className="h-3.5 w-3.5 text-muted-foreground" />
-          显示名 *
+          登录名 *
         </Label>
         <Input
           id="profile-name"
@@ -165,7 +166,7 @@ export function ProfileInfoTab({ profile, loading, error, onUpdate }: ProfileInf
           required
         />
         <p className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>用于 sidebar 与项目匹配</span>
+          <span>登录名（英文 handle），不再是展示名；全局显示名用下面的「姓名」</span>
           <span className={counterClass(name.length)}>
             {name.length}/{MAX_LENGTH}
           </span>
@@ -175,7 +176,7 @@ export function ProfileInfoTab({ profile, loading, error, onUpdate }: ProfileInf
       <div className="space-y-2">
         <Label htmlFor="profile-full-name" className="flex items-center gap-1.5">
           <UserSquare className="h-3.5 w-3.5 text-muted-foreground" />
-          全名
+          姓名
         </Label>
         <Input
           id="profile-full-name"
@@ -183,10 +184,10 @@ export function ProfileInfoTab({ profile, loading, error, onUpdate }: ProfileInf
           onChange={(e) => setFullName(e.target.value)}
           disabled={submitting}
           maxLength={MAX_LENGTH}
-          placeholder="可选"
+          placeholder="中文姓名，例如 纪亚伟"
         />
         <p className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>真实姓名，用于内部协作（可选）</span>
+          <span>全局显示名唯一来源：日志 / 负责人 / 创建人 / 顶部菜单都取它；留空则显示「未命名」</span>
           <span className={counterClass(fullName.length)}>
             {fullName.length}/{MAX_LENGTH}
           </span>
@@ -196,7 +197,7 @@ export function ProfileInfoTab({ profile, loading, error, onUpdate }: ProfileInf
       <div className="space-y-2 md:col-span-2">
         <Label htmlFor="profile-operator-name" className="flex items-center gap-1.5">
           <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-          运营名（中文）
+          运营名（历史别名）
         </Label>
         <Input
           id="profile-operator-name"
@@ -204,10 +205,13 @@ export function ProfileInfoTab({ profile, loading, error, onUpdate }: ProfileInf
           onChange={(e) => setOperatorName(e.target.value)}
           disabled={submitting}
           maxLength={MAX_LENGTH}
-          placeholder="用于匹配项目运营 / 助理运营"
+          placeholder="仅保留作历史别名"
         />
         <p className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>⚠ 此字段用于与项目里的运营 / 助理运营名进行匹配。修改后会自动同步到项目管理。</span>
+          <span>
+            ⚠ 不再参与任何显示；项目「运营 / 助理运营」的匹配已改用上面的「姓名」。
+            要调整项目归属请让管理员改项目，或核对姓名与项目里的运营名是否一致。
+          </span>
           <span className={counterClass(operatorName.length)}>
             {operatorName.length}/{MAX_LENGTH}
           </span>

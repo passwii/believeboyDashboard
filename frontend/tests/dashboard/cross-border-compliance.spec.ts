@@ -35,6 +35,7 @@ const SESSION = {
     name: 'E2E',
     email: 'e2e@example.com',
     roleType: 'admin',
+    fullName: 'E2E',
     operatorNameZh: 'E2E',
   },
   expires: '2099-01-01T00:00:00.000Z',

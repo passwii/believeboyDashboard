@@ -27,6 +27,8 @@ async function forgeSessionToken(): Promise<string> {
       uid: '1',
       isAdmin: true,
       roleType: 'admin',
+      // BLF-1441：会话显示名唯一来源是 full_name（不再回落运营名 / 登录名）
+      fullName: 'E2E',
       operatorNameZh: 'E2E',
       sessionId: 'e2e-session',
       name: 'E2E',
@@ -44,6 +46,7 @@ const SESSION = {
     name: 'E2E',
     email: 'e2e@example.com',
     roleType: 'admin',
+    fullName: '测试',
     operatorNameZh: '测试',
   },
   expires: '2099-01-01T00:00:00.000Z',
@@ -301,6 +304,8 @@ test.describe('@mobile-blf620 系统·账号 手机端（BLF-620）', () => {
     const mobileCards = page.locator('[class*="md:hidden"]')
     await expect(mobileCards.getByText('Yawei', { exact: true })).toBeVisible({ timeout: 30000 })
     await expect(mobileCards.getByText('张三')).toBeVisible({ timeout: 30000 })
+    // BLF-1441：fullName 为空显示「未命名」，不回落登录名 / 运营名
+    await expect(mobileCards.getByText('未命名')).toBeVisible({ timeout: 30000 })
     await expect(mobileCards.getByRole('button', { name: '停用' }).first()).toBeVisible()
     await expectNoPageHorizontalOverflow(page)
   })

@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/select'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
+import { pickSessionDisplayName } from '@/lib/auth/display-name'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { cn } from '@/lib/utils'
 import { exportProductAnalysisToExcel } from '@/lib/product-analysis-export'
@@ -625,13 +626,9 @@ interface ProductAnalysisPanelProps {
 
 export default function ProductAnalysisPanel({ session }: ProductAnalysisPanelProps) {
   const isAdmin = Boolean(session?.user?.isAdmin)
-  const currentOperator = (
-    session?.user?.operatorNameZh ||
-    session?.user?.name ||
-    session?.user?.email ||
-    session?.user?.id ||
-    ''
-  ).trim()
+  // BLF-1441：操作人只取 user_accounts.full_name（无姓名时为空，
+  // 不回落运营名 / 登录名 / 邮箱）。规则见 lib/auth/display-name.ts。
+  const currentOperator = pickSessionDisplayName(session?.user) ?? ''
 
   const initialDateRange = getLastWeekRange()
 

@@ -17,6 +17,9 @@ export async function addBLF611FixtureAuth(context: BrowserContext): Promise<voi
       uid: '1',
       isAdmin: true,
       roleType: 'admin',
+      // BLF-1441：会话显示名唯一来源是 full_name；伪造 token 也带上，
+      // 否则 E2E 走的是「旧 token」过渡分支，测不到新口径。
+      fullName: 'E2E',
       operatorNameZh: 'E2E',
       sessionId: 'e2e-session',
       name: 'E2E',

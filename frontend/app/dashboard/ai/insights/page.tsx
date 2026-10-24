@@ -70,6 +70,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { parseResponseError } from '@/lib/error-utils'
+import { pickSessionDisplayName } from '@/lib/auth/display-name'
 import { ensureConfigLoaded } from '@/lib/api/ai-chat-config-store'
 import { useNotifications } from '@/components/notifications'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
@@ -627,7 +628,9 @@ export default function AIInsightsPage() {
         date_range_end: formatYMD(dateRange.to!),
         status: 'generating',
         sub_status: 'queued',
-        created_by: session?.user?.name || '',
+        // BLF-1441：乐观态创建人与后端写入同源（full_name）；无姓名时留空，
+        // 等刷新后用后端快照，不拿登录名冒充。
+        created_by: pickSessionDisplayName(session?.user) ?? '',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }

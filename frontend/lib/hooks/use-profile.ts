@@ -53,9 +53,14 @@ export function useProfile(): UseProfileResult {
       setProfile(next)
       // Keep the JWT-derived session in sync so the sidebar reflects
       // name / avatar changes immediately.
+      //
+      // BLF-1441：`fullName` 是全局显示名与 `X-Operator` 的唯一来源，
+      // 改完「姓名」必须一并写回会话（jwt 回调的 `trigger === 'update'`
+      // 分支负责落进 token），否则要等下次登录才生效。
       await updateSession({
         user: {
           name: next.name,
+          fullName: next.full_name ?? null,
           image: next.avatar_url ?? undefined,
         },
       })

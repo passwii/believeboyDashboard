@@ -82,6 +82,7 @@ import {
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
+import { pickSessionDisplayName } from '@/lib/auth/display-name'
 import { useNotifications } from '@/components/notifications'
 
 const API_BASE = '/api/backend'
@@ -1859,13 +1860,9 @@ export default function CategoryResearchPage() {
   const { notify } = useNotifications()
   const { data: session } = useSession()
   const isAdmin = Boolean(session?.user?.isAdmin)
-  const operatorName = session?.user?.operatorNameZh ?? null
-  const displayName = (
-    session?.user?.operatorNameZh ||
-    session?.user?.name ||
-    session?.user?.email ||
-    ''
-  ).trim()
+  // BLF-1441：X-Operator 与展示名同源，只取 user_accounts.full_name
+  // （无姓名时为空 → 不发送该头；规则见 lib/auth/display-name.ts）。
+  const operatorName = pickSessionDisplayName(session?.user)
   const roleType = session?.user?.roleType
 
   const [marketplace, setMarketplace] = useState('US')
