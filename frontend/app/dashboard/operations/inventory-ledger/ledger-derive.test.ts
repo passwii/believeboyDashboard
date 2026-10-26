@@ -409,4 +409,3 @@ describe('latestEndingByGroup', () => {
     expect(latest.get('SKU-A|LAX1|SELLABLE')?.ending_balance).toBe(40)
   })
 })
-

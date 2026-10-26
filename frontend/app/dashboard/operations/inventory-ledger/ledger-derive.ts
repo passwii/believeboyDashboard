@@ -422,4 +422,3 @@ export function waterLevelSeries(rows: LedgerSummaryRow[]): {
   })
   return { mskus, data }
 }
-
