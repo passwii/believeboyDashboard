@@ -289,3 +289,21 @@ class ConsistencyCheckResult(BaseModel):
     mismatch_count: int
     mismatches: list[ConsistencyMismatch] = []
     checked_at: datetime
+
+
+class LedgerMonthAnalysisResponse(BaseModel):
+    """Full selected-month payload shared by the dashboard and Excel export."""
+
+    project_id: int
+    project_name: str
+    country: str | None = None
+    report_month: date
+    start_date: date
+    end_date: date
+    generated_at: datetime
+    summary_rows: list[LedgerSummaryRow] = []
+    detail_rows: list[LedgerDetailRow] = []
+    snapshot: MonthlySnapshotResponse
+    trend: TrendResponse
+    consistency: ConsistencyCheckResult
+    batches: list[IngestBatchInfo] = []

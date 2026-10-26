@@ -14,7 +14,7 @@ Period input contract (BEL-370 P1 #4):
 from __future__ import annotations
 
 import calendar
-from datetime import date
+from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -29,6 +29,7 @@ from app.schemas.inventory_ledger import (
     IngestBatchInfo,
     IngestBatchesResponse,
     LedgerDetailResponse,
+    LedgerMonthAnalysisResponse,
     LedgerSummaryResponse,
     LocationDetailResponse,
     MonthlySnapshotResponse,
@@ -36,6 +37,7 @@ from app.schemas.inventory_ledger import (
     ReceiptClustersResponse,
     TrendResponse,
 )
+from app.models import Project
 from app.services.inventory.ledger import (
     check_ledger_consistency,
     check_ledger_integrity,
@@ -464,3 +466,83 @@ def get_consistency(
             ),
         )
     return check_ledger_consistency(db, project_id, report_month)
+
+
+@router.get(
+    "/month-analysis",
+    response_model=LedgerMonthAnalysisResponse,
+    summary="Full selected-month dataset for dashboard analysis and Excel export",
+    description=(
+        "Returns every Summary and Detail row for one complete calendar month, "
+        "plus Snapshot, six-month Trend, Consistency and selected-month ingest "
+        "batches. Partial-month periods are rejected so dashboard analysis and "
+        "the unified Excel export always share one complete data scope."
+    ),
+)
+def get_month_analysis(
+    project_id: int = Query(..., gt=0),
+    period: str = Query(...),
+    db: Session = Depends(get_db_session),
+) -> LedgerMonthAnalysisResponse:
+    start, end, report_month = resolve_period_inputs(period, None, None)
+    if report_month is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"period={period!r} does not resolve to a full calendar month; "
+                "month analysis requires a complete ledger partition"
+            ),
+        )
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    skus = get_sku_month_eom(db, project_id, start, end)
+    snapshot = MonthlySnapshotResponse(
+        report_month=report_month,
+        country=project.country,
+        sku_count=len(skus),
+        total_qty=sum(item.qty_eom for item in skus),
+        disposition_summary=get_month_disposition_summary(db, project_id, start, end),
+        skus=skus,
+        integrity=check_ledger_integrity(db, project_id, report_month),
+    )
+    return LedgerMonthAnalysisResponse(
+        project_id=project.id,
+        project_name=project.project_name,
+        country=project.country,
+        report_month=report_month,
+        start_date=start,
+        end_date=end,
+        generated_at=datetime.now(UTC),
+        summary_rows=get_ledger_summary_rows(
+            db,
+            project_id,
+            start,
+            end,
+            limit=None,
+        ),
+        detail_rows=get_ledger_detail_rows(
+            db,
+            project_id,
+            start,
+            end,
+            limit=None,
+        ),
+        snapshot=snapshot,
+        trend=TrendResponse(
+            project_id=project_id,
+            country=project.country,
+            months=get_trend(db, project_id, months=6),
+        ),
+        consistency=check_ledger_consistency(db, project_id, report_month),
+        batches=[
+            IngestBatchInfo.model_validate(item)
+            for item in list_ingest_batches(
+                db,
+                project_id,
+                limit=500,
+                report_month=report_month,
+            )
+        ],
+    )
