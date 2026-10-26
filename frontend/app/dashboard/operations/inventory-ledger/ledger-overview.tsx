@@ -28,10 +28,12 @@ import {
 } from '@/components/ui/chart'
 
 import {
-  computeKpis,
   computeMomChange,
+  computeOverviewKpis,
+  dailyEventSummary,
   dispositionBreakdown,
   groupDetailByEventType,
+  skuEndingSummary,
   topLocations,
 } from './ledger-derive'
 import { ConsistencyBadge, IntegrityBadge } from './ledger-badges'
@@ -67,6 +69,11 @@ const EVENT_CHART_COLORS: Record<string, string> = {
 
 const eventChartConfig = {
   count: { label: '事件数' },
+} satisfies ChartConfig
+
+const dailyEventChartConfig = {
+  count: { label: '事件数', color: 'var(--chart-1)' },
+  netQty: { label: '净数量', color: 'var(--chart-2)' },
 } satisfies ChartConfig
 
 const trendChartConfig = {
@@ -126,7 +133,10 @@ export function LedgerOverview({
   detailRows: LedgerDetailRow[]
   mskuFilter: string
 }) {
-  const kpis = useMemo(() => computeKpis(summaryRows, detailRows), [summaryRows, detailRows])
+  const kpis = useMemo(
+    () => computeOverviewKpis(summaryRows, detailRows),
+    [summaryRows, detailRows],
+  )
   const momChange = useMemo(
     () => (snapshot ? computeMomChange(snapshot.skus, mskuFilter) : null),
     [snapshot, mskuFilter],
@@ -134,6 +144,11 @@ export function LedgerOverview({
   const eventGroups = useMemo(() => groupDetailByEventType(detailRows), [detailRows])
   const dispositions = useMemo(() => dispositionBreakdown(summaryRows), [summaryRows])
   const locations = useMemo(() => topLocations(summaryRows, 5), [summaryRows])
+  const skuRanking = useMemo(
+    () => skuEndingSummary(summaryRows).slice(0, 10),
+    [summaryRows],
+  )
+  const dailyEvents = useMemo(() => dailyEventSummary(detailRows), [detailRows])
 
   const trendData = useMemo(
     () =>
@@ -158,12 +173,10 @@ export function LedgerOverview({
       )}
 
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <TermKpiTile label="SKU 数" value={hasData ? String(kpis.skuCount) : '—'} />
         <TermKpiTile label="期末总库存" value={hasData ? String(kpis.endingTotal) : '—'} />
-        <TermKpiTile
-          label="环比变动"
-          value={momChange === null ? '—' : momChange > 0 ? `+${momChange}` : String(momChange)}
-          tone={toneForKpi(momChange === null ? undefined : momChange > 0 ? 'positive' : momChange < 0 ? 'negative' : undefined)}
-        />
+        <TermKpiTile label="可售库存" value={hasData ? String(kpis.sellableQty) : '—'} />
+        <TermKpiTile label="损坏库存" value={hasData ? String(kpis.damagedQty) : '—'} />
         <TermKpiTile
           label="损坏占比"
           value={hasData ? `${kpis.damagedPct.toFixed(1)}%` : '—'}
@@ -173,6 +186,12 @@ export function LedgerOverview({
           label="事件净变动"
           value={hasData ? (kpis.netChange > 0 ? `+${kpis.netChange}` : String(kpis.netChange)) : '—'}
           tone={toneForKpi(kpis.netChange > 0 ? 'positive' : kpis.netChange < 0 ? 'negative' : undefined)}
+        />
+        <TermKpiTile label="事件数" value={hasData ? String(kpis.eventCount) : '—'} />
+        <TermKpiTile
+          label="环比变动"
+          value={momChange === null ? '—' : momChange > 0 ? `+${momChange}` : String(momChange)}
+          tone={toneForKpi(momChange === null ? undefined : momChange > 0 ? 'positive' : momChange < 0 ? 'negative' : undefined)}
         />
       </div>
 
@@ -260,6 +279,42 @@ export function LedgerOverview({
             ) : (
               <HBarList items={locations.map((l) => ({ label: l.location, value: l.qty }))} />
             )}
+        </TermPanel>
+
+        <TermPanel title="SKU 期末库存 Top 10" bodyClassName="p-3">
+          <p className="mb-2 font-mono text-[11px] text-term-muted">
+            筛选范围内期末库存最高的 SKU
+          </p>
+          {skuRanking.length === 0 ? (
+            <p className="py-8 text-center text-xs text-muted-foreground">暂无水位数据</p>
+          ) : (
+            <HBarList
+              items={skuRanking.map((row) => ({
+                label: row.msku,
+                value: row.endingQty,
+              }))}
+            />
+          )}
+        </TermPanel>
+
+        <TermPanel title="每日事件活动" bodyClassName="p-2">
+          <p className="mb-2 px-1 font-mono text-[11px] text-term-muted">
+            按 Detail 实际发生日期汇总事件数与净数量
+          </p>
+          {dailyEvents.length === 0 ? (
+            <p className="py-8 text-center text-xs text-muted-foreground">暂无事件数据</p>
+          ) : (
+            <ChartContainer className="h-52 w-full" config={dailyEventChartConfig}>
+              <BarChart accessibilityLayer data={dailyEvents} margin={{ left: 4, right: 8, top: 8 }}>
+                <CartesianGrid className="stroke-border" vertical={false} />
+                <XAxis axisLine={false} dataKey="date" tickLine={false} tickMargin={8} />
+                <YAxis axisLine={false} tickLine={false} width={36} />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Bar dataKey="eventCount" name="事件数" fill="var(--color-count)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="netQty" name="净数量" fill="var(--color-netQty)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ChartContainer>
+          )}
         </TermPanel>
       </div>
     </div>

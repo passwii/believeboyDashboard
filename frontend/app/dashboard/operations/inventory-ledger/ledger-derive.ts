@@ -423,29 +423,3 @@ export function waterLevelSeries(rows: LedgerSummaryRow[]): {
   return { mskus, data }
 }
 
-// ── CSV 导出 ──────────────────────────────────────────────────────────────────
-
-function csvEscape(value: unknown): string {
-  const s = value === null || value === undefined ? '' : String(value)
-  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`
-  return s
-}
-
-export function buildCsv(headers: string[], rows: unknown[][]): string {
-  const lines = [headers.map(csvEscape).join(',')]
-  for (const row of rows) lines.push(row.map(csvEscape).join(','))
-  return lines.join('\n')
-}
-
-/** 浏览器下载（副作用；构建与测试用 buildCsv 纯函数）。 */
-export function downloadCsv(filename: string, csv: string): void {
-  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
-}

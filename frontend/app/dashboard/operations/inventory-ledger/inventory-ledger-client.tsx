@@ -6,19 +6,24 @@
  * 三层结构：Top Header 中段插槽（项目/月份 + 4 维派生筛选 + 清除筛选，portal）
  * → 总览区（常驻，响应筛选）→ 汇总/明细/批次 tabs。
  *
- * 数据流（设计决策 D6）：summary + detail 两个原始数据集是唯一真相源，
- * 全局筛选条是唯一筛选状态；总览 KPI/图表全部由 ledger-derive 从筛选后的
- * 原始行客户端派生。/snapshot（环比口径）、/trend（月份趋势）、
- * /consistency（双表对账）作为补充数据。
+ * 数据流：/month-analysis 一次返回所选月份全量 Summary / Detail、Snapshot、
+ * Trend、Consistency 与批次元数据；页面筛选只影响展示，Excel 导出始终使用
+ * 该整月全量数据，避免页面与导出两套口径。
  *
  * 刷新语义（header 迁移 §1.4）：本页无缓存，全局刷新 = useHeaderRefresh
- * 直接全量重拉 6 端点（allSettled）并上报 { loading }；handler 用 ref 桥接
- * 防过期闭包。原 TermPanel 控制台壳与页内「刷新」按钮已删除（全局唯一入口）。
+ * 重拉整月聚合数据并上报 { loading }；handler 用 ref 桥接防过期闭包。
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
-import { AlertTriangle, Clock4, LayoutGrid, List, UploadCloud } from 'lucide-react'
+import {
+  AlertTriangle,
+  Clock4,
+  FileSpreadsheet,
+  LayoutGrid,
+  List,
+  UploadCloud,
+} from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { Button } from '@/components/ui/button'
@@ -38,6 +43,7 @@ import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-pro
 
 import { fetchLedgerJson } from './ledger-load'
 import { filterDetailRows, filterSummaryRows, formatLedgerMonthLabel } from './ledger-derive'
+import { exportLedgerAnalysisToExcel } from './ledger-excel-export'
 import { LedgerBatchesTab } from './ledger-batches-tab'
 import { LedgerDetailTab } from './ledger-detail-tab'
 import { LedgerSummaryTab } from './ledger-summary-tab'
@@ -84,6 +90,9 @@ export default function InventoryLedgerPage() {
   const [months, setMonths] = useState<string[]>([])
   const [monthsLoaded, setMonthsLoaded] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [analysisData, setAnalysisData] = useState<LedgerMonthAnalysisResponse | null>(null)
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
   // BEL-417 教训：后端 500 不能伪装成"暂无数据"或白屏。
   const [loadError, setLoadError] = useState<string | null>(null)
   // 竞态保护：快速切换项目/月份时丢弃过期响应。
@@ -158,6 +167,7 @@ export default function InventoryLedgerPage() {
       setDetailRows({ report_month: data.report_month, rows: data.detail_rows })
       setBatches({ project_id: data.project_id, batches: data.batches })
       setConsistency(data.consistency)
+      setAnalysisData(data)
     } catch (err) {
       if (seq === loadSeq.current) {
         setLoadError(err instanceof Error ? err.message : '加载失败')
@@ -178,9 +188,22 @@ export default function InventoryLedgerPage() {
   loadDataRef.current = loadData
   useHeaderRefresh(() => loadDataRef.current(), { loading })
 
+  const handleExport = useCallback(async () => {
+    if (!analysisData || exporting) return
+    setExporting(true)
+    setExportError(null)
+    try {
+      await exportLedgerAnalysisToExcel(analysisData)
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : '导出 Excel 失败')
+    } finally {
+      setExporting(false)
+    }
+  }, [analysisData, exporting])
+
   // ── 筛选选项（从原始行派生） ────────────────────────────────────────────
-  const rawSummary = summaryRows?.rows ?? []
-  const rawDetail = detailRows?.rows ?? []
+  const rawSummary = useMemo(() => summaryRows?.rows ?? [], [summaryRows])
+  const rawDetail = useMemo(() => detailRows?.rows ?? [], [detailRows])
 
   const filterOptions = useMemo(() => {
     const mskus = new Set<string>()
@@ -424,6 +447,26 @@ export default function InventoryLedgerPage() {
       {/* 总览区（常驻）+ 明细 tabs */}
       {hasAnyData && (
         <>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="font-mono text-[11px] text-term-muted">
+              Excel 按所选月份全量导出，不受页面维度筛选影响
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              disabled={!analysisData || exporting || loading}
+              onClick={() => void handleExport()}
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+              {exporting ? '导出中…' : '导出库存分析 Excel'}
+            </Button>
+          </div>
+          {exportError && (
+            <p className="rounded-none border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              {exportError}
+            </p>
+          )}
           <LazyLedgerOverview
             snapshot={snapshot}
             trend={trend}
@@ -454,14 +497,12 @@ export default function InventoryLedgerPage() {
               <LedgerSummaryTab
                 rows={filteredSummary}
                 failed={loadError !== null && summaryRows === null}
-                period={month}
               />
             </TabsContent>
             <TabsContent value="detail">
               <LedgerDetailTab
                 rows={filteredDetail}
                 failed={loadError !== null && detailRows === null}
-                period={month}
               />
             </TabsContent>
             <TabsContent value="batches">

@@ -9,7 +9,6 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  buildCsv,
   computeKpis,
   computeMomChange,
   computeOverviewKpis,
@@ -411,21 +410,3 @@ describe('latestEndingByGroup', () => {
   })
 })
 
-// ── CSV ───────────────────────────────────────────────────────────────────────
-
-describe('buildCsv', () => {
-  it('escapes quotes, commas and newlines', () => {
-    const csv = buildCsv(['a', 'b'], [[1, 'x,y'], ['he said "hi"', 'line\nbreak']])
-    const lines = csv.split('\n')
-    expect(lines[0]).toBe('a,b')
-    expect(lines[1]).toBe('1,"x,y"')
-    // 含换行的单元格被引号包裹，物理上跨两行
-    expect(lines[2]).toBe('"he said ""hi""","line')
-    expect(lines[3]).toBe('break"')
-    expect(csv).toContain('"line\nbreak"')
-  })
-
-  it('renders null/undefined as empty cells', () => {
-    expect(buildCsv(['a'], [[null], [undefined]])).toBe('a\n\n')
-  })
-})

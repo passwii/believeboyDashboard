@@ -3,7 +3,7 @@
  * bar + CSV export button + 列头（中文 label + 英文列名 tooltip, BLF-431）.
  */
 
-import { ChevronLeft, ChevronRight, FileDown } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 import { DENSE_HEAD } from '@/components/ui/data-card'
 import { Button } from '@/components/ui/button'
@@ -15,7 +15,6 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { buildCsv, downloadCsv } from './ledger-derive'
 
 /**
  * 列头单元格（BLF-431）：显示中文 label，hover 时以 tooltip 显示英文列名
@@ -95,24 +94,3 @@ export function PaginationBar({
   )
 }
 
-export function ExportCsvButton({
-  filename,
-  headers,
-  rows,
-}: {
-  filename: string
-  headers: string[]
-  rows: unknown[][]
-}) {
-  return (
-    <Button
-      variant="outline"
-      size="sm"
-      className="gap-1.5"
-      onClick={() => downloadCsv(filename, buildCsv(headers, rows))}
-    >
-      <FileDown className="h-3.5 w-3.5" />
-      导出 CSV
-    </Button>
-  )
-}

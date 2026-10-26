@@ -44,9 +44,16 @@ vi.mock('next/navigation', () => ({
 const { stableSession } = vi.hoisted(() => ({
   stableSession: { user: { name: '测试用户' } },
 }))
+const { exportLedgerAnalysisToExcelMock } = vi.hoisted(() => ({
+  exportLedgerAnalysisToExcelMock: vi.fn().mockResolvedValue(undefined),
+}))
 
 vi.mock('next-auth/react', () => ({
   useSession: () => ({ data: stableSession, status: 'authenticated' as const }),
+}))
+
+vi.mock('./ledger-excel-export', () => ({
+  exportLedgerAnalysisToExcel: exportLedgerAnalysisToExcelMock,
 }))
 
 // 模块级常量：避免 fetchManagedProjectsCached 每次返回新数组引用
@@ -303,6 +310,7 @@ let fetchMock: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
   nav.setParams('project_id=1&month=2026-03-01')
+  exportLedgerAnalysisToExcelMock.mockClear()
   fetchMock = vi.fn((url: string) => {
     const hit = Object.keys(PAYLOADS).find((k) => url.includes(k))
     return Promise.resolve(okJson(hit ? PAYLOADS[hit] : {}))
@@ -351,7 +359,8 @@ describe('库存分类账页面（header 化迁移版）', () => {
   it('汇总视图展示每日水位行', async () => {
     render(<InventoryLedgerPage />)
     // 默认 tab = summary：两行水位（03-01 / 03-02）
-    expect(await screen.findByText('每日水位明细')).toBeInTheDocument()
+    expect(await screen.findByText('月度水位明细')).toBeInTheDocument()
+    expect(screen.getByText('SKU 月度汇总')).toBeInTheDocument()
     expect(screen.getAllByText('SKU-A').length).toBeGreaterThanOrEqual(2)
     expect(screen.getAllByText('LAX1').length).toBeGreaterThanOrEqual(2)
     expect(screen.getAllByText('可售').length).toBeGreaterThanOrEqual(2)
@@ -365,6 +374,7 @@ describe('库存分类账页面（header 化迁移版）', () => {
     // 测试里用 rerender 让 useUrlParam 重读 URL（与 display-client 测试同款）。
     rerender(<InventoryLedgerPage />)
     expect(await screen.findByText('事件明细')).toBeInTheDocument()
+    expect(screen.getByText('每日事件汇总')).toBeInTheDocument()
     expect(screen.getByText('入库')).toBeInTheDocument()
     expect(screen.getByText('出库')).toBeInTheDocument()
     // 净数量摘要条：9 + (-1) = +8
@@ -426,6 +436,24 @@ describe('库存分类账页面（header 化迁移版）', () => {
       expect(callsFor(endpoint)).toBe(0)
     }
     expect(callsFor('month-analysis')).toBe(1)
+  })
+
+  it('移除两个 CSV 按钮并统一导出整月 Excel', async () => {
+    const user = userEvent.setup()
+    render(<InventoryLedgerPage />)
+    await screen.findByText('汇总视图 Summary')
+
+    expect(screen.queryByRole('button', { name: /导出 CSV/ })).not.toBeInTheDocument()
+    const exportButton = await screen.findByRole('button', {
+      name: /导出库存分析 Excel/,
+    })
+    await user.click(exportButton)
+
+    expect(exportLedgerAnalysisToExcelMock).toHaveBeenCalledTimes(1)
+    expect(exportLedgerAnalysisToExcelMock.mock.calls[0][0]).toMatchObject({
+      report_month: '2026-03-01',
+      project_name: '项目A',
+    })
   })
 
   it('旧控制台已移除：无「控制台」文案、无页内「刷新」按钮', async () => {
