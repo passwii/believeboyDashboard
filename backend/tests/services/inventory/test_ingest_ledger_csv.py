@@ -41,6 +41,8 @@ from app.services.inventory.ledger import (
     _build_copy_payload,
     _format_copy_value,
     detect_file_kind,
+    get_sku_month_eom,
+    get_sku_month_events,
     ingest_ledger_csv,
 )
 
@@ -226,6 +228,66 @@ class TestDetectFileKind:
 
 
 class TestIngestSummary:
+    def test_accepts_month_only_date_and_numeric_filename(
+        self, db_session: Session, project: Project
+    ):
+        """真实 Summary 导出 Date 为 MM/YYYY，文件名也可能只是纯数字。"""
+        csv = _make_summary_csv([_summary_row(day="08/2026")])
+        n = ingest_ledger_csv(
+            db_session,
+            project_id=project.id,
+            csv_content=csv,
+            filename="99538020752.csv",
+            expected_kind="summary",
+        )
+        assert n == 1
+        db_session.commit()
+
+        r = (
+            db_session.execute(
+                select(InventoryLedgerSummary).where(
+                    InventoryLedgerSummary.project_id == project.id
+                )
+            )
+            .scalars()
+            .one()
+        )
+        assert r.report_month == date(2026, 8, 1)
+        assert r.date == date(2026, 8, 1)
+
+    def test_month_only_summary_is_included_in_full_month_queries(
+        self, db_session: Session, project: Project
+    ):
+        """选择 2026-08 时必须覆盖整月，不能因汇总日期归一为 08-01 而遗漏。"""
+        csv = _make_summary_csv(
+            [_summary_row(day="08/2026", starting=100, ending=95, receipts=3)]
+        )
+        ingest_ledger_csv(
+            db_session,
+            project_id=project.id,
+            csv_content=csv,
+            filename="99538020752.csv",
+            expected_kind="summary",
+        )
+
+        eom = get_sku_month_eom(
+            db_session,
+            project.id,
+            date(2026, 8, 1),
+            date(2026, 8, 31),
+        )
+        events = get_sku_month_events(
+            db_session,
+            project.id,
+            date(2026, 8, 1),
+            date(2026, 8, 31),
+        )
+
+        assert len(eom) == 1
+        assert eom[0].qty_eom == 95
+        assert len(events) == 1
+        assert events[0].total_receipts == 3
+
     def test_inserts_rows_with_report_month_from_filename(
         self, db_session: Session, project: Project
     ):
@@ -382,6 +444,33 @@ class TestIngestSummary:
 
 
 class TestIngestDetail:
+    def test_numeric_filename_falls_back_to_csv_dates(
+        self, db_session: Session, project: Project
+    ):
+        """纯数字文件名不能被当成 YYYYMMDD 而生成非法 report_month。"""
+        csv = _make_detail_csv([_detail_row(day="08/31/2026")])
+        n = ingest_ledger_csv(
+            db_session,
+            project_id=project.id,
+            csv_content=csv,
+            filename="99539020752.csv",
+            expected_kind="detail",
+        )
+        assert n == 1
+        db_session.commit()
+
+        r = (
+            db_session.execute(
+                select(InventoryLedgerDetail).where(
+                    InventoryLedgerDetail.project_id == project.id
+                )
+            )
+            .scalars()
+            .one()
+        )
+        assert r.report_month == date(2026, 8, 1)
+        assert r.date == date(2026, 8, 31)
+
     def test_inserts_detail_rows(self, db_session: Session, project: Project):
         csv = _make_detail_csv([_detail_row()])
         n = ingest_ledger_csv(
@@ -589,6 +678,20 @@ class TestValidation:
                 project_id=project.id,
                 csv_content="",
                 filename="empty.csv",
+            )
+
+    def test_all_rows_with_invalid_dates_raise_instead_of_returning_zero(
+        self, db_session: Session, project: Project
+    ):
+        """所有行日期解析失败时必须报错，不能以“成功入库 0 行”掩盖问题。"""
+        csv = _make_summary_csv([_summary_row(day="2026/08/31")])
+        with pytest.raises(ValueError, match="日期|Date"):
+            ingest_ledger_csv(
+                db_session,
+                project_id=project.id,
+                csv_content=csv,
+                filename="库存分类账.csv",
+                expected_kind="summary",
             )
 
     def test_missing_required_summary_columns_constant(self):

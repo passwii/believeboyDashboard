@@ -319,6 +319,7 @@ describe('库存分类账页面（header 化迁移版）', () => {
     expect(screen.getByText('上传批次')).toBeInTheDocument()
     // 上移进 header 插槽的控件（测试 mock 将插槽内容渲染回页面正文）
     expect(screen.getByText('项目A')).toBeInTheDocument()
+    expect(screen.getByText('2026 年 3 月')).toBeInTheDocument()
     expect(screen.getAllByText('2026-03-01').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('全部 SKU')).toBeInTheDocument()
     expect(screen.getByText('全部仓库')).toBeInTheDocument()

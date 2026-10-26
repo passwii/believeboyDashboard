@@ -233,6 +233,28 @@ class TestInventoryLedgerRecognition:
         finally:
             path.unlink()
 
+    def test_summary_month_only_date_and_numeric_filename(self):
+        """Summary 的 Date 可能只有月份；纯数字文件名不能被误识别成日期。"""
+        content = (
+            ",".join(INVENTORY_LEDGER_SUMMARY_HEADERS)
+            + "\n"
+            + _INVENTORY_LEDGER_SUMMARY_ROW.replace("03/01/2026", "08/2026")
+            + "\n"
+        )
+        path = _write_csv(content)
+        try:
+            result = recognize_file(
+                path, country="US", original_filename="99538020752.csv"
+            )
+            assert result is not None
+            assert result.report_type == "inventory_ledger_summary"
+            assert result.date_input_mode == "single_auto"
+            assert result.detected_date == "2026-08-01"
+            assert result.detected_start_date is None
+            assert result.detected_end_date is None
+        finally:
+            path.unlink()
+
     def test_recognize_inventory_ledger_detail_header(self):
         content = (
             ",".join(INVENTORY_LEDGER_DETAIL_HEADERS)
@@ -247,6 +269,27 @@ class TestInventoryLedgerRecognition:
             )
             assert result is not None
             assert result.report_type == "inventory_ledger_detail"
+        finally:
+            path.unlink()
+
+    def test_detail_numeric_filename_does_not_override_file_dates(self):
+        """纯数字文件名不得覆盖 Detail Date 列中识别出的有效日期。"""
+        content = (
+            ",".join(INVENTORY_LEDGER_DETAIL_HEADERS)
+            + "\n"
+            + _INVENTORY_LEDGER_DETAIL_ROW
+            + "\n"
+        )
+        path = _write_csv(content)
+        try:
+            result = recognize_file(
+                path, country="US", original_filename="99539020752.csv"
+            )
+            assert result is not None
+            assert result.report_type == "inventory_ledger_detail"
+            assert result.detected_date == "2026-03-01"
+            assert result.detected_start_date == "2026-03-01"
+            assert result.detected_end_date == "2026-03-01"
         finally:
             path.unlink()
 
