@@ -17550,6 +17550,14 @@
             "title": "Checked At",
             "type": "string"
           },
+          "comparisons": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/IntegrityComparison"
+            },
+            "title": "Comparisons",
+            "type": "array"
+          },
           "country": {
             "anyOf": [
               {
@@ -17596,6 +17604,74 @@
           "checked_at"
         ],
         "title": "IntegrityCheckResult",
+        "type": "object"
+      },
+      "IntegrityComparison": {
+        "description": "Cross-month opening/ending pair for one inventory partition.",
+        "properties": {
+          "curr_starting": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Curr Starting"
+          },
+          "diff": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Diff"
+          },
+          "disposition": {
+            "title": "Disposition",
+            "type": "string"
+          },
+          "location": {
+            "title": "Location",
+            "type": "string"
+          },
+          "msku": {
+            "title": "Msku",
+            "type": "string"
+          },
+          "prev_ending": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prev Ending"
+          },
+          "state": {
+            "enum": [
+              "MATCHED",
+              "MISMATCH",
+              "CURRENT_ONLY",
+              "PREVIOUS_ONLY"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "msku",
+          "location",
+          "disposition",
+          "state"
+        ],
+        "title": "IntegrityComparison",
         "type": "object"
       },
       "IntegrityMismatch": {

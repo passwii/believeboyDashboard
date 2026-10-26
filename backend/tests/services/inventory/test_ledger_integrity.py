@@ -91,10 +91,24 @@ class TestCheckLedgerIntegrity:
             "库存分类账 2026-0601-0630.csv",
         )
 
-        result = check_ledger_integrity(db_session, project.id, date(2026, 6, 1))
+        result = check_ledger_integrity(
+            db_session,
+            project.id,
+            date(2026, 6, 1),
+            include_comparisons=True,
+        )
         assert result.status == "OK"
         assert result.mismatch_count == 0
         assert result.mismatches == []
+        assert len(result.comparisons) == 1
+        comparison = result.comparisons[0]
+        assert comparison.msku == "SKU-A"
+        assert comparison.location == "LAX1"
+        assert comparison.disposition == "SELLABLE"
+        assert comparison.state == "MATCHED"
+        assert comparison.prev_ending == 45
+        assert comparison.curr_starting == 45
+        assert comparison.diff == 0
 
     def test_mismatch_detected(self, db_session: Session, project: Project):
         """June starting (40) != May ending (45) → MISMATCH with details."""
@@ -111,7 +125,12 @@ class TestCheckLedgerIntegrity:
             "库存分类账 2026-0601-0630.csv",
         )
 
-        result = check_ledger_integrity(db_session, project.id, date(2026, 6, 1))
+        result = check_ledger_integrity(
+            db_session,
+            project.id,
+            date(2026, 6, 1),
+            include_comparisons=True,
+        )
         assert result.status == "MISMATCH"
         assert result.mismatch_count == 1
         m = result.mismatches[0]
@@ -129,15 +148,27 @@ class TestCheckLedgerIntegrity:
             _csv([_ledger_row("06/01/2026", "SKU-A", starting=45, ending=52)]),
             "库存分类账 2026-0601-0630.csv",
         )
-        result = check_ledger_integrity(db_session, project.id, date(2026, 6, 1))
+        result = check_ledger_integrity(
+            db_session,
+            project.id,
+            date(2026, 6, 1),
+            include_comparisons=True,
+        )
         assert result.status == "PENDING"
         assert result.mismatch_count == 0
+        assert len(result.comparisons) == 1
+        comparison = result.comparisons[0]
+        assert comparison.state == "CURRENT_ONLY"
+        assert comparison.prev_ending is None
+        assert comparison.curr_starting == 45
+        assert comparison.diff is None
 
-    def test_new_combination_in_curr_month_is_not_mismatch(
+    def test_new_combination_in_curr_month_needs_review_without_mismatch(
         self, db_session: Session, project: Project
     ):
         """A (msku, location, disposition) that first appears in the current
-        month has no prev ending to compare — must be skipped, not flagged."""
+        month has no prev ending to compare — keep it visible as CURRENT_ONLY
+        without coercing the missing side to zero."""
         _ingest(
             db_session,
             project.id,
@@ -155,9 +186,49 @@ class TestCheckLedgerIntegrity:
             ),
             "库存分类账 2026-0601-0630.csv",
         )
-        result = check_ledger_integrity(db_session, project.id, date(2026, 6, 1))
-        assert result.status == "OK"
+        result = check_ledger_integrity(
+            db_session,
+            project.id,
+            date(2026, 6, 1),
+            include_comparisons=True,
+        )
+        assert result.status == "PENDING"
         assert result.mismatch_count == 0
+        assert result.mismatches == []
+        by_state = {item.state: item for item in result.comparisons}
+        assert set(by_state) == {"MATCHED", "CURRENT_ONLY"}
+        current_only = by_state["CURRENT_ONLY"]
+        assert current_only.msku == "SKU-B"
+        assert current_only.prev_ending is None
+        assert current_only.curr_starting == 10
+        assert current_only.diff is None
+
+    def test_previous_only_partition_needs_review(
+        self, db_session: Session, project: Project
+    ):
+        """A partition with previous inventory but no current-month row must
+        remain visible as PREVIOUS_ONLY instead of disappearing from the audit."""
+        _ingest(
+            db_session,
+            project.id,
+            _csv([_ledger_row("05/01/2026", "SKU-A", starting=50, ending=45)]),
+            "库存分类账 2026-0501-0531.csv",
+        )
+
+        result = check_ledger_integrity(
+            db_session,
+            project.id,
+            date(2026, 6, 1),
+            include_comparisons=True,
+        )
+        assert result.status == "PENDING"
+        assert result.mismatch_count == 0
+        assert len(result.comparisons) == 1
+        comparison = result.comparisons[0]
+        assert comparison.state == "PREVIOUS_ONLY"
+        assert comparison.prev_ending == 45
+        assert comparison.curr_starting is None
+        assert comparison.diff is None
 
     def test_partitions_by_location_and_disposition(
         self, db_session: Session, project: Project
@@ -200,9 +271,22 @@ class TestCheckLedgerIntegrity:
             ),
             "库存分类账 2026-0601-0630.csv",
         )
-        result = check_ledger_integrity(db_session, project.id, date(2026, 6, 1))
+        result = check_ledger_integrity(
+            db_session,
+            project.id,
+            date(2026, 6, 1),
+            include_comparisons=True,
+        )
         assert result.status == "MISMATCH"
         assert result.mismatch_count == 1
+        assert len(result.comparisons) == 2
+        comparisons = {
+            (item.location, item.disposition): item for item in result.comparisons
+        }
+        assert comparisons[("LAX1", "SELLABLE")].state == "MATCHED"
+        assert comparisons[("LAX1", "SELLABLE")].diff == 0
+        assert comparisons[("PHX3", "CUSTOMER_DAMAGED")].state == "MISMATCH"
+        assert comparisons[("PHX3", "CUSTOMER_DAMAGED")].diff == 81
         m = result.mismatches[0]
         assert (m.msku, m.location, m.disposition) == (
             "SKU-A",
@@ -237,7 +321,12 @@ class TestCheckLedgerIntegrity:
             ),
             "库存分类账 2026-0601-0630.csv",
         )
-        result = check_ledger_integrity(db_session, project.id, date(2026, 6, 1))
+        result = check_ledger_integrity(
+            db_session,
+            project.id,
+            date(2026, 6, 1),
+            include_comparisons=True,
+        )
         assert result.status == "OK"
         assert result.mismatch_count == 0
 
@@ -257,5 +346,10 @@ class TestCheckLedgerIntegrity:
             _csv([_ledger_row("01/01/2026", "SKU-A", starting=45, ending=52)]),
             "库存分类账 2026-0101-0131.csv",
         )
-        result = check_ledger_integrity(db_session, project.id, date(2026, 1, 1))
+        result = check_ledger_integrity(
+            db_session,
+            project.id,
+            date(2026, 1, 1),
+            include_comparisons=True,
+        )
         assert result.status == "OK"

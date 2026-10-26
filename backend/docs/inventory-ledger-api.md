@@ -199,9 +199,9 @@ curl '/api/v1/inventory-ledger/snapshot?project_id=1&period=custom&start_date=20
 
 ---
 
-## 5. Response shape (unchanged)
+## 5. Response shape
 
-All responses keep the pre-existing schema. **Only the input changed.**
+Responses keep the existing schema with additive integrity comparison data.
 
 Key response fields you'll encounter:
 
@@ -209,8 +209,9 @@ Key response fields you'll encounter:
 |---|---|---|
 | `report_month: date` | Top level (`snapshot` / `events` / `receipt-clusters` / `location-detail`) | The first day of the resolved period (always month-start for full-month periods) |
 | `integrity: IntegrityCheckResult \| null` | `snapshot` only | Set IFF period resolved to a full month; otherwise `null` |
-| `IntegrityCheckResult.status` | Inside `integrity` | `"OK"` / `"MISMATCH"` / `"PENDING"` |
+| `IntegrityCheckResult.status` | Inside `integrity` | `"OK"` only when every partition is paired and equal; `"PENDING"` when previous-month data is absent or any partition is single-sided |
 | `IntegrityCheckResult.mismatches[]` | Inside `integrity` | Per-(msku, location, disposition) continuity mismatches |
+| `IntegrityCheckResult.comparisons[]` | Inside `integrity` (populated by `month-analysis`) | Full union of per-(msku, location, disposition) rows with `state`: `MATCHED` / `MISMATCH` / `CURRENT_ONLY` / `PREVIOUS_ONLY`; missing sides stay `null` |
 
 ---
 

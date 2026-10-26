@@ -78,6 +78,18 @@ class IntegrityMismatch(BaseModel):
     diff: int
 
 
+class IntegrityComparison(BaseModel):
+    """Cross-month opening/ending pair for one inventory partition."""
+
+    msku: str
+    location: str
+    disposition: str
+    state: Literal["MATCHED", "MISMATCH", "CURRENT_ONLY", "PREVIOUS_ONLY"]
+    prev_ending: int | None = None
+    curr_starting: int | None = None
+    diff: int | None = None
+
+
 class IntegrityCheckResult(BaseModel):
     """Cross-month ledger integrity check result."""
 
@@ -86,6 +98,7 @@ class IntegrityCheckResult(BaseModel):
     status: Literal["OK", "MISMATCH", "PENDING"]
     mismatch_count: int
     mismatches: list[IntegrityMismatch] = []
+    comparisons: list[IntegrityComparison] = []
     checked_at: datetime
 
 

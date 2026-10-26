@@ -36,6 +36,7 @@ from app.schemas.inventory_ledger import (
     ConsistencyCheckResult,
     ConsistencyMismatch,
     DispositionSummary,
+    IntegrityComparison,
     IntegrityCheckResult,
     IntegrityMismatch,
     LedgerDetailRow,
@@ -320,29 +321,29 @@ def get_sku_month_eom(
     prev_start: date | None = None,
     prev_end: date | None = None,
     country: str | None = None,
+    include_zero_current: bool = False,
 ) -> list[SkuMonthEom]:
-    """Per-SKU end-of-period total inventory (all dispositions summed)."""
+    """Per-SKU end-of-period totals; optionally retain zero current balances
+    so month-analysis exports can still calculate MoM for cleared SKUs."""
     if not _project_country_matches(db, project_id, country):
         return []
 
     subq = _eom_subquery(db, project_id, start, end)
 
-    stmt = (
-        select(
-            subq.c.msku,
-            func.max(subq.c.title).label("title"),
-            func.sum(subq.c.ending_balance).label("qty_eom"),
-            func.sum(
-                case((subq.c.disposition == "SELLABLE", subq.c.ending_balance), else_=0)
-            ).label("sellable_qty"),
-            func.sum(
-                case((subq.c.disposition != "SELLABLE", subq.c.ending_balance), else_=0)
-            ).label("damaged_qty"),
-        )
-        .where(subq.c.rn == 1, subq.c.ending_balance > 0)
-        .group_by(subq.c.msku)
-        .order_by(subq.c.msku)
-    )
+    stmt = select(
+        subq.c.msku,
+        func.max(subq.c.title).label("title"),
+        func.sum(subq.c.ending_balance).label("qty_eom"),
+        func.sum(
+            case((subq.c.disposition == "SELLABLE", subq.c.ending_balance), else_=0)
+        ).label("sellable_qty"),
+        func.sum(
+            case((subq.c.disposition != "SELLABLE", subq.c.ending_balance), else_=0)
+        ).label("damaged_qty"),
+    ).where(subq.c.rn == 1)
+    if not include_zero_current:
+        stmt = stmt.where(subq.c.ending_balance > 0)
+    stmt = stmt.group_by(subq.c.msku).order_by(subq.c.msku)
     rows = db.execute(stmt).all()
 
     # Previous period for MoM comparison
@@ -351,7 +352,7 @@ def get_sku_month_eom(
         prev_subq = _eom_subquery(db, project_id, prev_start, prev_end)
         prev_stmt = (
             select(prev_subq.c.msku, func.sum(prev_subq.c.ending_balance).label("qty"))
-            .where(prev_subq.c.rn == 1, prev_subq.c.ending_balance > 0)
+            .where(prev_subq.c.rn == 1)
             .group_by(prev_subq.c.msku)
         )
         for r in db.execute(prev_stmt).all():
@@ -627,8 +628,12 @@ def check_ledger_integrity(
     project_id: int,
     report_month: date,
     country: str | None = None,
+    include_comparisons: bool = False,
 ) -> IntegrityCheckResult:
     """Cross-month continuity: prev month ending == curr month starting.
+
+    Compares the union of both months' partitions. Single-sided partitions
+    are reported explicitly and make the result PENDING rather than OK.
 
     Operates on the Summary truth table (same semantics as the old raw-based
     check — BEL-417 P0 regression coverage preserved).
@@ -664,27 +669,20 @@ def check_ledger_integrity(
         or 0
     )
 
-    if prev_count == 0:
-        return IntegrityCheckResult(
-            report_month=report_month,
-            country=country,
-            status="PENDING",
-            mismatch_count=0,
-            mismatches=[],
-            checked_at=datetime.now(timezone.utc),
-        )
-
     # Previous month EOM per (msku, location, disposition)
-    prev_subq = _eom_subquery(db, project_id, prev_month, prev_end)
-    prev_stmt = select(
-        prev_subq.c.msku,
-        prev_subq.c.location,
-        prev_subq.c.disposition,
-        prev_subq.c.ending_balance.label("prev_ending"),
-    ).where(prev_subq.c.rn == 1)
     prev_map: dict[tuple[str, str, str], int] = {}
-    for r in db.execute(prev_stmt).all():
-        prev_map[(r.msku, r.location, r.disposition)] = int(r.prev_ending or 0)
+    if prev_count > 0:
+        prev_subq = _eom_subquery(db, project_id, prev_month, prev_end)
+        prev_stmt = select(
+            prev_subq.c.msku,
+            prev_subq.c.location,
+            prev_subq.c.disposition,
+            prev_subq.c.ending_balance.label("prev_ending"),
+        ).where(prev_subq.c.rn == 1)
+        for r in db.execute(prev_stmt).all():
+            prev_map[(r.msku, r.location, r.disposition)] = int(
+                r.prev_ending or 0
+            )
 
     # Current month first-day starting balances (earliest row per group,
     # ascending ROW_NUMBER — BEL-417 P0 fix, same pattern as _eom_subquery).
@@ -715,31 +713,77 @@ def check_ledger_integrity(
         curr_first_subq.c.starting_balance,
     ).where(curr_first_subq.c.rn == 1)
 
-    mismatches: list[IntegrityMismatch] = []
+    curr_map: dict[tuple[str, str, str], int] = {}
     for r in db.execute(curr_first_stmt).all():
-        key = (r.msku, r.location, r.disposition)
+        curr_map[(r.msku, r.location, r.disposition)] = int(
+            r.starting_balance or 0
+        )
+
+    comparisons: list[IntegrityComparison] = []
+    mismatches: list[IntegrityMismatch] = []
+    for key in sorted(set(prev_map) | set(curr_map)):
+        msku, location, disposition = key
         prev_ending = prev_map.get(key)
-        if prev_ending is None:
-            continue  # New combination in current month, not a mismatch
-        curr_starting = int(r.starting_balance or 0)
-        if prev_ending != curr_starting:
-            mismatches.append(
-                IntegrityMismatch(
-                    msku=r.msku,
-                    location=r.location,
-                    disposition=r.disposition,
-                    prev_ending=prev_ending,
-                    curr_starting=curr_starting,
-                    diff=curr_starting - prev_ending,
-                )
+        curr_starting = curr_map.get(key)
+        if prev_ending is not None and curr_starting is not None:
+            diff = curr_starting - prev_ending
+            state = "MATCHED" if diff == 0 else "MISMATCH"
+            comparison = IntegrityComparison(
+                msku=msku,
+                location=location,
+                disposition=disposition,
+                state=state,
+                prev_ending=prev_ending,
+                curr_starting=curr_starting,
+                diff=diff,
             )
+            if diff != 0:
+                mismatches.append(
+                    IntegrityMismatch(
+                        msku=msku,
+                        location=location,
+                        disposition=disposition,
+                        prev_ending=prev_ending,
+                        curr_starting=curr_starting,
+                        diff=diff,
+                    )
+                )
+        elif curr_starting is not None:
+            comparison = IntegrityComparison(
+                msku=msku,
+                location=location,
+                disposition=disposition,
+                state="CURRENT_ONLY",
+                curr_starting=curr_starting,
+            )
+        else:
+            comparison = IntegrityComparison(
+                msku=msku,
+                location=location,
+                disposition=disposition,
+                state="PREVIOUS_ONLY",
+                prev_ending=prev_ending,
+            )
+        comparisons.append(comparison)
+
+    has_unpaired = any(
+        item.state in {"CURRENT_ONLY", "PREVIOUS_ONLY"} for item in comparisons
+    )
+    status = (
+        "MISMATCH"
+        if mismatches
+        else "PENDING"
+        if prev_count == 0 or has_unpaired
+        else "OK"
+    )
 
     return IntegrityCheckResult(
         report_month=report_month,
         country=country,
-        status="MISMATCH" if mismatches else "OK",
+        status=status,
         mismatch_count=len(mismatches),
         mismatches=mismatches,
+        comparisons=comparisons if include_comparisons else [],
         checked_at=datetime.now(timezone.utc),
     )
 

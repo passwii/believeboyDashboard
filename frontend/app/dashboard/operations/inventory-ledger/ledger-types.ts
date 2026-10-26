@@ -144,11 +144,22 @@ export type IntegrityMismatch = {
   diff: number
 }
 
+export type IntegrityComparison = {
+  msku: string
+  location: string
+  disposition: string
+  state: 'MATCHED' | 'MISMATCH' | 'CURRENT_ONLY' | 'PREVIOUS_ONLY'
+  prev_ending: number | null
+  curr_starting: number | null
+  diff: number | null
+}
+
 export type IntegrityCheck = {
   report_month: string
   status: 'OK' | 'MISMATCH' | 'PENDING'
   mismatch_count: number
   mismatches: IntegrityMismatch[]
+  comparisons: IntegrityComparison[]
   checked_at: string
 }
 

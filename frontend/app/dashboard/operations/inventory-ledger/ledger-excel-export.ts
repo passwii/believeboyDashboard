@@ -12,8 +12,8 @@ import {
   ALL,
   dispositionLabel,
   eventTypeLabel,
+  type IntegrityComparison,
   type LedgerMonthAnalysisResponse,
-  type TrendMonthItem,
 } from './ledger-types'
 import {
   computeMomChange,
@@ -31,10 +31,30 @@ import {
 const SIGNED_INT_FORMAT = '#,##0;[Red]-#,##0'
 const PCT_FORMAT = '0.0%'
 
+const AUDIT_STATE_LABELS: Record<IntegrityComparison['state'], string> = {
+  MATCHED: '一致',
+  MISMATCH: '差异',
+  CURRENT_ONLY: '本月新增',
+  PREVIOUS_ONLY: '上月遗留',
+}
+
 type ColumnSpec = {
   header: string
   width: number
   numFmt?: string
+}
+
+function resolveIntegrityComparisons(
+  integrity: LedgerMonthAnalysisResponse['snapshot']['integrity'],
+): IntegrityComparison[] {
+  if (!integrity) return []
+  if (Array.isArray(integrity.comparisons) && integrity.comparisons.length > 0) {
+    return integrity.comparisons
+  }
+  return integrity.mismatches.map((item) => ({
+    ...item,
+    state: item.diff === 0 ? 'MATCHED' : 'MISMATCH',
+  }))
 }
 
 const SUMMARY_RAW_HEADERS = [
@@ -136,18 +156,21 @@ function addOverviewSheet(workbook: Workbook, data: LedgerMonthAnalysisResponse)
     views: [{ state: 'frozen', ySplit: 1, showGridLines: false }],
   })
   worksheet.columns = [
-    { header: '区块', key: 'section', width: 18 },
     { header: '指标', key: 'metric', width: 28 },
     { header: '数值', key: 'value', width: 22 },
     { header: '说明', key: 'note', width: 54 },
   ]
-  applyHeaderRowStyle(worksheet.getRow(1), 4)
+  applyHeaderRowStyle(worksheet.getRow(1), 3)
 
   const kpis = computeOverviewKpis(data.summary_rows, data.detail_rows)
   const momChange = computeMomChange(data.snapshot.skus, ALL)
   const dispositions = dispositionBreakdown(data.summary_rows)
   const locations = topLocations(data.summary_rows, 5)
   const events = groupDetailByEventType(data.detail_rows)
+  const comparisons = resolveIntegrityComparisons(data.snapshot.integrity)
+  const unpairedCount = comparisons.filter(
+    (item) => item.state === 'CURRENT_ONLY' || item.state === 'PREVIOUS_ONLY',
+  ).length
   const rows: Array<[string, string, string | number | null, string]> = [
     ['报表信息', '项目', data.project_name, '当前项目'],
     ['报表信息', '月份', formatLedgerMonthLabel(data.report_month), '完整自然月'],
@@ -194,7 +217,7 @@ function addOverviewSheet(workbook: Workbook, data: LedgerMonthAnalysisResponse)
       '数据质量',
       '跨月完整性',
       data.snapshot.integrity?.status ?? 'PENDING',
-      `差异 ${data.snapshot.integrity?.mismatch_count ?? 0} 项`,
+      `比对 ${comparisons.length} 项 · 差异 ${data.snapshot.integrity?.mismatch_count ?? 0} 项 · 单边 ${unpairedCount} 项`,
     ],
     [
       '数据质量',
@@ -207,11 +230,11 @@ function addOverviewSheet(workbook: Workbook, data: LedgerMonthAnalysisResponse)
   const sectionFills = new Set<string>()
   rows.forEach((values, index) => {
     const row = worksheet.getRow(index + 2)
-    row.values = values
-    for (let column = 1; column <= 4; column += 1) {
+    row.values = values.slice(1)
+    for (let column = 1; column <= 3; column += 1) {
       const cell = row.getCell(column)
       applyDataStyle(cell, {
-        align: column === 3 && typeof cell.value === 'number' ? 'right' : 'left',
+        align: column === 2 && typeof cell.value === 'number' ? 'right' : 'left',
       })
     }
     if (!sectionFills.has(values[0])) {
@@ -227,12 +250,12 @@ function addOverviewSheet(workbook: Workbook, data: LedgerMonthAnalysisResponse)
     worksheet,
     startRow: 2,
     rowCount: rows.length,
-    columnCount: 4,
+    columnCount: 3,
   })
   for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
     const section = rows[rowIndex][0]
     if (section === '核心 KPI') {
-      worksheet.getRow(rowIndex + 2).getCell(3).numFmt =
+      worksheet.getRow(rowIndex + 2).getCell(2).numFmt =
         rows[rowIndex][1] === '损坏占比' ? PCT_FORMAT : SIGNED_INT_FORMAT
     }
   }
@@ -282,28 +305,6 @@ function addQualitySheet(workbook: Workbook, data: LedgerMonthAnalysisResponse) 
     rowIndex += 1
   }
 
-  section('跨月完整性校验')
-  header(['报告月份', '状态', '差异数', 'MSKU', '仓库', 'Disposition', '上月期末', '本月期初', '差异'])
-  const integrity = data.snapshot.integrity
-  if (!integrity || integrity.mismatches.length === 0) {
-    dataRow([data.report_month, integrity?.status ?? 'PENDING', 0, '', '', '', null, null, null])
-  } else {
-    for (const item of integrity.mismatches) {
-      dataRow([
-        data.report_month,
-        integrity.status,
-        integrity.mismatch_count,
-        item.msku,
-        item.location,
-        item.disposition,
-        item.prev_ending,
-        item.curr_starting,
-        item.diff,
-      ])
-    }
-  }
-
-  rowIndex += 1
   section('Summary / Detail 双表对账')
   header(['报告月份', '状态', '差异数', 'MSKU', '仓库', 'Disposition', 'Detail 合计', 'Summary 变动', '差异'])
   if (data.consistency.mismatches.length === 0) {
@@ -342,43 +343,167 @@ function addQualitySheet(workbook: Workbook, data: LedgerMonthAnalysisResponse) 
   }
 }
 
-function addTrendSheet(workbook: Workbook, months: TrendMonthItem[]) {
+function addAuditSheet(workbook: Workbook, data: LedgerMonthAnalysisResponse) {
+  const worksheet = workbook.addWorksheet('盘库', {
+    views: [{ showGridLines: false }],
+  })
+  worksheet.columns = [
+    { width: 20 },
+    { width: 38 },
+    { width: 14 },
+    { width: 24 },
+    { width: 14 },
+    { width: 14 },
+    { width: 14 },
+    { width: 12 },
+    { width: 12 },
+    { width: 12 },
+    { width: 12 },
+  ]
+
+  let rowIndex = 1
+  const section = (title: string) => {
+    const row = worksheet.getRow(rowIndex)
+    row.getCell(1).value = title
+    row.getCell(1).font = {
+      name: EXCEL_COLORS.font,
+      bold: true,
+      color: { argb: EXCEL_COLORS.text },
+    }
+    rowIndex += 1
+  }
+  const header = (values: string[]) => {
+    const row = worksheet.getRow(rowIndex)
+    row.values = values
+    applyHeaderRowStyle(row, values.length)
+    rowIndex += 1
+  }
+  const dataRow = (
+    values: Array<string | number | null>,
+    formats: Array<string | undefined> = [],
+  ) => {
+    const row = worksheet.getRow(rowIndex)
+    row.values = values
+    for (let column = 1; column <= values.length; column += 1) {
+      const cell = row.getCell(column)
+      applyDataStyle(cell, {
+        align: typeof values[column - 1] === 'number' ? 'right' : 'left',
+      })
+      const numFmt = formats[column - 1]
+      if (numFmt) cell.numFmt = numFmt
+    }
+    rowIndex += 1
+  }
+
+  section('本月期初 vs 上月期末')
+  header(['MSKU', '品名', '仓库', 'Disposition', '上月期末', '本月期初', '差异', '结果'])
+
+  const integrity = data.snapshot.integrity
+  const comparisons = resolveIntegrityComparisons(integrity)
+  const titleByMsku = new Map(
+    data.snapshot.skus.map((item) => [item.msku, item.title ?? '']),
+  )
+  const comparisonStartRow = rowIndex
+  if (comparisons.length === 0) {
+    dataRow([
+      '—',
+      '—',
+      '—',
+      '—',
+      null,
+      null,
+      null,
+      integrity?.status === 'PENDING' ? '无可比对数据' : '无可比对记录',
+    ])
+  } else {
+    for (const item of comparisons) {
+      dataRow(
+        [
+          item.msku,
+          titleByMsku.get(item.msku) ?? '',
+          item.location,
+          item.disposition,
+          item.prev_ending,
+          item.curr_starting,
+          item.diff,
+          AUDIT_STATE_LABELS[item.state],
+        ],
+        [
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          SIGNED_INT_FORMAT,
+          SIGNED_INT_FORMAT,
+          SIGNED_INT_FORMAT,
+          undefined,
+        ],
+      )
+    }
+  }
+  applyDataRowBanding({
+    worksheet,
+    startRow: comparisonStartRow,
+    rowCount: Math.max(1, comparisons.length),
+    columnCount: 8,
+  })
+
+  rowIndex += 1
+  section('近 6 个月趋势')
+  header([
+    '月份',
+    'SKU 数',
+    '期末库存',
+    '期末环比',
+    '入库',
+    '出库',
+    '退货',
+    '损坏',
+    '盘亏',
+    '报废',
+    '损坏率',
+  ])
+
   let previousQty: number | null = null
-  const rows = months.map((month) => {
+  const trendStartRow = rowIndex
+  for (const month of data.trend.months) {
     const change = previousQty === null ? null : month.total_qty_eom - previousQty
     previousQty = month.total_qty_eom
-    return [
-      month.report_month,
-      month.sku_count,
-      month.total_qty_eom,
-      change,
-      month.total_receipts,
-      month.total_shipments,
-      month.total_returns,
-      month.total_damaged,
-      month.total_lost,
-      month.total_disposed,
-      month.damaged_pct / 100,
-    ]
+    dataRow(
+      [
+        month.report_month,
+        month.sku_count,
+        month.total_qty_eom,
+        change,
+        month.total_receipts,
+        month.total_shipments,
+        month.total_returns,
+        month.total_damaged,
+        month.total_lost,
+        month.total_disposed,
+        month.damaged_pct / 100,
+      ],
+      [
+        undefined,
+        SIGNED_INT_FORMAT,
+        SIGNED_INT_FORMAT,
+        SIGNED_INT_FORMAT,
+        SIGNED_INT_FORMAT,
+        SIGNED_INT_FORMAT,
+        SIGNED_INT_FORMAT,
+        SIGNED_INT_FORMAT,
+        SIGNED_INT_FORMAT,
+        SIGNED_INT_FORMAT,
+        PCT_FORMAT,
+      ],
+    )
+  }
+  applyDataRowBanding({
+    worksheet,
+    startRow: trendStartRow,
+    rowCount: data.trend.months.length,
+    columnCount: 11,
   })
-  addTableSheet(
-    workbook,
-    '近6月趋势',
-    [
-      { header: '月份', width: 14 },
-      { header: 'SKU 数', width: 12, numFmt: SIGNED_INT_FORMAT },
-      { header: '期末库存', width: 14, numFmt: SIGNED_INT_FORMAT },
-      { header: '期末环比', width: 14, numFmt: SIGNED_INT_FORMAT },
-      { header: '入库', width: 12, numFmt: SIGNED_INT_FORMAT },
-      { header: '出库', width: 12, numFmt: SIGNED_INT_FORMAT },
-      { header: '退货', width: 12, numFmt: SIGNED_INT_FORMAT },
-      { header: '损坏', width: 12, numFmt: SIGNED_INT_FORMAT },
-      { header: '盘亏', width: 12, numFmt: SIGNED_INT_FORMAT },
-      { header: '报废', width: 12, numFmt: SIGNED_INT_FORMAT },
-      { header: '损坏率', width: 12, numFmt: PCT_FORMAT },
-    ],
-    rows,
-  )
 }
 
 function addRawSummarySheet(workbook: Workbook, data: LedgerMonthAnalysisResponse) {
@@ -465,6 +590,7 @@ export async function buildLedgerAnalysisWorkbook(
   workbook.created = new Date()
 
   addOverviewSheet(workbook, data)
+  addAuditSheet(workbook, data)
 
   const skuRows = skuEndingSummary(data.summary_rows)
   addTableSheet(
@@ -596,7 +722,6 @@ export async function buildLedgerAnalysisWorkbook(
     ]),
   )
 
-  addTrendSheet(workbook, data.trend.months)
   addQualitySheet(workbook, data)
   addRawSummarySheet(workbook, data)
   addRawDetailSheet(workbook, data)
