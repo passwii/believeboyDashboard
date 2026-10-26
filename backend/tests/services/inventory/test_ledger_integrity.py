@@ -95,6 +95,14 @@ class TestCheckLedgerIntegrity:
         assert result.status == "OK"
         assert result.mismatch_count == 0
         assert result.mismatches == []
+        assert len(result.comparisons) == 1
+        comparison = result.comparisons[0]
+        assert comparison.msku == "SKU-A"
+        assert comparison.location == "LAX1"
+        assert comparison.disposition == "SELLABLE"
+        assert comparison.prev_ending == 45
+        assert comparison.curr_starting == 45
+        assert comparison.diff == 0
 
     def test_mismatch_detected(self, db_session: Session, project: Project):
         """June starting (40) != May ending (45) → MISMATCH with details."""
@@ -203,6 +211,12 @@ class TestCheckLedgerIntegrity:
         result = check_ledger_integrity(db_session, project.id, date(2026, 6, 1))
         assert result.status == "MISMATCH"
         assert result.mismatch_count == 1
+        assert len(result.comparisons) == 2
+        comparisons = {
+            (item.location, item.disposition): item for item in result.comparisons
+        }
+        assert comparisons[("LAX1", "SELLABLE")].diff == 0
+        assert comparisons[("PHX3", "CUSTOMER_DAMAGED")].diff == 81
         m = result.mismatches[0]
         assert (m.msku, m.location, m.disposition) == (
             "SKU-A",

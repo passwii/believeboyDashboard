@@ -215,6 +215,7 @@ const PAYLOADS: Record<string, unknown> = {
       status: 'OK',
       mismatch_count: 0,
       mismatches: [],
+      comparisons: [],
       checked_at: '2026-03-31T00:00:00Z',
     },
   },

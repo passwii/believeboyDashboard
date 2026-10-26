@@ -50,6 +50,14 @@ def _detail_csv() -> str:
     )
 
 
+def _previous_summary_csv() -> str:
+    return (
+        SUMMARY_HEADERS
+        + "\n"
+        + "07/2026,FN-A,B-A,SKU-A,Item A,SELLABLE,10,0,0,0,0,0,0,0,0,0,0,0,10,0,LAX1,Store\n"
+    )
+
+
 @pytest.fixture
 def project(db_session: Session):
     row = Project(
@@ -144,6 +152,33 @@ def test_month_analysis_returns_full_rows_and_nested_results(
         "summary",
         "detail",
     }
+
+
+def test_month_analysis_populates_previous_month_ending(
+    db_session: Session,
+    project: Project,
+):
+    ingest_ledger_csv(
+        db_session,
+        project_id=project.id,
+        csv_content=_previous_summary_csv(),
+        filename="99537020752.csv",
+        expected_kind="summary",
+    )
+    _seed(db_session, project.id)
+
+    body = get_month_analysis(
+        project_id=project.id,
+        period="2026-08",
+        db=db_session,
+    )
+
+    sku = next(item for item in body.snapshot.skus if item.msku == "SKU-A")
+    assert sku.prev_qty_eom == 10
+    assert sku.change == 1
+    assert body.snapshot.integrity is not None
+    assert body.snapshot.integrity.comparisons[0].prev_ending == 10
+    assert body.snapshot.integrity.comparisons[0].curr_starting == 10
 
 
 def test_month_analysis_rejects_partial_period(

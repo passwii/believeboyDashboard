@@ -36,6 +36,7 @@ from app.schemas.inventory_ledger import (
     ConsistencyCheckResult,
     ConsistencyMismatch,
     DispositionSummary,
+    IntegrityComparison,
     IntegrityCheckResult,
     IntegrityMismatch,
     LedgerDetailRow,
@@ -713,16 +714,32 @@ def check_ledger_integrity(
         curr_first_subq.c.location,
         curr_first_subq.c.disposition,
         curr_first_subq.c.starting_balance,
-    ).where(curr_first_subq.c.rn == 1)
+    ).where(curr_first_subq.c.rn == 1).order_by(
+        curr_first_subq.c.msku,
+        curr_first_subq.c.location,
+        curr_first_subq.c.disposition,
+    )
 
     mismatches: list[IntegrityMismatch] = []
+    comparisons: list[IntegrityComparison] = []
     for r in db.execute(curr_first_stmt).all():
         key = (r.msku, r.location, r.disposition)
         prev_ending = prev_map.get(key)
         if prev_ending is None:
             continue  # New combination in current month, not a mismatch
         curr_starting = int(r.starting_balance or 0)
-        if prev_ending != curr_starting:
+        diff = curr_starting - prev_ending
+        comparisons.append(
+            IntegrityComparison(
+                msku=r.msku,
+                location=r.location,
+                disposition=r.disposition,
+                prev_ending=prev_ending,
+                curr_starting=curr_starting,
+                diff=diff,
+            )
+        )
+        if diff != 0:
             mismatches.append(
                 IntegrityMismatch(
                     msku=r.msku,
@@ -730,7 +747,7 @@ def check_ledger_integrity(
                     disposition=r.disposition,
                     prev_ending=prev_ending,
                     curr_starting=curr_starting,
-                    diff=curr_starting - prev_ending,
+                    diff=diff,
                 )
             )
 
@@ -740,6 +757,7 @@ def check_ledger_integrity(
         status="MISMATCH" if mismatches else "OK",
         mismatch_count=len(mismatches),
         mismatches=mismatches,
+        comparisons=comparisons,
         checked_at=datetime.now(timezone.utc),
     )
 

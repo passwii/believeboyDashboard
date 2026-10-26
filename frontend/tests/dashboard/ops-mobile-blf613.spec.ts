@@ -122,7 +122,7 @@ const LEDGER_SNAPSHOT = {
     prev_qty_eom: 100 + i,
     change: 20,
   })),
-  integrity: { report_month: '2026-07', status: 'OK', mismatch_count: 0, mismatches: [], checked_at: '2026-08-01T00:00:00Z' },
+  integrity: { report_month: '2026-07', status: 'OK', mismatch_count: 0, mismatches: [], comparisons: [], checked_at: '2026-08-01T00:00:00Z' },
 }
 
 const LEDGER_TREND = {

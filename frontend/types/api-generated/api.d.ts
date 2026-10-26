@@ -16575,6 +16575,11 @@ export interface components {
              */
             checked_at: string;
             /**
+             * Comparisons
+             * @default []
+             */
+            comparisons: components["schemas"]["IntegrityComparison"][];
+            /**
              * Country
              * @description 国家/地区（归一化）
              */
@@ -16596,6 +16601,24 @@ export interface components {
              * @enum {string}
              */
             status: "OK" | "MISMATCH" | "PENDING";
+        };
+        /**
+         * IntegrityComparison
+         * @description Cross-month opening/ending pair for one inventory partition.
+         */
+        IntegrityComparison: {
+            /** Curr Starting */
+            curr_starting: number;
+            /** Diff */
+            diff: number;
+            /** Disposition */
+            disposition: string;
+            /** Location */
+            location: string;
+            /** Msku */
+            msku: string;
+            /** Prev Ending */
+            prev_ending: number;
         };
         /**
          * IntegrityMismatch

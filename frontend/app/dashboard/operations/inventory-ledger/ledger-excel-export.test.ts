@@ -154,9 +154,36 @@ const FIXTURE: LedgerMonthAnalysisResponse = {
     ],
     integrity: {
       report_month: '2026-08-01',
-      status: 'OK',
-      mismatch_count: 0,
-      mismatches: [],
+      status: 'MISMATCH',
+      mismatch_count: 1,
+      mismatches: [
+        {
+          msku: 'SKU-B',
+          location: 'SCK8',
+          disposition: 'CUSTOMER_DAMAGED',
+          prev_ending: 3,
+          curr_starting: 2,
+          diff: -1,
+        },
+      ],
+      comparisons: [
+        {
+          msku: 'SKU-A',
+          location: 'LAX1',
+          disposition: 'SELLABLE',
+          prev_ending: 10,
+          curr_starting: 10,
+          diff: 0,
+        },
+        {
+          msku: 'SKU-B',
+          location: 'SCK8',
+          disposition: 'CUSTOMER_DAMAGED',
+          prev_ending: 3,
+          curr_starting: 2,
+          diff: -1,
+        },
+      ],
       checked_at: '2026-09-01T08:00:00Z',
     },
   },
@@ -226,11 +253,11 @@ describe('buildLedgerAnalysisWorkbook', () => {
     const workbook = await buildLedgerAnalysisWorkbook(FIXTURE)
     expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual([
       '分析总览',
+      '盘库',
       'SKU期末与环比',
       'SKU事件汇总',
       '仓库状态库存',
       '每日事件分析',
-      '近6月趋势',
       '数据质量与批次',
       'Summary原始数据',
       'Detail原始数据',
@@ -249,6 +276,31 @@ describe('buildLedgerAnalysisWorkbook', () => {
     expect(values).toContain(14)
     expect(values).toContain('可售库存')
     expect(values).toContain(12)
+    expect(overview.getCell('A1').value).toBe('指标')
+    expect(overview.getCell('C1').value).toBe('说明')
+  })
+
+  it('writes complete continuity checks and the trend into the 盘库 sheet', async () => {
+    const workbook = await buildLedgerAnalysisWorkbook(FIXTURE)
+    const audit = workbook.getWorksheet('盘库')!
+
+    expect(audit.getCell('A2').value).toBe('MSKU')
+    expect(audit.getCell('E3').value).toBe(10)
+    expect(audit.getCell('F3').value).toBe(10)
+    expect(audit.getCell('G3').value).toBe(0)
+    expect(audit.getCell('H3').value).toBe('一致')
+    expect(audit.getCell('H4').value).toBe('差异')
+    expect(audit.getCell('A6').value).toBe('近 6 个月趋势')
+    expect(audit.getCell('A8').value).toBe('2026-07')
+    expect(audit.getCell('C8').value).toBe(13)
+  })
+
+  it('keeps continuity details out of the separate quality sheet', async () => {
+    const workbook = await buildLedgerAnalysisWorkbook(FIXTURE)
+    const quality = workbook.getWorksheet('数据质量与批次')!
+
+    expect(quality.getCell('A1').value).toBe('Summary / Detail 双表对账')
+    expect(quality.getCell('A2').value).toBe('报告月份')
   })
 
   it('keeps Amazon English headers on the final two raw sheets', async () => {

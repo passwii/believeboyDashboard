@@ -497,7 +497,15 @@ def get_month_analysis(
     if project is None:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    skus = get_sku_month_eom(db, project_id, start, end)
+    prev_start, prev_end = _prev_period(report_month)
+    skus = get_sku_month_eom(
+        db,
+        project_id,
+        start,
+        end,
+        prev_start=prev_start,
+        prev_end=prev_end,
+    )
     snapshot = MonthlySnapshotResponse(
         report_month=report_month,
         country=project.country,
