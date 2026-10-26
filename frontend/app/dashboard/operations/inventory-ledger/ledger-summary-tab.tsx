@@ -33,8 +33,8 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
 import { DispositionBadge } from './ledger-badges'
-import { waterLevelSeries } from './ledger-derive'
-import { ColumnHeader, ExportCsvButton, PaginationBar } from './ledger-table-parts'
+import { skuEndingSummary, waterLevelSeries } from './ledger-derive'
+import { ColumnHeader, PaginationBar } from './ledger-table-parts'
 import { summaryEn, summaryLabel } from './ledger-glossary'
 import type { LedgerSummaryRow } from './ledger-types'
 
@@ -198,12 +198,10 @@ const SECONDARY_COLUMNS: ColumnDef[] = [
 export function LedgerSummaryTab({
   rows,
   failed,
-  period,
 }: {
   /** 已按全局筛选过滤的 summary 行（date desc） */
   rows: LedgerSummaryRow[]
   failed?: boolean
-  period: string
 }) {
   const [page, setPage] = useState(0)
   const [showAllColumns, setShowAllColumns] = useState(false)
@@ -218,6 +216,7 @@ export function LedgerSummaryTab({
   )
 
   const { mskus, data } = useMemo(() => waterLevelSeries(rows), [rows])
+  const skuSummary = useMemo(() => skuEndingSummary(rows), [rows])
   const chartMskus = mskus.slice(0, SKU_LINE_COLORS.length)
 
   const columns = showAllColumns
@@ -226,18 +225,58 @@ export function LedgerSummaryTab({
 
   const emptyText = failed ? '数据加载失败，请点击右上角刷新按钮重试' : '无汇总水位数据'
 
-  const csvRows = useMemo(
-    () => rows.map((r) => columns.map((c) => c.csv(r))),
-    [rows, columns],
-  )
-
   return (
     <div className="space-y-4">
+      {skuSummary.length > 0 && (
+        <DataTableCard>
+          <DataTableCardHeader
+            title="SKU 月度汇总"
+            description={`${skuSummary.length} 个 MSKU · 跨仓库与状态汇总后的期末库存`}
+          />
+          <DataTableCardBody>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <ColumnHeader label="MSKU" />
+                  <ColumnHeader label="品名" />
+                  <ColumnHeader label="期末总库存" className="text-right" />
+                  <ColumnHeader label="可售库存" className="text-right" />
+                  <ColumnHeader label="损坏库存" className="text-right" />
+                  <ColumnHeader label="损坏占比" className="text-right" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {skuSummary.map((row) => (
+                  <TableRow key={row.msku}>
+                    <TableCell className={cn(DENSE_CELL, 'font-mono text-xs')}>
+                      {row.msku}
+                    </TableCell>
+                    <TableCell className={DENSE_CELL}>{row.title || '—'}</TableCell>
+                    <TableCell className={cn(DENSE_CELL, 'text-right tabular-nums')}>
+                      {row.endingQty}
+                    </TableCell>
+                    <TableCell className={cn(DENSE_CELL, 'text-right tabular-nums')}>
+                      {row.sellableQty}
+                    </TableCell>
+                    <TableCell className={cn(DENSE_CELL, 'text-right tabular-nums')}>
+                      {row.damagedQty}
+                    </TableCell>
+                    <TableCell className={cn(DENSE_CELL, 'text-right tabular-nums')}>
+                      {row.damagedPct.toFixed(1)}%
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </DataTableCardBody>
+        </DataTableCard>
+      )}
+
       {/* 每 SKU 期末水位线 */}
       {rows.length > 0 && (
         <DataTableCard>
           <DataTableCardHeader
-            title="每 SKU 期末水位"
+            title="每 SKU 月度水位"
             description={`按日期汇总各 MSKU 期末库存（跨仓库/状态）${
               mskus.length > SKU_LINE_COLORS.length
                 ? ` · 仅显示前 ${SKU_LINE_COLORS.length} 个 SKU`
@@ -277,7 +316,7 @@ export function LedgerSummaryTab({
       {/* 水位表 */}
       <DataTableCard>
         <DataTableCardHeader
-          title="每日水位明细"
+          title="月度水位明细"
           description={`${rows.length} 行 · 每行 = 1 个 MSKU × 仓库 × 状态 × 日期的水位快照`}
           action={
             <div className="flex items-center gap-2">
@@ -288,11 +327,6 @@ export function LedgerSummaryTab({
               >
                 {showAllColumns ? '收起次级列' : '展开全部列'}
               </Button>
-              <ExportCsvButton
-                filename={`库存分类账-汇总水位-${period || 'all'}.csv`}
-                headers={columns.map((c) => c.label)}
-                rows={csvRows}
-              />
             </div>
           }
         />

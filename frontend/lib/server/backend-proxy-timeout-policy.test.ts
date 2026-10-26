@@ -190,6 +190,18 @@ describe('产品标签制作：report 档（60s）', () => {
   })
 })
 
+describe('库存分类账整月分析：report 档（60s）', () => {
+  it('全量聚合读取不会被默认 5s 截断', () => {
+    expect(getProxyTimeoutMs('api/v1/inventory-ledger/month-analysis', null, 'GET')).toBe(60_000)
+    expect(getProxyTimeoutMs('/api/v1/inventory-ledger/month-analysis', null, 'GET')).toBe(60_000)
+  })
+
+  it('不误伤既有 inventory-ledger 子路径', () => {
+    expect(getProxyTimeoutMs('api/v1/inventory-ledger/summary', null, 'GET')).toBe(5_000)
+    expect(getProxyTimeoutMs('api/v1/inventory-ledger/detail', null, 'GET')).toBe(5_000)
+  })
+})
+
 /**
  * BLF-1404：客户方案上传 20MB HTML（#753 已把业务层上限从 5MB 放宽到 20MB），
  * 但代理超时仍是 5s 默认档 → 20MB 自包含文档（内联 base64 图）会被代理自己

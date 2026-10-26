@@ -23,7 +23,7 @@ import re
 from datetime import date, datetime, timezone
 from typing import Literal
 
-from sqlalchemy import case, delete, func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.models.inventory_ledger import (
@@ -865,7 +865,7 @@ def get_ledger_detail_rows(
     fulfillment_center: str | None = None,
     event_type: str | None = None,
     country: str | None = None,
-    limit: int = 2000,
+    limit: int | None = 2000,
 ) -> list[LedgerDetailRow]:
     """Event-level rows from the Detailed view, newest first.
 
@@ -893,8 +893,9 @@ def get_ledger_detail_rows(
             InventoryLedgerDetail.date.desc(),
             InventoryLedgerDetail.id.desc(),
         )
-        .limit(limit)
     )
+    if limit is not None:
+        stmt = stmt.limit(limit)
     rows = []
     for r in db.execute(stmt).scalars().all():
         rows.append(
@@ -934,7 +935,7 @@ def get_ledger_summary_rows(
     location: str | None = None,
     disposition: str | None = None,
     country: str | None = None,
-    limit: int = 5000,
+    limit: int | None = 5000,
 ) -> list[LedgerSummaryRow]:
     """Daily water-level rows from the Summary view, newest first.
 
@@ -964,8 +965,9 @@ def get_ledger_summary_rows(
             InventoryLedgerSummary.date.desc(),
             InventoryLedgerSummary.id.desc(),
         )
-        .limit(limit)
     )
+    if limit is not None:
+        stmt = stmt.limit(limit)
     rows = []
     for r in db.execute(stmt).scalars().all():
         rows.append(
@@ -1004,6 +1006,7 @@ def list_ingest_batches(
     project_id: int,
     limit: int = 100,
     country: str | None = None,
+    report_month: date | None = None,
 ) -> list[InventoryLedgerIngestBatch]:
     """List recent ingest batches for a project, newest first.
 
@@ -1011,9 +1014,12 @@ def list_ingest_batches(
     """
     if not _project_country_matches(db, project_id, country):
         return []
+    filters = [InventoryLedgerIngestBatch.project_id == project_id]
+    if report_month is not None:
+        filters.append(InventoryLedgerIngestBatch.report_month == report_month)
     stmt = (
         select(InventoryLedgerIngestBatch)
-        .where(InventoryLedgerIngestBatch.project_id == project_id)
+        .where(*filters)
         .order_by(InventoryLedgerIngestBatch.loaded_at.desc())
         .limit(limit)
     )
@@ -1052,9 +1058,6 @@ def check_ledger_consistency(
             mismatches=[],
             checked_at=datetime.now(timezone.utc),
         )
-
-    last_day = calendar.monthrange(report_month.year, report_month.month)[1]
-    month_end = date(report_month.year, report_month.month, last_day)
 
     summary_exists = (
         db.execute(
@@ -1430,7 +1433,7 @@ def _ingest_summary_copy(
         ) as copy:
             copy.write(payload)
         upsert_sql = (
-            f"INSERT INTO inventory_ledger_summary ({insert_columns_sql}) "
+            f"INSERT INTO inventory_ledger_summary ({insert_columns_sql}) "  # noqa: S608
             f"SELECT {insert_columns_sql} FROM staging_inventory_ledger_summary "
             f"ON CONFLICT {conflict_cols} DO UPDATE SET {update_set_sql}"
         )
@@ -1496,7 +1499,7 @@ def _ingest_detail_copy(
         ) as copy:
             copy.write(payload)
         cur.execute(
-            f"INSERT INTO inventory_ledger_detail ({insert_columns_sql}) "
+            f"INSERT INTO inventory_ledger_detail ({insert_columns_sql}) "  # noqa: S608
             f"SELECT {insert_columns_sql} FROM staging_inventory_ledger_detail"
         )
     finally:
