@@ -103,6 +103,204 @@ export function computeKpis(
   }
 }
 
+export type OverviewKpis = LedgerKpis & {
+  skuCount: number
+  sellableQty: number
+}
+
+export function computeOverviewKpis(
+  summaryRows: LedgerSummaryRow[],
+  detailRows: LedgerDetailRow[],
+): OverviewKpis {
+  const base = computeKpis(summaryRows, detailRows)
+  const skus = new Set<string>()
+  let sellableQty = 0
+  for (const r of latestEndingByGroup(summaryRows).values()) {
+    skus.add(r.msku)
+    if (r.disposition === 'SELLABLE') sellableQty += r.ending_balance
+  }
+  return { ...base, skuCount: skus.size, sellableQty }
+}
+
+export type SkuEndingSummary = {
+  msku: string
+  title: string | null
+  endingQty: number
+  sellableQty: number
+  damagedQty: number
+  damagedPct: number
+}
+
+export function skuEndingSummary(rows: LedgerSummaryRow[]): SkuEndingSummary[] {
+  const bySku = new Map<string, SkuEndingSummary>()
+  for (const row of latestEndingByGroup(rows).values()) {
+    const current = bySku.get(row.msku) ?? {
+      msku: row.msku,
+      title: row.title,
+      endingQty: 0,
+      sellableQty: 0,
+      damagedQty: 0,
+      damagedPct: 0,
+    }
+    current.title ??= row.title
+    current.endingQty += row.ending_balance
+    if (row.disposition === 'SELLABLE') current.sellableQty += row.ending_balance
+    else current.damagedQty += row.ending_balance
+    bySku.set(row.msku, current)
+  }
+  return Array.from(bySku.values())
+    .map((row) => ({
+      ...row,
+      damagedPct: row.endingQty > 0 ? (row.damagedQty / row.endingQty) * 100 : 0,
+    }))
+    .sort((a, b) => b.endingQty - a.endingQty || a.msku.localeCompare(b.msku))
+}
+
+export type SkuEventTotals = {
+  msku: string
+  title: string | null
+  receipts: number
+  customerShipments: number
+  customerReturns: number
+  vendorReturns: number
+  warehouseTransfer: number
+  found: number
+  lost: number
+  damaged: number
+  disposed: number
+  otherEvents: number
+  netChange: number
+}
+
+export function skuEventTotals(rows: LedgerSummaryRow[]): SkuEventTotals[] {
+  const bySku = new Map<string, SkuEventTotals>()
+  for (const row of rows) {
+    const current = bySku.get(row.msku) ?? {
+      msku: row.msku,
+      title: row.title,
+      receipts: 0,
+      customerShipments: 0,
+      customerReturns: 0,
+      vendorReturns: 0,
+      warehouseTransfer: 0,
+      found: 0,
+      lost: 0,
+      damaged: 0,
+      disposed: 0,
+      otherEvents: 0,
+      netChange: 0,
+    }
+    current.title ??= row.title
+    current.receipts += row.receipts
+    current.customerShipments += row.customer_shipments
+    current.customerReturns += row.customer_returns
+    current.vendorReturns += row.vendor_returns
+    current.warehouseTransfer += row.warehouse_transfer_io
+    current.found += row.found
+    current.lost += row.lost
+    current.damaged += row.damaged
+    current.disposed += row.disposed
+    current.otherEvents += row.other_events
+    bySku.set(row.msku, current)
+  }
+  return Array.from(bySku.values())
+    .map((row) => ({
+      ...row,
+      netChange:
+        row.receipts +
+        row.customerShipments +
+        row.customerReturns +
+        row.vendorReturns +
+        row.warehouseTransfer +
+        row.found +
+        row.lost +
+        row.damaged +
+        row.disposed +
+        row.otherEvents,
+    }))
+    .sort((a, b) => a.msku.localeCompare(b.msku))
+}
+
+export type WarehouseDispositionSummary = {
+  location: string
+  disposition: string
+  startingBalance: number
+  endingBalance: number
+  receipts: number
+  customerShipments: number
+  customerReturns: number
+  vendorReturns: number
+  warehouseTransfer: number
+  damaged: number
+  disposed: number
+  otherEvents: number
+}
+
+export function warehouseDispositionSummary(
+  rows: LedgerSummaryRow[],
+): WarehouseDispositionSummary[] {
+  const latestGroups = latestEndingByGroup(rows).values()
+  const byKey = new Map<string, WarehouseDispositionSummary>()
+  for (const row of latestGroups) {
+    const key = `${row.location}|${row.disposition}`
+    const current = byKey.get(key) ?? {
+      location: row.location,
+      disposition: row.disposition,
+      startingBalance: 0,
+      endingBalance: 0,
+      receipts: 0,
+      customerShipments: 0,
+      customerReturns: 0,
+      vendorReturns: 0,
+      warehouseTransfer: 0,
+      damaged: 0,
+      disposed: 0,
+      otherEvents: 0,
+    }
+    current.startingBalance += row.starting_balance
+    current.endingBalance += row.ending_balance
+    current.receipts += row.receipts
+    current.customerShipments += row.customer_shipments
+    current.customerReturns += row.customer_returns
+    current.vendorReturns += row.vendor_returns
+    current.warehouseTransfer += row.warehouse_transfer_io
+    current.damaged += row.damaged
+    current.disposed += row.disposed
+    current.otherEvents += row.other_events
+    byKey.set(key, current)
+  }
+  return Array.from(byKey.values()).sort(
+    (a, b) =>
+      a.location.localeCompare(b.location) ||
+      a.disposition.localeCompare(b.disposition),
+  )
+}
+
+export type DailyEventSummary = {
+  date: string
+  eventCount: number
+  netQty: number
+  quantities: Record<string, number>
+}
+
+export function dailyEventSummary(rows: LedgerDetailRow[]): DailyEventSummary[] {
+  const byDate = new Map<string, DailyEventSummary>()
+  for (const row of rows) {
+    const current = byDate.get(row.date) ?? {
+      date: row.date,
+      eventCount: 0,
+      netQty: 0,
+      quantities: {},
+    }
+    current.eventCount += 1
+    current.netQty += row.quantity
+    current.quantities[row.event_type] =
+      (current.quantities[row.event_type] ?? 0) + row.quantity
+    byDate.set(row.date, current)
+  }
+  return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date))
+}
+
 /**
  * 环比变动：来自 /snapshot 的 per-SKU change（月份级口径）。
  * SKU 筛选生效时只累加该 SKU；仓库/状态/事件筛选不参与环比

@@ -12,6 +12,8 @@ import {
   buildCsv,
   computeKpis,
   computeMomChange,
+  computeOverviewKpis,
+  dailyEventSummary,
   detailRowMatches,
   dispositionBreakdown,
   filterDetailRows,
@@ -19,8 +21,11 @@ import {
   formatLedgerMonthLabel,
   groupDetailByEventType,
   latestEndingByGroup,
+  skuEndingSummary,
+  skuEventTotals,
   summaryRowMatches,
   topLocations,
+  warehouseDispositionSummary,
   waterLevelSeries,
 } from './ledger-derive'
 import {
@@ -175,6 +180,133 @@ describe('computeKpis', () => {
       damagedPct: 0,
       netChange: 0,
       eventCount: 0,
+    })
+  })
+})
+
+describe('computeOverviewKpis', () => {
+  it('adds SKU count and sellable/damaged split to the base KPIs', () => {
+    const rows = [
+      summaryRow({ msku: 'SKU-A', ending_balance: 90, disposition: 'SELLABLE' }),
+      summaryRow({
+        msku: 'SKU-A',
+        ending_balance: 10,
+        disposition: 'CUSTOMER_DAMAGED',
+      }),
+      summaryRow({ msku: 'SKU-B', ending_balance: 20, disposition: 'SELLABLE' }),
+    ]
+    const details = [detailRow({ quantity: -3 }), detailRow({ quantity: 5 })]
+
+    expect(computeOverviewKpis(rows, details)).toMatchObject({
+      skuCount: 2,
+      endingTotal: 120,
+      sellableQty: 110,
+      damagedQty: 10,
+      damagedPct: 8.333333333333332,
+      netChange: 2,
+      eventCount: 2,
+    })
+  })
+})
+
+describe('inventory analysis tables', () => {
+  it('builds per-SKU ending summaries', () => {
+    const rows = [
+      summaryRow({ msku: 'SKU-A', ending_balance: 90, disposition: 'SELLABLE' }),
+      summaryRow({
+        msku: 'SKU-A',
+        ending_balance: 10,
+        disposition: 'CUSTOMER_DAMAGED',
+      }),
+      summaryRow({ msku: 'SKU-B', ending_balance: 20, disposition: 'SELLABLE' }),
+    ]
+    expect(skuEndingSummary(rows)).toEqual([
+      expect.objectContaining({
+        msku: 'SKU-A',
+        endingQty: 100,
+        sellableQty: 90,
+        damagedQty: 10,
+        damagedPct: 10,
+      }),
+      expect.objectContaining({
+        msku: 'SKU-B',
+        endingQty: 20,
+        sellableQty: 20,
+        damagedQty: 0,
+      }),
+    ])
+  })
+
+  it('builds per-SKU event totals', () => {
+    const event = skuEventTotals([
+      summaryRow({
+        msku: 'SKU-A',
+        receipts: 5,
+        customer_shipments: -2,
+        customer_returns: 1,
+      }),
+      summaryRow({
+        msku: 'SKU-A',
+        receipts: 3,
+        customer_shipments: -1,
+        damaged: -1,
+      }),
+    ])
+    expect(event).toEqual([
+      expect.objectContaining({
+        msku: 'SKU-A',
+        receipts: 8,
+        customerShipments: -3,
+        customerReturns: 1,
+        damaged: -1,
+        netChange: 5,
+      }),
+    ])
+  })
+
+  it('builds warehouse x disposition inventory rows', () => {
+    const rows = [
+      summaryRow({
+        location: 'LAX1',
+        disposition: 'SELLABLE',
+        starting_balance: 80,
+        ending_balance: 90,
+        receipts: 10,
+      }),
+      summaryRow({
+        location: 'LAX1',
+        disposition: 'SELLABLE',
+        msku: 'SKU-B',
+        starting_balance: 10,
+        ending_balance: 15,
+        receipts: 5,
+      }),
+    ]
+    expect(warehouseDispositionSummary(rows)).toEqual([
+      expect.objectContaining({
+        location: 'LAX1',
+        disposition: 'SELLABLE',
+        startingBalance: 90,
+        endingBalance: 105,
+        receipts: 15,
+      }),
+    ])
+  })
+})
+
+describe('dailyEventSummary', () => {
+  it('aggregates event count, net quantity and per-type quantities by date', () => {
+    const rows = [
+      detailRow({ date: '2026-08-02', event_type: 'Receipts', quantity: 9 }),
+      detailRow({ date: '2026-08-02', event_type: 'Shipments', quantity: -1 }),
+      detailRow({ date: '2026-08-03', event_type: 'Shipments', quantity: -2 }),
+    ]
+    const rowsAsc = dailyEventSummary(rows)
+    expect(rowsAsc.map((r) => r.date)).toEqual(['2026-08-02', '2026-08-03'])
+    expect(rowsAsc[0]).toMatchObject({
+      eventCount: 2,
+      netQty: 8,
+      quantities: { Receipts: 9, Shipments: -1 },
     })
   })
 })
