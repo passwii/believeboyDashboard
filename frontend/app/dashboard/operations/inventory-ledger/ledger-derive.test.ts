@@ -16,6 +16,7 @@ import {
   dispositionBreakdown,
   filterDetailRows,
   filterSummaryRows,
+  formatLedgerMonthLabel,
   groupDetailByEventType,
   latestEndingByGroup,
   summaryRowMatches,
@@ -33,6 +34,17 @@ import {
 // ── fixtures ──────────────────────────────────────────────────────────────────
 
 let idSeq = 1
+
+describe('formatLedgerMonthLabel', () => {
+  it('renders backend month-start values as a human month label', () => {
+    expect(formatLedgerMonthLabel('2026-08-01')).toBe('2026 年 8 月')
+    expect(formatLedgerMonthLabel('2026-08')).toBe('2026 年 8 月')
+  })
+
+  it('keeps non-month values unchanged', () => {
+    expect(formatLedgerMonthLabel('全部月份')).toBe('全部月份')
+  })
+})
 
 function summaryRow(partial: Partial<LedgerSummaryRow>): LedgerSummaryRow {
   return {

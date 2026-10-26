@@ -331,30 +331,53 @@ _INVENTORY_LEDGER_DETAIL_STRONG_COLUMNS = {
 def _detect_ledger_dates(
     df: "pd.DataFrame", original_filename: str
 ) -> tuple[str | None, str | None, str | None]:
-    """从 Date 列（MM/DD/YYYY）和文件名提取日期信息。"""
+    """从 Date 列（MM/DD/YYYY 或 MM/YYYY）和文件名提取日期信息。"""
     import re
-    from datetime import datetime
+    from datetime import date, datetime
 
     detected_start_date = None
     detected_end_date = None
     detected_date = None
-    try:
-        dates = df["date"].dropna().astype(str)
-        if not dates.empty:
-            parsed = dates.apply(lambda d: datetime.strptime(d.strip(), "%m/%d/%Y"))
-            min_d = parsed.min()
-            max_d = parsed.max()
-            detected_start_date = min_d.strftime("%Y-%m-%d")
-            detected_end_date = max_d.strftime("%Y-%m-%d")
-            detected_date = detected_start_date
-    except Exception:
-        pass
+    parsed_dates: list[date] = []
+    has_day_level_date = False
+    if "date" in df.columns:
+        for raw_date in df["date"].dropna().astype(str):
+            value = raw_date.strip()
+            parsed = None
+            for fmt in ("%m/%d/%Y", "%m/%Y"):
+                try:
+                    parsed = datetime.strptime(value, fmt).date()
+                    break
+                except ValueError:
+                    continue
+            if parsed is None:
+                continue
+            parsed_dates.append(parsed)
+            if not re.fullmatch(r"\d{1,2}/\d{4}", value):
+                has_day_level_date = True
 
-    # Try to extract report_month from filename
-    if original_filename:
-        m = re.search(r"(\d{4})(\d{2})\d{2}", original_filename)
+        if parsed_dates:
+            min_d = min(parsed_dates)
+            max_d = max(parsed_dates)
+            if has_day_level_date:
+                detected_start_date = min_d.strftime("%Y-%m-%d")
+                detected_end_date = max_d.strftime("%Y-%m-%d")
+                detected_date = detected_start_date
+            else:
+                detected_date = min_d.strftime("%Y-%m-%d")
+
+    # Only use a filename date when the CSV itself has no usable date. Require
+    # an explicit 20xx prefix so arbitrary numeric filenames are not treated as
+    # compact YYYYMMDD values (e.g. 99539020752.csv).
+    if not detected_date and original_filename:
+        m = re.search(r"(?<!\d)(20\d{2})(\d{2})(\d{2})(?!\d)", original_filename)
         if m:
-            detected_date = f"{m.group(1)}-{m.group(2)}-01"
+            try:
+                detected_date = date(
+                    int(m.group(1)), int(m.group(2)), int(m.group(3))
+                ).isoformat()
+            except ValueError:
+                pass
     return detected_date, detected_start_date, detected_end_date
 
 
@@ -373,11 +396,17 @@ def _build_ledger_result(
     detected_date, detected_start_date, detected_end_date = _detect_ledger_dates(
         df, original_filename
     )
+    if detected_start_date:
+        date_input_mode = "range_auto"
+    elif detected_date:
+        date_input_mode = "single_auto"
+    else:
+        date_input_mode = "single_manual"
     return RecognitionResult(
         report_type=report_type,
         matched_columns=matched,
         reason=reason,
-        date_input_mode="range_auto" if detected_start_date else "single_manual",
+        date_input_mode=date_input_mode,
         detected_date=detected_date,
         detected_start_date=detected_start_date,
         detected_end_date=detected_end_date,

@@ -15,6 +15,13 @@ import {
   type SkuMonthEom,
 } from './ledger-types'
 
+/** Format the API's month-start value (`2026-08-01`) for month selectors. */
+export function formatLedgerMonthLabel(value: string): string {
+  const match = /^(\d{4})-(\d{2})(?:-\d{2})?$/.exec(value)
+  if (!match) return value
+  return `${match[1]} 年 ${Number(match[2])} 月`
+}
+
 // ── 过滤 ──────────────────────────────────────────────────────────────────────
 
 export function summaryRowMatches(row: LedgerSummaryRow, f: LedgerFilters): boolean {

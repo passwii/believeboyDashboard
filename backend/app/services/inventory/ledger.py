@@ -229,18 +229,25 @@ def _guess_kind_for_validation(headers: list[str]) -> str:
 
 def _extract_report_month(filename: str, dates: list[date]) -> date:
     """Extract report_month from filename or fallback to min date."""
-    # Pattern 1: 20260501-0531.csv
-    m = re.search(r"(\d{4})(\d{2})\d{2}", filename)
-    if m:
-        return date(int(m.group(1)), int(m.group(2)), 1)
-    # Pattern 2: 库存分类账 2026-0601-0630.csv
-    m = re.search(r"(\d{4})-?(\d{2})\d{2}", filename)
-    if m:
-        return date(int(m.group(1)), int(m.group(2)), 1)
-    # Pattern 3: 库存分类账-2026-07详细视图.csv / 库存分类账 2026-01一览视图.csv
-    m = re.search(r"(\d{4})-(\d{2})(?!\d)", filename)
-    if m:
-        return date(int(m.group(1)), int(m.group(2)), 1)
+    # Match only explicit 20xx date fragments. The previous unanchored
+    # ``\d{8}`` pattern treated arbitrary numeric filenames (99539020752.csv)
+    # as compact dates and produced invalid months.
+    filename_patterns = (
+        # 20260501-0531.csv
+        r"(?<!\d)(20\d{2})(\d{2})(\d{2})(?!\d)",
+        # 库存分类账 2026-0601-0630.csv
+        r"(?<!\d)(20\d{2})-?(\d{2})(\d{2})(?!\d)",
+        # 库存分类账-2026-07详细视图.csv
+        r"(?<!\d)(20\d{2})-(\d{2})(?!\d)",
+    )
+    for pattern in filename_patterns:
+        m = re.search(pattern, filename)
+        if not m:
+            continue
+        try:
+            return date(int(m.group(1)), int(m.group(2)), 1)
+        except ValueError:
+            continue
     # Fallback: min date's month
     if dates:
         min_d = min(dates)
@@ -249,7 +256,16 @@ def _extract_report_month(filename: str, dates: list[date]) -> date:
 
 
 def _parse_csv_date(value: str) -> date:
-    return datetime.strptime(value.strip(), "%m/%d/%Y").date()
+    value = value.strip()
+    for fmt in ("%m/%d/%Y", "%m/%Y"):
+        try:
+            return datetime.strptime(value, fmt).date()
+        except ValueError:
+            continue
+    raise ValueError(
+        f"Unsupported inventory ledger Date format: '{value}'. "
+        "Expected MM/DD/YYYY or MM/YYYY."
+    )
 
 
 def _parse_date_and_time(value: str) -> datetime | None:
@@ -1646,6 +1662,11 @@ def ingest_ledger_csv(
             failed_validation += 1
 
     if not rows:
+        if failed_validation:
+            raise ValueError(
+                "库存分类账解析失败：所有数据行均未通过校验，请检查 Date 列"
+                "（支持 MM/DD/YYYY 或 MM/YYYY）及数值列格式。"
+            )
         return 0
 
     report_month = _extract_report_month(filename, all_dates)

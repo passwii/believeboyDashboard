@@ -37,7 +37,7 @@ import { useUrlParam, useUrlParams } from '@/lib/hooks/use-url-param'
 import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
 
 import { fetchLedgerJson } from './ledger-load'
-import { filterDetailRows, filterSummaryRows } from './ledger-derive'
+import { filterDetailRows, filterSummaryRows, formatLedgerMonthLabel } from './ledger-derive'
 import { LedgerBatchesTab } from './ledger-batches-tab'
 import { LedgerDetailTab } from './ledger-detail-tab'
 import { LedgerSummaryTab } from './ledger-summary-tab'
@@ -263,7 +263,7 @@ export default function InventoryLedgerPage() {
       <HeaderSlotSelect
         value={month}
         onChange={setMonth}
-        options={months.map((m) => ({ value: m, label: m }))}
+        options={months.map((m) => ({ value: m, label: formatLedgerMonthLabel(m) }))}
         placeholder="选择月份"
         widthClass={TERM_HEADER_W_SM}
         title="月份筛选"
@@ -325,7 +325,8 @@ export default function InventoryLedgerPage() {
 
   // BLF-931 · 移动端：筛选控件下迁为正文顶部可折叠筛选条
   const mobileProjectLabel = projects.find((p) => String(p.id) === projectId)?.name ?? projectId
-  const mobileFilterSummary = `${mobileProjectLabel} · ${month || '未选月份'}${activeFilterCount > 0 ? ` · ${activeFilterCount} 个筛选` : ''}`
+  const mobileMonthLabel = month ? formatLedgerMonthLabel(month) : '未选月份'
+  const mobileFilterSummary = `${mobileProjectLabel} · ${mobileMonthLabel}${activeFilterCount > 0 ? ` · ${activeFilterCount} 个筛选` : ''}`
   const mobileFilterStrip = useMobileFilterStrip(
     <MobileFilterStrip
       summary={mobileFilterSummary}
@@ -342,7 +343,7 @@ export default function InventoryLedgerPage() {
           <HeaderSlotSelect
             value={month}
             onChange={setMonth}
-            options={months.map((m) => ({ value: m, label: m }))}
+            options={months.map((m) => ({ value: m, label: formatLedgerMonthLabel(m) }))}
             placeholder="选择月份"
             widthClass={TERM_HEADER_W_SM}
             title="月份筛选"
