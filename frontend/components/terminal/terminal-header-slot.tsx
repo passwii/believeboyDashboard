@@ -32,6 +32,11 @@ export interface TerminalHeaderSlotContextValue {
   /** header 内插槽挂载点；null = header 尚未挂载（SSR / 首帧） */
   anchor: HTMLElement | null
 
+  /** 可展开次级筛选插槽挂载点；null = 第二层尚未挂载 */
+  secondaryAnchor: HTMLElement | null
+  /** 当前页面是否注册了次级筛选内容 */
+  secondarySlotActive: boolean
+
   /** 移动端筛选条挂载点（正文顶部）；null = 尚未挂载（SSR / 首帧） */
   mobileStripAnchor: HTMLElement | null
 
@@ -61,6 +66,8 @@ const Ctx = React.createContext<TerminalHeaderSlotContextValue | null>(null)
 
 export function TerminalHeaderSlotProvider({ children }: { children: React.ReactNode }) {
   const [anchor, setAnchor] = React.useState<HTMLElement | null>(null)
+  const [secondaryAnchor, setSecondaryAnchor] = React.useState<HTMLElement | null>(null)
+  const [secondarySlotActive, setSecondarySlotActive] = React.useState(false)
   const [mobileStripAnchor, setMobileStripAnchor] = React.useState<HTMLElement | null>(null)
   const [refreshLoading, setRefreshLoadingState] = React.useState(false)
   const [refreshHandlerPending, setRefreshHandlerPending] = React.useState(false)
@@ -78,6 +85,18 @@ export function TerminalHeaderSlotProvider({ children }: { children: React.React
   const refreshLoaderPendingRef = React.useRef(false)
   // 自增 token：后注册者胜出；注销时只有当前持有者能清状态
   const refreshHandlerIdRef = React.useRef(0)
+  const secondarySlotIdRef = React.useRef(0)
+
+  const registerSecondarySlot = React.useCallback(() => {
+    const id = ++secondarySlotIdRef.current
+    setSecondarySlotActive(true)
+
+    return () => {
+      if (secondarySlotIdRef.current !== id) return
+      secondarySlotIdRef.current += 1
+      setSecondarySlotActive(false)
+    }
+  }, [])
 
   const registerRefresh = React.useCallback(
     (handler: () => void | Promise<void>): (() => void) => {
@@ -190,6 +209,8 @@ export function TerminalHeaderSlotProvider({ children }: { children: React.React
   const value = React.useMemo<TerminalHeaderSlotContextValue>(
     () => ({
       anchor,
+      secondaryAnchor,
+      secondarySlotActive,
       mobileStripAnchor,
       refreshRegistered,
       refreshLoading,
@@ -202,6 +223,8 @@ export function TerminalHeaderSlotProvider({ children }: { children: React.React
     }),
     [
       anchor,
+      secondaryAnchor,
+      secondarySlotActive,
       mobileStripAnchor,
       refreshRegistered,
       refreshLoading,
@@ -215,7 +238,9 @@ export function TerminalHeaderSlotProvider({ children }: { children: React.React
   )
 
   return (
-    <SlotBindingsCtx.Provider value={{ setAnchor, setMobileStripAnchor }}>
+    <SlotBindingsCtx.Provider
+      value={{ setAnchor, setSecondaryAnchor, setMobileStripAnchor, registerSecondarySlot }}
+    >
       <Ctx.Provider value={value}>{children}</Ctx.Provider>
     </SlotBindingsCtx.Provider>
   )
@@ -245,6 +270,27 @@ export function HeaderSlotMount({
   const { setAnchor } = useSlotMountBinding()
 
   return <div ref={setAnchor} className={className} data-testid="terminal-header-slot">{children}</div>
+}
+
+/** TerminalHeader 展开行的 anchor；页面次级筛选通过 useSecondaryHeaderSlot portal 到这里。 */
+export function SecondaryHeaderSlotMount({
+  className,
+  children,
+}: {
+  className?: string
+  children?: React.ReactNode
+}) {
+  const { setSecondaryAnchor } = useSlotMountBinding()
+
+  return (
+    <div
+      ref={setSecondaryAnchor}
+      className={className}
+      data-testid="terminal-secondary-header-slot"
+    >
+      {children}
+    </div>
+  )
 }
 
 /**
@@ -279,7 +325,9 @@ export function MobileStripMount({
 
 interface SlotBindings {
   setAnchor: (el: HTMLElement | null) => void
+  setSecondaryAnchor: (el: HTMLElement | null) => void
   setMobileStripAnchor: (el: HTMLElement | null) => void
+  registerSecondarySlot: () => () => void
 }
 
 const SlotBindingsCtx = React.createContext<SlotBindings | null>(null)
@@ -288,7 +336,7 @@ const SlotBindingsCtx = React.createContext<SlotBindings | null>(null)
 function useSlotMountBinding(): SlotBindings {
   const bindings = React.useContext(SlotBindingsCtx)
   if (!bindings) {
-    throw new Error('HeaderSlotMount / MobileStripMount 必须在 TerminalHeaderSlotProvider 内使用')
+    throw new Error('Header slot mounts 必须在 TerminalHeaderSlotProvider 内使用')
   }
   return bindings
 }
@@ -314,6 +362,21 @@ export function useHeaderSlot(node: React.ReactNode): React.ReactPortal | null {
 
   if (!anchor) return null
   return createPortal(node, anchor)
+}
+
+/** 页面侧 hook：把次级筛选 portal 到可展开的第二行，并登记其可见性。 */
+export function useSecondaryHeaderSlot(node: React.ReactNode): React.ReactPortal | null {
+  const { secondaryAnchor } = useTerminalHeaderSlot()
+  const { registerSecondarySlot } = useSlotMountBinding()
+  const hasContent = node !== null && node !== undefined && node !== false
+
+  React.useEffect(() => {
+    if (!hasContent) return
+    return registerSecondarySlot()
+  }, [hasContent, registerSecondarySlot])
+
+  if (!hasContent || !secondaryAnchor) return null
+  return createPortal(node, secondaryAnchor)
 }
 
 /**

@@ -9,6 +9,8 @@ import {
   HeaderSlotMount,
   TerminalHeaderSlotProvider,
   useHeaderRefresh,
+  useHeaderSlot,
+  useSecondaryHeaderSlot,
 } from './terminal-header-slot'
 import type { SidebarTopGroup } from '@/lib/sidebar-config'
 import { TrendingUp } from 'lucide-react'
@@ -95,6 +97,29 @@ function TerminalHeaderWithMount({ pathname }: { pathname: string }) {
   )
 }
 
+function HeaderWithPageFilters({ pathname }: { pathname: string }) {
+  const primaryPortal = useHeaderSlot(<span data-testid="page-primary-control">页面操作</span>)
+  const secondaryPortal = useSecondaryHeaderSlot(
+    <span data-testid="page-secondary-control">SKU 筛选</span>
+  )
+
+  return (
+    <>
+      <TerminalHeader
+        groups={GROUPS}
+        activeGroupId="operations"
+        pathname={pathname}
+        subnavCollapsed={false}
+        onExpandSubnav={vi.fn()}
+        inspectorOpen={false}
+        onToggleInspector={vi.fn()}
+      />
+      {primaryPortal}
+      {secondaryPortal}
+    </>
+  )
+}
+
 const GROUPS: SidebarTopGroup[] = [
   {
     id: 'operations',
@@ -142,10 +167,11 @@ afterEach(() => {
 })
 
 describe('TerminalHeader 全局筛选四件套（BLF-819，BLF-874 已移除 KPI 磁贴）', () => {
-  it('头部高度引用终端 Header 高度常量', () => {
+  it('首层高度引用终端 Header 高度常量', () => {
     const { container } = renderHeader('/dashboard/profile')
-    const header = container.querySelector('header[style]') as HTMLElement
-    expect(header.style.height).toBe(`${TERMINAL_HEADER_HEIGHT}px`)
+    const primaryRow = screen.getByTestId('terminal-header-primary-row') as HTMLElement
+    expect(primaryRow.style.height).toBe(`${TERMINAL_HEADER_HEIGHT}px`)
+    expect(container.querySelector('header')).not.toHaveStyle({ height: `${TERMINAL_HEADER_HEIGHT}px` })
   })
 
   it('子导航和 Inspector 控件的可访问名称与按压状态随布局状态同步', () => {
@@ -191,25 +217,71 @@ describe('TerminalHeader 全局筛选四件套（BLF-819，BLF-874 已移除 KPI
     expect(screen.getByRole('button', { name: '切换 Inspector' })).toHaveAttribute('aria-pressed', 'false')
   })
 
-  it('试点路由（销售数据）：渲染筛选四件套且不含 KPI 磁贴', () => {
+  it('试点路由（销售数据）：项目与日期默认显示，站点在展开后显示', async () => {
+    const user = userEvent.setup()
     renderHeader('/dashboard/operations/daily-analysis')
-    expect(screen.getByTitle('全局项目筛选')).toBeInTheDocument()
+    const primaryFilters = screen.getByTestId('terminal-header-primary-global-filters')
+    expect(primaryFilters).toContainElement(screen.getByTitle('全局项目筛选'))
+    expect(primaryFilters.querySelectorAll('button')).toHaveLength(2)
+    expect(screen.queryByTitle('全局站点筛选')).not.toBeInTheDocument()
+    const toggle = screen.getByRole('button', { name: '展开次级筛选' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+
+    await user.click(toggle)
+    expect(screen.getByRole('button', { name: '收起次级筛选' })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    )
     expect(screen.getByTitle('全局站点筛选')).toBeInTheDocument()
     expect(screen.queryByText('GMV')).not.toBeInTheDocument()
     expect(screen.queryByText('ORD')).not.toBeInTheDocument()
     expect(screen.queryByText('PND')).not.toBeInTheDocument()
   })
 
-  it('试点路由（订单信息）：渲染四件套', () => {
+  it('试点路由（订单信息）：站点筛选默认收起', async () => {
+    const user = userEvent.setup()
     renderHeader('/dashboard/reports/order-info')
     expect(screen.getByTitle('全局项目筛选')).toBeInTheDocument()
+    expect(screen.queryByTitle('全局站点筛选')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '展开次级筛选' }))
     expect(screen.getByTitle('全局站点筛选')).toBeInTheDocument()
+  })
+
+  it('页面次级筛选进入展开行，原页面插槽仍留在首层，路由切换后自动收起', async () => {
+    const user = userEvent.setup()
+    const pathname = '/dashboard/operations/daily-analysis'
+    const { rerender } = render(
+      <TerminalHeaderSlotProvider>
+        <HeaderWithPageFilters pathname={pathname} />
+      </TerminalHeaderSlotProvider>
+    )
+
+    expect(await screen.findByTestId('page-primary-control')).toBeInTheDocument()
+    const toggle = await screen.findByRole('button', { name: '展开次级筛选' })
+    expect(screen.queryByTestId('page-secondary-control')).not.toBeInTheDocument()
+    await user.click(toggle)
+    expect(await screen.findByTestId('page-secondary-control')).toBeInTheDocument()
+    expect(screen.getByTestId('page-primary-control')).toBeInTheDocument()
+
+    rerender(
+      <TerminalHeaderSlotProvider>
+        <HeaderWithPageFilters pathname="/dashboard/profile" />
+      </TerminalHeaderSlotProvider>
+    )
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: '展开次级筛选' })).toHaveAttribute(
+        'aria-expanded',
+        'false'
+      )
+    )
+    expect(screen.queryByTestId('page-secondary-control')).not.toBeInTheDocument()
   })
 
   it('非试点页面：不渲染四件套（头部行为零变化）', () => {
     renderHeader('/dashboard/advertising/ad-analysis/overview')
     expect(screen.queryByTitle('全局项目筛选')).not.toBeInTheDocument()
     expect(screen.queryByTitle('全局站点筛选')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '展开次级筛选' })).not.toBeInTheDocument()
     // BLF-874：KPI 磁贴已下线，非试点页亦不再出现
     expect(screen.queryByText('ORD')).not.toBeInTheDocument()
     // 基础控件仍在
@@ -220,6 +292,7 @@ describe('TerminalHeader 全局筛选四件套（BLF-819，BLF-874 已移除 KPI
     filterState = { ...filterState, ready: false }
     renderHeader('/dashboard/operations/daily-analysis')
     expect(screen.queryByTitle('全局项目筛选')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '展开次级筛选' })).not.toBeInTheDocument()
   })
 })
 

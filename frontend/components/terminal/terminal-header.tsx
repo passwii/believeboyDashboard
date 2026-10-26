@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import {
   AlertCircle,
   Bell,
+  ChevronDown,
   Check,
   Loader2,
   LogOut,
@@ -30,6 +31,7 @@ import {
 } from '@/components/terminal/header-filter-suite'
 import {
   HeaderSlotMount,
+  SecondaryHeaderSlotMount,
   useTerminalHeaderSlot,
 } from '@/components/terminal/terminal-header-slot'
 import {
@@ -103,6 +105,7 @@ export function TerminalHeader({
     refreshFeedback,
     announceRefresh,
     triggerRefresh,
+    secondarySlotActive,
   } = useTerminalHeaderSlot()
   const router = useRouter()
   const [fallbackPending, startFallbackRefresh] = React.useTransition()
@@ -154,6 +157,13 @@ export function TerminalHeader({
   // BLF-874 Stage 1：KPI 磁贴（GMV/ORD/PND）已下线，正文 MetricSwitcherCard 已覆盖，移除 useHeaderKpis 依赖
   const globalFilter = useTerminalGlobalFilter()
   const pilotActive = isGlobalFilterPilotRoute(pathname)
+  const [secondaryFiltersExpanded, setSecondaryFiltersExpanded] = React.useState(false)
+  const hasGlobalSecondaryFilters = pilotActive && globalFilter.ready
+  const hasSecondaryFilters = hasGlobalSecondaryFilters || secondarySlotActive
+
+  React.useEffect(() => {
+    setSecondaryFiltersExpanded(false)
+  }, [pathname])
 
   const activeGroup = groups.find((g) => g.id === activeGroupId)
   const pageTitle = React.useMemo(() => getDashboardPageTitle(pathname), [pathname])
@@ -162,12 +172,14 @@ export function TerminalHeader({
   const displayName = user ? formatDisplayName(pickSessionDisplayName(user)) : 'User'
 
   return (
-    <header
-      style={{ height: TERMINAL_HEADER_HEIGHT }}
-      className="flex shrink-0 items-stretch rounded-none border-b border-term-border bg-term-panel shadow-none"
-    >
-      {/* 左段：subnav 切换 + 面包屑（BLF-874：flex-1 min-w-0 + overflow-x-auto term-scroll，超宽横向滚动不挤占中/右） */}
-      <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-2 term-scroll">
+    <header className="flex shrink-0 flex-col rounded-none border-b border-term-border bg-term-panel shadow-none">
+      <div
+        data-testid="terminal-header-primary-row"
+        style={{ height: TERMINAL_HEADER_HEIGHT }}
+        className="flex shrink-0 items-stretch"
+      >
+        {/* 左段：subnav 切换 + 面包屑（宽度不足时在自身横向滚动，不挤占中/右） */}
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-2 term-scroll">
         <button
           type="button"
           onClick={onOpenMobileNav}
@@ -207,19 +219,18 @@ export function TerminalHeader({
             {pageTitle}
           </span>
         </nav>
-      </div>
+        </div>
 
-      {/* 中段：页面级 HeaderSlot 唯一容器（BLF-874/826，hidden md:flex gap-1.5 overflow-hidden 56px 对齐） */}
-      <HeaderSlotMount className="hidden min-w-0 shrink flex-nowrap items-center gap-1.5 overflow-hidden rounded-none border-l border-term-border px-2 md:flex" />
-      {pilotActive && globalFilter.ready ? (
-        <div className="hidden shrink-0 items-center gap-1.5 overflow-x-auto rounded-none border-l border-term-border px-2 term-scroll xl:flex">
+        {/* 页面操作与首层页面控件保持原位置。 */}
+        <HeaderSlotMount className="hidden min-w-0 shrink flex-nowrap items-center gap-1.5 overflow-hidden rounded-none border-l border-term-border px-2 md:flex" />
+        {pilotActive && globalFilter.ready ? (
+          <div
+            data-testid="terminal-header-primary-global-filters"
+            className="hidden shrink-0 items-center gap-1.5 overflow-x-auto rounded-none border-l border-term-border px-2 term-scroll xl:flex"
+          >
           <HeaderProjectSelect
             value={globalFilter.projectId}
             onChange={globalFilter.setProjectId}
-          />
-          <HeaderCountrySelect
-            value={globalFilter.country}
-            onChange={globalFilter.setCountry}
           />
           <HeaderDateRangePicker
             dateFrom={globalFilter.dateFrom}
@@ -227,11 +238,35 @@ export function TerminalHeader({
             country={globalFilter.country}
             onChange={globalFilter.setDateRange}
           />
-        </div>
-      ) : null}
+          </div>
+        ) : null}
 
-      {/* 右段：全局刷新 / 搜索 / 通知 / Inspector / 用户 */}
-      <div className="flex shrink-0 items-center gap-1 px-2">
+        {/* 右段：次级筛选展开 / 全局刷新 / 搜索 / 通知 / Inspector / 用户 */}
+        <div className="flex shrink-0 items-center gap-1 px-2">
+          {hasSecondaryFilters ? (
+            <button
+              type="button"
+              onClick={() => setSecondaryFiltersExpanded((expanded) => !expanded)}
+              title={secondaryFiltersExpanded ? '收起次级筛选' : '展开次级筛选'}
+              aria-label={secondaryFiltersExpanded ? '收起次级筛选' : '展开次级筛选'}
+              aria-expanded={secondaryFiltersExpanded}
+              aria-controls="terminal-header-secondary-row"
+              data-testid="terminal-header-secondary-toggle"
+              className={cn(
+                'flex h-9 w-9 shrink-0 items-center justify-center rounded-none text-term-muted shadow-none transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent',
+                !secondarySlotActive && 'hidden xl:flex'
+              )}
+            >
+              <ChevronDown
+                aria-hidden
+                className={cn(
+                  'h-5 w-5 transition-transform motion-reduce:transition-none',
+                  secondaryFiltersExpanded && 'rotate-180'
+                )}
+                strokeWidth={1.75}
+              />
+            </button>
+          ) : null}
         {/* BLF-881：全页面常驻——已注册页触发页面回调（强刷跳缓存），未注册页兜底 router.refresh() */}
         <button
           type="button"
@@ -364,6 +399,30 @@ export function TerminalHeader({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        </div>
+      </div>
+      <div
+        id="terminal-header-secondary-row"
+        data-testid="terminal-header-secondary-row"
+        hidden={!secondaryFiltersExpanded}
+        className={cn(
+          'w-full border-t border-term-border bg-term-panel',
+          !secondaryFiltersExpanded && 'hidden',
+          hasGlobalSecondaryFilters && !secondarySlotActive && 'hidden xl:block'
+        )}
+      >
+        {secondaryFiltersExpanded ? (
+          <SecondaryHeaderSlotMount className="flex min-h-11 min-w-0 flex-wrap items-center gap-1.5 px-2 py-1">
+            {hasGlobalSecondaryFilters ? (
+              <div className="hidden items-center gap-1.5 xl:flex">
+                <HeaderCountrySelect
+                  value={globalFilter.country}
+                  onChange={globalFilter.setCountry}
+                />
+              </div>
+            ) : null}
+          </SecondaryHeaderSlotMount>
+        ) : null}
       </div>
     </header>
   )

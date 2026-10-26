@@ -6,9 +6,11 @@ import { useRef } from 'react'
 
 import {
   HeaderSlotMount,
+  SecondaryHeaderSlotMount,
   TerminalHeaderSlotProvider,
   useHeaderRefresh,
   useHeaderSlot,
+  useSecondaryHeaderSlot,
   useTerminalHeaderSlot,
 } from './terminal-header-slot'
 
@@ -18,6 +20,7 @@ function Probe() {
   return (
     <div>
       <span data-testid="has-anchor">{ctx.anchor == null ? 'none' : 'present'}</span>
+      <span data-testid="secondary-slot-active">{String(ctx.secondarySlotActive)}</span>
       <span data-testid="refresh-registered">{String(ctx.refreshRegistered)}</span>
       <span data-testid="refresh-loading">{String(ctx.refreshLoading)}</span>
       <span role="status" data-testid="refresh-announcement">{ctx.refreshFeedback.message}</span>
@@ -35,6 +38,7 @@ function FakeHeader() {
   return (
     <header data-testid="fake-header">
       <HeaderSlotMount className="flex items-center gap-1.5" />
+      <SecondaryHeaderSlotMount className="flex items-center gap-1.5" />
     </header>
   )
 }
@@ -59,6 +63,11 @@ function Page({
     loading: onRefresh ? loading : false,
   })
   return <div data-testid="page">{portal}</div>
+}
+
+function SecondaryPage({ children }: { children: React.ReactNode }) {
+  const portal = useSecondaryHeaderSlot(children)
+  return <div data-testid="secondary-page">{portal}</div>
 }
 
 /**
@@ -121,6 +130,46 @@ describe('TerminalHeaderSlotProvider', () => {
     await waitFor(() =>
       expect(screen.getByTestId('terminal-header-slot')).toHaveTextContent('B')
     )
+  })
+
+  it('useSecondaryHeaderSlot 把内容 portal 到独立 anchor，并在页面卸载后注销', async () => {
+    const { rerender } = renderShell(
+      <>
+        <SecondaryPage>
+          <span>SKU 筛选</span>
+        </SecondaryPage>
+        <Probe />
+      </>
+    )
+
+    const slot = screen.getByTestId('terminal-secondary-header-slot')
+    await waitFor(() => expect(slot).toHaveTextContent('SKU 筛选'))
+    expect(screen.getByTestId('secondary-slot-active')).toHaveTextContent('true')
+
+    rerender(
+      <Harness>
+        <Probe />
+      </Harness>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('secondary-slot-active')).toHaveTextContent('false'))
+    expect(screen.getByTestId('terminal-secondary-header-slot')).toBeEmptyDOMElement()
+  })
+
+  it('次级 slot 收到 null 内容时保持未激活', () => {
+    function EmptySecondaryPage() {
+      const portal = useSecondaryHeaderSlot(null)
+      return <div>{portal}</div>
+    }
+
+    renderShell(
+      <>
+        <EmptySecondaryPage />
+        <Probe />
+      </>
+    )
+
+    expect(screen.getByTestId('secondary-slot-active')).toHaveTextContent('false')
   })
 
   it('triggerRefresh 调用已注册的 handler；未注册时 no-op 不抛错', async () => {
