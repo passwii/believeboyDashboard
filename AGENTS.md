@@ -24,13 +24,15 @@ git rev-list --left-right --count origin/main...HEAD  # 左侧计数为 0，才�
 > 本仓库 ZCode / 无 MCP 的 agent 只有 **CLI**（`codegraph <子命令>` 带空格）。`mcp__codegraph__*` 是 MCP 工具名，bash 里跑会 `command not found`。
 
 **定位任何代码：先用 CodeGraph，再用 Read：**
-1. `codegraph status .` 确认索引健康（"Index is up to date" 即可；`.` 可省；Not initialized 则 `codegraph init .`）。
+1. `codegraph status .` 确认索引健康（"Index is up to date" 即可；`.` 可省；新 worktree 初始化后按下方规则运行 `codegraph init -i`；其他未初始化情形运行 `codegraph init .`）。
 2. `codegraph query <符号> --kind <kind>` 拿 `file:line`（**只给位置，不带源码**）。
 3. `Read <file:line>` 看源码。
 4. 影响面：`codegraph callers <sym>` / `callees <sym>` / `impact <sym>`（无 `--limit`，输出可能很长）。
 5. 浏览：`codegraph files --path <相对目录>`（`.` / `backend` / `frontend`）。
 
-**坑**：`explore` / `node` 无 CLI 等价（别跑 `codegraph explore`）；`query` 只给位置；新 worktree 索引丢要重跑 `codegraph status .`；写后等约 1 秒再查；长期改动前 `codegraph sync .` 增量更新（别用 `init`）。MCP 路径（已配 `mcpServers.codegraph` 时）见 `docs/REFERENCE.md`。
+**新 worktree 初始化后必做**：直接运行 `codegraph init -i` 建立索引，再运行 `codegraph status .` 确认索引健康。
+
+**坑**：`explore` / `node` 无 CLI 等价（别跑 `codegraph explore`）；`query` 只给位置；新 worktree 索引缺失时按必做流程运行 `codegraph init -i` 并用 `codegraph status .` 确认；写后等约 1 秒再查；长期改动前 `codegraph sync .` 增量更新（别用 `init`）。MCP 路径（已配 `mcpServers.codegraph` 时）见 `docs/REFERENCE.md`。
 
 ## Push / 部署规则（重要）
 
