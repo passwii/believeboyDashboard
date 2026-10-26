@@ -222,3 +222,19 @@ export type ConsistencyCheckResult = {
   mismatches: ConsistencyMismatch[]
   checked_at: string
 }
+
+export type LedgerMonthAnalysisResponse = {
+  project_id: number
+  project_name: string
+  country: string | null
+  report_month: string
+  start_date: string
+  end_date: string
+  generated_at: string
+  summary_rows: LedgerSummaryRow[]
+  detail_rows: LedgerDetailRow[]
+  snapshot: SnapshotResponse
+  trend: TrendResponse
+  consistency: ConsistencyCheckResult
+  batches: IngestBatchInfo[]
+}

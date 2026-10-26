@@ -277,7 +277,23 @@ const PAYLOADS: Record<string, unknown> = {
   },
 }
 
-const DATA_ENDPOINTS = ['snapshot', 'trend', 'summary', 'detail', 'batches', 'consistency']
+PAYLOADS['/inventory-ledger/month-analysis'] = {
+  project_id: 1,
+  project_name: '项目A',
+  country: 'US',
+  report_month: '2026-03-01',
+  start_date: '2026-03-01',
+  end_date: '2026-03-31',
+  generated_at: '2026-04-01T10:00:05Z',
+  summary_rows: SUMMARY_ROWS,
+  detail_rows: DETAIL_ROWS,
+  snapshot: PAYLOADS['/inventory-ledger/snapshot'],
+  trend: PAYLOADS['/inventory-ledger/trend'],
+  consistency: PAYLOADS['/inventory-ledger/consistency'],
+  batches: (PAYLOADS['/inventory-ledger/batches'] as { batches: unknown[] }).batches,
+}
+
+const DATA_ENDPOINTS = ['month-analysis']
 
 function okJson(body: unknown) {
   return { ok: true, json: () => Promise.resolve(body) }
@@ -364,11 +380,11 @@ describe('库存分类账页面（header 化迁移版）', () => {
     expect(screen.getByText('成功')).toBeInTheDocument()
   })
 
-  it('头部刷新回调触发全量重拉 6 端点（无缓存），且 loading 上报', async () => {
+  it('头部刷新回调重拉整月聚合数据（无缓存），且 loading 上报', async () => {
     render(<InventoryLedgerPage />)
     await screen.findByText('汇总视图 Summary')
 
-    // 初始加载：6 个数据端点各被拉一次
+    // 初始加载：页面只请求整月聚合数据一次
     for (const name of DATA_ENDPOINTS) {
       expect(callsFor(name)).toBe(1)
     }
@@ -389,8 +405,8 @@ describe('库存分类账页面（header 化迁移版）', () => {
 
     // loading 状态上报给全局刷新按钮
     await waitFor(() => expect(capturedRefreshLoading).toBe(true))
-    // 6 端点全量重拉（月份列表不在刷新范围，不重取）
-    await waitFor(() => expect(pendingResolvers.length).toBe(6))
+    // 整月聚合重新拉取（月份列表不在刷新范围，不重取）
+    await waitFor(() => expect(pendingResolvers.length).toBe(1))
     for (const name of DATA_ENDPOINTS) {
       expect(callsFor(name)).toBe(2)
     }
@@ -400,6 +416,16 @@ describe('库存分类账页面（header 化迁移版）', () => {
       resolve(okJson({}))
     }
     await waitFor(() => expect(capturedRefreshLoading).toBe(false))
+  })
+
+  it('不再分别请求旧的六个数据端点', async () => {
+    render(<InventoryLedgerPage />)
+    await screen.findByText('汇总视图 Summary')
+
+    for (const endpoint of ['snapshot', 'trend', 'summary', 'detail', 'batches', 'consistency']) {
+      expect(callsFor(endpoint)).toBe(0)
+    }
+    expect(callsFor('month-analysis')).toBe(1)
   })
 
   it('旧控制台已移除：无「控制台」文案、无页内「刷新」按钮', async () => {

@@ -48,6 +48,7 @@ import {
   type ConsistencyCheckResult,
   type IngestBatchesResponse,
   type LedgerDetailResponse,
+  type LedgerMonthAnalysisResponse,
   type LedgerSummaryResponse,
   type ProjectOption,
   type SnapshotResponse,
@@ -146,36 +147,17 @@ export default function InventoryLedgerPage() {
     try {
       const base = `${API_BASE}/inventory-ledger`
       const params = `project_id=${projectId}&period=${month}`
-
-      // allSettled: 单个端点失败不拖垮其他区块（BEL-417 教训）。
-      const [snapRes, trendRes, summaryRes, detailRes, batchRes, consRes] =
-        await Promise.allSettled([
-          fetchLedgerJson<SnapshotResponse>(`${base}/snapshot?${params}`),
-          fetchLedgerJson<TrendResponse>(`${base}/trend?project_id=${projectId}&months=6`),
-          fetchLedgerJson<LedgerSummaryResponse>(`${base}/summary?${params}`),
-          fetchLedgerJson<LedgerDetailResponse>(`${base}/detail?${params}`),
-          fetchLedgerJson<IngestBatchesResponse>(`${base}/batches?project_id=${projectId}`),
-          fetchLedgerJson<ConsistencyCheckResult>(`${base}/consistency?${params}`),
-        ])
+      const data = await fetchLedgerJson<LedgerMonthAnalysisResponse>(
+        `${base}/month-analysis?${params}`,
+      )
       if (seq !== loadSeq.current) return
 
-      setSnapshot(snapRes.status === 'fulfilled' ? snapRes.value : null)
-      setTrend(trendRes.status === 'fulfilled' ? trendRes.value : null)
-      setSummaryRows(summaryRes.status === 'fulfilled' ? summaryRes.value : null)
-      setDetailRows(detailRes.status === 'fulfilled' ? detailRes.value : null)
-      setBatches(batchRes.status === 'fulfilled' ? batchRes.value : null)
-      setConsistency(consRes.status === 'fulfilled' ? consRes.value : null)
-
-      const failures = [snapRes, trendRes, summaryRes, detailRes, batchRes, consRes].filter(
-        (r): r is PromiseRejectedResult => r.status === 'rejected',
-      )
-      if (failures.length > 0) {
-        const firstMsg =
-          failures[0].reason instanceof Error ? failures[0].reason.message : '加载失败'
-        setLoadError(
-          failures.length === 6 ? firstMsg : `部分数据加载失败：${firstMsg}`,
-        )
-      }
+      setSnapshot(data.snapshot)
+      setTrend(data.trend)
+      setSummaryRows({ report_month: data.report_month, rows: data.summary_rows })
+      setDetailRows({ report_month: data.report_month, rows: data.detail_rows })
+      setBatches({ project_id: data.project_id, batches: data.batches })
+      setConsistency(data.consistency)
     } catch (err) {
       if (seq === loadSeq.current) {
         setLoadError(err instanceof Error ? err.message : '加载失败')
@@ -190,7 +172,7 @@ export default function InventoryLedgerPage() {
   }, [loadData])
 
   // —— Header 化：head 插槽 + 全局刷新（operations header 迁移 §1.4） ——
-  // 刷新语义与原控制台「刷新」按钮一致：本页无缓存，直接全量重拉 6 端点（allSettled）。
+  // 刷新语义：本页无缓存，重拉整月聚合数据（页面与 Excel 共用同一全量口径）。
   // handler 用 ref 桥接——projectId/month 变化后触发刷新仍执行最新闭包，不过期。
   const loadDataRef = useRef(loadData)
   loadDataRef.current = loadData
