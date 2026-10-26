@@ -81,18 +81,46 @@ func TestMyGoConfiguration(t *testing.T) {
 	}
 }
 
-func TestDesktopSourceStaysNative(t *testing.T) {
-	forbidden := []string{
-		"ui.WebView",
-		"WebViewOptions{",
-		"NewWebView(",
-		"LoadURL(",
-		"LoadHTML(",
-		"SetFrontend(",
-		"mygo://",
-		"http://",
-		"https://",
+func TestNativeSourceGuardDistinguishesAPIFromPages(t *testing.T) {
+	apiClient := `package sample
+const gatewayBaseURL = "http://127.0.0.1:8200"
+`
+	if violations := nativeSourceViolations(apiClient); len(violations) != 0 {
+		t.Errorf("API client violations = %q, want none", violations)
 	}
+
+	pageLoader := `package sample
+func load(page interface{ LoadHTML(string, string) }) {
+	page.LoadHTML("<p>hi</p>", "")
+}
+`
+	violations := nativeSourceViolations(pageLoader)
+	if len(violations) != 1 || violations[0] != "LoadHTML(" {
+		t.Errorf("page loader violations = %q, want [LoadHTML(]", violations)
+	}
+}
+
+var nativeSourceForbidden = []string{
+	"ui.WebView",
+	"WebViewOptions{",
+	"NewWebView(",
+	"LoadURL(",
+	"LoadHTML(",
+	"SetFrontend(",
+	"mygo://",
+}
+
+func nativeSourceViolations(source string) []string {
+	var violations []string
+	for _, marker := range nativeSourceForbidden {
+		if strings.Contains(source, marker) {
+			violations = append(violations, marker)
+		}
+	}
+	return violations
+}
+
+func TestDesktopSourceStaysNative(t *testing.T) {
 	err := filepath.WalkDir(".", func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -111,10 +139,8 @@ func TestDesktopSourceStaysNative(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		for _, marker := range forbidden {
-			if strings.Contains(string(source), marker) {
-				t.Errorf("%s contains web content marker %q", path, marker)
-			}
+		for _, marker := range nativeSourceViolations(string(source)) {
+			t.Errorf("%s contains web content marker %q", path, marker)
 		}
 		return nil
 	})
