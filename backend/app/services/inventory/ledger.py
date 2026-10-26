@@ -669,27 +669,20 @@ def check_ledger_integrity(
         or 0
     )
 
-    if prev_count == 0:
-        return IntegrityCheckResult(
-            report_month=report_month,
-            country=country,
-            status="PENDING",
-            mismatch_count=0,
-            mismatches=[],
-            checked_at=datetime.now(timezone.utc),
-        )
-
     # Previous month EOM per (msku, location, disposition)
-    prev_subq = _eom_subquery(db, project_id, prev_month, prev_end)
-    prev_stmt = select(
-        prev_subq.c.msku,
-        prev_subq.c.location,
-        prev_subq.c.disposition,
-        prev_subq.c.ending_balance.label("prev_ending"),
-    ).where(prev_subq.c.rn == 1)
     prev_map: dict[tuple[str, str, str], int] = {}
-    for r in db.execute(prev_stmt).all():
-        prev_map[(r.msku, r.location, r.disposition)] = int(r.prev_ending or 0)
+    if prev_count > 0:
+        prev_subq = _eom_subquery(db, project_id, prev_month, prev_end)
+        prev_stmt = select(
+            prev_subq.c.msku,
+            prev_subq.c.location,
+            prev_subq.c.disposition,
+            prev_subq.c.ending_balance.label("prev_ending"),
+        ).where(prev_subq.c.rn == 1)
+        for r in db.execute(prev_stmt).all():
+            prev_map[(r.msku, r.location, r.disposition)] = int(
+                r.prev_ending or 0
+            )
 
     # Current month first-day starting balances (earliest row per group,
     # ascending ROW_NUMBER — BEL-417 P0 fix, same pattern as _eom_subquery).
@@ -776,7 +769,13 @@ def check_ledger_integrity(
     has_unpaired = any(
         item.state in {"CURRENT_ONLY", "PREVIOUS_ONLY"} for item in comparisons
     )
-    status = "MISMATCH" if mismatches else "PENDING" if has_unpaired else "OK"
+    status = (
+        "MISMATCH"
+        if mismatches
+        else "PENDING"
+        if prev_count == 0 or has_unpaired
+        else "OK"
+    )
 
     return IntegrityCheckResult(
         report_month=report_month,

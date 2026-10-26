@@ -339,6 +339,20 @@ describe('buildLedgerAnalysisWorkbook', () => {
     expect(audit.getCell('H4').value).toBe('上月遗留')
   })
 
+  it('falls back to legacy mismatch data when comparisons are absent', async () => {
+    const legacy = structuredClone(FIXTURE)
+    delete (legacy.snapshot.integrity as unknown as Record<string, unknown>).comparisons
+
+    const workbook = await buildLedgerAnalysisWorkbook(legacy)
+    const audit = workbook.getWorksheet('盘库')!
+
+    expect(audit.getCell('A3').value).toBe('SKU-B')
+    expect(audit.getCell('E3').value).toBe(3)
+    expect(audit.getCell('F3').value).toBe(2)
+    expect(audit.getCell('G3').value).toBe(-1)
+    expect(audit.getCell('H3').value).toBe('差异')
+  })
+
   it('keeps continuity details out of the separate quality sheet', async () => {
     const workbook = await buildLedgerAnalysisWorkbook(FIXTURE)
     const quality = workbook.getWorksheet('数据质量与批次')!

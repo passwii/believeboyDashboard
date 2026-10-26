@@ -48,7 +48,9 @@ function resolveIntegrityComparisons(
   integrity: LedgerMonthAnalysisResponse['snapshot']['integrity'],
 ): IntegrityComparison[] {
   if (!integrity) return []
-  if (integrity.comparisons.length > 0) return integrity.comparisons
+  if (Array.isArray(integrity.comparisons) && integrity.comparisons.length > 0) {
+    return integrity.comparisons
+  }
   return integrity.mismatches.map((item) => ({
     ...item,
     state: item.diff === 0 ? 'MATCHED' : 'MISMATCH',

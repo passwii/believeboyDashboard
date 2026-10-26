@@ -156,6 +156,12 @@ class TestCheckLedgerIntegrity:
         )
         assert result.status == "PENDING"
         assert result.mismatch_count == 0
+        assert len(result.comparisons) == 1
+        comparison = result.comparisons[0]
+        assert comparison.state == "CURRENT_ONLY"
+        assert comparison.prev_ending is None
+        assert comparison.curr_starting == 45
+        assert comparison.diff is None
 
     def test_new_combination_in_curr_month_needs_review_without_mismatch(
         self, db_session: Session, project: Project
