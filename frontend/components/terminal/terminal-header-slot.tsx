@@ -32,6 +32,11 @@ export interface TerminalHeaderSlotContextValue {
   /** header 内插槽挂载点；null = header 尚未挂载（SSR / 首帧） */
   anchor: HTMLElement | null
 
+  /** 常驻筛选行挂载点；null = 常驻筛选行尚未挂载 */
+  primaryFilterAnchor: HTMLElement | null
+  /** 当前页面是否注册了常驻筛选内容 */
+  primaryFilterSlotActive: boolean
+
   /** 可展开次级筛选插槽挂载点；null = 第二层尚未挂载 */
   secondaryAnchor: HTMLElement | null
   /** 当前页面是否注册了次级筛选内容 */
@@ -66,6 +71,8 @@ const Ctx = React.createContext<TerminalHeaderSlotContextValue | null>(null)
 
 export function TerminalHeaderSlotProvider({ children }: { children: React.ReactNode }) {
   const [anchor, setAnchor] = React.useState<HTMLElement | null>(null)
+  const [primaryFilterAnchor, setPrimaryFilterAnchor] = React.useState<HTMLElement | null>(null)
+  const [primaryFilterSlotActive, setPrimaryFilterSlotActive] = React.useState(false)
   const [secondaryAnchor, setSecondaryAnchor] = React.useState<HTMLElement | null>(null)
   const [secondarySlotActive, setSecondarySlotActive] = React.useState(false)
   const [mobileStripAnchor, setMobileStripAnchor] = React.useState<HTMLElement | null>(null)
@@ -85,7 +92,19 @@ export function TerminalHeaderSlotProvider({ children }: { children: React.React
   const refreshLoaderPendingRef = React.useRef(false)
   // 自增 token：后注册者胜出；注销时只有当前持有者能清状态
   const refreshHandlerIdRef = React.useRef(0)
+  const primaryFilterSlotIdRef = React.useRef(0)
   const secondarySlotIdRef = React.useRef(0)
+
+  const registerPrimaryFilterSlot = React.useCallback(() => {
+    const id = ++primaryFilterSlotIdRef.current
+    setPrimaryFilterSlotActive(true)
+
+    return () => {
+      if (primaryFilterSlotIdRef.current !== id) return
+      primaryFilterSlotIdRef.current += 1
+      setPrimaryFilterSlotActive(false)
+    }
+  }, [])
 
   const registerSecondarySlot = React.useCallback(() => {
     const id = ++secondarySlotIdRef.current
@@ -209,6 +228,8 @@ export function TerminalHeaderSlotProvider({ children }: { children: React.React
   const value = React.useMemo<TerminalHeaderSlotContextValue>(
     () => ({
       anchor,
+      primaryFilterAnchor,
+      primaryFilterSlotActive,
       secondaryAnchor,
       secondarySlotActive,
       mobileStripAnchor,
@@ -223,6 +244,8 @@ export function TerminalHeaderSlotProvider({ children }: { children: React.React
     }),
     [
       anchor,
+      primaryFilterAnchor,
+      primaryFilterSlotActive,
       secondaryAnchor,
       secondarySlotActive,
       mobileStripAnchor,
@@ -239,7 +262,14 @@ export function TerminalHeaderSlotProvider({ children }: { children: React.React
 
   return (
     <SlotBindingsCtx.Provider
-      value={{ setAnchor, setSecondaryAnchor, setMobileStripAnchor, registerSecondarySlot }}
+      value={{
+        setAnchor,
+        setPrimaryFilterAnchor,
+        setSecondaryAnchor,
+        setMobileStripAnchor,
+        registerPrimaryFilterSlot,
+        registerSecondarySlot,
+      }}
     >
       <Ctx.Provider value={value}>{children}</Ctx.Provider>
     </SlotBindingsCtx.Provider>
@@ -270,6 +300,27 @@ export function HeaderSlotMount({
   const { setAnchor } = useSlotMountBinding()
 
   return <div ref={setAnchor} className={className} data-testid="terminal-header-slot">{children}</div>
+}
+
+/** TerminalHeader 常驻筛选行的 anchor，与页面操作的 HeaderSlotMount 分离。 */
+export function PrimaryFilterSlotMount({
+  className,
+  children,
+}: {
+  className?: string
+  children?: React.ReactNode
+}) {
+  const { setPrimaryFilterAnchor } = useSlotMountBinding()
+
+  return (
+    <div
+      ref={setPrimaryFilterAnchor}
+      className={className}
+      data-testid="terminal-primary-filter-slot"
+    >
+      {children}
+    </div>
+  )
 }
 
 /** TerminalHeader 展开行的 anchor；页面次级筛选通过 useSecondaryHeaderSlot portal 到这里。 */
@@ -325,8 +376,10 @@ export function MobileStripMount({
 
 interface SlotBindings {
   setAnchor: (el: HTMLElement | null) => void
+  setPrimaryFilterAnchor: (el: HTMLElement | null) => void
   setSecondaryAnchor: (el: HTMLElement | null) => void
   setMobileStripAnchor: (el: HTMLElement | null) => void
+  registerPrimaryFilterSlot: () => () => void
   registerSecondarySlot: () => () => void
 }
 
@@ -362,6 +415,21 @@ export function useHeaderSlot(node: React.ReactNode): React.ReactPortal | null {
 
   if (!anchor) return null
   return createPortal(node, anchor)
+}
+
+/** 页面侧 hook：把项目/日期等常驻筛选 portal 到独立筛选行。 */
+export function usePrimaryFilterSlot(node: React.ReactNode): React.ReactPortal | null {
+  const { primaryFilterAnchor } = useTerminalHeaderSlot()
+  const { registerPrimaryFilterSlot } = useSlotMountBinding()
+  const hasContent = node !== null && node !== undefined && node !== false
+
+  React.useEffect(() => {
+    if (!hasContent) return
+    return registerPrimaryFilterSlot()
+  }, [hasContent, registerPrimaryFilterSlot])
+
+  if (!hasContent || !primaryFilterAnchor) return null
+  return createPortal(node, primaryFilterAnchor)
 }
 
 /** 页面侧 hook：把次级筛选 portal 到可展开的第二行，并登记其可见性。 */

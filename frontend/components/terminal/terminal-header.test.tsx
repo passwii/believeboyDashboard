@@ -10,6 +10,7 @@ import {
   TerminalHeaderSlotProvider,
   useHeaderRefresh,
   useHeaderSlot,
+  usePrimaryFilterSlot,
   useSecondaryHeaderSlot,
 } from './terminal-header-slot'
 import type { SidebarTopGroup } from '@/lib/sidebar-config'
@@ -98,7 +99,10 @@ function TerminalHeaderWithMount({ pathname }: { pathname: string }) {
 }
 
 function HeaderWithPageFilters({ pathname }: { pathname: string }) {
-  const primaryPortal = useHeaderSlot(<span data-testid="page-primary-control">页面操作</span>)
+  const actionPortal = useHeaderSlot(<span data-testid="page-action-control">页面操作</span>)
+  const primaryPortal = usePrimaryFilterSlot(
+    <span data-testid="page-primary-control">项目与日期</span>
+  )
   const secondaryPortal = useSecondaryHeaderSlot(
     <span data-testid="page-secondary-control">SKU 筛选</span>
   )
@@ -114,6 +118,7 @@ function HeaderWithPageFilters({ pathname }: { pathname: string }) {
         inspectorOpen={false}
         onToggleInspector={vi.fn()}
       />
+      {actionPortal}
       {primaryPortal}
       {secondaryPortal}
     </>
@@ -220,7 +225,13 @@ describe('TerminalHeader 全局筛选四件套（BLF-819，BLF-874 已移除 KPI
   it('试点路由（销售数据）：项目与日期默认显示，站点在展开后显示', async () => {
     const user = userEvent.setup()
     renderHeader('/dashboard/operations/daily-analysis')
+    const primaryFilterRow = screen.getByTestId('terminal-header-primary-filter-row')
+    const primaryFilterSlot = screen.getByTestId('terminal-primary-filter-slot')
+    const navigationRow = screen.getByTestId('terminal-header-primary-row')
     const primaryFilters = screen.getByTestId('terminal-header-primary-global-filters')
+    expect(primaryFilterRow).toContainElement(primaryFilters)
+    expect(primaryFilterSlot).toHaveClass('overflow-x-auto')
+    expect(navigationRow).not.toContainElement(primaryFilters)
     expect(primaryFilters).toContainElement(screen.getByTitle('全局项目筛选'))
     expect(primaryFilters.querySelectorAll('button')).toHaveLength(2)
     expect(screen.queryByTitle('全局站点筛选')).not.toBeInTheDocument()
@@ -247,7 +258,7 @@ describe('TerminalHeader 全局筛选四件套（BLF-819，BLF-874 已移除 KPI
     expect(screen.getByTitle('全局站点筛选')).toBeInTheDocument()
   })
 
-  it('页面次级筛选进入展开行，原页面插槽仍留在首层，路由切换后自动收起', async () => {
+  it('常驻筛选与页面操作分行，次级筛选展开后仍在自己的行，路由切换后自动收起', async () => {
     const user = userEvent.setup()
     const pathname = '/dashboard/operations/daily-analysis'
     const { rerender } = render(
@@ -256,12 +267,20 @@ describe('TerminalHeader 全局筛选四件套（BLF-819，BLF-874 已移除 KPI
       </TerminalHeaderSlotProvider>
     )
 
-    expect(await screen.findByTestId('page-primary-control')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByTestId('terminal-header-primary-filter-row')).toContainElement(
+        screen.getByTestId('page-primary-control')
+      )
+      expect(screen.getByTestId('terminal-header-slot')).toContainElement(
+        screen.getByTestId('page-action-control')
+      )
+    })
     const toggle = await screen.findByRole('button', { name: '展开次级筛选' })
     expect(screen.queryByTestId('page-secondary-control')).not.toBeInTheDocument()
     await user.click(toggle)
     expect(await screen.findByTestId('page-secondary-control')).toBeInTheDocument()
     expect(screen.getByTestId('page-primary-control')).toBeInTheDocument()
+    expect(screen.getByTestId('page-action-control')).toBeInTheDocument()
 
     rerender(
       <TerminalHeaderSlotProvider>
@@ -282,6 +301,7 @@ describe('TerminalHeader 全局筛选四件套（BLF-819，BLF-874 已移除 KPI
     expect(screen.queryByTitle('全局项目筛选')).not.toBeInTheDocument()
     expect(screen.queryByTitle('全局站点筛选')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '展开次级筛选' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('terminal-header-primary-filter-row')).not.toBeInTheDocument()
     // BLF-874：KPI 磁贴已下线，非试点页亦不再出现
     expect(screen.queryByText('ORD')).not.toBeInTheDocument()
     // 基础控件仍在
@@ -293,6 +313,7 @@ describe('TerminalHeader 全局筛选四件套（BLF-819，BLF-874 已移除 KPI
     renderHeader('/dashboard/operations/daily-analysis')
     expect(screen.queryByTitle('全局项目筛选')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '展开次级筛选' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('terminal-header-primary-filter-row')).not.toBeInTheDocument()
   })
 })
 

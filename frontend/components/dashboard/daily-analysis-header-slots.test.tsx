@@ -5,6 +5,7 @@ import { DailyAnalysisHeaderSlots } from './daily-analysis-header-slots'
 import {
   HeaderSlotMount,
   MobileStripMount,
+  PrimaryFilterSlotMount,
   SecondaryHeaderSlotMount,
   TerminalHeaderSlotProvider,
 } from '@/components/terminal/terminal-header-slot'
@@ -18,6 +19,7 @@ function SlotsHarness({ isMobile }: { isMobile: boolean }) {
     <TerminalHeaderSlotProvider>
       <header>
         <HeaderSlotMount />
+        <PrimaryFilterSlotMount />
         <SecondaryHeaderSlotMount />
       </header>
       <main>
@@ -46,13 +48,14 @@ describe('DailyAnalysisHeaderSlots', () => {
     render(<SlotsHarness isMobile={false} />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('terminal-header-slot')).toContainElement(
+      expect(screen.getByTestId('terminal-primary-filter-slot')).toContainElement(
         screen.getByTestId('primary-controls')
       )
       expect(screen.getByTestId('terminal-secondary-header-slot')).toContainElement(
         screen.getByTestId('secondary-controls')
       )
     })
+    expect(screen.getByTestId('terminal-header-slot')).toBeEmptyDOMElement()
     expect(screen.getByTestId('terminal-mobile-strip')).toBeEmptyDOMElement()
     expect(screen.queryByTestId('mobile-controls')).not.toBeInTheDocument()
   })
@@ -67,6 +70,7 @@ describe('DailyAnalysisHeaderSlots', () => {
       )
     })
     expect(screen.getByTestId('terminal-header-slot')).toBeEmptyDOMElement()
+    expect(screen.getByTestId('terminal-primary-filter-slot')).toBeEmptyDOMElement()
     expect(screen.getByTestId('terminal-secondary-header-slot')).toBeEmptyDOMElement()
     expect(screen.queryByTestId('primary-controls')).not.toBeInTheDocument()
     expect(screen.queryByTestId('secondary-controls')).not.toBeInTheDocument()

@@ -3,8 +3,8 @@
 import type { ReactNode } from 'react'
 
 import {
-  useHeaderSlot,
   useMobileFilterStrip,
+  usePrimaryFilterSlot,
   useSecondaryHeaderSlot,
 } from '@/components/terminal/terminal-header-slot'
 
@@ -22,7 +22,7 @@ export function DailyAnalysisHeaderSlots({
   secondaryControls,
   mobileControls,
 }: DailyAnalysisHeaderSlotsProps) {
-  const primaryPortal = useHeaderSlot(isMobile ? null : primaryControls)
+  const primaryPortal = usePrimaryFilterSlot(isMobile ? null : primaryControls)
   const secondaryPortal = useSecondaryHeaderSlot(isMobile ? null : secondaryControls)
   const mobilePortal = useMobileFilterStrip(mobileControls)
 

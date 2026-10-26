@@ -6,10 +6,12 @@ import { useRef } from 'react'
 
 import {
   HeaderSlotMount,
+  PrimaryFilterSlotMount,
   SecondaryHeaderSlotMount,
   TerminalHeaderSlotProvider,
   useHeaderRefresh,
   useHeaderSlot,
+  usePrimaryFilterSlot,
   useSecondaryHeaderSlot,
   useTerminalHeaderSlot,
 } from './terminal-header-slot'
@@ -20,6 +22,7 @@ function Probe() {
   return (
     <div>
       <span data-testid="has-anchor">{ctx.anchor == null ? 'none' : 'present'}</span>
+      <span data-testid="primary-filter-slot-active">{String(ctx.primaryFilterSlotActive)}</span>
       <span data-testid="secondary-slot-active">{String(ctx.secondarySlotActive)}</span>
       <span data-testid="refresh-registered">{String(ctx.refreshRegistered)}</span>
       <span data-testid="refresh-loading">{String(ctx.refreshLoading)}</span>
@@ -38,6 +41,7 @@ function FakeHeader() {
   return (
     <header data-testid="fake-header">
       <HeaderSlotMount className="flex items-center gap-1.5" />
+      <PrimaryFilterSlotMount className="flex items-center gap-1.5" />
       <SecondaryHeaderSlotMount className="flex items-center gap-1.5" />
     </header>
   )
@@ -68,6 +72,11 @@ function Page({
 function SecondaryPage({ children }: { children: React.ReactNode }) {
   const portal = useSecondaryHeaderSlot(children)
   return <div data-testid="secondary-page">{portal}</div>
+}
+
+function PrimaryFilterPage({ children }: { children: React.ReactNode }) {
+  const portal = usePrimaryFilterSlot(children)
+  return <div data-testid="primary-filter-page">{portal}</div>
 }
 
 /**
@@ -115,6 +124,33 @@ describe('TerminalHeaderSlotProvider', () => {
       </TerminalHeaderSlotProvider>
     )
     expect(screen.getByTestId('terminal-header-slot')).toBeEmptyDOMElement()
+  })
+
+  it('usePrimaryFilterSlot 使用独立 anchor，卸载时只清除常驻筛选注册', async () => {
+    const { rerender } = renderShell(
+      <>
+        <PrimaryFilterPage>
+          <span>项目与日期</span>
+        </PrimaryFilterPage>
+        <Probe />
+      </>
+    )
+
+    const slot = screen.getByTestId('terminal-primary-filter-slot')
+    await waitFor(() => expect(slot).toHaveTextContent('项目与日期'))
+    expect(screen.getByTestId('primary-filter-slot-active')).toHaveTextContent('true')
+    expect(screen.getByTestId('secondary-slot-active')).toHaveTextContent('false')
+
+    rerender(
+      <Harness>
+        <Probe />
+      </Harness>
+    )
+
+    await waitFor(() =>
+      expect(screen.getByTestId('primary-filter-slot-active')).toHaveTextContent('false')
+    )
+    expect(screen.getByTestId('terminal-primary-filter-slot')).toBeEmptyDOMElement()
   })
 
   it('slot 内容变化时同步更新（受控 state 实时反映）', async () => {

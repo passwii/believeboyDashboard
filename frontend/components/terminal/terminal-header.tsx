@@ -31,6 +31,7 @@ import {
 } from '@/components/terminal/header-filter-suite'
 import {
   HeaderSlotMount,
+  PrimaryFilterSlotMount,
   SecondaryHeaderSlotMount,
   useTerminalHeaderSlot,
 } from '@/components/terminal/terminal-header-slot'
@@ -77,10 +78,8 @@ interface TerminalHeaderProps {
 const FALLBACK_REFRESH_WATCHDOG_MS = 10_000
 
 /**
- * Top Header 全局控制台条（固定 56px，BLF-887 高度上档 2026-08-29）。
- * 左：SubNav 展开/折叠 + 面包屑（域 › 模块）。
- * 中：HeaderSlot 唯一操作区 + 全局筛选四件套（BLF-819，仅试点路由激活；BLF-874 已移除 KPI 磁贴）。
- * 右：全局刷新（BLF-881 全页面常驻）、⌘K 搜索、通知、Inspector 开关、用户菜单。
+ * Top Header: a fixed navigation/action row, a persistent project/date row,
+ * and an optional secondary filter row.
  */
 export function TerminalHeader({
   groups,
@@ -105,6 +104,7 @@ export function TerminalHeader({
     refreshFeedback,
     announceRefresh,
     triggerRefresh,
+    primaryFilterSlotActive,
     secondarySlotActive,
   } = useTerminalHeaderSlot()
   const router = useRouter()
@@ -158,7 +158,9 @@ export function TerminalHeader({
   const globalFilter = useTerminalGlobalFilter()
   const pilotActive = isGlobalFilterPilotRoute(pathname)
   const [secondaryFiltersExpanded, setSecondaryFiltersExpanded] = React.useState(false)
+  const hasGlobalPrimaryFilters = pilotActive && globalFilter.ready
   const hasGlobalSecondaryFilters = pilotActive && globalFilter.ready
+  const hasPrimaryFilters = hasGlobalPrimaryFilters || primaryFilterSlotActive
   const hasSecondaryFilters = hasGlobalSecondaryFilters || secondarySlotActive
 
   React.useEffect(() => {
@@ -221,25 +223,8 @@ export function TerminalHeader({
         </nav>
         </div>
 
-        {/* 页面操作与首层页面控件保持原位置。 */}
+        {/* 页面操作插槽保持在导航/操作行，不与常驻筛选共享可裁切区域。 */}
         <HeaderSlotMount className="hidden min-w-0 shrink flex-nowrap items-center gap-1.5 overflow-hidden rounded-none border-l border-term-border px-2 md:flex" />
-        {pilotActive && globalFilter.ready ? (
-          <div
-            data-testid="terminal-header-primary-global-filters"
-            className="hidden shrink-0 items-center gap-1.5 overflow-x-auto rounded-none border-l border-term-border px-2 term-scroll xl:flex"
-          >
-          <HeaderProjectSelect
-            value={globalFilter.projectId}
-            onChange={globalFilter.setProjectId}
-          />
-          <HeaderDateRangePicker
-            dateFrom={globalFilter.dateFrom}
-            dateTo={globalFilter.dateTo}
-            country={globalFilter.country}
-            onChange={globalFilter.setDateRange}
-          />
-          </div>
-        ) : null}
 
         {/* 右段：次级筛选展开 / 全局刷新 / 搜索 / 通知 / Inspector / 用户 */}
         <div className="flex shrink-0 items-center gap-1 px-2">
@@ -401,6 +386,35 @@ export function TerminalHeader({
         </DropdownMenu>
         </div>
       </div>
+      {hasPrimaryFilters ? (
+        <div
+          data-testid="terminal-header-primary-filter-row"
+          className={cn(
+            'w-full border-t border-term-border bg-term-panel',
+            hasGlobalPrimaryFilters && !primaryFilterSlotActive && 'hidden xl:block'
+          )}
+        >
+          <PrimaryFilterSlotMount className="flex min-w-0 items-center gap-1.5 overflow-x-auto px-2 py-1 term-scroll">
+            {hasGlobalPrimaryFilters ? (
+              <div
+                data-testid="terminal-header-primary-global-filters"
+                className="hidden shrink-0 items-center gap-1.5 xl:flex"
+              >
+                <HeaderProjectSelect
+                  value={globalFilter.projectId}
+                  onChange={globalFilter.setProjectId}
+                />
+                <HeaderDateRangePicker
+                  dateFrom={globalFilter.dateFrom}
+                  dateTo={globalFilter.dateTo}
+                  country={globalFilter.country}
+                  onChange={globalFilter.setDateRange}
+                />
+              </div>
+            ) : null}
+          </PrimaryFilterSlotMount>
+        </div>
+      ) : null}
       <div
         id="terminal-header-secondary-row"
         data-testid="terminal-header-secondary-row"
