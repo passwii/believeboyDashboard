@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -21,6 +23,17 @@ func TestNativeShellView(t *testing.T) {
 		if !tt.HasText(text) {
 			t.Errorf("missing %q in native shell texts %q", text, tt.Texts())
 		}
+	}
+}
+
+func TestDefaultWindowOptionsStaysNative(t *testing.T) {
+	opts := defaultWindowOptions(&app{})
+
+	if opts.Content == nil {
+		t.Error("window Content is nil")
+	}
+	if opts.URL != "" {
+		t.Errorf("window URL = %q, want empty", opts.URL)
 	}
 }
 
@@ -50,16 +63,62 @@ func TestMyGoConfiguration(t *testing.T) {
 	if config.MacOS.MinimumSystemVersion != "13.0" {
 		t.Errorf("minimumSystemVersion = %q", config.MacOS.MinimumSystemVersion)
 	}
+
+	var rawConfig map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawConfig); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{
+		"devUrl",
+		"devCommand",
+		"buildCommand",
+		"frontendDist",
+		"bindings",
+	} {
+		if _, ok := rawConfig[key]; ok {
+			t.Errorf("mygo.json contains frontend key %q", key)
+		}
+	}
 }
 
 func TestDesktopSourceStaysNative(t *testing.T) {
-	source, err := os.ReadFile("main.go")
+	forbidden := []string{
+		"ui.WebView",
+		"WebViewOptions{",
+		"NewWebView(",
+		"LoadURL(",
+		"LoadHTML(",
+		"SetFrontend(",
+		"mygo://",
+		"http://",
+		"https://",
+	}
+	err := filepath.WalkDir(".", func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			if path != "." && (entry.Name() == "build" || strings.HasPrefix(entry.Name(), ".")) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+
+		source, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		for _, marker := range forbidden {
+			if strings.Contains(string(source), marker) {
+				t.Errorf("%s contains web content marker %q", path, marker)
+			}
+		}
+		return nil
+	})
 	if err != nil {
 		t.Fatal(err)
-	}
-	for _, forbidden := range []string{"ui.WebView", "mygo://", "http://", "https://"} {
-		if strings.Contains(string(source), forbidden) {
-			t.Errorf("main.go contains web content marker %q", forbidden)
-		}
 	}
 }
