@@ -58,6 +58,24 @@ def _previous_summary_csv() -> str:
     )
 
 
+def _zero_boundary_previous_summary_csv() -> str:
+    return (
+        SUMMARY_HEADERS
+        + "\n"
+        + "07/2026,FN-A,B-A,SKU-A,Item A,SELLABLE,0,0,0,0,0,0,0,0,0,0,0,0,0,0,LAX1,Store\n"
+        + "07/2026,FN-C,B-C,SKU-C,Item C,SELLABLE,5,0,0,0,0,0,0,0,0,0,0,0,5,0,LAX1,Store\n"
+    )
+
+
+def _zero_boundary_current_summary_csv() -> str:
+    return (
+        SUMMARY_HEADERS
+        + "\n"
+        + "08/2026,FN-A,B-A,SKU-A,Item A,SELLABLE,0,0,4,0,0,0,0,0,0,0,0,0,4,0,LAX1,Store\n"
+        + "08/2026,FN-C,B-C,SKU-C,Item C,SELLABLE,5,0,0,-5,0,0,0,0,0,0,0,0,0,0,LAX1,Store\n"
+    )
+
+
 @pytest.fixture
 def project(db_session: Session):
     row = Project(
@@ -179,6 +197,40 @@ def test_month_analysis_populates_previous_month_ending(
     assert body.snapshot.integrity is not None
     assert body.snapshot.integrity.comparisons[0].prev_ending == 10
     assert body.snapshot.integrity.comparisons[0].curr_starting == 10
+
+
+def test_month_analysis_keeps_zero_balance_mom_values(
+    db_session: Session,
+    project: Project,
+):
+    ingest_ledger_csv(
+        db_session,
+        project_id=project.id,
+        csv_content=_zero_boundary_previous_summary_csv(),
+        filename="99536020752.csv",
+        expected_kind="summary",
+    )
+    ingest_ledger_csv(
+        db_session,
+        project_id=project.id,
+        csv_content=_zero_boundary_current_summary_csv(),
+        filename="99538020752.csv",
+        expected_kind="summary",
+    )
+    db_session.commit()
+
+    body = get_month_analysis(
+        project_id=project.id,
+        period="2026-08",
+        db=db_session,
+    )
+
+    skus = {item.msku: item for item in body.snapshot.skus}
+    assert skus["SKU-A"].prev_qty_eom == 0
+    assert skus["SKU-A"].change == 4
+    assert skus["SKU-C"].qty_eom == 0
+    assert skus["SKU-C"].prev_qty_eom == 5
+    assert skus["SKU-C"].change == -5
 
 
 def test_month_analysis_rejects_partial_period(

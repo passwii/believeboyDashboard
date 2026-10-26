@@ -209,9 +209,9 @@ Key response fields you'll encounter:
 |---|---|---|
 | `report_month: date` | Top level (`snapshot` / `events` / `receipt-clusters` / `location-detail`) | The first day of the resolved period (always month-start for full-month periods) |
 | `integrity: IntegrityCheckResult \| null` | `snapshot` only | Set IFF period resolved to a full month; otherwise `null` |
-| `IntegrityCheckResult.status` | Inside `integrity` | `"OK"` / `"MISMATCH"` / `"PENDING"` |
+| `IntegrityCheckResult.status` | Inside `integrity` | `"OK"` only when every partition is paired and equal; `"PENDING"` when previous-month data is absent or any partition is single-sided |
 | `IntegrityCheckResult.mismatches[]` | Inside `integrity` | Per-(msku, location, disposition) continuity mismatches |
-| `IntegrityCheckResult.comparisons[]` | Inside `integrity` | Full per-(msku, location, disposition) previous-ending vs current-starting comparison, including matched rows |
+| `IntegrityCheckResult.comparisons[]` | Inside `integrity` (populated by `month-analysis`) | Full union of per-(msku, location, disposition) rows with `state`: `MATCHED` / `MISMATCH` / `CURRENT_ONLY` / `PREVIOUS_ONLY`; missing sides stay `null` |
 
 ---
 

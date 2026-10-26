@@ -17610,12 +17610,26 @@
         "description": "Cross-month opening/ending pair for one inventory partition.",
         "properties": {
           "curr_starting": {
-            "title": "Curr Starting",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Curr Starting"
           },
           "diff": {
-            "title": "Diff",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Diff"
           },
           "disposition": {
             "title": "Disposition",
@@ -17630,17 +17644,32 @@
             "type": "string"
           },
           "prev_ending": {
-            "title": "Prev Ending",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prev Ending"
+          },
+          "state": {
+            "enum": [
+              "MATCHED",
+              "MISMATCH",
+              "CURRENT_ONLY",
+              "PREVIOUS_ONLY"
+            ],
+            "title": "State",
+            "type": "string"
           }
         },
         "required": [
           "msku",
           "location",
           "disposition",
-          "prev_ending",
-          "curr_starting",
-          "diff"
+          "state"
         ],
         "title": "IntegrityComparison",
         "type": "object"

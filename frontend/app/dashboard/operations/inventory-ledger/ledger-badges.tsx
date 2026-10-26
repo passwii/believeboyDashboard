@@ -22,7 +22,7 @@ export function IntegrityBadge({ integrity }: { integrity: IntegrityCheck }) {
     return (
       <Badge variant="warning" className="gap-1">
         <Clock4 className="h-3.5 w-3.5" />
-        无上月数据，暂无法校验
+        对比数据不完整，暂无法完整校验
       </Badge>
     )
   }

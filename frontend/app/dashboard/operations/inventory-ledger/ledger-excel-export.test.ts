@@ -171,6 +171,7 @@ const FIXTURE: LedgerMonthAnalysisResponse = {
           msku: 'SKU-A',
           location: 'LAX1',
           disposition: 'SELLABLE',
+          state: 'MATCHED',
           prev_ending: 10,
           curr_starting: 10,
           diff: 0,
@@ -179,6 +180,7 @@ const FIXTURE: LedgerMonthAnalysisResponse = {
           msku: 'SKU-B',
           location: 'SCK8',
           disposition: 'CUSTOMER_DAMAGED',
+          state: 'MISMATCH',
           prev_ending: 3,
           curr_starting: 2,
           diff: -1,
@@ -293,6 +295,48 @@ describe('buildLedgerAnalysisWorkbook', () => {
     expect(audit.getCell('A6').value).toBe('近 6 个月趋势')
     expect(audit.getCell('A8').value).toBe('2026-07')
     expect(audit.getCell('C8').value).toBe(13)
+  })
+
+  it('labels one-sided comparisons without coercing missing values to zero', async () => {
+    const fixture = structuredClone(FIXTURE)
+    fixture.snapshot.integrity = {
+      ...fixture.snapshot.integrity!,
+      status: 'PENDING',
+      mismatch_count: 0,
+      mismatches: [],
+      comparisons: [
+        {
+          msku: 'SKU-A',
+          location: 'LAX1',
+          disposition: 'SELLABLE',
+          state: 'CURRENT_ONLY',
+          prev_ending: null,
+          curr_starting: 10,
+          diff: null,
+        },
+        {
+          msku: 'SKU-B',
+          location: 'SCK8',
+          disposition: 'CUSTOMER_DAMAGED',
+          state: 'PREVIOUS_ONLY',
+          prev_ending: 3,
+          curr_starting: null,
+          diff: null,
+        },
+      ],
+    }
+
+    const workbook = await buildLedgerAnalysisWorkbook(fixture)
+    const audit = workbook.getWorksheet('盘库')!
+
+    expect(audit.getCell('E3').value).toBeNull()
+    expect(audit.getCell('F3').value).toBe(10)
+    expect(audit.getCell('G3').value).toBeNull()
+    expect(audit.getCell('H3').value).toBe('本月新增')
+    expect(audit.getCell('E4').value).toBe(3)
+    expect(audit.getCell('F4').value).toBeNull()
+    expect(audit.getCell('G4').value).toBeNull()
+    expect(audit.getCell('H4').value).toBe('上月遗留')
   })
 
   it('keeps continuity details out of the separate quality sheet', async () => {

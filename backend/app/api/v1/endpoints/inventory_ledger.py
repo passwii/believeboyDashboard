@@ -505,15 +505,21 @@ def get_month_analysis(
         end,
         prev_start=prev_start,
         prev_end=prev_end,
+        include_zero_current=True,
     )
     snapshot = MonthlySnapshotResponse(
         report_month=report_month,
         country=project.country,
-        sku_count=len(skus),
+        sku_count=sum(1 for item in skus if item.qty_eom > 0),
         total_qty=sum(item.qty_eom for item in skus),
         disposition_summary=get_month_disposition_summary(db, project_id, start, end),
         skus=skus,
-        integrity=check_ledger_integrity(db, project_id, report_month),
+        integrity=check_ledger_integrity(
+            db,
+            project_id,
+            report_month,
+            include_comparisons=True,
+        ),
     )
     return LedgerMonthAnalysisResponse(
         project_id=project.id,

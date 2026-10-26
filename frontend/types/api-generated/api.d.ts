@@ -16608,9 +16608,9 @@ export interface components {
          */
         IntegrityComparison: {
             /** Curr Starting */
-            curr_starting: number;
+            curr_starting?: number | null;
             /** Diff */
-            diff: number;
+            diff?: number | null;
             /** Disposition */
             disposition: string;
             /** Location */
@@ -16618,7 +16618,12 @@ export interface components {
             /** Msku */
             msku: string;
             /** Prev Ending */
-            prev_ending: number;
+            prev_ending?: number | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "MATCHED" | "MISMATCH" | "CURRENT_ONLY" | "PREVIOUS_ONLY";
         };
         /**
          * IntegrityMismatch

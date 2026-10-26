@@ -148,9 +148,10 @@ export type IntegrityComparison = {
   msku: string
   location: string
   disposition: string
-  prev_ending: number
-  curr_starting: number
-  diff: number
+  state: 'MATCHED' | 'MISMATCH' | 'CURRENT_ONLY' | 'PREVIOUS_ONLY'
+  prev_ending: number | null
+  curr_starting: number | null
+  diff: number | null
 }
 
 export type IntegrityCheck = {

@@ -12,6 +12,7 @@ import {
   ALL,
   dispositionLabel,
   eventTypeLabel,
+  type IntegrityComparison,
   type LedgerMonthAnalysisResponse,
 } from './ledger-types'
 import {
@@ -30,10 +31,28 @@ import {
 const SIGNED_INT_FORMAT = '#,##0;[Red]-#,##0'
 const PCT_FORMAT = '0.0%'
 
+const AUDIT_STATE_LABELS: Record<IntegrityComparison['state'], string> = {
+  MATCHED: '一致',
+  MISMATCH: '差异',
+  CURRENT_ONLY: '本月新增',
+  PREVIOUS_ONLY: '上月遗留',
+}
+
 type ColumnSpec = {
   header: string
   width: number
   numFmt?: string
+}
+
+function resolveIntegrityComparisons(
+  integrity: LedgerMonthAnalysisResponse['snapshot']['integrity'],
+): IntegrityComparison[] {
+  if (!integrity) return []
+  if (integrity.comparisons.length > 0) return integrity.comparisons
+  return integrity.mismatches.map((item) => ({
+    ...item,
+    state: item.diff === 0 ? 'MATCHED' : 'MISMATCH',
+  }))
 }
 
 const SUMMARY_RAW_HEADERS = [
@@ -146,6 +165,10 @@ function addOverviewSheet(workbook: Workbook, data: LedgerMonthAnalysisResponse)
   const dispositions = dispositionBreakdown(data.summary_rows)
   const locations = topLocations(data.summary_rows, 5)
   const events = groupDetailByEventType(data.detail_rows)
+  const comparisons = resolveIntegrityComparisons(data.snapshot.integrity)
+  const unpairedCount = comparisons.filter(
+    (item) => item.state === 'CURRENT_ONLY' || item.state === 'PREVIOUS_ONLY',
+  ).length
   const rows: Array<[string, string, string | number | null, string]> = [
     ['报表信息', '项目', data.project_name, '当前项目'],
     ['报表信息', '月份', formatLedgerMonthLabel(data.report_month), '完整自然月'],
@@ -192,7 +215,7 @@ function addOverviewSheet(workbook: Workbook, data: LedgerMonthAnalysisResponse)
       '数据质量',
       '跨月完整性',
       data.snapshot.integrity?.status ?? 'PENDING',
-      `差异 ${data.snapshot.integrity?.mismatch_count ?? 0} 项`,
+      `比对 ${comparisons.length} 项 · 差异 ${data.snapshot.integrity?.mismatch_count ?? 0} 项 · 单边 ${unpairedCount} 项`,
     ],
     [
       '数据质量',
@@ -374,7 +397,7 @@ function addAuditSheet(workbook: Workbook, data: LedgerMonthAnalysisResponse) {
   header(['MSKU', '品名', '仓库', 'Disposition', '上月期末', '本月期初', '差异', '结果'])
 
   const integrity = data.snapshot.integrity
-  const comparisons = integrity?.comparisons ?? integrity?.mismatches ?? []
+  const comparisons = resolveIntegrityComparisons(integrity)
   const titleByMsku = new Map(
     data.snapshot.skus.map((item) => [item.msku, item.title ?? '']),
   )
@@ -401,7 +424,7 @@ function addAuditSheet(workbook: Workbook, data: LedgerMonthAnalysisResponse) {
           item.prev_ending,
           item.curr_starting,
           item.diff,
-          item.diff === 0 ? '一致' : '差异',
+          AUDIT_STATE_LABELS[item.state],
         ],
         [
           undefined,

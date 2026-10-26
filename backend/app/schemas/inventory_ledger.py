@@ -84,9 +84,10 @@ class IntegrityComparison(BaseModel):
     msku: str
     location: str
     disposition: str
-    prev_ending: int
-    curr_starting: int
-    diff: int
+    state: Literal["MATCHED", "MISMATCH", "CURRENT_ONLY", "PREVIOUS_ONLY"]
+    prev_ending: int | None = None
+    curr_starting: int | None = None
+    diff: int | None = None
 
 
 class IntegrityCheckResult(BaseModel):
