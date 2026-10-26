@@ -6,9 +6,11 @@ import { CalendarDays, FileDown, Loader2, Package } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import {
-  LegacyFallbackFilters,
+  LegacyFallbackCountryFilter,
+  LegacyFallbackProjectDateFilters,
   SkuSearchField,
 } from '@/components/dashboard/daily-analysis-header-filters'
+import { DailyAnalysisHeaderSlots } from '@/components/dashboard/daily-analysis-header-slots'
 import { MetricSwitcherCard, type MetricDef } from '@/components/dashboard/metric-switcher-card'
 import {
   GoalProgressStat,
@@ -52,13 +54,8 @@ import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { useTerminalGlobalFilter } from '@/components/terminal/global-filter-context'
-import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
 import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
-import {
-  useHeaderRefresh,
-  useHeaderSlot,
-  useMobileFilterStrip,
-} from '@/components/terminal/terminal-header-slot'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import {
   addMonths,
   bucketDetailByMonth,
@@ -1639,50 +1636,54 @@ export default function DailyAnalysisPage() {
     void loadData()
   }
 
-  // BLF-832 follow-up：头部筛选去重 ——
-  // xl+ 由 Top Header 全局四件套（BLF-819）承担项目/站点/日期，插槽只渲染
-  // 页面独有的 SKU 搜索（终端规格）；md~xl 全局四件套不渲染，保留降级三件套兑底。
-  const headerFilterControls = (
-    <>
-      <div className="hidden items-center gap-1.5 xl:flex">
-        <SkuSearchField
-          value={selectedSku}
-          options={skuOptions}
-          loading={skuLoading}
-          disabled={country === 'ALL'}
-          onOpen={ensureSkuOptions}
-          onChange={handleSkuChange}
-        />
-      </div>
-      <div className="flex items-center gap-1.5 xl:hidden">
-        <LegacyFallbackFilters
-          projectId={projectId}
-          projects={projects.filter((p): p is { id: number; name: string } => p.id !== null)}
-          country={country}
-          dateRange={dateRange}
-          onProjectChange={setProjectId}
-          onCountryChange={(v) => setCountry(v as CountryOption)}
-          onDateRangeChange={(range) => {
-            setDateRange(range)
-            setDatePresetKey(undefined)
-          }}
-          onDateApply={() => void loadData()}
-        />
-      </div>
-      <div className="hidden items-center gap-1.5 md:flex xl:hidden">
-        <SkuSearchField
-          value={selectedSku}
-          options={skuOptions}
-          loading={skuLoading}
-          disabled={country === 'ALL'}
-          onOpen={ensureSkuOptions}
-          onChange={handleSkuChange}
-        />
-      </div>
-    </>
+  // xl+ 项目/日期与站点由 TerminalHeader 全局筛选承载；页面 slot 只承载 SKU。
+  // md~xl 首层使用页面的项目/日期降级控件，第二层使用站点与 SKU。
+  const fallbackProjects = projects.filter(
+    (p): p is { id: number; name: string } => p.id !== null
   )
-  const headerSlotPortal = useHeaderSlot(
-    <HeaderFilterControls isMobileView={false} controls={headerFilterControls} />
+  const fallbackProjectDateControls = (
+    <div className="hidden items-center gap-1.5 md:flex xl:hidden">
+      <LegacyFallbackProjectDateFilters
+        projectId={projectId}
+        projects={fallbackProjects}
+        country={country}
+        dateRange={dateRange}
+        onProjectChange={setProjectId}
+        onDateRangeChange={(range) => {
+          setDateRange(range)
+          setDatePresetKey(undefined)
+        }}
+        onDateApply={() => void loadData()}
+      />
+    </div>
+  )
+  const fallbackSecondaryControls = (
+    <div className="hidden items-center gap-1.5 md:flex xl:hidden">
+      <LegacyFallbackCountryFilter
+        country={country}
+        onCountryChange={(value) => setCountry(value as CountryOption)}
+      />
+      <SkuSearchField
+        value={selectedSku}
+        options={skuOptions}
+        loading={skuLoading}
+        disabled={country === 'ALL'}
+        onOpen={ensureSkuOptions}
+        onChange={handleSkuChange}
+      />
+    </div>
+  )
+  const wideSecondaryControls = (
+    <div className="hidden items-center gap-1.5 xl:flex">
+      <SkuSearchField
+        value={selectedSku}
+        options={skuOptions}
+        loading={skuLoading}
+        disabled={country === 'ALL'}
+        onOpen={ensureSkuOptions}
+        onChange={handleSkuChange}
+      />
+    </div>
   )
 
   // BLF-930 · 移动端：筛选控件下迁为正文顶部可折叠筛选条（短控件 1/2，宽控件 col-span-2）。
@@ -1745,7 +1746,7 @@ export default function DailyAnalysisPage() {
     </Select>
   )
 
-  const mobileFilterStrip = useMobileFilterStrip(
+  const mobileFilterStrip = (
     <MobileFilterStrip
       summary={mobileFilterSummary}
       controls={
@@ -1780,12 +1781,24 @@ export default function DailyAnalysisPage() {
       }
     />
   )
+  const headerSlots = (
+    <DailyAnalysisHeaderSlots
+      isMobile={isMobile}
+      primaryControls={fallbackProjectDateControls}
+      secondaryControls={
+        <>
+          {fallbackSecondaryControls}
+          {wideSecondaryControls}
+        </>
+      }
+      mobileControls={mobileFilterStrip}
+    />
+  )
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      {headerSlotPortal}
+      {headerSlots}
       {/* BLF-930：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
-      {mobileFilterStrip}
       {summaryRows.length || (selectedSku && filteredDetailRows.length) ? (
         // MetricSwitcherCard 自身是 <Card> (dashboard-surface)，不再额外套 DataCard
         // 不传 defaultMetric —— MetricSwitcherCard 内部 selected 用 metrics[0] = 'order_qty' 初始化。

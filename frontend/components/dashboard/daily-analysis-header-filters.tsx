@@ -185,21 +185,7 @@ export function SkuSearchField({
   )
 }
 
-/**
- * md~xl 降级三件套（项目 / 站点 / 日期）：仅在该区间渲染（父级传 `xl:hidden` 容器）。
- * xl+ 由 Top Header 全局四件套（BLF-819）承担同名筛选，避免重复控制台。
- * 数据经 props 与页面共享真相源，页面内改动 / 头部同步 effect 均不受影响。
- */
-export function LegacyFallbackFilters({
-  projectId,
-  projects,
-  country,
-  dateRange,
-  onProjectChange,
-  onCountryChange,
-  onDateRangeChange,
-  onDateApply,
-}: {
+type LegacyFallbackFiltersProps = {
   projectId: string
   projects: Array<{ id: number; name: string }>
   country: string
@@ -209,41 +195,148 @@ export function LegacyFallbackFilters({
   onDateRangeChange: (range: React.ComponentProps<typeof DateRangePicker>['value']) => void
   /** 日期应用时回调（页面据此重新拉数）。 */
   onDateApply: () => void
-}) {
+}
+
+type LegacyFallbackProjectDateFiltersProps = Omit<
+  LegacyFallbackFiltersProps,
+  'onCountryChange'
+>
+
+function LegacyFallbackProjectSelect({
+  projectId,
+  projects,
+  onProjectChange,
+}: Pick<LegacyFallbackFiltersProps, 'projectId' | 'projects' | 'onProjectChange'>) {
+  return (
+    <Select value={projectId} onValueChange={onProjectChange}>
+      <SelectTrigger className={cn(TERM_HEADER_TRIGGER, 'w-[150px] shrink-0 overflow-hidden')}>
+        <SelectValue placeholder="选择项目" />
+      </SelectTrigger>
+      <SelectContent className={TERM_SELECT_CONTENT}>
+        <SelectItem value="all" className="rounded-none text-sm focus:bg-term-hover focus:text-term-text">
+          全部项目
+        </SelectItem>
+        {projects.map((item) => (
+          <SelectItem
+            key={item.id}
+            value={String(item.id)}
+            className="rounded-none text-sm focus:bg-term-hover focus:text-term-text"
+          >
+            {item.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
+
+function LegacyFallbackCountrySelect({
+  country,
+  onCountryChange,
+}: Pick<LegacyFallbackFiltersProps, 'country' | 'onCountryChange'>) {
+  return (
+    <Select value={country} onValueChange={onCountryChange}>
+      <SelectTrigger className={cn(TERM_HEADER_TRIGGER, 'w-[130px] shrink-0 overflow-hidden')}>
+        <SelectValue placeholder="选择站点" />
+      </SelectTrigger>
+      <SelectContent className={cn(TERM_SELECT_CONTENT, 'max-h-[60vh] overflow-y-auto term-scroll')}>
+        <SelectItem value="ALL" className="rounded-none text-sm focus:bg-term-hover focus:text-term-text">
+          全部站点
+        </SelectItem>
+        <SelectItem value="US" className="rounded-none text-sm focus:bg-term-hover focus:text-term-text">
+          美国站 (US)
+        </SelectItem>
+        <SelectItem value="DE" className="rounded-none text-sm focus:bg-term-hover focus:text-term-text">
+          德国站 (DE)
+        </SelectItem>
+        <SelectItem value="UK" className="rounded-none text-sm focus:bg-term-hover focus:text-term-text">
+          英国站 (UK)
+        </SelectItem>
+      </SelectContent>
+    </Select>
+  )
+}
+
+function LegacyFallbackDatePicker({
+  country,
+  dateRange,
+  onDateRangeChange,
+  onDateApply,
+}: Pick<
+  LegacyFallbackFiltersProps,
+  'country' | 'dateRange' | 'onDateRangeChange' | 'onDateApply'
+>) {
+  return (
+    <DateRangePicker
+      value={dateRange}
+      onChange={onDateRangeChange}
+      placeholder="选择日期范围"
+      className={cn(TERM_HEADER_TRIGGER, 'w-[240px] shrink-0 justify-start px-2 text-left shadow-none')}
+      timezone={COUNTRY_TIMEZONE_MAP[country]}
+      onApply={onDateApply}
+    />
+  )
+}
+
+/** 中等宽度头部首层使用的项目与日期筛选。 */
+export function LegacyFallbackProjectDateFilters({
+  projectId,
+  projects,
+  country,
+  dateRange,
+  onProjectChange,
+  onDateRangeChange,
+  onDateApply,
+}: LegacyFallbackProjectDateFiltersProps) {
   return (
     <>
-      <Select value={projectId} onValueChange={onProjectChange}>
-        <SelectTrigger className={cn(TERM_HEADER_TRIGGER, 'w-[150px] shrink-0 overflow-hidden')}>
-          <SelectValue placeholder="选择项目" />
-        </SelectTrigger>
-        <SelectContent className={TERM_SELECT_CONTENT}>
-          <SelectItem value="all" className="rounded-none text-sm focus:bg-term-hover focus:text-term-text">全部项目</SelectItem>
-          {projects.map((item) => (
-            <SelectItem key={item.id} value={String(item.id)} className="rounded-none text-sm focus:bg-term-hover focus:text-term-text">
-              {item.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      {/* 站点选择：选项集合与 HeaderCountrySelect 一致（全部站点 + US/DE/UK） */}
-      <Select value={country} onValueChange={onCountryChange}>
-        <SelectTrigger className={cn(TERM_HEADER_TRIGGER, 'w-[130px] shrink-0 overflow-hidden')}>
-          <SelectValue placeholder="选择站点" />
-        </SelectTrigger>
-        <SelectContent className={cn(TERM_SELECT_CONTENT, 'max-h-[60vh] overflow-y-auto term-scroll')}>
-          <SelectItem value="ALL" className="rounded-none text-sm focus:bg-term-hover focus:text-term-text">全部站点</SelectItem>
-          <SelectItem value="US" className="rounded-none text-sm focus:bg-term-hover focus:text-term-text">美国站 (US)</SelectItem>
-          <SelectItem value="DE" className="rounded-none text-sm focus:bg-term-hover focus:text-term-text">德国站 (DE)</SelectItem>
-          <SelectItem value="UK" className="rounded-none text-sm focus:bg-term-hover focus:text-term-text">英国站 (UK)</SelectItem>
-        </SelectContent>
-      </Select>
-      <DateRangePicker
-        value={dateRange}
-        onChange={onDateRangeChange}
-        placeholder="选择日期范围"
-        className={cn(TERM_HEADER_TRIGGER, 'w-[240px] shrink-0 justify-start px-2 text-left shadow-none')}
-        timezone={COUNTRY_TIMEZONE_MAP[country]}
-        onApply={onDateApply}
+      <LegacyFallbackProjectSelect
+        projectId={projectId}
+        projects={projects}
+        onProjectChange={onProjectChange}
+      />
+      <LegacyFallbackDatePicker
+        country={country}
+        dateRange={dateRange}
+        onDateRangeChange={onDateRangeChange}
+        onDateApply={onDateApply}
+      />
+    </>
+  )
+}
+
+/** 中等宽度头部第二层使用的站点筛选。 */
+export function LegacyFallbackCountryFilter({
+  country,
+  onCountryChange,
+}: Pick<LegacyFallbackFiltersProps, 'country' | 'onCountryChange'>) {
+  return <LegacyFallbackCountrySelect country={country} onCountryChange={onCountryChange} />
+}
+
+/** 保留旧三件套接口，供仍需平铺筛选的降级布局使用。 */
+export function LegacyFallbackFilters({
+  projectId,
+  projects,
+  country,
+  dateRange,
+  onProjectChange,
+  onCountryChange,
+  onDateRangeChange,
+  onDateApply,
+}: LegacyFallbackFiltersProps) {
+  return (
+    <>
+      <LegacyFallbackProjectSelect
+        projectId={projectId}
+        projects={projects}
+        onProjectChange={onProjectChange}
+      />
+      <LegacyFallbackCountrySelect country={country} onCountryChange={onCountryChange} />
+      <LegacyFallbackDatePicker
+        country={country}
+        dateRange={dateRange}
+        onDateRangeChange={onDateRangeChange}
+        onDateApply={onDateApply}
       />
     </>
   )

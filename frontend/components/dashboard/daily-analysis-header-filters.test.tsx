@@ -5,6 +5,8 @@ import type { ComponentProps } from 'react'
 
 import {
   LegacyFallbackFilters,
+  LegacyFallbackCountryFilter,
+  LegacyFallbackProjectDateFilters,
   SkuSearchField,
 } from '@/components/dashboard/daily-analysis-header-filters'
 
@@ -116,6 +118,54 @@ function FallbackHarness(props: Partial<ComponentProps<typeof LegacyFallbackFilt
     />
   )
 }
+
+function ProjectDateHarness(
+  props: Partial<ComponentProps<typeof LegacyFallbackProjectDateFilters>> = {}
+) {
+  return (
+    <LegacyFallbackProjectDateFilters
+      projectId="1"
+      projects={FALLBACK_PROJECTS}
+      country="US"
+      dateRange={undefined}
+      onProjectChange={() => {}}
+      onDateRangeChange={() => {}}
+      onDateApply={() => {}}
+      {...props}
+    />
+  )
+}
+
+function CountryHarness(
+  props: Partial<ComponentProps<typeof LegacyFallbackCountryFilter>> = {}
+) {
+  return <LegacyFallbackCountryFilter country="US" onCountryChange={() => {}} {...props} />
+}
+
+describe('LegacyFallbackProjectDateFilters', () => {
+  it('只渲染项目和日期，日期控件仍使用终端样式', () => {
+    render(<ProjectDateHarness />)
+
+    expect(screen.getAllByRole('combobox')).toHaveLength(1)
+    expect(screen.getByText('项目甲')).toBeInTheDocument()
+    expect(screen.queryByText('美国站 (US)')).not.toBeInTheDocument()
+    expect(document.querySelector('button.font-mono')).not.toBeNull()
+  })
+})
+
+describe('LegacyFallbackCountryFilter', () => {
+  it('只渲染站点并透传选择值', async () => {
+    const user = userEvent.setup()
+    const onCountryChange = vi.fn()
+    render(<CountryHarness onCountryChange={onCountryChange} />)
+
+    expect(screen.getAllByRole('combobox')).toHaveLength(1)
+    expect(screen.getByText('美国站 (US)')).toBeInTheDocument()
+    await user.click(screen.getByRole('combobox'))
+    await user.click(await screen.findByRole('option', { name: '德国站 (DE)' }))
+    expect(onCountryChange).toHaveBeenCalledWith('DE')
+  })
+})
 
 describe('LegacyFallbackFilters（md~xl 降级三件套）', () => {
   it('渲染项目 / 站点 / 日期三件套，trigger 显示当前选中值', () => {
