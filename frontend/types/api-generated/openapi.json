@@ -20663,6 +20663,96 @@
         "title": "LedgerListResponse",
         "type": "object"
       },
+      "LedgerMonthAnalysisResponse": {
+        "description": "Full selected-month payload shared by the dashboard and Excel export.",
+        "properties": {
+          "batches": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/IngestBatchInfo"
+            },
+            "title": "Batches",
+            "type": "array"
+          },
+          "consistency": {
+            "$ref": "#/components/schemas/ConsistencyCheckResult"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "detail_rows": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/LedgerDetailRow"
+            },
+            "title": "Detail Rows",
+            "type": "array"
+          },
+          "end_date": {
+            "format": "date",
+            "title": "End Date",
+            "type": "string"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "integer"
+          },
+          "project_name": {
+            "title": "Project Name",
+            "type": "string"
+          },
+          "report_month": {
+            "format": "date",
+            "title": "Report Month",
+            "type": "string"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/MonthlySnapshotResponse"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "summary_rows": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/LedgerSummaryRow"
+            },
+            "title": "Summary Rows",
+            "type": "array"
+          },
+          "trend": {
+            "$ref": "#/components/schemas/TrendResponse"
+          }
+        },
+        "required": [
+          "project_id",
+          "project_name",
+          "report_month",
+          "start_date",
+          "end_date",
+          "generated_at",
+          "snapshot",
+          "trend",
+          "consistency"
+        ],
+        "title": "LedgerMonthAnalysisResponse",
+        "type": "object"
+      },
       "LedgerRegenerateSummaryResponse": {
         "properties": {
           "delivery_log_id": {
@@ -85111,6 +85201,107 @@
           }
         },
         "summary": "Warehouse-level detail (SKU × Location × Disposition)",
+        "tags": [
+          "inventory-ledger"
+        ]
+      }
+    },
+    "/api/v1/inventory-ledger/month-analysis": {
+      "get": {
+        "description": "Returns every Summary and Detail row for one complete calendar month, plus Snapshot, six-month Trend, Consistency and selected-month ingest batches. Partial-month periods are rejected so dashboard analysis and the unified Excel export always share one complete data scope.",
+        "operationId": "get_month_analysis_api_v1_inventory_ledger_month_analysis_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Project Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "period",
+            "required": true,
+            "schema": {
+              "title": "Period",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "api_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Api Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-API-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LedgerMonthAnalysisResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Full selected-month dataset for dashboard analysis and Excel export",
         "tags": [
           "inventory-ledger"
         ]

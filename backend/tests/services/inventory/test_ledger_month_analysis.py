@@ -6,11 +6,11 @@ import uuid
 from datetime import date
 
 import pytest
-from fastapi.testclient import TestClient
+from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.main import app
+from app.api.v1.endpoints.inventory_ledger import get_month_analysis
 from app.models import Project
 from app.services.inventory.ledger import (
     get_ledger_detail_rows,
@@ -48,11 +48,6 @@ def _detail_csv() -> str:
         + "08/02/2026,FN-A,B-A,SKU-A,Item A,Receipts,REF-1,2,LAX1,SELLABLE,,US,,,2026-08-02T00:00:00-0700,Store\n"
         + "08/03/2026,FN-A,B-A,SKU-A,Item A,Shipments,REF-2,-1,LAX1,SELLABLE,,US,,,2026-08-03T00:00:00-0700,Store\n"
     )
-
-
-@pytest.fixture
-def client() -> TestClient:
-    return TestClient(app)
 
 
 @pytest.fixture
@@ -124,47 +119,43 @@ def test_unlimited_row_queries_return_all_seeded_rows(
 
 
 def test_month_analysis_returns_full_rows_and_nested_results(
-    client: TestClient,
     db_session: Session,
     project: Project,
-    admin_headers: dict[str, str],
 ):
     _seed(db_session, project.id)
 
-    response = client.get(
-        "/api/v1/inventory-ledger/month-analysis",
-        params={"project_id": project.id, "period": "2026-08"},
-        headers=admin_headers,
+    body = get_month_analysis(
+        project_id=project.id,
+        period="2026-08",
+        db=db_session,
     )
 
-    assert response.status_code == 200
-    body = response.json()
-    assert body["project_id"] == project.id
-    assert body["project_name"] == project.project_name
-    assert body["report_month"] == "2026-08-01"
-    assert body["start_date"] == "2026-08-01"
-    assert body["end_date"] == "2026-08-31"
-    assert len(body["summary_rows"]) == 2
-    assert len(body["detail_rows"]) == 2
-    assert body["snapshot"]["total_qty"] == 13
-    assert body["trend"]["months"][-1]["report_month"] == "2026-08"
-    assert body["consistency"]["status"] == "OK"
-    assert {batch["file_kind"] for batch in body["batches"]} == {
+    assert body.project_id == project.id
+    assert body.project_name == project.project_name
+    assert body.report_month == date(2026, 8, 1)
+    assert body.start_date == date(2026, 8, 1)
+    assert body.end_date == date(2026, 8, 31)
+    assert len(body.summary_rows) == 2
+    assert len(body.detail_rows) == 2
+    assert body.snapshot.total_qty == 13
+    assert body.trend.months[-1].report_month == "2026-08"
+    assert body.consistency.status == "OK"
+    assert {batch.file_kind for batch in body.batches} == {
         "summary",
         "detail",
     }
 
 
 def test_month_analysis_rejects_partial_period(
-    client: TestClient,
+    db_session: Session,
     project: Project,
-    admin_headers: dict[str, str],
 ):
-    response = client.get(
-        "/api/v1/inventory-ledger/month-analysis",
-        params={"project_id": project.id, "period": "30d"},
-        headers=admin_headers,
-    )
+    with pytest.raises(HTTPException) as exc:
+        get_month_analysis(
+            project_id=project.id,
+            period="30d",
+            db=db_session,
+        )
 
-    assert response.status_code == 400
-    assert "full calendar month" in response.json()["detail"]
+    assert exc.value.status_code == 400
+    assert "full calendar month" in str(exc.value.detail)

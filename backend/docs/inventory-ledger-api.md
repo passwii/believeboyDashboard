@@ -29,6 +29,22 @@ below).
 | 7 | GET | `/api/v1/inventory-ledger/detail?project_id=&period=&msku?=&fulfillment_center?=&event_type?=` | Event-level rows from the Detailed view (BEL-428) |
 | 8 | GET | `/api/v1/inventory-ledger/batches?project_id=&limit?=` | CSV ingest batch history — 排查数据版本 (BEL-428) |
 | 9 | GET | `/api/v1/inventory-ledger/consistency?project_id=&period=` | Cross-table reconciliation detail vs summary (requires full month, BEL-428) |
+| 10 | GET | `/api/v1/inventory-ledger/month-analysis?project_id=&period=` | Full selected-month dashboard/export payload (requires full month) |
+
+### 1.1.1 Dashboard full-month analysis / Excel export
+
+`month-analysis` is the Dashboard-only aggregate read used by both the inventory
+ledger page and its unified Excel export. It returns **all**
+`inventory_ledger_summary` and `inventory_ledger_detail` rows for one complete
+calendar month, plus Snapshot, six-month Trend, Consistency and selected-month
+ingest batches.
+
+- Partial windows (`7d` / `30d` / `custom` partial month) return 400.
+- The endpoint applies no MSKU / warehouse / disposition / event filters.
+- The page applies filters only to its rendered analysis; Excel always exports
+  the full selected month.
+- The existing `/snapshot`, `/summary`, `/detail`, `/batches` endpoints remain
+  unchanged for other callers and Agent contracts.
 
 ### 1.2 External (no auth, network-isolated)
 

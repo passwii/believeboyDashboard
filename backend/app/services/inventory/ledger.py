@@ -23,7 +23,7 @@ import re
 from datetime import date, datetime, timezone
 from typing import Literal
 
-from sqlalchemy import case, delete, func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.models.inventory_ledger import (
@@ -1059,9 +1059,6 @@ def check_ledger_consistency(
             checked_at=datetime.now(timezone.utc),
         )
 
-    last_day = calendar.monthrange(report_month.year, report_month.month)[1]
-    month_end = date(report_month.year, report_month.month, last_day)
-
     summary_exists = (
         db.execute(
             select(func.count())
@@ -1436,7 +1433,7 @@ def _ingest_summary_copy(
         ) as copy:
             copy.write(payload)
         upsert_sql = (
-            f"INSERT INTO inventory_ledger_summary ({insert_columns_sql}) "
+            f"INSERT INTO inventory_ledger_summary ({insert_columns_sql}) "  # noqa: S608
             f"SELECT {insert_columns_sql} FROM staging_inventory_ledger_summary "
             f"ON CONFLICT {conflict_cols} DO UPDATE SET {update_set_sql}"
         )
@@ -1502,7 +1499,7 @@ def _ingest_detail_copy(
         ) as copy:
             copy.write(payload)
         cur.execute(
-            f"INSERT INTO inventory_ledger_detail ({insert_columns_sql}) "
+            f"INSERT INTO inventory_ledger_detail ({insert_columns_sql}) "  # noqa: S608
             f"SELECT {insert_columns_sql} FROM staging_inventory_ledger_detail"
         )
     finally:

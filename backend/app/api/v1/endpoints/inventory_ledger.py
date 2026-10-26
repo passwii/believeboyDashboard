@@ -23,11 +23,12 @@ from app.api.deps import get_db_session, protected
 from app.api.v1.endpoints.inventory_ledger_common import (
     resolve_period_inputs,
 )
+from app.models import Project
 from app.schemas.inventory_ledger import (
     ConsistencyCheckResult,
     EventsResponse,
-    IngestBatchInfo,
     IngestBatchesResponse,
+    IngestBatchInfo,
     LedgerDetailResponse,
     LedgerMonthAnalysisResponse,
     LedgerSummaryResponse,
@@ -37,7 +38,6 @@ from app.schemas.inventory_ledger import (
     ReceiptClustersResponse,
     TrendResponse,
 )
-from app.models import Project
 from app.services.inventory.ledger import (
     check_ledger_consistency,
     check_ledger_integrity,

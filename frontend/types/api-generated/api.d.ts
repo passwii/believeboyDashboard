@@ -6240,6 +6240,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/inventory-ledger/month-analysis": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Full selected-month dataset for dashboard analysis and Excel export
+         * @description Returns every Summary and Detail row for one complete calendar month, plus Snapshot, six-month Trend, Consistency and selected-month ingest batches. Partial-month periods are rejected so dashboard analysis and the unified Excel export always share one complete data scope.
+         */
+        get: operations["get_month_analysis_api_v1_inventory_ledger_month_analysis_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/inventory-ledger/months": {
         parameters: {
             query?: never;
@@ -17562,6 +17582,56 @@ export interface components {
             summary: components["schemas"]["LedgerSummary"];
             /** Total */
             total: number;
+        };
+        /**
+         * LedgerMonthAnalysisResponse
+         * @description Full selected-month payload shared by the dashboard and Excel export.
+         */
+        LedgerMonthAnalysisResponse: {
+            /**
+             * Batches
+             * @default []
+             */
+            batches: components["schemas"]["IngestBatchInfo"][];
+            consistency: components["schemas"]["ConsistencyCheckResult"];
+            /** Country */
+            country?: string | null;
+            /**
+             * Detail Rows
+             * @default []
+             */
+            detail_rows: components["schemas"]["LedgerDetailRow"][];
+            /**
+             * End Date
+             * Format: date
+             */
+            end_date: string;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Project Id */
+            project_id: number;
+            /** Project Name */
+            project_name: string;
+            /**
+             * Report Month
+             * Format: date
+             */
+            report_month: string;
+            snapshot: components["schemas"]["MonthlySnapshotResponse"];
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+            /**
+             * Summary Rows
+             * @default []
+             */
+            summary_rows: components["schemas"]["LedgerSummaryRow"][];
+            trend: components["schemas"]["TrendResponse"];
         };
         /** LedgerRegenerateSummaryResponse */
         LedgerRegenerateSummaryResponse: {
@@ -39802,6 +39872,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LocationDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_month_analysis_api_v1_inventory_ledger_month_analysis_get: {
+        parameters: {
+            query: {
+                project_id: number;
+                period: string;
+                api_key?: string | null;
+            };
+            header?: {
+                "X-API-Key"?: string | null;
+                Authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LedgerMonthAnalysisResponse"];
                 };
             };
             /** @description Validation Error */
