@@ -407,8 +407,8 @@ func TestStatsWithoutProjectRequiresAdmin(t *testing.T) {
 	NewHandler(store).Stats(rec, req)
 
 	assertResponse(t, rec, http.StatusForbidden, `{"detail":"需要管理员权限"}`)
-	if store.statsProjectID != nil {
-		t.Error("global Stats() ran for a non-admin")
+	if store.calls != 0 {
+		t.Error("store was called for a non-admin global stats request")
 	}
 
 	store = &fakeStore{}

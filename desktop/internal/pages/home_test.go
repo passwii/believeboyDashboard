@@ -345,8 +345,14 @@ func TestHomeRefreshRetriesProjectListAfterFailure(t *testing.T) {
 	if h.page.ProjectID() != 9 {
 		t.Fatalf("selected project = %d, want 9", h.page.ProjectID())
 	}
-	if !h.tt.HasText("恢复项目") || !h.tt.HasText("1") {
-		t.Fatalf("recovered project/alerts missing: %q", h.tt.Texts())
+	loader.mu.Lock()
+	ids := append([]int(nil), loader.loadIDs...)
+	loader.mu.Unlock()
+	if len(ids) < 2 || ids[len(ids)-1] != 9 {
+		t.Fatalf("scoped alert reload project IDs = %v, want final 9", ids)
+	}
+	if !h.tt.HasText("恢复项目") {
+		t.Fatalf("recovered project missing: %q", h.tt.Texts())
 	}
 }
 
