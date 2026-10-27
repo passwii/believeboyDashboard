@@ -5,12 +5,15 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/api/alerts"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/exchange_rates"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/health"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/api/notifications"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/profile"
 )
 
@@ -146,6 +149,120 @@ func TestWeek1ContractProfileNormalAndNotFound(t *testing.T) {
 	assertStatusAndBody(t, recorder, http.StatusNotFound, `{"detail":"User not found"}`)
 }
 
+func TestWeek1ContractNotificationsNormalAndEmpty(t *testing.T) {
+	createdAt := time.Date(2026, 10, 1, 2, 3, 4, 123000000, time.UTC)
+	store := &contractNotificationStore{rows: []notifications.Notification{{
+		ID:        1,
+		UserID:    10,
+		Type:      "alert",
+		Title:     "title",
+		Data:      json.RawMessage(`{"project_id":3}`),
+		Read:      true,
+		CreatedAt: createdAt,
+	}}, total: 1}
+	handler := notifications.NewHandler(store)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/notifications", nil)
+	request.Header.Set("X-User-Id", "1_0")
+	recorder := httptest.NewRecorder()
+	handler.List(recorder, request)
+	assertStatusAndBody(t, recorder, http.StatusOK, `{"items":[{"id":1,"user_id":10,"type":"alert","title":"title","message":null,"data":{"project_id":3},"read":true,"read_at":null,"created_at":"2026-10-01T02:03:04.123000Z"}],"total":1,"page":1,"page_size":20}`)
+
+	empty := notifications.NewHandler(&contractNotificationStore{})
+	request = httptest.NewRequest(http.MethodGet, "/api/v1/notifications", nil)
+	request.Header.Set("X-User-Id", "10")
+	recorder = httptest.NewRecorder()
+	empty.List(recorder, request)
+	assertStatusAndBody(t, recorder, http.StatusOK, `{"items":[],"total":0,"page":1,"page_size":20}`)
+
+	request = httptest.NewRequest(http.MethodGet, "/api/v1/notifications", nil)
+	recorder = httptest.NewRecorder()
+	empty.List(recorder, request)
+	assertStatusAndBody(t, recorder, http.StatusUnauthorized, `{"detail":"X-User-Id required"}`)
+
+	request = httptest.NewRequest(http.MethodGet, "/api/v1/notifications", nil)
+	request.Header.Set("X-User-Id", "invalid")
+	recorder = httptest.NewRecorder()
+	empty.List(recorder, request)
+	assertStatusAndBody(t, recorder, http.StatusBadRequest, `{"detail":"Invalid X-User-Id"}`)
+
+	request = httptest.NewRequest(http.MethodGet, "/api/v1/notifications/unread-count", nil)
+	request.Header.Set("X-User-Id", "10")
+	recorder = httptest.NewRecorder()
+	empty.UnreadCount(recorder, request)
+	assertStatusAndBody(t, recorder, http.StatusOK, `{"count":0}`)
+}
+
+func TestWeek1ContractAlertsNormalAndEmpty(t *testing.T) {
+	createdAt := time.Date(2026, 10, 1, 2, 3, 4, 123000000, time.UTC)
+	store := &contractAlertStore{
+		project: &alerts.Project{ProjectOperator: ptr("operator-a")},
+		ruleRows: []alerts.Rule{{
+			ID:                   1,
+			Name:                 "rule",
+			ProjectID:            2,
+			Country:              "US",
+			Metric:               "acos",
+			TriggerType:          "threshold",
+			Condition:            "above",
+			Threshold:            0.25,
+			WindowDays:           7,
+			Severity:             "warning",
+			NotificationChannels: "in_app",
+			IsActive:             true,
+			CreatedBy:            "operator-a",
+			CreatedAt:            createdAt,
+			UpdatedAt:            createdAt,
+		}},
+		eventRows: []alerts.Event{{
+			ID:            1,
+			RuleID:        1,
+			ProjectID:     2,
+			Metric:        "acos",
+			CurrentValue:  0.3,
+			BaselineValue: 0.2,
+			DeviationPct:  50,
+			Severity:      "warning",
+			Message:       "message",
+			Status:        "active",
+			TriggeredAt:   createdAt,
+		}},
+		eventTotal: 1,
+	}
+	handler := alerts.NewHandler(store)
+
+	metrics := requestContract(handler.Metrics, "/api/v1/alerts/metrics")
+	assertStatusAndBody(t, metrics, http.StatusOK, `{"metrics":[{"value":"sales_amount","label":"销售额","description":"每日销售总额"},{"value":"order_qty","label":"订单量","description":"每日订单总数"},{"value":"ad_spend","label":"广告花费","description":"每日广告总支出"},{"value":"acos","label":"ACOS","description":"广告销售成本比"},{"value":"return_rate","label":"退货率","description":"退货占总订单比例"},{"value":"inventory_risk","label":"库存风险","description":"库存缺货风险等级"},{"value":"reconciliation_mismatch","label":"报表核对异常","description":"PDF与数据库数据匹配率低于阈值"}]}`)
+
+	rulesRequest := httptest.NewRequest(http.MethodGet, "/api/v1/alerts/rules", nil)
+	rulesRequest.Header.Set("X-Operator", "operator-a")
+	rules := requestWithHeaders(handler.Rules, rulesRequest)
+	if rules.Code != http.StatusOK {
+		t.Fatalf("rules status = %d, want 200; body = %s", rules.Code, rules.Body.String())
+	}
+	if !strings.Contains(rules.Body.String(), `"created_at":"2026-10-01T02:03:04.123000Z"`) {
+		t.Errorf("rules body = %s, want FastAPI timestamp", rules.Body.String())
+	}
+
+	eventsRequest := httptest.NewRequest(http.MethodGet, "/api/v1/alerts/events", nil)
+	eventsRequest.Header.Set("X-Operator", "operator-a")
+	events := requestWithHeaders(handler.Events, eventsRequest)
+	assertStatusAndKeys(t, events, http.StatusOK, []string{"items", "total", "page", "page_size"})
+	if !strings.Contains(events.Body.String(), `"triggered_at":"2026-10-01T02:03:04.123000Z"`) {
+		t.Errorf("events body = %s, want FastAPI timestamp", events.Body.String())
+	}
+
+	stats := requestContract(handler.Stats, "/api/v1/alerts/stats")
+	assertStatusAndBody(t, stats, http.StatusOK, `{"total_active":0,"critical_count":0,"warning_count":0,"info_count":0,"acknowledged_today":0,"resolved_today":0}`)
+
+	empty := alerts.NewHandler(&contractAlertStore{})
+	emptyRulesRequest := httptest.NewRequest(http.MethodGet, "/api/v1/alerts/rules", nil)
+	emptyRules := requestWithHeaders(empty.Rules, emptyRulesRequest)
+	assertStatusAndBody(t, emptyRules, http.StatusOK, `[]`)
+	emptyEventsRequest := httptest.NewRequest(http.MethodGet, "/api/v1/alerts/events", nil)
+	emptyEvents := requestWithHeaders(empty.Events, emptyEventsRequest)
+	assertStatusAndBody(t, emptyEvents, http.StatusOK, `{"items":[],"total":0,"page":1,"page_size":20}`)
+}
+
 func TestWeek1LiveFastAPIDiffSkipped(t *testing.T) {
 	t.Skip("live FastAPI/Go semantic diff intentionally skipped; offline fixture contracts run above")
 }
@@ -199,9 +316,58 @@ func (s *contractProfileStore) GetByUserID(context.Context, string) (*profile.Pr
 	return s.row, nil
 }
 
+type contractNotificationStore struct {
+	rows  []notifications.Notification
+	total int
+}
+
+func (s *contractNotificationStore) List(
+	context.Context,
+	string,
+	notifications.ListParams,
+) ([]notifications.Notification, int, error) {
+	return s.rows, s.total, nil
+}
+
+func (s *contractNotificationStore) UnreadCount(context.Context, string) (int, error) {
+	return 0, nil
+}
+
+type contractAlertStore struct {
+	project    *alerts.Project
+	ruleRows   []alerts.Rule
+	eventRows  []alerts.Event
+	eventTotal int
+}
+
+func (s *contractAlertStore) GetProject(context.Context, string) (*alerts.Project, error) {
+	return s.project, nil
+}
+
+func (s *contractAlertStore) ListRules(context.Context, alerts.RuleFilters) ([]alerts.Rule, error) {
+	return s.ruleRows, nil
+}
+
+func (s *contractAlertStore) ListEvents(
+	context.Context,
+	alerts.EventFilters,
+) ([]alerts.Event, int, error) {
+	return s.eventRows, s.eventTotal, nil
+}
+
+func (s *contractAlertStore) Stats(context.Context, *string, string) (alerts.Stats, error) {
+	return alerts.Stats{}, nil
+}
+
 func requestContract(handler http.HandlerFunc, path string) *httptest.ResponseRecorder {
 	recorder := httptest.NewRecorder()
 	handler(recorder, httptest.NewRequest(http.MethodGet, path, nil))
+	return recorder
+}
+
+func requestWithHeaders(handler http.HandlerFunc, request *http.Request) *httptest.ResponseRecorder {
+	recorder := httptest.NewRecorder()
+	handler(recorder, request)
 	return recorder
 }
 

@@ -7,9 +7,11 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/api/alerts"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/api/notifications"
 )
 
-func TestPGXIntegrationBLFTestReadsExchangeRatesAndProfile(t *testing.T) {
+func TestPGXIntegrationBLFTestReadsWeek1GETStores(t *testing.T) {
 	databaseURL := os.Getenv("GO_API_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("set GO_API_TEST_DATABASE_URL to a BLF_test connection for integration coverage")
@@ -63,6 +65,61 @@ func TestPGXIntegrationBLFTestReadsExchangeRatesAndProfile(t *testing.T) {
 		}
 	} else if err != pgx.ErrNoRows {
 		t.Errorf("select profile fixture error = %v", err)
+	}
+
+	notificationStore := NewNotificationStore(db)
+	notificationUserID := "1"
+	var notificationFixtureUserID string
+	if err := tx.QueryRow(
+		ctx,
+		"select user_id::text from public.notifications limit 1",
+	).Scan(&notificationFixtureUserID); err == nil {
+		notificationUserID = notificationFixtureUserID
+	} else if err != pgx.ErrNoRows {
+		t.Errorf("select notification fixture error = %v", err)
+	}
+	readFalse := false
+	notificationRows, notificationTotal, err := notificationStore.List(
+		ctx,
+		notificationUserID,
+		notifications.ListParams{Read: &readFalse, Page: 1, PageSize: 2},
+	)
+	if err != nil {
+		t.Errorf("Notification List() error = %v", err)
+	}
+	if notificationTotal < len(notificationRows) {
+		t.Errorf("notification total = %d, rows = %d", notificationTotal, len(notificationRows))
+	}
+	if _, err := notificationStore.UnreadCount(ctx, notificationUserID); err != nil {
+		t.Errorf("Notification UnreadCount() error = %v", err)
+	}
+
+	alertStore := NewAlertStore(db)
+	isActive := true
+	if _, err := alertStore.ListRules(ctx, alerts.RuleFilters{IsActive: &isActive}); err != nil {
+		t.Errorf("Alert ListRules() error = %v", err)
+	}
+	severity := "warning"
+	eventRows, eventTotal, err := alertStore.ListEvents(
+		ctx,
+		alerts.EventFilters{Severity: &severity, Page: 1, PageSize: 2},
+	)
+	if err != nil {
+		t.Errorf("Alert ListEvents() error = %v", err)
+	}
+	if eventTotal < len(eventRows) {
+		t.Errorf("alert event total = %d, rows = %d", eventTotal, len(eventRows))
+	}
+	if _, err := alertStore.Stats(ctx, nil, time.Now().Format("2006-01-02")); err != nil {
+		t.Errorf("Alert Stats() error = %v", err)
+	}
+	var projectID string
+	if err := tx.QueryRow(ctx, "select id::text from public.projects limit 1").Scan(&projectID); err == nil {
+		if _, err := alertStore.GetProject(ctx, projectID); err != nil {
+			t.Errorf("Alert GetProject() error = %v", err)
+		}
+	} else if err != pgx.ErrNoRows {
+		t.Errorf("select project fixture error = %v", err)
 	}
 }
 

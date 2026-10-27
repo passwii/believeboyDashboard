@@ -2,8 +2,10 @@ package httpserver
 
 import (
 	"github.com/go-chi/chi/v5"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/api/alerts"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/exchange_rates"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/health"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/api/notifications"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/profile"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/auth"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/config"
@@ -15,6 +17,8 @@ type OwnedStores struct {
 	HealthReplica  health.Probe
 	HealthRedis    health.RedisHealthProbe
 	ExchangeRates  exchange_rates.Store
+	Notifications  notifications.Store
+	Alerts         alerts.Store
 	Profile        profile.Store
 }
 
@@ -44,6 +48,20 @@ func registerOwnedRoutes(
 		router.With(requireAPIKey).Get("/api/v1/exchange-rates/resolve", exchangeHandler.ResolveExchangeRate)
 		router.With(requireAPIKey).Get("/api/v1/exchange-rates/options", exchangeHandler.ExchangeRateOptions)
 		router.With(requireAPIKey).Get("/api/v1/exchange-rates/{exchange_rate_id}", exchangeHandler.GetExchangeRate)
+	}
+
+	if cfg.OwnedModules["notifications"] {
+		notificationsHandler := notifications.NewHandler(stores.Notifications)
+		router.With(requireAPIKey).Get("/api/v1/notifications", notificationsHandler.List)
+		router.With(requireAPIKey).Get("/api/v1/notifications/unread-count", notificationsHandler.UnreadCount)
+	}
+
+	if cfg.OwnedModules["alerts"] {
+		alertsHandler := alerts.NewHandler(stores.Alerts)
+		router.With(requireAPIKey).Get("/api/v1/alerts/metrics", alertsHandler.Metrics)
+		router.With(requireAPIKey).Get("/api/v1/alerts/rules", alertsHandler.Rules)
+		router.With(requireAPIKey).Get("/api/v1/alerts/events", alertsHandler.Events)
+		router.With(requireAPIKey).Get("/api/v1/alerts/stats", alertsHandler.Stats)
 	}
 
 	if cfg.OwnedModules["profile"] {

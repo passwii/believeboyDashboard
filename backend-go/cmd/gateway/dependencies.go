@@ -27,6 +27,8 @@ func newDependencies(ctx context.Context, cfg config.Config) (*dependencies, err
 
 	needsDatabase := cfg.OwnedModules["health"] ||
 		cfg.OwnedModules["exchange_rates"] ||
+		cfg.OwnedModules["notifications"] ||
+		cfg.OwnedModules["alerts"] ||
 		cfg.OwnedModules["profile"]
 	if needsDatabase {
 		primary, err := store.OpenPool(ctx, cfg.DatabaseURL)
@@ -39,6 +41,12 @@ func newDependencies(ctx context.Context, cfg config.Config) (*dependencies, err
 		deps.Stores.HealthDatabase = primaryDB
 		if cfg.OwnedModules["exchange_rates"] || cfg.OwnedModules["profile"] {
 			deps.Stores.ExchangeRates = store.NewExchangeRateStore(primaryDB)
+		}
+		if cfg.OwnedModules["notifications"] {
+			deps.Stores.Notifications = store.NewNotificationStore(primaryDB)
+		}
+		if cfg.OwnedModules["alerts"] {
+			deps.Stores.Alerts = store.NewAlertStore(primaryDB)
 		}
 		if cfg.OwnedModules["profile"] {
 			deps.Stores.Profile = store.NewProfileStore(primaryDB)

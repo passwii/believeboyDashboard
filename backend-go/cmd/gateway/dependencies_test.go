@@ -17,6 +17,8 @@ func TestNewDependenciesWiresOwnedModules(t *testing.T) {
 		OwnedModules: map[string]bool{
 			"health":         true,
 			"exchange_rates": true,
+			"notifications":  true,
+			"alerts":         true,
 			"profile":        true,
 		},
 	}
@@ -28,6 +30,7 @@ func TestNewDependenciesWiresOwnedModules(t *testing.T) {
 	t.Cleanup(deps.Close)
 
 	if deps.Stores.APIKeys == nil || deps.Stores.ExchangeRates == nil ||
+		deps.Stores.Notifications == nil || deps.Stores.Alerts == nil ||
 		deps.Stores.Profile == nil || deps.Stores.HealthDatabase == nil ||
 		deps.Stores.HealthReplica == nil || deps.Stores.HealthRedis == nil {
 		t.Fatalf("NewRouter stores were not fully wired: %#v", deps.Stores)

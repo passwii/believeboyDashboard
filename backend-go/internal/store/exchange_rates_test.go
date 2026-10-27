@@ -370,6 +370,24 @@ func scanValues(dest, values []any) error {
 				return errors.New("scan value is not pgtype.Numeric")
 			}
 			*target = number
+		case *pgtype.Float8:
+			number, ok := value.(pgtype.Float8)
+			if !ok {
+				return errors.New("scan value is not pgtype.Float8")
+			}
+			*target = number
+		case *pgtype.Int4:
+			number, ok := value.(pgtype.Int4)
+			if !ok {
+				return errors.New("scan value is not pgtype.Int4")
+			}
+			*target = number
+		case *float64:
+			number, ok := value.(float64)
+			if !ok {
+				return errors.New("scan value is not float64")
+			}
+			*target = number
 		case *[]byte:
 			bytes, ok := value.([]byte)
 			if !ok {
