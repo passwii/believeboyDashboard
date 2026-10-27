@@ -1,5 +1,10 @@
 package api
 
+import (
+	"bytes"
+	"encoding/json"
+)
+
 type RoleType string
 
 const (
@@ -24,6 +29,29 @@ type LoginResponse struct {
 	RoleType  RoleType `json:"role_type"`
 	SessionID string   `json:"session_id"`
 	APIKey    string   `json:"api_key"`
+
+	isAdminPresent bool
+}
+
+func (r *LoginResponse) UnmarshalJSON(data []byte) error {
+	type plain LoginResponse
+	var decoded plain
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	raw, present := fields["is_admin"]
+	present = present && !bytes.Equal(bytes.TrimSpace(raw), []byte("null"))
+	*r = LoginResponse(decoded)
+	r.isAdminPresent = present
+	return nil
+}
+
+func (r LoginResponse) HasIsAdmin() bool {
+	return r.isAdminPresent
 }
 
 // The following response types cover the first native shell's read-only cards.

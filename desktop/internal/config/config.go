@@ -46,19 +46,35 @@ type FileSystem interface {
 	Chmod(name string, mode fs.FileMode) error
 }
 
+type ProcessLocker interface {
+	Lock(ctx context.Context, path string) (unlock func() error, err error)
+}
+
 // Store creates and updates the per-user config file.
 type Store struct {
 	dirProvider DirProvider
 	fileSystem  FileSystem
+	locker      ProcessLocker
 	mu          sync.Mutex
 }
 
 func NewStore() *Store {
-	return NewStoreWith(osDirProvider{}, osFileSystem{})
+	return NewStoreWithLocker(osDirProvider{}, osFileSystem{}, NewFileLocker())
 }
 
 func NewStoreWith(dirProvider DirProvider, fileSystem FileSystem) *Store {
-	return &Store{dirProvider: dirProvider, fileSystem: fileSystem}
+	return NewStoreWithLocker(dirProvider, fileSystem, noopLocker{})
+}
+
+func NewStoreWithLocker(
+	dirProvider DirProvider,
+	fileSystem FileSystem,
+	locker ProcessLocker,
+) *Store {
+	if locker == nil {
+		locker = noopLocker{}
+	}
+	return &Store{dirProvider: dirProvider, fileSystem: fileSystem, locker: locker}
 }
 
 // Load returns the persisted config, creating it on first launch. An existing
@@ -75,9 +91,15 @@ func (s *Store) Load(ctx context.Context) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	unlock := lockConfigPath(path)
+	unlock, err := s.acquireLock(ctx, path)
+	if err != nil {
+		return Config{}, err
+	}
 	defer unlock()
+	return s.loadLocked(ctx, path)
+}
 
+func (s *Store) loadLocked(ctx context.Context, path string) (Config, error) {
 	data, err := s.fileSystem.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		cfg, err := s.newConfig()
@@ -140,21 +162,46 @@ func (s *Store) Save(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return err
 	}
-	unlock := lockConfigPath(path)
+	unlock, err := s.acquireLock(ctx, path)
+	if err != nil {
+		return err
+	}
 	defer unlock()
 	return s.saveLocked(ctx, path, cfg)
 }
 
 func (s *Store) UpdateLastRoute(ctx context.Context, route string) (Config, error) {
-	cfg, err := s.Load(ctx)
+	cfg, _, err := s.updateLastRoute(ctx, route)
+	return cfg, err
+}
+
+func (s *Store) updateLastRoute(ctx context.Context, route string) (Config, string, error) {
+	if err := ctx.Err(); err != nil {
+		return Config{}, "", err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	path, err := s.path()
 	if err != nil {
-		return Config{}, err
+		return Config{}, "", err
 	}
+	unlock, err := s.acquireLock(ctx, path)
+	if err != nil {
+		return Config{}, "", err
+	}
+	defer unlock()
+
+	cfg, err := s.loadLocked(ctx, path)
+	if err != nil {
+		return Config{}, "", err
+	}
+	previousRoute := cfg.LastRoute
 	cfg.LastRoute = route
-	if err := s.Save(ctx, cfg); err != nil {
-		return Config{}, err
+	if err := s.saveLocked(ctx, path, cfg); err != nil {
+		return Config{}, "", err
 	}
-	return cfg, nil
+	return cfg, previousRoute, nil
 }
 
 func (s *Store) Path() (string, error) {
@@ -175,6 +222,22 @@ func (s *Store) path() (string, error) {
 		return "", ErrNoConfigDir
 	}
 	return filepath.Join(root, AppDirectoryName, FileName), nil
+}
+
+func (s *Store) acquireLock(ctx context.Context, path string) (func(), error) {
+	unlockPath := lockConfigPath(path)
+	unlockProcess, err := s.locker.Lock(ctx, path)
+	if err != nil {
+		unlockPath()
+		return nil, fmt.Errorf("config: acquire process lock: %w", err)
+	}
+	return func() {
+		if err := unlockProcess(); err != nil {
+			// Unlock errors cannot be acted on after the critical section.
+			_ = err
+		}
+		unlockPath()
+	}, nil
 }
 
 func (s *Store) newConfig() (Config, error) {
@@ -324,4 +387,10 @@ func (osFileSystem) Remove(name string) error {
 
 func (osFileSystem) Chmod(name string, mode fs.FileMode) error {
 	return os.Chmod(name, mode)
+}
+
+type noopLocker struct{}
+
+func (noopLocker) Lock(context.Context, string) (func() error, error) {
+	return func() error { return nil }, nil
 }

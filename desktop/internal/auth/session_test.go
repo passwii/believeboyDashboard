@@ -13,7 +13,7 @@ import (
 	"github.com/egoist/mygo"
 )
 
-func TestSessionStorePersistsAPIKeyAndSessionSeparately(t *testing.T) {
+func TestSessionStorePersistsAPIKeyAndSessionInOneEnvelope(t *testing.T) {
 	secrets := newMemorySecrets()
 	now := time.Date(2026, 10, 27, 9, 30, 0, 0, time.UTC)
 	store := NewStore(NewKeychain(secrets), fixedClock{now: now})
@@ -33,18 +33,24 @@ func TestSessionStorePersistsAPIKeyAndSessionSeparately(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got := string(secrets.values[APIKeySecretName]); got != "secret-api-key" {
-		t.Errorf("api key secret = %q", got)
+	if len(secrets.values) != 1 {
+		t.Errorf("secret count = %d, want one atomic envelope", len(secrets.values))
 	}
-	if strings.Contains(string(secrets.values[SessionSecretName]), "secret-api-key") {
-		t.Error("session JSON contains the API key")
+	if _, ok := secrets.values[APIKeySecretName]; ok {
+		t.Error("legacy api_key item still exists")
 	}
-	var stored Session
-	if err := json.Unmarshal(secrets.values[SessionSecretName], &stored); err != nil {
+	if _, ok := secrets.values[SessionSecretName]; ok {
+		t.Error("legacy session item still exists")
+	}
+	var envelope credentialEnvelope
+	if err := json.Unmarshal(secrets.values[CredentialSecretName], &envelope); err != nil {
 		t.Fatal(err)
 	}
-	if !stored.SavedAt.Equal(now) {
-		t.Errorf("saved_at = %s, want %s", stored.SavedAt, now)
+	if envelope.APIKey != "secret-api-key" {
+		t.Errorf("envelope api_key = %q", envelope.APIKey)
+	}
+	if !envelope.Session.SavedAt.Equal(now) {
+		t.Errorf("saved_at = %s, want %s", envelope.Session.SavedAt, now)
 	}
 
 	loaded, apiKey, err := store.Load(context.Background())
@@ -88,13 +94,58 @@ func TestSessionStoreRejectsIncompleteOrCorruptSession(t *testing.T) {
 
 	t.Run("corrupt", func(t *testing.T) {
 		secrets := newMemorySecrets()
-		secrets.values[SessionSecretName] = []byte(`{`)
-		secrets.values[APIKeySecretName] = []byte("key")
+		secrets.values[CredentialSecretName] = []byte(`{`)
 		store := NewStore(NewKeychain(secrets), fixedClock{})
 		if _, _, err := store.Load(context.Background()); !errors.Is(err, ErrInvalidSession) {
 			t.Errorf("Load() error = %v, want ErrInvalidSession", err)
 		}
 	})
+}
+
+func TestSessionStoreMigratesLegacyTwoItemLayout(t *testing.T) {
+	secrets := newMemorySecrets()
+	session := Session{UserID: "42", SessionID: "session-1", IsActive: true}
+	payload, err := json.Marshal(session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secrets.values[SessionSecretName] = payload
+	secrets.values[APIKeySecretName] = []byte("legacy-key")
+	store := NewStore(NewKeychain(secrets), fixedClock{})
+
+	loaded, apiKey, err := store.Load(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.UserID != "42" || apiKey != "legacy-key" {
+		t.Errorf("legacy load = %#v key=%q", loaded, apiKey)
+	}
+	if _, ok := secrets.values[CredentialSecretName]; !ok {
+		t.Error("legacy load did not write the envelope")
+	}
+	if _, ok := secrets.values[SessionSecretName]; ok {
+		t.Error("legacy session item was not removed")
+	}
+	if _, ok := secrets.values[APIKeySecretName]; ok {
+		t.Error("legacy api_key item was not removed")
+	}
+}
+
+func TestSessionStoreRejectsOversizedEnvelope(t *testing.T) {
+	secrets := newMemorySecrets()
+	store := NewStore(NewKeychain(secrets), fixedClock{})
+	huge := strings.Repeat("x", MaxCredentialSecretSize)
+	err := store.Save(context.Background(), Session{
+		UserID:    "42",
+		Email:     huge,
+		SessionID: "session-1",
+	}, "key")
+	if !errors.Is(err, ErrSessionTooLarge) {
+		t.Fatalf("Save() error = %v, want ErrSessionTooLarge", err)
+	}
+	if len(secrets.values) != 0 {
+		t.Errorf("oversized save wrote secrets: %#v", secrets.values)
+	}
 }
 
 func TestSessionStoreHonorsContextCancellation(t *testing.T) {
@@ -184,7 +235,7 @@ func TestSessionStoreValidatesCredentialsOnSaveAndLoad(t *testing.T) {
 	})
 }
 
-func TestSessionStoreRollsBackAPIKeyWhenSessionWriteFails(t *testing.T) {
+func TestSessionStoreFailedEnvelopeWriteLeavesPreviousEnvelope(t *testing.T) {
 	secrets := newMemorySecrets()
 	store := NewStore(NewKeychain(secrets), fixedClock{})
 	old := Session{UserID: "old-user", SessionID: "old-session", IsActive: true}
@@ -192,7 +243,7 @@ func TestSessionStoreRollsBackAPIKeyWhenSessionWriteFails(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	secrets.failSet[SessionSecretName] = errors.New("session write failed")
+	secrets.failSet[CredentialSecretName] = errors.New("envelope write failed")
 	newSession := Session{UserID: "new-user", SessionID: "new-session", IsActive: true}
 	if err := store.Save(context.Background(), newSession, "new-key"); err == nil {
 		t.Fatal("Save() error = nil, want failure")
@@ -208,14 +259,19 @@ func TestSessionStoreRollsBackAPIKeyWhenSessionWriteFails(t *testing.T) {
 }
 
 func TestSessionStoreConcurrentSavesKeepMatchingPair(t *testing.T) {
-	store := NewStore(NewKeychain(newMemorySecrets()), fixedClock{})
+	secrets := newMemorySecrets()
+	keychain := NewKeychain(secrets)
+	stores := []*Store{
+		NewStore(keychain, fixedClock{}),
+		NewStore(keychain, fixedClock{}),
+	}
 	var wait sync.WaitGroup
 	for i := 0; i < 32; i++ {
 		wait.Add(1)
 		go func(i int) {
 			defer wait.Done()
 			id := strconv.Itoa(i)
-			err := store.Save(context.Background(), Session{
+			err := stores[i%len(stores)].Save(context.Background(), Session{
 				UserID:    id,
 				SessionID: "session-" + id,
 				IsActive:  true,
@@ -227,7 +283,7 @@ func TestSessionStoreConcurrentSavesKeepMatchingPair(t *testing.T) {
 	}
 	wait.Wait()
 
-	session, apiKey, err := store.Load(context.Background())
+	session, apiKey, err := stores[0].Load(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,12 +295,16 @@ func TestSessionStoreConcurrentSavesKeepMatchingPair(t *testing.T) {
 func TestSessionStoreConcurrentSaveAndClearLeavesNoPartialSession(t *testing.T) {
 	for i := 0; i < 50; i++ {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			store := NewStore(NewKeychain(newMemorySecrets()), fixedClock{})
+			keychain := NewKeychain(newMemorySecrets())
+			stores := []*Store{
+				NewStore(keychain, fixedClock{}),
+				NewStore(keychain, fixedClock{}),
+			}
 			var wait sync.WaitGroup
 			wait.Add(2)
 			go func() {
 				defer wait.Done()
-				err := store.Save(context.Background(), Session{
+				err := stores[0].Save(context.Background(), Session{
 					UserID:    "42",
 					SessionID: "session-1",
 					IsActive:  true,
@@ -255,13 +315,13 @@ func TestSessionStoreConcurrentSaveAndClearLeavesNoPartialSession(t *testing.T) 
 			}()
 			go func() {
 				defer wait.Done()
-				if err := store.Clear(context.Background()); err != nil {
+				if err := stores[1].Clear(context.Background()); err != nil {
 					t.Errorf("Clear() error = %v", err)
 				}
 			}()
 			wait.Wait()
 
-			session, apiKey, err := store.Load(context.Background())
+			session, apiKey, err := stores[0].Load(context.Background())
 			if errors.Is(err, ErrNoSession) {
 				return
 			}
@@ -293,6 +353,7 @@ func (c fixedClock) Now() time.Time {
 type memorySecrets struct {
 	values  map[string][]byte
 	failSet map[string]error
+	mu      sync.Mutex
 }
 
 func newMemorySecrets() *memorySecrets {
@@ -303,6 +364,8 @@ func newMemorySecrets() *memorySecrets {
 }
 
 func (m *memorySecrets) Set(key string, value []byte) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if err := m.failSet[key]; err != nil {
 		return err
 	}
@@ -314,6 +377,8 @@ func (m *memorySecrets) Set(key string, value []byte) error {
 }
 
 func (m *memorySecrets) Get(key string) ([]byte, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	value, ok := m.values[key]
 	if !ok {
 		return nil, mygo.ErrSecretNotFound
@@ -322,6 +387,8 @@ func (m *memorySecrets) Get(key string) ([]byte, error) {
 }
 
 func (m *memorySecrets) Delete(key string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	delete(m.values, key)
 	return nil
 }

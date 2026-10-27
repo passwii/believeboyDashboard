@@ -9,8 +9,14 @@ import (
 )
 
 const (
+	CredentialSecretName = "session_credentials"
+
+	// APIKeySecretName and SessionSecretName are the legacy two-item layout.
+	// They remain readable only for one-time migration into the envelope.
 	APIKeySecretName  = "api_key"
 	SessionSecretName = "session"
+
+	MaxCredentialSecretSize = mygo.MaxSecretSize
 )
 
 var (

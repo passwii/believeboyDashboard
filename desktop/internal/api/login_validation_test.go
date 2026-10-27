@@ -2,11 +2,14 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/passwii/believeboyDashboard/desktop/internal/auth"
 )
 
 func TestLoginRejectsInvalidSuccessResponses(t *testing.T) {
@@ -102,6 +105,68 @@ func TestOversizedLoginBodyIsInvalidLoginAndInvalidResponse(t *testing.T) {
 	}
 }
 
+func TestLoginRequiresIsAdminField(t *testing.T) {
+	sessions := newTestSessionStore()
+	body := strings.Replace(loginJSON("secret-api-key", true), `"is_admin":false,`, "", 1)
+	client := newTestClient(t, stubHTTPClient{fn: func(*http.Request) (*http.Response, error) {
+		return jsonResponse(http.StatusOK, body), nil
+	}}, sessions)
+
+	_, err := client.Login(context.Background(), "yawei@example.com", "password")
+	if !errors.Is(err, ErrInvalidLogin) {
+		t.Fatalf("Login() error = %v, want ErrInvalidLogin", err)
+	}
+	if _, _, loadErr := sessions.Load(context.Background()); !errors.Is(loadErr, auth.ErrNoSession) {
+		t.Errorf("missing is_admin persisted a session: %v", loadErr)
+	}
+}
+
+func TestLoginRejectsUnsafeIdentityValuesBeforeSessionSave(t *testing.T) {
+	tests := []struct {
+		name      string
+		overrides map[string]any
+	}{
+		{name: "email control", overrides: map[string]any{"email": "yawei\n@example.com"}},
+		{name: "email internal whitespace", overrides: map[string]any{"email": "yawei @example.com"}},
+		{name: "email leading whitespace", overrides: map[string]any{"email": " yawei@example.com"}},
+		{name: "name control", overrides: map[string]any{"name": "yawei\n"}},
+		{name: "name over 255 runes", overrides: map[string]any{"name": strings.Repeat("营", 256)}},
+		{name: "full name leading whitespace", overrides: map[string]any{"full_name": " 纪亚伟"}},
+		{name: "full name control", overrides: map[string]any{"full_name": "纪亚\r伟"}},
+		{name: "full name over 255 runes", overrides: map[string]any{"full_name": strings.Repeat("营", 256)}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			sessions := newTestSessionStore()
+			client := newTestClient(t, stubHTTPClient{fn: func(*http.Request) (*http.Response, error) {
+				return jsonResponse(http.StatusOK, loginResponseJSON(test.overrides)), nil
+			}}, sessions)
+
+			_, err := client.Login(context.Background(), "yawei@example.com", "password")
+			if !errors.Is(err, ErrInvalidLogin) {
+				t.Fatalf("Login() error = %v, want ErrInvalidLogin", err)
+			}
+			if !errors.Is(err, ErrInvalidIdentityHeader) {
+				t.Errorf("Login() error = %v, want it to match ErrInvalidIdentityHeader", err)
+			}
+			if _, _, loadErr := sessions.Load(context.Background()); !errors.Is(loadErr, auth.ErrNoSession) {
+				t.Errorf("unsafe identity persisted a session: %v", loadErr)
+			}
+		})
+	}
+}
+
+func TestLoginIdentityValidationRejectsInvalidUTF8(t *testing.T) {
+	response := &LoginResponse{
+		Email: string([]byte{0xff, 0xfe}),
+		Name:  "yawei",
+	}
+	err := validateLoginIdentity(response)
+	if !errors.Is(err, ErrInvalidIdentityHeader) {
+		t.Errorf("validateLoginIdentity() error = %v, want ErrInvalidIdentityHeader", err)
+	}
+}
+
 func TestDrainedSuccessBodyStillSucceedsWithinLimit(t *testing.T) {
 	sessions := newTestSessionStore()
 	saveTestSession(t, sessions)
@@ -130,4 +195,26 @@ func loginJSON(apiKey string, active bool) string {
 		"session_id":"session-1",
 		"api_key":"` + apiKey + `"
 	}`
+}
+
+func loginResponseJSON(overrides map[string]any) string {
+	values := map[string]any{
+		"id":         "42",
+		"name":       "yawei",
+		"email":      "yawei@example.com",
+		"full_name":  "纪亚伟",
+		"is_admin":   false,
+		"is_active":  true,
+		"role_type":  "operator",
+		"session_id": "session-1",
+		"api_key":    "secret-api-key",
+	}
+	for key, value := range overrides {
+		values[key] = value
+	}
+	payload, err := json.Marshal(values)
+	if err != nil {
+		panic(err)
+	}
+	return string(payload)
 }

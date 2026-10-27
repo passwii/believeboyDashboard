@@ -132,6 +132,7 @@ func (c *Client) Login(
 			"X-Client-Id": "bb-macos-" + c.clientID,
 		},
 		false,
+		HeaderEncodingBase64,
 	)
 	if err != nil {
 		return nil, err
@@ -155,6 +156,9 @@ func (c *Client) Login(
 	if err := validateLoginResponse(&login); err != nil {
 		return nil, err
 	}
+	if err := validateLoginIdentity(&login); err != nil {
+		return nil, err
+	}
 
 	session := auth.Session{
 		UserID:    login.ID,
@@ -174,7 +178,20 @@ func (c *Client) Login(
 
 // Get sends an authenticated GET request and decodes its JSON response.
 func (c *Client) Get(ctx context.Context, path string, output any) error {
-	return c.doJSON(ctx, http.MethodGet, path, nil, output, nil, true)
+	encoding, err := HeaderPolicyForRoute(http.MethodGet, path)
+	if err != nil {
+		return err
+	}
+	return c.GetWithHeaderPolicy(ctx, path, output, encoding)
+}
+
+func (c *Client) GetWithHeaderPolicy(
+	ctx context.Context,
+	path string,
+	output any,
+	encoding HeaderEncoding,
+) error {
+	return c.doJSON(ctx, http.MethodGet, path, nil, output, nil, true, encoding)
 }
 
 // Do sends an authenticated request and decodes its JSON response.
@@ -185,7 +202,22 @@ func (c *Client) Do(
 	body any,
 	output any,
 ) error {
-	return c.doJSON(ctx, method, path, body, output, nil, true)
+	encoding, err := HeaderPolicyForRoute(method, path)
+	if err != nil {
+		return err
+	}
+	return c.DoWithHeaderPolicy(ctx, method, path, body, output, encoding)
+}
+
+func (c *Client) DoWithHeaderPolicy(
+	ctx context.Context,
+	method string,
+	path string,
+	body any,
+	output any,
+	encoding HeaderEncoding,
+) error {
+	return c.doJSON(ctx, method, path, body, output, nil, true, encoding)
 }
 
 // Logout removes the API key and session from the Keychain. The non-secret
@@ -205,11 +237,12 @@ func (c *Client) doJSON(
 	output any,
 	extraHeaders map[string]string,
 	authenticated bool,
+	encoding HeaderEncoding,
 ) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	response, err := c.doRequest(ctx, method, path, body, extraHeaders, authenticated)
+	response, err := c.doRequest(ctx, method, path, body, extraHeaders, authenticated, encoding)
 	if err != nil {
 		return err
 	}
@@ -235,6 +268,7 @@ func (c *Client) doRequest(
 	body any,
 	extraHeaders map[string]string,
 	authenticated bool,
+	encoding HeaderEncoding,
 ) (*http.Response, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -279,7 +313,7 @@ func (c *Client) doRequest(
 		if err != nil {
 			return nil, fmt.Errorf("api: load session: %w", err)
 		}
-		if err := applySessionHeaders(req.Header, session, apiKey); err != nil {
+		if err := applySessionHeaders(req.Header, session, apiKey, encoding); err != nil {
 			return nil, err
 		}
 	}
@@ -327,12 +361,17 @@ func normalizeBaseURL(raw string) (string, error) {
 	return strings.TrimRight(parsed.String(), "/"), nil
 }
 
-func applySessionHeaders(header http.Header, session auth.Session, apiKey string) error {
-	email, err := encodeIdentityHeader(session.Email, 0)
+func applySessionHeaders(
+	header http.Header,
+	session auth.Session,
+	apiKey string,
+	encoding HeaderEncoding,
+) error {
+	email, err := encodeIdentityForPolicy(session.Email, 0, true, encoding)
 	if err != nil {
 		return fmt.Errorf("%w: email: %v", ErrInvalidIdentityHeader, err)
 	}
-	name, err := encodeIdentityHeader(session.DisplayName(), 255)
+	name, err := encodeIdentityForPolicy(session.DisplayName(), 255, false, encoding)
 	if err != nil {
 		return fmt.Errorf("%w: name/operator: %v", ErrInvalidIdentityHeader, err)
 	}
@@ -346,31 +385,57 @@ func applySessionHeaders(header http.Header, session auth.Session, apiKey string
 	return nil
 }
 
+func encodeIdentityForPolicy(
+	value string,
+	maxRunes int,
+	rejectWhitespace bool,
+	encoding HeaderEncoding,
+) (string, error) {
+	if err := validateIdentityValue(value, maxRunes, rejectWhitespace); err != nil {
+		return "", err
+	}
+	switch encoding {
+	case HeaderEncodingBase64:
+		return base64.StdEncoding.EncodeToString([]byte(value)), nil
+	case HeaderEncodingURL:
+		return strings.ReplaceAll(url.QueryEscape(value), "+", "%20"), nil
+	default:
+		return "", fmt.Errorf("%w: unknown encoding %q", ErrInvalidIdentityHeader, encoding)
+	}
+}
+
 // encodeIdentityHeader uses Base64 because FastAPI's decoder tries Base64
 // before URL decoding. Percent-encoded values can be mistaken for Base64 and
 // never unquoted, so a Base64 payload is the only lossless representation.
 func encodeIdentityHeader(value string, maxRunes int) (string, error) {
+	return encodeIdentityForPolicy(value, maxRunes, false, HeaderEncodingBase64)
+}
+
+func validateIdentityValue(value string, maxRunes int, rejectWhitespace bool) error {
 	if !utf8.ValidString(value) {
-		return "", fmt.Errorf("%w: value is not valid UTF-8", ErrInvalidIdentityHeader)
+		return fmt.Errorf("%w: value is not valid UTF-8", ErrInvalidIdentityHeader)
 	}
 	if maxRunes > 0 && utf8.RuneCountInString(value) > maxRunes {
-		return "", fmt.Errorf("%w: value exceeds %d runes", ErrInvalidIdentityHeader, maxRunes)
+		return fmt.Errorf("%w: value exceeds %d runes", ErrInvalidIdentityHeader, maxRunes)
 	}
 	if strings.TrimSpace(value) != value {
-		return "", fmt.Errorf("%w: leading or trailing whitespace", ErrInvalidIdentityHeader)
+		return fmt.Errorf("%w: leading or trailing whitespace", ErrInvalidIdentityHeader)
 	}
 	for _, char := range value {
 		if unicode.IsControl(char) || unicode.Is(unicode.Zl, char) || unicode.Is(unicode.Zp, char) {
-			return "", fmt.Errorf("%w: control or line-separator character", ErrInvalidIdentityHeader)
+			return fmt.Errorf("%w: control or line-separator character", ErrInvalidIdentityHeader)
+		}
+		if rejectWhitespace && unicode.IsSpace(char) {
+			return fmt.Errorf("%w: whitespace is not allowed", ErrInvalidIdentityHeader)
 		}
 	}
-	return base64.StdEncoding.EncodeToString([]byte(value)), nil
+	return nil
 }
 
 func readBoundedResponse(reader io.Reader) ([]byte, error) {
 	payload, err := io.ReadAll(io.LimitReader(reader, maxJSONBodyBytes+1))
 	if err != nil {
-		return nil, fmt.Errorf("%w: read response body: %v", ErrInvalidResponse, err)
+		return nil, classifyBodyReadError(err)
 	}
 	if len(payload) > maxJSONBodyBytes {
 		return nil, fmt.Errorf("%w: response body exceeds %d bytes", ErrInvalidResponse, maxJSONBodyBytes)
@@ -381,12 +446,19 @@ func readBoundedResponse(reader io.Reader) ([]byte, error) {
 func drainBoundedResponse(reader io.Reader) error {
 	written, err := io.Copy(io.Discard, io.LimitReader(reader, maxJSONBodyBytes+1))
 	if err != nil {
-		return fmt.Errorf("%w: drain response body: %v", ErrInvalidResponse, err)
+		return classifyBodyReadError(err)
 	}
 	if written > maxJSONBodyBytes {
 		return fmt.Errorf("%w: response body exceeds %d bytes", ErrInvalidResponse, maxJSONBodyBytes)
 	}
 	return nil
+}
+
+func classifyBodyReadError(err error) error {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return fmt.Errorf("api: read response body: %w", err)
+	}
+	return &NetworkError{Cause: fmt.Errorf("api: read response body: %w", err)}
 }
 
 func decodeOneJSON(payload []byte, output any) error {
@@ -424,8 +496,26 @@ func validateLoginResponse(response *LoginResponse) error {
 			return &LoginValidationError{Reason: field.name + " is required"}
 		}
 	}
+	if !response.HasIsAdmin() {
+		return &LoginValidationError{Reason: "is_admin is required"}
+	}
 	if !response.IsActive {
 		return &LoginValidationError{Reason: "is_active must be true"}
+	}
+	return nil
+}
+
+func validateLoginIdentity(response *LoginResponse) error {
+	if err := validateIdentityValue(response.Email, 0, true); err != nil {
+		return &LoginValidationError{Reason: "unsafe email", Cause: err}
+	}
+	if err := validateIdentityValue(response.Name, 255, false); err != nil {
+		return &LoginValidationError{Reason: "unsafe name", Cause: err}
+	}
+	if response.FullName != nil {
+		if err := validateIdentityValue(*response.FullName, 255, false); err != nil {
+			return &LoginValidationError{Reason: "unsafe full_name", Cause: err}
+		}
 	}
 	return nil
 }
