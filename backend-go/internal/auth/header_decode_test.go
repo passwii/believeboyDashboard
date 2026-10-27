@@ -43,6 +43,58 @@ func TestDecodeHeaderValueRejectsUnpaddedBase64(t *testing.T) {
 	}
 }
 
+func TestDecodeHeaderValueBase64PaddingParity(t *testing.T) {
+	tests := map[string]string{
+		"YWJjZA=":  "YWJjZA=",
+		"YWJjZA==": "abcd",
+		"YWJjZA":   "YWJjZA",
+		"YQ=":      "YQ=",
+		"YQ==":     "a",
+		"YWI=":     "ab",
+		"YWJj=":    "abc",
+		"TWFu===":  "Man",
+	}
+	for raw, want := range tests {
+		t.Run(raw, func(t *testing.T) {
+			if got := DecodeHeaderValue(raw); got != want {
+				t.Errorf("DecodeHeaderValue(%q) = %q, want %q", raw, got, want)
+			}
+		})
+	}
+}
+
+func TestDecodeHeaderValueBase64PaddingMatrix(t *testing.T) {
+	tests := []struct {
+		raw  string
+		want string
+	}{
+		{raw: "YQ=", want: "YQ="},
+		{raw: "YQ==", want: "a"},
+		{raw: "YQ===", want: "a"},
+		{raw: "YWI=", want: "ab"},
+		{raw: "YWI==", want: "ab"},
+		{raw: "YWJj", want: "abc"},
+		{raw: "YWJj=", want: "abc"},
+		{raw: "YWJj==", want: "abc"},
+		{raw: "YWJj===", want: "abc"},
+		{raw: "YWJjZA==", want: "abcd"},
+		{raw: "YWJjZA===", want: "abcd"},
+		{raw: "YWJjZA====", want: "abcd"},
+		{raw: "TWFu", want: "Man"},
+		{raw: "TWFu=", want: "Man"},
+		{raw: "TWFu==", want: "Man"},
+		{raw: "TWFu===", want: "Man"},
+		{raw: "TWFu====", want: "Man"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.raw, func(t *testing.T) {
+			if got := DecodeHeaderValue(tt.raw); got != tt.want {
+				t.Errorf("DecodeHeaderValue(%q) = %q, want %q", tt.raw, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestDecodeHeaderValueRejectsNonUTF8Base64(t *testing.T) {
 	raw := base64.StdEncoding.EncodeToString([]byte{0xff, 0xfe})
 	want := url.QueryEscape(raw)

@@ -279,6 +279,7 @@ func TestListExchangeRatesPydanticIntegerParityBounds(t *testing.T) {
 		{name: "zero clamps", query: "page=0", status: http.StatusOK, wantPageJSON: "1", wantPage: 1, wantPageSize: 50},
 		{name: "negative clamps", query: "page=-1", status: http.StatusOK, wantPageJSON: "1", wantPage: 1, wantPageSize: 50},
 		{name: "huge positive keeps response text", query: "page=" + hugePositive, status: http.StatusOK, wantPageJSON: hugePositive, wantPage: maxInt, wantPageSize: 50},
+		{name: "huge positive strips leading zeroes", query: "page=000" + hugePositive, status: http.StatusOK, wantPageJSON: hugePositive, wantPage: maxInt, wantPageSize: 50},
 		{name: "huge negative clamps", query: "page=" + hugeNegative, status: http.StatusOK, wantPageJSON: "1", wantPage: 1, wantPageSize: 50},
 		{name: "huge negative page size clamps", query: "page=1&page_size=" + hugeNegative, status: http.StatusOK, wantPageJSON: "1", wantPage: 1, wantPageSize: 1},
 		{name: "huge positive page size clamps", query: "page=1&page_size=" + hugePositive, status: http.StatusOK, wantPageJSON: "1", wantPage: 1, wantPageSize: 200},
@@ -318,6 +319,30 @@ func TestListExchangeRatesPydanticIntegerParityBounds(t *testing.T) {
 					tt.wantPage,
 					tt.wantPageSize,
 				)
+			}
+		})
+	}
+}
+
+func TestListExchangeRatesRejectsInvalidUnderscorePlacement(t *testing.T) {
+	for _, value := range []string{"1_.0", "1._0", "1.0_0", "-_10"} {
+		t.Run(value, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+
+			NewHandler(&fakeStore{}).ListExchangeRates(
+				rec,
+				httptest.NewRequest(
+					http.MethodGet,
+					"/api/v1/exchange-rates?page="+url.QueryEscape(value),
+					nil,
+				),
+			)
+
+			if rec.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("status = %d, want 422; body = %s", rec.Code, rec.Body.String())
+			}
+			if rec.Body.Len() == 0 {
+				t.Fatal("body is empty, want FastAPI validation JSON")
 			}
 		})
 	}

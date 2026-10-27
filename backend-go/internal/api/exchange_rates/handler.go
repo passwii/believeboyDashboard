@@ -405,35 +405,16 @@ func parseIntegerQuery(w http.ResponseWriter, raw string, fallback int, name str
 	raw = strings.TrimSpace(raw)
 	value, err := strconv.Atoi(raw)
 	if err != nil {
-		digits := strings.TrimPrefix(raw, "+")
-		if strings.Contains(digits, "__") ||
-			strings.HasPrefix(digits, "_") ||
-			strings.HasSuffix(digits, "_") {
-			httpapi.WriteJSON(w, http.StatusUnprocessableEntity, integerParsingError(name, raw, "query"))
-			return 0, false
-		}
-		if strings.HasPrefix(digits, "-") {
-			digits = strings.TrimPrefix(digits, "-")
-			digits = strings.ReplaceAll(digits, "_", "")
-			if !isDigits(digits) {
-				httpapi.WriteJSON(w, http.StatusUnprocessableEntity, integerParsingError(name, raw, "query"))
-				return 0, false
-			}
-			if parsed, parseErr := strconv.Atoi(digits); parseErr == nil {
-				return -parsed, true
-			}
-			return -maxInt, true
-		}
-		digits = strings.ReplaceAll(digits, "_", "")
-		if dot := strings.IndexByte(digits, '.'); dot >= 0 {
-			fraction := digits[dot+1:]
-			if fraction != "" && strings.Trim(fraction, "0") == "" {
-				digits = digits[:dot]
-			}
-		}
-		if isDigits(digits) {
-			if parsed, parseErr := strconv.Atoi(digits); parseErr == nil {
+		normalized, negative, ok := normalizeIntegerText(raw)
+		if ok {
+			if parsed, parseErr := strconv.Atoi(normalized); parseErr == nil {
+				if negative {
+					return -parsed, true
+				}
 				return parsed, true
+			}
+			if negative {
+				return -maxInt, true
 			}
 			return maxInt, true
 		}
@@ -462,17 +443,72 @@ func pageResponseValue(raw string, page int) pageValue {
 	if raw == "" || strings.HasPrefix(raw, "-") {
 		return pageValue{value: page}
 	}
-	digits := strings.ReplaceAll(raw, "_", "")
-	if dot := strings.IndexByte(digits, '.'); dot >= 0 {
-		fraction := digits[dot+1:]
-		if fraction != "" && strings.Trim(fraction, "0") == "" {
-			digits = digits[:dot]
-		}
+	digits, _, ok := normalizeIntegerText(raw)
+	if !ok {
+		return pageValue{value: page}
 	}
 	if isDigits(digits) && page == maxInt {
-		return pageValue{rawValue: digits}
+		return pageValue{rawValue: strings.TrimLeft(digits, "0")}
 	}
 	return pageValue{value: page}
+}
+
+// normalizeIntegerText mirrors the Pydantic integer grammar observed through
+// FastAPI: optional sign, single underscore separators between digits, and an
+// optional all-zero fractional part.
+func normalizeIntegerText(raw string) (string, bool, bool) {
+	text := strings.TrimSpace(raw)
+	negative := false
+	if strings.HasPrefix(text, "+") {
+		text = text[1:]
+	} else if strings.HasPrefix(text, "-") {
+		negative = true
+		text = text[1:]
+	}
+	if text == "" || strings.HasPrefix(text, "_") || strings.HasSuffix(text, "_") {
+		return "", false, false
+	}
+
+	sign := ""
+	if negative {
+		sign = "-"
+	}
+	if dot := strings.IndexByte(text, '.'); dot >= 0 {
+		whole := text[:dot]
+		fraction := text[dot+1:]
+		if !validUnderscoreDigits(whole) ||
+			fraction == "" ||
+			strings.Contains(fraction, "_") ||
+			strings.Trim(fraction, "0") != "" {
+			return "", false, false
+		}
+		text = whole
+	}
+	if !validUnderscoreDigits(text) {
+		return "", false, false
+	}
+	return sign + strings.ReplaceAll(text, "_", ""), negative, true
+}
+
+func validUnderscoreDigits(value string) bool {
+	if value == "" {
+		return false
+	}
+	previousUnderscore := false
+	for i, char := range value {
+		if char == '_' {
+			if i == 0 || i == len(value)-1 || previousUnderscore {
+				return false
+			}
+			previousUnderscore = true
+			continue
+		}
+		if char < '0' || char > '9' {
+			return false
+		}
+		previousUnderscore = false
+	}
+	return true
 }
 
 func lastQueryValue(query url.Values, key string) string {

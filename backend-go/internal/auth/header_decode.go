@@ -46,7 +46,7 @@ func pythonBase64Decode(value string) ([]byte, bool) {
 	}
 	hasPadding := strings.Contains(filtered, "=")
 	dataCharacters := len(strings.TrimRight(filtered, "="))
-	if dataCharacters%4 == 1 || (!hasPadding && dataCharacters%4 != 0) {
+	if dataCharacters%4 == 1 {
 		return nil, false
 	}
 	firstPadding := strings.IndexByte(filtered, '=')
@@ -56,6 +56,18 @@ func pythonBase64Decode(value string) ([]byte, bool) {
 	unpadded := filtered[:firstPadding]
 	if unpadded == "" {
 		return []byte{}, true
+	}
+	padding := len(filtered) - firstPadding
+	remainder := len(unpadded) % 4
+	requiredPadding := 0
+	if remainder != 0 {
+		requiredPadding = 4 - remainder
+	}
+	if padding < requiredPadding {
+		return nil, false
+	}
+	if !hasPadding && padding == 0 && remainder != 0 {
+		return nil, false
 	}
 	padded := unpadded
 	for len(padded)%4 != 0 {
