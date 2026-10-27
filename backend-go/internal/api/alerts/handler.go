@@ -270,10 +270,18 @@ func (h *Handler) Stats(w http.ResponseWriter, r *http.Request) {
 		httpapi.WriteValidationErrors(w, []httpapi.ValidationError{*projectErr})
 		return
 	}
+	isAdmin, adminErr := adminHeader(r)
+	if adminErr != nil {
+		httpapi.WriteValidationErrors(w, []httpapi.ValidationError{*adminErr})
+		return
+	}
 	var projectID *string
 	if projectParam.Present {
 		value := projectParam.Canonical
 		projectID = &value
+		if !h.requireProjectAccess(w, r, value, isAdmin) {
+			return
+		}
 	}
 	stats, err := h.store.Stats(
 		r.Context(),

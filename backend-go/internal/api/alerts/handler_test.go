@@ -347,8 +347,11 @@ func TestEventsChecksProjectAccess(t *testing.T) {
 }
 
 func TestStatsReturnsEmptyCountsAndProjectFilter(t *testing.T) {
-	store := &fakeStore{}
+	store := &fakeStore{
+		project: &Project{ProjectOperator: stringPointer("operator-a")},
+	}
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/alerts/stats?project_id=8", nil)
+	req.Header.Set("X-Operator", "operator-a")
 	rec := httptest.NewRecorder()
 
 	NewHandler(store).Stats(rec, req)
@@ -443,6 +446,75 @@ func assertResponse(t *testing.T, rec *httptest.ResponseRecorder, status int, bo
 	}
 	if got := rec.Body.String(); got != body {
 		t.Errorf("body = %s, want %s", got, body)
+	}
+}
+
+func TestStatsChecksProjectAccessBeforeAggregating(t *testing.T) {
+	tests := []struct {
+		name       string
+		operator   string
+		isAdmin    string
+		project    *Project
+		wantStatus int
+		wantBody   string
+	}{
+		{
+			name:       "owner",
+			operator:   "operator-a",
+			project:    &Project{ProjectOperator: stringPointer("operator-a")},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "assistant owner",
+			operator:   "operator-b",
+			project:    &Project{AssistantOperator: stringPointer("operator-b")},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "admin",
+			isAdmin:    "true",
+			project:    &Project{ProjectOperator: stringPointer("someone-else")},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "unauthorized",
+			operator:   "operator-a",
+			project:    &Project{ProjectOperator: stringPointer("operator-b")},
+			wantStatus: http.StatusForbidden,
+			wantBody:   `{"detail":"无权限访问该项目"}`,
+		},
+		{
+			name:       "missing",
+			operator:   "operator-a",
+			project:    nil,
+			wantStatus: http.StatusNotFound,
+			wantBody:   `{"detail":"项目不存在"}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := &fakeStore{project: tt.project}
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/alerts/stats?project_id=8", nil)
+			if tt.operator != "" {
+				req.Header.Set("X-Operator", tt.operator)
+			}
+			if tt.isAdmin != "" {
+				req.Header.Set("X-Is-Admin", tt.isAdmin)
+			}
+			rec := httptest.NewRecorder()
+
+			NewHandler(store).Stats(rec, req)
+
+			if rec.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d; body = %s", rec.Code, tt.wantStatus, rec.Body.String())
+			}
+			if tt.wantBody != "" && rec.Body.String() != tt.wantBody {
+				t.Errorf("body = %s, want %s", rec.Body.String(), tt.wantBody)
+			}
+			if tt.wantStatus != http.StatusOK && store.statsProjectID != nil {
+				t.Error("Stats() ran despite denied project access")
+			}
+		})
 	}
 }
 

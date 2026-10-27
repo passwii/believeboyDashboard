@@ -256,21 +256,18 @@ func TestHomeRefreshPassesSelectedProjectToLoader(t *testing.T) {
 	loader.projectsVal = nil
 	h := newHomeHarness(t, loader, testSession())
 	h.waitLoaded(t)
-	if loader.loads != 0 {
-		t.Fatalf("home loader ran before project selection: %v", loader.loadIDs)
-	}
 	h.page.SelectProject(7)
 	h.waitLoaded(t)
 
 	loader.mu.Lock()
 	ids := append([]int(nil), loader.loadIDs...)
 	loader.mu.Unlock()
-	if len(ids) != 1 || ids[0] != 7 {
-		t.Fatalf("loader project IDs = %v, want only 7", ids)
+	if len(ids) != 2 || ids[0] != 0 || ids[1] != 7 {
+		t.Fatalf("loader project IDs = %v, want [0 7]", ids)
 	}
 }
 
-func TestHomeWaitsForProjectsBeforeLoading(t *testing.T) {
+func TestHomeLoadsUnscopedCardsWhileProjectsLoad(t *testing.T) {
 	releaseProjects := make(chan struct{})
 	started := make(chan struct{}, 1)
 	loader := fixtureLoader()
@@ -282,20 +279,17 @@ func TestHomeWaitsForProjectsBeforeLoading(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("project load did not start")
 	}
-	if loader.loads != 0 {
-		t.Fatalf("home loader ran before project selection: %v", loader.loadIDs)
-	}
 	close(releaseProjects)
 	h.waitLoaded(t)
 	loader.mu.Lock()
 	ids := append([]int(nil), loader.loadIDs...)
 	loader.mu.Unlock()
-	if len(ids) != 1 || ids[0] != 1 {
-		t.Fatalf("loader project IDs = %v, want [1]", ids)
+	if len(ids) != 2 || ids[0] != 0 || ids[1] != 1 {
+		t.Fatalf("loader project IDs = %v, want [0 1]", ids)
 	}
 }
 
-func TestHomeProjectFailureSkipsAlertAndHomeLoad(t *testing.T) {
+func TestHomeProjectFailureKeepsNonProjectCards(t *testing.T) {
 	for _, test := range []struct {
 		name      string
 		projects  []api.Project
@@ -310,14 +304,19 @@ func TestHomeProjectFailureSkipsAlertAndHomeLoad(t *testing.T) {
 			loader.projectsErr = test.loadError
 			h := newHomeHarness(t, loader, testSession())
 			h.waitLoaded(t)
-			if loader.loads != 0 {
-				t.Fatalf("home loader ran without a project: %v", loader.loadIDs)
+			if loader.loads != 1 || loader.loadIDs[0] != 0 {
+				t.Fatalf("home loader calls = %v, want one unscoped load", loader.loadIDs)
 			}
 			if h.page.ProjectID() != 0 {
 				t.Fatalf("selected project = %d, want none", h.page.ProjectID())
 			}
 			if !h.tt.HasText("告警未加载") {
 				t.Fatalf("alert state should be absent: %q", h.tt.Texts())
+			}
+			for _, text := range []string{"正常", "12", "林晓"} {
+				if !h.tt.HasText(text) {
+					t.Fatalf("non-project card %q missing: %q", text, h.tt.Texts())
+				}
 			}
 			if test.loadError != nil && !h.tt.HasText("项目列表加载失败") {
 				t.Fatalf("project error missing: %q", h.tt.Texts())

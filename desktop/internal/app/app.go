@@ -286,6 +286,7 @@ func (a *App) resetHistory(route string) {
 }
 
 func (a *App) Close() {
+	a.authStoreMu.Lock()
 	a.mu.Lock()
 	a.closed = true
 	if a.refreshCancel != nil {
@@ -295,6 +296,7 @@ func (a *App) Close() {
 	login := a.loginPage
 	home := a.homePage
 	a.mu.Unlock()
+	a.authStoreMu.Unlock()
 	if login != nil {
 		login.Close()
 	}
@@ -408,6 +410,10 @@ func (a *App) loginAttempt(ctx context.Context, email, password string) (*api.Lo
 
 func (a *App) completeLogin(session auth.Session, apiKey string) {
 	a.mu.Lock()
+	if a.closed {
+		a.mu.Unlock()
+		return
+	}
 	a.logoutError = ""
 	a.sessionStatus = ""
 	a.session = session

@@ -655,6 +655,20 @@ func TestSavedSessionRefreshAfterCloseDoesNothing(t *testing.T) {
 	}
 }
 
+func TestCompleteLoginAfterCloseDoesNotRestoreSession(t *testing.T) {
+	h := newAppHarness(t, nil)
+	h.app.Close()
+
+	h.app.completeLogin(auth.Session{
+		UserID: "late", Email: "late@example.com", Name: "late",
+		SessionID: "late-session", IsActive: true,
+	}, "late-key")
+
+	if h.app.sessionActive() {
+		t.Fatal("closed app restored a late login session")
+	}
+}
+
 func TestLogoutThenLoginCannotBackIntoPriorAccountHistory(t *testing.T) {
 	h := newAppHarness(t, testSession())
 	h.waitFor(t, func() bool { return h.tt.HasText("运营总览") })
