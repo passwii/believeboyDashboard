@@ -180,6 +180,7 @@ func TestLoginFitsMinimumWindow(t *testing.T) {
 	h := newTestLogin(t, nil)
 	h.tt.SetSize(DefaultWidth, DefaultHeight)
 	h.tt.SetSize(MinWidth, MinHeight)
+	h.tt.Frame()
 	for _, text := range []string{
 		"BelieveBoy",
 		"登录工作台",
@@ -203,7 +204,7 @@ func TestLoginFitsMinimumWindow(t *testing.T) {
 	if form.X <= wantSplit || form.X > wantSplit+120 {
 		t.Errorf("form starts at %.0f, want it after the 56/44 split at %.0f", form.X, wantSplit)
 	}
-	input := h.page.emailInput.Bounds(h.context)
+	input := h.page.emailBounds
 	if input.X < wantSplit || input.X+input.W > MinWidth-64 {
 		t.Errorf("email input bounds = %+v, want it inside the right panel", input)
 	}
@@ -497,6 +498,43 @@ func TestLoginSuccessWithoutRouterShowsFailure(t *testing.T) {
 	}
 }
 
+func TestLoginSuccessUsesContextRouterFallback(t *testing.T) {
+	router := ui.NewRouter("/")
+	login := func(context.Context, string, string) (*api.LoginResponse, error) {
+		return &api.LoginResponse{}, nil
+	}
+	mainWork := make(chan func(), 8)
+	page := NewLoginPage(LoginOptions{
+		Login:  login,
+		Update: func(fn func()) { mainWork <- fn },
+		// Deliberately nil: the page must use Context.Router().
+		Router: nil,
+	})
+	tt := ui.NewTester(func(c *ui.Context) {
+		router.View(c, func(*ui.Route) {
+			page.View(c)
+		})
+	}, DefaultWidth, DefaultHeight)
+	tt.Click("邮箱")
+	tt.Type("user@example.com")
+	tt.Click("密码")
+	tt.Type("secret")
+	tt.Click("登录")
+	select {
+	case fn := <-mainWork:
+		fn()
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for context-router login result")
+	}
+	tt.Frame()
+	if got := router.Path(); got != HomeRoute {
+		t.Errorf("context router path = %q, want %q", got, HomeRoute)
+	}
+	if page.LastError() != nil {
+		t.Errorf("context router fallback left error %v", page.LastError())
+	}
+}
+
 func TestLoginSessionPersistFailureMapsToStableMessage(t *testing.T) {
 	h := newTestLogin(t, func(context.Context, string, string) (*api.LoginResponse, error) {
 		return nil, fmt.Errorf("persist: %w", api.ErrSessionPersist)
@@ -706,6 +744,54 @@ func TestLoginEditsClearStaleCredentialError(t *testing.T) {
 	}
 }
 
+func TestLoginEmailEditClearsCredential401(t *testing.T) {
+	h := newTestLogin(t, func(context.Context, string, string) (*api.LoginResponse, error) {
+		return nil, &api.HTTPError{StatusCode: http.StatusUnauthorized}
+	})
+	h.enterCredentials(t, "user@example.com", "wrong")
+	h.tt.Click("登录")
+	h.waitForResult(t)
+	if h.page.passwordErr != UnauthorizedMessage {
+		t.Fatalf("password error = %q, want credential error", h.page.passwordErr)
+	}
+
+	h.tt.Click("邮箱")
+	h.tt.Type("!")
+	if h.page.passwordErr != "" {
+		t.Errorf("email edit left credential error %q", h.page.passwordErr)
+	}
+	if h.page.LastError() != nil {
+		t.Errorf("email edit left last error %v", h.page.LastError())
+	}
+	if h.tt.HasText(UnauthorizedMessage) {
+		t.Errorf("email edit left credential banner: %q", h.tt.Texts())
+	}
+}
+
+func TestLoginPasswordEditClearsCredential401(t *testing.T) {
+	h := newTestLogin(t, func(context.Context, string, string) (*api.LoginResponse, error) {
+		return nil, &api.HTTPError{StatusCode: http.StatusUnauthorized}
+	})
+	h.enterCredentials(t, "user@example.com", "wrong")
+	h.tt.Click("登录")
+	h.waitForResult(t)
+	if h.page.passwordErr != UnauthorizedMessage {
+		t.Fatalf("password error = %q, want credential error", h.page.passwordErr)
+	}
+
+	h.tt.Click("密码")
+	h.tt.Type("!")
+	if h.page.passwordErr != "" {
+		t.Errorf("password edit left credential error %q", h.page.passwordErr)
+	}
+	if h.page.LastError() != nil {
+		t.Errorf("password edit left last error %v", h.page.LastError())
+	}
+	if h.tt.HasText(UnauthorizedMessage) {
+		t.Errorf("password edit left credential banner: %q", h.tt.Texts())
+	}
+}
+
 func TestLoginEditsClearBanners(t *testing.T) {
 	tests := []struct {
 		name string
@@ -775,14 +861,15 @@ func TestLoginRejectsInvalidEmailBeforeCallingLogin(t *testing.T) {
 
 func TestLoginDoesNotExposePassword(t *testing.T) {
 	h := newTestLogin(t, nil)
+	secret := "correct-horse-" + "battery-staple-9f8e7d6c"
 	h.tt.Click("密码")
-	h.tt.Type("super-secret")
+	h.tt.Type(secret)
 	for _, text := range h.tt.Texts() {
-		if strings.Contains(text, "super-secret") {
+		if strings.Contains(text, secret) {
 			t.Fatalf("rendered password text %q", text)
 		}
 	}
-	if h.page.Password() != "super-secret" {
+	if h.page.Password() != secret {
 		t.Error("password input did not keep its value for submission")
 	}
 	if err := h.tt.Click("邮箱"); err != nil {
@@ -806,9 +893,6 @@ func TestLoginAccessibleNamesAvailableToTester(t *testing.T) {
 	// Tester v0.6.4 has no exported accessibility-tree API. These strongest
 	// available checks cover discoverable labels and focusable controls; the
 	// Password role and hidden value require a manual VoiceOver check.
-	if h.tt.HasText("super-secret") {
-		t.Error("password text leaked into the rendered frame")
-	}
 }
 
 func TestLoginSpinnerAccessibleName(t *testing.T) {

@@ -67,20 +67,22 @@ type loginResult struct {
 // LoginPage owns the state of the native login screen. Keep it on the main
 // thread: the login goroutine only queues data for the next view build.
 type LoginPage struct {
-	email       string
-	password    string
-	emailErr    string
-	passwordErr string
-	banner      string
-	inFlight    bool
-	login       LoginFunc
-	update      func(func())
-	router      *ui.Router
+	email         string
+	password      string
+	emailErr      string
+	passwordErr   string
+	banner        string
+	inFlight      bool
+	login         LoginFunc
+	update        func(func())
+	router        *ui.Router
+	pendingRoute  string
+	pendingRouter *ui.Router
 
-	emailInput        ui.Handle
-	passwordInput     ui.Handle
 	focusEmail        bool
 	focusPassword     bool
+	credentialError   bool
+	emailBounds       ui.Rect
 	results           []loginResult
 	requestGeneration uint64
 	closed            bool
@@ -119,6 +121,7 @@ func (p *LoginPage) View(c *ui.Context) {
 	t := c.Theme()
 	width, _ := c.Size()
 	ui.Row(c).Fill().Children(func() {
+		p.buildPendingNavigation(c)
 		components.BrandPanel(c, width)
 		ui.Column(c).
 			Grow(1).
@@ -150,10 +153,13 @@ func (p *LoginPage) View(c *ui.Context) {
 								input := ui.TextInput(c, &p.email).
 									Placeholder("name@example.com").
 									InputMethod(false).
-									Disabled(p.inFlight).
-									Bind(&p.emailInput)
+									Disabled(p.inFlight)
+								p.emailBounds = input.Bounds()
 								if input.Changed() {
 									p.emailErr, p.banner, p.lastErr = "", "", nil
+									if p.credentialError {
+										p.passwordErr, p.credentialError = "", false
+									}
 								}
 								if focusEmail {
 									input.Focus()
@@ -165,9 +171,9 @@ func (p *LoginPage) View(c *ui.Context) {
 								input := ui.TextInput(c, &p.password).
 									Password().
 									Disabled(p.inFlight).
-									Bind(&p.passwordInput).
 									OnChange(func() {
 										p.passwordErr, p.banner, p.lastErr = "", "", nil
+										p.credentialError = false
 									}).
 									OnTextKey(func(key ui.TextKey) bool {
 										if key.Key != ui.KeyEnter || key.Mods != 0 {
@@ -230,6 +236,7 @@ func (p *LoginPage) submit(c *ui.Context) {
 	p.banner = ""
 	p.emailErr = ""
 	p.passwordErr = ""
+	p.credentialError = false
 
 	email := strings.TrimSpace(p.email)
 	p.email = email
@@ -286,6 +293,7 @@ func (p *LoginPage) Close() {
 	p.inFlight = false
 	p.requestGeneration++
 	p.results = nil
+	p.pendingRoute, p.pendingRouter = "", nil
 }
 
 func (p *LoginPage) focusInvalidField(c *ui.Context, emailInvalid, passwordInvalid bool) {
@@ -321,6 +329,7 @@ func (p *LoginPage) applyResult(c *ui.Context, result loginResult) {
 		p.banner = message
 		if errors.Is(result.err, api.ErrUnauthorized) {
 			p.passwordErr = message
+			p.credentialError = true
 			p.focusPassword = true
 		}
 		return
@@ -334,11 +343,30 @@ func (p *LoginPage) applyResult(c *ui.Context, result loginResult) {
 	}
 	if router != nil {
 		p.lastErr = nil
-		router.Replace(HomeRoute)
+		p.pendingRoute = HomeRoute
+		p.pendingRouter = router
 		return
 	}
 	p.banner = NavigationUnavailableMessage
 	p.lastErr = ErrNavigationUnavailable
+}
+
+func (p *LoginPage) buildPendingNavigation(c *ui.Context) {
+	if p.pendingRoute == "" {
+		return
+	}
+	route, router := p.pendingRoute, p.pendingRouter
+	p.pendingRoute, p.pendingRouter = "", nil
+	ui.Box(c).
+		Key("login-navigation").
+		Size(0, 0).
+		Role(ui.RoleNone).
+		SetChanged().
+		OnChange(func() {
+			if router != nil && !p.closed {
+				router.Replace(route)
+			}
+		})
 }
 
 func loginErrorMessage(err error) string {
