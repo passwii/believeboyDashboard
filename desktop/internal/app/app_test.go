@@ -1,0 +1,294 @@
+package app
+
+import (
+	"context"
+	"errors"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/egoist/mygo/ui"
+	"github.com/passwii/believeboyDashboard/desktop/internal/api"
+	"github.com/passwii/believeboyDashboard/desktop/internal/auth"
+	"github.com/passwii/believeboyDashboard/desktop/internal/pages"
+)
+
+type testSessions struct {
+	mu      sync.Mutex
+	session auth.Session
+	err     error
+	cleared int
+}
+
+func (s *testSessions) Load(context.Context) (auth.Session, string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.err != nil {
+		return auth.Session{}, "", s.err
+	}
+	return s.session, "api-key", nil
+}
+
+func (s *testSessions) Save(context.Context, auth.Session, string) error { return nil }
+
+func (s *testSessions) Clear(context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cleared++
+	s.err = auth.ErrNoSession
+	return nil
+}
+
+type testHomeLoader struct {
+	mu    sync.Mutex
+	calls int
+}
+
+func (l *testHomeLoader) Load(context.Context) pages.HomeData {
+	l.mu.Lock()
+	l.calls++
+	l.mu.Unlock()
+	profile := "林晓"
+	return pages.HomeData{
+		Health:   pages.LoadHealth(api.HealthResponse{Status: "ok", Database: "ok", Redis: "ok"}, nil),
+		Unread:   pages.LoadUnread(api.UnreadCountResponse{Count: 3}, nil),
+		Alerts:   pages.LoadAlerts(api.AlertStats{TotalActive: 1}, nil),
+		Profile:  pages.LoadProfile(api.Profile{Name: "linxiao", FullName: &profile, RoleType: api.RoleAdmin}, nil),
+		LoadedAt: time.Now(),
+	}
+}
+
+func (l *testHomeLoader) Calls() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.calls
+}
+
+func testProjects(context.Context, int) ([]api.Project, error) {
+	return []api.Project{{ID: 1, Name: "北美站"}}, nil
+}
+
+type appHarness struct {
+	app      *App
+	router   *ui.Router
+	tt       *ui.Tester
+	context  *ui.Context
+	mainWork chan func()
+	loader   *testHomeLoader
+	sessions *testSessions
+	loginFn  pages.LoginFunc
+}
+
+func newAppHarness(t *testing.T, session *auth.Session) *appHarness {
+	t.Helper()
+	router := ui.NewRouter("/login")
+	if session != nil {
+		router.Replace(pages.HomeRoute)
+	}
+	sessions := &testSessions{}
+	if session != nil {
+		sessions.session = *session
+	} else {
+		sessions.err = auth.ErrNoSession
+	}
+	loader := &testHomeLoader{}
+	h := &appHarness{
+		router: router, mainWork: make(chan func(), 32), loader: loader, sessions: sessions,
+	}
+	var initial *auth.Session
+	if session != nil {
+		copy := *session
+		initial = &copy
+	}
+	loginFn := func(context.Context, string, string) (*api.LoginResponse, error) {
+		name := "林晓"
+		return &api.LoginResponse{
+			ID: "42", Name: "linxiao", Email: "li@example.com",
+			FullName: &name, RoleType: api.RoleAdmin, IsAdmin: true,
+			IsActive: true, SessionID: "session-1", APIKey: "api-key",
+		}, nil
+	}
+	h.loginFn = loginFn
+	h.app = New(Options{
+		Router:         router,
+		Sessions:       sessions,
+		InitialSession: initial,
+		Login:          loginFn,
+		HomeLoader:     loader.Load,
+		ProjectLoader:  testProjects,
+		Logout:         sessions.Clear,
+		Quit:           func() {},
+	})
+	h.app.SetUpdate(func(fn func()) { h.mainWork <- fn })
+	h.tt = ui.NewTester(func(c *ui.Context) {
+		h.context = c
+		h.app.View(c)
+	}, pages.DefaultWidth, pages.DefaultHeight)
+	return h
+}
+
+func (h *appHarness) login(email, password string) {
+	h.tt.Click("邮箱")
+	h.tt.Type(email)
+	h.tt.Click("密码")
+	h.tt.Type(password)
+	h.tt.Key(0, ui.KeyEnter)
+}
+
+func (h *appHarness) clickSidebar(label, id string) {
+	h.tt.Click(label)
+	h.tt.Frame()
+}
+
+func (h *appHarness) waitForLogoutError(t *testing.T) {
+	t.Helper()
+	deadline := time.After(time.Second)
+	for !h.tt.HasText("退出登录失败") {
+		select {
+		case fn := <-h.mainWork:
+			fn()
+			h.tt.Frame()
+		case <-deadline:
+			t.Fatalf("timed out; texts=%q", h.tt.Texts())
+		}
+	}
+}
+
+func (h *appHarness) waitFor(t *testing.T, predicate func() bool) {
+	t.Helper()
+	deadline := time.After(time.Second)
+	for !predicate() {
+		select {
+		case fn := <-h.mainWork:
+			fn()
+			h.tt.Frame()
+		case <-deadline:
+			t.Fatalf("timed out; route=%s texts=%q", h.router.Path(), h.tt.Texts())
+		}
+	}
+}
+
+func testSession() *auth.Session {
+	name := "林晓"
+	return &auth.Session{
+		UserID: "42", Email: "li@example.com", Name: "linxiao",
+		FullName: &name, RoleType: "admin",
+	}
+}
+
+func TestAppShowsLoginWithoutSession(t *testing.T) {
+	h := newAppHarness(t, nil)
+	if h.router.Path() != "/login" || !h.tt.HasText("登录工作台") {
+		t.Fatalf("route=%q texts=%q", h.router.Path(), h.tt.Texts())
+	}
+}
+
+func TestAppShowsHomeWithSession(t *testing.T) {
+	h := newAppHarness(t, testSession())
+	h.waitFor(t, func() bool { return h.tt.HasText("运营总览") })
+	if !h.tt.HasText("未读通知") || !h.tt.HasText("活跃告警") {
+		t.Fatalf("home cards missing: %q", h.tt.Texts())
+	}
+}
+
+func TestAppUnknownRouteShowsNativeNotFound(t *testing.T) {
+	h := newAppHarness(t, testSession())
+	h.waitFor(t, func() bool { return h.tt.HasText("运营总览") })
+	h.router.Replace("/missing")
+	h.tt.Frame()
+	if !h.tt.HasText("页面不存在") {
+		t.Fatalf("missing route error: %q", h.tt.Texts())
+	}
+	if err := h.tt.Click("返回首页"); err != nil {
+		t.Fatal(err)
+	}
+	if h.router.Path() != pages.HomeRoute {
+		t.Fatalf("route = %q, want home", h.router.Path())
+	}
+}
+
+func TestAppLoginEstablishesSessionBeforeNavigatingHome(t *testing.T) {
+	h := newAppHarness(t, nil)
+	h.login("li@example.com", "secret")
+	h.waitFor(t, func() bool { return h.router.Path() == pages.HomeRoute })
+	h.waitFor(t, func() bool { return h.tt.HasText("运营总览") })
+	if !h.tt.HasText("未读通知") {
+		t.Fatalf("home cards missing after login: %q", h.tt.Texts())
+	}
+}
+
+func TestAppNavigatesToNativeSettingsPlaceholder(t *testing.T) {
+	h := newAppHarness(t, testSession())
+	h.waitFor(t, func() bool { return h.tt.HasText("运营总览") })
+	if err := h.tt.Click("系统设置"); err != nil {
+		t.Fatal(err)
+	}
+	h.tt.Frame()
+	if h.router.Path() != "/settings" {
+		t.Fatalf("route = %q, want /settings", h.router.Path())
+	}
+	if !h.tt.HasText("功能建设中") || !h.tt.HasText("系统设置") {
+		t.Fatalf("placeholder missing: %q", h.tt.Texts())
+	}
+	if !h.tt.Focused("系统设置") {
+		t.Error("navigation did not keep focus on the selected sidebar item")
+	}
+	if opened := h.tt.OpenedURLs(); len(opened) != 0 {
+		t.Errorf("placeholder opened web URLs: %q", opened)
+	}
+}
+
+func TestAppShortcuts(t *testing.T) {
+	h := newAppHarness(t, testSession())
+	h.waitFor(t, func() bool { return h.tt.HasText("运营总览") })
+	before := h.loader.Calls()
+
+	h.tt.Key(ui.Cmd, ui.KeyR)
+	h.waitFor(t, func() bool { return h.loader.Calls() > before })
+
+	h.tt.Key(ui.Cmd, ui.KeyComma)
+	if h.router.Path() != "/settings" {
+		t.Fatalf("Cmd+, route = %q", h.router.Path())
+	}
+
+	quit := 0
+	h.app.SetQuit(func() { quit++ })
+	h.tt.Key(ui.Cmd, ui.KeyQ)
+	if quit != 1 {
+		t.Fatalf("Cmd+Q count = %d, want 1", quit)
+	}
+}
+
+func TestAppLogoutClearsSessionAndReturnsToLogin(t *testing.T) {
+	h := newAppHarness(t, testSession())
+	h.waitFor(t, func() bool { return h.tt.HasText("运营总览") })
+	if err := h.tt.Click("林晓"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.tt.ChooseMenuItem("退出登录"); err != nil {
+		t.Fatal(err)
+	}
+	h.waitFor(t, func() bool { return h.router.Path() == "/login" })
+	if h.sessions.cleared != 1 {
+		t.Errorf("session clear count = %d, want 1", h.sessions.cleared)
+	}
+	if !h.tt.HasText("登录工作台") {
+		t.Errorf("login page missing: %q", h.tt.Texts())
+	}
+}
+
+func TestAppLogoutFailureKeepsSession(t *testing.T) {
+	h := newAppHarness(t, testSession())
+	h.app.SetLogout(func(context.Context) error { return errors.New("keychain locked") })
+	h.waitFor(t, func() bool { return h.tt.HasText("运营总览") })
+	if err := h.tt.Click("林晓"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.tt.ChooseMenuItem("退出登录"); err != nil {
+		t.Fatal(err)
+	}
+	h.waitFor(t, func() bool { return h.tt.HasText("退出登录失败") })
+	if h.router.Path() != "/home" {
+		t.Errorf("route after logout failure = %q", h.router.Path())
+	}
+}

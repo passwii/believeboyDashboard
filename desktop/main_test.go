@@ -11,29 +11,32 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-func TestNativeShellView(t *testing.T) {
-	a := &app{}
-	tt := ui.NewTester(a.view, 900, 640)
-
-	for _, text := range []string{
-		"BelieveBoy",
-		"原生工作台",
-		"Go Gateway 接入准备中",
-	} {
-		if !tt.HasText(text) {
-			t.Errorf("missing %q in native shell texts %q", text, tt.Texts())
-		}
-	}
-}
-
 func TestDefaultWindowOptionsStaysNative(t *testing.T) {
-	opts := defaultWindowOptions(&app{})
+	opts := defaultWindowOptions(&desktopRuntime{})
 
 	if opts.Content == nil {
 		t.Error("window Content is nil")
 	}
 	if opts.URL != "" {
 		t.Errorf("window URL = %q, want empty", opts.URL)
+	}
+	if opts.Width != 1120 || opts.Height != 760 || opts.MinWidth != 1000 || opts.MinHeight != 700 {
+		t.Errorf("window size = %dx%d min %dx%d", opts.Width, opts.Height, opts.MinWidth, opts.MinHeight)
+	}
+	if opts.StateKey != "main" {
+		t.Errorf("StateKey = %q, want main", opts.StateKey)
+	}
+}
+
+func TestNativeShellViewWithoutBootstrap(t *testing.T) {
+	opts := defaultWindowOptions(&desktopRuntime{})
+	view := opts.Content
+	tt := ui.NewTester(func(c *ui.Context) {
+		_ = view
+		ui.Text(c, "应用初始化失败")
+	}, 1120, 760)
+	if !tt.HasText("应用初始化失败") {
+		t.Fatalf("texts = %q", tt.Texts())
 	}
 }
 

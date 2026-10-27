@@ -230,6 +230,12 @@ func errorBanner(c *ui.Context, message string) ui.Element {
 }
 
 func (p *LoginPage) submit(c *ui.Context) {
+	p.submitWithFocus(func(emailInvalid, passwordInvalid bool) {
+		p.focusInvalidField(c, emailInvalid, passwordInvalid)
+	})
+}
+
+func (p *LoginPage) submitWithFocus(focusInvalid func(bool, bool)) {
 	if p.inFlight || p.closed {
 		return
 	}
@@ -253,13 +259,13 @@ func (p *LoginPage) submit(c *ui.Context) {
 		p.banner = p.passwordErr
 	}
 	if p.emailErr != "" || p.passwordErr != "" {
-		p.focusInvalidField(c, p.emailErr != "", p.passwordErr != "")
+		focusInvalid(p.emailErr != "", p.passwordErr != "")
 		return
 	}
 	if !validEmail(email) {
 		p.emailErr = EmailInvalidMessage
 		p.banner = p.emailErr
-		p.focusInvalidField(c, true, false)
+		focusInvalid(true, false)
 		return
 	}
 	if p.login == nil {

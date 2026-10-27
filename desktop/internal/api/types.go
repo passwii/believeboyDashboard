@@ -2,7 +2,9 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"strconv"
 )
 
 type RoleType string
@@ -90,4 +92,48 @@ type Profile struct {
 	PasswordChangedAt *string  `json:"password_changed_at"`
 	CreatedAt         *string  `json:"created_at"`
 	UpdatedAt         *string  `json:"updated_at"`
+}
+
+// Project is the subset of /api/v1/projects/manage used by the native shell.
+// That route stays on FastAPI during week one and reaches it through Gateway.
+type Project struct {
+	ID          int     `json:"id"`
+	Name        string  `json:"name"`
+	IsActive    bool    `json:"is_active"`
+	Country     string  `json:"country"`
+	CountryName *string `json:"country_name"`
+}
+
+func (c *Client) Health(ctx context.Context) (HealthResponse, error) {
+	var result HealthResponse
+	err := c.Get(ctx, "/api/v1/health", &result)
+	return result, err
+}
+
+func (c *Client) UnreadCount(ctx context.Context) (UnreadCountResponse, error) {
+	var result UnreadCountResponse
+	err := c.Get(ctx, "/api/v1/notifications/unread-count", &result)
+	return result, err
+}
+
+func (c *Client) AlertStats(ctx context.Context, projectID int) (AlertStats, error) {
+	path := "/api/v1/alerts/stats"
+	if projectID > 0 {
+		path += "?project_id=" + strconv.Itoa(projectID)
+	}
+	var result AlertStats
+	err := c.Get(ctx, path, &result)
+	return result, err
+}
+
+func (c *Client) CurrentProfile(ctx context.Context) (Profile, error) {
+	var result Profile
+	err := c.Get(ctx, "/api/v1/system-management/profile", &result)
+	return result, err
+}
+
+func (c *Client) ManagedProjects(ctx context.Context) ([]Project, error) {
+	var result []Project
+	err := c.Get(ctx, "/api/v1/projects/manage", &result)
+	return result, err
 }
