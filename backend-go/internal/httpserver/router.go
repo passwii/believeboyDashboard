@@ -8,7 +8,7 @@ import (
 	"github.com/passwii/believeboyDashboard/backend-go/internal/config"
 )
 
-func NewRouter(cfg config.Config, logger *slog.Logger) (chi.Router, error) {
+func NewRouter(cfg config.Config, logger *slog.Logger, stores OwnedStores) (chi.Router, error) {
 	logger = loggerOrDefault(logger)
 	proxy, err := NewReverseProxy(cfg.FastAPIOrigin, logger)
 	if err != nil {
@@ -20,7 +20,7 @@ func NewRouter(cfg config.Config, logger *slog.Logger) (chi.Router, error) {
 	router.Use(RequestLogger(logger))
 	router.Use(PanicRecovery(logger))
 
-	// Owned handlers are registered here as modules move from FastAPI to Go.
+	registerOwnedRoutes(router, cfg, stores)
 	router.Handle("/*", proxy)
 
 	return router, nil

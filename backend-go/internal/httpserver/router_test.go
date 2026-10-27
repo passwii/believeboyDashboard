@@ -63,7 +63,9 @@ func TestNewRouterRejectsInvalidFastAPIOrigin(t *testing.T) {
 		DatabaseURL:   "postgres://localhost/believeboy",
 		RedisURL:      "redis://localhost:6379/0",
 		OwnedModules:  map[string]bool{},
-	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	}, slog.New(slog.NewTextHandler(io.Discard, nil)), OwnedStores{
+		HealthDatabase: stubPinger{},
+	})
 	if err == nil {
 		t.Fatal("NewRouter() error = nil, want invalid FASTAPI_ORIGIN error")
 	}
@@ -87,17 +89,20 @@ func TestNewRouterOwnedRouteTakesPrecedenceOverFallback(t *testing.T) {
 		DatabaseURL:   "postgres://localhost/believeboy",
 		RedisURL:      "redis://localhost:6379/0",
 		OwnedModules:  map[string]bool{"health": true},
-	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	}, slog.New(slog.NewTextHandler(io.Discard, nil)), OwnedStores{
+		HealthDatabase: stubPinger{},
+	})
 	if err != nil {
 		t.Fatalf("NewRouter() error = %v", err)
 	}
-	router.Get("/api/v1/health", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte("go health"))
-	})
-
 	gateway := httptest.NewServer(router)
 	t.Cleanup(gateway.Close)
-	resp, err := gateway.Client().Get(gateway.URL + "/api/v1/health")
+	req, err := http.NewRequest(http.MethodGet, gateway.URL+"/api/v1/health", nil)
+	if err != nil {
+		t.Fatalf("http.NewRequest() error = %v", err)
+	}
+	req.Header.Set("X-API-Key", "test-api-key")
+	resp, err := gateway.Client().Do(req)
 	if err != nil {
 		t.Fatalf("gateway request error = %v", err)
 	}
@@ -110,8 +115,8 @@ func TestNewRouterOwnedRouteTakesPrecedenceOverFallback(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusOK)
 	}
-	if string(body) != "go health" {
-		t.Errorf("body = %q, want %q", body, "go health")
+	if !strings.Contains(string(body), `"status":"ok"`) {
+		t.Errorf("body = %q, want Go health response", body)
 	}
 	if upstreamHit.Load() {
 		t.Error("FastAPI fallback was called for a Go-owned route")

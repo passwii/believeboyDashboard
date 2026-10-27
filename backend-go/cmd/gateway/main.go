@@ -33,7 +33,13 @@ func run(logger *slog.Logger) error {
 		return fmt.Errorf("load config: %w", err)
 	}
 
-	router, err := httpserver.NewRouter(cfg, logger)
+	deps, err := newDependencies(context.Background(), cfg)
+	if err != nil {
+		return fmt.Errorf("wire dependencies: %w", err)
+	}
+	defer deps.Close()
+
+	router, err := httpserver.NewRouter(cfg, logger, deps.Stores)
 	if err != nil {
 		return fmt.Errorf("build router: %w", err)
 	}

@@ -13,12 +13,14 @@ const (
 )
 
 type Config struct {
-	Addr          string
-	FastAPIOrigin string
-	APIKey        string
-	DatabaseURL   string
-	RedisURL      string
-	OwnedModules  map[string]bool
+	Addr            string
+	FastAPIOrigin   string
+	APIKey          string
+	DatabaseURL     string
+	DatabaseReadURL string
+	RedisURL        string
+	AppEnv          string
+	OwnedModules    map[string]bool
 }
 
 func Load() (Config, error) {
@@ -29,6 +31,7 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 	cfg := Config{
 		Addr:          valueOrDefault(lookup, "GO_API_ADDR", defaultAddr),
 		FastAPIOrigin: valueOrDefault(lookup, "FASTAPI_ORIGIN", defaultFastAPIOrigin),
+		AppEnv:        valueOrDefault(lookup, "APP_ENV", "development"),
 		OwnedModules:  parseOwnedModules(valueOrDefault(lookup, "GO_API_OWNED", "")),
 	}
 
@@ -40,12 +43,19 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 		{key: "DATABASE_URL", target: &cfg.DatabaseURL},
 		{key: "REDIS_URL", target: &cfg.RedisURL},
 	} {
-		value, ok := lookup(required.key)
-		value = strings.TrimSpace(value)
-		if !ok || value == "" {
+		value := firstNonEmpty(lookup, required.key)
+		if value == "" {
 			return Config{}, fmt.Errorf("%s is required", required.key)
 		}
 		*required.target = value
+	}
+
+	cfg.DatabaseReadURL = firstNonEmpty(lookup, "DATABASE_READ_URL")
+	if cfg.DatabaseReadURL != "" {
+		readURL, err := url.Parse(cfg.DatabaseReadURL)
+		if err != nil || readURL.Scheme == "" || readURL.Host == "" {
+			return Config{}, fmt.Errorf("DATABASE_READ_URL must be a valid URL")
+		}
 	}
 
 	origin, err := url.Parse(cfg.FastAPIOrigin)
@@ -57,6 +67,17 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func firstNonEmpty(lookup func(string) (string, bool), keys ...string) string {
+	for _, key := range keys {
+		value, ok := lookup(key)
+		value = strings.TrimSpace(value)
+		if ok && value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func valueOrDefault(lookup func(string) (string, bool), key, fallback string) string {

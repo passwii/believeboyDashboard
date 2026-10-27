@@ -318,7 +318,7 @@ func newTestGateway(t *testing.T, upstreamURL string) *httptest.Server {
 		DatabaseURL:   "postgres://localhost/believeboy",
 		RedisURL:      "redis://localhost:6379/0",
 		OwnedModules:  map[string]bool{},
-	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	}, slog.New(slog.NewTextHandler(io.Discard, nil)), OwnedStores{})
 	if err != nil {
 		t.Fatalf("NewRouter() error = %v", err)
 	}
