@@ -3,6 +3,8 @@ package pages
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -11,6 +13,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 	"github.com/passwii/believeboyDashboard/desktop/internal/api"
+	"github.com/passwii/believeboyDashboard/desktop/internal/auth"
 	"github.com/passwii/believeboyDashboard/desktop/internal/components"
 )
 
@@ -29,6 +32,14 @@ type loginHarness struct {
 }
 
 func newTestLogin(t *testing.T, login LoginFunc) *loginHarness {
+	return newTestLoginWithRouter(t, login, ui.NewRouter("/"))
+}
+
+func newTestLoginWithoutRouter(t *testing.T, login LoginFunc) *loginHarness {
+	return newTestLoginWithRouter(t, login, nil)
+}
+
+func newTestLoginWithRouter(t *testing.T, login LoginFunc, router *ui.Router) *loginHarness {
 	t.Helper()
 	if login == nil {
 		login = func(context.Context, string, string) (*api.LoginResponse, error) {
@@ -39,7 +50,7 @@ func newTestLogin(t *testing.T, login LoginFunc) *loginHarness {
 		mainWork: make(chan func(), 8),
 	}
 	h.page = NewLoginPage(LoginOptions{
-		Router: ui.NewRouter("/"),
+		Router: router,
 		Update: func(fn func()) {
 			h.mainWork <- fn
 		},
@@ -85,6 +96,14 @@ func (h *loginHarness) callCount() int {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return len(h.calls)
+}
+
+func (h *loginHarness) enterCredentials(t *testing.T, email, password string) {
+	t.Helper()
+	h.tt.Click("邮箱")
+	h.tt.Type(email)
+	h.tt.Click("密码")
+	h.tt.Type(password)
 }
 
 func TestLoginWindowSizes(t *testing.T) {
@@ -236,6 +255,18 @@ func TestLoginValidation(t *testing.T) {
 			t.Error("password field did not receive focus")
 		}
 	})
+
+	t.Run("both empty prefers email focus", func(t *testing.T) {
+		h := newTestLogin(t, nil)
+		h.tt.Click("登录")
+		if !h.tt.HasText(EmailRequiredMessage) || !h.tt.HasText(PasswordRequiredMessage) {
+			t.Fatalf("both field errors should show: %q", h.tt.Texts())
+		}
+		h.tt.Frame()
+		if !h.tt.Focused("邮箱") {
+			t.Error("email should take focus when both fields are empty")
+		}
+	})
 }
 
 func TestLoginSubmitAndLoading(t *testing.T) {
@@ -263,6 +294,16 @@ func TestLoginSubmitAndLoading(t *testing.T) {
 	if !h.tt.HasText("登录中") {
 		t.Errorf("busy button label missing: %q", h.tt.Texts())
 	}
+	if h.tt.Focused("密码") {
+		t.Error("password input should be disabled during login")
+	}
+	if h.tt.Focused("邮箱") {
+		t.Error("email input should be disabled during login")
+	}
+	h.tt.Type("blocked")
+	if h.page.Email() != "user@example.com" || h.page.Password() != "secret" {
+		t.Errorf("typing changed disabled credentials: %q/%q", h.page.Email(), h.page.Password())
+	}
 	if err := h.tt.Click("登录中"); err == nil {
 		if h.callCount() != 1 {
 			t.Errorf("busy click started %d logins, want 1", h.callCount())
@@ -271,6 +312,142 @@ func TestLoginSubmitAndLoading(t *testing.T) {
 	close(release)
 	h.waitForResult(t)
 	h.tt.Frame()
+}
+
+func TestLoginStaleResultCannotOverwriteNewestState(t *testing.T) {
+	h := newTestLogin(t, func(context.Context, string, string) (*api.LoginResponse, error) {
+		return &api.LoginResponse{}, nil
+	})
+	h.enterCredentials(t, "user@example.com", "secret")
+	h.page.requestGeneration = 7
+	h.page.inFlight = true
+	h.page.results = []loginResult{
+		{generation: 6, err: &api.HTTPError{StatusCode: http.StatusForbidden}},
+		{generation: 7, err: &api.NetworkError{Cause: errors.New("newest")}},
+	}
+	h.tt.Frame()
+	if h.page.RouterPath() == HomeRoute {
+		t.Fatal("stale result navigated home")
+	}
+	if h.page.inFlight {
+		t.Error("newest result did not clear the in-flight state")
+	}
+	if !h.tt.HasText(NetworkMessage) {
+		t.Errorf("newest error did not win: %q", h.tt.Texts())
+	}
+	if h.tt.HasText(ForbiddenMessage) {
+		t.Errorf("stale error was applied: %q", h.tt.Texts())
+	}
+}
+
+func TestLoginOnlyStaleResultKeepsInflight(t *testing.T) {
+	h := newTestLogin(t, nil)
+	h.page.requestGeneration = 3
+	h.page.inFlight = true
+	h.page.results = []loginResult{{generation: 2, err: errors.New("old")}}
+	h.tt.Frame()
+	if !h.page.inFlight {
+		t.Error("stale result cleared the active in-flight state")
+	}
+	if h.tt.HasText(DefaultLoginErrorMessage) {
+		t.Error("stale error was rendered")
+	}
+}
+
+func TestLoginNewerSubmitWinsOverOlderCompletion(t *testing.T) {
+	started := make(chan struct{}, 2)
+	replies := make(chan chan error, 2)
+	h := newTestLogin(t, func(context.Context, string, string) (*api.LoginResponse, error) {
+		reply := make(chan error, 1)
+		replies <- reply
+		started <- struct{}{}
+		if err := <-reply; err != nil {
+			return nil, err
+		}
+		return &api.LoginResponse{}, nil
+	})
+	h.enterCredentials(t, "user@example.com", "secret")
+	h.page.submit(h.context)
+	first := <-replies
+	<-started
+
+	// Simulate a newer submit that races the first completion. The UI
+	// normally disables inputs and the button while in flight; this bypasses
+	// that guard to exercise the generation defense itself.
+	h.page.inFlight = false
+	h.page.submit(h.context)
+	second := <-replies
+	<-started
+
+	first <- &api.HTTPError{StatusCode: http.StatusForbidden}
+	h.waitForResult(t)
+	if h.tt.HasText(ForbiddenMessage) {
+		t.Errorf("older completion overwrote the newer request: %q", h.tt.Texts())
+	}
+	if !h.page.inFlight {
+		t.Error("older completion cleared the newer in-flight state")
+	}
+
+	second <- &api.NetworkError{Cause: errors.New("newest")}
+	h.waitForResult(t)
+	if !h.tt.HasText(NetworkMessage) {
+		t.Errorf("newer completion did not render: %q", h.tt.Texts())
+	}
+}
+
+func TestLoginCloseIgnoresLateResult(t *testing.T) {
+	reply := make(chan error, 1)
+	started := make(chan struct{})
+	h := newTestLogin(t, func(context.Context, string, string) (*api.LoginResponse, error) {
+		close(started)
+		if err := <-reply; err != nil {
+			return nil, err
+		}
+		return &api.LoginResponse{}, nil
+	})
+	h.enterCredentials(t, "user@example.com", "secret")
+	h.tt.Click("登录")
+	<-started
+	h.page.Close()
+	reply <- nil
+	select {
+	case result := <-h.mainWork:
+		result()
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for late result")
+	}
+	h.tt.Frame()
+	if h.tt.HasText(NavigationUnavailableMessage) || h.tt.HasText(DefaultLoginErrorMessage) {
+		t.Errorf("late result changed a closed page: %q", h.tt.Texts())
+	}
+	if h.page.RouterPath() == HomeRoute {
+		t.Error("late result navigated home after Close")
+	}
+	if h.page.inFlight {
+		t.Error("closed page remained in flight")
+	}
+}
+
+func TestLoginClosePreventsNewSubmit(t *testing.T) {
+	h := newTestLogin(t, func(context.Context, string, string) (*api.LoginResponse, error) {
+		return &api.LoginResponse{}, nil
+	})
+	h.enterCredentials(t, "user@example.com", "secret")
+	h.page.Close()
+	h.tt.Frame()
+	h.tt.Click("登录")
+	if h.callCount() != 0 {
+		t.Errorf("closed page started %d login requests", h.callCount())
+	}
+}
+
+func TestLoginViewAfterCloseDoesNotPanic(t *testing.T) {
+	h := newTestLogin(t, nil)
+	h.page.Close()
+	h.tt.Frame()
+	if !h.tt.HasText("登录工作台") {
+		t.Errorf("closed page frame is not renderable: %q", h.tt.Texts())
+	}
 }
 
 func TestLoginEnterSubmits(t *testing.T) {
@@ -298,6 +475,110 @@ func TestLoginSuccessNavigatesHome(t *testing.T) {
 	h.tt.Frame()
 	if h.page.RouterPath() != HomeRoute {
 		t.Errorf("router path = %q, want %q", h.page.RouterPath(), HomeRoute)
+	}
+}
+
+func TestLoginSuccessWithoutRouterShowsFailure(t *testing.T) {
+	h := newTestLoginWithoutRouter(t, func(context.Context, string, string) (*api.LoginResponse, error) {
+		return &api.LoginResponse{}, nil
+	})
+	h.enterCredentials(t, "user@example.com", "secret")
+	h.tt.Click("登录")
+	h.waitForResult(t)
+	h.tt.Frame()
+	if h.page.inFlight {
+		t.Error("page remained in flight without a router")
+	}
+	if !errors.Is(h.page.LastError(), ErrNavigationUnavailable) {
+		t.Errorf("last error = %v, want ErrNavigationUnavailable", h.page.LastError())
+	}
+	if !h.tt.HasText(NavigationUnavailableMessage) {
+		t.Errorf("missing navigation failure %q in %q", NavigationUnavailableMessage, h.tt.Texts())
+	}
+}
+
+func TestLoginSessionPersistFailureMapsToStableMessage(t *testing.T) {
+	h := newTestLogin(t, func(context.Context, string, string) (*api.LoginResponse, error) {
+		return nil, fmt.Errorf("persist: %w", api.ErrSessionPersist)
+	})
+	h.enterCredentials(t, "user@example.com", "secret")
+	h.tt.Click("登录")
+	h.waitForResult(t)
+	if !h.tt.HasText(SessionErrorMessage) {
+		t.Errorf("missing session persistence message %q in %q", SessionErrorMessage, h.tt.Texts())
+	}
+	if !errors.Is(h.page.LastError(), api.ErrSessionPersist) {
+		t.Errorf("last error = %v, want ErrSessionPersist", h.page.LastError())
+	}
+}
+
+func TestLoginRealClientPersistFailureMapsToStableMessage(t *testing.T) {
+	client, err := api.NewClient(api.ClientConfig{
+		BaseURL:  "http://gateway.test",
+		ClientID: "client-uuid",
+		HTTPClient: pageStubHTTPClient{fn: func(*http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body: io.NopCloser(strings.NewReader(`{
+					"id":"42",
+					"name":"yawei",
+					"email":"yawei@example.com",
+					"is_admin":false,
+					"is_active":true,
+					"role_type":"operator",
+					"session_id":"session-1",
+					"api_key":"api-key-value"
+				}`)),
+			}, nil
+		}},
+		Sessions: pageFailingSessionStore{err: errors.New("keychain unavailable")},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := newTestLogin(t, ClientLogin(client))
+	h.enterCredentials(t, "user@example.com", "secret")
+	h.tt.Click("登录")
+	h.waitForResult(t)
+	if !h.tt.HasText(SessionErrorMessage) {
+		t.Errorf("missing session persistence message %q in %q", SessionErrorMessage, h.tt.Texts())
+	}
+}
+
+type pageStubHTTPClient struct {
+	fn func(*http.Request) (*http.Response, error)
+}
+
+func (s pageStubHTTPClient) Do(req *http.Request) (*http.Response, error) {
+	return s.fn(req)
+}
+
+type pageFailingSessionStore struct {
+	err error
+}
+
+func (s pageFailingSessionStore) Load(context.Context) (auth.Session, string, error) {
+	return auth.Session{}, "", auth.ErrNoSession
+}
+
+func (s pageFailingSessionStore) Save(context.Context, auth.Session, string) error {
+	return s.err
+}
+
+func (s pageFailingSessionStore) Clear(context.Context) error {
+	return nil
+}
+
+func TestLoginMalformedResponseUsesGenericMessage(t *testing.T) {
+	h := newTestLogin(t, func(context.Context, string, string) (*api.LoginResponse, error) {
+		return nil, fmt.Errorf("decode: %w", api.ErrInvalidLogin)
+	})
+	h.enterCredentials(t, "user@example.com", "secret")
+	h.tt.Click("登录")
+	h.waitForResult(t)
+	if !h.tt.HasText(DefaultLoginErrorMessage) {
+		t.Errorf("malformed response should use the generic login message: %q", h.tt.Texts())
 	}
 }
 
@@ -425,6 +706,54 @@ func TestLoginEditsClearStaleCredentialError(t *testing.T) {
 	}
 }
 
+func TestLoginEditsClearBanners(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{name: "forbidden", err: &api.HTTPError{StatusCode: http.StatusForbidden}, want: ForbiddenMessage},
+		{name: "network", err: &api.NetworkError{Cause: errors.New("offline")}, want: NetworkMessage},
+		{name: "rate limited", err: &api.HTTPError{StatusCode: http.StatusTooManyRequests}, want: RateLimitedMessage},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			h := newTestLogin(t, func(context.Context, string, string) (*api.LoginResponse, error) {
+				return nil, test.err
+			})
+			h.enterCredentials(t, "user@example.com", "wrong")
+			h.tt.Click("登录")
+			h.waitForResult(t)
+			if !h.tt.HasText(test.want) {
+				t.Fatalf("missing %q before edit", test.want)
+			}
+			h.tt.Click("邮箱")
+			h.tt.Type("!")
+			if h.tt.HasText(test.want) {
+				t.Errorf("banner %q remained after email edit: %q", test.want, h.tt.Texts())
+			}
+		})
+	}
+}
+
+func TestLoginEditsClearValidationErrors(t *testing.T) {
+	h := newTestLogin(t, nil)
+	h.tt.Click("登录")
+	if !h.tt.HasText(EmailRequiredMessage) || !h.tt.HasText(PasswordRequiredMessage) {
+		t.Fatalf("missing validation errors: %q", h.tt.Texts())
+	}
+	h.tt.Click("邮箱")
+	h.tt.Type("user@example.com")
+	if h.tt.HasText(EmailRequiredMessage) {
+		t.Errorf("email error remained after edit: %q", h.tt.Texts())
+	}
+	h.tt.Click("密码")
+	h.tt.Type("secret")
+	if h.tt.HasText(PasswordRequiredMessage) || h.tt.HasText(EmailRequiredMessage) {
+		t.Errorf("validation errors remained after edits: %q", h.tt.Texts())
+	}
+}
+
 func TestLoginRejectsInvalidEmailBeforeCallingLogin(t *testing.T) {
 	called := false
 	h := newTestLogin(t, func(context.Context, string, string) (*api.LoginResponse, error) {
@@ -453,6 +782,51 @@ func TestLoginDoesNotExposePassword(t *testing.T) {
 			t.Fatalf("rendered password text %q", text)
 		}
 	}
+	if h.page.Password() != "super-secret" {
+		t.Error("password input did not keep its value for submission")
+	}
+	if err := h.tt.Click("邮箱"); err != nil {
+		t.Fatalf("password field is not operable: %v", err)
+	}
+	h.tt.Key(0, ui.KeyTab)
+	if !h.tt.Focused("密码") {
+		t.Error("password field is not reachable by Tab")
+	}
+}
+
+func TestLoginAccessibleNamesAvailableToTester(t *testing.T) {
+	h := newTestLogin(t, func(context.Context, string, string) (*api.LoginResponse, error) {
+		return &api.LoginResponse{}, nil
+	})
+	for _, label := range []string{"登录工作台", "邮箱", "密码", "登录"} {
+		if _, ok := h.tt.Find(label); !ok {
+			t.Errorf("missing accessible-visible name %q", label)
+		}
+	}
+	// Tester v0.6.4 has no exported accessibility-tree API. These strongest
+	// available checks cover discoverable labels and focusable controls; the
+	// Password role and hidden value require a manual VoiceOver check.
+	if h.tt.HasText("super-secret") {
+		t.Error("password text leaked into the rendered frame")
+	}
+}
+
+func TestLoginSpinnerAccessibleName(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	h := newTestLogin(t, func(context.Context, string, string) (*api.LoginResponse, error) {
+		close(started)
+		<-release
+		return &api.LoginResponse{}, nil
+	})
+	h.enterCredentials(t, "user@example.com", "secret")
+	h.tt.Click("登录")
+	<-started
+	if _, ok := h.tt.Find("正在登录…"); !ok {
+		t.Errorf("spinner accessible name missing: %q", h.tt.Texts())
+	}
+	close(release)
+	h.waitForResult(t)
 }
 
 func TestClientLoginAdapter(t *testing.T) {

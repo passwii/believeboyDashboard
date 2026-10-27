@@ -189,6 +189,54 @@ func TestLoginRateLimitIsTypedAndDoesNotPersistSession(t *testing.T) {
 	}
 }
 
+func TestLoginPersistFailureIsStableAndDoesNotExposeSecrets(t *testing.T) {
+	cause := errors.New("keychain write failed secret-value")
+	client := newTestClient(t, stubHTTPClient{fn: func(*http.Request) (*http.Response, error) {
+		return jsonResponse(http.StatusOK, `{
+			"id":"42",
+			"name":"yawei",
+			"email":"yawei@example.com",
+			"is_admin":false,
+			"is_active":true,
+			"role_type":"operator",
+			"session_id":"session-secret-value",
+			"api_key":"api-key-secret-value"
+		}`), nil
+	}}, failingSaveSessionStore{err: cause})
+
+	_, err := client.Login(context.Background(), "yawei@example.com", "password")
+	if !errors.Is(err, ErrSessionPersist) {
+		t.Fatalf("error = %v, want ErrSessionPersist", err)
+	}
+	if !errors.Is(err, cause) {
+		t.Errorf("error %v does not preserve the persistence cause", err)
+	}
+	if errors.Is(err, ErrInvalidLogin) {
+		t.Errorf("persistence failure matched ErrInvalidLogin: %v", err)
+	}
+	for _, secret := range []string{"api-key-secret-value", "session-secret-value", "password"} {
+		if strings.Contains(err.Error(), secret) {
+			t.Errorf("error exposed %q: %v", secret, err)
+		}
+	}
+}
+
+type failingSaveSessionStore struct {
+	err error
+}
+
+func (s failingSaveSessionStore) Load(context.Context) (auth.Session, string, error) {
+	return auth.Session{}, "", auth.ErrNoSession
+}
+
+func (s failingSaveSessionStore) Save(context.Context, auth.Session, string) error {
+	return s.err
+}
+
+func (s failingSaveSessionStore) Clear(context.Context) error {
+	return nil
+}
+
 func TestNetworkErrorDoesNotOverwriteExistingSession(t *testing.T) {
 	sessions := newTestSessionStore()
 	saveTestSession(t, sessions)

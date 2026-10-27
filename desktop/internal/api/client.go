@@ -31,6 +31,7 @@ var (
 	ErrUnexpectedStatus      = errors.New("api: unexpected status")
 	ErrInvalidResponse       = errors.New("api: invalid response")
 	ErrSessionUnavailable    = errors.New("api: session unavailable")
+	ErrSessionPersist        = errors.New("api: session persist failed")
 	ErrInvalidLogin          = errors.New("api: invalid login response")
 	ErrInvalidIdentityHeader = errors.New("api: invalid identity header")
 )
@@ -172,10 +173,18 @@ func (c *Client) Login(
 		return nil, &LoginValidationError{Reason: "invalid header credential", Cause: err}
 	}
 	if err := c.sessions.Save(ctx, session, login.APIKey); err != nil {
-		return nil, fmt.Errorf("api: persist login session: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrSessionPersist, redactedError{cause: err})
 	}
 	return &login, nil
 }
+
+type redactedError struct {
+	cause error
+}
+
+func (e redactedError) Error() string { return "cause redacted" }
+
+func (e redactedError) Unwrap() error { return e.cause }
 
 // Get sends an authenticated GET request and decodes its JSON response.
 func (c *Client) Get(ctx context.Context, path string, output any) error {

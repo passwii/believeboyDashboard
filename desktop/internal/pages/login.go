@@ -22,19 +22,22 @@ const (
 
 	HomeRoute = "/home"
 
-	EmailRequiredMessage       = "请输入邮箱"
-	EmailInvalidMessage        = "请输入有效邮箱"
-	PasswordRequiredMessage    = "请输入密码"
-	DefaultLoginErrorMessage   = "登录失败，请稍后重试"
-	UnauthorizedMessage        = "邮箱或密码不正确"
-	ForbiddenMessage           = "当前账号无权登录，请联系管理员"
-	NetworkMessage             = "无法连接服务器，请检查网络后重试"
-	RateLimitedMessage         = "登录尝试过于频繁，请稍后重试"
-	RateLimitedWithWaitMessage = "登录尝试过于频繁，请在 %s后重试"
-	BackendUnavailableMessage  = "登录服务暂不可用，请稍后重试"
-	SessionErrorMessage        = "登录会话保存失败，请重试"
-	UpdateUnavailableMessage   = "登录暂时不可用，请稍后重试"
+	EmailRequiredMessage         = "请输入邮箱"
+	EmailInvalidMessage          = "请输入有效邮箱"
+	PasswordRequiredMessage      = "请输入密码"
+	DefaultLoginErrorMessage     = "登录失败，请稍后重试"
+	UnauthorizedMessage          = "邮箱或密码不正确"
+	ForbiddenMessage             = "当前账号无权登录，请联系管理员"
+	NetworkMessage               = "无法连接服务器，请检查网络后重试"
+	RateLimitedMessage           = "登录尝试过于频繁，请稍后重试"
+	RateLimitedWithWaitMessage   = "登录尝试过于频繁，请在 %s后重试"
+	BackendUnavailableMessage    = "登录服务暂不可用，请稍后重试"
+	SessionErrorMessage          = "登录会话保存失败，请重试"
+	UpdateUnavailableMessage     = "登录暂时不可用，请稍后重试"
+	NavigationUnavailableMessage = "登录成功但无法进入工作台，请重启客户端"
 )
+
+var ErrNavigationUnavailable = errors.New("pages: navigation unavailable")
 
 // LoginFunc performs one login attempt. It runs outside the main thread.
 type LoginFunc func(ctx context.Context, email, password string) (*api.LoginResponse, error)
@@ -56,8 +59,9 @@ func ClientLogin(client *api.Client) LoginFunc {
 }
 
 type loginResult struct {
-	response *api.LoginResponse
-	err      error
+	response   *api.LoginResponse
+	err        error
+	generation uint64
 }
 
 // LoginPage owns the state of the native login screen. Keep it on the main
@@ -73,11 +77,14 @@ type LoginPage struct {
 	update      func(func())
 	router      *ui.Router
 
-	emailInput    ui.Handle
-	passwordInput ui.Handle
-	focusEmail    bool
-	focusPassword bool
-	results       []loginResult
+	emailInput        ui.Handle
+	passwordInput     ui.Handle
+	focusEmail        bool
+	focusPassword     bool
+	results           []loginResult
+	requestGeneration uint64
+	closed            bool
+	lastErr           error
 }
 
 // NewLoginPage returns a page backed by login.
@@ -98,6 +105,10 @@ func (p *LoginPage) RouterPath() string {
 	}
 	return p.router.Path()
 }
+
+// LastError returns the last stable error applied by the page, if any. Read
+// it on the main thread.
+func (p *LoginPage) LastError() error { return p.lastErr }
 
 // View builds the login screen.
 func (p *LoginPage) View(c *ui.Context) {
@@ -139,9 +150,10 @@ func (p *LoginPage) View(c *ui.Context) {
 								input := ui.TextInput(c, &p.email).
 									Placeholder("name@example.com").
 									InputMethod(false).
+									Disabled(p.inFlight).
 									Bind(&p.emailInput)
 								if input.Changed() {
-									p.emailErr, p.banner = "", ""
+									p.emailErr, p.banner, p.lastErr = "", "", nil
 								}
 								if focusEmail {
 									input.Focus()
@@ -152,9 +164,10 @@ func (p *LoginPage) View(c *ui.Context) {
 							ui.Field(c, "密码", func() {
 								input := ui.TextInput(c, &p.password).
 									Password().
+									Disabled(p.inFlight).
 									Bind(&p.passwordInput).
 									OnChange(func() {
-										p.passwordErr, p.banner = "", ""
+										p.passwordErr, p.banner, p.lastErr = "", "", nil
 									}).
 									OnTextKey(func(key ui.TextKey) bool {
 										if key.Key != ui.KeyEnter || key.Mods != 0 {
@@ -211,7 +224,7 @@ func errorBanner(c *ui.Context, message string) ui.Element {
 }
 
 func (p *LoginPage) submit(c *ui.Context) {
-	if p.inFlight {
+	if p.inFlight || p.closed {
 		return
 	}
 	p.banner = ""
@@ -252,14 +265,27 @@ func (p *LoginPage) submit(c *ui.Context) {
 	}
 
 	p.inFlight = true
+	p.requestGeneration++
+	p.lastErr = nil
+	generation := p.requestGeneration
 	login := p.login
 	password := p.password
 	go func() {
 		response, err := login(context.Background(), email, password)
 		p.update(func() {
-			p.results = append(p.results, loginResult{response: response, err: err})
+			p.results = append(p.results, loginResult{
+				response: response, err: err, generation: generation,
+			})
 		})
 	}()
+}
+
+// Close marks the page closed. Late login results are ignored.
+func (p *LoginPage) Close() {
+	p.closed = true
+	p.inFlight = false
+	p.requestGeneration++
+	p.results = nil
 }
 
 func (p *LoginPage) focusInvalidField(c *ui.Context, emailInvalid, passwordInvalid bool) {
@@ -279,27 +305,40 @@ func (p *LoginPage) applyResults(c *ui.Context) {
 	results := p.results
 	p.results = nil
 	for _, result := range results {
-		p.inFlight = false
-		if result.err != nil {
-			message := loginErrorMessage(result.err)
-			p.banner = message
-			if errors.Is(result.err, api.ErrUnauthorized) {
-				p.passwordErr = message
-				p.focusPassword = true
-			}
+		if p.closed || result.generation != p.requestGeneration {
 			continue
 		}
-		if result.response != nil {
-			router := p.router
-			if router == nil {
-				router = c.Router()
-			}
-			if router != nil {
-				router.Replace(HomeRoute)
-			}
-			return
-		}
+		p.applyResult(c, result)
+		return
 	}
+}
+
+func (p *LoginPage) applyResult(c *ui.Context, result loginResult) {
+	p.inFlight = false
+	if result.err != nil {
+		p.lastErr = result.err
+		message := loginErrorMessage(result.err)
+		p.banner = message
+		if errors.Is(result.err, api.ErrUnauthorized) {
+			p.passwordErr = message
+			p.focusPassword = true
+		}
+		return
+	}
+	if result.response == nil {
+		return
+	}
+	router := p.router
+	if router == nil {
+		router = c.Router()
+	}
+	if router != nil {
+		p.lastErr = nil
+		router.Replace(HomeRoute)
+		return
+	}
+	p.banner = NavigationUnavailableMessage
+	p.lastErr = ErrNavigationUnavailable
 }
 
 func loginErrorMessage(err error) string {
@@ -323,8 +362,11 @@ func loginErrorMessage(err error) string {
 	if errors.Is(err, api.ErrUnexpectedStatus) {
 		return BackendUnavailableMessage
 	}
-	if errors.Is(err, api.ErrInvalidLogin) {
+	if errors.Is(err, api.ErrSessionPersist) {
 		return SessionErrorMessage
+	}
+	if errors.Is(err, api.ErrInvalidLogin) {
+		return DefaultLoginErrorMessage
 	}
 	return DefaultLoginErrorMessage
 }

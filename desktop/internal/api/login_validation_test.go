@@ -45,6 +45,9 @@ func TestLoginRejectsInvalidSuccessResponses(t *testing.T) {
 			if !errors.Is(err, ErrInvalidLogin) {
 				t.Fatalf("Login() error = %v, want ErrInvalidLogin", err)
 			}
+			if errors.Is(err, ErrSessionPersist) {
+				t.Errorf("invalid login response matched ErrSessionPersist: %v", err)
+			}
 			after, afterKey, loadErr := sessions.Load(context.Background())
 			if loadErr != nil {
 				t.Fatal(loadErr)
