@@ -115,8 +115,8 @@ func TestLoginRequiresMainThreadUpdate(t *testing.T) {
 	tt.Click("密码")
 	tt.Type("secret")
 	tt.Click("登录")
-	if !tt.HasText(SessionErrorMessage) {
-		t.Errorf("missing configuration error %q in %q", SessionErrorMessage, tt.Texts())
+	if !tt.HasText(UpdateUnavailableMessage) {
+		t.Errorf("missing configuration error %q in %q", UpdateUnavailableMessage, tt.Texts())
 	}
 }
 

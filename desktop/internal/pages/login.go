@@ -33,6 +33,7 @@ const (
 	RateLimitedWithWaitMessage = "登录尝试过于频繁，请在 %s后重试"
 	BackendUnavailableMessage  = "登录服务暂不可用，请稍后重试"
 	SessionErrorMessage        = "登录会话保存失败，请重试"
+	UpdateUnavailableMessage   = "登录暂时不可用，请稍后重试"
 )
 
 // LoginFunc performs one login attempt. It runs outside the main thread.
@@ -246,7 +247,7 @@ func (p *LoginPage) submit(c *ui.Context) {
 		return
 	}
 	if p.update == nil {
-		p.banner = SessionErrorMessage
+		p.banner = UpdateUnavailableMessage
 		return
 	}
 
