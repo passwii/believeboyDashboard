@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"net/http"
@@ -185,18 +184,18 @@ func TestUserContextFromRequest(t *testing.T) {
 	}
 }
 
-func TestUserContextFromRequestSupportsBase64OperatorAndNameFallback(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/notifications", nil)
-	req.Header.Set("X-User-Name", base64.StdEncoding.EncodeToString([]byte("显示名")))
-	req.Header.Set("X-Is-Admin", "false")
+func TestUserContextFromRequestKeepsBase64LookingOperator(t *testing.T) {
+	for _, operator := range []string{"TWFu", "Zm9v"} {
+		t.Run(operator, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/notifications", nil)
+			req.Header.Set("X-Operator", operator)
 
-	got := UserContextFromRequest(req)
+			got := UserContextFromRequest(req)
 
-	if got.Operator != "显示名" {
-		t.Errorf("Operator = %q, want %q", got.Operator, "显示名")
-	}
-	if got.IsAdmin {
-		t.Error("IsAdmin = true, want false")
+			if got.Operator != operator {
+				t.Errorf("Operator = %q, want %q", got.Operator, operator)
+			}
+		})
 	}
 }
 

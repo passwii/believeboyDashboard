@@ -2,11 +2,9 @@ package auth
 
 import (
 	"context"
-	"encoding/base64"
 	"net/http"
 	"net/url"
 	"strings"
-	"unicode/utf8"
 )
 
 // UserContext is the typed form of the user headers forwarded by the web proxy
@@ -54,12 +52,6 @@ func decodeHeaderValue(raw string) string {
 	value := strings.TrimSpace(raw)
 	if value == "" {
 		return ""
-	}
-
-	if decoded, err := base64.StdEncoding.DecodeString(value); err == nil && utf8.Valid(decoded) {
-		value = string(decoded)
-	} else if decoded, err := base64.RawStdEncoding.DecodeString(value); err == nil && utf8.Valid(decoded) {
-		value = string(decoded)
 	}
 
 	if decoded, err := url.PathUnescape(value); err == nil {
