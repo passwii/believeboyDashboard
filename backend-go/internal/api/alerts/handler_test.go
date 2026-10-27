@@ -176,6 +176,29 @@ func TestRulesRejectsInvalidBooleanHeaderBeforeProjectLookup(t *testing.T) {
 	}
 }
 
+func TestRulesAggregatesValidationErrorsInPydanticOrder(t *testing.T) {
+	store := &fakeStore{}
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/alerts/rules?project_id=bad&is_active=maybe",
+		nil,
+	)
+	req.Header.Set("X-Is-Admin", "invalid")
+	rec := httptest.NewRecorder()
+
+	NewHandler(store).Rules(rec, req)
+
+	assertResponse(
+		t,
+		rec,
+		http.StatusUnprocessableEntity,
+		`{"detail":[{"type":"int_parsing","loc":["query","project_id"],"msg":"Input should be a valid integer, unable to parse string as an integer","input":"bad"},{"type":"bool_parsing","loc":["query","is_active"],"msg":"Input should be a valid boolean, unable to interpret input","input":"maybe"},{"type":"bool_parsing","loc":["header","X-Is-Admin"],"msg":"Input should be a valid boolean, unable to interpret input","input":"invalid"}]}`,
+	)
+	if store.calls != 0 {
+		t.Errorf("store calls = %d, want 0", store.calls)
+	}
+}
+
 func TestRulesUsesFirstRepeatedAdminHeaderLikeFastAPI(t *testing.T) {
 	store := &fakeStore{
 		project: &Project{ProjectOperator: stringPointer("operator-b")},
@@ -284,6 +307,29 @@ func TestEventsRejectsPaginationBounds(t *testing.T) {
 	}
 }
 
+func TestEventsAggregatesPageAndHeaderValidationErrors(t *testing.T) {
+	store := &fakeStore{}
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/alerts/events?page=0&page_size=101",
+		nil,
+	)
+	req.Header.Set("X-Is-Admin", "invalid")
+	rec := httptest.NewRecorder()
+
+	NewHandler(store).Events(rec, req)
+
+	assertResponse(
+		t,
+		rec,
+		http.StatusUnprocessableEntity,
+		`{"detail":[{"type":"greater_than_equal","loc":["query","page"],"msg":"Input should be greater than or equal to 1","input":"0","ctx":{"ge":1}},{"type":"less_than_equal","loc":["query","page_size"],"msg":"Input should be less than or equal to 100","input":"101","ctx":{"le":100}},{"type":"bool_parsing","loc":["header","X-Is-Admin"],"msg":"Input should be a valid boolean, unable to interpret input","input":"invalid"}]}`,
+	)
+	if store.calls != 0 {
+		t.Errorf("store calls = %d, want 0", store.calls)
+	}
+}
+
 func TestEventsChecksProjectAccess(t *testing.T) {
 	store := &fakeStore{
 		project: &Project{ProjectOperator: stringPointer("operator-b")},
@@ -327,19 +373,25 @@ func TestAlertStoreErrorsReturn500(t *testing.T) {
 	req.Header.Set("X-Operator", "operator-a")
 	rec := httptest.NewRecorder()
 	NewHandler(store).Rules(rec, req)
-	assertResponse(t, rec, http.StatusInternalServerError, `{"detail":"Internal Server Error"}`)
+	assertInternalError(t, rec)
 
 	store = &fakeStore{err: errors.New("database down")}
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/alerts/events", nil)
 	rec = httptest.NewRecorder()
 	NewHandler(store).Events(rec, req)
-	assertResponse(t, rec, http.StatusInternalServerError, `{"detail":"Internal Server Error"}`)
+	assertInternalError(t, rec)
 
 	store = &fakeStore{err: errors.New("database down")}
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/alerts/stats", nil)
 	rec = httptest.NewRecorder()
 	NewHandler(store).Stats(rec, req)
-	assertResponse(t, rec, http.StatusInternalServerError, `{"detail":"Internal Server Error"}`)
+	assertInternalError(t, rec)
+
+	store = &fakeStore{err: errors.New("database down")}
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/alerts/rules?project_id=1", nil)
+	rec = httptest.NewRecorder()
+	NewHandler(store).Rules(rec, req)
+	assertInternalError(t, rec)
 }
 
 type fakeStore struct {
@@ -391,6 +443,19 @@ func assertResponse(t *testing.T, rec *httptest.ResponseRecorder, status int, bo
 	}
 	if got := rec.Body.String(); got != body {
 		t.Errorf("body = %s, want %s", got, body)
+	}
+}
+
+func assertInternalError(t *testing.T, rec *httptest.ResponseRecorder) {
+	t.Helper()
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500; body = %s", rec.Code, rec.Body.String())
+	}
+	if got, want := rec.Header().Get("Content-Type"), "text/plain; charset=utf-8"; got != want {
+		t.Errorf("Content-Type = %q, want %q", got, want)
+	}
+	if got, want := rec.Body.String(), "Internal Server Error"; got != want {
+		t.Errorf("body = %q, want %q", got, want)
 	}
 }
 

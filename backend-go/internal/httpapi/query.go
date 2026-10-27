@@ -15,10 +15,18 @@ type IntegerParam struct {
 	Present   bool
 }
 
-func ParseIntegerQuery(w http.ResponseWriter, r *http.Request, name string) (IntegerParam, bool) {
+type ValidationError struct {
+	Type  string         `json:"type"`
+	Loc   []string       `json:"loc"`
+	Msg   string         `json:"msg"`
+	Input string         `json:"input"`
+	Ctx   map[string]int `json:"ctx,omitempty"`
+}
+
+func ParseIntegerQuery(r *http.Request, name string) (IntegerParam, *ValidationError) {
 	values, present := r.URL.Query()[name]
 	if !present {
-		return IntegerParam{}, true
+		return IntegerParam{}, nil
 	}
 	raw := ""
 	if len(values) > 0 {
@@ -26,90 +34,79 @@ func ParseIntegerQuery(w http.ResponseWriter, r *http.Request, name string) (Int
 	}
 	canonical, _, ok := normalizeIntegerText(raw)
 	if !ok {
-		WriteValidationError(
-			w,
+		return IntegerParam{}, newValidationError(
 			"int_parsing",
 			[]string{"query", name},
 			"Input should be a valid integer, unable to parse string as an integer",
 			raw,
 			nil,
 		)
-		return IntegerParam{}, false
 	}
 	value, ok := new(big.Int).SetString(canonical, 10)
 	if !ok {
-		WriteValidationError(
-			w,
+		return IntegerParam{}, newValidationError(
 			"int_parsing",
 			[]string{"query", name},
 			"Input should be a valid integer, unable to parse string as an integer",
 			raw,
 			nil,
 		)
-		return IntegerParam{}, false
 	}
 	return IntegerParam{
 		Raw:       raw,
 		Canonical: value.String(),
 		Value:     value,
 		Present:   true,
-	}, true
+	}, nil
 }
 
 func ValidateIntegerMinimum(
-	w http.ResponseWriter,
 	param IntegerParam,
 	name string,
 	minimum int,
-) bool {
+) *ValidationError {
 	if !param.Present || param.Value == nil {
-		return true
+		return nil
 	}
 	if param.Value.Cmp(big.NewInt(int64(minimum))) >= 0 {
-		return true
+		return nil
 	}
-	WriteValidationError(
-		w,
+	return newValidationError(
 		"greater_than_equal",
 		[]string{"query", name},
 		"Input should be greater than or equal to "+strconv.Itoa(minimum),
 		param.Raw,
 		map[string]int{"ge": minimum},
 	)
-	return false
 }
 
 func ValidateIntegerMaximum(
-	w http.ResponseWriter,
 	param IntegerParam,
 	name string,
 	maximum int,
-) bool {
+) *ValidationError {
 	if !param.Present || param.Value == nil {
-		return true
+		return nil
 	}
 	if param.Value.Cmp(big.NewInt(int64(maximum))) <= 0 {
-		return true
+		return nil
 	}
-	WriteValidationError(
-		w,
+	return newValidationError(
 		"less_than_equal",
 		[]string{"query", name},
 		"Input should be less than or equal to "+strconv.Itoa(maximum),
 		param.Raw,
 		map[string]int{"le": maximum},
 	)
-	return false
 }
 
 func ParseOptionalBoolQuery(
-	w http.ResponseWriter,
 	r *http.Request,
 	name string,
-) (*bool, bool) {
+) (*bool, *ValidationError) {
 	values, present := r.URL.Query()[name]
 	if !present {
-		return nil, true
+		return nil, nil
 	}
 	raw := ""
 	if len(values) > 0 {
@@ -117,27 +114,24 @@ func ParseOptionalBoolQuery(
 	}
 	value, ok := parseBool(raw)
 	if !ok {
-		WriteValidationError(
-			w,
+		return nil, newValidationError(
 			"bool_parsing",
 			[]string{"query", name},
 			"Input should be a valid boolean, unable to interpret input",
 			raw,
 			nil,
 		)
-		return nil, false
 	}
-	return &value, true
+	return &value, nil
 }
 
 func ParseOptionalBoolHeader(
-	w http.ResponseWriter,
 	r *http.Request,
 	name string,
-) (*bool, bool) {
+) (*bool, *ValidationError) {
 	values, present := r.Header[http.CanonicalHeaderKey(name)]
 	if !present {
-		return nil, true
+		return nil, nil
 	}
 	raw := ""
 	if len(values) > 0 {
@@ -145,17 +139,15 @@ func ParseOptionalBoolHeader(
 	}
 	value, ok := parseBool(raw)
 	if !ok {
-		WriteValidationError(
-			w,
+		return nil, newValidationError(
 			"bool_parsing",
 			[]string{"header", name},
 			"Input should be a valid boolean, unable to interpret input",
 			raw,
 			nil,
 		)
-		return nil, false
 	}
-	return &value, true
+	return &value, nil
 }
 
 func (p IntegerParam) IntSaturated() int {
@@ -180,35 +172,30 @@ func (p IntegerParam) IntSaturated() int {
 	return int(value)
 }
 
-func WriteValidationError(
-	w http.ResponseWriter,
+func newValidationError(
 	errorType string,
 	location []string,
 	message string,
 	input string,
 	context map[string]int,
-) {
+) *ValidationError {
+	return &ValidationError{
+		Type:  errorType,
+		Loc:   location,
+		Msg:   message,
+		Input: input,
+		Ctx:   context,
+	}
+}
+
+func WriteValidationErrors(w http.ResponseWriter, errors []ValidationError) {
 	_ = WriteJSON(w, http.StatusUnprocessableEntity, validationErrorResponse{
-		Detail: []validationError{{
-			Type:  errorType,
-			Loc:   location,
-			Msg:   message,
-			Input: input,
-			Ctx:   context,
-		}},
+		Detail: errors,
 	})
 }
 
 type validationErrorResponse struct {
-	Detail []validationError `json:"detail"`
-}
-
-type validationError struct {
-	Type  string         `json:"type"`
-	Loc   []string       `json:"loc"`
-	Msg   string         `json:"msg"`
-	Input string         `json:"input"`
-	Ctx   map[string]int `json:"ctx,omitempty"`
+	Detail []ValidationError `json:"detail"`
 }
 
 func parseBool(raw string) (bool, bool) {

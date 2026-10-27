@@ -2,13 +2,16 @@ package store
 
 import (
 	"context"
+	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/alerts"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/notifications"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/httpapi"
 )
 
 func TestPGXIntegrationBLFTestReadsWeek1GETStores(t *testing.T) {
@@ -120,6 +123,52 @@ func TestPGXIntegrationBLFTestReadsWeek1GETStores(t *testing.T) {
 		}
 	} else if err != pgx.ErrNoRows {
 		t.Errorf("select project fixture error = %v", err)
+	}
+}
+
+func TestPGXIntegrationTimestamptzScanLocationMatchesSessionTimezone(t *testing.T) {
+	databaseURL := os.Getenv("GO_API_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set GO_API_TEST_DATABASE_URL to a BLF_test connection for timezone coverage")
+	}
+	parsed, err := url.Parse(databaseURL)
+	if err != nil {
+		t.Fatalf("parse GO_API_TEST_DATABASE_URL: %v", err)
+	}
+	query := parsed.Query()
+	query.Set("timezone", "UTC")
+	parsed.RawQuery = query.Encode()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	pool, err := OpenPool(ctx, parsed.String())
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	defer pool.Close()
+	if err := pool.Ping(ctx); err != nil {
+		t.Skipf("test database unavailable: %v", err)
+	}
+
+	var sessionTimezone string
+	if err := pool.QueryRow(ctx, "show timezone").Scan(&sessionTimezone); err != nil {
+		t.Fatalf("show timezone error = %v", err)
+	}
+	if sessionTimezone != "UTC" {
+		t.Fatalf("session timezone = %q, want UTC", sessionTimezone)
+	}
+	var scanned time.Time
+	if err := pool.QueryRow(
+		ctx,
+		"select '2026-07-01 12:00:00+00'::timestamptz",
+	).Scan(&scanned); err != nil {
+		t.Fatalf("scan timestamptz error = %v", err)
+	}
+	if got := httpapi.Timestamp(scanned); got != "2026-07-01T12:00:00Z" {
+		t.Errorf("Timestamp() = %q, want UTC suffix Z from session timezone", got)
+	}
+	if !strings.HasSuffix(httpapi.Timestamp(scanned), "Z") {
+		t.Errorf("Timestamp() = %q, want Z suffix", httpapi.Timestamp(scanned))
 	}
 }
 

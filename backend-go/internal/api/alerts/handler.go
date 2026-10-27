@@ -109,18 +109,28 @@ func (h *Handler) Metrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Rules(w http.ResponseWriter, r *http.Request) {
-	projectID, ok := parseOptionalIntegerQuery(w, r, "project_id")
-	if !ok {
-		return
+	validationErrors := make([]httpapi.ValidationError, 0, 3)
+	projectParam, projectErr := httpapi.ParseIntegerQuery(r, "project_id")
+	if projectErr != nil {
+		validationErrors = append(validationErrors, *projectErr)
 	}
 	metric := optionalNonEmptyQuery(r, "metric")
-	isActive, ok := httpapi.ParseOptionalBoolQuery(w, r, "is_active")
-	if !ok {
+	isActive, activeErr := httpapi.ParseOptionalBoolQuery(r, "is_active")
+	if activeErr != nil {
+		validationErrors = append(validationErrors, *activeErr)
+	}
+	isAdmin, adminErr := adminHeader(r)
+	if adminErr != nil {
+		validationErrors = append(validationErrors, *adminErr)
+	}
+	if len(validationErrors) > 0 {
+		httpapi.WriteValidationErrors(w, validationErrors)
 		return
 	}
-	isAdmin, ok := adminHeader(w, r)
-	if !ok {
-		return
+	var projectID *string
+	if projectParam.Present {
+		value := projectParam.Canonical
+		projectID = &value
 	}
 	if projectID != nil && !h.requireProjectAccess(w, r, *projectID, isAdmin) {
 		return
@@ -132,7 +142,7 @@ func (h *Handler) Rules(w http.ResponseWriter, r *http.Request) {
 		IsActive:  isActive,
 	})
 	if err != nil {
-		httpapi.WriteDetail(w, http.StatusInternalServerError, "Internal Server Error")
+		httpapi.WriteInternalServerError(w)
 		return
 	}
 	items := make([]ruleResponse, 0, len(rows))
@@ -159,38 +169,50 @@ func (h *Handler) Rules(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Events(w http.ResponseWriter, r *http.Request) {
-	projectID, ok := parseOptionalIntegerQuery(w, r, "project_id")
-	if !ok {
-		return
+	validationErrors := make([]httpapi.ValidationError, 0, 4)
+	projectParam, projectErr := httpapi.ParseIntegerQuery(r, "project_id")
+	if projectErr != nil {
+		validationErrors = append(validationErrors, *projectErr)
 	}
 	severity := optionalNonEmptyQuery(r, "severity")
 	status := optionalNonEmptyQuery(r, "status")
-	pageParam, ok := httpapi.ParseIntegerQuery(w, r, "page")
-	if !ok {
-		return
+	pageParam, pageErr := httpapi.ParseIntegerQuery(r, "page")
+	if pageErr != nil {
+		validationErrors = append(validationErrors, *pageErr)
 	}
 	page := 1
-	if pageParam.Present {
-		if !httpapi.ValidateIntegerMinimum(w, pageParam, "page", 1) {
-			return
+	if pageErr == nil && pageParam.Present {
+		if validationErr := httpapi.ValidateIntegerMinimum(pageParam, "page", 1); validationErr != nil {
+			validationErrors = append(validationErrors, *validationErr)
 		}
 		page = pageParam.IntSaturated()
 	}
-	pageSizeParam, ok := httpapi.ParseIntegerQuery(w, r, "page_size")
-	if !ok {
-		return
+	pageSizeParam, pageSizeErr := httpapi.ParseIntegerQuery(r, "page_size")
+	if pageSizeErr != nil {
+		validationErrors = append(validationErrors, *pageSizeErr)
 	}
 	pageSize := 20
-	if pageSizeParam.Present {
-		if !httpapi.ValidateIntegerMinimum(w, pageSizeParam, "page_size", 1) ||
-			!httpapi.ValidateIntegerMaximum(w, pageSizeParam, "page_size", 100) {
-			return
+	if pageSizeErr == nil && pageSizeParam.Present {
+		if validationErr := httpapi.ValidateIntegerMinimum(pageSizeParam, "page_size", 1); validationErr != nil {
+			validationErrors = append(validationErrors, *validationErr)
+		}
+		if validationErr := httpapi.ValidateIntegerMaximum(pageSizeParam, "page_size", 100); validationErr != nil {
+			validationErrors = append(validationErrors, *validationErr)
 		}
 		pageSize = int(pageSizeParam.Value.Int64())
 	}
-	isAdmin, ok := adminHeader(w, r)
-	if !ok {
+	isAdmin, adminErr := adminHeader(r)
+	if adminErr != nil {
+		validationErrors = append(validationErrors, *adminErr)
+	}
+	if len(validationErrors) > 0 {
+		httpapi.WriteValidationErrors(w, validationErrors)
 		return
+	}
+	var projectID *string
+	if projectParam.Present {
+		value := projectParam.Canonical
+		projectID = &value
 	}
 	if projectID != nil && !h.requireProjectAccess(w, r, *projectID, isAdmin) {
 		return
@@ -204,7 +226,7 @@ func (h *Handler) Events(w http.ResponseWriter, r *http.Request) {
 		PageSize:  pageSize,
 	})
 	if err != nil {
-		httpapi.WriteDetail(w, http.StatusInternalServerError, "Internal Server Error")
+		httpapi.WriteInternalServerError(w)
 		return
 	}
 	items := make([]eventResponse, 0, len(rows))
@@ -243,9 +265,15 @@ func (h *Handler) Events(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Stats(w http.ResponseWriter, r *http.Request) {
-	projectID, ok := parseOptionalIntegerQuery(w, r, "project_id")
-	if !ok {
+	projectParam, projectErr := httpapi.ParseIntegerQuery(r, "project_id")
+	if projectErr != nil {
+		httpapi.WriteValidationErrors(w, []httpapi.ValidationError{*projectErr})
 		return
+	}
+	var projectID *string
+	if projectParam.Present {
+		value := projectParam.Canonical
+		projectID = &value
 	}
 	stats, err := h.store.Stats(
 		r.Context(),
@@ -253,7 +281,7 @@ func (h *Handler) Stats(w http.ResponseWriter, r *http.Request) {
 		time.Now().Format("2006-01-02"),
 	)
 	if err != nil {
-		httpapi.WriteDetail(w, http.StatusInternalServerError, "Internal Server Error")
+		httpapi.WriteInternalServerError(w)
 		return
 	}
 	_ = httpapi.WriteJSON(w, http.StatusOK, statsResponse{
@@ -274,7 +302,7 @@ func (h *Handler) requireProjectAccess(
 ) bool {
 	project, err := h.store.GetProject(r.Context(), projectID)
 	if err != nil {
-		httpapi.WriteDetail(w, http.StatusInternalServerError, "Internal Server Error")
+		httpapi.WriteInternalServerError(w)
 		return false
 	}
 	if project == nil {
@@ -294,22 +322,6 @@ func (h *Handler) requireProjectAccess(
 	return true
 }
 
-func parseOptionalIntegerQuery(
-	w http.ResponseWriter,
-	r *http.Request,
-	name string,
-) (*string, bool) {
-	param, ok := httpapi.ParseIntegerQuery(w, r, name)
-	if !ok {
-		return nil, false
-	}
-	if !param.Present {
-		return nil, true
-	}
-	value := param.Canonical
-	return &value, true
-}
-
 func optionalNonEmptyQuery(r *http.Request, name string) *string {
 	values, present := r.URL.Query()[name]
 	if !present {
@@ -325,12 +337,12 @@ func optionalNonEmptyQuery(r *http.Request, name string) *string {
 	return &raw
 }
 
-func adminHeader(w http.ResponseWriter, r *http.Request) (bool, bool) {
-	value, ok := httpapi.ParseOptionalBoolHeader(w, r, "X-Is-Admin")
-	if !ok {
-		return false, false
+func adminHeader(r *http.Request) (bool, *httpapi.ValidationError) {
+	value, err := httpapi.ParseOptionalBoolHeader(r, "X-Is-Admin")
+	if err != nil {
+		return false, err
 	}
-	return value != nil && *value, true
+	return value != nil && *value, nil
 }
 
 func requestOperator(r *http.Request) string {

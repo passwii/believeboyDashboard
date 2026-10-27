@@ -54,32 +54,39 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 			notificationType = &raw
 		}
 	}
-	read, ok := httpapi.ParseOptionalBoolQuery(w, r, "read")
-	if !ok {
-		return
+	validationErrors := make([]httpapi.ValidationError, 0, 3)
+	read, readErr := httpapi.ParseOptionalBoolQuery(r, "read")
+	if readErr != nil {
+		validationErrors = append(validationErrors, *readErr)
 	}
-	pageParam, ok := httpapi.ParseIntegerQuery(w, r, "page")
-	if !ok {
-		return
+	pageParam, pageErr := httpapi.ParseIntegerQuery(r, "page")
+	if pageErr != nil {
+		validationErrors = append(validationErrors, *pageErr)
 	}
 	page := 1
-	if pageParam.Present {
-		if !httpapi.ValidateIntegerMinimum(w, pageParam, "page", 1) {
-			return
+	if pageErr == nil && pageParam.Present {
+		if validationErr := httpapi.ValidateIntegerMinimum(pageParam, "page", 1); validationErr != nil {
+			validationErrors = append(validationErrors, *validationErr)
 		}
 		page = pageParam.IntSaturated()
 	}
-	pageSizeParam, ok := httpapi.ParseIntegerQuery(w, r, "page_size")
-	if !ok {
-		return
+	pageSizeParam, pageSizeErr := httpapi.ParseIntegerQuery(r, "page_size")
+	if pageSizeErr != nil {
+		validationErrors = append(validationErrors, *pageSizeErr)
 	}
 	pageSize := 20
-	if pageSizeParam.Present {
-		if !httpapi.ValidateIntegerMinimum(w, pageSizeParam, "page_size", 1) ||
-			!httpapi.ValidateIntegerMaximum(w, pageSizeParam, "page_size", 100) {
-			return
+	if pageSizeErr == nil && pageSizeParam.Present {
+		if validationErr := httpapi.ValidateIntegerMinimum(pageSizeParam, "page_size", 1); validationErr != nil {
+			validationErrors = append(validationErrors, *validationErr)
+		}
+		if validationErr := httpapi.ValidateIntegerMaximum(pageSizeParam, "page_size", 100); validationErr != nil {
+			validationErrors = append(validationErrors, *validationErr)
 		}
 		pageSize = int(pageSizeParam.Value.Int64())
+	}
+	if len(validationErrors) > 0 {
+		httpapi.WriteValidationErrors(w, validationErrors)
+		return
 	}
 
 	userID, ok := requireUserID(w, r)
@@ -94,7 +101,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		PageSize: pageSize,
 	})
 	if err != nil {
-		httpapi.WriteDetail(w, http.StatusInternalServerError, "Internal Server Error")
+		httpapi.WriteInternalServerError(w)
 		return
 	}
 
@@ -131,7 +138,7 @@ func (h *Handler) UnreadCount(w http.ResponseWriter, r *http.Request) {
 	}
 	count, err := h.store.UnreadCount(r.Context(), userID)
 	if err != nil {
-		httpapi.WriteDetail(w, http.StatusInternalServerError, "Internal Server Error")
+		httpapi.WriteInternalServerError(w)
 		return
 	}
 	_ = httpapi.WriteJSON(w, http.StatusOK, unreadCountResponse{Count: count})

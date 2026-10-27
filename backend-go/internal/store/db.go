@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -30,12 +31,32 @@ func OpenPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse DATABASE_URL: invalid connection string")
 	}
+	cfg.AfterConnect = configureTimestamptzScanLocation
 
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("open database pool: %w", err)
 	}
 	return pool, nil
+}
+
+func configureTimestamptzScanLocation(
+	_ context.Context,
+	conn *pgx.Conn,
+) error {
+	timezone := conn.PgConn().ParameterStatus("TimeZone")
+	location, err := time.LoadLocation(timezone)
+	if err != nil {
+		return fmt.Errorf("load PostgreSQL TimeZone %q: %w", timezone, err)
+	}
+	conn.TypeMap().RegisterType(&pgtype.Type{
+		Name: "timestamptz",
+		OID:  pgtype.TimestamptzOID,
+		Codec: &pgtype.TimestamptzCodec{
+			ScanLocation: location,
+		},
+	})
+	return nil
 }
 
 func normalizeDatabaseURL(databaseURL string) string {

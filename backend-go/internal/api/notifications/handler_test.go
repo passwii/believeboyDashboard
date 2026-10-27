@@ -181,6 +181,29 @@ func TestListRejectsPaginationBoundsWithFastAPIBody(t *testing.T) {
 	}
 }
 
+func TestListAggregatesQueryValidationErrorsInPydanticOrder(t *testing.T) {
+	store := &fakeStore{}
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/notifications?page=0&page_size=101",
+		nil,
+	)
+	req.Header.Set("X-Is-Admin", "invalid")
+	rec := httptest.NewRecorder()
+
+	NewHandler(store).List(rec, req)
+
+	assertResponse(
+		t,
+		rec,
+		http.StatusUnprocessableEntity,
+		`{"detail":[{"type":"greater_than_equal","loc":["query","page"],"msg":"Input should be greater than or equal to 1","input":"0","ctx":{"ge":1}},{"type":"less_than_equal","loc":["query","page_size"],"msg":"Input should be less than or equal to 100","input":"101","ctx":{"le":100}}]}`,
+	)
+	if store.listCalls != 0 {
+		t.Errorf("List() calls = %d, want 0", store.listCalls)
+	}
+}
+
 func TestListValidatesQueryBeforeUserIDHandlerCheck(t *testing.T) {
 	store := &fakeStore{}
 	rec := httptest.NewRecorder()
@@ -257,13 +280,13 @@ func TestNotificationStoreErrorsReturn500(t *testing.T) {
 	req.Header.Set("X-User-Id", "1")
 	rec := httptest.NewRecorder()
 	NewHandler(store).List(rec, req)
-	assertResponse(t, rec, http.StatusInternalServerError, `{"detail":"Internal Server Error"}`)
+	assertInternalError(t, rec)
 
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/notifications/unread-count", nil)
 	req.Header.Set("X-User-Id", "1")
 	rec = httptest.NewRecorder()
 	NewHandler(store).UnreadCount(rec, req)
-	assertResponse(t, rec, http.StatusInternalServerError, `{"detail":"Internal Server Error"}`)
+	assertInternalError(t, rec)
 }
 
 type fakeStore struct {
@@ -302,6 +325,19 @@ func assertResponse(t *testing.T, rec *httptest.ResponseRecorder, status int, bo
 	}
 	if got := rec.Body.String(); got != body {
 		t.Errorf("body = %s, want %s", got, body)
+	}
+}
+
+func assertInternalError(t *testing.T, rec *httptest.ResponseRecorder) {
+	t.Helper()
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500; body = %s", rec.Code, rec.Body.String())
+	}
+	if got, want := rec.Header().Get("Content-Type"), "text/plain; charset=utf-8"; got != want {
+		t.Errorf("Content-Type = %q, want %q", got, want)
+	}
+	if got, want := rec.Body.String(), "Internal Server Error"; got != want {
+		t.Errorf("body = %q, want %q", got, want)
 	}
 }
 
