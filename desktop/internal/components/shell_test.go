@@ -109,6 +109,42 @@ func TestShellToggleInspector(t *testing.T) {
 	}
 }
 
+func TestShellMinimumWindowWithInspectorHasNoOverlap(t *testing.T) {
+	state := ShellState{InspectorOpen: true}
+	tt := ui.NewTester(func(c *ui.Context) {
+		Shell(c, ShellOptions{
+			State: &state,
+			Title: "首页",
+			Rail: func(c *ui.Context) {
+				ui.Text(c, "RAIL")
+			},
+			Sidebar: func(c *ui.Context) {
+				ui.Text(c, "SIDEBAR")
+			},
+			Main: func(c *ui.Context) {
+				ui.Text(c, "MAIN")
+			},
+			Inspector: func(c *ui.Context) {
+				ui.Text(c, "INSPECTOR")
+			},
+		})
+	}, 1000, 700)
+	main := rectFor(t, tt, "主内容区")
+	inspector := rectFor(t, tt, "检查器区域")
+	if main.X != 288 || main.W != 392 || main.Y != ShellHeaderHeight || main.H != 700-ShellHeaderHeight {
+		t.Errorf("main = %+v", main)
+	}
+	if inspector.X != 680 || inspector.W != 320 || inspector.Y != ShellHeaderHeight {
+		t.Errorf("inspector = %+v", inspector)
+	}
+	if main.X < 0 || main.Y < 0 || inspector.X < 0 || inspector.Y < 0 {
+		t.Error("negative shell geometry")
+	}
+	if main.X+main.W > inspector.X || inspector.X+inspector.W > 1000 || inspector.Y+inspector.H > 700 {
+		t.Error("shell columns overlap or overflow")
+	}
+}
+
 func rectFor(t *testing.T, tt *ui.Tester, text string) ui.Rect {
 	t.Helper()
 	r, ok := tt.Find(text)

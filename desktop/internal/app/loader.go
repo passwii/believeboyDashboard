@@ -22,7 +22,7 @@ type GatewayLoader struct {
 	Client ReadClient
 }
 
-func (l GatewayLoader) Load(ctx context.Context) pages.HomeData {
+func (l GatewayLoader) Load(ctx context.Context, projectID int) pages.HomeData {
 	type result struct {
 		index int
 		data  any
@@ -38,7 +38,7 @@ func (l GatewayLoader) Load(ctx context.Context) pages.HomeData {
 		results <- result{index: 1, data: value, err: err}
 	}()
 	go func() {
-		value, err := l.Client.AlertStats(ctx, 0)
+		value, err := l.Client.AlertStats(ctx, projectID)
 		results <- result{index: 2, data: value, err: err}
 	}()
 	go func() {

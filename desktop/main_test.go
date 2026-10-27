@@ -29,12 +29,12 @@ func TestDefaultWindowOptionsStaysNative(t *testing.T) {
 }
 
 func TestNativeShellViewWithoutBootstrap(t *testing.T) {
-	opts := defaultWindowOptions(&desktopRuntime{})
-	view := opts.Content
-	tt := ui.NewTester(func(c *ui.Context) {
-		_ = view
-		ui.Text(c, "应用初始化失败")
-	}, 1120, 760)
+	runtime := &desktopRuntime{}
+	opts := defaultWindowOptions(runtime)
+	if opts.Content == nil {
+		t.Fatal("window Content is nil")
+	}
+	tt := ui.NewTester(runtime.View, 1120, 760)
 	if !tt.HasText("应用初始化失败") {
 		t.Fatalf("texts = %q", tt.Texts())
 	}

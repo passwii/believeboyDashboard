@@ -13,10 +13,12 @@ import (
 type readStubHTTP struct {
 	t      *testing.T
 	routes map[string]string
+	last   *http.Request
 }
 
-func (s readStubHTTP) Do(req *http.Request) (*http.Response, error) {
+func (s *readStubHTTP) Do(req *http.Request) (*http.Response, error) {
 	s.t.Helper()
+	s.last = req
 	if req.Header.Get("X-API-Key") == "" {
 		s.t.Error("missing X-API-Key")
 	}
@@ -50,10 +52,11 @@ func TestReadModelMethodsUseGatewayPaths(t *testing.T) {
 		"/api/v1/alerts/stats":               `{"total_active":2}`,
 		"/api/v1/system-management/profile":  `{"id":"42","name":"linxiao","role_type":"admin"}`,
 		"/api/v1/projects/manage":            `[{"id":1,"name":"北美站","is_active":true}]`,
+		"/api/v1/auth/me":                    `{"id":"42","email":"li@example.com","name":"linxiao","full_name":"林晓","is_admin":true,"is_active":true,"role_type":"admin"}`,
 	}}
 	client, err := NewClient(ClientConfig{
 		BaseURL: "http://gateway.test", ClientID: "client-id",
-		HTTPClient: httpStub, Sessions: readStubSessions{},
+		HTTPClient: &httpStub, Sessions: readStubSessions{},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -73,5 +76,14 @@ func TestReadModelMethodsUseGatewayPaths(t *testing.T) {
 	}
 	if value, err := client.ManagedProjects(ctx); err != nil || len(value) != 1 {
 		t.Errorf("ManagedProjects = %+v, %v", value, err)
+	}
+	if value, err := client.AuthMe(ctx); err != nil || value.ID != "42" || value.RoleType != RoleAdmin {
+		t.Errorf("AuthMe = %+v, %v", value, err)
+	}
+	if value, err := client.AlertStats(ctx, 7); err != nil || value.TotalActive != 2 {
+		t.Errorf("AlertStats project = %+v, %v", value, err)
+	}
+	if got := httpStub.last.URL.Query().Get("project_id"); got != "7" {
+		t.Errorf("project_id query = %q, want 7", got)
 	}
 }

@@ -12,8 +12,3 @@ func TestProjectDecoding(t *testing.T) {
 		t.Fatalf("projects = %+v", projects)
 	}
 }
-
-func TestShellReadMethodsExist(t *testing.T) {
-	// Compile-time coverage for the concrete methods the home page injects.
-	var _ func(*Client, string) error
-}

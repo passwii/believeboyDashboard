@@ -10,6 +10,7 @@ type SidebarItem struct {
 	Label    string
 	Icon     *ui.SVG
 	Enabled  bool
+	Planned  bool
 	Selected bool
 }
 
@@ -19,9 +20,8 @@ type SidebarGroup struct {
 }
 
 type SidebarOptions struct {
-	Groups        []SidebarGroup
-	FocusSelected bool
-	OnSelect      func(string)
+	Groups   []SidebarGroup
+	OnSelect func(string)
 }
 
 // Sidebar is the fixed 224 DIP sub-navigation column.
@@ -90,9 +90,6 @@ func sidebarGroup(c *ui.Context, options SidebarOptions, group SidebarGroup) {
 			if item.Selected {
 				row.Background(p.AccentSoft)
 				textColor = p.Accent
-				if options.FocusSelected {
-					row.Focus()
-				}
 			}
 			row.Children(func() {
 				ui.Icon(c, item.Icon).Size(16, 16).TextColor(textColor)
@@ -101,7 +98,7 @@ func sidebarGroup(c *ui.Context, options SidebarOptions, group SidebarGroup) {
 					FontWeight(map[bool]int{true: 600, false: 450}[item.Selected]).
 					TextColor(textColor).
 					Grow(1)
-				if !item.Enabled {
+				if item.Planned {
 					ui.Text(c, "稍后").
 						FontSize(9).
 						TextColor(p.InkMuted.Alpha(0.8)).

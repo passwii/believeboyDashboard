@@ -29,32 +29,38 @@ type Options struct {
 	Router         *ui.Router
 	Sessions       api.SessionStore
 	InitialSession *auth.Session
+	InitialAPIKey  string
 	Login          pages.LoginFunc
 	HomeLoader     pages.HomeLoader
 	ProjectLoader  pages.ProjectLoader
 	Logout         func(context.Context) error
 	Quit           func()
+	VerifySession  func(context.Context) (api.MeResponse, error)
 }
 
 // App owns router-level state and keeps all model updates on the UI thread.
 type App struct {
-	mu            sync.RWMutex
-	router        *ui.Router
-	sessions      api.SessionStore
-	session       auth.Session
-	hasSession    bool
-	login         pages.LoginFunc
-	homeLoader    pages.HomeLoader
-	projectLoader pages.ProjectLoader
-	logout        func(context.Context) error
-	quit          func()
-	update        func(func())
-	loginMu       sync.Mutex
-	loginPage     *pages.LoginPage
-	homePage      *pages.HomePage
-	logoutError   string
-	inspectorOpen bool
-	closed        bool
+	mu             sync.RWMutex
+	router         *ui.Router
+	sessions       api.SessionStore
+	session        auth.Session
+	hasSession     bool
+	apiKey         string
+	login          pages.LoginFunc
+	homeLoader     pages.HomeLoader
+	projectLoader  pages.ProjectLoader
+	logout         func(context.Context) error
+	quit           func()
+	update         func(func())
+	verifySession  func(context.Context) (api.MeResponse, error)
+	refreshStarted bool
+	loginMu        sync.Mutex
+	loginPage      *pages.LoginPage
+	homePage       *pages.HomePage
+	logoutError    string
+	inspectorOpen  bool
+	sessionStatus  string
+	closed         bool
 }
 
 func New(options Options) *App {
@@ -74,6 +80,8 @@ func New(options Options) *App {
 		projectLoader: options.ProjectLoader,
 		logout:        options.Logout,
 		quit:          options.Quit,
+		verifySession: options.VerifySession,
+		apiKey:        options.InitialAPIKey,
 	}
 	if options.InitialSession != nil {
 		a.setSession(*options.InitialSession)
@@ -84,7 +92,14 @@ func New(options Options) *App {
 func (a *App) SetUpdate(update func(func())) {
 	a.mu.Lock()
 	a.update = update
+	start := !a.refreshStarted && a.hasSession && a.verifySession != nil && a.sessions != nil
+	if start {
+		a.refreshStarted = true
+	}
 	a.mu.Unlock()
+	if start {
+		go a.refreshSavedSession()
+	}
 }
 
 func (a *App) SetQuit(quit func()) {
@@ -101,6 +116,86 @@ func (a *App) SetLogout(logout func(context.Context) error) {
 
 func (a *App) Router() *ui.Router { return a.router }
 
+func (a *App) sessionActive() bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.hasSession
+}
+
+func (a *App) refreshSavedSession() {
+	a.mu.RLock()
+	sessions := a.sessions
+	verify := a.verifySession
+	apiKey := a.apiKey
+	sessionID := a.session.SessionID
+	a.mu.RUnlock()
+	if sessions == nil || verify == nil {
+		return
+	}
+	response, err := verify(context.Background())
+	if errors.Is(err, api.ErrUnauthorized) || (err == nil && !response.IsActive) {
+		_ = sessions.Clear(context.Background())
+		a.updateSession(func() { a.applySessionRevoked() })
+		return
+	}
+	if err != nil {
+		a.updateSession(func() {
+			a.sessionStatus = "会话校验失败，继续使用本地会话"
+		})
+		return
+	}
+	refreshed := auth.Session{
+		UserID: response.ID, Email: response.Email, Name: response.Name,
+		FullName: response.FullName, RoleType: string(response.RoleType),
+		SessionID: sessionID, IsAdmin: response.IsAdmin, IsActive: response.IsActive,
+	}
+	saveErr := sessions.Save(context.Background(), refreshed, apiKey)
+	a.updateSession(func() {
+		if a.closed {
+			return
+		}
+		a.mu.Lock()
+		a.session = refreshed
+		a.hasSession = true
+		a.apiKey = apiKey
+		if saveErr != nil {
+			a.sessionStatus = "会话已刷新，但本地凭据保存失败"
+		} else {
+			a.sessionStatus = ""
+		}
+		a.mu.Unlock()
+	})
+}
+
+func (a *App) updateSession(fn func()) {
+	a.mu.RLock()
+	update := a.update
+	a.mu.RUnlock()
+	if update != nil {
+		update(fn)
+	}
+}
+
+func (a *App) applySessionRevoked() {
+	if a.closed {
+		return
+	}
+	a.logoutError = ""
+	a.sessionStatus = ""
+	a.mu.Lock()
+	a.session = auth.Session{}
+	a.hasSession = false
+	a.apiKey = ""
+	home := a.homePage
+	a.homePage = nil
+	a.loginPage = nil
+	a.mu.Unlock()
+	if home != nil {
+		home.Close()
+	}
+	a.router.Replace(LoginRoute)
+}
+
 func (a *App) Close() {
 	a.mu.Lock()
 	a.closed = true
@@ -116,6 +211,9 @@ func (a *App) Close() {
 }
 
 func (a *App) View(c *ui.Context) {
+	if a.router.Path() != LoginRoute && !a.sessionActive() {
+		a.router.Replace(LoginRoute)
+	}
 	design.ApplyTheme(c.Theme())
 	a.router.View(c, func(route *ui.Route) {
 		switch {
@@ -246,6 +344,7 @@ func (a *App) homeView(c *ui.Context) {
 		OnLogout:          a.triggerLogout,
 		InspectorOpen:     a.inspectorOpen,
 		OnToggleInspector: a.toggleInspector,
+		Status:            a.sessionStatus,
 		OnRefresh:         page.Refresh,
 		OnProjectChange:   page.SelectProject,
 	})
@@ -263,6 +362,7 @@ func (a *App) placeholderView(c *ui.Context, id, title, breadcrumb, description 
 		OnLogout:          a.triggerLogout,
 		InspectorOpen:     a.inspectorOpen,
 		OnToggleInspector: a.toggleInspector,
+		Status:            a.sessionStatus,
 	})
 	if a.logoutError != "" {
 		p := design.Light
@@ -313,7 +413,10 @@ func (a *App) navigate(id string) {
 	if !strings.HasPrefix(route, "/") {
 		route = "/" + route
 	}
-	a.router.Replace(route)
+	if !a.sessionActive() {
+		return
+	}
+	a.router.Push(route)
 }
 
 func (a *App) triggerLogout() {

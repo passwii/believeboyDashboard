@@ -48,7 +48,7 @@ func LoadProjects(value []api.Project, err error) cardResult[[]api.Project] {
 	return cardResult[[]api.Project]{Value: value, Err: err}
 }
 
-type HomeLoader func(context.Context) HomeData
+type HomeLoader func(context.Context, int) HomeData
 type ProjectLoader func(context.Context, int) ([]api.Project, error)
 
 type HomeOptions struct {
@@ -137,14 +137,18 @@ func (p *HomePage) Refresh() {
 	p.generation++
 	generation := p.generation
 	load := p.load
+	projectID := p.selectedProject
 	if p.loadCancel != nil {
 		p.loadCancel()
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	p.loadCancel = cancel
 	go func() {
-		data := load(ctx)
+		data := load(ctx, projectID)
 		p.update(func() {
+			if p.closed || generation != p.generation {
+				return
+			}
 			p.results = append(p.results, homeResult{data: data, generation: generation})
 		})
 	}()
@@ -491,7 +495,12 @@ func (p *HomePage) projectSection(c *ui.Context) {
 						Height(28).
 						PaddingX(8).
 						AlignItems(ui.Center).
-						Radius(2)
+						Radius(2).
+						Role(ui.RoleButton).
+						Cursor(ui.CursorPointer).
+						OnClick(func() {
+							p.SelectProject(project.ID)
+						})
 					if project.ID == p.selectedProject {
 						row.Background(palette.AccentSoft)
 					}

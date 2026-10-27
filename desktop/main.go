@@ -22,13 +22,6 @@ type desktopRuntime struct {
 }
 
 func defaultWindowOptions(runtime *desktopRuntime) mygo.WindowOptions {
-	content := func(c *ui.Context) {
-		if runtime == nil || runtime.app == nil {
-			ui.Text(c, "应用初始化失败，请查看日志。")
-			return
-		}
-		runtime.app.View(c)
-	}
 	return mygo.WindowOptions{
 		Title:     "BelieveBoy",
 		Width:     pages.DefaultWidth,
@@ -38,8 +31,16 @@ func defaultWindowOptions(runtime *desktopRuntime) mygo.WindowOptions {
 		// Opens where the user left it last time.
 		StateKey: "main",
 		// The window shows the interface MyGo draws, not a web page.
-		Content: ui.View(content),
+		Content: ui.View(runtime.View),
 	}
+}
+
+func (r *desktopRuntime) View(c *ui.Context) {
+	if r == nil || r.app == nil {
+		ui.Text(c, "应用初始化失败，请查看日志。")
+		return
+	}
+	r.app.View(c)
 }
 
 func main() {
@@ -88,7 +89,7 @@ func bootstrap(ctx context.Context) (*desktopRuntime, error) {
 	if err != nil {
 		return nil, err
 	}
-	saved, _, savedErr := sessions.Load(ctx)
+	saved, savedAPIKey, savedErr := sessions.Load(ctx)
 	var initial *auth.Session
 	route := app.LoginRoute
 	if savedErr == nil {
@@ -104,11 +105,13 @@ func bootstrap(ctx context.Context) (*desktopRuntime, error) {
 		Router:         ui.NewRouter(route),
 		Sessions:       sessions,
 		InitialSession: initial,
+		InitialAPIKey:  savedAPIKey,
 		Login:          pages.ClientLogin(client),
 		HomeLoader:     loader.Load,
 		ProjectLoader:  loader.LoadProjects,
 		Logout:         client.Logout,
 		Quit:           mygo.App.Quit,
+		VerifySession:  client.AuthMe,
 	})
 	return &desktopRuntime{config: cfg, app: desktopApp}, nil
 }

@@ -10,39 +10,41 @@ import (
 )
 
 type stubReadClient struct {
-	health      api.HealthResponse
-	healthErr   error
-	unread      api.UnreadCountResponse
-	unreadErr   error
-	alerts      api.AlertStats
-	alertsErr   error
-	profile     api.Profile
-	profileErr  error
-	projects    []api.Project
-	projectsErr error
-	delay       time.Duration
+	health        api.HealthResponse
+	healthErr     error
+	unread        api.UnreadCountResponse
+	unreadErr     error
+	alerts        api.AlertStats
+	alertsErr     error
+	profile       api.Profile
+	profileErr    error
+	projects      []api.Project
+	projectsErr   error
+	delay         time.Duration
+	alertProjects []int
 }
 
-func (s stubReadClient) Health(context.Context) (api.HealthResponse, error) {
+func (s *stubReadClient) Health(context.Context) (api.HealthResponse, error) {
 	if s.delay > 0 {
 		time.Sleep(s.delay)
 	}
 	return s.health, s.healthErr
 }
 
-func (s stubReadClient) UnreadCount(context.Context) (api.UnreadCountResponse, error) {
+func (s *stubReadClient) UnreadCount(context.Context) (api.UnreadCountResponse, error) {
 	return s.unread, s.unreadErr
 }
 
-func (s stubReadClient) AlertStats(context.Context, int) (api.AlertStats, error) {
+func (s *stubReadClient) AlertStats(_ context.Context, projectID int) (api.AlertStats, error) {
+	s.alertProjects = append(s.alertProjects, projectID)
 	return s.alerts, s.alertsErr
 }
 
-func (s stubReadClient) CurrentProfile(context.Context) (api.Profile, error) {
+func (s *stubReadClient) CurrentProfile(context.Context) (api.Profile, error) {
 	return s.profile, s.profileErr
 }
 
-func (s stubReadClient) ManagedProjects(context.Context) ([]api.Project, error) {
+func (s *stubReadClient) ManagedProjects(context.Context) ([]api.Project, error) {
 	return s.projects, s.projectsErr
 }
 
@@ -53,8 +55,8 @@ func TestGatewayLoaderIsolatesFailures(t *testing.T) {
 		alertsErr: errors.New("alerts down"),
 		profile:   api.Profile{ID: "42", Name: "linxiao", RoleType: api.RoleAdmin},
 	}
-	loader := GatewayLoader{Client: client}
-	data := loader.Load(context.Background())
+	loader := GatewayLoader{Client: &client}
+	data := loader.Load(context.Background(), 7)
 	if data.Health.Err != nil || data.Health.Value.Status != "ok" {
 		t.Errorf("health = %+v", data.Health)
 	}
@@ -70,12 +72,16 @@ func TestGatewayLoaderIsolatesFailures(t *testing.T) {
 	if data.LoadedAt.IsZero() {
 		t.Error("LoadedAt not set")
 	}
+	if len(client.alertProjects) != 1 || client.alertProjects[0] != 7 {
+		t.Errorf("alert project IDs = %v, want [7]", client.alertProjects)
+	}
 }
 
 func TestGatewayLoaderProjects(t *testing.T) {
-	loader := GatewayLoader{Client: stubReadClient{
+	client := &stubReadClient{
 		projects: []api.Project{{ID: 1, Name: "北美站"}},
-	}}
+	}
+	loader := GatewayLoader{Client: client}
 	projects, err := loader.LoadProjects(context.Background(), 0)
 	if err != nil || len(projects) != 1 {
 		t.Fatalf("projects = %+v, err = %v", projects, err)

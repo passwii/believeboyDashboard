@@ -94,6 +94,18 @@ type Profile struct {
 	UpdatedAt         *string  `json:"updated_at"`
 }
 
+// MeResponse is the cached-session refresh contract from GET /api/v1/auth/me.
+type MeResponse struct {
+	ID                string   `json:"id"`
+	Email             string   `json:"email"`
+	Name              string   `json:"name"`
+	FullName          *string  `json:"full_name"`
+	IsAdmin           bool     `json:"is_admin"`
+	IsActive          bool     `json:"is_active"`
+	RoleType          RoleType `json:"role_type"`
+	PasswordChangedAt *string  `json:"password_changed_at"`
+}
+
 // Project is the subset of /api/v1/projects/manage used by the native shell.
 // That route stays on FastAPI during week one and reaches it through Gateway.
 type Project struct {
@@ -135,5 +147,11 @@ func (c *Client) CurrentProfile(ctx context.Context) (Profile, error) {
 func (c *Client) ManagedProjects(ctx context.Context) ([]Project, error) {
 	var result []Project
 	err := c.Get(ctx, "/api/v1/projects/manage", &result)
+	return result, err
+}
+
+func (c *Client) AuthMe(ctx context.Context) (MeResponse, error) {
+	var result MeResponse
+	err := c.Get(ctx, "/api/v1/auth/me", &result)
 	return result, err
 }

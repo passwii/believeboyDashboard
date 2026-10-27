@@ -16,6 +16,7 @@ type PlaceholderOptions struct {
 	OnNavigate        func(string)
 	OnSettings        func()
 	OnLogout          func()
+	Status            string
 	InspectorOpen     bool
 	OnToggleInspector func()
 }
@@ -33,6 +34,7 @@ func PlaceholderPage(c *ui.Context, options PlaceholderOptions) {
 		OnNavigate:        options.OnNavigate,
 		OnSettings:        options.OnSettings,
 		OnLogout:          options.OnLogout,
+		Status:            options.Status,
 		InspectorOpen:     options.InspectorOpen,
 		OnToggleInspector: options.OnToggleInspector,
 		Main: func(c *ui.Context) {

@@ -19,6 +19,7 @@ type WorkbenchOptions struct {
 	OnRefresh         func()
 	OnSettings        func()
 	OnLogout          func()
+	Status            string
 	InspectorOpen     bool
 	OnToggleInspector func()
 	Main              func(*ui.Context)
@@ -36,10 +37,10 @@ func Workbench(c *ui.Context, options WorkbenchOptions) {
 			Rail(c, RailOptions{
 				Items: []RailItem{
 					{ID: "home", Label: "首页", Icon: design.IconHome, Enabled: true},
-					{ID: "projects", Label: "项目", Icon: design.IconProjects, Enabled: false},
-					{ID: "operations", Label: "运营", Icon: design.IconOps, Enabled: false},
-					{ID: "reports", Label: "报表", Icon: design.IconReports, Enabled: false},
-					{ID: "ai", Label: "AI", Icon: design.IconAI, Enabled: false},
+					{ID: "projects", Label: "项目", Icon: design.IconProjects, Enabled: true},
+					{ID: "operations", Label: "运营", Icon: design.IconOps, Enabled: true},
+					{ID: "reports", Label: "报表", Icon: design.IconReports, Enabled: true},
+					{ID: "ai", Label: "AI", Icon: design.IconAI, Enabled: true},
 				},
 				ActiveID: options.ActiveID,
 				OnSelect: options.OnNavigate,
@@ -47,17 +48,16 @@ func Workbench(c *ui.Context, options WorkbenchOptions) {
 		},
 		Sidebar: func(c *ui.Context) {
 			Sidebar(c, SidebarOptions{
-				FocusSelected: true,
-				OnSelect:      options.OnNavigate,
+				OnSelect: options.OnNavigate,
 				Groups: []SidebarGroup{
 					{Label: "工作台", Items: []SidebarItem{
 						{ID: "home", Label: "首页", Icon: design.IconHome, Enabled: true, Selected: options.ActiveID == "home"},
 					}},
 					{Label: "业务", Items: []SidebarItem{
-						{ID: "projects", Label: "项目管理", Icon: design.IconProjects, Selected: options.ActiveID == "projects"},
-						{ID: "operations", Label: "运营分析", Icon: design.IconOps, Selected: options.ActiveID == "operations"},
-						{ID: "reports", Label: "报表中心", Icon: design.IconReports, Selected: options.ActiveID == "reports"},
-						{ID: "ai", Label: "AI 助手", Icon: design.IconAI, Selected: options.ActiveID == "ai"},
+						{ID: "projects", Label: "项目管理", Icon: design.IconProjects, Enabled: true, Planned: true, Selected: options.ActiveID == "projects"},
+						{ID: "operations", Label: "运营分析", Icon: design.IconOps, Enabled: true, Planned: true, Selected: options.ActiveID == "operations"},
+						{ID: "reports", Label: "报表中心", Icon: design.IconReports, Enabled: true, Planned: true, Selected: options.ActiveID == "reports"},
+						{ID: "ai", Label: "AI 助手", Icon: design.IconAI, Enabled: true, Planned: true, Selected: options.ActiveID == "ai"},
 					}},
 					{Label: "系统", Items: []SidebarItem{
 						{ID: "settings", Label: "系统设置", Icon: design.IconSystem, Enabled: true, Selected: options.ActiveID == "settings"},
@@ -78,6 +78,7 @@ func Workbench(c *ui.Context, options WorkbenchOptions) {
 				OnRefresh:         options.OnRefresh,
 				OnSettings:        options.OnSettings,
 				OnLogout:          options.OnLogout,
+				Status:            options.Status,
 				InspectorOpen:     options.InspectorOpen,
 				OnToggleInspector: options.OnToggleInspector,
 			})

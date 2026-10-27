@@ -21,26 +21,43 @@ type homeHarness struct {
 }
 
 type fakeHomeLoader struct {
-	mu          sync.Mutex
-	loads       int
-	projects    int
-	block       chan struct{}
-	health      api.HealthResponse
-	healthErr   error
-	unread      api.UnreadCountResponse
-	unreadErr   error
-	alerts      api.AlertStats
-	alertsErr   error
-	profile     api.Profile
-	profileErr  error
-	projectsVal []api.Project
-	projectsErr error
+	mu            sync.Mutex
+	loads         int
+	loadIDs       []int
+	projects      int
+	block         chan struct{}
+	blocks        map[int]chan struct{}
+	started       map[int]chan struct{}
+	dataByProject map[int]HomeData
+	health        api.HealthResponse
+	healthErr     error
+	unread        api.UnreadCountResponse
+	unreadErr     error
+	alerts        api.AlertStats
+	alertsErr     error
+	profile       api.Profile
+	profileErr    error
+	projectsVal   []api.Project
+	projectsErr   error
 }
 
-func (f *fakeHomeLoader) Load(ctx context.Context) HomeData {
+func (f *fakeHomeLoader) Load(ctx context.Context, projectID int) HomeData {
 	f.mu.Lock()
 	f.loads++
+	f.loadIDs = append(f.loadIDs, projectID)
 	block := f.block
+	specificBlock := false
+	if f.blocks != nil {
+		if specific := f.blocks[projectID]; specific != nil {
+			block = specific
+			specificBlock = true
+		}
+	}
+	var started chan struct{}
+	if f.started != nil {
+		started = f.started[projectID]
+	}
+	projectData, hasProjectData := f.dataByProject[projectID]
 	values := struct {
 		health      api.HealthResponse
 		unread      api.UnreadCountResponse
@@ -51,12 +68,25 @@ func (f *fakeHomeLoader) Load(ctx context.Context) HomeData {
 		health: f.health, unread: f.unread, alerts: f.alerts, profile: f.profile, projectsVal: f.projectsVal,
 	}
 	f.mu.Unlock()
-	if block != nil {
+	if started != nil {
 		select {
-		case <-block:
-		case <-ctx.Done():
-			return HomeData{}
+		case started <- struct{}{}:
+		default:
 		}
+	}
+	if block != nil {
+		if specificBlock {
+			<-block
+		} else {
+			select {
+			case <-block:
+			case <-ctx.Done():
+				return HomeData{}
+			}
+		}
+	}
+	if hasProjectData {
+		return projectData
 	}
 	results := HomeData{
 		Health:   LoadHealth(values.health, f.healthErr),
@@ -144,9 +174,12 @@ func TestHomeStartsLoading(t *testing.T) {
 		t.Fatalf("loading state missing: %q", h.tt.Texts())
 	}
 	close(loader.block)
-	h.wait(t)
-	if !h.tt.HasText("工作台") {
-		t.Fatalf("home did not load: %q", h.tt.Texts())
+	h.waitLoaded(t)
+	if h.tt.HasText("正在加载工作台") {
+		t.Fatalf("loading text remained: %q", h.tt.Texts())
+	}
+	if !h.tt.HasText("正常") || !h.tt.HasText("12") {
+		t.Fatalf("home data did not render: %q", h.tt.Texts())
 	}
 }
 
@@ -202,5 +235,99 @@ func TestHomeRefreshStartsNewLoad(t *testing.T) {
 	h.wait(t)
 	if loader.loads < 2 {
 		t.Errorf("load count = %d, want at least 2", loader.loads)
+	}
+}
+
+func TestHomeRefreshPassesSelectedProjectToLoader(t *testing.T) {
+	loader := fixtureLoader()
+	loader.projectsVal = nil
+	h := newHomeHarness(t, loader, testSession())
+	h.waitLoaded(t)
+	h.page.SelectProject(7)
+	h.waitLoaded(t)
+
+	loader.mu.Lock()
+	ids := append([]int(nil), loader.loadIDs...)
+	loader.mu.Unlock()
+	if len(ids) < 2 || ids[0] != 0 || ids[len(ids)-1] != 7 {
+		t.Fatalf("loader project IDs = %v, want initial 0 then 7", ids)
+	}
+}
+
+func TestHomeProjectChangeDiscardsStaleProjectResult(t *testing.T) {
+	block7 := make(chan struct{})
+	started7 := make(chan struct{}, 1)
+	loader := fixtureLoader()
+	loader.projectsVal = nil
+	loader.blocks = map[int]chan struct{}{7: block7}
+	loader.started = map[int]chan struct{}{7: started7}
+	loader.dataByProject = map[int]HomeData{
+		0: {Health: LoadHealth(api.HealthResponse{Status: "project-0"}, nil), LoadedAt: time.Now()},
+		7: {Health: LoadHealth(api.HealthResponse{Status: "project-7"}, nil), LoadedAt: time.Now()},
+		8: {Health: LoadHealth(api.HealthResponse{Status: "project-8"}, nil), LoadedAt: time.Now()},
+	}
+	h := newHomeHarness(t, loader, testSession())
+	h.waitLoaded(t)
+
+	h.page.SelectProject(7)
+	select {
+	case <-started7:
+	case <-time.After(time.Second):
+		t.Fatal("project 7 load did not start")
+	}
+	h.page.SelectProject(8)
+	h.waitLoaded(t)
+	close(block7)
+	h.wait(t)
+
+	if h.page.ProjectID() != 8 {
+		t.Fatalf("selected project = %d, want 8", h.page.ProjectID())
+	}
+	if !h.tt.HasText("project-8") || h.tt.HasText("project-7") {
+		t.Fatalf("stale project result won: %q", h.tt.Texts())
+	}
+}
+
+func TestHomeProjectRowsSelectProject(t *testing.T) {
+	loader := fixtureLoader()
+	h := newHomeHarness(t, loader, testSession())
+	h.waitLoaded(t)
+	if err := h.tt.Click("欧洲站"); err != nil {
+		t.Fatal(err)
+	}
+	h.waitLoaded(t)
+	if h.page.ProjectID() != 2 {
+		t.Fatalf("selected project = %d, want 2", h.page.ProjectID())
+	}
+	loader.mu.Lock()
+	last := loader.loadIDs[len(loader.loadIDs)-1]
+	loader.mu.Unlock()
+	if last != 2 {
+		t.Fatalf("last loader project = %d, want 2", last)
+	}
+}
+
+func TestHomeCloseRejectsLateResult(t *testing.T) {
+	release := make(chan struct{})
+	loader := fixtureLoader()
+	loader.block = release
+	mainWork := make(chan func(), 4)
+	page := NewHomePage(HomeOptions{
+		Session: testSession(),
+		Load:    loader.Load,
+		Update:  func(fn func()) { mainWork <- fn },
+	})
+	tt := ui.NewTester(page.View, DefaultWidth, DefaultHeight)
+	_ = tt
+	page.Close()
+	close(release)
+	select {
+	case fn := <-mainWork:
+		fn()
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for late home result")
+	}
+	if len(page.results) != 0 {
+		t.Fatalf("closed page queued %d results", len(page.results))
 	}
 }

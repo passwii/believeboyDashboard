@@ -98,6 +98,8 @@ func Shell(c *ui.Context, options ShellOptions) ui.Element {
 						MinWidth(0).
 						MinHeight(0).
 						Clip().
+						Role(ui.RoleGroup).
+						Label("主内容区").
 						Children(func() {
 							if options.Main != nil {
 								options.Main(c)
@@ -111,6 +113,8 @@ func Shell(c *ui.Context, options ShellOptions) ui.Element {
 							Background(p.Panel).
 							BorderStartWidth(1).
 							BorderColor(p.Line).
+							Role(ui.RoleGroup).
+							Label("检查器区域").
 							Children(func() {
 								options.Inspector(c)
 							})

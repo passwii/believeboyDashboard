@@ -27,6 +27,7 @@ type HeaderOptions struct {
 	OnLogout          func()
 	OnRefresh         func()
 	OnSettings        func()
+	Status            string
 	InspectorOpen     bool
 	OnToggleInspector func()
 }
@@ -56,6 +57,14 @@ func Header(c *ui.Context, options HeaderOptions) {
 				ui.Text(c, options.Breadcrumb).FontSize(11).TextColor(p.InkMuted)
 			}
 		})
+
+		if options.Status != "" {
+			ui.Text(c, options.Status).
+				FontSize(10).
+				TextColor(p.Warning).
+				MaxWidth(240).
+				Role(ui.RoleStatus)
+		}
 
 		if len(options.Projects) > 0 || options.Project != "" {
 			projectLabel := options.Project
