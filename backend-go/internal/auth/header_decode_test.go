@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestDecodeHeaderValuePrefersBase64ThenURL(t *testing.T) {
@@ -16,9 +17,14 @@ func TestDecodeHeaderValuePrefersBase64ThenURL(t *testing.T) {
 		want string
 	}{
 		{name: "standard base64", raw: base64.StdEncoding.EncodeToString([]byte("测试 用户")), want: "测试 用户"},
-		{name: "raw base64", raw: base64.RawStdEncoding.EncodeToString([]byte("测试 用户")), want: "测试 用户"},
-		{name: "python raw shorthand", raw: "5rWL6K+V", want: "测试"},
-		{name: "url encoded unicode", raw: url.QueryEscape("运营 A"), want: "运营 A"},
+		{name: "padded base64", raw: base64.StdEncoding.EncodeToString([]byte("测试 用户")), want: "测试 用户"},
+		{name: "padded shorthand", raw: "5rWL6K+V", want: "测试"},
+		{name: "literal plus is not space", raw: "A+B", want: "A+B"},
+		{name: "unpadded base64 unchanged", raw: "YWJjZA", want: "YWJjZA"},
+		{name: "non-alphabet base64 chars ignored", raw: "T!WFu", want: "Man"},
+		{name: "base64 whitespace ignored", raw: "TW Fu", want: "Man"},
+		{name: "extra base64 padding", raw: "TWFu===", want: "Man"},
+		{name: "url encoded unicode", raw: url.PathEscape("运营 A"), want: "运营 A"},
 		{name: "TWFu compatibility", raw: "TWFu", want: "Man"},
 		{name: "plain value", raw: "user-123", want: "user-123"},
 	}
@@ -31,10 +37,17 @@ func TestDecodeHeaderValuePrefersBase64ThenURL(t *testing.T) {
 	}
 }
 
+func TestDecodeHeaderValueRejectsUnpaddedBase64(t *testing.T) {
+	if got := DecodeHeaderValue("5rWL6K+VIOeUqOaItw"); got != "5rWL6K+VIOeUqOaItw" {
+		t.Errorf("DecodeHeaderValue() = %q, want unpadded Base64 unchanged", got)
+	}
+}
+
 func TestDecodeHeaderValueRejectsNonUTF8Base64(t *testing.T) {
 	raw := base64.StdEncoding.EncodeToString([]byte{0xff, 0xfe})
-	if got := DecodeHeaderValue(raw); got != raw {
-		t.Errorf("DecodeHeaderValue(%q) = %q, want URL fallback unchanged", raw, got)
+	want := url.QueryEscape(raw)
+	if got := DecodeHeaderValue(want); got != raw {
+		t.Errorf("DecodeHeaderValue(%q) = %q, want URL fallback %q", want, got, raw)
 	}
 }
 
@@ -59,6 +72,38 @@ func TestUserContextAppliesFastAPIHeaderCaps(t *testing.T) {
 	}
 	if len(got.Operator) != 255 || got.Operator != longOperator[:255] {
 		t.Errorf("Operator length = %d, want capped 255", len(got.Operator))
+	}
+}
+
+func TestHeaderCapsUseUnicodeCodePoints(t *testing.T) {
+	userID := strings.Repeat("用", 64) + "尾"
+	req := newRequestWithHeaders(map[string]string{"X-User-Id": userID})
+
+	got := UserContextFromRequest(req)
+
+	if got.UserID != strings.Repeat("用", 64) {
+		t.Errorf("UserID = %q, want exactly 64 intact runes", got.UserID)
+	}
+	if !utf8.ValidString(got.UserID) {
+		t.Errorf("UserID = %q, invalid UTF-8 after cap", got.UserID)
+	}
+}
+
+func TestOperatorAndRoleCapsUseUnicodeCodePoints(t *testing.T) {
+	operator := strings.Repeat("营", 255) + "尾"
+	role := strings.Repeat("员", 32) + "尾"
+	req := newRequestWithHeaders(map[string]string{
+		"X-Operator":  operator,
+		"X-Role-Type": role,
+	})
+
+	got := UserContextFromRequest(req)
+
+	if got.Operator != strings.Repeat("营", 255) || !utf8.ValidString(got.Operator) {
+		t.Errorf("Operator cap did not preserve 255 intact runes")
+	}
+	if got.RoleType != strings.Repeat("员", 32) || !utf8.ValidString(got.RoleType) {
+		t.Errorf("RoleType cap did not preserve 32 intact runes")
 	}
 }
 

@@ -65,11 +65,16 @@ func TestListExchangeRatesClampsPaginationAndSerializesItems(t *testing.T) {
 		t.Errorf("pagination = (%d, %d), want (1, 200)", store.listPage, store.listPageSize)
 	}
 
-	var got exchangeRateListResponse
+	var got struct {
+		Items    []ExchangeRateItem `json:"items"`
+		Total    int                `json:"total"`
+		Page     json.Number        `json:"page"`
+		PageSize int                `json:"page_size"`
+	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if got.Total != 11 || got.Page != 1 || got.PageSize != 200 || len(got.Items) != 1 {
+	if got.Total != 11 || got.Page.String() != "1" || got.PageSize != 200 || len(got.Items) != 1 {
 		t.Fatalf("response = %#v, want total/page/page_size and one item", got)
 	}
 	item := got.Items[0]
@@ -247,6 +252,71 @@ func TestListExchangeRatesAcceptsPydanticIntegerSpellings(t *testing.T) {
 					store.listPageSize,
 					tt.wantPage,
 					tt.wantSize,
+				)
+			}
+		})
+	}
+}
+
+func TestListExchangeRatesPydanticIntegerParityBounds(t *testing.T) {
+	hugePositive := "999999999999999999999999999999999999"
+	hugeNegative := "-999999999999999999999999999999999999"
+	tests := []struct {
+		name         string
+		query        string
+		status       int
+		wantPageJSON string
+		wantPage     int
+		wantPageSize int
+	}{
+		{name: "leading underscore", query: "page=_10", status: http.StatusUnprocessableEntity},
+		{name: "trailing underscore", query: "page=10_", status: http.StatusUnprocessableEntity},
+		{name: "double underscore", query: "page=1__0", status: http.StatusUnprocessableEntity},
+		{name: "grouped underscore", query: "page=1_000", status: http.StatusOK, wantPageJSON: "1000", wantPage: 1000, wantPageSize: 50},
+		{name: "decimal zeroes", query: "page=1.00", status: http.StatusOK, wantPageJSON: "1", wantPage: 1, wantPageSize: 50},
+		{name: "plus", query: "page=%2B10", status: http.StatusOK, wantPageJSON: "10", wantPage: 10, wantPageSize: 50},
+		{name: "whitespace", query: "page=%2010%20", status: http.StatusOK, wantPageJSON: "10", wantPage: 10, wantPageSize: 50},
+		{name: "zero clamps", query: "page=0", status: http.StatusOK, wantPageJSON: "1", wantPage: 1, wantPageSize: 50},
+		{name: "negative clamps", query: "page=-1", status: http.StatusOK, wantPageJSON: "1", wantPage: 1, wantPageSize: 50},
+		{name: "huge positive keeps response text", query: "page=" + hugePositive, status: http.StatusOK, wantPageJSON: hugePositive, wantPage: maxInt, wantPageSize: 50},
+		{name: "huge negative clamps", query: "page=" + hugeNegative, status: http.StatusOK, wantPageJSON: "1", wantPage: 1, wantPageSize: 50},
+		{name: "huge negative page size clamps", query: "page=1&page_size=" + hugeNegative, status: http.StatusOK, wantPageJSON: "1", wantPage: 1, wantPageSize: 1},
+		{name: "huge positive page size clamps", query: "page=1&page_size=" + hugePositive, status: http.StatusOK, wantPageJSON: "1", wantPage: 1, wantPageSize: 200},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := &fakeStore{}
+			rec := httptest.NewRecorder()
+			NewHandler(store).ListExchangeRates(
+				rec,
+				httptest.NewRequest(http.MethodGet, "/api/v1/exchange-rates?"+tt.query, nil),
+			)
+			if rec.Code != tt.status {
+				t.Fatalf("status = %d, want %d; body = %s", rec.Code, tt.status, rec.Body.String())
+			}
+			if tt.status != http.StatusOK {
+				return
+			}
+			var got map[string]any
+			if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			decoder := json.NewDecoder(strings.NewReader(rec.Body.String()))
+			decoder.UseNumber()
+			var numeric map[string]any
+			if err := decoder.Decode(&numeric); err != nil {
+				t.Fatalf("decode numeric response: %v", err)
+			}
+			if numeric["page"].(json.Number).String() != tt.wantPageJSON {
+				t.Errorf("page JSON = %s, want %s", numeric["page"].(json.Number), tt.wantPageJSON)
+			}
+			if store.listPage != tt.wantPage || store.listPageSize != tt.wantPageSize {
+				t.Errorf(
+					"store pagination = (%d, %d), want (%d, %d)",
+					store.listPage,
+					store.listPageSize,
+					tt.wantPage,
+					tt.wantPageSize,
 				)
 			}
 		})

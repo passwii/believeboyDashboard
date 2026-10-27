@@ -15,20 +15,55 @@ func DecodeHeaderValue(raw string) string {
 		return ""
 	}
 
-	for _, encoding := range []*base64.Encoding{
-		base64.StdEncoding,
-		base64.RawStdEncoding,
-	} {
-		decoded, err := encoding.DecodeString(value)
-		if err == nil && utf8.Valid(decoded) {
-			return strings.TrimSpace(string(decoded))
-		}
+	if decoded, ok := pythonBase64Decode(value); ok && utf8.Valid(decoded) {
+		return strings.TrimSpace(string(decoded))
 	}
 
-	if decoded, err := url.QueryUnescape(value); err == nil {
-		value = decoded
-	} else if decoded, err := url.PathUnescape(value); err == nil {
+	if decoded, err := url.PathUnescape(value); err == nil {
 		value = decoded
 	}
 	return strings.TrimSpace(value)
+}
+
+// pythonBase64Decode mirrors base64.b64decode(..., validate=False): non-alphabet
+// bytes are ignored, padding is inferred, and a remainder of one is rejected.
+func pythonBase64Decode(value string) ([]byte, bool) {
+	filtered := strings.Map(func(char rune) rune {
+		switch {
+		case char >= 'A' && char <= 'Z',
+			char >= 'a' && char <= 'z',
+			char >= '0' && char <= '9',
+			char == '+',
+			char == '/',
+			char == '=':
+			return char
+		default:
+			return -1
+		}
+	}, value)
+	if filtered == "" {
+		return nil, false
+	}
+	hasPadding := strings.Contains(filtered, "=")
+	dataCharacters := len(strings.TrimRight(filtered, "="))
+	if dataCharacters%4 == 1 || (!hasPadding && dataCharacters%4 != 0) {
+		return nil, false
+	}
+	firstPadding := strings.IndexByte(filtered, '=')
+	if firstPadding < 0 {
+		firstPadding = len(filtered)
+	}
+	unpadded := filtered[:firstPadding]
+	if unpadded == "" {
+		return []byte{}, true
+	}
+	padded := unpadded
+	for len(padded)%4 != 0 {
+		padded += "="
+	}
+	decoded, err := base64.StdEncoding.DecodeString(padded)
+	if err != nil {
+		return nil, false
+	}
+	return decoded, true
 }

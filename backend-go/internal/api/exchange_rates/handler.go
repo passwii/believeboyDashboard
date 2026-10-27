@@ -47,8 +47,20 @@ type Handler struct {
 type exchangeRateListResponse struct {
 	Items    []ExchangeRateItem `json:"items"`
 	Total    int                `json:"total"`
-	Page     int                `json:"page"`
+	Page     pageValue          `json:"page"`
 	PageSize int                `json:"page_size"`
+}
+
+type pageValue struct {
+	value    int
+	rawValue string
+}
+
+func (p pageValue) MarshalJSON() ([]byte, error) {
+	if p.rawValue != "" {
+		return []byte(p.rawValue), nil
+	}
+	return json.Marshal(p.value)
 }
 
 type ExchangeRateItem struct {
@@ -128,7 +140,7 @@ func (h *Handler) ListExchangeRates(w http.ResponseWriter, r *http.Request) {
 	_ = httpapi.WriteJSON(w, http.StatusOK, exchangeRateListResponse{
 		Items:    items,
 		Total:    total,
-		Page:     page,
+		Page:     pageResponseValue(lastQueryValue(query, "page"), page),
 		PageSize: pageSize,
 	})
 }
@@ -394,9 +406,23 @@ func parseIntegerQuery(w http.ResponseWriter, raw string, fallback int, name str
 	value, err := strconv.Atoi(raw)
 	if err != nil {
 		digits := strings.TrimPrefix(raw, "+")
-		if strings.Contains(digits, "__") {
+		if strings.Contains(digits, "__") ||
+			strings.HasPrefix(digits, "_") ||
+			strings.HasSuffix(digits, "_") {
 			httpapi.WriteJSON(w, http.StatusUnprocessableEntity, integerParsingError(name, raw, "query"))
 			return 0, false
+		}
+		if strings.HasPrefix(digits, "-") {
+			digits = strings.TrimPrefix(digits, "-")
+			digits = strings.ReplaceAll(digits, "_", "")
+			if !isDigits(digits) {
+				httpapi.WriteJSON(w, http.StatusUnprocessableEntity, integerParsingError(name, raw, "query"))
+				return 0, false
+			}
+			if parsed, parseErr := strconv.Atoi(digits); parseErr == nil {
+				return -parsed, true
+			}
+			return -maxInt, true
 		}
 		digits = strings.ReplaceAll(digits, "_", "")
 		if dot := strings.IndexByte(digits, '.'); dot >= 0 {
@@ -429,6 +455,24 @@ func isDigits(value string) bool {
 		}
 	}
 	return true
+}
+
+func pageResponseValue(raw string, page int) pageValue {
+	raw = strings.TrimSpace(strings.TrimPrefix(raw, "+"))
+	if raw == "" || strings.HasPrefix(raw, "-") {
+		return pageValue{value: page}
+	}
+	digits := strings.ReplaceAll(raw, "_", "")
+	if dot := strings.IndexByte(digits, '.'); dot >= 0 {
+		fraction := digits[dot+1:]
+		if fraction != "" && strings.Trim(fraction, "0") == "" {
+			digits = digits[:dot]
+		}
+	}
+	if isDigits(digits) && page == maxInt {
+		return pageValue{rawValue: digits}
+	}
+	return pageValue{value: page}
 }
 
 func lastQueryValue(query url.Values, key string) string {

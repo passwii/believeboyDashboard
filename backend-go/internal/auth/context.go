@@ -51,10 +51,11 @@ func truncate(value string, limit int) string {
 	if limit <= 0 {
 		return ""
 	}
-	if len(value) <= limit {
+	runes := []rune(value)
+	if len(runes) <= limit {
 		return value
 	}
-	return value[:limit]
+	return string(runes[:limit])
 }
 
 func isTruthy(value string) bool {

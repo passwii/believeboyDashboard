@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func TestGetProfileRequiresUserHeader(t *testing.T) {
@@ -141,8 +142,11 @@ func TestGetProfileDecodesURLEncodedUnicodeAndCapsUserID(t *testing.T) {
 	req.Header.Set("X-User-Id", longID)
 	rec = httptest.NewRecorder()
 	NewHandler(store).GetProfile(rec, req)
-	if got := store.getUserID; got != longID[:64] {
-		t.Errorf("capped user id = %q, want Python-style first 64 bytes", got)
+	if got := store.getUserID; got != strings.Repeat("用", 64) {
+		t.Errorf("capped user id = %q, want Python-style first 64 code points", got)
+	}
+	if !utf8.ValidString(store.getUserID) {
+		t.Errorf("capped user id is invalid UTF-8: %q", store.getUserID)
 	}
 }
 
