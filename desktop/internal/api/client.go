@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/passwii/believeboyDashboard/desktop/internal/auth"
 )
@@ -19,16 +22,19 @@ import (
 const (
 	defaultHTTPTimeout = 15 * time.Second
 	maxErrorBodyBytes  = 64 << 10
+	maxJSONBodyBytes   = 4 << 20
 )
 
 var (
-	ErrUnauthorized       = errors.New("api: unauthorized")
-	ErrForbidden          = errors.New("api: forbidden")
-	ErrRateLimited        = errors.New("api: rate limited")
-	ErrNetwork            = errors.New("api: network error")
-	ErrUnexpectedStatus   = errors.New("api: unexpected status")
-	ErrInvalidResponse    = errors.New("api: invalid response")
-	ErrSessionUnavailable = errors.New("api: session unavailable")
+	ErrUnauthorized          = errors.New("api: unauthorized")
+	ErrForbidden             = errors.New("api: forbidden")
+	ErrRateLimited           = errors.New("api: rate limited")
+	ErrNetwork               = errors.New("api: network error")
+	ErrUnexpectedStatus      = errors.New("api: unexpected status")
+	ErrInvalidResponse       = errors.New("api: invalid response")
+	ErrSessionUnavailable    = errors.New("api: session unavailable")
+	ErrInvalidLogin          = errors.New("api: invalid login response")
+	ErrInvalidIdentityHeader = errors.New("api: invalid identity header")
 )
 
 // HTTPClient is injectable so tests never open a network connection.
@@ -55,6 +61,35 @@ type Client struct {
 	clientID string
 	http     HTTPClient
 	sessions SessionStore
+}
+
+// LoginValidationError identifies a login response that is syntactically
+// valid but cannot be persisted as an authenticated session.
+type LoginValidationError struct {
+	Reason     string
+	StatusCode int
+	Cause      error
+}
+
+func (e *LoginValidationError) Error() string {
+	switch {
+	case e.StatusCode != 0 && e.Reason != "":
+		return fmt.Sprintf("%s: HTTP %d: %s", ErrInvalidLogin, e.StatusCode, e.Reason)
+	case e.Reason != "":
+		return fmt.Sprintf("%s: %s", ErrInvalidLogin, e.Reason)
+	case e.Cause != nil:
+		return fmt.Sprintf("%s: %v", ErrInvalidLogin, e.Cause)
+	default:
+		return ErrInvalidLogin.Error()
+	}
+}
+
+func (e *LoginValidationError) Unwrap() error {
+	return e.Cause
+}
+
+func (e *LoginValidationError) Is(target error) bool {
+	return target == ErrInvalidLogin
 }
 
 func NewClient(config ClientConfig) (*Client, error) {
@@ -88,35 +123,53 @@ func (c *Client) Login(
 	password string,
 ) (*LoginResponse, error) {
 	requestBody := LoginRequest{Email: email, Password: password}
-	var response LoginResponse
-	if err := c.doJSON(
+	response, err := c.doRequest(
 		ctx,
 		http.MethodPost,
 		"/api/v1/auth/login",
 		requestBody,
-		&response,
 		map[string]string{
 			"X-Client-Id": "bb-macos-" + c.clientID,
 		},
 		false,
-	); err != nil {
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		return nil, &LoginValidationError{
+			Reason:     fmt.Sprintf("unexpected HTTP status %d", response.StatusCode),
+			StatusCode: response.StatusCode,
+		}
+	}
+	body, err := readBoundedResponse(response.Body)
+	if err != nil {
+		return nil, &LoginValidationError{Reason: "invalid response body", Cause: err}
+	}
+	var login LoginResponse
+	if err := decodeOneJSON(body, &login); err != nil {
+		return nil, &LoginValidationError{Reason: "invalid response body", Cause: err}
+	}
+	if err := validateLoginResponse(&login); err != nil {
 		return nil, err
 	}
 
 	session := auth.Session{
-		UserID:    response.ID,
-		Email:     response.Email,
-		Name:      response.Name,
-		FullName:  response.FullName,
-		RoleType:  string(response.RoleType),
-		SessionID: response.SessionID,
-		IsAdmin:   response.IsAdmin,
-		IsActive:  response.IsActive,
+		UserID:    login.ID,
+		Email:     login.Email,
+		Name:      login.Name,
+		FullName:  login.FullName,
+		RoleType:  string(login.RoleType),
+		SessionID: login.SessionID,
+		IsAdmin:   login.IsAdmin,
+		IsActive:  login.IsActive,
 	}
-	if err := c.sessions.Save(ctx, session, response.APIKey); err != nil {
+	if err := c.sessions.Save(ctx, session, login.APIKey); err != nil {
 		return nil, fmt.Errorf("api: persist login session: %w", err)
 	}
-	return &response, nil
+	return &login, nil
 }
 
 // Get sends an authenticated GET request and decodes its JSON response.
@@ -156,29 +209,59 @@ func (c *Client) doJSON(
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	response, err := c.doRequest(ctx, method, path, body, extraHeaders, authenticated)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode == http.StatusNoContent || output == nil {
+		return drainBoundedResponse(response.Body)
+	}
+	payload, err := readBoundedResponse(response.Body)
+	if err != nil {
+		return err
+	}
+	if err := decodeOneJSON(payload, output); err != nil {
+		return fmt.Errorf("%w: decode %s %s: %v", ErrInvalidResponse, method, path, err)
+	}
+	return nil
+}
+
+func (c *Client) doRequest(
+	ctx context.Context,
+	method string,
+	path string,
+	body any,
+	extraHeaders map[string]string,
+	authenticated bool,
+) (*http.Response, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if c == nil {
-		return fmt.Errorf("api: nil client")
+		return nil, fmt.Errorf("api: nil client")
 	}
 	if c.http == nil || c.sessions == nil {
-		return fmt.Errorf("api: client is not initialized")
+		return nil, fmt.Errorf("api: client is not initialized")
 	}
 
 	var requestBody io.Reader
 	if body != nil {
 		payload, err := json.Marshal(body)
 		if err != nil {
-			return fmt.Errorf("api: encode request: %w", err)
+			return nil, fmt.Errorf("api: encode request: %w", err)
 		}
 		requestBody = bytes.NewReader(payload)
 	}
 
 	endpoint, err := c.endpoint(path)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	req, err := http.NewRequestWithContext(ctx, method, endpoint, requestBody)
 	if err != nil {
-		return fmt.Errorf("api: create request: %w", err)
+		return nil, fmt.Errorf("api: create request: %w", err)
 	}
 	req.Header.Set("Accept", "application/json")
 	if body != nil {
@@ -191,36 +274,26 @@ func (c *Client) doJSON(
 	if authenticated {
 		session, apiKey, err := c.sessions.Load(ctx)
 		if errors.Is(err, auth.ErrNoSession) {
-			return ErrSessionUnavailable
+			return nil, ErrSessionUnavailable
 		}
 		if err != nil {
-			return fmt.Errorf("api: load session: %w", err)
+			return nil, fmt.Errorf("api: load session: %w", err)
 		}
-		applySessionHeaders(req.Header, session, apiKey)
+		if err := applySessionHeaders(req.Header, session, apiKey); err != nil {
+			return nil, err
+		}
 	}
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return &NetworkError{Cause: err}
+		return nil, &NetworkError{Cause: err}
 	}
-	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return decodeHTTPError(resp)
+		defer resp.Body.Close()
+		return nil, decodeHTTPError(resp)
 	}
-	if output == nil || resp.StatusCode == http.StatusNoContent {
-		_, _ = io.Copy(io.Discard, resp.Body)
-		return nil
-	}
-
-	decoder := json.NewDecoder(resp.Body)
-	if err := decoder.Decode(output); err != nil {
-		if errors.Is(err, io.EOF) {
-			return nil
-		}
-		return fmt.Errorf("%w: decode %s %s: %v", ErrInvalidResponse, method, path, err)
-	}
-	return nil
+	return resp, nil
 }
 
 func (c *Client) endpoint(path string) (string, error) {
@@ -254,20 +327,107 @@ func normalizeBaseURL(raw string) (string, error) {
 	return strings.TrimRight(parsed.String(), "/"), nil
 }
 
-func applySessionHeaders(header http.Header, session auth.Session, apiKey string) {
+func applySessionHeaders(header http.Header, session auth.Session, apiKey string) error {
+	email, err := encodeIdentityHeader(session.Email, 0)
+	if err != nil {
+		return fmt.Errorf("%w: email: %v", ErrInvalidIdentityHeader, err)
+	}
+	name, err := encodeIdentityHeader(session.DisplayName(), 255)
+	if err != nil {
+		return fmt.Errorf("%w: name/operator: %v", ErrInvalidIdentityHeader, err)
+	}
 	header.Set("X-API-Key", apiKey)
 	header.Set("X-Session-Id", session.SessionID)
 	header.Set("X-User-Id", session.UserID)
-	header.Set("X-User-Email", encodeHeaderValue(session.Email))
-	header.Set("X-User-Name", encodeHeaderValue(session.DisplayName()))
-	header.Set("X-Operator", encodeHeaderValue(session.DisplayName()))
+	header.Set("X-User-Email", email)
+	header.Set("X-User-Name", name)
+	header.Set("X-Operator", name)
 	header.Set("X-Is-Admin", strconv.FormatBool(session.IsAdmin))
+	return nil
 }
 
-// encodeHeaderValue matches encodeURIComponent closely enough for FastAPI's
-// path-unescape decoding, including "+" and "@" which PathEscape leaves raw.
-func encodeHeaderValue(value string) string {
-	return strings.ReplaceAll(url.QueryEscape(value), "+", "%20")
+// encodeIdentityHeader uses Base64 because FastAPI's decoder tries Base64
+// before URL decoding. Percent-encoded values can be mistaken for Base64 and
+// never unquoted, so a Base64 payload is the only lossless representation.
+func encodeIdentityHeader(value string, maxRunes int) (string, error) {
+	if !utf8.ValidString(value) {
+		return "", fmt.Errorf("%w: value is not valid UTF-8", ErrInvalidIdentityHeader)
+	}
+	if maxRunes > 0 && utf8.RuneCountInString(value) > maxRunes {
+		return "", fmt.Errorf("%w: value exceeds %d runes", ErrInvalidIdentityHeader, maxRunes)
+	}
+	if strings.TrimSpace(value) != value {
+		return "", fmt.Errorf("%w: leading or trailing whitespace", ErrInvalidIdentityHeader)
+	}
+	for _, char := range value {
+		if unicode.IsControl(char) || unicode.Is(unicode.Zl, char) || unicode.Is(unicode.Zp, char) {
+			return "", fmt.Errorf("%w: control or line-separator character", ErrInvalidIdentityHeader)
+		}
+	}
+	return base64.StdEncoding.EncodeToString([]byte(value)), nil
+}
+
+func readBoundedResponse(reader io.Reader) ([]byte, error) {
+	payload, err := io.ReadAll(io.LimitReader(reader, maxJSONBodyBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("%w: read response body: %v", ErrInvalidResponse, err)
+	}
+	if len(payload) > maxJSONBodyBytes {
+		return nil, fmt.Errorf("%w: response body exceeds %d bytes", ErrInvalidResponse, maxJSONBodyBytes)
+	}
+	return payload, nil
+}
+
+func drainBoundedResponse(reader io.Reader) error {
+	written, err := io.Copy(io.Discard, io.LimitReader(reader, maxJSONBodyBytes+1))
+	if err != nil {
+		return fmt.Errorf("%w: drain response body: %v", ErrInvalidResponse, err)
+	}
+	if written > maxJSONBodyBytes {
+		return fmt.Errorf("%w: response body exceeds %d bytes", ErrInvalidResponse, maxJSONBodyBytes)
+	}
+	return nil
+}
+
+func decodeOneJSON(payload []byte, output any) error {
+	if len(bytes.TrimSpace(payload)) == 0 {
+		return fmt.Errorf("%w: empty response body", ErrInvalidResponse)
+	}
+	decoder := json.NewDecoder(bytes.NewReader(payload))
+	if err := decoder.Decode(output); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidResponse, err)
+	}
+	var extra any
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return fmt.Errorf("%w: multiple JSON values", ErrInvalidResponse)
+		}
+		return fmt.Errorf("%w: trailing data: %v", ErrInvalidResponse, err)
+	}
+	return nil
+}
+
+func validateLoginResponse(response *LoginResponse) error {
+	required := []struct {
+		name  string
+		value string
+	}{
+		{name: "id", value: response.ID},
+		{name: "session_id", value: response.SessionID},
+		{name: "api_key", value: response.APIKey},
+		{name: "email", value: response.Email},
+		{name: "name", value: response.Name},
+		{name: "role_type", value: string(response.RoleType)},
+	}
+	for _, field := range required {
+		if strings.TrimSpace(field.value) == "" {
+			return &LoginValidationError{Reason: field.name + " is required"}
+		}
+	}
+	if !response.IsActive {
+		return &LoginValidationError{Reason: "is_active must be true"}
+	}
+	return nil
 }
 
 func decodeHTTPError(resp *http.Response) error {

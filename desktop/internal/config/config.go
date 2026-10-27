@@ -43,6 +43,7 @@ type FileSystem interface {
 	WriteFile(name string, data []byte, perm fs.FileMode) error
 	Rename(oldPath, newPath string) error
 	Remove(name string) error
+	Chmod(name string, mode fs.FileMode) error
 }
 
 // Store creates and updates the per-user config file.
@@ -74,6 +75,8 @@ func (s *Store) Load(ctx context.Context) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	unlock := lockConfigPath(path)
+	defer unlock()
 
 	data, err := s.fileSystem.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -84,10 +87,14 @@ func (s *Store) Load(ctx context.Context) (Config, error) {
 		if err := s.saveLocked(ctx, path, cfg); err != nil {
 			return Config{}, err
 		}
-		return cfg, nil
+		// Converge on the value that won the final atomic rename.
+		return s.readLocked(path)
 	}
 	if err != nil {
 		return Config{}, fmt.Errorf("config: read %s: %w", path, err)
+	}
+	if err := s.ensurePermissions(path); err != nil {
+		return Config{}, err
 	}
 
 	var cfg Config
@@ -133,6 +140,8 @@ func (s *Store) Save(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return err
 	}
+	unlock := lockConfigPath(path)
+	defer unlock()
 	return s.saveLocked(ctx, path, cfg)
 }
 
@@ -193,8 +202,14 @@ func (s *Store) saveLocked(ctx context.Context, path string, cfg Config) error {
 	if err := s.fileSystem.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("config: create directory %s: %w", dir, err)
 	}
+	if err := s.fileSystem.Chmod(dir, 0o700); err != nil {
+		return fmt.Errorf("config: secure directory %s: %w", dir, err)
+	}
 
-	tempPath := path + ".tmp"
+	tempPath, err := uniqueTempPath(path)
+	if err != nil {
+		return err
+	}
 	if err := s.fileSystem.WriteFile(tempPath, payload, 0o600); err != nil {
 		return fmt.Errorf("config: write temporary file: %w", err)
 	}
@@ -202,7 +217,64 @@ func (s *Store) saveLocked(ctx context.Context, path string, cfg Config) error {
 		_ = s.fileSystem.Remove(tempPath)
 		return fmt.Errorf("config: replace %s: %w", path, err)
 	}
+	if err := s.fileSystem.Chmod(path, 0o600); err != nil {
+		return fmt.Errorf("config: secure file %s: %w", path, err)
+	}
 	return nil
+}
+
+func (s *Store) ensurePermissions(path string) error {
+	dir := filepath.Dir(path)
+	if err := s.fileSystem.MkdirAll(dir, 0o700); err != nil {
+		return fmt.Errorf("config: create directory %s: %w", dir, err)
+	}
+	if err := s.fileSystem.Chmod(dir, 0o700); err != nil {
+		return fmt.Errorf("config: secure directory %s: %w", dir, err)
+	}
+	if err := s.fileSystem.Chmod(path, 0o600); err != nil {
+		return fmt.Errorf("config: secure file %s: %w", path, err)
+	}
+	return nil
+}
+
+func (s *Store) readLocked(path string) (Config, error) {
+	data, err := s.fileSystem.ReadFile(path)
+	if err != nil {
+		return Config{}, fmt.Errorf("config: reread %s: %w", path, err)
+	}
+	var cfg Config
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return Config{}, fmt.Errorf("%w: decode %s: %v", ErrInvalidConfig, path, err)
+	}
+	return cfg, nil
+}
+
+func uniqueTempPath(path string) (string, error) {
+	var suffix [8]byte
+	if _, err := rand.Read(suffix[:]); err != nil {
+		return "", fmt.Errorf("config: create temporary filename: %w", err)
+	}
+	return fmt.Sprintf("%s.tmp-%x", path, suffix[:]), nil
+}
+
+var configPathLocks = struct {
+	sync.Mutex
+	locks map[string]*sync.Mutex
+}{
+	locks: make(map[string]*sync.Mutex),
+}
+
+func lockConfigPath(path string) func() {
+	configPathLocks.Lock()
+	lock := configPathLocks.locks[path]
+	if lock == nil {
+		lock = &sync.Mutex{}
+		configPathLocks.locks[path] = lock
+	}
+	configPathLocks.Unlock()
+
+	lock.Lock()
+	return lock.Unlock
 }
 
 func newClientID() (string, error) {
@@ -248,4 +320,8 @@ func (osFileSystem) Rename(oldPath, newPath string) error {
 
 func (osFileSystem) Remove(name string) error {
 	return os.Remove(name)
+}
+
+func (osFileSystem) Chmod(name string, mode fs.FileMode) error {
+	return os.Chmod(name, mode)
 }

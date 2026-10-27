@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -51,6 +52,7 @@ func (s Session) DisplayName() string {
 type Store struct {
 	keychain *Keychain
 	clock    Clock
+	mu       sync.Mutex
 }
 
 func NewStore(keychain *Keychain, clock Clock) *Store {
@@ -67,6 +69,16 @@ func (s *Store) Save(ctx context.Context, session Session, apiKey string) error 
 	if s == nil || s.keychain == nil {
 		return ErrInvalidSecret
 	}
+	if err := validateCredentials(session, apiKey); err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 
 	session.SavedAt = s.clock.Now().UTC()
 	payload, err := json.Marshal(session)
@@ -74,11 +86,24 @@ func (s *Store) Save(ctx context.Context, session Session, apiKey string) error 
 		return fmt.Errorf("%w: encode: %v", ErrInvalidSession, err)
 	}
 
-	if err := s.keychain.Save(ctx, SessionSecretName, payload); err != nil {
+	previousKey, err := s.keychain.Load(ctx, APIKeySecretName)
+	hadPreviousKey := err == nil
+	if err != nil && !errors.Is(err, ErrSecretNotFound) {
 		return err
 	}
+
+	// Write the key first so a crash can never expose session B with key A.
 	if err := s.keychain.Save(ctx, APIKeySecretName, []byte(apiKey)); err != nil {
-		_ = s.keychain.Delete(context.WithoutCancel(ctx), SessionSecretName)
+		return err
+	}
+	if err := s.keychain.Save(ctx, SessionSecretName, payload); err != nil {
+		cleanupCtx := context.WithoutCancel(ctx)
+		rollbackErr := s.restoreAPIKey(cleanupCtx, previousKey, hadPreviousKey)
+		if rollbackErr != nil {
+			// If the old key cannot be restored, make the pair unloadable.
+			clearErr := s.keychain.Delete(cleanupCtx, SessionSecretName)
+			return errors.Join(err, fmt.Errorf("auth: restore previous api key: %w", rollbackErr), clearErr)
+		}
 		return err
 	}
 	return nil
@@ -90,6 +115,13 @@ func (s *Store) Load(ctx context.Context) (Session, string, error) {
 	}
 	if s == nil || s.keychain == nil {
 		return Session{}, "", ErrInvalidSecret
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if err := ctx.Err(); err != nil {
+		return Session{}, "", err
 	}
 
 	sessionPayload, err := s.keychain.Load(ctx, SessionSecretName)
@@ -111,8 +143,8 @@ func (s *Store) Load(ctx context.Context) (Session, string, error) {
 	if err := json.Unmarshal(sessionPayload, &session); err != nil {
 		return Session{}, "", fmt.Errorf("%w: decode: %v", ErrInvalidSession, err)
 	}
-	if session.UserID == "" {
-		return Session{}, "", fmt.Errorf("%w: missing user id", ErrInvalidSession)
+	if err := validateCredentials(session, string(apiKey)); err != nil {
+		return Session{}, "", err
 	}
 	return session, string(apiKey), nil
 }
@@ -124,8 +156,36 @@ func (s *Store) Clear(ctx context.Context) error {
 	if s == nil || s.keychain == nil {
 		return ErrInvalidSecret
 	}
-	return errors.Join(
-		s.keychain.Delete(ctx, APIKeySecretName),
-		s.keychain.Delete(ctx, SessionSecretName),
-	)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	// Removing the key first makes any surviving session unloadable.
+	keyErr := s.keychain.Delete(ctx, APIKeySecretName)
+	sessionErr := s.keychain.Delete(ctx, SessionSecretName)
+	return errors.Join(keyErr, sessionErr)
+}
+
+func (s *Store) restoreAPIKey(ctx context.Context, previous []byte, hadPrevious bool) error {
+	if hadPrevious {
+		return s.keychain.Save(ctx, APIKeySecretName, previous)
+	}
+	return s.keychain.Delete(ctx, APIKeySecretName)
+}
+
+func validateCredentials(session Session, apiKey string) error {
+	switch {
+	case strings.TrimSpace(session.UserID) == "":
+		return fmt.Errorf("%w: missing user id", ErrInvalidSession)
+	case strings.TrimSpace(session.SessionID) == "":
+		return fmt.Errorf("%w: missing session id", ErrInvalidSession)
+	case strings.TrimSpace(apiKey) == "":
+		return fmt.Errorf("%w: missing api key", ErrInvalidSession)
+	default:
+		return nil
+	}
 }

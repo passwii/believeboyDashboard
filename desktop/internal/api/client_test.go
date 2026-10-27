@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"net/url"
 	"reflect"
 	"strings"
 	"testing"
@@ -78,9 +77,6 @@ func TestAuthenticatedRequestCarriesPlanHeaders(t *testing.T) {
 				assertHeader(t, req, "X-API-Key", "secret-api-key")
 				assertHeader(t, req, "X-Session-Id", "session-1")
 				assertHeader(t, req, "X-User-Id", "42")
-				if strings.ContainsAny(req.Header.Get("X-User-Email"), "+@") {
-					t.Errorf("X-User-Email is not URL encoded: %q", req.Header.Get("X-User-Email"))
-				}
 				assertDecodedHeader(t, req, "X-User-Email", "yawei+test@example.com")
 				assertDecodedHeader(t, req, "X-User-Name", "纪亚伟")
 				assertDecodedHeader(t, req, "X-Operator", "纪亚伟")
@@ -364,11 +360,7 @@ func assertHeader(t *testing.T, req *http.Request, name, want string) {
 
 func assertDecodedHeader(t *testing.T, req *http.Request, name, want string) {
 	t.Helper()
-	got, err := url.PathUnescape(req.Header.Get(name))
-	if err != nil {
-		t.Errorf("decode %s: %v", name, err)
-		return
-	}
+	got := decodeFastAPIHeaderReference(req.Header.Get(name))
 	if got != want {
 		t.Errorf("%s = %q, want %q", name, got, want)
 	}

@@ -12,7 +12,10 @@ import (
 )
 
 func TestLoginAndLogoutNeverWriteSecretsToConfig(t *testing.T) {
-	files := &configMemoryFS{files: make(map[string][]byte)}
+	files := &configMemoryFS{
+		files: make(map[string][]byte),
+		modes: make(map[string]fs.FileMode),
+	}
 	configStore := config.NewStoreWith(configDirProvider{dir: "/virtual/config"}, files)
 	cfg, err := configStore.Load(context.Background())
 	if err != nil {
@@ -84,9 +87,11 @@ func (p configDirProvider) UserConfigDir() (string, error) {
 
 type configMemoryFS struct {
 	files map[string][]byte
+	modes map[string]fs.FileMode
 }
 
-func (m *configMemoryFS) MkdirAll(string, fs.FileMode) error {
+func (m *configMemoryFS) MkdirAll(name string, mode fs.FileMode) error {
+	m.modes[name] = mode
 	return nil
 }
 
@@ -98,8 +103,9 @@ func (m *configMemoryFS) ReadFile(name string) ([]byte, error) {
 	return append([]byte(nil), data...), nil
 }
 
-func (m *configMemoryFS) WriteFile(name string, data []byte, _ fs.FileMode) error {
+func (m *configMemoryFS) WriteFile(name string, data []byte, mode fs.FileMode) error {
 	m.files[name] = append([]byte(nil), data...)
+	m.modes[name] = mode
 	return nil
 }
 
@@ -109,11 +115,21 @@ func (m *configMemoryFS) Rename(oldPath, newPath string) error {
 		return fs.ErrNotExist
 	}
 	m.files[newPath] = data
+	if mode, ok := m.modes[oldPath]; ok {
+		m.modes[newPath] = mode
+	}
 	delete(m.files, oldPath)
+	delete(m.modes, oldPath)
 	return nil
 }
 
 func (m *configMemoryFS) Remove(name string) error {
 	delete(m.files, name)
+	delete(m.modes, name)
+	return nil
+}
+
+func (m *configMemoryFS) Chmod(name string, mode fs.FileMode) error {
+	m.modes[name] = mode
 	return nil
 }

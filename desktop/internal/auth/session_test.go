@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -110,6 +112,176 @@ func TestSessionStoreHonorsContextCancellation(t *testing.T) {
 	}
 }
 
+func TestSessionStoreValidatesCredentialsOnSaveAndLoad(t *testing.T) {
+	t.Run("save", func(t *testing.T) {
+		store := NewStore(NewKeychain(newMemorySecrets()), fixedClock{})
+		tests := []struct {
+			name    string
+			session Session
+			apiKey  string
+		}{
+			{name: "missing user id", session: Session{SessionID: "session-1"}, apiKey: "key"},
+			{name: "missing session id", session: Session{UserID: "42"}, apiKey: "key"},
+			{name: "missing api key", session: Session{UserID: "42", SessionID: "session-1"}},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				if err := store.Save(context.Background(), test.session, test.apiKey); !errors.Is(err, ErrInvalidSession) {
+					t.Errorf("Save() error = %v, want ErrInvalidSession", err)
+				}
+			})
+		}
+	})
+
+	t.Run("load", func(t *testing.T) {
+		tests := []struct {
+			name    string
+			session Session
+			apiKey  []byte
+			wantErr error
+		}{
+			{
+				name:    "missing user id",
+				session: Session{SessionID: "session-1"},
+				apiKey:  []byte("key"),
+				wantErr: ErrInvalidSession,
+			},
+			{
+				name:    "missing session id",
+				session: Session{UserID: "42"},
+				apiKey:  []byte("key"),
+				wantErr: ErrInvalidSession,
+			},
+			{
+				name:    "missing api key secret",
+				session: Session{UserID: "42", SessionID: "session-1"},
+				wantErr: ErrNoSession,
+			},
+			{
+				name:    "empty api key",
+				session: Session{UserID: "42", SessionID: "session-1"},
+				apiKey:  []byte{},
+				wantErr: ErrInvalidSession,
+			},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				secrets := newMemorySecrets()
+				payload, err := json.Marshal(test.session)
+				if err != nil {
+					t.Fatal(err)
+				}
+				secrets.values[SessionSecretName] = payload
+				if test.apiKey != nil {
+					secrets.values[APIKeySecretName] = append([]byte(nil), test.apiKey...)
+				}
+				store := NewStore(NewKeychain(secrets), fixedClock{})
+				if _, _, err := store.Load(context.Background()); !errors.Is(err, test.wantErr) {
+					t.Errorf("Load() error = %v, want %v", err, test.wantErr)
+				}
+			})
+		}
+	})
+}
+
+func TestSessionStoreRollsBackAPIKeyWhenSessionWriteFails(t *testing.T) {
+	secrets := newMemorySecrets()
+	store := NewStore(NewKeychain(secrets), fixedClock{})
+	old := Session{UserID: "old-user", SessionID: "old-session", IsActive: true}
+	if err := store.Save(context.Background(), old, "old-key"); err != nil {
+		t.Fatal(err)
+	}
+
+	secrets.failSet[SessionSecretName] = errors.New("session write failed")
+	newSession := Session{UserID: "new-user", SessionID: "new-session", IsActive: true}
+	if err := store.Save(context.Background(), newSession, "new-key"); err == nil {
+		t.Fatal("Save() error = nil, want failure")
+	}
+
+	loaded, apiKey, err := store.Load(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.UserID != old.UserID || loaded.SessionID != old.SessionID || apiKey != "old-key" {
+		t.Errorf("rolled-back session = %#v key=%q, want old pair", loaded, apiKey)
+	}
+}
+
+func TestSessionStoreConcurrentSavesKeepMatchingPair(t *testing.T) {
+	store := NewStore(NewKeychain(newMemorySecrets()), fixedClock{})
+	var wait sync.WaitGroup
+	for i := 0; i < 32; i++ {
+		wait.Add(1)
+		go func(i int) {
+			defer wait.Done()
+			id := strconv.Itoa(i)
+			err := store.Save(context.Background(), Session{
+				UserID:    id,
+				SessionID: "session-" + id,
+				IsActive:  true,
+			}, "key-"+id)
+			if err != nil {
+				t.Errorf("Save(%d) error = %v", i, err)
+			}
+		}(i)
+	}
+	wait.Wait()
+
+	session, apiKey, err := store.Load(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if apiKey != "key-"+session.UserID || session.SessionID != "session-"+session.UserID {
+		t.Errorf("concurrent saves produced mismatched pair: session=%#v key=%q", session, apiKey)
+	}
+}
+
+func TestSessionStoreConcurrentSaveAndClearLeavesNoPartialSession(t *testing.T) {
+	for i := 0; i < 50; i++ {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			store := NewStore(NewKeychain(newMemorySecrets()), fixedClock{})
+			var wait sync.WaitGroup
+			wait.Add(2)
+			go func() {
+				defer wait.Done()
+				err := store.Save(context.Background(), Session{
+					UserID:    "42",
+					SessionID: "session-1",
+					IsActive:  true,
+				}, "secret-api-key")
+				if err != nil {
+					t.Errorf("Save() error = %v", err)
+				}
+			}()
+			go func() {
+				defer wait.Done()
+				if err := store.Clear(context.Background()); err != nil {
+					t.Errorf("Clear() error = %v", err)
+				}
+			}()
+			wait.Wait()
+
+			session, apiKey, err := store.Load(context.Background())
+			if errors.Is(err, ErrNoSession) {
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if session.UserID != "42" || session.SessionID != "session-1" || apiKey != "secret-api-key" {
+				t.Errorf("partial concurrent state: session=%#v key=%q", session, apiKey)
+			}
+		})
+	}
+}
+
+func TestKeychainDeleteOfMissingSecretIsNoOp(t *testing.T) {
+	keychain := NewKeychain(newMemorySecrets())
+	if err := keychain.Delete(context.Background(), "missing"); err != nil {
+		t.Errorf("Delete(missing) error = %v, want nil", err)
+	}
+}
+
 type fixedClock struct {
 	now time.Time
 }
@@ -119,14 +291,24 @@ func (c fixedClock) Now() time.Time {
 }
 
 type memorySecrets struct {
-	values map[string][]byte
+	values  map[string][]byte
+	failSet map[string]error
 }
 
 func newMemorySecrets() *memorySecrets {
-	return &memorySecrets{values: make(map[string][]byte)}
+	return &memorySecrets{
+		values:  make(map[string][]byte),
+		failSet: make(map[string]error),
+	}
 }
 
 func (m *memorySecrets) Set(key string, value []byte) error {
+	if err := m.failSet[key]; err != nil {
+		return err
+	}
+	if err := m.failSet["*"]; err != nil {
+		return err
+	}
 	m.values[key] = append([]byte(nil), value...)
 	return nil
 }
