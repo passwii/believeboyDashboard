@@ -386,6 +386,7 @@ func TestAlertStoreErrorsReturn500(t *testing.T) {
 
 	store = &fakeStore{err: errors.New("database down")}
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/alerts/stats", nil)
+	req.Header.Set("X-Is-Admin", "true")
 	rec = httptest.NewRecorder()
 	NewHandler(store).Stats(rec, req)
 	assertInternalError(t, rec)
@@ -395,6 +396,29 @@ func TestAlertStoreErrorsReturn500(t *testing.T) {
 	rec = httptest.NewRecorder()
 	NewHandler(store).Rules(rec, req)
 	assertInternalError(t, rec)
+}
+
+func TestStatsWithoutProjectRequiresAdmin(t *testing.T) {
+	store := &fakeStore{}
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/alerts/stats", nil)
+	req.Header.Set("X-Operator", "operator-a")
+	rec := httptest.NewRecorder()
+
+	NewHandler(store).Stats(rec, req)
+
+	assertResponse(t, rec, http.StatusForbidden, `{"detail":"需要管理员权限"}`)
+	if store.statsProjectID != nil {
+		t.Error("global Stats() ran for a non-admin")
+	}
+
+	store = &fakeStore{}
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/alerts/stats", nil)
+	req.Header.Set("X-Is-Admin", "true")
+	rec = httptest.NewRecorder()
+	NewHandler(store).Stats(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("admin global stats status = %d, body = %s", rec.Code, rec.Body.String())
+	}
 }
 
 type fakeStore struct {

@@ -325,6 +325,31 @@ func TestHomeProjectFailureKeepsNonProjectCards(t *testing.T) {
 	}
 }
 
+func TestHomeRefreshRetriesProjectListAfterFailure(t *testing.T) {
+	loader := fixtureLoader()
+	loader.projectsVal = nil
+	loader.projectsErr = errors.New("projects down")
+	h := newHomeHarness(t, loader, testSession())
+	h.waitLoaded(t)
+	if h.page.ProjectID() != 0 {
+		t.Fatalf("selected project = %d, want none", h.page.ProjectID())
+	}
+
+	loader.mu.Lock()
+	loader.projectsVal = []api.Project{{ID: 9, Name: "恢复项目"}}
+	loader.projectsErr = nil
+	loader.mu.Unlock()
+	h.page.Refresh()
+	h.waitLoaded(t)
+
+	if h.page.ProjectID() != 9 {
+		t.Fatalf("selected project = %d, want 9", h.page.ProjectID())
+	}
+	if !h.tt.HasText("恢复项目") || !h.tt.HasText("1") {
+		t.Fatalf("recovered project/alerts missing: %q", h.tt.Texts())
+	}
+}
+
 func TestHomeProjectChangeDiscardsStaleProjectResult(t *testing.T) {
 	block7 := make(chan struct{})
 	started7 := make(chan struct{}, 1)

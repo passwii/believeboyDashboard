@@ -251,7 +251,9 @@ func TestWeek1ContractAlertsNormalAndEmpty(t *testing.T) {
 		t.Errorf("events body = %s, want FastAPI timestamp", events.Body.String())
 	}
 
-	stats := requestContract(handler.Stats, "/api/v1/alerts/stats")
+	statsRequest := httptest.NewRequest(http.MethodGet, "/api/v1/alerts/stats", nil)
+	statsRequest.Header.Set("X-Is-Admin", "true")
+	stats := requestWithHeaders(handler.Stats, statsRequest)
 	assertStatusAndBody(t, stats, http.StatusOK, `{"total_active":0,"critical_count":0,"warning_count":0,"info_count":0,"acknowledged_today":0,"resolved_today":0}`)
 
 	empty := alerts.NewHandler(&contractAlertStore{})

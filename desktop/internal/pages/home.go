@@ -129,6 +129,10 @@ func (p *HomePage) Refresh() {
 	if p.closed {
 		return
 	}
+	if p.loadProjects != nil && !p.projectsLoading &&
+		(p.projectsErr != nil || len(p.projects) == 0) {
+		p.LoadProjects()
+	}
 	if p.load == nil || p.update == nil {
 		p.loading = false
 		p.err = errors.New("home loader unavailable")
