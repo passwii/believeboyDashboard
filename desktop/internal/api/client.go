@@ -13,8 +13,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/passwii/believeboyDashboard/desktop/internal/auth"
 )
@@ -89,7 +87,11 @@ func (e *LoginValidationError) Unwrap() error {
 }
 
 func (e *LoginValidationError) Is(target error) bool {
-	return target == ErrInvalidLogin
+	if target == ErrInvalidLogin {
+		return true
+	}
+	return target == ErrInvalidIdentityHeader &&
+		errors.Is(e.Cause, auth.ErrInvalidHeaderCredential)
 }
 
 func NewClient(config ClientConfig) (*Client, error) {
@@ -156,10 +158,6 @@ func (c *Client) Login(
 	if err := validateLoginResponse(&login); err != nil {
 		return nil, err
 	}
-	if err := validateLoginIdentity(&login); err != nil {
-		return nil, err
-	}
-
 	session := auth.Session{
 		UserID:    login.ID,
 		Email:     login.Email,
@@ -169,6 +167,9 @@ func (c *Client) Login(
 		SessionID: login.SessionID,
 		IsAdmin:   login.IsAdmin,
 		IsActive:  login.IsActive,
+	}
+	if err := auth.ValidateSessionCredentials(session, login.APIKey); err != nil {
+		return nil, &LoginValidationError{Reason: "invalid header credential", Cause: err}
 	}
 	if err := c.sessions.Save(ctx, session, login.APIKey); err != nil {
 		return nil, fmt.Errorf("api: persist login session: %w", err)
@@ -412,22 +413,8 @@ func encodeIdentityHeader(value string, maxRunes int) (string, error) {
 }
 
 func validateIdentityValue(value string, maxRunes int, rejectWhitespace bool) error {
-	if !utf8.ValidString(value) {
-		return fmt.Errorf("%w: value is not valid UTF-8", ErrInvalidIdentityHeader)
-	}
-	if maxRunes > 0 && utf8.RuneCountInString(value) > maxRunes {
-		return fmt.Errorf("%w: value exceeds %d runes", ErrInvalidIdentityHeader, maxRunes)
-	}
-	if strings.TrimSpace(value) != value {
-		return fmt.Errorf("%w: leading or trailing whitespace", ErrInvalidIdentityHeader)
-	}
-	for _, char := range value {
-		if unicode.IsControl(char) || unicode.Is(unicode.Zl, char) || unicode.Is(unicode.Zp, char) {
-			return fmt.Errorf("%w: control or line-separator character", ErrInvalidIdentityHeader)
-		}
-		if rejectWhitespace && unicode.IsSpace(char) {
-			return fmt.Errorf("%w: whitespace is not allowed", ErrInvalidIdentityHeader)
-		}
+	if err := auth.ValidateHeaderText("identity", value, maxRunes, true, rejectWhitespace); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidIdentityHeader, err)
 	}
 	return nil
 }
@@ -501,21 +488,6 @@ func validateLoginResponse(response *LoginResponse) error {
 	}
 	if !response.IsActive {
 		return &LoginValidationError{Reason: "is_active must be true"}
-	}
-	return nil
-}
-
-func validateLoginIdentity(response *LoginResponse) error {
-	if err := validateIdentityValue(response.Email, 0, true); err != nil {
-		return &LoginValidationError{Reason: "unsafe email", Cause: err}
-	}
-	if err := validateIdentityValue(response.Name, 255, false); err != nil {
-		return &LoginValidationError{Reason: "unsafe name", Cause: err}
-	}
-	if response.FullName != nil {
-		if err := validateIdentityValue(*response.FullName, 255, false); err != nil {
-			return &LoginValidationError{Reason: "unsafe full_name", Cause: err}
-		}
 	}
 	return nil
 }

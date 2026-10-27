@@ -86,7 +86,8 @@ func TestIdentityHeaderAllows255Runes(t *testing.T) {
 func TestAuthenticatedRequestRejectsLongDisplayNameBeforeHTTP(t *testing.T) {
 	sessions := newTestSessionStore()
 	longName := strings.Repeat("营", 256)
-	if err := sessions.Save(context.Background(), auth.Session{
+	secrets := newTestSecrets()
+	if err := secrets.Set(auth.CredentialSecretName, mustEnvelope(t, auth.Session{
 		UserID:    "42",
 		Email:     "yawei@example.com",
 		Name:      "yawei",
@@ -94,9 +95,10 @@ func TestAuthenticatedRequestRejectsLongDisplayNameBeforeHTTP(t *testing.T) {
 		RoleType:  "operator",
 		SessionID: "session-1",
 		IsActive:  true,
-	}, "secret-api-key"); err != nil {
+	}, "secret-api-key")); err != nil {
 		t.Fatal(err)
 	}
+	sessions = auth.NewStore(auth.NewKeychain(secrets), testClock{})
 	called := false
 	client := newTestClient(t, stubHTTPClient{fn: func(*http.Request) (*http.Response, error) {
 		called = true
@@ -104,12 +106,25 @@ func TestAuthenticatedRequestRejectsLongDisplayNameBeforeHTTP(t *testing.T) {
 	}}, sessions)
 
 	err := client.Get(context.Background(), "/api/v1/health", nil)
-	if !errors.Is(err, ErrInvalidIdentityHeader) {
-		t.Fatalf("Get() error = %v, want ErrInvalidIdentityHeader", err)
+	if !errors.Is(err, auth.ErrInvalidHeaderCredential) {
+		t.Fatalf("Get() error = %v, want auth.ErrInvalidHeaderCredential", err)
 	}
 	if called {
 		t.Error("HTTP request ran with an invalid identity header")
 	}
+}
+
+func mustEnvelope(t *testing.T, session auth.Session, apiKey string) []byte {
+	t.Helper()
+	payload, err := json.Marshal(map[string]any{
+		"version": 1,
+		"api_key": apiKey,
+		"session": session,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return payload
 }
 
 // decodeFastAPIHeaderReference mirrors backend/app/api/deps.py exactly. It is

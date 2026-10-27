@@ -156,14 +156,52 @@ func TestLoginRejectsUnsafeIdentityValuesBeforeSessionSave(t *testing.T) {
 	}
 }
 
+func TestLoginRejectsHeaderBoundCredentialValues(t *testing.T) {
+	tests := []struct {
+		name      string
+		overrides map[string]any
+	}{
+		{name: "id newline", overrides: map[string]any{"id": "4\n2"}},
+		{name: "id over 64 runes", overrides: map[string]any{"id": strings.Repeat("用", 65)}},
+		{name: "session id space", overrides: map[string]any{"session_id": "session 1"}},
+		{name: "session id control", overrides: map[string]any{"session_id": "session\x001"}},
+		{name: "session id over 256 runes", overrides: map[string]any{"session_id": strings.Repeat("s", 257)}},
+		{name: "api key whitespace", overrides: map[string]any{"api_key": "secret key"}},
+		{name: "api key non-ascii", overrides: map[string]any{"api_key": "密钥"}},
+		{name: "api key over 512 bytes", overrides: map[string]any{"api_key": strings.Repeat("k", 513)}},
+		{name: "email over 320 bytes", overrides: map[string]any{"email": strings.Repeat("e", 321)}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			sessions := newTestSessionStore()
+			client := newTestClient(t, stubHTTPClient{fn: func(*http.Request) (*http.Response, error) {
+				return jsonResponse(http.StatusOK, loginResponseJSON(test.overrides)), nil
+			}}, sessions)
+
+			_, err := client.Login(context.Background(), "yawei@example.com", "password")
+			if !errors.Is(err, ErrInvalidLogin) {
+				t.Fatalf("Login() error = %v, want ErrInvalidLogin", err)
+			}
+			if _, _, loadErr := sessions.Load(context.Background()); !errors.Is(loadErr, auth.ErrNoSession) {
+				t.Errorf("invalid header credential persisted a session: %v", loadErr)
+			}
+		})
+	}
+}
+
 func TestLoginIdentityValidationRejectsInvalidUTF8(t *testing.T) {
 	response := &LoginResponse{
 		Email: string([]byte{0xff, 0xfe}),
 		Name:  "yawei",
 	}
-	err := validateLoginIdentity(response)
-	if !errors.Is(err, ErrInvalidIdentityHeader) {
-		t.Errorf("validateLoginIdentity() error = %v, want ErrInvalidIdentityHeader", err)
+	err := auth.ValidateSessionCredentials(auth.Session{
+		UserID:    "42",
+		SessionID: "session-1",
+		Email:     response.Email,
+		Name:      response.Name,
+	}, "key")
+	if !errors.Is(err, auth.ErrInvalidHeaderCredential) {
+		t.Errorf("ValidateSessionCredentials() error = %v, want ErrInvalidHeaderCredential", err)
 	}
 }
 

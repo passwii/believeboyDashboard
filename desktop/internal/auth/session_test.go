@@ -69,6 +69,8 @@ func TestSessionStoreClearRemovesSecrets(t *testing.T) {
 	if err := store.Save(context.Background(), Session{
 		UserID:    "42",
 		SessionID: "session-1",
+		Email:     "yawei@example.com",
+		Name:      "yawei",
 	}, "secret-api-key"); err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +104,7 @@ func TestSessionStoreRejectsIncompleteOrCorruptSession(t *testing.T) {
 	})
 }
 
-func TestSessionStoreMigratesLegacyTwoItemLayout(t *testing.T) {
+func TestSessionStoreDoesNotAuthenticateLegacyItems(t *testing.T) {
 	secrets := newMemorySecrets()
 	session := Session{UserID: "42", SessionID: "session-1", IsActive: true}
 	payload, err := json.Marshal(session)
@@ -113,33 +115,54 @@ func TestSessionStoreMigratesLegacyTwoItemLayout(t *testing.T) {
 	secrets.values[APIKeySecretName] = []byte("legacy-key")
 	store := NewStore(NewKeychain(secrets), fixedClock{})
 
-	loaded, apiKey, err := store.Load(context.Background())
-	if err != nil {
+	if _, _, err := store.Load(context.Background()); !errors.Is(err, ErrNoSession) {
+		t.Errorf("Load() error = %v, want ErrNoSession", err)
+	}
+	if _, ok := secrets.values[CredentialSecretName]; ok {
+		t.Error("Load() wrote a credential envelope from legacy items")
+	}
+}
+
+func TestSessionStoreClearRemovesEnvelopeAndLegacyLeftovers(t *testing.T) {
+	secrets := newMemorySecrets()
+	store := NewStore(NewKeychain(secrets), fixedClock{})
+	if err := store.Save(context.Background(), Session{
+		UserID:    "42",
+		SessionID: "session-1",
+		Email:     "yawei@example.com",
+		Name:      "yawei",
+	}, "secret-api-key"); err != nil {
 		t.Fatal(err)
 	}
-	if loaded.UserID != "42" || apiKey != "legacy-key" {
-		t.Errorf("legacy load = %#v key=%q", loaded, apiKey)
+	secrets.values[APIKeySecretName] = []byte("legacy-key")
+	secrets.values[SessionSecretName] = []byte(`{"user_id":"old"}`)
+
+	if err := store.Clear(context.Background()); err != nil {
+		t.Fatal(err)
 	}
-	if _, ok := secrets.values[CredentialSecretName]; !ok {
-		t.Error("legacy load did not write the envelope")
-	}
-	if _, ok := secrets.values[SessionSecretName]; ok {
-		t.Error("legacy session item was not removed")
-	}
-	if _, ok := secrets.values[APIKeySecretName]; ok {
-		t.Error("legacy api_key item was not removed")
+	if len(secrets.values) != 0 {
+		t.Errorf("remaining secrets = %#v, want none", secrets.values)
 	}
 }
 
 func TestSessionStoreRejectsOversizedEnvelope(t *testing.T) {
 	secrets := newMemorySecrets()
 	store := NewStore(NewKeychain(secrets), fixedClock{})
-	huge := strings.Repeat("x", MaxCredentialSecretSize)
-	err := store.Save(context.Background(), Session{
+	session := Session{
 		UserID:    "42",
-		Email:     huge,
+		Email:     "yawei@example.com",
 		SessionID: "session-1",
-	}, "key")
+		Name:      "yawei",
+		RoleType:  strings.Repeat("r", MaxCredentialSecretSize),
+	}
+	payload, err := json.Marshal(credentialEnvelope{Version: 1, APIKey: "key", Session: session})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(payload) <= MaxCredentialSecretSize {
+		t.Fatalf("test envelope = %d bytes, want over limit %d", len(payload), MaxCredentialSecretSize)
+	}
+	err = store.Save(context.Background(), session, "key")
 	if !errors.Is(err, ErrSessionTooLarge) {
 		t.Fatalf("Save() error = %v, want ErrSessionTooLarge", err)
 	}
@@ -154,7 +177,9 @@ func TestSessionStoreHonorsContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err := store.Save(ctx, Session{UserID: "42", SessionID: "session-1"}, "key")
+	err := store.Save(ctx, Session{
+		UserID: "42", SessionID: "session-1", Email: "yawei@example.com", Name: "yawei",
+	}, "key")
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("Save() error = %v, want context.Canceled", err)
 	}
@@ -165,18 +190,18 @@ func TestSessionStoreHonorsContextCancellation(t *testing.T) {
 
 func TestSessionStoreValidatesCredentialsOnSaveAndLoad(t *testing.T) {
 	t.Run("save", func(t *testing.T) {
-		store := NewStore(NewKeychain(newMemorySecrets()), fixedClock{})
 		tests := []struct {
 			name    string
 			session Session
 			apiKey  string
 		}{
-			{name: "missing user id", session: Session{SessionID: "session-1"}, apiKey: "key"},
-			{name: "missing session id", session: Session{UserID: "42"}, apiKey: "key"},
-			{name: "missing api key", session: Session{UserID: "42", SessionID: "session-1"}},
+			{name: "missing user id", session: Session{SessionID: "session-1", Email: "yawei@example.com", Name: "yawei"}, apiKey: "key"},
+			{name: "missing session id", session: Session{UserID: "42", Email: "yawei@example.com", Name: "yawei"}, apiKey: "key"},
+			{name: "missing api key", session: Session{UserID: "42", SessionID: "session-1", Email: "yawei@example.com", Name: "yawei"}},
 		}
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
+				store := NewStore(NewKeychain(newMemorySecrets()), fixedClock{})
 				if err := store.Save(context.Background(), test.session, test.apiKey); !errors.Is(err, ErrInvalidSession) {
 					t.Errorf("Save() error = %v, want ErrInvalidSession", err)
 				}
@@ -186,46 +211,54 @@ func TestSessionStoreValidatesCredentialsOnSaveAndLoad(t *testing.T) {
 
 	t.Run("load", func(t *testing.T) {
 		tests := []struct {
-			name    string
-			session Session
-			apiKey  []byte
-			wantErr error
+			name     string
+			envelope credentialEnvelope
+			wantErr  error
 		}{
 			{
-				name:    "missing user id",
-				session: Session{SessionID: "session-1"},
-				apiKey:  []byte("key"),
+				name: "missing user id",
+				envelope: credentialEnvelope{Version: 1, APIKey: "key", Session: Session{
+					SessionID: "session-1", Email: "yawei@example.com", Name: "yawei",
+				}},
 				wantErr: ErrInvalidSession,
 			},
 			{
-				name:    "missing session id",
-				session: Session{UserID: "42"},
-				apiKey:  []byte("key"),
+				name: "missing session id",
+				envelope: credentialEnvelope{Version: 1, APIKey: "key", Session: Session{
+					UserID: "42", Email: "yawei@example.com", Name: "yawei",
+				}},
 				wantErr: ErrInvalidSession,
 			},
 			{
-				name:    "missing api key secret",
-				session: Session{UserID: "42", SessionID: "session-1"},
+				name: "missing api key secret",
+				envelope: credentialEnvelope{Version: 1, Session: Session{
+					UserID: "42", SessionID: "session-1", Email: "yawei@example.com", Name: "yawei",
+				}},
 				wantErr: ErrNoSession,
 			},
 			{
-				name:    "empty api key",
-				session: Session{UserID: "42", SessionID: "session-1"},
-				apiKey:  []byte{},
+				name: "empty api key",
+				envelope: credentialEnvelope{Version: 1, Session: Session{
+					UserID: "42", SessionID: "session-1", Email: "yawei@example.com", Name: "yawei",
+				}},
 				wantErr: ErrInvalidSession,
 			},
 		}
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
 				secrets := newMemorySecrets()
-				payload, err := json.Marshal(test.session)
+				if test.wantErr == ErrNoSession {
+					store := NewStore(NewKeychain(secrets), fixedClock{})
+					if _, _, err := store.Load(context.Background()); !errors.Is(err, ErrNoSession) {
+						t.Errorf("Load() error = %v, want ErrNoSession", err)
+					}
+					return
+				}
+				payload, err := json.Marshal(test.envelope)
 				if err != nil {
 					t.Fatal(err)
 				}
-				secrets.values[SessionSecretName] = payload
-				if test.apiKey != nil {
-					secrets.values[APIKeySecretName] = append([]byte(nil), test.apiKey...)
-				}
+				secrets.values[CredentialSecretName] = payload
 				store := NewStore(NewKeychain(secrets), fixedClock{})
 				if _, _, err := store.Load(context.Background()); !errors.Is(err, test.wantErr) {
 					t.Errorf("Load() error = %v, want %v", err, test.wantErr)
@@ -235,16 +268,129 @@ func TestSessionStoreValidatesCredentialsOnSaveAndLoad(t *testing.T) {
 	})
 }
 
+func TestSessionStoreRejectsHeaderBoundCredentialValues(t *testing.T) {
+	tests := []struct {
+		name    string
+		session Session
+		apiKey  string
+	}{
+		{
+			name:    "user id newline",
+			session: Session{UserID: "4\n2", SessionID: "session-1", Email: "yawei@example.com"},
+			apiKey:  "key",
+		},
+		{
+			name:    "user id over 64 runes",
+			session: Session{UserID: strings.Repeat("用", 65), SessionID: "session-1", Email: "yawei@example.com"},
+			apiKey:  "key",
+		},
+		{
+			name:    "session id space",
+			session: Session{UserID: "42", SessionID: "session 1", Email: "yawei@example.com"},
+			apiKey:  "key",
+		},
+		{
+			name:    "session id control",
+			session: Session{UserID: "42", SessionID: "session\x001", Email: "yawei@example.com"},
+			apiKey:  "key",
+		},
+		{
+			name:    "session id over 256 runes",
+			session: Session{UserID: "42", SessionID: strings.Repeat("s", 257), Email: "yawei@example.com"},
+			apiKey:  "key",
+		},
+		{
+			name:    "api key whitespace",
+			session: Session{UserID: "42", SessionID: "session-1", Email: "yawei@example.com"},
+			apiKey:  "secret key",
+		},
+		{
+			name:    "api key non-ascii",
+			session: Session{UserID: "42", SessionID: "session-1", Email: "yawei@example.com"},
+			apiKey:  "密钥",
+		},
+		{
+			name:    "api key over 512 bytes",
+			session: Session{UserID: "42", SessionID: "session-1", Email: "yawei@example.com"},
+			apiKey:  strings.Repeat("k", 513),
+		},
+		{
+			name:    "email over 320 bytes",
+			session: Session{UserID: "42", SessionID: "session-1", Email: strings.Repeat("e", 321)},
+			apiKey:  "key",
+		},
+		{
+			name:    "name over 255 runes",
+			session: Session{UserID: "42", SessionID: "session-1", Email: "yawei@example.com", Name: strings.Repeat("营", 256)},
+			apiKey:  "key",
+		},
+		{
+			name: "invalid utf8 email",
+			session: Session{
+				UserID:    "42",
+				SessionID: "session-1",
+				Email:     string([]byte{0xff}),
+			},
+			apiKey: "key",
+		},
+		{
+			name: "invalid utf8 name",
+			session: Session{
+				UserID:    "42",
+				SessionID: "session-1",
+				Email:     "yawei@example.com",
+				Name:      string([]byte{0xff}),
+			},
+			apiKey: "key",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			secrets := newMemorySecrets()
+			store := NewStore(NewKeychain(secrets), fixedClock{})
+			if err := store.Save(context.Background(), test.session, test.apiKey); !errors.Is(err, ErrInvalidSession) {
+				t.Errorf("Save() error = %v, want ErrInvalidSession", err)
+			}
+			if len(secrets.values) != 0 {
+				t.Errorf("invalid credentials wrote secrets: %#v", secrets.values)
+			}
+		})
+	}
+}
+
+func TestSessionStoreLoadRejectsHeaderBoundCredentialValues(t *testing.T) {
+	secrets := newMemorySecrets()
+	envelope := credentialEnvelope{
+		Version: 1,
+		APIKey:  "secret key",
+		Session: Session{
+			UserID:    "42",
+			SessionID: "session-1",
+			Email:     "yawei@example.com",
+		},
+	}
+	payload, err := json.Marshal(envelope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secrets.values[CredentialSecretName] = payload
+	store := NewStore(NewKeychain(secrets), fixedClock{})
+
+	if _, _, err := store.Load(context.Background()); !errors.Is(err, ErrInvalidSession) {
+		t.Errorf("Load() error = %v, want ErrInvalidSession", err)
+	}
+}
+
 func TestSessionStoreFailedEnvelopeWriteLeavesPreviousEnvelope(t *testing.T) {
 	secrets := newMemorySecrets()
 	store := NewStore(NewKeychain(secrets), fixedClock{})
-	old := Session{UserID: "old-user", SessionID: "old-session", IsActive: true}
+	old := Session{UserID: "old-user", SessionID: "old-session", Email: "old@example.com", Name: "old", IsActive: true}
 	if err := store.Save(context.Background(), old, "old-key"); err != nil {
 		t.Fatal(err)
 	}
 
 	secrets.failSet[CredentialSecretName] = errors.New("envelope write failed")
-	newSession := Session{UserID: "new-user", SessionID: "new-session", IsActive: true}
+	newSession := Session{UserID: "new-user", SessionID: "new-session", Email: "new@example.com", Name: "new", IsActive: true}
 	if err := store.Save(context.Background(), newSession, "new-key"); err == nil {
 		t.Fatal("Save() error = nil, want failure")
 	}
@@ -274,6 +420,8 @@ func TestSessionStoreConcurrentSavesKeepMatchingPair(t *testing.T) {
 			err := stores[i%len(stores)].Save(context.Background(), Session{
 				UserID:    id,
 				SessionID: "session-" + id,
+				Email:     "user" + id + "@example.com",
+				Name:      "user" + id,
 				IsActive:  true,
 			}, "key-"+id)
 			if err != nil {
@@ -307,6 +455,8 @@ func TestSessionStoreConcurrentSaveAndClearLeavesNoPartialSession(t *testing.T) 
 				err := stores[0].Save(context.Background(), Session{
 					UserID:    "42",
 					SessionID: "session-1",
+					Email:     "yawei@example.com",
+					Name:      "yawei",
 					IsActive:  true,
 				}, "secret-api-key")
 				if err != nil {

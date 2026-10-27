@@ -190,6 +190,55 @@ func TestLoadCorrectsExistingFileAndDirectoryPermissions(t *testing.T) {
 	}
 }
 
+func TestLoadReplacesMalformedOrNonV4ClientID(t *testing.T) {
+	tests := []struct {
+		name     string
+		clientID string
+	}{
+		{name: "empty", clientID: ""},
+		{name: "arbitrary", clientID: "client-uuid"},
+		{name: "uuid v1", clientID: "6ba7b810-9dad-11d1-80b4-00c04fd430c8"},
+		{name: "uuid v4 uppercase", clientID: "039F5F62-7E79-4DE0-AAE8-8FB29BBF2F9B"},
+		{name: "uuid v4 wrong variant", clientID: "039f5f62-7e79-4de0-7ae8-8fb29bbf2f9b"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			files := newMemoryFS()
+			path := "/virtual/config/BelieveBoy/config.json"
+			files.files[path] = []byte(`{
+  "client_id": "` + test.clientID + `",
+  "api_base_url": "https://gateway.example.test",
+  "last_route": "/home"
+}`)
+			store := NewStoreWith(fakeDirProvider{dir: "/virtual/config"}, files)
+			cfg, err := store.Load(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !isUUIDv4(cfg.ClientID) {
+				t.Errorf("client_id = %q, want canonical UUID v4", cfg.ClientID)
+			}
+			if cfg.ClientID == test.clientID {
+				t.Error("invalid client_id was preserved")
+			}
+			if cfg.APIBaseURL != "https://gateway.example.test" || cfg.LastRoute != "/home" {
+				t.Errorf("other config values changed: %#v", cfg)
+			}
+			persisted, err := files.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var stored Config
+			if err := json.Unmarshal(persisted, &stored); err != nil {
+				t.Fatal(err)
+			}
+			if stored.ClientID != cfg.ClientID {
+				t.Errorf("persisted client_id = %q, want %q", stored.ClientID, cfg.ClientID)
+			}
+		})
+	}
+}
+
 func TestSaveUsesUniqueTemporaryFiles(t *testing.T) {
 	files := newMemoryFS()
 	store := NewStoreWith(fakeDirProvider{dir: "/virtual/config"}, files)

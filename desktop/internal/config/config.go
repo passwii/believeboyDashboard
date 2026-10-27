@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sync"
 )
 
@@ -19,8 +20,11 @@ const (
 )
 
 var (
-	ErrInvalidConfig = errors.New("config: invalid config")
-	ErrNoConfigDir   = errors.New("config: user config directory is unavailable")
+	ErrInvalidConfig       = errors.New("config: invalid config")
+	ErrNoConfigDir         = errors.New("config: user config directory is unavailable")
+	canonicalUUIDv4Pattern = regexp.MustCompile(
+		`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`,
+	)
 )
 
 // Config contains non-secret desktop preferences only. Authentication secrets
@@ -125,7 +129,7 @@ func (s *Store) loadLocked(ctx context.Context, path string) (Config, error) {
 	}
 
 	changed := false
-	if cfg.ClientID == "" {
+	if !canonicalUUIDv4Pattern.MatchString(cfg.ClientID) {
 		cfg.ClientID, err = newClientID()
 		if err != nil {
 			return Config{}, err

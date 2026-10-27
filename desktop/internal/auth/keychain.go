@@ -12,7 +12,7 @@ const (
 	CredentialSecretName = "session_credentials"
 
 	// APIKeySecretName and SessionSecretName are the legacy two-item layout.
-	// They remain readable only for one-time migration into the envelope.
+	// Load never reads them; Clear deletes them as best-effort cleanup.
 	APIKeySecretName  = "api_key"
 	SessionSecretName = "session"
 

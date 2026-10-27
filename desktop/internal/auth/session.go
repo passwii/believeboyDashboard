@@ -8,12 +8,23 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
 var (
-	ErrNoSession       = errors.New("auth: no saved session")
-	ErrInvalidSession  = errors.New("auth: invalid saved session")
-	ErrSessionTooLarge = errors.New("auth: session credentials exceed Keychain size limit")
+	ErrNoSession               = errors.New("auth: no saved session")
+	ErrInvalidSession          = errors.New("auth: invalid saved session")
+	ErrInvalidHeaderCredential = errors.New("auth: invalid header credential")
+	ErrSessionTooLarge         = errors.New("auth: session credentials exceed Keychain size limit")
+)
+
+const (
+	MaxUserIDRunes    = 64
+	MaxSessionIDRunes = 256
+	MaxAPIKeyBytes    = 512
+	MaxEmailRunes     = 320
+	MaxNameRunes      = 255
 )
 
 // Clock makes session timestamps deterministic in tests.
@@ -74,7 +85,7 @@ func (s *Store) Save(ctx context.Context, session Session, apiKey string) error 
 	if s == nil || s.keychain == nil {
 		return ErrInvalidSecret
 	}
-	if err := validateCredentials(session, apiKey); err != nil {
+	if err := ValidateSessionCredentials(session, apiKey); err != nil {
 		return err
 	}
 
@@ -89,7 +100,6 @@ func (s *Store) Save(ctx context.Context, session Session, apiKey string) error 
 	if err := s.saveEnvelope(ctx, session, apiKey); err != nil {
 		return err
 	}
-	s.cleanupLegacy(ctx)
 	return nil
 }
 
@@ -114,41 +124,12 @@ func (s *Store) Load(ctx context.Context) (Session, string, error) {
 		if err != nil {
 			return Session{}, "", err
 		}
-		s.cleanupLegacy(ctx)
 		return session, apiKey, nil
 	}
 	if !errors.Is(err, ErrSecretNotFound) {
 		return Session{}, "", err
 	}
-
-	// One-time migration from the previous two-item layout.
-	sessionPayload, err := s.keychain.Load(ctx, SessionSecretName)
-	if errors.Is(err, ErrSecretNotFound) {
-		return Session{}, "", ErrNoSession
-	}
-	if err != nil {
-		return Session{}, "", err
-	}
-	apiKey, err := s.keychain.Load(ctx, APIKeySecretName)
-	if errors.Is(err, ErrSecretNotFound) {
-		return Session{}, "", ErrNoSession
-	}
-	if err != nil {
-		return Session{}, "", err
-	}
-
-	var session Session
-	if err := json.Unmarshal(sessionPayload, &session); err != nil {
-		return Session{}, "", fmt.Errorf("%w: decode: %v", ErrInvalidSession, err)
-	}
-	if err := validateCredentials(session, string(apiKey)); err != nil {
-		return Session{}, "", err
-	}
-	if err := s.saveEnvelope(ctx, session, string(apiKey)); err != nil {
-		return Session{}, "", fmt.Errorf("auth: migrate credential envelope: %w", err)
-	}
-	s.cleanupLegacy(ctx)
-	return session, string(apiKey), nil
+	return Session{}, "", ErrNoSession
 }
 
 func (s *Store) Clear(ctx context.Context) error {
@@ -166,15 +147,12 @@ func (s *Store) Clear(ctx context.Context) error {
 		return err
 	}
 
-	// Keep the authoritative envelope if legacy cleanup cannot complete.
-	legacyErr := errors.Join(
-		s.keychain.Delete(ctx, APIKeySecretName),
-		s.keychain.Delete(ctx, SessionSecretName),
-	)
-	if legacyErr != nil {
-		return legacyErr
-	}
-	return s.keychain.Delete(ctx, CredentialSecretName)
+	envelopeErr := s.keychain.Delete(ctx, CredentialSecretName)
+	// Legacy items can only exist from unreleased development builds and are
+	// never read, but logout should still remove those leftovers.
+	_ = s.keychain.Delete(ctx, APIKeySecretName)
+	_ = s.keychain.Delete(ctx, SessionSecretName)
+	return envelopeErr
 }
 
 func (s *Store) saveEnvelope(ctx context.Context, session Session, apiKey string) error {
@@ -201,27 +179,93 @@ func decodeCredentialEnvelope(payload []byte) (Session, string, error) {
 	if envelope.Version != 1 {
 		return Session{}, "", fmt.Errorf("%w: unsupported envelope version %d", ErrInvalidSession, envelope.Version)
 	}
-	if err := validateCredentials(envelope.Session, envelope.APIKey); err != nil {
+	if err := ValidateSessionCredentials(envelope.Session, envelope.APIKey); err != nil {
 		return Session{}, "", err
 	}
 	return envelope.Session, envelope.APIKey, nil
 }
 
-func (s *Store) cleanupLegacy(ctx context.Context) {
-	cleanupCtx := context.WithoutCancel(ctx)
-	_ = s.keychain.Delete(cleanupCtx, APIKeySecretName)
-	_ = s.keychain.Delete(cleanupCtx, SessionSecretName)
+// ValidateSessionCredentials is the single validation source for values that
+// become HTTP headers. It never includes the offending value in errors.
+func ValidateSessionCredentials(session Session, apiKey string) error {
+	if err := ValidateHeaderText("user id", session.UserID, MaxUserIDRunes, false, false); err != nil {
+		return err
+	}
+	if err := validateVisibleASCII("session id", session.SessionID, MaxSessionIDRunes); err != nil {
+		return err
+	}
+	if err := validateVisibleASCII("api key", apiKey, MaxAPIKeyBytes); err != nil {
+		return err
+	}
+	if err := ValidateHeaderText("email", session.Email, MaxEmailRunes, false, true); err != nil {
+		return err
+	}
+	if err := ValidateHeaderText("name", session.Name, MaxNameRunes, false, false); err != nil {
+		return err
+	}
+	if session.FullName != nil {
+		if err := ValidateHeaderText("full name", *session.FullName, MaxNameRunes, false, false); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-func validateCredentials(session Session, apiKey string) error {
-	switch {
-	case strings.TrimSpace(session.UserID) == "":
-		return fmt.Errorf("%w: missing user id", ErrInvalidSession)
-	case strings.TrimSpace(session.SessionID) == "":
-		return fmt.Errorf("%w: missing session id", ErrInvalidSession)
-	case strings.TrimSpace(apiKey) == "":
-		return fmt.Errorf("%w: missing api key", ErrInvalidSession)
-	default:
-		return nil
+// ValidateHeaderText validates Unicode header text before encoding.
+func ValidateHeaderText(
+	field string,
+	value string,
+	maxRunes int,
+	allowEmpty bool,
+	forbidWhitespace bool,
+) error {
+	if !utf8.ValidString(value) {
+		return &headerCredentialError{field: field, reason: "invalid UTF-8"}
 	}
+	if !allowEmpty && strings.TrimSpace(value) == "" {
+		return &headerCredentialError{field: field, reason: "must not be empty"}
+	}
+	if strings.TrimSpace(value) != value {
+		return &headerCredentialError{field: field, reason: "leading or trailing whitespace"}
+	}
+	if maxRunes > 0 && utf8.RuneCountInString(value) > maxRunes {
+		return &headerCredentialError{field: field, reason: fmt.Sprintf("exceeds %d runes", maxRunes)}
+	}
+	for _, char := range value {
+		if unicode.IsControl(char) || unicode.Is(unicode.Zl, char) || unicode.Is(unicode.Zp, char) {
+			return &headerCredentialError{field: field, reason: "control or line-separator character"}
+		}
+		if forbidWhitespace && unicode.IsSpace(char) {
+			return &headerCredentialError{field: field, reason: "whitespace is not allowed"}
+		}
+	}
+	return nil
+}
+
+func validateVisibleASCII(field, value string, maxBytes int) error {
+	if value == "" {
+		return &headerCredentialError{field: field, reason: "must not be empty"}
+	}
+	if len(value) > maxBytes {
+		return &headerCredentialError{field: field, reason: fmt.Sprintf("exceeds %d bytes", maxBytes)}
+	}
+	for _, char := range value {
+		if char < '!' || char > '~' {
+			return &headerCredentialError{field: field, reason: "must be visible ASCII"}
+		}
+	}
+	return nil
+}
+
+type headerCredentialError struct {
+	field  string
+	reason string
+}
+
+func (e *headerCredentialError) Error() string {
+	return fmt.Sprintf("auth: invalid %s: %s", e.field, e.reason)
+}
+
+func (e *headerCredentialError) Is(target error) bool {
+	return target == ErrInvalidSession || target == ErrInvalidHeaderCredential
 }
