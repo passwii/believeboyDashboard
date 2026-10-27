@@ -11,6 +11,7 @@ const (
 	StatLoading StatState = iota
 	StatReady
 	StatError
+	StatIdle
 )
 
 type StatCardOptions struct {
@@ -71,6 +72,11 @@ func StatCard(c *ui.Context, options StatCardOptions) ui.Element {
 				ui.Text(c, "加载失败").FontSize(16).FontWeight(600).TextColor(p.Danger)
 				ui.Text(c, message).FontSize(11).TextColor(p.InkMuted)
 			})
+		case StatIdle:
+			ui.Text(c, "—").FontSize(34).FontWeight(650).TextColor(p.InkMuted)
+			if options.Detail != "" {
+				ui.Text(c, options.Detail).FontSize(11).TextColor(p.InkMuted)
+			}
 		default:
 			ui.Text(c, options.Value).
 				FontSize(34).

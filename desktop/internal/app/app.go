@@ -54,6 +54,9 @@ type App struct {
 	update         func(func())
 	verifySession  func(context.Context) (api.MeResponse, error)
 	refreshStarted bool
+	refreshCancel  context.CancelFunc
+	authGeneration uint64
+	authStoreMu    sync.Mutex
 	loginMu        sync.Mutex
 	loginPage      *pages.LoginPage
 	homePage       *pages.HomePage
@@ -93,12 +96,26 @@ func (a *App) SetUpdate(update func(func())) {
 	a.mu.Lock()
 	a.update = update
 	start := !a.refreshStarted && a.hasSession && a.verifySession != nil && a.sessions != nil
+	var (
+		ctx       context.Context
+		cancel    context.CancelFunc
+		epoch     uint64
+		userID    string
+		sessionID string
+		apiKey    string
+	)
 	if start {
 		a.refreshStarted = true
+		ctx, cancel = context.WithCancel(context.Background())
+		a.refreshCancel = cancel
+		epoch = a.authGeneration
+		userID = a.session.UserID
+		sessionID = a.session.SessionID
+		apiKey = a.apiKey
 	}
 	a.mu.Unlock()
 	if start {
-		go a.refreshSavedSession()
+		go a.refreshSavedSession(ctx, epoch, userID, sessionID, apiKey)
 	}
 }
 
@@ -114,7 +131,11 @@ func (a *App) SetLogout(logout func(context.Context) error) {
 	a.mu.Unlock()
 }
 
-func (a *App) Router() *ui.Router { return a.router }
+func (a *App) Router() *ui.Router {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.router
+}
 
 func (a *App) sessionActive() bool {
 	a.mu.RLock()
@@ -122,25 +143,45 @@ func (a *App) sessionActive() bool {
 	return a.hasSession
 }
 
-func (a *App) refreshSavedSession() {
+func (a *App) refreshSavedSession(ctx context.Context, epoch uint64, userID, sessionID, apiKey string) {
 	a.mu.RLock()
 	sessions := a.sessions
 	verify := a.verifySession
-	apiKey := a.apiKey
-	sessionID := a.session.SessionID
 	a.mu.RUnlock()
 	if sessions == nil || verify == nil {
 		return
 	}
-	response, err := verify(context.Background())
-	if errors.Is(err, api.ErrUnauthorized) || (err == nil && !response.IsActive) {
-		_ = sessions.Clear(context.Background())
-		a.updateSession(func() { a.applySessionRevoked() })
+	response, err := verify(ctx)
+	if !a.authRefreshValid(ctx, epoch) {
+		return
+	}
+	if invalidSessionError(err) || (err == nil && !response.IsActive) {
+		a.authStoreMu.Lock()
+		if !a.authRefreshValid(ctx, epoch) {
+			a.authStoreMu.Unlock()
+			return
+		}
+		clearErr := sessions.Clear(ctx)
+		a.authStoreMu.Unlock()
+		a.updateSession(func() {
+			a.mu.Lock()
+			valid := !a.closed && a.authGeneration == epoch
+			a.mu.Unlock()
+			if valid {
+				a.applySessionRevoked(clearErr)
+			}
+		})
 		return
 	}
 	if err != nil {
 		a.updateSession(func() {
+			a.mu.Lock()
+			if a.closed || a.authGeneration != epoch {
+				a.mu.Unlock()
+				return
+			}
 			a.sessionStatus = "会话校验失败，继续使用本地会话"
+			a.mu.Unlock()
 		})
 		return
 	}
@@ -149,12 +190,25 @@ func (a *App) refreshSavedSession() {
 		FullName: response.FullName, RoleType: string(response.RoleType),
 		SessionID: sessionID, IsAdmin: response.IsAdmin, IsActive: response.IsActive,
 	}
-	saveErr := sessions.Save(context.Background(), refreshed, apiKey)
+	if refreshed.UserID == "" {
+		refreshed.UserID = userID
+	}
+	a.authStoreMu.Lock()
+	if !a.authRefreshValid(ctx, epoch) {
+		a.authStoreMu.Unlock()
+		return
+	}
+	saveErr := sessions.Save(ctx, refreshed, apiKey)
+	a.authStoreMu.Unlock()
+	if !a.authRefreshValid(ctx, epoch) {
+		return
+	}
 	a.updateSession(func() {
-		if a.closed {
+		a.mu.Lock()
+		if a.closed || a.authGeneration != epoch {
+			a.mu.Unlock()
 			return
 		}
-		a.mu.Lock()
 		a.session = refreshed
 		a.hasSession = true
 		a.apiKey = apiKey
@@ -170,35 +224,74 @@ func (a *App) refreshSavedSession() {
 func (a *App) updateSession(fn func()) {
 	a.mu.RLock()
 	update := a.update
+	closed := a.closed
 	a.mu.RUnlock()
-	if update != nil {
+	if update != nil && !closed {
 		update(fn)
 	}
 }
 
-func (a *App) applySessionRevoked() {
+func (a *App) applySessionRevoked(clearErr error) {
 	if a.closed {
 		return
 	}
+	a.mu.Lock()
 	a.logoutError = ""
 	a.sessionStatus = ""
-	a.mu.Lock()
+	if clearErr != nil {
+		a.sessionStatus = "本地会话清理失败，请重试"
+	}
 	a.session = auth.Session{}
 	a.hasSession = false
 	a.apiKey = ""
-	home := a.homePage
-	a.homePage = nil
-	a.loginPage = nil
 	a.mu.Unlock()
+	a.resetHistory(LoginRoute)
+}
+
+func (a *App) authRefreshValid(ctx context.Context, epoch uint64) bool {
+	if ctx.Err() != nil {
+		return false
+	}
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return !a.closed && a.authGeneration == epoch
+}
+
+func invalidSessionError(err error) bool {
+	var httpErr *api.HTTPError
+	return errors.As(err, &httpErr) &&
+		(httpErr.StatusCode == 401 || httpErr.StatusCode == 404)
+}
+
+// resetHistory starts a fresh router and page state for a new auth boundary.
+func (a *App) resetHistory(route string) {
+	a.mu.Lock()
+	a.authGeneration++
+	if a.refreshCancel != nil {
+		a.refreshCancel()
+		a.refreshCancel = nil
+	}
+	login := a.loginPage
+	home := a.homePage
+	a.loginPage = nil
+	a.homePage = nil
+	a.router = ui.NewRouter(route)
+	a.mu.Unlock()
+	if login != nil {
+		login.Close()
+	}
 	if home != nil {
 		home.Close()
 	}
-	a.router.Replace(LoginRoute)
 }
 
 func (a *App) Close() {
 	a.mu.Lock()
 	a.closed = true
+	if a.refreshCancel != nil {
+		a.refreshCancel()
+		a.refreshCancel = nil
+	}
 	login := a.loginPage
 	home := a.homePage
 	a.mu.Unlock()
@@ -211,11 +304,13 @@ func (a *App) Close() {
 }
 
 func (a *App) View(c *ui.Context) {
-	if a.router.Path() != LoginRoute && !a.sessionActive() {
-		a.router.Replace(LoginRoute)
+	router := a.Router()
+	if router.Path() != LoginRoute && !a.sessionActive() {
+		a.resetHistory(LoginRoute)
+		router = a.Router()
 	}
 	design.ApplyTheme(c.Theme())
-	a.router.View(c, func(route *ui.Route) {
+	router.View(c, func(route *ui.Route) {
 		switch {
 		case route.Match(LoginRoute):
 			route.Title("登录")
@@ -261,6 +356,7 @@ func (a *App) loginView(c *ui.Context) {
 	}
 	a.mu.Lock()
 	page := a.loginPage
+	notice := a.sessionStatus
 	a.mu.Unlock()
 	if page == nil {
 		page = pages.NewLoginPage(pages.LoginOptions{
@@ -277,6 +373,7 @@ func (a *App) loginView(c *ui.Context) {
 				})
 			},
 			Router: a.router,
+			Notice: notice,
 		})
 		a.mu.Lock()
 		a.loginPage = page
@@ -305,8 +402,19 @@ func (a *App) loginAttempt(ctx context.Context, email, password string) (*api.Lo
 	if update == nil {
 		return nil, errors.New("window update unavailable")
 	}
-	update(func() { a.setSession(session) })
+	update(func() { a.completeLogin(session, response.APIKey) })
 	return response, nil
+}
+
+func (a *App) completeLogin(session auth.Session, apiKey string) {
+	a.mu.Lock()
+	a.logoutError = ""
+	a.sessionStatus = ""
+	a.session = session
+	a.hasSession = true
+	a.apiKey = apiKey
+	a.mu.Unlock()
+	a.resetHistory(HomeRoute)
 }
 
 func (a *App) homeView(c *ui.Context) {
@@ -416,10 +524,11 @@ func (a *App) navigate(id string) {
 	if !a.sessionActive() {
 		return
 	}
-	a.router.Push(route)
+	a.Router().Push(route)
 }
 
 func (a *App) triggerLogout() {
+	a.invalidateAuthRefresh()
 	a.mu.RLock()
 	logout := a.logout
 	update := a.update
@@ -429,7 +538,9 @@ func (a *App) triggerLogout() {
 		return
 	}
 	go func() {
+		a.authStoreMu.Lock()
 		err := logout(context.Background())
+		a.authStoreMu.Unlock()
 		if update == nil {
 			return
 		}
@@ -442,21 +553,29 @@ func (a *App) applyLogout(err error) {
 		return
 	}
 	if err != nil && !errors.Is(err, auth.ErrNoSession) {
+		a.mu.Lock()
 		a.logoutError = "退出登录失败：" + err.Error()
+		a.mu.Unlock()
 		return
 	}
-	a.logoutError = ""
 	a.mu.Lock()
+	a.logoutError = ""
+	a.sessionStatus = ""
 	a.session = auth.Session{}
 	a.hasSession = false
-	home := a.homePage
-	a.homePage = nil
-	a.loginPage = nil
+	a.apiKey = ""
 	a.mu.Unlock()
-	if home != nil {
-		home.Close()
+	a.resetHistory(LoginRoute)
+}
+
+func (a *App) invalidateAuthRefresh() {
+	a.mu.Lock()
+	a.authGeneration++
+	if a.refreshCancel != nil {
+		a.refreshCancel()
+		a.refreshCancel = nil
 	}
-	a.router.Replace(LoginRoute)
+	a.mu.Unlock()
 }
 
 func (a *App) updateFunc() func(func()) {

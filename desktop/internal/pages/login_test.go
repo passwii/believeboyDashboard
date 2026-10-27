@@ -452,12 +452,25 @@ func TestLoginViewAfterCloseDoesNotPanic(t *testing.T) {
 }
 
 func TestLoginEnterSubmits(t *testing.T) {
-	h := newTestLogin(t, nil)
+	started := make(chan struct{})
+	h := newTestLogin(t, func(context.Context, string, string) (*api.LoginResponse, error) {
+		close(started)
+		return &api.LoginResponse{}, nil
+	})
 	h.tt.Click("邮箱")
 	h.tt.Type("user@example.com")
 	h.tt.Key(0, ui.KeyTab)
 	h.tt.Type("secret")
+	h.tt.Frame()
+	if !h.tt.Focused("密码") {
+		t.Fatal("password field was not settled before Enter")
+	}
 	h.tt.Key(0, ui.KeyEnter)
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("Enter did not start login")
+	}
 	if h.callCount() != 1 {
 		t.Fatalf("login called %d times, want 1", h.callCount())
 	}

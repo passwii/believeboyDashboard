@@ -21,24 +21,26 @@ type homeHarness struct {
 }
 
 type fakeHomeLoader struct {
-	mu            sync.Mutex
-	loads         int
-	loadIDs       []int
-	projects      int
-	block         chan struct{}
-	blocks        map[int]chan struct{}
-	started       map[int]chan struct{}
-	dataByProject map[int]HomeData
-	health        api.HealthResponse
-	healthErr     error
-	unread        api.UnreadCountResponse
-	unreadErr     error
-	alerts        api.AlertStats
-	alertsErr     error
-	profile       api.Profile
-	profileErr    error
-	projectsVal   []api.Project
-	projectsErr   error
+	mu              sync.Mutex
+	loads           int
+	loadIDs         []int
+	projects        int
+	projectsBlock   chan struct{}
+	projectsStarted chan struct{}
+	block           chan struct{}
+	blocks          map[int]chan struct{}
+	started         map[int]chan struct{}
+	dataByProject   map[int]HomeData
+	health          api.HealthResponse
+	healthErr       error
+	unread          api.UnreadCountResponse
+	unreadErr       error
+	alerts          api.AlertStats
+	alertsErr       error
+	profile         api.Profile
+	profileErr      error
+	projectsVal     []api.Project
+	projectsErr     error
 }
 
 func (f *fakeHomeLoader) Load(ctx context.Context, projectID int) HomeData {
@@ -102,7 +104,18 @@ func (f *fakeHomeLoader) Load(ctx context.Context, projectID int) HomeData {
 func (f *fakeHomeLoader) LoadProjects(context.Context, int) ([]api.Project, error) {
 	f.mu.Lock()
 	f.projects++
+	block := f.projectsBlock
+	started := f.projectsStarted
 	f.mu.Unlock()
+	if started != nil {
+		select {
+		case started <- struct{}{}:
+		default:
+		}
+	}
+	if block != nil {
+		<-block
+	}
 	return f.projectsVal, f.projectsErr
 }
 
@@ -170,6 +183,7 @@ func TestHomeStartsLoading(t *testing.T) {
 	loader := fixtureLoader()
 	loader.block = make(chan struct{})
 	h := newHomeHarness(t, loader, testSession())
+	h.wait(t)
 	if !h.tt.HasText("正在加载工作台") {
 		t.Fatalf("loading state missing: %q", h.tt.Texts())
 	}
@@ -219,7 +233,6 @@ func TestHomeAllFailureStillRendersErrors(t *testing.T) {
 	loader.unreadErr = errors.New("down")
 	loader.alertsErr = errors.New("down")
 	loader.profileErr = errors.New("down")
-	loader.projectsErr = errors.New("down")
 	h := newHomeHarness(t, loader, testSession())
 	h.waitLoaded(t)
 	if count := strings.Count(strings.Join(h.tt.Texts(), "\n"), "加载失败"); count < 4 {
@@ -243,14 +256,73 @@ func TestHomeRefreshPassesSelectedProjectToLoader(t *testing.T) {
 	loader.projectsVal = nil
 	h := newHomeHarness(t, loader, testSession())
 	h.waitLoaded(t)
+	if loader.loads != 0 {
+		t.Fatalf("home loader ran before project selection: %v", loader.loadIDs)
+	}
 	h.page.SelectProject(7)
 	h.waitLoaded(t)
 
 	loader.mu.Lock()
 	ids := append([]int(nil), loader.loadIDs...)
 	loader.mu.Unlock()
-	if len(ids) < 2 || ids[0] != 0 || ids[len(ids)-1] != 7 {
-		t.Fatalf("loader project IDs = %v, want initial 0 then 7", ids)
+	if len(ids) != 1 || ids[0] != 7 {
+		t.Fatalf("loader project IDs = %v, want only 7", ids)
+	}
+}
+
+func TestHomeWaitsForProjectsBeforeLoading(t *testing.T) {
+	releaseProjects := make(chan struct{})
+	started := make(chan struct{}, 1)
+	loader := fixtureLoader()
+	loader.projectsBlock = releaseProjects
+	loader.projectsStarted = started
+	h := newHomeHarness(t, loader, testSession())
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("project load did not start")
+	}
+	if loader.loads != 0 {
+		t.Fatalf("home loader ran before project selection: %v", loader.loadIDs)
+	}
+	close(releaseProjects)
+	h.waitLoaded(t)
+	loader.mu.Lock()
+	ids := append([]int(nil), loader.loadIDs...)
+	loader.mu.Unlock()
+	if len(ids) != 1 || ids[0] != 1 {
+		t.Fatalf("loader project IDs = %v, want [1]", ids)
+	}
+}
+
+func TestHomeProjectFailureSkipsAlertAndHomeLoad(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		projects  []api.Project
+		loadError error
+	}{
+		{name: "error", loadError: errors.New("projects down")},
+		{name: "empty"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			loader := fixtureLoader()
+			loader.projectsVal = test.projects
+			loader.projectsErr = test.loadError
+			h := newHomeHarness(t, loader, testSession())
+			h.waitLoaded(t)
+			if loader.loads != 0 {
+				t.Fatalf("home loader ran without a project: %v", loader.loadIDs)
+			}
+			if h.page.ProjectID() != 0 {
+				t.Fatalf("selected project = %d, want none", h.page.ProjectID())
+			}
+			if !h.tt.HasText("告警未加载") {
+				t.Fatalf("alert state should be absent: %q", h.tt.Texts())
+			}
+			if test.loadError != nil && !h.tt.HasText("项目列表加载失败") {
+				t.Fatalf("project error missing: %q", h.tt.Texts())
+			}
+		})
 	}
 }
 
@@ -262,7 +334,6 @@ func TestHomeProjectChangeDiscardsStaleProjectResult(t *testing.T) {
 	loader.blocks = map[int]chan struct{}{7: block7}
 	loader.started = map[int]chan struct{}{7: started7}
 	loader.dataByProject = map[int]HomeData{
-		0: {Health: LoadHealth(api.HealthResponse{Status: "project-0"}, nil), LoadedAt: time.Now()},
 		7: {Health: LoadHealth(api.HealthResponse{Status: "project-7"}, nil), LoadedAt: time.Now()},
 		8: {Health: LoadHealth(api.HealthResponse{Status: "project-8"}, nil), LoadedAt: time.Now()},
 	}
@@ -319,6 +390,7 @@ func TestHomeCloseRejectsLateResult(t *testing.T) {
 	})
 	tt := ui.NewTester(page.View, DefaultWidth, DefaultHeight)
 	_ = tt
+	page.SelectProject(7)
 	page.Close()
 	close(release)
 	select {

@@ -47,6 +47,7 @@ type LoginOptions struct {
 	Login  LoginFunc
 	Update func(func())
 	Router *ui.Router
+	Notice string
 }
 
 // ClientLogin adapts an API client to the page's login function. The caller
@@ -87,11 +88,12 @@ type LoginPage struct {
 	requestGeneration uint64
 	closed            bool
 	lastErr           error
+	notice            string
 }
 
 // NewLoginPage returns a page backed by login.
 func NewLoginPage(options LoginOptions) *LoginPage {
-	return &LoginPage{login: options.Login, update: options.Update, router: options.Router}
+	return &LoginPage{login: options.Login, update: options.Update, router: options.Router, notice: options.Notice}
 }
 
 // Email returns the current email field value.
@@ -145,6 +147,9 @@ func (p *LoginPage) View(c *ui.Context) {
 						ui.Text(c, "使用 BelieveBoy 账号继续。").
 							FontSize(14).
 							TextColor(t.TextMuted)
+						if p.notice != "" {
+							errorBanner(c, p.notice)
+						}
 						if p.banner != "" {
 							errorBanner(c, p.banner)
 						}

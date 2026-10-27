@@ -97,9 +97,10 @@ func NewHomePage(options HomeOptions) *HomePage {
 	if page.loadProjects != nil {
 		page.projectsLoading = true
 	}
-	page.Refresh()
 	if page.loadProjects != nil {
 		page.LoadProjects()
+	} else {
+		page.err = errors.New("project loader unavailable")
 	}
 	return page
 }
@@ -125,6 +126,12 @@ func (p *HomePage) ProjectID() int {
 
 func (p *HomePage) Refresh() {
 	if p.closed {
+		return
+	}
+	if p.selectedProject == 0 {
+		if !p.projectsLoading {
+			p.LoadProjects()
+		}
 		return
 	}
 	if p.load == nil || p.update == nil {
@@ -189,6 +196,9 @@ func (p *HomePage) LoadProjects() {
 }
 
 func (p *HomePage) SelectProject(id int) {
+	if id <= 0 {
+		return
+	}
 	if p.selectedProject == id {
 		return
 	}
@@ -382,14 +392,19 @@ func (p *HomePage) healthCard(c *ui.Context) {
 	state := components.StatLoading
 	value, detail := "", ""
 	errText := ""
-	if !p.loading {
-		if p.data.Health.Err != nil {
-			state = components.StatError
-			errText = "服务暂不可用"
-		} else {
-			state = components.StatReady
-			value = healthLabel(p.data.Health.Value)
-			detail = "数据库 " + p.data.Health.Value.Database + " · Redis " + p.data.Health.Value.Redis
+	if p.selectedProject == 0 && !p.projectsLoading {
+		state = components.StatIdle
+		detail = "选择项目后加载"
+	} else {
+		if !p.loading {
+			if p.data.Health.Err != nil {
+				state = components.StatError
+				errText = "服务暂不可用"
+			} else {
+				state = components.StatReady
+				value = healthLabel(p.data.Health.Value)
+				detail = "数据库 " + p.data.Health.Value.Database + " · Redis " + p.data.Health.Value.Redis
+			}
 		}
 	}
 	components.StatCard(c, components.StatCardOptions{
@@ -401,13 +416,18 @@ func (p *HomePage) healthCard(c *ui.Context) {
 func (p *HomePage) unreadCard(c *ui.Context) {
 	state := components.StatLoading
 	value, detail, errText := "", "", ""
-	if !p.loading {
-		if err := p.data.Unread.Err; err != nil {
-			state, errText = components.StatError, "通知服务暂不可用"
-		} else {
-			state = components.StatReady
-			value = fmt.Sprintf("%d", p.data.Unread.Value.Count)
-			detail = "未读通知"
+	if p.selectedProject == 0 && !p.projectsLoading {
+		state = components.StatIdle
+		detail = "选择项目后加载"
+	} else {
+		if !p.loading {
+			if err := p.data.Unread.Err; err != nil {
+				state, errText = components.StatError, "通知服务暂不可用"
+			} else {
+				state = components.StatReady
+				value = fmt.Sprintf("%d", p.data.Unread.Value.Count)
+				detail = "未读通知"
+			}
 		}
 	}
 	components.StatCard(c, components.StatCardOptions{
@@ -419,13 +439,18 @@ func (p *HomePage) unreadCard(c *ui.Context) {
 func (p *HomePage) alertCard(c *ui.Context) {
 	state := components.StatLoading
 	value, detail, errText := "", "", ""
-	if !p.loading {
-		if p.data.Alerts.Err != nil {
-			state, errText = components.StatError, "告警加载失败"
-		} else {
-			state = components.StatReady
-			value = fmt.Sprintf("%d", p.data.Alerts.Value.TotalActive)
-			detail = fmt.Sprintf("严重 %d · 警告 %d", p.data.Alerts.Value.CriticalCount, p.data.Alerts.Value.WarningCount)
+	if p.selectedProject == 0 && !p.projectsLoading {
+		state = components.StatIdle
+		detail = "告警未加载（需先选择项目）"
+	} else {
+		if !p.loading {
+			if p.data.Alerts.Err != nil {
+				state, errText = components.StatError, "告警加载失败"
+			} else {
+				state = components.StatReady
+				value = fmt.Sprintf("%d", p.data.Alerts.Value.TotalActive)
+				detail = fmt.Sprintf("严重 %d · 警告 %d", p.data.Alerts.Value.CriticalCount, p.data.Alerts.Value.WarningCount)
+			}
 		}
 	}
 	components.StatCard(c, components.StatCardOptions{
@@ -438,26 +463,31 @@ func (p *HomePage) profileCard(c *ui.Context) {
 	state := components.StatLoading
 	name, role, detail, errText := "", "", "", ""
 	profile := p.session
-	if !p.loading {
-		if p.data.Profile.Err != nil {
-			state, errText = components.StatError, "用户资料暂不可用"
-		} else {
-			state = components.StatReady
-			profile = auth.Session{
-				Name: p.data.Profile.Value.Name, RoleType: string(p.data.Profile.Value.RoleType),
-				FullName: p.data.Profile.Value.FullName,
+	if p.selectedProject == 0 && !p.projectsLoading {
+		state = components.StatIdle
+		detail = "选择项目后加载"
+	} else {
+		if !p.loading {
+			if p.data.Profile.Err != nil {
+				state, errText = components.StatError, "用户资料暂不可用"
+			} else {
+				state = components.StatReady
+				profile = auth.Session{
+					Name: p.data.Profile.Value.Name, RoleType: string(p.data.Profile.Value.RoleType),
+					FullName: p.data.Profile.Value.FullName,
+				}
 			}
 		}
+		name = profile.DisplayName()
+		if name == "" {
+			name = profile.Name
+		}
+		role = roleLabel(profile.RoleType)
+		if name == "" {
+			name = "未命名用户"
+		}
+		detail = role
 	}
-	name = profile.DisplayName()
-	if name == "" {
-		name = profile.Name
-	}
-	role = roleLabel(profile.RoleType)
-	if name == "" {
-		name = "未命名用户"
-	}
-	detail = role
 	components.StatCard(c, components.StatCardOptions{
 		Title: "当前用户", Eyebrow: "PROFILE", Value: name, Detail: detail,
 		State: state, Error: errText, Accent: design.Light.Warning,

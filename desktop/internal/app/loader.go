@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/passwii/believeboyDashboard/desktop/internal/api"
@@ -22,6 +23,8 @@ type GatewayLoader struct {
 	Client ReadClient
 }
 
+var ErrProjectScopeRequired = errors.New("app: project scope required for alert stats")
+
 func (l GatewayLoader) Load(ctx context.Context, projectID int) pages.HomeData {
 	type result struct {
 		index int
@@ -38,6 +41,10 @@ func (l GatewayLoader) Load(ctx context.Context, projectID int) pages.HomeData {
 		results <- result{index: 1, data: value, err: err}
 	}()
 	go func() {
+		if projectID <= 0 {
+			results <- result{index: 2, data: api.AlertStats{}, err: ErrProjectScopeRequired}
+			return
+		}
 		value, err := l.Client.AlertStats(ctx, projectID)
 		results <- result{index: 2, data: value, err: err}
 	}()

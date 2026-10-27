@@ -15,12 +15,14 @@ import (
 )
 
 type testSessions struct {
-	mu      sync.Mutex
-	session auth.Session
-	err     error
-	cleared int
-	saved   []auth.Session
-	apiKeys []string
+	mu       sync.Mutex
+	session  auth.Session
+	err      error
+	cleared  int
+	clearErr error
+	saveErr  error
+	saved    []auth.Session
+	apiKeys  []string
 }
 
 func (s *testSessions) Load(context.Context) (auth.Session, string, error) {
@@ -35,6 +37,9 @@ func (s *testSessions) Load(context.Context) (auth.Session, string, error) {
 func (s *testSessions) Save(_ context.Context, session auth.Session, apiKey string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.saveErr != nil {
+		return s.saveErr
+	}
 	s.saved = append(s.saved, session)
 	s.apiKeys = append(s.apiKeys, apiKey)
 	return nil
@@ -44,6 +49,9 @@ func (s *testSessions) Clear(context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.cleared++
+	if s.clearErr != nil {
+		return s.clearErr
+	}
 	s.err = auth.ErrNoSession
 	return nil
 }
@@ -79,7 +87,6 @@ func testProjects(context.Context, int) ([]api.Project, error) {
 
 type appHarness struct {
 	app      *App
-	router   *ui.Router
 	tt       *ui.Tester
 	context  *ui.Context
 	mainWork chan func()
@@ -89,7 +96,7 @@ type appHarness struct {
 }
 
 func newAppHarness(t *testing.T, session *auth.Session) *appHarness {
-	return newAppHarnessConfigured(t, session, nil)
+	return newAppHarnessAuth(t, session, nil, nil)
 }
 
 func newAppHarnessConfigured(
@@ -97,21 +104,31 @@ func newAppHarnessConfigured(
 	session *auth.Session,
 	verify func(context.Context) (api.MeResponse, error),
 ) *appHarness {
+	return newAppHarnessAuth(t, session, verify, nil)
+}
+
+func newAppHarnessAuth(
+	t *testing.T,
+	session *auth.Session,
+	verify func(context.Context) (api.MeResponse, error),
+	configure func(*testSessions),
+) *appHarness {
 	t.Helper()
 	router := ui.NewRouter("/login")
 	if session != nil {
 		router.Replace(pages.HomeRoute)
 	}
 	sessions := &testSessions{}
+	if configure != nil {
+		configure(sessions)
+	}
 	if session != nil {
 		sessions.session = *session
 	} else {
 		sessions.err = auth.ErrNoSession
 	}
 	loader := &testHomeLoader{}
-	h := &appHarness{
-		router: router, mainWork: make(chan func(), 32), loader: loader, sessions: sessions,
-	}
+	h := &appHarness{mainWork: make(chan func(), 32), loader: loader, sessions: sessions}
 	var initial *auth.Session
 	if session != nil {
 		copy := *session
@@ -120,9 +137,9 @@ func newAppHarnessConfigured(
 	loginFn := func(context.Context, string, string) (*api.LoginResponse, error) {
 		name := "林晓"
 		return &api.LoginResponse{
-			ID: "42", Name: "linxiao", Email: "li@example.com",
+			ID: "99", Name: "newuser", Email: "new@example.com",
 			FullName: &name, RoleType: api.RoleAdmin, IsAdmin: true,
-			IsActive: true, SessionID: "session-1", APIKey: "api-key",
+			IsActive: true, SessionID: "session-2", APIKey: "new-api-key",
 		}, nil
 	}
 	h.loginFn = loginFn
@@ -182,7 +199,36 @@ func (h *appHarness) waitFor(t *testing.T, predicate func() bool) {
 			fn()
 			h.tt.Frame()
 		case <-deadline:
-			t.Fatalf("timed out; route=%s texts=%q", h.router.Path(), h.tt.Texts())
+			t.Fatalf("timed out; route=%s texts=%q", h.currentRouter().Path(), h.tt.Texts())
+		}
+	}
+}
+
+func (h *appHarness) currentRouter() *ui.Router {
+	return h.app.Router()
+}
+
+func (h *appHarness) sessionSnapshot() auth.Session {
+	h.app.mu.RLock()
+	defer h.app.mu.RUnlock()
+	return h.app.session
+}
+
+func (h *appHarness) sessionStatusSnapshot() string {
+	h.app.mu.RLock()
+	defer h.app.mu.RUnlock()
+	return h.app.sessionStatus
+}
+
+func (h *appHarness) drainMainWork(t *testing.T) {
+	t.Helper()
+	for {
+		select {
+		case fn := <-h.mainWork:
+			fn()
+			h.tt.Frame()
+		default:
+			return
 		}
 	}
 }
@@ -197,8 +243,8 @@ func testSession() *auth.Session {
 
 func TestAppShowsLoginWithoutSession(t *testing.T) {
 	h := newAppHarness(t, nil)
-	if h.router.Path() != "/login" || !h.tt.HasText("登录工作台") {
-		t.Fatalf("route=%q texts=%q", h.router.Path(), h.tt.Texts())
+	if h.currentRouter().Path() != "/login" || !h.tt.HasText("登录工作台") {
+		t.Fatalf("route=%q texts=%q", h.currentRouter().Path(), h.tt.Texts())
 	}
 }
 
@@ -213,7 +259,7 @@ func TestAppShowsHomeWithSession(t *testing.T) {
 func TestAppUnknownRouteShowsNativeNotFound(t *testing.T) {
 	h := newAppHarness(t, testSession())
 	h.waitFor(t, func() bool { return h.tt.HasText("运营总览") })
-	h.router.Replace("/missing")
+	h.currentRouter().Replace("/missing")
 	h.tt.Frame()
 	if !h.tt.HasText("页面不存在") {
 		t.Fatalf("missing route error: %q", h.tt.Texts())
@@ -221,20 +267,20 @@ func TestAppUnknownRouteShowsNativeNotFound(t *testing.T) {
 	if err := h.tt.Click("返回首页"); err != nil {
 		t.Fatal(err)
 	}
-	if h.router.Path() != pages.HomeRoute {
-		t.Fatalf("route = %q, want home", h.router.Path())
+	if h.currentRouter().Path() != pages.HomeRoute {
+		t.Fatalf("route = %q, want home", h.currentRouter().Path())
 	}
 }
 
 func TestAppLoginEstablishesSessionBeforeNavigatingHome(t *testing.T) {
 	h := newAppHarness(t, nil)
 	h.login("li@example.com", "secret")
-	h.waitFor(t, func() bool { return h.router.Path() == pages.HomeRoute })
+	h.waitFor(t, func() bool { return h.currentRouter().Path() == pages.HomeRoute })
 	h.waitFor(t, func() bool { return h.tt.HasText("运营总览") })
 	if !h.tt.HasText("未读通知") {
 		t.Fatalf("home cards missing after login: %q", h.tt.Texts())
 	}
-	if h.router.CanGoBack() {
+	if h.currentRouter().CanGoBack() {
 		t.Error("login success left a back entry to /login")
 	}
 }
@@ -246,8 +292,8 @@ func TestAppNavigatesToNativeSettingsPlaceholder(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.tt.Frame()
-	if h.router.Path() != "/settings" {
-		t.Fatalf("route = %q, want /settings", h.router.Path())
+	if h.currentRouter().Path() != "/settings" {
+		t.Fatalf("route = %q, want /settings", h.currentRouter().Path())
 	}
 	if !h.tt.HasText("功能建设中") || !h.tt.HasText("系统设置") {
 		t.Fatalf("placeholder missing: %q", h.tt.Texts())
@@ -269,8 +315,8 @@ func TestAppShortcuts(t *testing.T) {
 	h.waitFor(t, func() bool { return h.loader.Calls() > before })
 
 	h.tt.Key(ui.Cmd, ui.KeyComma)
-	if h.router.Path() != "/settings" {
-		t.Fatalf("Cmd+, route = %q", h.router.Path())
+	if h.currentRouter().Path() != "/settings" {
+		t.Fatalf("Cmd+, route = %q", h.currentRouter().Path())
 	}
 
 	quit := 0
@@ -290,7 +336,7 @@ func TestAppLogoutClearsSessionAndReturnsToLogin(t *testing.T) {
 	if err := h.tt.ChooseMenuItem("退出登录"); err != nil {
 		t.Fatal(err)
 	}
-	h.waitFor(t, func() bool { return h.router.Path() == "/login" })
+	h.waitFor(t, func() bool { return h.currentRouter().Path() == "/login" })
 	if h.sessions.cleared != 1 {
 		t.Errorf("session clear count = %d, want 1", h.sessions.cleared)
 	}
@@ -310,8 +356,8 @@ func TestAppLogoutFailureKeepsSession(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.waitFor(t, func() bool { return h.tt.HasText("退出登录失败") })
-	if h.router.Path() != "/home" {
-		t.Errorf("route after logout failure = %q", h.router.Path())
+	if h.currentRouter().Path() != "/home" {
+		t.Errorf("route after logout failure = %q", h.currentRouter().Path())
 	}
 }
 
@@ -322,18 +368,18 @@ func TestAppHistoryUsesPushAndSupportsBackForward(t *testing.T) {
 	h.tt.Frame()
 	h.tt.Click("报表中心")
 	h.tt.Frame()
-	if h.router.Path() != "/reports" {
-		t.Fatalf("route = %q, want /reports", h.router.Path())
+	if h.currentRouter().Path() != "/reports" {
+		t.Fatalf("route = %q, want /reports", h.currentRouter().Path())
 	}
-	h.router.Back()
+	h.currentRouter().Back()
 	h.tt.Frame()
-	if h.router.Path() != "/settings" || !h.tt.HasText("系统设置") {
-		t.Fatalf("back route = %q texts=%q", h.router.Path(), h.tt.Texts())
+	if h.currentRouter().Path() != "/settings" || !h.tt.HasText("系统设置") {
+		t.Fatalf("back route = %q texts=%q", h.currentRouter().Path(), h.tt.Texts())
 	}
-	h.router.Forward()
+	h.currentRouter().Forward()
 	h.tt.Frame()
-	if h.router.Path() != "/reports" || !h.tt.HasText("报表") {
-		t.Fatalf("forward route = %q texts=%q", h.router.Path(), h.tt.Texts())
+	if h.currentRouter().Path() != "/reports" || !h.tt.HasText("报表") {
+		t.Fatalf("forward route = %q texts=%q", h.currentRouter().Path(), h.tt.Texts())
 	}
 }
 
@@ -341,10 +387,10 @@ func TestAppProtectedRoutesRequireSession(t *testing.T) {
 	for _, route := range []string{"/settings", "/reports", "/projects", "/operations", "/ai"} {
 		t.Run(route, func(t *testing.T) {
 			h := newAppHarness(t, nil)
-			h.router.Replace(route)
+			h.currentRouter().Replace(route)
 			h.tt.Frame()
-			if h.router.Path() != "/login" {
-				t.Fatalf("route = %q, want /login", h.router.Path())
+			if h.currentRouter().Path() != "/login" {
+				t.Fatalf("route = %q, want /login", h.currentRouter().Path())
 			}
 			if !h.tt.HasText("登录工作台") {
 				t.Fatalf("login page missing: %q", h.tt.Texts())
@@ -356,8 +402,8 @@ func TestAppProtectedRoutesRequireSession(t *testing.T) {
 func TestAppSettingsShortcutDoesNothingLoggedOut(t *testing.T) {
 	h := newAppHarness(t, nil)
 	h.tt.Key(ui.Cmd, ui.KeyComma)
-	if h.router.Path() != "/login" {
-		t.Fatalf("route = %q, want /login", h.router.Path())
+	if h.currentRouter().Path() != "/login" {
+		t.Fatalf("route = %q, want /login", h.currentRouter().Path())
 	}
 }
 
@@ -378,8 +424,8 @@ func TestAppPlaceholdersAreReachableFromSidebar(t *testing.T) {
 			t.Fatal(err)
 		}
 		h.tt.Frame()
-		if h.router.Path() != test.route {
-			t.Fatalf("%s route = %q, want %q", test.label, h.router.Path(), test.route)
+		if h.currentRouter().Path() != test.route {
+			t.Fatalf("%s route = %q, want %q", test.label, h.currentRouter().Path(), test.route)
 		}
 		if !h.tt.HasText("功能建设中") {
 			t.Fatalf("%s placeholder missing: %q", test.label, h.tt.Texts())
@@ -439,7 +485,7 @@ func TestSavedSessionRevokedClearsCredentialsAndReturnsToLogin(t *testing.T) {
 	h := newAppHarnessConfigured(t, testSession(), func(context.Context) (api.MeResponse, error) {
 		return api.MeResponse{}, &api.HTTPError{StatusCode: http.StatusUnauthorized}
 	})
-	h.waitFor(t, func() bool { return h.router.Path() == "/login" })
+	h.waitFor(t, func() bool { return h.currentRouter().Path() == "/login" })
 	h.sessions.mu.Lock()
 	defer h.sessions.mu.Unlock()
 	if h.sessions.cleared != 1 {
@@ -455,8 +501,8 @@ func TestSavedSessionNetworkFailureKeepsCachedSession(t *testing.T) {
 		return api.MeResponse{}, &api.NetworkError{Cause: errors.New("offline")}
 	})
 	h.waitFor(t, func() bool { return h.tt.HasText("会话校验失败，继续使用本地会话") })
-	if h.router.Path() != "/home" {
-		t.Fatalf("route = %q, want /home", h.router.Path())
+	if h.currentRouter().Path() != "/home" {
+		t.Fatalf("route = %q, want /home", h.currentRouter().Path())
 	}
 	if !h.tt.HasText("林晓") {
 		t.Fatalf("cached session missing: %q", h.tt.Texts())
@@ -465,5 +511,175 @@ func TestSavedSessionNetworkFailureKeepsCachedSession(t *testing.T) {
 	defer h.sessions.mu.Unlock()
 	if h.sessions.cleared != 0 || len(h.sessions.saved) != 0 {
 		t.Fatalf("network error mutated Keychain: cleared=%d saved=%d", h.sessions.cleared, len(h.sessions.saved))
+	}
+}
+
+func TestSavedSessionServerFailureKeepsCachedSession(t *testing.T) {
+	h := newAppHarnessConfigured(t, testSession(), func(context.Context) (api.MeResponse, error) {
+		return api.MeResponse{}, &api.HTTPError{StatusCode: http.StatusInternalServerError}
+	})
+	h.waitFor(t, func() bool { return h.tt.HasText("会话校验失败，继续使用本地会话") })
+	if h.currentRouter().Path() != "/home" {
+		t.Fatalf("route = %q, want /home", h.currentRouter().Path())
+	}
+	h.sessions.mu.Lock()
+	defer h.sessions.mu.Unlock()
+	if h.sessions.cleared != 0 || len(h.sessions.saved) != 0 {
+		t.Fatalf("5xx mutated Keychain: cleared=%d saved=%d", h.sessions.cleared, len(h.sessions.saved))
+	}
+}
+
+func TestSavedSessionNotFoundClearsCredentialsAndReturnsToLogin(t *testing.T) {
+	h := newAppHarnessConfigured(t, testSession(), func(context.Context) (api.MeResponse, error) {
+		return api.MeResponse{}, &api.HTTPError{StatusCode: http.StatusNotFound}
+	})
+	h.waitFor(t, func() bool { return h.currentRouter().Path() == "/login" })
+	h.sessions.mu.Lock()
+	defer h.sessions.mu.Unlock()
+	if h.sessions.cleared != 1 {
+		t.Fatalf("cleared = %d, want 1", h.sessions.cleared)
+	}
+	if !h.tt.HasText("登录工作台") {
+		t.Fatalf("login page missing: %q", h.tt.Texts())
+	}
+}
+
+func TestSavedSessionClearFailureShowsRetryAndKeepsLogin(t *testing.T) {
+	h := newAppHarnessAuth(t, testSession(), func(context.Context) (api.MeResponse, error) {
+		return api.MeResponse{}, &api.HTTPError{StatusCode: http.StatusUnauthorized}
+	}, func(sessions *testSessions) {
+		sessions.clearErr = errors.New("keychain locked")
+	})
+	h.waitFor(t, func() bool { return h.tt.HasText("本地会话清理失败，请重试") })
+	if h.currentRouter().Path() != "/login" {
+		t.Fatalf("route = %q, want /login", h.currentRouter().Path())
+	}
+	if h.sessionStatusSnapshot() != "本地会话清理失败，请重试" {
+		t.Fatalf("status = %q", h.sessionStatusSnapshot())
+	}
+}
+
+func TestSavedSessionRefreshIsDiscardedAfterLogout(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	h := newAppHarnessConfigured(t, testSession(), func(context.Context) (api.MeResponse, error) {
+		close(started)
+		<-release
+		name := "旧刷新"
+		return api.MeResponse{
+			ID: "42", Email: "li@example.com", Name: "linxiao",
+			FullName: &name, IsAdmin: true, IsActive: true, RoleType: api.RoleAdmin,
+		}, nil
+	})
+	<-started
+	h.app.triggerLogout()
+	h.waitFor(t, func() bool { return h.currentRouter().Path() == "/login" })
+	close(release)
+	select {
+	case fn := <-h.mainWork:
+		fn()
+		h.tt.Frame()
+	case <-time.After(50 * time.Millisecond):
+	}
+	h.sessions.mu.Lock()
+	defer h.sessions.mu.Unlock()
+	if len(h.sessions.saved) != 0 {
+		t.Fatalf("stale refresh wrote Keychain: %+v", h.sessions.saved)
+	}
+	if h.sessionSnapshot().UserID != "" {
+		t.Fatalf("stale refresh resurrected session: %+v", h.sessionSnapshot())
+	}
+}
+
+func TestSavedSessionRefreshIsDiscardedAfterNewerLogin(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	h := newAppHarnessConfigured(t, testSession(), func(context.Context) (api.MeResponse, error) {
+		close(started)
+		<-release
+		name := "旧刷新"
+		return api.MeResponse{
+			ID: "42", Email: "li@example.com", Name: "linxiao",
+			FullName: &name, IsAdmin: true, IsActive: true, RoleType: api.RoleAdmin,
+		}, nil
+	})
+	<-started
+	if _, err := h.app.loginAttempt(context.Background(), "new@example.com", "secret"); err != nil {
+		t.Fatal(err)
+	}
+	h.waitFor(t, func() bool { return h.sessionSnapshot().UserID == "99" })
+	close(release)
+	time.Sleep(10 * time.Millisecond)
+	if got := h.sessionSnapshot().UserID; got != "99" {
+		t.Fatalf("stale refresh replaced newer login: %q", got)
+	}
+	h.sessions.mu.Lock()
+	defer h.sessions.mu.Unlock()
+	for _, saved := range h.sessions.saved {
+		if saved.UserID == "42" {
+			t.Fatalf("stale refresh saved old session: %+v", saved)
+		}
+	}
+}
+
+func TestSavedSessionRefreshAfterCloseDoesNothing(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	h := newAppHarnessConfigured(t, testSession(), func(context.Context) (api.MeResponse, error) {
+		close(started)
+		<-release
+		name := "不应写入"
+		return api.MeResponse{
+			ID: "42", Email: "li@example.com", Name: "linxiao",
+			FullName: &name, IsAdmin: true, IsActive: true, RoleType: api.RoleAdmin,
+		}, nil
+	})
+	<-started
+	h.waitFor(t, func() bool { return h.tt.HasText("运营总览") })
+	h.drainMainWork(t)
+	h.app.Close()
+	close(release)
+	select {
+	case fn := <-h.mainWork:
+		fn()
+		t.Fatal("closed app received a session-refresh update")
+	case <-time.After(50 * time.Millisecond):
+	}
+	h.sessions.mu.Lock()
+	defer h.sessions.mu.Unlock()
+	if len(h.sessions.saved) != 0 {
+		t.Fatalf("closed app wrote Keychain: %+v", h.sessions.saved)
+	}
+	if h.sessionStatusSnapshot() != "" {
+		t.Fatalf("closed app mutated status: %q", h.sessionStatusSnapshot())
+	}
+}
+
+func TestLogoutThenLoginCannotBackIntoPriorAccountHistory(t *testing.T) {
+	h := newAppHarness(t, testSession())
+	h.waitFor(t, func() bool { return h.tt.HasText("运营总览") })
+	h.tt.Click("系统设置")
+	h.tt.Frame()
+	h.tt.Click("报表中心")
+	h.tt.Frame()
+	if h.currentRouter().Path() != "/reports" {
+		t.Fatalf("route = %q, want /reports", h.currentRouter().Path())
+	}
+	if err := h.tt.Click("林晓"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.tt.ChooseMenuItem("退出登录"); err != nil {
+		t.Fatal(err)
+	}
+	h.waitFor(t, func() bool { return h.currentRouter().Path() == "/login" })
+	h.login("new@example.com", "secret")
+	h.waitFor(t, func() bool { return h.currentRouter().Path() == pages.HomeRoute })
+	if h.currentRouter().CanGoBack() {
+		t.Fatal("new login retains prior account history")
+	}
+	h.currentRouter().Back()
+	h.tt.Frame()
+	if h.currentRouter().Path() != pages.HomeRoute || h.tt.HasText("报表中心") && h.tt.HasText("功能建设中") {
+		t.Fatalf("back exposed prior account route: %q %q", h.currentRouter().Path(), h.tt.Texts())
 	}
 }

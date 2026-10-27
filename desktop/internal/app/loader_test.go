@@ -87,3 +87,21 @@ func TestGatewayLoaderProjects(t *testing.T) {
 		t.Fatalf("projects = %+v, err = %v", projects, err)
 	}
 }
+
+func TestGatewayLoaderSkipsAlertStatsWithoutProject(t *testing.T) {
+	client := &stubReadClient{
+		health:  api.HealthResponse{Status: "ok"},
+		unread:  api.UnreadCountResponse{Count: 1},
+		profile: api.Profile{ID: "42", Name: "linxiao"},
+	}
+	data := (GatewayLoader{Client: client}).Load(context.Background(), 0)
+	if len(client.alertProjects) != 0 {
+		t.Fatalf("AlertStats called without project: %v", client.alertProjects)
+	}
+	if data.Alerts.Err == nil {
+		t.Fatal("alerts should report missing project scope")
+	}
+	if data.Health.Err != nil || data.Health.Value.Status != "ok" {
+		t.Fatalf("unscoped health should still load: %+v", data.Health)
+	}
+}
