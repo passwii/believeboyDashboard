@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -89,11 +90,11 @@ func NewHandler(store Store) *Handler {
 func (h *Handler) ListExchangeRates(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 
-	page, ok := parseIntegerQuery(w, query.Get("page"), 1, "page")
+	page, ok := parseIntegerQuery(w, lastQueryValue(query, "page"), 1, "page")
 	if !ok {
 		return
 	}
-	pageSize, ok := parseIntegerQuery(w, query.Get("page_size"), 50, "page_size")
+	pageSize, ok := parseIntegerQuery(w, lastQueryValue(query, "page_size"), 50, "page_size")
 	if !ok {
 		return
 	}
@@ -101,7 +102,7 @@ func (h *Handler) ListExchangeRates(w http.ResponseWriter, r *http.Request) {
 	pageSize = min(max(pageSize, 1), 200)
 
 	var yearMonth *string
-	if raw := query.Get("year_month"); raw != "" {
+	if raw := lastQueryValue(query, "year_month"); raw != "" {
 		normalized, err := normalizeYearMonth(raw)
 		if err != nil {
 			httpapi.WriteDetail(w, http.StatusUnprocessableEntity, err.Error())
@@ -110,7 +111,7 @@ func (h *Handler) ListExchangeRates(w http.ResponseWriter, r *http.Request) {
 		yearMonth = &normalized
 	}
 	var currency *string
-	if raw := query.Get("currency"); raw != "" {
+	if raw := lastQueryValue(query, "currency"); raw != "" {
 		value := strings.TrimSpace(raw)
 		currency = &value
 	}
@@ -141,11 +142,11 @@ func (h *Handler) ResolveExchangeRate(w http.ResponseWriter, r *http.Request) {
 	}
 	currency := ""
 	if len(currencyValues) > 0 {
-		currency = currencyValues[0]
+		currency = currencyValues[len(currencyValues)-1]
 	}
 	currency = strings.ToUpper(strings.TrimSpace(currency))
 
-	yearMonth := query.Get("year_month")
+	yearMonth := lastQueryValue(query, "year_month")
 	if yearMonth == "" {
 		httpapi.WriteDetail(w, http.StatusUnprocessableEntity, "year_month is required")
 		return
@@ -389,12 +390,53 @@ func parseIntegerQuery(w http.ResponseWriter, raw string, fallback int, name str
 	if raw == "" {
 		return fallback, true
 	}
+	raw = strings.TrimSpace(raw)
 	value, err := strconv.Atoi(raw)
 	if err != nil {
+		digits := strings.TrimPrefix(raw, "+")
+		if strings.Contains(digits, "__") {
+			httpapi.WriteJSON(w, http.StatusUnprocessableEntity, integerParsingError(name, raw, "query"))
+			return 0, false
+		}
+		digits = strings.ReplaceAll(digits, "_", "")
+		if dot := strings.IndexByte(digits, '.'); dot >= 0 {
+			fraction := digits[dot+1:]
+			if fraction != "" && strings.Trim(fraction, "0") == "" {
+				digits = digits[:dot]
+			}
+		}
+		if isDigits(digits) {
+			if parsed, parseErr := strconv.Atoi(digits); parseErr == nil {
+				return parsed, true
+			}
+			return maxInt, true
+		}
 		httpapi.WriteJSON(w, http.StatusUnprocessableEntity, integerParsingError(name, raw, "query"))
 		return 0, false
 	}
 	return value, true
+}
+
+const maxInt = int(^uint(0) >> 1)
+
+func isDigits(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, char := range value {
+		if char < '0' || char > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func lastQueryValue(query url.Values, key string) string {
+	values := query[key]
+	if len(values) == 0 {
+		return ""
+	}
+	return values[len(values)-1]
 }
 
 func missingCurrencyError() map[string]any {

@@ -161,7 +161,7 @@ func TestRequireAPIKeyDatabaseErrorFailsClosed(t *testing.T) {
 func TestUserContextFromRequest(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/notifications", nil)
 	req.Header.Set("X-User-Id", " user-123 ")
-	req.Header.Set("X-User-Email", url.PathEscape("person+tag@example.com"))
+	req.Header.Set("X-User-Email", url.QueryEscape("person+tag@example.com"))
 	req.Header.Set("X-User-Name", url.PathEscape("测试用户"))
 	req.Header.Set("X-Operator", url.PathEscape("运营 A"))
 	req.Header.Set("X-Role-Type", "admin")
@@ -184,16 +184,16 @@ func TestUserContextFromRequest(t *testing.T) {
 	}
 }
 
-func TestUserContextFromRequestKeepsBase64LookingOperator(t *testing.T) {
-	for _, operator := range []string{"TWFu", "Zm9v"} {
+func TestUserContextFromRequestDecodesBase64LikeOperator(t *testing.T) {
+	for operator, want := range map[string]string{"TWFu": "Man", "Zm9v": "foo"} {
 		t.Run(operator, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/notifications", nil)
 			req.Header.Set("X-Operator", operator)
 
 			got := UserContextFromRequest(req)
 
-			if got.Operator != operator {
-				t.Errorf("Operator = %q, want %q", got.Operator, operator)
+			if got.Operator != want {
+				t.Errorf("Operator = %q, want %q", got.Operator, want)
 			}
 		})
 	}

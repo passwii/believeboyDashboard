@@ -2,11 +2,13 @@ package profile
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 )
@@ -103,6 +105,45 @@ func TestGetProfileUnknownUserReturns404(t *testing.T) {
 	NewHandler(&fakeStore{}).GetProfile(rec, req)
 
 	assertDetail(t, rec, http.StatusNotFound, "User not found")
+}
+
+func TestGetProfileDecodesBase64UserID(t *testing.T) {
+	store := &fakeStore{row: &Profile{ID: "user-123", Email: "u@example.com", Name: "u"}}
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/system-management/profile", nil)
+	req.Header.Set("X-User-Id", base64.StdEncoding.EncodeToString([]byte("user-123")))
+	rec := httptest.NewRecorder()
+
+	NewHandler(store).GetProfile(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+	if store.getUserID != "user-123" {
+		t.Errorf("store user id = %q, want Base64-decoded user-123", store.getUserID)
+	}
+}
+
+func TestGetProfileDecodesURLEncodedUnicodeAndCapsUserID(t *testing.T) {
+	store := &fakeStore{}
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/system-management/profile", nil)
+	req.Header.Set("X-User-Id", url.PathEscape("用户 123"))
+	rec := httptest.NewRecorder()
+
+	NewHandler(store).GetProfile(rec, req)
+
+	if store.getUserID != "用户 123" {
+		t.Errorf("store user id = %q, want URL-decoded Unicode", store.getUserID)
+	}
+
+	longID := strings.Repeat("用", 70)
+	store.getUserID = ""
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/system-management/profile", nil)
+	req.Header.Set("X-User-Id", longID)
+	rec = httptest.NewRecorder()
+	NewHandler(store).GetProfile(rec, req)
+	if got := store.getUserID; got != longID[:64] {
+		t.Errorf("capped user id = %q, want Python-style first 64 bytes", got)
+	}
 }
 
 func TestGetProfileStoreErrorReturns500(t *testing.T) {

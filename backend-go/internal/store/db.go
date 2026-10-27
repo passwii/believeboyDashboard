@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -25,9 +26,9 @@ type Rows interface {
 
 // OpenPool validates the database URL and creates a pgx connection pool.
 func OpenPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
-	cfg, err := pgxpool.ParseConfig(databaseURL)
+	cfg, err := pgxpool.ParseConfig(normalizeDatabaseURL(databaseURL))
 	if err != nil {
-		return nil, fmt.Errorf("parse DATABASE_URL: %w", err)
+		return nil, fmt.Errorf("parse DATABASE_URL: invalid connection string")
 	}
 
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
@@ -35,6 +36,27 @@ func OpenPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 		return nil, fmt.Errorf("open database pool: %w", err)
 	}
 	return pool, nil
+}
+
+func normalizeDatabaseURL(databaseURL string) string {
+	schemeEnd := strings.Index(databaseURL, "://")
+	if schemeEnd < 0 {
+		return databaseURL
+	}
+
+	scheme := databaseURL[:schemeEnd]
+	baseScheme, driver, found := strings.Cut(scheme, "+")
+	if !found {
+		return databaseURL
+	}
+	switch baseScheme + "+" + driver {
+	case "postgresql+psycopg", "postgresql+psycopg2", "postgresql+asyncpg":
+		return "postgresql" + databaseURL[len(scheme):]
+	case "postgres+psycopg", "postgres+psycopg2", "postgres+asyncpg":
+		return "postgres" + databaseURL[len(scheme):]
+	default:
+		return databaseURL
+	}
 }
 
 type poolDB struct {

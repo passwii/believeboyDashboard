@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"net/http"
-	"net/url"
 	"strings"
 )
 
@@ -31,33 +30,31 @@ func UserContextFromContext(ctx context.Context) (UserContext, bool) {
 }
 
 func UserContextFromRequest(r *http.Request) UserContext {
-	name := decodeHeaderValue(r.Header.Get("X-User-Name"))
-	operator := decodeHeaderValue(r.Header.Get("X-Operator"))
+	name := DecodeHeaderValue(r.Header.Get("X-User-Name"))
+	operator := DecodeHeaderValue(r.Header.Get("X-Operator"))
 	if operator == "" {
 		operator = name
 	}
 
 	return UserContext{
-		UserID:    decodeHeaderValue(r.Header.Get("X-User-Id")),
-		Email:     decodeHeaderValue(r.Header.Get("X-User-Email")),
+		UserID:    truncate(DecodeHeaderValue(r.Header.Get("X-User-Id")), 64),
+		Email:     DecodeHeaderValue(r.Header.Get("X-User-Email")),
 		Name:      name,
-		Operator:  operator,
-		RoleType:  decodeHeaderValue(r.Header.Get("X-Role-Type")),
-		SessionID: decodeHeaderValue(r.Header.Get("X-Session-Id")),
+		Operator:  truncate(operator, 255),
+		RoleType:  truncate(DecodeHeaderValue(r.Header.Get("X-Role-Type")), 32),
+		SessionID: DecodeHeaderValue(r.Header.Get("X-Session-Id")),
 		IsAdmin:   isTruthy(r.Header.Get("X-Is-Admin")),
 	}
 }
 
-func decodeHeaderValue(raw string) string {
-	value := strings.TrimSpace(raw)
-	if value == "" {
+func truncate(value string, limit int) string {
+	if limit <= 0 {
 		return ""
 	}
-
-	if decoded, err := url.PathUnescape(value); err == nil {
-		value = decoded
+	if len(value) <= limit {
+		return value
 	}
-	return strings.TrimSpace(value)
+	return value[:limit]
 }
 
 func isTruthy(value string) bool {

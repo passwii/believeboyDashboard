@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -87,8 +88,11 @@ func TestHealthDegradesWhenPrimaryFails(t *testing.T) {
 	if got.Status != "degraded" {
 		t.Errorf("status = %q, want degraded", got.Status)
 	}
-	if got.Database != "error: connection refused" {
-		t.Errorf("database = %q, want raw Python exception text", got.Database)
+	if got.Database != "error: *errors.errorString" {
+		t.Errorf("database = %q, want stable error type", got.Database)
+	}
+	if strings.Contains(got.Database, "connection refused") {
+		t.Errorf("database = %q, leaks underlying error text", got.Database)
 	}
 }
 
@@ -195,6 +199,21 @@ func TestHealthUsesNotConfiguredWithoutReplicaOrRedis(t *testing.T) {
 	}
 	if got.RedisMemory != nil {
 		t.Errorf("redis_memory = %#v, want null", *got.RedisMemory)
+	}
+}
+
+func TestHealthMissingPrimaryUsesStableErrorClass(t *testing.T) {
+	handler := NewHandler(HandlerConfig{Now: fixedNow})
+	rec := httptest.NewRecorder()
+
+	handler.Health(rec, httptest.NewRequest(http.MethodGet, "/api/v1/health", nil))
+
+	var got healthResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if got.Database != "error: DatabaseNotConfigured" {
+		t.Errorf("database = %q, want stable missing-primary error class", got.Database)
 	}
 }
 

@@ -3,10 +3,10 @@ package profile
 import (
 	"context"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
+	"github.com/passwii/believeboyDashboard/backend-go/internal/auth"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/httpapi"
 )
 
@@ -51,7 +51,7 @@ func NewHandler(store Store) *Handler {
 }
 
 func (h *Handler) GetProfile(w http.ResponseWriter, r *http.Request) {
-	userID := decodeHeader(r.Header.Get("X-User-Id"))
+	userID := truncateHeaderValue(auth.DecodeHeaderValue(r.Header.Get("X-User-Id")), 64)
 	if userID == "" {
 		httpapi.WriteDetail(w, http.StatusUnauthorized, "Not authenticated")
 		return
@@ -90,15 +90,14 @@ func (h *Handler) GetProfile(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func decodeHeader(raw string) string {
-	value := strings.TrimSpace(raw)
-	if value == "" {
+func truncateHeaderValue(value string, limit int) string {
+	if limit <= 0 {
 		return ""
 	}
-	if decoded, err := url.PathUnescape(value); err == nil {
-		value = decoded
+	if len(value) <= limit {
+		return value
 	}
-	return strings.TrimSpace(value)
+	return value[:limit]
 }
 
 func optionalTimestamp(value *time.Time) *string {

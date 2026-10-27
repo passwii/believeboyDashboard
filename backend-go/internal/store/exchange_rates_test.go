@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -232,6 +233,17 @@ func TestExchangeRateStoreErrorsPropagate(t *testing.T) {
 		t.Errorf("ListOptionRows() error = %v, want %v", err, wantErr)
 	}
 }
+
+func TestSafeOffsetAvoidsIntegerOverflow(t *testing.T) {
+	if got := safeOffset(maxIntTestValue, 200); got != math.MaxInt {
+		t.Errorf("safeOffset(maxInt, 200) = %d, want MaxInt", got)
+	}
+	if got := safeOffset(3, 50); got != 100 {
+		t.Errorf("safeOffset(3, 50) = %d, want 100", got)
+	}
+}
+
+const maxIntTestValue = int(^uint(0) >> 1)
 
 type queryCall struct {
 	sql  string

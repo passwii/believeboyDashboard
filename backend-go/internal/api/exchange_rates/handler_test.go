@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -144,18 +145,111 @@ func TestExchangeRateYearMonthValidationMatchesFastAPI(t *testing.T) {
 }
 
 func TestListExchangeRatesRejectsNonIntegerPagination(t *testing.T) {
-	rec := httptest.NewRecorder()
+	for _, raw := range []string{"abc", "0x10", "1.5", "--5", "1__0"} {
+		t.Run(raw, func(t *testing.T) {
+			rec := httptest.NewRecorder()
 
-	NewHandler(&fakeStore{}).ListExchangeRates(
+			NewHandler(&fakeStore{}).ListExchangeRates(
+				rec,
+				httptest.NewRequest(
+					http.MethodGet,
+					"/api/v1/exchange-rates?page="+url.QueryEscape(raw),
+					nil,
+				),
+			)
+
+			if rec.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("status = %d, want 422; body = %s", rec.Code, rec.Body.String())
+			}
+			if !strings.Contains(rec.Body.String(), `"type":"int_parsing"`) {
+				t.Errorf("body = %s, want FastAPI validation error shape", rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestListExchangeRatesMatchesFastAPIRepeatedAndHugeQueryParams(t *testing.T) {
+	store := &fakeStore{}
+	rec := httptest.NewRecorder()
+	huge := "999999999999999999999999999999999999"
+	path := "/api/v1/exchange-rates?currency=USD&currency=EUR&page=+" + huge + "&page_size=" + huge
+
+	NewHandler(store).ListExchangeRates(
 		rec,
-		httptest.NewRequest(http.MethodGet, "/api/v1/exchange-rates?page=abc", nil),
+		httptest.NewRequest(http.MethodGet, path, nil),
 	)
 
-	if rec.Code != http.StatusUnprocessableEntity {
-		t.Fatalf("status = %d, want 422; body = %s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), `"type":"int_parsing"`) {
-		t.Errorf("body = %s, want FastAPI validation error shape", rec.Body.String())
+	if store.listCurrency == nil || *store.listCurrency != "EUR" {
+		t.Errorf("currency = %#v, want last repeated value EUR", store.listCurrency)
+	}
+	if store.listPage != maxInt {
+		t.Errorf("page = %d, want saturating max int before offset safety", store.listPage)
+	}
+	if store.listPageSize != 200 {
+		t.Errorf("page_size = %d, want huge positive page size clamped to 200", store.listPageSize)
+	}
+}
+
+func TestResolveExchangeRateUsesLastRepeatedCurrency(t *testing.T) {
+	store := &fakeStore{}
+	rec := httptest.NewRecorder()
+
+	NewHandler(store).ResolveExchangeRate(
+		rec,
+		httptest.NewRequest(
+			http.MethodGet,
+			"/api/v1/exchange-rates/resolve?currency=USD&currency=EUR&year_month=2026-10",
+			nil,
+		),
+	)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+	if store.resolveCurrency != "EUR" {
+		t.Errorf("currency = %q, want last repeated value EUR", store.resolveCurrency)
+	}
+}
+
+func TestListExchangeRatesAcceptsPydanticIntegerSpellings(t *testing.T) {
+	tests := []struct {
+		page     string
+		pageSize string
+		wantPage int
+		wantSize int
+	}{
+		{page: "+5", pageSize: "7", wantPage: 5, wantSize: 7},
+		{page: " 5 ", pageSize: "7", wantPage: 5, wantSize: 7},
+		{page: "1_000", pageSize: "2", wantPage: 1000, wantSize: 2},
+		{page: "1.0", pageSize: "2", wantPage: 1, wantSize: 2},
+		{page: "1.00", pageSize: "2", wantPage: 1, wantSize: 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.page, func(t *testing.T) {
+			store := &fakeStore{}
+			rec := httptest.NewRecorder()
+			path := "/api/v1/exchange-rates?page=" + url.QueryEscape(tt.page) +
+				"&page_size=" + url.QueryEscape(tt.pageSize)
+			NewHandler(store).ListExchangeRates(
+				rec,
+				httptest.NewRequest(http.MethodGet, path, nil),
+			)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+			}
+			if store.listPage != tt.wantPage || store.listPageSize != tt.wantSize {
+				t.Errorf(
+					"pagination = (%d, %d), want (%d, %d)",
+					store.listPage,
+					store.listPageSize,
+					tt.wantPage,
+					tt.wantSize,
+				)
+			}
+		})
 	}
 }
 

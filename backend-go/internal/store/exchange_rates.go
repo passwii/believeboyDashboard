@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strconv"
 
 	"github.com/jackc/pgx/v5"
@@ -28,6 +29,7 @@ func (s *ExchangeRateStore) List(
 ) ([]exchange_rates.ExchangeRate, int, error) {
 	page = max(page, 1)
 	pageSize = min(max(pageSize, 1), 200)
+	offset := safeOffset(page, pageSize)
 
 	var total int
 	if err := s.db.QueryRow(
@@ -55,7 +57,7 @@ func (s *ExchangeRateStore) List(
 		 limit $4`,
 		currency,
 		yearMonth,
-		(page-1)*pageSize,
+		offset,
 		pageSize,
 	)
 	if err != nil {
@@ -75,6 +77,16 @@ func (s *ExchangeRateStore) List(
 		return nil, 0, err
 	}
 	return items, total, nil
+}
+
+func safeOffset(page, pageSize int) int {
+	if page <= 1 {
+		return 0
+	}
+	if page-1 > math.MaxInt/pageSize {
+		return math.MaxInt
+	}
+	return (page - 1) * pageSize
 }
 
 func (s *ExchangeRateStore) Resolve(

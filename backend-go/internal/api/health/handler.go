@@ -2,6 +2,7 @@ package health
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -105,10 +106,10 @@ func (h *Handler) HealthReady(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) probeDatabase(ctx context.Context) string {
 	if h.config.Database == nil {
-		return "error: database not configured"
+		return "error: DatabaseNotConfigured"
 	}
 	if err := h.config.Database.Ping(ctx); err != nil {
-		return "error: " + err.Error()
+		return "error: " + fmt.Sprintf("%T", err)
 	}
 	return "ok"
 }
