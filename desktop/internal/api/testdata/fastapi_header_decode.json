@@ -1,0 +1,61 @@
+{
+  "source": "backend/app/api/deps.py::_decode_header_value",
+  "python_version": "3.12.7",
+  "cases": [
+    {
+      "value": "ac+",
+      "raw": "YWMr",
+      "decoded": "ac+"
+    },
+    {
+      "value": "TWFu",
+      "raw": "VFdGdQ==",
+      "decoded": "TWFu"
+    },
+    {
+      "value": "YWJjZA==",
+      "raw": "WVdKalpBPT0=",
+      "decoded": "YWJjZA=="
+    },
+    {
+      "value": "纪亚伟",
+      "raw": "57qq5Lqa5Lyf",
+      "decoded": "纪亚伟"
+    },
+    {
+      "value": "运营 🚀 A",
+      "raw": "6L+Q6JClIPCfmoAgQQ==",
+      "decoded": "运营 🚀 A"
+    },
+    {
+      "value": "100% 完成",
+      "raw": "MTAwJSDlrozmiJA=",
+      "decoded": "100% 完成"
+    },
+    {
+      "value": "yawei+test@example.com",
+      "raw": "eWF3ZWkrdGVzdEBleGFtcGxlLmNvbQ==",
+      "decoded": "yawei+test@example.com"
+    },
+    {
+      "value": "O'Brien (运营) *~",
+      "raw": "TydCcmllbiAo6L+Q6JClKSAqfg==",
+      "decoded": "O'Brien (运营) *~"
+    },
+    {
+      "value": "internal  spaces",
+      "raw": "aW50ZXJuYWwgIHNwYWNlcw==",
+      "decoded": "internal  spaces"
+    },
+    {
+      "value": "😀 emoji",
+      "raw": "8J+YgCBlbW9qaQ==",
+      "decoded": "😀 emoji"
+    },
+    {
+      "value": "a/b?c=d&e",
+      "raw": "YS9iP2M9ZCZl",
+      "decoded": "a/b?c=d&e"
+    }
+  ]
+}
