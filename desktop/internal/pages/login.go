@@ -12,6 +12,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/passwii/believeboyDashboard/desktop/internal/api"
 	"github.com/passwii/believeboyDashboard/desktop/internal/components"
+	"github.com/passwii/believeboyDashboard/desktop/internal/design"
 )
 
 const (
@@ -122,81 +123,90 @@ func (p *LoginPage) View(c *ui.Context) {
 
 	t := c.Theme()
 	width, _ := c.Size()
-	ui.Row(c).Fill().Children(func() {
-		p.buildPendingNavigation(c)
-		components.BrandPanel(c, width)
-		ui.Column(c).
-			Grow(1).
-			FillHeight().
-			Justify(ui.Center).
-			AlignItems(ui.Stretch).
-			Padding(72, 64).
-			Children(func() {
-				ui.Column(c).
-					WidthPercent(100).
-					MaxWidth(380).
-					MinWidth(0).
-					AlignSelf(ui.Center).
-					Gap(22).
-					Children(func() {
-						ui.Text(c, "登录工作台").
-							FontSize(30).
-							Bold().
-							Role(ui.RoleHeading).
-							Label("登录工作台")
-						ui.Text(c, "使用 BelieveBoy 账号继续。").
-							FontSize(14).
-							TextColor(t.TextMuted)
-						if p.notice != "" {
-							errorBanner(c, p.notice)
-						}
-						if p.banner != "" {
-							errorBanner(c, p.banner)
-						}
-						ui.Form(c, func() {
-							ui.Field(c, "邮箱", func() {
-								input := ui.TextInput(c, &p.email).
-									Placeholder("name@example.com").
-									InputMethod(false).
-									Disabled(p.inFlight)
-								p.emailBounds = input.Bounds()
-								if input.Changed() {
-									p.emailErr, p.banner, p.lastErr = "", "", nil
-									if p.credentialError {
-										p.passwordErr, p.credentialError = "", false
-									}
-								}
-								if focusEmail {
-									input.Focus()
-								} else if !focusPassword {
-									input.AutoFocus()
-								}
-							}).Error(p.emailErr)
-							ui.Field(c, "密码", func() {
-								input := ui.TextInput(c, &p.password).
-									Password().
-									Disabled(p.inFlight).
-									OnChange(func() {
-										p.passwordErr, p.banner, p.lastErr = "", "", nil
-										p.credentialError = false
-									}).
-									OnTextKey(func(key ui.TextKey) bool {
-										if key.Key != ui.KeyEnter || key.Mods != 0 {
-											return false
+	palette := design.PaletteFromTheme(t)
+	split := width * components.BrandPanelRatio
+	ui.Column(c).Fill().Background(palette.Paper).Children(func() {
+		components.WindowTitleBar(c, components.WindowTitleBarOptions{
+			LeftWidth:       split,
+			LeftBackground:  palette.BrandPanel,
+			RightBackground: palette.Paper,
+		})
+		ui.Row(c).Grow(1).FillWidth().AlignItems(ui.Stretch).Children(func() {
+			p.buildPendingNavigation(c)
+			components.BrandPanel(c, width)
+			ui.Column(c).
+				Grow(1).
+				FillHeight().
+				Justify(ui.Center).
+				AlignItems(ui.Stretch).
+				Padding(48, 56).
+				Children(func() {
+					ui.Column(c).
+						WidthPercent(100).
+						MaxWidth(380).
+						MinWidth(0).
+						AlignSelf(ui.Center).
+						Gap(18).
+						Children(func() {
+							ui.Text(c, "登录工作台").
+								FontSize(28).
+								Bold().
+								Role(ui.RoleHeading).
+								Label("登录工作台")
+							ui.Text(c, "使用 BelieveBoy 账号继续。").
+								FontSize(14).
+								TextColor(t.TextMuted)
+							if p.notice != "" {
+								errorBanner(c, p.notice)
+							}
+							if p.banner != "" {
+								errorBanner(c, p.banner)
+							}
+							ui.Form(c, func() {
+								ui.Field(c, "邮箱", func() {
+									input := ui.TextInput(c, &p.email).
+										Placeholder("name@example.com").
+										InputMethod(false).
+										Disabled(p.inFlight)
+									p.emailBounds = input.Bounds()
+									if input.Changed() {
+										p.emailErr, p.banner, p.lastErr = "", "", nil
+										if p.credentialError {
+											p.passwordErr, p.credentialError = "", false
 										}
-										p.submit(c)
-										return true
-									})
-								if focusPassword {
-									input.Focus()
-								}
-							}).Error(p.passwordErr)
+									}
+									if focusEmail {
+										input.Focus()
+									} else if !focusPassword {
+										input.AutoFocus()
+									}
+								}).Error(p.emailErr)
+								ui.Field(c, "密码", func() {
+									input := ui.TextInput(c, &p.password).
+										Password().
+										Disabled(p.inFlight).
+										OnChange(func() {
+											p.passwordErr, p.banner, p.lastErr = "", "", nil
+											p.credentialError = false
+										}).
+										OnTextKey(func(key ui.TextKey) bool {
+											if key.Key != ui.KeyEnter || key.Mods != 0 {
+												return false
+											}
+											p.submit(c)
+											return true
+										})
+									if focusPassword {
+										input.Focus()
+									}
+								}).Error(p.passwordErr)
+							})
+							ui.Row(c).Key("submit-row").Gap(10).AlignItems(ui.Center).Children(func() {
+								loginButton(c, p)
+							})
 						})
-						ui.Row(c).Key("submit-row").Gap(10).AlignItems(ui.Center).Children(func() {
-							loginButton(c, p)
-						})
-					})
-			})
+				})
+		})
 	})
 }
 
@@ -206,7 +216,7 @@ func loginButton(c *ui.Context, p *LoginPage) {
 		label = "登录中"
 	}
 	button := ui.PrimaryButton(c, label).
-		Width(110).
+		Grow(1).
 		Disabled(p.inFlight)
 	if button.Clicked() {
 		p.submit(c)

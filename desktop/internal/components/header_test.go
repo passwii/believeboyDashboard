@@ -8,10 +8,8 @@ import (
 
 func TestHeaderShowsContextAndLogsOut(t *testing.T) {
 	loggedOut := false
-	var state HeaderState
 	tt := ui.NewTester(func(c *ui.Context) {
 		Header(c, HeaderOptions{
-			State:      &state,
 			Title:      "首页",
 			Breadcrumb: "工作台 / 首页",
 			UserName:   "林晓",

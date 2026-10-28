@@ -21,6 +21,7 @@ type WorkbenchOptions struct {
 	OnLogout          func()
 	Status            string
 	InspectorOpen     bool
+	MainPaneWidth     *float32
 	OnToggleInspector func()
 	Main              func(*ui.Context)
 	Inspector         func(*ui.Context)
@@ -33,21 +34,9 @@ func Workbench(c *ui.Context, options WorkbenchOptions) {
 		State:      state,
 		Title:      options.Title,
 		Breadcrumb: options.Breadcrumb,
-		Rail: func(c *ui.Context) {
-			Rail(c, RailOptions{
-				Items: []RailItem{
-					{ID: "home", Label: "首页", Icon: design.IconHome, Enabled: true},
-					{ID: "projects", Label: "项目", Icon: design.IconProjects, Enabled: true},
-					{ID: "operations", Label: "运营", Icon: design.IconOps, Enabled: true},
-					{ID: "reports", Label: "报表", Icon: design.IconReports, Enabled: true},
-					{ID: "ai", Label: "AI", Icon: design.IconAI, Enabled: true},
-				},
-				ActiveID: options.ActiveID,
-				OnSelect: options.OnNavigate,
-			})
-		},
 		Sidebar: func(c *ui.Context) {
 			Sidebar(c, SidebarOptions{
+				ActiveID: options.ActiveID,
 				OnSelect: options.OnNavigate,
 				Groups: []SidebarGroup{
 					{Label: "工作台", Items: []SidebarItem{
@@ -83,7 +72,9 @@ func Workbench(c *ui.Context, options WorkbenchOptions) {
 				OnToggleInspector: options.OnToggleInspector,
 			})
 		},
-		Main:      options.Main,
-		Inspector: options.Inspector,
+		Main:              options.Main,
+		Inspector:         options.Inspector,
+		MainPaneWidth:     options.MainPaneWidth,
+		OnToggleInspector: options.OnToggleInspector,
 	})
 }

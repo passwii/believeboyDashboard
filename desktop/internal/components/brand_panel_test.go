@@ -12,7 +12,6 @@ func TestBrandPanel(t *testing.T) {
 	}, 1120, 760)
 	for _, text := range []string{
 		"BelieveBoy",
-		"品牌",
 		"统一管理项目、运营与财务数据",
 		"本地原生客户端",
 	} {
@@ -24,7 +23,7 @@ func TestBrandPanel(t *testing.T) {
 	if !ok {
 		t.Fatal("brand title not found")
 	}
-	if title.X < 60 || title.X > 80 || title.Y < 200 {
+	if title.X < 48 || title.X > 56 || title.Y < 200 {
 		t.Errorf("brand title bounds = %+v, want padded left panel content", title)
 	}
 }

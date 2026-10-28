@@ -143,7 +143,6 @@ func TestLoginRendersBrandAndForm(t *testing.T) {
 	h := newTestLogin(t, nil)
 	for _, text := range []string{
 		"BelieveBoy",
-		"品牌",
 		"统一管理项目、运营与财务数据",
 		"本地原生客户端",
 		"登录工作台",

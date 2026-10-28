@@ -20,7 +20,7 @@ func TestPlaceholderStaysNativeAndNavigates(t *testing.T) {
 			},
 		})
 	}, DefaultWidth, DefaultHeight)
-	if !tt.HasText("功能建设中") || !tt.HasText("该模块将在后续迁移阶段提供原生界面") {
+	if !tt.HasText("暂未开放") || !tt.HasText("该模块将在后续阶段提供原生界面") {
 		t.Fatalf("placeholder texts = %q", tt.Texts())
 	}
 	if err := tt.Click("系统设置"); err != nil {

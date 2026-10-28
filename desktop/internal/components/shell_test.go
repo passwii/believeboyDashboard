@@ -4,144 +4,191 @@ import (
 	"testing"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/passwii/believeboyDashboard/desktop/internal/design"
 )
 
-func TestShellFixedColumnsAndCollapsedInspector(t *testing.T) {
+func TestShellUsesSingleSidebarWithNativeToolbar(t *testing.T) {
+	selected := "home"
 	var state ShellState
+	width := float32(560)
 	tt := ui.NewTester(func(c *ui.Context) {
+		state.InspectorOpen = false
 		Shell(c, ShellOptions{
-			State:      &state,
-			Title:      "首页",
-			Breadcrumb: "工作台 / 首页",
-			Rail: func(c *ui.Context) {
-				ui.Text(c, "RAIL")
-			},
+			State:         &state,
+			Title:         "首页",
+			Breadcrumb:    "工作台 / 首页",
+			MainPaneWidth: &width,
 			Sidebar: func(c *ui.Context) {
-				ui.Text(c, "SIDEBAR")
+				Sidebar(c, SidebarOptions{
+					ActiveID: selected,
+					Groups: []SidebarGroup{{Label: "工作台", Items: []SidebarItem{
+						{ID: "home", Label: "首页", Selected: true, Enabled: true},
+						{ID: "projects", Label: "项目", Enabled: true},
+					}}},
+					OnSelect: func(id string) { selected = id },
+				})
+			},
+			Header: func(c *ui.Context) {
+				Header(c, HeaderOptions{Title: "首页", Breadcrumb: "工作台 / 首页"})
 			},
 			Main: func(c *ui.Context) {
-				ui.Text(c, "MAIN")
-			},
-			Inspector: func(c *ui.Context) {
-				ui.Text(c, "INSPECTOR")
+				ui.Column(c).Fill().Label("MAIN PANE").Children(func() { ui.Text(c, "MAIN") })
 			},
 		})
 	}, 1120, 760)
 
-	if got := state.Metrics; got != (ShellMetrics{Rail: 64, Sidebar: 224, Header: 56, Inspector: 320}) {
-		t.Fatalf("metrics = %+v", got)
+	if !tt.HasText("首页") || !tt.HasText("项目") || !tt.HasText("MAIN") {
+		t.Fatalf("native workbench missing content: %q", tt.Texts())
 	}
-	rail := rectFor(t, tt, "RAIL")
-	sidebar := rectFor(t, tt, "SIDEBAR")
-	main := rectFor(t, tt, "MAIN")
-	if rail.X != 0 {
-		t.Errorf("rail = %+v, want x=0", rail)
+	if main := rectFor(t, tt, "MAIN PANE"); main.X < design.SidebarWidth {
+		t.Errorf("main pane starts at %.0f, before sidebar ends at %.0f", main.X, design.SidebarWidth)
 	}
-	if sidebar.X < 64 || sidebar.X >= 288 {
-		t.Errorf("sidebar = %+v, want it between x=64 and x=288", sidebar)
-	}
-	if main.X < 288 || main.X >= 300 {
-		t.Errorf("main x = %.0f, want about 288", main.X)
-	}
-	if _, ok := tt.Find("INSPECTOR"); ok {
-		t.Error("collapsed inspector rendered content")
-	}
-	if title := rectFor(t, tt, "首页"); title.Y+title.H > ShellHeaderHeight {
-		t.Errorf("title = %+v, want it inside the 56 DIP header", title)
-	}
-}
-
-func TestShellExpandedInspector(t *testing.T) {
-	state := ShellState{InspectorOpen: true}
-	tt := ui.NewTester(func(c *ui.Context) {
-		Shell(c, ShellOptions{
-			State: &state,
-			Title: "首页",
-			Rail: func(c *ui.Context) {
-				ui.Text(c, "RAIL")
-			},
-			Sidebar: func(c *ui.Context) {
-				ui.Text(c, "SIDEBAR")
-			},
-			Main: func(c *ui.Context) {
-				ui.Text(c, "MAIN")
-			},
-			Inspector: func(c *ui.Context) {
-				ui.Text(c, "INSPECTOR")
-			},
-		})
-	}, 1120, 760)
-
-	inspector := rectFor(t, tt, "INSPECTOR")
-	if inspector.X < 800 || inspector.X >= 812 {
-		t.Errorf("inspector = %+v, want it starting at x=800", inspector)
-	}
-	if inspector.X+inspector.W > 1120 {
-		t.Errorf("inspector %+v overflows the window", inspector)
-	}
-}
-
-func TestShellToggleInspector(t *testing.T) {
-	var state ShellState
-	tt := ui.NewTester(func(c *ui.Context) {
-		Shell(c, ShellOptions{
-			State: &state,
-			Title: "首页",
-			Main: func(c *ui.Context) {
-				ui.Text(c, "MAIN")
-			},
-			Inspector: func(c *ui.Context) {
-				ui.Text(c, "INSPECTOR")
-			},
-		})
-	}, 1120, 760)
-	if err := tt.Click("显示检查器"); err != nil {
+	if err := tt.Click("项目"); err != nil {
 		t.Fatal(err)
 	}
-	if !state.InspectorOpen || !tt.HasText("INSPECTOR") {
-		t.Fatalf("inspector open = %v, texts = %q", state.InspectorOpen, tt.Texts())
-	}
-	if err := tt.Click("隐藏检查器"); err != nil {
-		t.Fatal(err)
-	}
-	if state.InspectorOpen || tt.HasText("INSPECTOR") {
-		t.Fatalf("inspector did not collapse: %v %q", state.InspectorOpen, tt.Texts())
+	if selected != "projects" {
+		t.Errorf("selected route = %q, want projects", selected)
 	}
 }
 
-func TestShellMinimumWindowWithInspectorHasNoOverlap(t *testing.T) {
-	state := ShellState{InspectorOpen: true}
+func TestShellInspectorUsesResizableSplit(t *testing.T) {
+	inspectorOpen := true
+	width := float32(560)
 	tt := ui.NewTester(func(c *ui.Context) {
+		state := &ShellState{InspectorOpen: inspectorOpen}
 		Shell(c, ShellOptions{
-			State: &state,
-			Title: "首页",
-			Rail: func(c *ui.Context) {
-				ui.Text(c, "RAIL")
-			},
-			Sidebar: func(c *ui.Context) {
-				ui.Text(c, "SIDEBAR")
+			State:         state,
+			Title:         "项目",
+			MainPaneWidth: &width,
+			Header: func(c *ui.Context) {
+				Header(c, HeaderOptions{
+					Title:             "项目",
+					InspectorOpen:     inspectorOpen,
+					OnToggleInspector: func() { inspectorOpen = !inspectorOpen },
+				})
 			},
 			Main: func(c *ui.Context) {
-				ui.Text(c, "MAIN")
+				ui.Column(c).Fill().Label("MAIN PANE").Children(func() { ui.Text(c, "MAIN") })
 			},
 			Inspector: func(c *ui.Context) {
-				ui.Text(c, "INSPECTOR")
+				ui.Column(c).Fill().Label("INSPECTOR PANE").Children(func() { ui.Text(c, "INSPECTOR") })
 			},
 		})
 	}, 1000, 700)
-	main := rectFor(t, tt, "主内容区")
-	inspector := rectFor(t, tt, "检查器区域")
-	if main.X != 288 || main.W != 392 || main.Y != ShellHeaderHeight || main.H != 700-ShellHeaderHeight {
-		t.Errorf("main = %+v", main)
+
+	main := rectFor(t, tt, "MAIN PANE")
+	inspector := rectFor(t, tt, "INSPECTOR PANE")
+	if main.W < 40 || inspector.W < 40 || main.X+main.W > inspector.X || inspector.X+inspector.W > 1000 {
+		t.Fatalf("split panes overlap or overflow: main=%+v inspector=%+v", main, inspector)
 	}
-	if inspector.X != 680 || inspector.W != 320 || inspector.Y != ShellHeaderHeight {
-		t.Errorf("inspector = %+v", inspector)
+	if err := tt.Click("检查器"); err != nil {
+		t.Fatal(err)
 	}
-	if main.X < 0 || main.Y < 0 || inspector.X < 0 || inspector.Y < 0 {
-		t.Error("negative shell geometry")
+	if inspectorOpen || tt.HasText("INSPECTOR") {
+		t.Fatalf("inspector remained open after toolbar toggle: %v %q", inspectorOpen, tt.Texts())
 	}
-	if main.X+main.W > inspector.X || inspector.X+inspector.W > 1000 || inspector.Y+inspector.H > 700 {
-		t.Error("shell columns overlap or overflow")
+}
+
+func TestShellDividerResizeUpdatesAppWidth(t *testing.T) {
+	width := float32(560)
+	selected := "home"
+	tt := ui.NewTester(func(c *ui.Context) {
+		Shell(c, ShellOptions{
+			State:         &ShellState{InspectorOpen: true},
+			Title:         "项目",
+			MainPaneWidth: &width,
+			Sidebar: func(c *ui.Context) {
+				Sidebar(c, SidebarOptions{
+					ActiveID: selected,
+					Groups: []SidebarGroup{{Label: "工作台", Items: []SidebarItem{
+						{ID: "home", Label: "首页", Enabled: true},
+					}}},
+				})
+			},
+			Header: func(c *ui.Context) {
+				Header(c, HeaderOptions{Title: "项目"})
+			},
+			Main: func(c *ui.Context) {
+				ui.Column(c).Fill().Label("MAIN PANE").Children(func() { ui.Text(c, "MAIN") })
+			},
+			Inspector: func(c *ui.Context) {
+				ui.Column(c).Fill().Label("INSPECTOR PANE").Children(func() { ui.Text(c, "INSPECTOR") })
+			},
+		})
+	}, 1120, 700)
+	if width != 560 {
+		t.Fatalf("initial main pane width = %.0f, want 560", width)
+	}
+	main := rectFor(t, tt, "MAIN PANE")
+	inspector := rectFor(t, tt, "INSPECTOR PANE")
+	if main.X != design.SidebarWidth {
+		t.Fatalf("main starts at %.0f, want sidebar edge %.0f", main.X, design.SidebarWidth)
+	}
+	if inspector.X <= main.X+main.W {
+		t.Fatalf("inspector did not follow main pane: main=%+v inspector=%+v", main, inspector)
+	}
+	x, y := float32(design.SidebarWidth)+width+3, float32(140)
+	tt.Press(x, y)
+	tt.Move(x+40, y)
+	tt.Release(x+40, y)
+	if width != 600 {
+		t.Fatalf("dragged split width = %.0f, want 600", width)
+	}
+}
+
+func TestShellUsesSystemDarkAppearance(t *testing.T) {
+	tt := ui.NewTester(func(c *ui.Context) {
+		Shell(c, ShellOptions{
+			Title: "首页",
+			Main: func(c *ui.Context) {
+				ui.Text(c, "MAIN")
+			},
+		})
+	}, 480, 320)
+	tt.SetDark(true)
+
+	want := ui.DarkTheme().Background
+	got := tt.Image().RGBAAt(20, 100)
+	if got.R != want.R || got.G != want.G || got.B != want.B {
+		t.Fatalf("shell background = %#v, want dark theme background %#v", got, want)
+	}
+}
+
+func TestShellIntegratesNativeWindowControlsIntoLayout(t *testing.T) {
+	var state ShellState
+	tt := ui.NewTester(func(c *ui.Context) {
+		Shell(c, ShellOptions{
+			State: &state,
+			Sidebar: func(c *ui.Context) {
+				Sidebar(c, SidebarOptions{Groups: []SidebarGroup{{Label: "工作台", Items: []SidebarItem{
+					{ID: "home", Label: "首页", Enabled: true, Selected: true},
+				}}}})
+			},
+			Header: func(c *ui.Context) {
+				Header(c, HeaderOptions{Title: "首页", OnRefresh: func() {}})
+			},
+			Main: func(c *ui.Context) {
+				ui.Column(c).Fill().Label("MAIN PANE").Children(func() { ui.Text(c, "MAIN") })
+			},
+		})
+	}, 1120, 760)
+	tt.SetTitleBar(ui.TitleBar{Height: 32, Left: 80, Right: 20})
+	tt.Frame()
+
+	bar := rectFor(t, tt, "窗口标题栏")
+	if bar.H < design.HeaderHeight {
+		t.Errorf("titlebar height = %.0f, want at least %.0f", bar.H, design.HeaderHeight)
+	}
+	brand := rectFor(t, tt, "BelieveBoy")
+	if brand.X < 92 || brand.X+brand.W > design.SidebarWidth {
+		t.Errorf("brand bounds = %+v, want clear of traffic lights within the sidebar title slot", brand)
+	}
+	main := rectFor(t, tt, "MAIN PANE")
+	if main.Y < bar.Y+bar.H {
+		t.Errorf("main pane starts at %.0f before titlebar ends at %.0f", main.Y, bar.Y+bar.H)
+	}
+	if refresh := rectFor(t, tt, "刷新数据"); refresh.X < design.SidebarWidth {
+		t.Errorf("toolbar action starts at %.0f before the sidebar edge %.0f", refresh.X, design.SidebarWidth)
 	}
 }
 

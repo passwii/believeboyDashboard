@@ -20,13 +20,28 @@ type SidebarGroup struct {
 }
 
 type SidebarOptions struct {
+	ActiveID string
 	Groups   []SidebarGroup
 	OnSelect func(string)
 }
 
-// Sidebar is the fixed 224 DIP sub-navigation column.
+// Sidebar wraps MyGo's source-list navigation.
 func Sidebar(c *ui.Context, options SidebarOptions) {
-	p := design.Light
+	p := design.PaletteFromTheme(c.Theme())
+	selected := options.ActiveID
+	if selected == "" {
+		for _, group := range options.Groups {
+			for _, item := range group.Items {
+				if item.Selected {
+					selected = item.ID
+					break
+				}
+			}
+			if selected != "" {
+				break
+			}
+		}
+	}
 	column := ui.Column(c).
 		Width(design.SidebarWidth).
 		FillHeight().
@@ -35,81 +50,21 @@ func Sidebar(c *ui.Context, options SidebarOptions) {
 		BorderEndWidth(1).
 		BorderColor(p.Line)
 	column.Children(func() {
-		ui.Row(c).
-			Height(design.HeaderHeight).
-			FillWidth().
-			PaddingX(18).
-			AlignItems(ui.Center).
-			BorderWidth(0, 0, 1, 0).
-			BorderColor(p.Line).
-			Children(func() {
-				ui.Text(c, "BELIEVEBOY / 工作台").
-					FontSize(11).
-					FontWeight(600).
-					TextColor(p.InkMuted)
-			})
-		ui.Column(c).
-			Grow(1).
-			FillWidth().
-			Padding(18, 12).
-			Gap(18).
-			Clip().
-			Children(func() {
-				for _, group := range options.Groups {
-					sidebarGroup(c, options, group)
-				}
-			})
-	})
-}
-
-func sidebarGroup(c *ui.Context, options SidebarOptions, group SidebarGroup) {
-	p := design.Light
-	ui.Column(c).FillWidth().Gap(3).Role(ui.RoleGroup).Label(group.Label).Children(func() {
-		ui.Text(c, group.Label).
-			FontSize(10).
-			FontWeight(600).
-			TextColor(p.InkMuted).
-			Margin(0, 0, 5, 7)
-		for _, item := range group.Items {
-			row := ui.Row(c).
-				Key("sidebar-" + item.ID).
-				FillWidth().
-				Height(34).
-				PaddingX(9).
-				Gap(9).
-				AlignItems(ui.Center).
-				Radius(3).
-				Role(ui.RoleButton).
-				Label(item.Label).
-				Disabled(!item.Enabled).
-				Cursor(ui.CursorPointer)
-			textColor := p.Ink
-			if !item.Enabled {
-				textColor = p.InkMuted.Alpha(0.55)
+		navigation := ui.Sidebar(c, &selected, func() {
+			for _, group := range options.Groups {
+				ui.SidebarSection(c, group.Label, nil, func() {
+					for _, item := range group.Items {
+						row := ui.SidebarItem(c, item.ID, item.Icon, item.Label).
+							Disabled(!item.Enabled)
+						if item.Planned {
+							row.Children(func() { ui.Badge(c, "稍后") })
+						}
+					}
+				})
 			}
-			if item.Selected {
-				row.Background(p.AccentSoft)
-				textColor = p.Accent
-			}
-			row.Children(func() {
-				ui.Icon(c, item.Icon).Size(16, 16).TextColor(textColor)
-				ui.Text(c, item.Label).
-					FontSize(13).
-					FontWeight(map[bool]int{true: 600, false: 450}[item.Selected]).
-					TextColor(textColor).
-					Grow(1)
-				if item.Planned {
-					ui.Text(c, "稍后").
-						FontSize(9).
-						TextColor(p.InkMuted.Alpha(0.8)).
-						Background(p.PaperDeep).
-						Padding(2, 5).
-						Radius(2)
-				}
-			})
-			if row.Clicked() && item.Enabled && options.OnSelect != nil {
-				options.OnSelect(item.ID)
-			}
+		}).Width(design.SidebarWidth).Grow(1).Label("主导航")
+		if navigation.Changed() && options.OnSelect != nil {
+			options.OnSelect(selected)
 		}
 	})
 }

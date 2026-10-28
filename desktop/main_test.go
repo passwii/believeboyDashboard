@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -19,6 +20,12 @@ func TestDefaultWindowOptionsStaysNative(t *testing.T) {
 	}
 	if opts.URL != "" {
 		t.Errorf("window URL = %q, want empty", opts.URL)
+	}
+	if opts.TitleBarStyle != mygo.TitleBarHidden {
+		t.Errorf("TitleBarStyle = %q, want hidden native title bar", opts.TitleBarStyle)
+	}
+	if opts.HideWindowButtons {
+		t.Error("native macOS window buttons must remain visible")
 	}
 	if opts.Width != 1120 || opts.Height != 760 || opts.MinWidth != 1000 || opts.MinHeight != 700 {
 		t.Errorf("window size = %dx%d min %dx%d", opts.Width, opts.Height, opts.MinWidth, opts.MinHeight)

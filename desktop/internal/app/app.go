@@ -60,8 +60,10 @@ type App struct {
 	loginMu        sync.Mutex
 	loginPage      *pages.LoginPage
 	homePage       *pages.HomePage
+	projectsPage   *pages.ProjectsPage
 	logoutError    string
 	inspectorOpen  bool
+	mainPaneWidth  float32
 	sessionStatus  string
 	closed         bool
 }
@@ -75,6 +77,8 @@ func New(options Options) *App {
 		}
 		router = ui.NewRouter(route)
 	}
+	router.Transition = ui.TransitionAuto
+	router.Animation = &ui.Snappy
 	a := &App{
 		router:        router,
 		sessions:      options.Sessions,
@@ -85,6 +89,7 @@ func New(options Options) *App {
 		quit:          options.Quit,
 		verifySession: options.VerifySession,
 		apiKey:        options.InitialAPIKey,
+		mainPaneWidth: design.DefaultMainPaneWidth,
 	}
 	if options.InitialSession != nil {
 		a.setSession(*options.InitialSession)
@@ -273,8 +278,10 @@ func (a *App) resetHistory(route string) {
 	}
 	login := a.loginPage
 	home := a.homePage
+	projects := a.projectsPage
 	a.loginPage = nil
 	a.homePage = nil
+	a.projectsPage = nil
 	a.router = ui.NewRouter(route)
 	a.mu.Unlock()
 	if login != nil {
@@ -282,6 +289,9 @@ func (a *App) resetHistory(route string) {
 	}
 	if home != nil {
 		home.Close()
+	}
+	if projects != nil {
+		projects.Close()
 	}
 }
 
@@ -295,6 +305,7 @@ func (a *App) Close() {
 	}
 	login := a.loginPage
 	home := a.homePage
+	projects := a.projectsPage
 	a.mu.Unlock()
 	a.authStoreMu.Unlock()
 	if login != nil {
@@ -302,6 +313,9 @@ func (a *App) Close() {
 	}
 	if home != nil {
 		home.Close()
+	}
+	if projects != nil {
+		projects.Close()
 	}
 }
 
@@ -311,45 +325,136 @@ func (a *App) View(c *ui.Context) {
 		a.resetHistory(LoginRoute)
 		router = a.Router()
 	}
-	design.ApplyTheme(c.Theme())
-	router.View(c, func(route *ui.Route) {
-		switch {
-		case route.Match(LoginRoute):
-			route.Title("登录")
-			a.loginView(c)
-		case route.Match(HomeRoute):
-			route.Title("首页")
-			a.homeView(c)
-		case route.Match(SettingsRoute):
-			route.Title("系统设置")
-			a.placeholderView(c, "settings", "系统设置", "工作台 / 系统设置", "系统设置")
-		case route.Match(ProjectsRoute):
-			route.Title("项目")
-			a.placeholderView(c, "projects", "项目", "工作台 / 项目", "项目工作区")
-		case route.Match(OperationsRoute):
-			route.Title("运营")
-			a.placeholderView(c, "operations", "运营", "工作台 / 运营", "运营分析")
-		case route.Match(ReportsRoute):
-			route.Title("报表")
-			a.placeholderView(c, "reports", "报表", "工作台 / 报表", "报表中心")
-		case route.Match(AIRoute):
-			route.Title("AI")
-			a.placeholderView(c, "ai", "AI", "工作台 / AI", "AI 助手")
-		default:
-			route.Title("未找到")
-			p := design.Light
-			ui.Column(c).Fill().Padding(48).Gap(12).Children(func() {
-				ui.Text(c, "页面不存在").FontSize(24).FontWeight(650).TextColor(p.Ink)
-				ui.Text(c, "当前地址无法打开；请返回首页。").
-					FontSize(12).
-					TextColor(p.InkMuted)
-				if ui.Button(c, "返回首页").Clicked() {
-					a.navigate("home")
+	if a.sessionActive() {
+		if router.Path() == LoginRoute {
+			a.resetHistory(HomeRoute)
+			router = a.Router()
+		}
+		a.workspaceView(c, router)
+	} else {
+		a.loginView(c)
+	}
+	a.shortcuts(c)
+}
+
+// workspaceView keeps the shared chrome outside the router's page transition.
+func (a *App) workspaceView(c *ui.Context, router *ui.Router) {
+	path := router.Path()
+	activeID, title, breadcrumb, projectName := "", "未找到", "", ""
+	var (
+		homePage        *pages.HomePage
+		projectsPage    *pages.ProjectsPage
+		projectChoices  []components.ProjectChoice
+		selectedProject int
+		onProjectChange func(int)
+		onRefresh       func()
+		inspector       func(*ui.Context)
+		placeholder     pages.PlaceholderOptions
+	)
+	switch path {
+	case HomeRoute:
+		activeID, title, breadcrumb = "home", "首页", "工作台 / 首页"
+		homePage = a.homePageModel()
+		if homePage != nil {
+			homePage.Prepare(c)
+			projectName = homePage.SelectedProjectName()
+			projectChoices = homePage.ProjectChoices()
+			selectedProject = homePage.ProjectID()
+			onProjectChange = homePage.SelectProject
+			onRefresh = homePage.Refresh
+			inspector = homePage.Inspector
+		}
+	case ProjectsRoute:
+		activeID, title, breadcrumb = "projects", "项目", "工作台 / 项目"
+		projectsPage = a.projectsPageModel()
+		if projectsPage != nil {
+			onRefresh = projectsPage.Refresh
+			inspector = projectsPage.InspectorContent
+		}
+	case SettingsRoute:
+		activeID, title, breadcrumb, projectName = "settings", "系统设置", "工作台 / 系统设置", "全部项目"
+		placeholder = pages.PlaceholderOptions{ActiveID: activeID, Title: title, Breadcrumb: breadcrumb, Description: "系统设置"}
+		inspector = func(c *ui.Context) { pages.PlaceholderInspectorContent(c, placeholder) }
+	case OperationsRoute:
+		activeID, title, breadcrumb, projectName = "operations", "运营", "工作台 / 运营", "全部项目"
+		placeholder = pages.PlaceholderOptions{ActiveID: activeID, Title: title, Breadcrumb: breadcrumb, Description: "运营分析"}
+		inspector = func(c *ui.Context) { pages.PlaceholderInspectorContent(c, placeholder) }
+	case ReportsRoute:
+		activeID, title, breadcrumb, projectName = "reports", "报表", "工作台 / 报表", "全部项目"
+		placeholder = pages.PlaceholderOptions{ActiveID: activeID, Title: title, Breadcrumb: breadcrumb, Description: "报表中心"}
+		inspector = func(c *ui.Context) { pages.PlaceholderInspectorContent(c, placeholder) }
+	case AIRoute:
+		activeID, title, breadcrumb, projectName = "ai", "AI", "工作台 / AI", "全部项目"
+		placeholder = pages.PlaceholderOptions{ActiveID: activeID, Title: title, Breadcrumb: breadcrumb, Description: "AI 助手"}
+		inspector = func(c *ui.Context) { pages.PlaceholderInspectorContent(c, placeholder) }
+	}
+
+	a.mu.RLock()
+	userName := displayName(a.session)
+	userRole := RoleLabel(a.session.RoleType)
+	sessionStatus := a.sessionStatus
+	logoutError := a.logoutError
+	a.mu.RUnlock()
+	components.Workbench(c, components.WorkbenchOptions{
+		Title:             title,
+		Breadcrumb:        breadcrumb,
+		ActiveID:          activeID,
+		UserName:          userName,
+		UserRole:          userRole,
+		Project:           projectName,
+		Projects:          projectChoices,
+		SelectedProject:   selectedProject,
+		OnNavigate:        a.navigate,
+		OnProjectChange:   onProjectChange,
+		OnRefresh:         onRefresh,
+		OnSettings:        func() { a.navigate("settings") },
+		OnLogout:          a.triggerLogout,
+		Status:            sessionStatus,
+		InspectorOpen:     a.inspectorOpen,
+		MainPaneWidth:     &a.mainPaneWidth,
+		OnToggleInspector: a.toggleInspector,
+		Main: func(c *ui.Context) {
+			router.View(c, func(route *ui.Route) {
+				switch {
+				case route.Match(HomeRoute):
+					route.Title("首页")
+					a.homeView(c)
+				case route.Match(ProjectsRoute):
+					route.Title("项目")
+					a.projectsView(c)
+				case route.Match(SettingsRoute):
+					route.Title("系统设置")
+					a.placeholderView(c, "settings", "系统设置", "工作台 / 系统设置", "系统设置")
+				case route.Match(OperationsRoute):
+					route.Title("运营")
+					a.placeholderView(c, "operations", "运营", "工作台 / 运营", "运营分析")
+				case route.Match(ReportsRoute):
+					route.Title("报表")
+					a.placeholderView(c, "reports", "报表", "工作台 / 报表", "报表中心")
+				case route.Match(AIRoute):
+					route.Title("AI")
+					a.placeholderView(c, "ai", "AI", "工作台 / AI", "AI 助手")
+				default:
+					route.Title("未找到")
+					palette := design.PaletteFromTheme(c.Theme())
+					ui.Column(c).Fill().Padding(48).Gap(12).Children(func() {
+						ui.Text(c, "页面不存在").FontSize(24).FontWeight(650).TextColor(palette.Ink)
+						ui.Text(c, "当前地址无法打开；请返回首页。").
+							FontSize(12).
+							TextColor(palette.InkMuted)
+						if ui.Button(c, "返回首页").Clicked() {
+							a.navigate("home")
+						}
+					})
 				}
 			})
-		}
+			if logoutError != "" {
+				palette := design.PaletteFromTheme(c.Theme())
+				ui.Text(c, logoutError).FontSize(11).TextColor(palette.Danger).Role(ui.RoleStatus)
+			}
+		},
+		Inspector: inspector,
 	})
-	a.shortcuts(c)
 }
 
 func (a *App) loginView(c *ui.Context) {
@@ -423,65 +528,87 @@ func (a *App) completeLogin(session auth.Session, apiKey string) {
 	a.resetHistory(HomeRoute)
 }
 
-func (a *App) homeView(c *ui.Context) {
-	if !a.hasSession {
-		a.router.Replace(LoginRoute)
-		return
-	}
-	a.mu.Lock()
+func (a *App) homePageModel() *pages.HomePage {
+	a.mu.RLock()
 	page := a.homePage
-	a.mu.Unlock()
-	if page == nil {
-		a.mu.RLock()
-		session := a.session
-		loader := a.homeLoader
-		projectLoader := a.projectLoader
-		update := a.update
-		a.mu.RUnlock()
-		page = pages.NewHomePage(pages.HomeOptions{
-			Session: session, Load: loader, LoadProjects: projectLoader, Update: update,
-		})
-		a.mu.Lock()
-		a.homePage = page
-		a.mu.Unlock()
+	session := a.session
+	loader := a.homeLoader
+	projectLoader := a.projectLoader
+	update := a.update
+	closed := a.closed
+	a.mu.RUnlock()
+	if page != nil || closed {
+		return page
 	}
-	page.ViewHome(c, components.WorkbenchOptions{
-		Title:             "首页",
-		Breadcrumb:        "工作台 / 首页",
-		ActiveID:          "home",
-		UserName:          displayName(a.session),
-		UserRole:          RoleLabel(a.session.RoleType),
-		Project:           page.SelectedProjectName(),
-		Projects:          page.ProjectChoices(),
-		OnNavigate:        a.navigate,
-		OnSettings:        func() { a.navigate("settings") },
-		OnLogout:          a.triggerLogout,
-		InspectorOpen:     a.inspectorOpen,
-		OnToggleInspector: a.toggleInspector,
-		Status:            a.sessionStatus,
-		OnRefresh:         page.Refresh,
-		OnProjectChange:   page.SelectProject,
+	candidate := pages.NewHomePage(pages.HomeOptions{
+		Session: session, Load: loader, LoadProjects: projectLoader, Update: update,
 	})
-	if a.logoutError != "" {
-		p := design.Light
-		ui.Text(c, a.logoutError).FontSize(11).TextColor(p.Danger).Role(ui.RoleStatus)
+	a.mu.Lock()
+	if a.closed {
+		a.mu.Unlock()
+		candidate.Close()
+		return nil
+	}
+	if a.homePage == nil {
+		a.homePage = candidate
+		page = candidate
+	} else {
+		page = a.homePage
+	}
+	a.mu.Unlock()
+	if page != candidate {
+		candidate.Close()
+	}
+	return page
+}
+
+func (a *App) homeView(c *ui.Context) {
+	if page := a.homePageModel(); page != nil {
+		page.Prepare(c)
+		page.HomeContent(c)
+	}
+}
+
+func (a *App) projectsPageModel() *pages.ProjectsPage {
+	a.mu.RLock()
+	page := a.projectsPage
+	loader := a.projectLoader
+	update := a.update
+	closed := a.closed
+	a.mu.RUnlock()
+	if page != nil || closed {
+		return page
+	}
+	candidate := pages.NewProjectsPage(pages.ProjectsOptions{Load: loader, Update: update})
+	a.mu.Lock()
+	if a.closed {
+		a.mu.Unlock()
+		candidate.Close()
+		return nil
+	}
+	if a.projectsPage == nil {
+		a.projectsPage = candidate
+		page = candidate
+	} else {
+		page = a.projectsPage
+	}
+	a.mu.Unlock()
+	if page != candidate {
+		candidate.Close()
+	}
+	return page
+}
+
+func (a *App) projectsView(c *ui.Context) {
+	if page := a.projectsPageModel(); page != nil {
+		page.Content(c)
 	}
 }
 
 func (a *App) placeholderView(c *ui.Context, id, title, breadcrumb, description string) {
-	pages.PlaceholderPage(c, pages.PlaceholderOptions{
+	pages.PlaceholderContent(c, pages.PlaceholderOptions{
 		ActiveID: id, Title: title, Breadcrumb: breadcrumb, Description: description,
-		UserName: displayName(a.session), UserRole: RoleLabel(a.session.RoleType),
-		OnNavigate: a.navigate, OnSettings: func() { a.navigate("settings") },
-		OnLogout:          a.triggerLogout,
-		InspectorOpen:     a.inspectorOpen,
-		OnToggleInspector: a.toggleInspector,
-		Status:            a.sessionStatus,
 	})
-	if a.logoutError != "" {
-		p := design.Light
-		ui.Text(c, a.logoutError).FontSize(11).TextColor(p.Danger).Role(ui.RoleStatus)
-	}
 }
 
 func (a *App) toggleInspector() {
@@ -492,9 +619,17 @@ func (a *App) shortcuts(c *ui.Context) {
 	c.OnShortcut(ui.Cmd, ui.KeyR, func() {
 		a.mu.RLock()
 		home := a.homePage
+		projects := a.projectsPage
 		a.mu.RUnlock()
-		if home != nil && a.router.Path() == HomeRoute {
-			home.Refresh()
+		switch a.router.Path() {
+		case HomeRoute:
+			if home != nil {
+				home.Refresh()
+			}
+		case ProjectsRoute:
+			if projects != nil {
+				projects.Refresh()
+			}
 		}
 	})
 	c.OnShortcut(ui.Cmd, ui.KeyComma, func() { a.navigate("settings") })

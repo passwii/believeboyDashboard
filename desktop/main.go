@@ -10,7 +10,9 @@ import (
 	"github.com/passwii/believeboyDashboard/desktop/internal/api"
 	"github.com/passwii/believeboyDashboard/desktop/internal/app"
 	"github.com/passwii/believeboyDashboard/desktop/internal/auth"
+	"github.com/passwii/believeboyDashboard/desktop/internal/components"
 	"github.com/passwii/believeboyDashboard/desktop/internal/config"
+	"github.com/passwii/believeboyDashboard/desktop/internal/design"
 	"github.com/passwii/believeboyDashboard/desktop/internal/pages"
 )
 
@@ -28,6 +30,9 @@ func defaultWindowOptions(runtime *desktopRuntime) mygo.WindowOptions {
 		Height:    pages.DefaultHeight,
 		MinWidth:  pages.MinWidth,
 		MinHeight: pages.MinHeight,
+		// Draw the app toolbar into the title bar while the OS keeps its traffic lights.
+		TitleBarStyle:  mygo.TitleBarHidden,
+		TitleBarHeight: int(design.HeaderHeight),
 		// Opens where the user left it last time.
 		StateKey: "main",
 		// The window shows the interface MyGo draws, not a web page.
@@ -37,7 +42,20 @@ func defaultWindowOptions(runtime *desktopRuntime) mygo.WindowOptions {
 
 func (r *desktopRuntime) View(c *ui.Context) {
 	if r == nil || r.app == nil {
-		ui.Text(c, "应用初始化失败，请查看日志。")
+		palette := design.PaletteFromTheme(c.Theme())
+		ui.Column(c).Fill().Background(palette.Paper).Children(func() {
+			components.WindowTitleBar(c, components.WindowTitleBarOptions{
+				LeftWidth:       design.SidebarWidth,
+				LeftBackground:  palette.PanelAlt,
+				RightBackground: palette.Paper,
+				Left: func(c *ui.Context) {
+					ui.Text(c, "BelieveBoy").FontSize(12).FontWeight(650).TextColor(palette.Ink)
+				},
+			})
+			ui.Column(c).Grow(1).FillWidth().Padding(48).Children(func() {
+				ui.Text(c, "应用初始化失败，请查看日志。")
+			})
+		})
 		return
 	}
 	r.app.View(c)

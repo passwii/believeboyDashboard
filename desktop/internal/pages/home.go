@@ -205,26 +205,17 @@ func (p *HomePage) SelectProject(id int) {
 	p.Refresh()
 }
 
+// Prepare applies pending data before the shared shell builds content and inspector.
+func (p *HomePage) Prepare(c *ui.Context) { p.applyResults(c) }
+
 func (p *HomePage) View(c *ui.Context) {
-	p.applyResults(c)
-	design.ApplyTheme(c.Theme())
+	p.Prepare(c)
 	components.Shell(c, components.ShellOptions{
 		Title:      "首页",
 		Breadcrumb: "工作台 / 首页",
-		Rail: func(c *ui.Context) {
-			components.Rail(c, components.RailOptions{
-				Items: []components.RailItem{
-					{ID: "home", Label: "首页", Icon: design.IconHome, Enabled: true},
-					{ID: "projects", Label: "项目", Icon: design.IconProjects, Enabled: false},
-					{ID: "operations", Label: "运营", Icon: design.IconOps, Enabled: false},
-					{ID: "reports", Label: "报表", Icon: design.IconReports, Enabled: false},
-					{ID: "ai", Label: "AI", Icon: design.IconAI, Enabled: false},
-				},
-				ActiveID: "home",
-			})
-		},
 		Sidebar: func(c *ui.Context) {
 			components.Sidebar(c, components.SidebarOptions{
+				ActiveID: "home",
 				Groups: []components.SidebarGroup{
 					{Label: "工作台", Items: []components.SidebarItem{
 						{ID: "home", Label: "首页", Icon: design.IconHome, Enabled: true, Selected: true},
@@ -278,7 +269,7 @@ func (p *HomePage) View(c *ui.Context) {
 }
 
 func (p *HomePage) ViewHome(c *ui.Context, options components.WorkbenchOptions) {
-	p.applyResults(c)
+	p.Prepare(c)
 	if options.OnProjectChange == nil {
 		options.OnProjectChange = p.SelectProject
 	}
@@ -338,7 +329,7 @@ func (p *HomePage) applyResults(c *ui.Context) {
 }
 
 func (p *HomePage) homeContent(c *ui.Context) {
-	palette := design.Light
+	palette := design.PaletteFromTheme(c.Theme())
 	ui.Scroll(c).Fill().Children(func() {
 		ui.Column(c).
 			FillWidth().
@@ -347,14 +338,14 @@ func (p *HomePage) homeContent(c *ui.Context) {
 			Children(func() {
 				ui.Row(c).FillWidth().AlignItems(ui.End).Gap(16).Children(func() {
 					ui.Column(c).Grow(1).Gap(5).Children(func() {
-						ui.Text(c, "运营总览").
+						ui.Text(c, "工作台概览").
 							FontSize(26).
 							FontWeight(650).
 							TextColor(palette.Ink).
 							Role(ui.RoleHeading).
 							Level(1)
-						ui.Text(c, "以实时网关数据核对今日工作台状态。").
-							FontSize(12).
+						ui.Text(c, "查看服务、通知、告警与当前账号信息。").
+							FontSize(13).
 							TextColor(palette.InkMuted)
 					})
 					if p.loading {
@@ -381,13 +372,17 @@ func (p *HomePage) homeContent(c *ui.Context) {
 					})
 				p.projectSection(c)
 				if p.err != nil {
-					ui.Text(c, p.err.Error()).FontSize(11).TextColor(palette.Danger)
+					ui.Text(c, "工作台数据暂不可用，请检查连接后刷新。").
+						FontSize(12).
+						TextColor(palette.Danger).
+						Role(ui.RoleStatus)
 				}
 			})
 	})
 }
 
 func (p *HomePage) healthCard(c *ui.Context) {
+	palette := design.PaletteFromTheme(c.Theme())
 	state := components.StatLoading
 	value, detail := "", ""
 	errText := ""
@@ -402,12 +397,13 @@ func (p *HomePage) healthCard(c *ui.Context) {
 		}
 	}
 	components.StatCard(c, components.StatCardOptions{
-		Title: "API / 数据服务", Eyebrow: "HEALTH", Value: value, Detail: detail,
-		State: state, Error: errText, Accent: design.Light.Success,
+		Title: "API / 数据服务", Value: value, Detail: detail,
+		State: state, Error: errText, Accent: palette.Success,
 	})
 }
 
 func (p *HomePage) unreadCard(c *ui.Context) {
+	palette := design.PaletteFromTheme(c.Theme())
 	state := components.StatLoading
 	value, detail, errText := "", "", ""
 	if !p.loading {
@@ -420,12 +416,14 @@ func (p *HomePage) unreadCard(c *ui.Context) {
 		}
 	}
 	components.StatCard(c, components.StatCardOptions{
-		Title: "未读通知", Eyebrow: "INBOX", Value: value, Detail: detail,
-		State: state, Error: errText, Accent: design.Light.Accent,
+		Title: "未读通知", Value: value, Detail: detail,
+		State: state, Error: errText, Accent: palette.Accent,
+		Numeric: true,
 	})
 }
 
 func (p *HomePage) alertCard(c *ui.Context) {
+	palette := design.PaletteFromTheme(c.Theme())
 	state := components.StatLoading
 	value, detail, errText := "", "", ""
 	if p.selectedProject == 0 {
@@ -441,12 +439,14 @@ func (p *HomePage) alertCard(c *ui.Context) {
 		}
 	}
 	components.StatCard(c, components.StatCardOptions{
-		Title: "活跃告警", Eyebrow: "ALERTS", Value: value, Detail: detail,
-		State: state, Error: errText, Accent: design.Light.Danger,
+		Title: "活跃告警", Value: value, Detail: detail,
+		State: state, Error: errText, Accent: palette.Danger,
+		Numeric: true,
 	})
 }
 
 func (p *HomePage) profileCard(c *ui.Context) {
+	palette := design.PaletteFromTheme(c.Theme())
 	state := components.StatLoading
 	name, role, detail, errText := "", "", "", ""
 	profile := p.session
@@ -471,19 +471,20 @@ func (p *HomePage) profileCard(c *ui.Context) {
 		detail = role
 	}
 	components.StatCard(c, components.StatCardOptions{
-		Title: "当前用户", Eyebrow: "PROFILE", Value: name, Detail: detail,
-		State: state, Error: errText, Accent: design.Light.Warning,
+		Title: "当前用户", Value: name, Detail: detail,
+		State: state, Error: errText, Accent: palette.Warning,
 	})
 }
 
 func (p *HomePage) projectSection(c *ui.Context) {
-	palette := design.Light
+	palette := design.PaletteFromTheme(c.Theme())
 	ui.Column(c).
 		FillWidth().
 		Padding(16).
 		Gap(10).
 		Background(palette.Panel).
 		Border(1, palette.Line).
+		Radius(12).
 		Children(func() {
 			ui.Row(c).FillWidth().AlignItems(ui.Center).Children(func() {
 				ui.Text(c, "项目上下文").FontSize(12).FontWeight(600).TextColor(palette.Ink).Grow(1)
@@ -504,10 +505,10 @@ func (p *HomePage) projectSection(c *ui.Context) {
 					row := ui.Row(c).
 						Key(fmt.Sprintf("project-%d", project.ID)).
 						FillWidth().
-						Height(28).
-						PaddingX(8).
+						Height(32).
+						PaddingX(10).
 						AlignItems(ui.Center).
-						Radius(2).
+						Radius(6).
 						Role(ui.RoleButton).
 						Cursor(ui.CursorPointer).
 						OnClick(func() {
@@ -518,9 +519,10 @@ func (p *HomePage) projectSection(c *ui.Context) {
 					}
 					row.Children(func() {
 						ui.Text(c, project.Name).FontSize(11).TextColor(palette.Ink).Grow(1)
-						if project.CountryName != nil {
-							ui.Text(c, *project.CountryName).FontSize(10).TextColor(palette.InkMuted)
-						}
+						ui.Text(c, projectCountry(project)).
+							FontSize(11).
+							TextColor(palette.InkMuted).
+							SingleLine()
 					})
 				}
 			}
@@ -528,10 +530,10 @@ func (p *HomePage) projectSection(c *ui.Context) {
 }
 
 func (p *HomePage) inspector(c *ui.Context) {
-	palette := design.Light
+	palette := design.PaletteFromTheme(c.Theme())
 	ui.Column(c).Fill().Padding(18).Gap(14).Children(func() {
 		ui.Text(c, "系统检查器").FontSize(14).FontWeight(600).TextColor(palette.Ink)
-		ui.Text(c, "首页指标来自 Go Gateway；项目列表经 Gateway 代理至 FastAPI。").
+		ui.Text(c, "当前页面提供服务、通知、告警与项目概况。").
 			FontSize(11).
 			TextColor(palette.InkMuted)
 		if !p.loading && !p.data.LoadedAt.IsZero() {

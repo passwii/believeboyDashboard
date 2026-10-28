@@ -82,8 +82,13 @@ func (l *testHomeLoader) Calls() int {
 }
 
 func testProjects(context.Context, int) ([]api.Project, error) {
-	return []api.Project{{ID: 1, Name: "北美站"}}, nil
+	return []api.Project{
+		{ID: 1, Name: "北美站", Country: "US", CountryName: projectCountry("美国站"), IsActive: true},
+		{ID: 2, Name: "欧洲站", Country: "DE", CountryName: projectCountry("德国站"), IsActive: true},
+	}, nil
 }
+
+func projectCountry(value string) *string { return &value }
 
 type appHarness struct {
 	app      *App
@@ -250,7 +255,7 @@ func TestAppShowsLoginWithoutSession(t *testing.T) {
 
 func TestAppShowsHomeWithSession(t *testing.T) {
 	h := newAppHarness(t, testSession())
-	h.waitFor(t, func() bool { return h.tt.HasText("运营总览") })
+	h.waitFor(t, func() bool { return h.tt.HasText("工作台概览") })
 	if !h.tt.HasText("未读通知") || !h.tt.HasText("活跃告警") {
 		t.Fatalf("home cards missing: %q", h.tt.Texts())
 	}
@@ -258,7 +263,7 @@ func TestAppShowsHomeWithSession(t *testing.T) {
 
 func TestAppUnknownRouteShowsNativeNotFound(t *testing.T) {
 	h := newAppHarness(t, testSession())
-	h.waitFor(t, func() bool { return h.tt.HasText("运营总览") })
+	h.waitFor(t, func() bool { return h.tt.HasText("工作台概览") })
 	h.currentRouter().Replace("/missing")
 	h.tt.Frame()
 	if !h.tt.HasText("页面不存在") {
@@ -276,7 +281,7 @@ func TestAppLoginEstablishesSessionBeforeNavigatingHome(t *testing.T) {
 	h := newAppHarness(t, nil)
 	h.login("li@example.com", "secret")
 	h.waitFor(t, func() bool { return h.currentRouter().Path() == pages.HomeRoute })
-	h.waitFor(t, func() bool { return h.tt.HasText("运营总览") })
+	h.waitFor(t, func() bool { return h.tt.HasText("工作台概览") })
 	if !h.tt.HasText("未读通知") {
 		t.Fatalf("home cards missing after login: %q", h.tt.Texts())
 	}
@@ -287,7 +292,7 @@ func TestAppLoginEstablishesSessionBeforeNavigatingHome(t *testing.T) {
 
 func TestAppNavigatesToNativeSettingsPlaceholder(t *testing.T) {
 	h := newAppHarness(t, testSession())
-	h.waitFor(t, func() bool { return h.tt.HasText("运营总览") })
+	h.waitFor(t, func() bool { return h.tt.HasText("工作台概览") })
 	if err := h.tt.Click("系统设置"); err != nil {
 		t.Fatal(err)
 	}
@@ -295,7 +300,7 @@ func TestAppNavigatesToNativeSettingsPlaceholder(t *testing.T) {
 	if h.currentRouter().Path() != "/settings" {
 		t.Fatalf("route = %q, want /settings", h.currentRouter().Path())
 	}
-	if !h.tt.HasText("功能建设中") || !h.tt.HasText("系统设置") {
+	if !h.tt.HasText("暂未开放") || !h.tt.HasText("系统设置") {
 		t.Fatalf("placeholder missing: %q", h.tt.Texts())
 	}
 	if !h.tt.Focused("系统设置") {
@@ -306,9 +311,29 @@ func TestAppNavigatesToNativeSettingsPlaceholder(t *testing.T) {
 	}
 }
 
+func TestAppKeepsWorkspaceChromeStableDuringRouteTransition(t *testing.T) {
+	h := newAppHarness(t, testSession())
+	h.waitFor(t, func() bool { return h.tt.HasText("工作台概览") })
+
+	const sidebarProbeX, sidebarProbeY = 10, 50
+	before := h.tt.Image().RGBAAt(sidebarProbeX, sidebarProbeY)
+	h.tt.Click("系统设置")
+	if h.currentRouter().Path() != SettingsRoute {
+		t.Fatalf("route = %q, want %q", h.currentRouter().Path(), SettingsRoute)
+	}
+	if !h.tt.HasText("暂未开放") {
+		t.Fatalf("settings content missing during route transition: %q", h.tt.Texts())
+	}
+	h.tt.Advance(75 * time.Millisecond)
+	after := h.tt.Image().RGBAAt(sidebarProbeX, sidebarProbeY)
+	if after != before {
+		t.Errorf("sidebar chrome pixel changed during content transition: before=%#v after=%#v", before, after)
+	}
+}
+
 func TestAppShortcuts(t *testing.T) {
 	h := newAppHarness(t, testSession())
-	h.waitFor(t, func() bool { return h.tt.HasText("运营总览") })
+	h.waitFor(t, func() bool { return h.tt.HasText("工作台概览") })
 	before := h.loader.Calls()
 
 	h.tt.Key(ui.Cmd, ui.KeyR)
@@ -329,7 +354,7 @@ func TestAppShortcuts(t *testing.T) {
 
 func TestAppLogoutClearsSessionAndReturnsToLogin(t *testing.T) {
 	h := newAppHarness(t, testSession())
-	h.waitFor(t, func() bool { return h.tt.HasText("运营总览") })
+	h.waitFor(t, func() bool { return h.tt.HasText("工作台概览") })
 	if err := h.tt.Click("林晓"); err != nil {
 		t.Fatal(err)
 	}
@@ -348,7 +373,7 @@ func TestAppLogoutClearsSessionAndReturnsToLogin(t *testing.T) {
 func TestAppLogoutFailureKeepsSession(t *testing.T) {
 	h := newAppHarness(t, testSession())
 	h.app.SetLogout(func(context.Context) error { return errors.New("keychain locked") })
-	h.waitFor(t, func() bool { return h.tt.HasText("运营总览") })
+	h.waitFor(t, func() bool { return h.tt.HasText("工作台概览") })
 	if err := h.tt.Click("林晓"); err != nil {
 		t.Fatal(err)
 	}
@@ -363,7 +388,7 @@ func TestAppLogoutFailureKeepsSession(t *testing.T) {
 
 func TestAppHistoryUsesPushAndSupportsBackForward(t *testing.T) {
 	h := newAppHarness(t, testSession())
-	h.waitFor(t, func() bool { return h.tt.HasText("运营总览") })
+	h.waitFor(t, func() bool { return h.tt.HasText("工作台概览") })
 	h.tt.Click("系统设置")
 	h.tt.Frame()
 	h.tt.Click("报表中心")
@@ -407,18 +432,17 @@ func TestAppSettingsShortcutDoesNothingLoggedOut(t *testing.T) {
 	}
 }
 
-func TestAppPlaceholdersAreReachableFromSidebar(t *testing.T) {
+func TestAppNonProjectPlaceholdersAreReachableFromSidebar(t *testing.T) {
 	tests := []struct {
 		label string
 		route string
 	}{
-		{label: "项目管理", route: "/projects"},
 		{label: "运营分析", route: "/operations"},
 		{label: "报表中心", route: "/reports"},
 		{label: "AI 助手", route: "/ai"},
 	}
 	h := newAppHarness(t, testSession())
-	h.waitFor(t, func() bool { return h.tt.HasText("运营总览") })
+	h.waitFor(t, func() bool { return h.tt.HasText("工作台概览") })
 	for _, test := range tests {
 		if err := h.tt.Click(test.label); err != nil {
 			t.Fatal(err)
@@ -427,7 +451,7 @@ func TestAppPlaceholdersAreReachableFromSidebar(t *testing.T) {
 		if h.currentRouter().Path() != test.route {
 			t.Fatalf("%s route = %q, want %q", test.label, h.currentRouter().Path(), test.route)
 		}
-		if !h.tt.HasText("功能建设中") {
+		if !h.tt.HasText("暂未开放") {
 			t.Fatalf("%s placeholder missing: %q", test.label, h.tt.Texts())
 		}
 		if opened := h.tt.OpenedURLs(); len(opened) != 0 {
@@ -436,9 +460,43 @@ func TestAppPlaceholdersAreReachableFromSidebar(t *testing.T) {
 	}
 }
 
+func TestAppProjectsPageShowsSearchableTableAndInspector(t *testing.T) {
+	h := newAppHarness(t, testSession())
+	h.waitFor(t, func() bool { return h.tt.HasText("工作台概览") })
+	if err := h.tt.Click("项目管理"); err != nil {
+		t.Fatal(err)
+	}
+	h.tt.Frame()
+	if h.currentRouter().Path() != "/projects" {
+		t.Fatalf("route = %q, want /projects", h.currentRouter().Path())
+	}
+	if err := h.tt.Click("检查器"); err != nil {
+		t.Fatal(err)
+	}
+	h.waitFor(t, func() bool { return h.tt.HasText("北美站") && h.tt.HasText("欧洲站") })
+	if !h.tt.HasText("项目列表") || !h.tt.HasText("北美站") || !h.tt.HasText("欧洲站") {
+		t.Fatalf("projects table missing: %q", h.tt.Texts())
+	}
+	if err := h.tt.Click("欧洲站"); err != nil {
+		t.Fatal(err)
+	}
+	h.tt.Frame()
+	if !h.tt.HasText("项目详情") || !h.tt.HasText("德国站") {
+		t.Fatalf("project inspector missing selected details: %q", h.tt.Texts())
+	}
+	if err := h.tt.Click("搜索项目"); err != nil {
+		t.Fatal(err)
+	}
+	h.tt.Type("北美")
+	h.tt.Frame()
+	if !h.tt.HasText("北美站") || h.tt.HasText("欧洲站") {
+		t.Fatalf("project filter did not narrow the table: %q", h.tt.Texts())
+	}
+}
+
 func TestAsyncHomeRedrawDoesNotStealHeaderFocus(t *testing.T) {
 	h := newAppHarness(t, testSession())
-	h.waitFor(t, func() bool { return h.tt.HasText("运营总览") })
+	h.waitFor(t, func() bool { return h.tt.HasText("工作台概览") })
 	before := h.loader.Calls()
 	if err := h.tt.Click("刷新数据"); err != nil {
 		t.Fatal(err)
@@ -635,7 +693,7 @@ func TestSavedSessionRefreshAfterCloseDoesNothing(t *testing.T) {
 		}, nil
 	})
 	<-started
-	h.waitFor(t, func() bool { return h.tt.HasText("运营总览") })
+	h.waitFor(t, func() bool { return h.tt.HasText("工作台概览") })
 	h.drainMainWork(t)
 	h.app.Close()
 	close(release)
@@ -671,7 +729,7 @@ func TestCompleteLoginAfterCloseDoesNotRestoreSession(t *testing.T) {
 
 func TestLogoutThenLoginCannotBackIntoPriorAccountHistory(t *testing.T) {
 	h := newAppHarness(t, testSession())
-	h.waitFor(t, func() bool { return h.tt.HasText("运营总览") })
+	h.waitFor(t, func() bool { return h.tt.HasText("工作台概览") })
 	h.tt.Click("系统设置")
 	h.tt.Frame()
 	h.tt.Click("报表中心")
@@ -693,7 +751,7 @@ func TestLogoutThenLoginCannotBackIntoPriorAccountHistory(t *testing.T) {
 	}
 	h.currentRouter().Back()
 	h.tt.Frame()
-	if h.currentRouter().Path() != pages.HomeRoute || h.tt.HasText("报表中心") && h.tt.HasText("功能建设中") {
+	if h.currentRouter().Path() != pages.HomeRoute || h.tt.HasText("报表中心") && h.tt.HasText("暂未开放") {
 		t.Fatalf("back exposed prior account route: %q %q", h.currentRouter().Path(), h.tt.Texts())
 	}
 }
