@@ -415,17 +415,15 @@ export function TerminalHeader({
           </PrimaryFilterSlotMount>
         </div>
       ) : null}
-      <div
-        id="terminal-header-secondary-row"
-        data-testid="terminal-header-secondary-row"
-        hidden={!secondaryFiltersExpanded}
-        className={cn(
-          'w-full border-t border-term-border bg-term-panel',
-          !secondaryFiltersExpanded && 'hidden',
-          hasGlobalSecondaryFilters && !secondarySlotActive && 'hidden xl:block'
-        )}
-      >
-        {secondaryFiltersExpanded ? (
+      {hasSecondaryFilters && secondaryFiltersExpanded ? (
+        <div
+          id="terminal-header-secondary-row"
+          data-testid="terminal-header-secondary-row"
+          className={cn(
+            'w-full border-t border-term-border bg-term-panel',
+            hasGlobalSecondaryFilters && !secondarySlotActive && 'hidden xl:block'
+          )}
+        >
           <SecondaryHeaderSlotMount className="flex min-h-11 min-w-0 flex-wrap items-center gap-1.5 px-2 py-1">
             {hasGlobalSecondaryFilters ? (
               <div className="hidden items-center gap-1.5 xl:flex">
@@ -436,8 +434,8 @@ export function TerminalHeader({
               </div>
             ) : null}
           </SecondaryHeaderSlotMount>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
     </header>
   )
 }

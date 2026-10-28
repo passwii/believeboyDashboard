@@ -234,6 +234,11 @@ describe('TerminalHeader 全局筛选四件套（BLF-819，BLF-874 已移除 KPI
     expect(navigationRow).not.toContainElement(primaryFilters)
     expect(primaryFilters).toContainElement(screen.getByTitle('全局项目筛选'))
     expect(primaryFilters.querySelectorAll('button')).toHaveLength(2)
+    expect(screen.getByRole('button', { name: '展开次级筛选' })).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    )
+    expect(screen.queryByTestId('terminal-header-secondary-row')).not.toBeInTheDocument()
     expect(screen.queryByTitle('全局站点筛选')).not.toBeInTheDocument()
     const toggle = screen.getByRole('button', { name: '展开次级筛选' })
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
