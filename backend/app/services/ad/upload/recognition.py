@@ -27,6 +27,7 @@ import app.services.project_service as project_service
 from app.services.ad.upload.project_match import _build_project_match
 from app.services.ad.upload.specs import ALLOWED_EXTENSIONS, REPORT_SPECS, ReportSpec
 from app.services.ad.upload.utils import (
+    _date_range_to_strings,
     _date_to_string,
     _read_dataframe,
     _safe_name,
@@ -184,8 +185,16 @@ def recognize_saved_ad_upload(
     }
 
     detected_country = normalized_country
-    if '国家/地区' in df.columns and not df['国家/地区'].dropna().empty:
-        detected_country = normalize_country(df['国家/地区'].dropna().iloc[0])
+    country_column = next(
+        (
+            column
+            for column in ('国家/地区', '投放广告活动的国家/地区')
+            if column in df.columns and not df[column].dropna().empty
+        ),
+        None,
+    )
+    if country_column is not None:
+        detected_country = normalize_country(df[country_column].dropna().iloc[0])
 
     if '开始日期' in df.columns and '结束日期' in df.columns:
         detected_start_date = (
@@ -198,6 +207,9 @@ def recognize_saved_ad_upload(
             if not df['结束日期'].dropna().empty
             else None
         )
+    elif '日期范围' in df.columns and not df['日期范围'].dropna().empty:
+        combined_range = _date_range_to_strings(df['日期范围'].dropna().iloc[0])
+        detected_start_date, detected_end_date = combined_range or (None, None)
     elif '日期' in df.columns and not df['日期'].dropna().empty:
         parsed_dates = pd.to_datetime(df['日期'], errors='coerce').dropna()
         detected_start_date = (

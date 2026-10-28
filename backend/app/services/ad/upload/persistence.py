@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -331,35 +332,65 @@ def _ingest_promoted_product_rows(db: Session, *, source_file_id: int, df: pd.Da
     for index, (_, series) in enumerate(df.iterrows(), start=1):
         record = series.to_dict()
         report_start_date, report_end_date = _resolve_record_date_range(record)
+
+        def _get(*column_names: str) -> object:
+            for column_name in column_names:
+                value = _record_get_ci(record, column_name)
+                if _clean_string(value) is not None:
+                    return value
+            return None
+
+        is_new_format = _clean_string(_get('日期范围')) is not None
+        # 新版 xlsx stores CTR as percentage points (for example 0.6829 means 0.6829%).
+        impressions = _to_int(_get('展示量'))
+        clicks = _to_int(_get('点击量'))
+        ctr = _to_decimal(
+            _get('点击率', '点击率 (CTR)'),
+            percent=is_new_format,
+        )
+        spend = _to_decimal(_get('总成本', '花费'))
+        sales = _to_decimal(_get('销售额', '7天总销售额'))
+        acos_value = _get('广告投入产出比 (ACOS) 总计')
+        acos = (
+            _to_decimal(acos_value)
+            if acos_value is not None
+            else spend / sales if sales > 0 else Decimal('0')
+        )
+        cvr = _to_decimal(
+            _get('点击购买率', '7天的转化率'),
+            percent=is_new_format,
+        )
+        country_value = _clean_string(_get('投放广告活动的国家/地区', '国家/地区'))
+
         db.add(
             AdUploadPromotedProductRow(
                 source_file_id=source_file_id,
                 source_row_no=index,
                 report_start_date=report_start_date,
                 report_end_date=report_end_date,
-                campaign_name=_clean_string(_record_get_ci(record, '广告活动名称')),
-                ad_group_name=_clean_string(_record_get_ci(record, '广告组名称')),
-                ad_sku=_clean_string(_record_get_ci(record, '广告SKU')),
-                ad_asin=_clean_string(_record_get_ci(record, '广告ASIN')),
-                impressions=_to_int(_record_get_ci(record, '展示量')),
-                clicks=_to_int(_record_get_ci(record, '点击量')),
-                ctr=_to_decimal(_record_get_ci(record, '点击率 (CTR)')),
-                spend=_to_decimal(_record_get_ci(record, '花费')),
-                cpc=_to_decimal(_record_get_ci(record, '单次点击成本 (CPC)')),
-                orders_7d=_to_int(_record_get_ci(record, '7天总订单数(#)')),
-                units_7d=_to_int(_record_get_ci(record, '7天总销售量(#)')),
-                sales_7d=_to_decimal(_record_get_ci(record, '7天总销售额')),
-                acos=_to_decimal(_record_get_ci(record, '广告投入产出比 (ACOS) 总计')),
-                roas=_to_decimal(_record_get_ci(record, '总广告投资回报率 (ROAS)')),
-                cvr_7d=_to_decimal(_record_get_ci(record, '7天的转化率')),
-                ad_sku_units_7d=_to_int(_record_get_ci(record, '7天内广告SKU销售量(#)')),
-                other_sku_units_7d=_to_int(_record_get_ci(record, '7天内其他SKU销售量(#)')),
-                ad_sku_sales_7d=_to_decimal(_record_get_ci(record, '7天内广告SKU销售额')),
-                other_sku_sales_7d=_to_decimal(_record_get_ci(record, '7天内其他SKU销售额')),
-                country=_clean_string(_record_get_ci(record, '国家/地区')),
-                currency=_clean_string(_record_get_ci(record, '货币')),
-                retailer=_clean_string(_record_get_ci(record, '零售商')),
-                portfolio_name=_clean_string(_record_get_ci(record, '广告组合名称')),
+                campaign_name=_clean_string(_get('广告活动名称')),
+                ad_group_name=_clean_string(_get('广告组名称')),
+                ad_sku=_clean_string(_get('推广的商品 SKU-Advertised product SKU', '广告SKU')),
+                ad_asin=_clean_string(_get('推广的商品编号', '广告ASIN')),
+                impressions=impressions,
+                clicks=clicks,
+                ctr=ctr,
+                spend=spend,
+                cpc=_to_decimal(_get('CPC', '单次点击成本 (CPC)')),
+                orders_7d=_to_int(_get('购买量', '7天总订单数(#)')),
+                units_7d=_to_int(_get('由点击产生的已售商品数量', '7天总销售量(#)')),
+                sales_7d=sales,
+                acos=acos,
+                roas=_to_decimal(_get('归因于点击的 ROAS', '总广告投资回报率 (ROAS)')),
+                cvr_7d=cvr,
+                ad_sku_units_7d=_to_int(_get('已售商品数量（推广）', '7天内广告SKU销售量(#)')),
+                other_sku_units_7d=_to_int(_get('已售商品数量（光环）', '7天内其他SKU销售量(#)')),
+                ad_sku_sales_7d=_to_decimal(_get('推广商品的销量', '7天内广告SKU销售额')),
+                other_sku_sales_7d=_to_decimal(_get('销售额（光环）', '7天内其他SKU销售额')),
+                country=normalize_country(country_value) if country_value else None,
+                currency=_clean_string(_get('预算货币', '货币')),
+                retailer=_clean_string(_get('零售商')),
+                portfolio_name=_clean_string(_get('广告组合名称')),
                 raw_row=_raw_row_dict(record),
             )
         )
