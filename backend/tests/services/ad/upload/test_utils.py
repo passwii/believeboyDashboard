@@ -273,6 +273,22 @@ class TestResolveRecordDateRange:
             assert start == date(2024, 6, 1)
             assert end == date(2024, 6, 1)
 
+    def test_with_amazon_chinese_date_range(self):
+        from app.services.ad.upload.utils import _resolve_record_date_range
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', DeprecationWarning)
+            start, end = _resolve_record_date_range({'日期范围': '2026年10月26日 - 2026年10月26日'})
+        assert start == date(2026, 10, 26)
+        assert end == date(2026, 10, 26)
+
+    def test_with_amazon_multi_day_date_range(self):
+        from app.services.ad.upload.utils import _resolve_record_date_range
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', DeprecationWarning)
+            start, end = _resolve_record_date_range({'日期范围': '2026年10月20日 - 2026年10月26日'})
+        assert start == date(2026, 10, 20)
+        assert end == date(2026, 10, 26)
+
     def test_with_row_date_preferred(self):
         from app.services.ad.upload.utils import _resolve_record_date_range
         with warnings.catch_warnings():

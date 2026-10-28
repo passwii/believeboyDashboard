@@ -111,7 +111,11 @@ def _match_ad_spec(path, report_type: str) -> dict | None:
     全命中才算命中），不存在"部分命中"。
     """
     from app.services.ad.upload.recognition import _detect_report_spec
-    from app.services.ad.upload.utils import _date_to_string, _read_dataframe
+    from app.services.ad.upload.utils import (
+        _date_range_to_strings,
+        _date_to_string,
+        _read_dataframe,
+    )
 
     try:
         df = _read_dataframe(path)
@@ -135,6 +139,10 @@ def _match_ad_spec(path, report_type: str) -> dict | None:
         detected_start = _date_to_string(df["开始日期"].dropna().iloc[0])
     if "结束日期" in df.columns and not df["结束日期"].dropna().empty:
         detected_end = _date_to_string(df["结束日期"].dropna().iloc[0])
+    elif "日期范围" in df.columns and not df["日期范围"].dropna().empty:
+        detected_range = _date_range_to_strings(df["日期范围"].dropna().iloc[0])
+        if detected_range:
+            detected_start, detected_end = detected_range
     elif "日期" in df.columns and not df["日期"].dropna().empty:
         import pandas as pd
 

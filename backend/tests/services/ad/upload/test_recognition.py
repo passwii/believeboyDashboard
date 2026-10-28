@@ -84,6 +84,20 @@ class TestDetectReportSpec:
         spec = _detect_report_spec(df, '.xlsx')
         assert spec.report_type == 'ad_promoted_product_report'
 
+    def test_detect_new_promoted_product_format(self):
+        from app.services.ad.upload.recognition import _detect_report_spec
+        df = pd.DataFrame(columns=[
+            '日期范围', '广告组合名称', '预算货币', '广告活动名称', '广告组名称',
+            '投放广告活动的国家/地区', '推广的商品 SKU-Advertised product SKU',
+            '推广的商品编号', '展示量', '点击量', '点击率', 'CPC', '总成本',
+            '销售额', '归因于点击的 ROAS', '购买量', '由点击产生的已售商品数量',
+            '点击购买率', '已售商品数量（推广）', '已售商品数量（光环）',
+            '推广商品的销量', '销售额（光环）',
+        ])
+        spec = _detect_report_spec(df, '.xlsx')
+        assert spec.report_type == 'ad_promoted_product_report'
+        assert ('sku', '推广的商品 SKU-Advertised product SKU') in spec.project_match_fields
+
 
 @pytest.mark.recognition
 @pytest.mark.ad_report
@@ -204,6 +218,47 @@ class TestRecognizeSavedAdUpload:
                         )
                         assert result.status == 'recognized'
                         assert result.report_type == 'ad_campaign_report'
+
+    def test_recognize_new_promoted_product_format_detects_dates_and_country(self):
+        import app.services.ad.upload.recognition as rec
+        from app.schemas.ad_upload import AdUploadProjectMatchSummary
+
+        df = pd.DataFrame([{
+            '日期范围': '2026年10月26日 - 2026年10月26日',
+            '广告组合名称': '250-C',
+            '预算货币': 'USD',
+            '广告活动名称': 'campaign',
+            '广告组名称': 'group',
+            '投放广告活动的国家/地区': 'US',
+            '推广的商品 SKU-Advertised product SKU': 'SKU-1',
+            '推广的商品编号': 'B000000001',
+            '展示量': 20,
+            '点击量': 2,
+            '点击率': 10,
+            'CPC': 1.5,
+            '总成本': 3,
+        }])
+        mock_db = MagicMock()
+        mock_settings = MagicMock()
+        mock_settings.upload_root = Path('/tmp')
+        with patch.object(rec, 'resolve_ad_upload_temp_file_path', return_value=Path('/tmp/new.xlsx')):
+            with patch.object(rec, '_read_dataframe', return_value=df):
+                with patch.object(rec.project_service, 'list_project_items', return_value=[]):
+                    with patch.object(
+                        rec,
+                        '_build_project_match',
+                        return_value=AdUploadProjectMatchSummary(status='manual'),
+                    ):
+                        result = rec.recognize_saved_ad_upload(
+                            mock_db,
+                            mock_settings,
+                            temp_file_id='new',
+                            original_filename='new.xlsx',
+                        )
+        assert result.report_type == 'ad_promoted_product_report'
+        assert result.country == 'US'
+        assert result.detected_start_date == '2026-10-26'
+        assert result.detected_end_date == '2026-10-26'
 
 
 @pytest.mark.recognition

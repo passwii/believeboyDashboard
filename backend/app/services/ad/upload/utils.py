@@ -197,11 +197,51 @@ def _date_to_string(value: object) -> str | None:
     return parsed.strftime('%Y-%m-%d')
 
 
+def _date_range_to_strings(value: object) -> tuple[str, str] | None:
+    """Parse Amazon's combined report period into ISO start/end dates."""
+    normalized = _clean_string(value)
+    if not normalized:
+        return None
+
+    normalized = re.sub(
+        r'(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日',
+        lambda match: (
+            f'{int(match.group(1)):04d}-{int(match.group(2)):02d}-'
+            f'{int(match.group(3)):02d}'
+        ),
+        normalized,
+    )
+    date_tokens = re.findall(r'\d{4}[-/.]\d{1,2}[-/.]\d{1,2}', normalized)
+    parsed_dates = sorted({
+        parsed
+        for token in date_tokens
+        if (parsed := _date_to_string(token.replace('/', '-').replace('.', '-')))
+    })
+    if parsed_dates:
+        return parsed_dates[0], parsed_dates[-1]
+
+    single_date = _date_to_string(normalized)
+    if single_date:
+        return single_date, single_date
+    return None
+
+
 def _resolve_record_date_range(record: dict[str, object]) -> tuple[date, date]:
     start_text = _date_to_string(_record_get_ci(record, '开始日期'))
     end_text = _date_to_string(_record_get_ci(record, '结束日期'))
     row_date_text = _date_to_string(_record_get_ci(record, '日期'))
+    combined_range = _date_range_to_strings(_record_get_ci(record, '日期范围'))
 
+    if start_text and end_text:
+        return (
+            _parse_yyyy_mm_dd(start_text, '开始日期'),
+            _parse_yyyy_mm_dd(end_text, '结束日期'),
+        )
+    if combined_range:
+        return (
+            _parse_yyyy_mm_dd(combined_range[0], '日期范围'),
+            _parse_yyyy_mm_dd(combined_range[1], '日期范围'),
+        )
     if row_date_text and not start_text and not end_text:
         row_date = _parse_yyyy_mm_dd(row_date_text, '日期')
         return row_date, row_date
