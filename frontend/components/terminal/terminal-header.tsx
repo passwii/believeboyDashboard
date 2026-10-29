@@ -78,8 +78,8 @@ interface TerminalHeaderProps {
 const FALLBACK_REFRESH_WATCHDOG_MS = 10_000
 
 /**
- * Top Header: a fixed navigation/action row, a persistent project/date row,
- * and an optional secondary filter row.
+ * Top Header: one fixed navigation/action/filter row by default.
+ * The secondary filter row is mounted only while explicitly expanded.
  */
 export function TerminalHeader({
   groups,
@@ -225,6 +225,36 @@ export function TerminalHeader({
 
         {/* 页面操作插槽保持在导航/操作行，不与常驻筛选共享可裁切区域。 */}
         <HeaderSlotMount className="hidden min-w-0 shrink flex-nowrap items-center gap-1.5 overflow-hidden rounded-none border-l border-term-border px-2 md:flex" />
+
+        {/* 常驻筛选不再单独占行；宽度不足时仅此区域横向滚动。 */}
+        {hasPrimaryFilters ? (
+          <PrimaryFilterSlotMount
+            className={cn(
+              'min-w-0 max-w-[30rem] shrink items-center gap-1.5 overflow-x-auto rounded-none border-l border-term-border px-2 term-scroll',
+              hasGlobalPrimaryFilters && !primaryFilterSlotActive
+                ? 'hidden xl:flex'
+                : 'hidden md:flex'
+            )}
+          >
+            {hasGlobalPrimaryFilters ? (
+              <div
+                data-testid="terminal-header-primary-global-filters"
+                className="hidden shrink-0 items-center gap-1.5 xl:flex"
+              >
+                <HeaderProjectSelect
+                  value={globalFilter.projectId}
+                  onChange={globalFilter.setProjectId}
+                />
+                <HeaderDateRangePicker
+                  dateFrom={globalFilter.dateFrom}
+                  dateTo={globalFilter.dateTo}
+                  country={globalFilter.country}
+                  onChange={globalFilter.setDateRange}
+                />
+              </div>
+            ) : null}
+          </PrimaryFilterSlotMount>
+        ) : null}
 
         {/* 右段：次级筛选展开 / 全局刷新 / 搜索 / 通知 / Inspector / 用户 */}
         <div className="flex shrink-0 items-center gap-1 px-2">
@@ -386,35 +416,6 @@ export function TerminalHeader({
         </DropdownMenu>
         </div>
       </div>
-      {hasPrimaryFilters ? (
-        <div
-          data-testid="terminal-header-primary-filter-row"
-          className={cn(
-            'w-full border-t border-term-border bg-term-panel',
-            hasGlobalPrimaryFilters && !primaryFilterSlotActive && 'hidden xl:block'
-          )}
-        >
-          <PrimaryFilterSlotMount className="flex min-w-0 items-center gap-1.5 overflow-x-auto px-2 py-1 term-scroll">
-            {hasGlobalPrimaryFilters ? (
-              <div
-                data-testid="terminal-header-primary-global-filters"
-                className="hidden shrink-0 items-center gap-1.5 xl:flex"
-              >
-                <HeaderProjectSelect
-                  value={globalFilter.projectId}
-                  onChange={globalFilter.setProjectId}
-                />
-                <HeaderDateRangePicker
-                  dateFrom={globalFilter.dateFrom}
-                  dateTo={globalFilter.dateTo}
-                  country={globalFilter.country}
-                  onChange={globalFilter.setDateRange}
-                />
-              </div>
-            ) : null}
-          </PrimaryFilterSlotMount>
-        </div>
-      ) : null}
       {hasSecondaryFilters && secondaryFiltersExpanded ? (
         <div
           id="terminal-header-secondary-row"
