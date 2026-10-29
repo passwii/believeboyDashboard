@@ -179,6 +179,16 @@ describe('TerminalHeader 全局筛选四件套（BLF-819，BLF-874 已移除 KPI
     expect(container.querySelector('header')).not.toHaveStyle({ height: `${TERMINAL_HEADER_HEIGHT}px` })
   })
 
+  it('没有次级筛选时不渲染箭头或第二行', () => {
+    const { container } = renderHeader('/dashboard/profile')
+    const header = container.querySelector('header') as HTMLElement
+
+    expect(header.children).toHaveLength(1)
+    expect(screen.queryByTestId('terminal-header-secondary-toggle')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('terminal-header-secondary-row')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('terminal-primary-filter-slot')).not.toBeInTheDocument()
+  })
+
   it('子导航和 Inspector 控件的可访问名称与按压状态随布局状态同步', () => {
     const { rerender } = render(
       <TerminalHeaderSlotProvider>
@@ -259,6 +269,10 @@ describe('TerminalHeader 全局筛选四件套（BLF-819，BLF-874 已移除 KPI
       'aria-expanded',
       'true'
     )
+
+    await user.click(screen.getByRole('button', { name: '收起次级筛选' }))
+    expect(header.children).toHaveLength(1)
+    expect(screen.queryByTestId('terminal-header-secondary-row')).not.toBeInTheDocument()
   })
 
   it('试点路由（订单信息）：站点筛选默认收起', async () => {
