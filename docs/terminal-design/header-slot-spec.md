@@ -14,8 +14,8 @@
 | 区块 | 内容 | 机制 |
 |---|---|---|
 | 左段 | SubNav 开关 + 面包屑（业务域 › 页面标题，`dashboard-route-meta.ts` 驱动） | 固定，`flex-1 min-w-0 overflow-x-auto` |
-| 中段 | **HeaderSlot 插槽**（页面 portal 筛选控件）+ 全局筛选四件套（仅 2 条试点路由、`xl+`） | `HeaderSlotMount`（`hidden md:flex`，唯一 DOM 锚点） |
-| 右段 | 全局刷新 / ⌘K 搜索 / 通知 / Inspector / 用户菜单 | 固定 |
+| 中段 | 页面操作 `HeaderSlotMount` + 常驻筛选 `PrimaryFilterSlotMount`（项目/日期）；两者与导航同处唯一 56px 主行。次级筛选仅在展开时进入第二行 | 常驻插槽 `hidden md:flex`；全局项目/日期在 `xl+` 复用同锚点 |
+| 右段 | 次级筛选展开开关 / 全局刷新 / ⌘K 搜索 / 通知 / Inspector / 用户菜单 | 固定 |
 
 ### 1.2 基建组件与 hooks
 
@@ -24,7 +24,7 @@
 | `useHeaderSlot(node)` | `components/terminal/terminal-header-slot.tsx` | 页面把控件 portal 进中段；unmount / 传 `null` 自动清除 |
 | `useMobileFilterStrip(node)` | 同上 | `<md` 时把控件折叠条 portal 进正文顶部 `MobileStripMount`（BLF-933） |
 | `useHeaderRefresh(handler, { loading })` | 同上 | 绑定右段全局刷新按钮；ref 桥接永远执行最新闭包；未注册页兜底 `router.refresh()`（BLF-881，10s 看门狗） |
-| `HeaderFilterControls` | `components/terminal/header-filter-controls.tsx` | 插槽内容统一容器：≥md 单行平铺（`flex-nowrap overflow-hidden`），<md 折叠「筛选」Popover |
+| `HeaderFilterControls` | `components/terminal/header-filter-controls.tsx` | 旧版/通用 `useHeaderSlot` 内容容器：≥md 单行布局（旧挂载点可能使用 `overflow-hidden`），<md 折叠「筛选」Popover；迁移页面改用 `PrimaryFilterSlotMount` / `SecondaryHeaderSlotMount`，主行常驻筛选按 §4.3 横向滚动，不以裁切为目标行为 |
 | `TERM_HEADER_TRIGGER` + `W_SM/MD/LG/XL` | `components/terminal/header-filter-suite.tsx` | h-10 触发器基类 + 四档固定宽度 |
 | `HeaderSlotSelect` / `HeaderSlotDateRange` | 同上 | 插槽泛型原子控件（选项集合由页面传入） |
 | `MobileFilterStrip` / `MobileFilterWide` | `components/terminal/mobile-filter-strip.tsx` | 移动端折叠条：摘要 + grid-cols-2 控件网格 |
@@ -175,7 +175,7 @@
 
 ### 4.3 数量预算与溢出策略（桌面端）
 
-插槽挂载点 `shrink + overflow-hidden`，超宽时控件被裁切（控件均 shrink-0）。按右段 ≈240px、面包屑最小 ≈140px 估算可用宽度：
+目标 `PrimaryFilterSlotMount` 使用 `shrink + overflow-x-auto`，控件保持 `shrink-0`，超出可用宽度时通过插槽内部横向滚动访问，不得静默裁切。页面操作的外层 `HeaderSlotMount` 至少保留 `min-w-[8rem]`，最大宽度为 `max-w-[30rem]`，受限时在插槽内部横向滚动；外层页面操作插槽不得在空间压力下消失。`HeaderFilterControls` 等旧内容容器仍可能有迁移债务，但不改变外层 action slot 的保留与可访问规则。按右段 ≈240px、面包屑最小 ≈140px 估算可用宽度：
 
 | 视口 | 主列宽 | 插槽可用 | 预算 |
 |---|---|---|---|
@@ -188,7 +188,7 @@
 2. 低频私有筛选下移正文 FilterToolbar 工具行（h-9 正文档），插槽只留 F1+高频 F2（scheduled-reports 结构先例）；
 3. 仍超 → F2 全部下移正文，插槽只留 F1（现状多数页面的形态）。
 
-> 现存超预算页：sku-info（7）、order-info（7）、platform-revenue（6）——1280 下会被裁切，列入 §6 P1 收编。
+> 现存超预算页：sku-info（7）、order-info（7）、platform-revenue（6）——仍需遵循控件数量预算；`HeaderFilterControls` 可作为旧内容容器迁移债务列入 §6 P1 收编，页面操作外层插槽仍保留最小宽度并支持内部滚动。
 
 ### 4.4 与全局筛选四件套的去重规则（试点路由）
 

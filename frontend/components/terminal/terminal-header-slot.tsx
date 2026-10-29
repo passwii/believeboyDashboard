@@ -302,7 +302,7 @@ export function HeaderSlotMount({
   return <div ref={setAnchor} className={className} data-testid="terminal-header-slot">{children}</div>
 }
 
-/** TerminalHeader 常驻筛选行的 anchor，与页面操作的 HeaderSlotMount 分离。 */
+/** TerminalHeader 唯一主行内的常驻筛选锚点，由页面 portal 项目与日期控件。 */
 export function PrimaryFilterSlotMount({
   className,
   children,
