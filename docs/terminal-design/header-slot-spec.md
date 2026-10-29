@@ -175,7 +175,7 @@
 
 ### 4.3 数量预算与溢出策略（桌面端）
 
-目标 `PrimaryFilterSlotMount` 使用 `shrink + overflow-x-auto`，控件保持 `shrink-0`，超出可用宽度时通过插槽内部横向滚动访问，不得静默裁切。仍使用 `HeaderSlotMount` 的旧页面可能保留 `shrink + overflow-hidden`，属于待迁移债务，不是常驻筛选插槽的目标行为。按右段 ≈240px、面包屑最小 ≈140px 估算可用宽度：
+目标 `PrimaryFilterSlotMount` 使用 `shrink + overflow-x-auto`，控件保持 `shrink-0`，超出可用宽度时通过插槽内部横向滚动访问，不得静默裁切。页面操作的外层 `HeaderSlotMount` 至少保留 `min-w-[8rem]`，最大宽度为 `max-w-[30rem]`，受限时在插槽内部横向滚动；外层页面操作插槽不得在空间压力下消失。`HeaderFilterControls` 等旧内容容器仍可能有迁移债务，但不改变外层 action slot 的保留与可访问规则。按右段 ≈240px、面包屑最小 ≈140px 估算可用宽度：
 
 | 视口 | 主列宽 | 插槽可用 | 预算 |
 |---|---|---|---|
@@ -188,7 +188,7 @@
 2. 低频私有筛选下移正文 FilterToolbar 工具行（h-9 正文档），插槽只留 F1+高频 F2（scheduled-reports 结构先例）；
 3. 仍超 → F2 全部下移正文，插槽只留 F1（现状多数页面的形态）。
 
-> 现存超预算页：sku-info（7）、order-info（7）、platform-revenue（6）——仍需遵循控件数量预算；若仍挂载在旧版 `HeaderSlotMount`，裁切属于迁移债务，列入 §6 P1 收编。
+> 现存超预算页：sku-info（7）、order-info（7）、platform-revenue（6）——仍需遵循控件数量预算；`HeaderFilterControls` 可作为旧内容容器迁移债务列入 §6 P1 收编，页面操作外层插槽仍保留最小宽度并支持内部滚动。
 
 ### 4.4 与全局筛选四件套的去重规则（试点路由）
 

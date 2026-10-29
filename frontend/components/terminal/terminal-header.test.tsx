@@ -253,6 +253,7 @@ describe('TerminalHeader 全局筛选四件套（BLF-819，BLF-874 已移除 KPI
       'aria-expanded',
       'false'
     )
+    expect(screen.getByRole('button', { name: '展开次级筛选' })).not.toHaveAttribute('aria-controls')
     expect(screen.queryByTestId('terminal-header-secondary-row')).not.toBeInTheDocument()
     expect(screen.queryByTitle('全局站点筛选')).not.toBeInTheDocument()
 
@@ -269,6 +270,11 @@ describe('TerminalHeader 全局筛选四件套（BLF-819，BLF-874 已移除 KPI
       'aria-expanded',
       'true'
     )
+    expect(screen.getByRole('button', { name: '收起次级筛选' })).toHaveAttribute(
+      'aria-controls',
+      'terminal-header-secondary-row'
+    )
+    expect(document.getElementById('terminal-header-secondary-row')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: '收起次级筛选' }))
     expect(header.children).toHaveLength(1)
@@ -294,6 +300,11 @@ describe('TerminalHeader 全局筛选四件套（BLF-819，BLF-874 已移除 KPI
     )
 
     const navigationRow = await screen.findByTestId('terminal-header-primary-row')
+    const actionSlot = screen.getByTestId('terminal-header-slot')
+
+    expect(actionSlot).toHaveClass('min-w-[8rem]')
+    expect(actionSlot).toHaveClass('overflow-x-auto')
+    expect(actionSlot).not.toHaveClass('overflow-hidden')
 
     await waitFor(() => {
       expect(navigationRow).toContainElement(screen.getByTestId('page-primary-control'))

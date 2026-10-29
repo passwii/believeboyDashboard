@@ -223,8 +223,8 @@ export function TerminalHeader({
         </nav>
         </div>
 
-        {/* 页面操作插槽保持在导航/操作行，不与常驻筛选共享可裁切区域。 */}
-        <HeaderSlotMount className="hidden min-w-0 shrink flex-nowrap items-center gap-1.5 overflow-hidden rounded-none border-l border-term-border px-2 md:flex" />
+        {/* 页面操作插槽保留最小宽度，受限时在插槽内部横向滚动。 */}
+        <HeaderSlotMount className="hidden min-w-[8rem] max-w-[30rem] shrink flex-nowrap items-center gap-1.5 overflow-x-auto rounded-none border-l border-term-border px-2 term-scroll md:flex" />
 
         {/* 常驻筛选不再单独占行；宽度不足时仅此区域横向滚动。 */}
         {hasPrimaryFilters ? (
@@ -265,7 +265,7 @@ export function TerminalHeader({
               title={secondaryFiltersExpanded ? '收起次级筛选' : '展开次级筛选'}
               aria-label={secondaryFiltersExpanded ? '收起次级筛选' : '展开次级筛选'}
               aria-expanded={secondaryFiltersExpanded}
-              aria-controls="terminal-header-secondary-row"
+              aria-controls={secondaryFiltersExpanded ? 'terminal-header-secondary-row' : undefined}
               data-testid="terminal-header-secondary-toggle"
               className={cn(
                 'flex h-9 w-9 shrink-0 items-center justify-center rounded-none text-term-muted shadow-none transition-colors hover:bg-term-hover hover:text-term-text focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent',
