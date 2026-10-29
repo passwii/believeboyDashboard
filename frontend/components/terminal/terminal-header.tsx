@@ -104,6 +104,7 @@ export function TerminalHeader({
     refreshFeedback,
     announceRefresh,
     triggerRefresh,
+    actionSlotActive,
     primaryFilterSlotActive,
     secondarySlotActive,
   } = useTerminalHeaderSlot()
@@ -223,8 +224,10 @@ export function TerminalHeader({
         </nav>
         </div>
 
-        {/* 页面操作插槽保留最小宽度，受限时在插槽内部横向滚动。 */}
-        <HeaderSlotMount className="hidden min-w-[8rem] max-w-[30rem] shrink flex-nowrap items-center gap-1.5 overflow-x-auto rounded-none border-l border-term-border px-2 term-scroll md:flex" />
+        {/* 页面操作插槽仅在有内容时占位；无操作时不留下空槽和额外分隔线。 */}
+        {actionSlotActive ? (
+          <HeaderSlotMount className="hidden min-w-[8rem] max-w-[30rem] shrink flex-nowrap items-center gap-1.5 overflow-x-auto rounded-none border-l border-term-border px-2 term-scroll md:flex" />
+        ) : null}
 
         {/* 常驻筛选不再单独占行；宽度不足时仅此区域横向滚动。 */}
         {hasPrimaryFilters ? (

@@ -232,7 +232,7 @@ describe('TerminalHeader 全局筛选四件套（BLF-819，BLF-874 已移除 KPI
     expect(screen.getByRole('button', { name: '切换 Inspector' })).toHaveAttribute('aria-pressed', 'false')
   })
 
-  it('试点路由（销售数据）：默认只有一条 Head 行，项目与日期固定在同排插槽', async () => {
+  it('试点路由（销售数据）：无页面操作时不渲染空操作槽，项目与日期仍在同排插槽', async () => {
     const user = userEvent.setup()
     const { container } = renderHeader('/dashboard/operations/daily-analysis')
     const header = container.querySelector('header') as HTMLElement
@@ -246,6 +246,7 @@ describe('TerminalHeader 全局筛选四件套（BLF-819，BLF-874 已移除 KPI
     expect(primaryFilterSlot).toContainElement(primaryFilters)
     expect(primaryFilterSlot).toHaveClass('overflow-x-auto')
     expect(primaryFilterSlot).toHaveClass('max-w-[30rem]')
+    expect(screen.queryByTestId('terminal-header-slot')).not.toBeInTheDocument()
     expect(screen.queryByTestId('terminal-header-primary-filter-row')).not.toBeInTheDocument()
     expect(primaryFilters).toContainElement(screen.getByTitle('全局项目筛选'))
     expect(primaryFilters.querySelectorAll('button')).toHaveLength(2)
