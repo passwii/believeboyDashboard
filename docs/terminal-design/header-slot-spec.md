@@ -14,8 +14,8 @@
 | 区块 | 内容 | 机制 |
 |---|---|---|
 | 左段 | SubNav 开关 + 面包屑（业务域 › 页面标题，`dashboard-route-meta.ts` 驱动） | 固定，`flex-1 min-w-0 overflow-x-auto` |
-| 中段 | **HeaderSlot 插槽**（页面 portal 筛选控件）+ 全局筛选四件套（仅 2 条试点路由、`xl+`） | `HeaderSlotMount`（`hidden md:flex`，唯一 DOM 锚点） |
-| 右段 | 全局刷新 / ⌘K 搜索 / 通知 / Inspector / 用户菜单 | 固定 |
+| 中段 | 页面操作 `HeaderSlotMount` + 常驻筛选 `PrimaryFilterSlotMount`（项目/日期）；两者与导航同处唯一 56px 主行。次级筛选仅在展开时进入第二行 | 常驻插槽 `hidden md:flex`；全局项目/日期在 `xl+` 复用同锚点 |
+| 右段 | 次级筛选展开开关 / 全局刷新 / ⌘K 搜索 / 通知 / Inspector / 用户菜单 | 固定 |
 
 ### 1.2 基建组件与 hooks
 
