@@ -31,6 +31,8 @@ import { cn } from '@/lib/utils'
 export interface TerminalHeaderSlotContextValue {
   /** header 内插槽挂载点；null = header 尚未挂载（SSR / 首帧） */
   anchor: HTMLElement | null
+  /** 当前页面是否注册了页面操作内容 */
+  actionSlotActive: boolean
 
   /** 常驻筛选行挂载点；null = 常驻筛选行尚未挂载 */
   primaryFilterAnchor: HTMLElement | null
@@ -71,6 +73,7 @@ const Ctx = React.createContext<TerminalHeaderSlotContextValue | null>(null)
 
 export function TerminalHeaderSlotProvider({ children }: { children: React.ReactNode }) {
   const [anchor, setAnchor] = React.useState<HTMLElement | null>(null)
+  const [actionSlotActive, setActionSlotActive] = React.useState(false)
   const [primaryFilterAnchor, setPrimaryFilterAnchor] = React.useState<HTMLElement | null>(null)
   const [primaryFilterSlotActive, setPrimaryFilterSlotActive] = React.useState(false)
   const [secondaryAnchor, setSecondaryAnchor] = React.useState<HTMLElement | null>(null)
@@ -92,8 +95,20 @@ export function TerminalHeaderSlotProvider({ children }: { children: React.React
   const refreshLoaderPendingRef = React.useRef(false)
   // 自增 token：后注册者胜出；注销时只有当前持有者能清状态
   const refreshHandlerIdRef = React.useRef(0)
+  const actionSlotIdRef = React.useRef(0)
   const primaryFilterSlotIdRef = React.useRef(0)
   const secondarySlotIdRef = React.useRef(0)
+
+  const registerActionSlot = React.useCallback(() => {
+    const id = ++actionSlotIdRef.current
+    setActionSlotActive(true)
+
+    return () => {
+      if (actionSlotIdRef.current !== id) return
+      actionSlotIdRef.current += 1
+      setActionSlotActive(false)
+    }
+  }, [])
 
   const registerPrimaryFilterSlot = React.useCallback(() => {
     const id = ++primaryFilterSlotIdRef.current
@@ -228,6 +243,7 @@ export function TerminalHeaderSlotProvider({ children }: { children: React.React
   const value = React.useMemo<TerminalHeaderSlotContextValue>(
     () => ({
       anchor,
+      actionSlotActive,
       primaryFilterAnchor,
       primaryFilterSlotActive,
       secondaryAnchor,
@@ -244,6 +260,7 @@ export function TerminalHeaderSlotProvider({ children }: { children: React.React
     }),
     [
       anchor,
+      actionSlotActive,
       primaryFilterAnchor,
       primaryFilterSlotActive,
       secondaryAnchor,
@@ -264,6 +281,7 @@ export function TerminalHeaderSlotProvider({ children }: { children: React.React
     <SlotBindingsCtx.Provider
       value={{
         setAnchor,
+        registerActionSlot,
         setPrimaryFilterAnchor,
         setSecondaryAnchor,
         setMobileStripAnchor,
@@ -376,6 +394,7 @@ export function MobileStripMount({
 
 interface SlotBindings {
   setAnchor: (el: HTMLElement | null) => void
+  registerActionSlot: () => () => void
   setPrimaryFilterAnchor: (el: HTMLElement | null) => void
   setSecondaryAnchor: (el: HTMLElement | null) => void
   setMobileStripAnchor: (el: HTMLElement | null) => void
@@ -412,8 +431,15 @@ function useSlotMountBinding(): SlotBindings {
  */
 export function useHeaderSlot(node: React.ReactNode): React.ReactPortal | null {
   const { anchor } = useTerminalHeaderSlot()
+  const { registerActionSlot } = useSlotMountBinding()
+  const hasContent = node !== null && node !== undefined && node !== false
 
-  if (!anchor) return null
+  React.useEffect(() => {
+    if (!hasContent) return
+    return registerActionSlot()
+  }, [hasContent, registerActionSlot])
+
+  if (!hasContent || !anchor) return null
   return createPortal(node, anchor)
 }
 
