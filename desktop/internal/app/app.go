@@ -373,20 +373,25 @@ func (a *App) Close() {
 
 func (a *App) View(c *ui.Context) {
 	router := a.Router()
-	if router.Path() != LoginRoute && !a.sessionActive() {
-		a.resetHistory(LoginRoute)
+	if !a.sessionActive() {
+		switch router.Path() {
+		case SettingsRoute:
+			a.settingsStandaloneView(c)
+		case LoginRoute:
+			a.loginView(c)
+		default:
+			a.resetHistory(LoginRoute)
+			a.loginView(c)
+		}
+		a.shortcuts(c)
+		return
+	}
+	if router.Path() == LoginRoute {
+		a.resetHistory(HomeRoute)
 		router = a.Router()
 	}
-	if a.sessionActive() {
-		if router.Path() == LoginRoute {
-			a.resetHistory(HomeRoute)
-			router = a.Router()
-		}
-		a.routes.Observe(router.Path())
-		a.workspaceView(c, router)
-	} else {
-		a.loginView(c)
-	}
+	a.routes.Observe(router.Path())
+	a.workspaceView(c, router)
 	a.shortcuts(c)
 }
 
@@ -536,14 +541,43 @@ func (a *App) loginView(c *ui.Context) {
 					fn()
 				})
 			},
-			Router: a.router,
-			Notice: notice,
+			Router:            a.router,
+			Notice:            notice,
+			OnGatewaySettings: func() { a.navigate("settings") },
 		})
 		a.mu.Lock()
 		a.loginPage = page
 		a.mu.Unlock()
 	}
 	page.View(c)
+}
+
+func (a *App) settingsStandaloneView(c *ui.Context) {
+	palette := design.PaletteFromTheme(c.Theme())
+	page := a.settingsPageModel()
+	if page != nil {
+		page.Prepare(c)
+	}
+	ui.Column(c).Fill().Background(palette.Paper).Children(func() {
+		components.WindowTitleBar(c, components.WindowTitleBarOptions{
+			LeftWidth:       design.SidebarWidth,
+			LeftBackground:  palette.PanelAlt,
+			RightBackground: palette.Paper,
+			Left: func(c *ui.Context) {
+				ui.Text(c, "BelieveBoy").FontSize(12).FontWeight(650).TextColor(palette.Ink)
+			},
+		})
+		ui.Column(c).Grow(1).FillWidth().MinHeight(0).Children(func() {
+			ui.Row(c).FillWidth().Padding(12, design.PagePaddingX).Children(func() {
+				if ui.Button(c, "返回登录").Clicked() {
+					a.navigate("login")
+				}
+			})
+			if page != nil {
+				page.Content(c)
+			}
+		})
+	})
 }
 
 func (a *App) loginAttempt(ctx context.Context, email, password string) (*api.LoginResponse, error) {
@@ -764,6 +798,8 @@ func (a *App) navigate(id string) {
 	switch id {
 	case "home":
 		route = HomeRoute
+	case "login":
+		route = LoginRoute
 	case "settings":
 		route = SettingsRoute
 	case "projects":
@@ -778,10 +814,14 @@ func (a *App) navigate(id string) {
 	if !strings.HasPrefix(route, "/") {
 		route = "/" + route
 	}
-	if !a.sessionActive() {
+	if !a.sessionActive() && route != SettingsRoute && route != LoginRoute {
 		return
 	}
-	a.Router().Push(route)
+	router := a.Router()
+	if router.Path() == route {
+		return
+	}
+	router.Push(route)
 }
 
 func (a *App) triggerLogout() {

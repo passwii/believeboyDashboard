@@ -506,7 +506,7 @@ func TestAppRoutePersistenceFailureDoesNotBlockNavigation(t *testing.T) {
 }
 
 func TestAppProtectedRoutesRequireSession(t *testing.T) {
-	for _, route := range []string{"/settings", "/reports", "/projects", "/operations", "/ai"} {
+	for _, route := range []string{"/reports", "/projects", "/operations", "/ai"} {
 		t.Run(route, func(t *testing.T) {
 			h := newAppHarness(t, nil)
 			h.currentRouter().Replace(route)
@@ -521,11 +521,32 @@ func TestAppProtectedRoutesRequireSession(t *testing.T) {
 	}
 }
 
-func TestAppSettingsShortcutDoesNothingLoggedOut(t *testing.T) {
+func TestAppSettingsShortcutOpensGatewaySettingsLoggedOut(t *testing.T) {
 	h := newAppHarness(t, nil)
 	h.tt.Key(ui.Cmd, ui.KeyComma)
-	if h.currentRouter().Path() != "/login" {
-		t.Fatalf("route = %q, want /login", h.currentRouter().Path())
+	if h.currentRouter().Path() != SettingsRoute || !h.tt.HasText("Gateway 设置") {
+		t.Fatalf("route=%q texts=%q", h.currentRouter().Path(), h.tt.Texts())
+	}
+}
+
+func TestAppGatewaySettingsAccessibleFromLogin(t *testing.T) {
+	h := newAppHarness(t, nil)
+	if err := h.tt.Click("Gateway 设置"); err != nil {
+		t.Fatal(err)
+	}
+	h.tt.Frame()
+	if h.currentRouter().Path() != SettingsRoute {
+		t.Fatalf("route = %q, want %q", h.currentRouter().Path(), SettingsRoute)
+	}
+	if !h.tt.HasText("当前运行 Gateway") || !h.tt.HasText("保存设置") {
+		t.Fatalf("settings page missing: %q", h.tt.Texts())
+	}
+	if err := h.tt.Click("返回登录"); err != nil {
+		t.Fatal(err)
+	}
+	h.tt.Frame()
+	if h.currentRouter().Path() != LoginRoute || !h.tt.HasText("登录工作台") {
+		t.Fatalf("route=%q texts=%q", h.currentRouter().Path(), h.tt.Texts())
 	}
 }
 

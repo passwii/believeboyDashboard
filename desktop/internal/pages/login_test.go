@@ -175,6 +175,23 @@ func TestLoginRendersBrandAndForm(t *testing.T) {
 	}
 }
 
+func TestLoginOpensGatewaySettings(t *testing.T) {
+	opened := false
+	page := NewLoginPage(LoginOptions{
+		Login: func(context.Context, string, string) (*api.LoginResponse, error) {
+			return &api.LoginResponse{}, nil
+		},
+		OnGatewaySettings: func() { opened = true },
+	})
+	tt := ui.NewTester(page.View, DefaultWidth, DefaultHeight)
+	if err := tt.Click("Gateway 设置"); err != nil {
+		t.Fatal(err)
+	}
+	if !opened {
+		t.Fatal("Gateway settings action was not invoked")
+	}
+}
+
 func TestLoginFitsMinimumWindow(t *testing.T) {
 	h := newTestLogin(t, nil)
 	h.tt.SetSize(DefaultWidth, DefaultHeight)

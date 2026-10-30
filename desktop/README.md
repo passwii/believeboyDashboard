@@ -16,6 +16,8 @@ Open **系统设置** in the app to edit `api_base_url`. The field accepts only
 `GET /api/v1/health/live` check without sending the current account credentials.
 Saving changes the local config only; the status panel asks the user to
 restart before the new Gateway is used by login and data requests.
+The same form is reachable from the login screen and with `Cmd+,`, so an
+unreachable Gateway can be corrected before signing in.
 
 Saved Keychain credentials are bound to the normalized Gateway origin
 (scheme, host, and non-default port). If the configured origin changes, the

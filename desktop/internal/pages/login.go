@@ -45,10 +45,11 @@ type LoginFunc func(ctx context.Context, email, password string) (*api.LoginResp
 
 // LoginOptions configures the login page.
 type LoginOptions struct {
-	Login  LoginFunc
-	Update func(func())
-	Router *ui.Router
-	Notice string
+	Login             LoginFunc
+	Update            func(func())
+	Router            *ui.Router
+	Notice            string
+	OnGatewaySettings func()
 }
 
 // ClientLogin adapts an API client to the page's login function. The caller
@@ -69,17 +70,18 @@ type loginResult struct {
 // LoginPage owns the state of the native login screen. Keep it on the main
 // thread: the login goroutine only queues data for the next view build.
 type LoginPage struct {
-	email         string
-	password      string
-	emailErr      string
-	passwordErr   string
-	banner        string
-	inFlight      bool
-	login         LoginFunc
-	update        func(func())
-	router        *ui.Router
-	pendingRoute  string
-	pendingRouter *ui.Router
+	email             string
+	password          string
+	emailErr          string
+	passwordErr       string
+	banner            string
+	inFlight          bool
+	login             LoginFunc
+	update            func(func())
+	router            *ui.Router
+	onGatewaySettings func()
+	pendingRoute      string
+	pendingRouter     *ui.Router
 
 	focusEmail        bool
 	focusPassword     bool
@@ -94,7 +96,13 @@ type LoginPage struct {
 
 // NewLoginPage returns a page backed by login.
 func NewLoginPage(options LoginOptions) *LoginPage {
-	return &LoginPage{login: options.Login, update: options.Update, router: options.Router, notice: options.Notice}
+	return &LoginPage{
+		login:             options.Login,
+		update:            options.Update,
+		router:            options.Router,
+		notice:            options.Notice,
+		onGatewaySettings: options.OnGatewaySettings,
+	}
 }
 
 // Email returns the current email field value.
@@ -204,6 +212,14 @@ func (p *LoginPage) View(c *ui.Context) {
 							ui.Row(c).Key("submit-row").Gap(10).AlignItems(ui.Center).Children(func() {
 								loginButton(c, p)
 							})
+							if p.onGatewaySettings != nil {
+								ui.Row(c).FillWidth().Children(func() {
+									button := ui.Button(c, "Gateway 设置").Disabled(p.inFlight)
+									if button.Clicked() {
+										p.onGatewaySettings()
+									}
+								})
+							}
 						})
 				})
 		})

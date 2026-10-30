@@ -8,6 +8,8 @@ Release date: 2026-10-30
   public liveness checks, saved/runtime Gateway labels, and a restart notice.
 - Keychain credentials are bound to the Gateway origin; changing origin
   clears the old credentials before any authenticated request.
+- Gateway settings remain reachable before login, including from the login
+  screen and `Cmd+,`, so an unreachable server can be corrected.
 - LastRoute restoration for authenticated launches and debounced persistence
   for Home, Projects, Operations, Reports, AI, and Settings navigation.
 - Native error and connection states for invalid addresses, network failures,
