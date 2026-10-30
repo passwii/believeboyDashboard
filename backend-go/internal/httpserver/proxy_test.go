@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -58,6 +59,7 @@ func TestProxyFallbackPreservesRequest(t *testing.T) {
 	req.Header.Set("X-Client-Id", "bb-macos-client")
 	req.Header.Set("X-Operator", "alice")
 	req.Header.Set("X-Is-Admin", "true")
+	req.Header.Set("X-Trusted-Proxy-Secret", "test-proxy-secret")
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Range", "items=0-99")
@@ -99,6 +101,78 @@ func TestProxyFallbackPreservesRequest(t *testing.T) {
 		if value := got.header.Get(key); value != want {
 			t.Errorf("header %s = %q, want %q", key, value, want)
 		}
+	}
+	if got.header.Get("X-Trusted-Proxy-Secret") != "" {
+		t.Error("trusted proxy secret was forwarded for a non-master request")
+	}
+}
+
+func TestProxyFallbackRejectsMasterKeyWithoutTrustedProxySecret(t *testing.T) {
+	var upstreamHit atomic.Bool
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		upstreamHit.Store(true)
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(upstream.Close)
+
+	gateway := newTestGateway(t, upstream.URL)
+	req, err := http.NewRequest(http.MethodGet, gateway.URL+"/api/v1/projects/manage", nil)
+	if err != nil {
+		t.Fatalf("http.NewRequest() error = %v", err)
+	}
+	req.Header.Set("X-API-Key", "test-api-key")
+	req.Header.Set("X-User-Id", "victim-user")
+
+	resp, err := gateway.Client().Do(req)
+	if err != nil {
+		t.Fatalf("gateway request error = %v", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read response body: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403; body = %s", resp.StatusCode, body)
+	}
+	if upstreamHit.Load() {
+		t.Fatal("FastAPI fallback was reached with an untrusted master key")
+	}
+}
+
+func TestProxyFallbackAllowsMasterKeyWithTrustedProxySecretAndStripsIt(t *testing.T) {
+	receivedHeader := make(chan http.Header, 1)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedHeader <- r.Header.Clone()
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(upstream.Close)
+
+	gateway := newTestGateway(t, upstream.URL)
+	req, err := http.NewRequest(http.MethodGet, gateway.URL+"/api/v1/projects/manage", nil)
+	if err != nil {
+		t.Fatalf("http.NewRequest() error = %v", err)
+	}
+	req.Header.Set("X-API-Key", "test-api-key")
+	req.Header.Set("X-Trusted-Proxy-Secret", "test-proxy-secret")
+	req.Header.Set("X-User-Id", "proxied-user")
+
+	resp, err := gateway.Client().Do(req)
+	if err != nil {
+		t.Fatalf("gateway request error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("status = %d, want 204; body = %s", resp.StatusCode, body)
+	}
+	got := <-receivedHeader
+	if got.Get("X-Trusted-Proxy-Secret") != "" {
+		t.Fatal("trusted proxy secret was forwarded upstream")
+	}
+	if got.Get("X-User-Id") != "proxied-user" {
+		t.Errorf("X-User-Id = %q, want proxied-user", got.Get("X-User-Id"))
 	}
 }
 
@@ -312,12 +386,13 @@ func newTestGateway(t *testing.T, upstreamURL string) *httptest.Server {
 	t.Helper()
 
 	handler, err := NewRouter(config.Config{
-		Addr:          "127.0.0.1:8200",
-		FastAPIOrigin: upstreamURL,
-		APIKey:        "test-api-key",
-		DatabaseURL:   "postgres://localhost/believeboy",
-		RedisURL:      "redis://localhost:6379/0",
-		OwnedModules:  map[string]bool{},
+		Addr:               "127.0.0.1:8200",
+		FastAPIOrigin:      upstreamURL,
+		APIKey:             "test-api-key",
+		TrustedProxySecret: "test-proxy-secret",
+		DatabaseURL:        "postgres://localhost/believeboy",
+		RedisURL:           "redis://localhost:6379/0",
+		OwnedModules:       map[string]bool{},
 	}, slog.New(slog.NewTextHandler(io.Discard, nil)), OwnedStores{})
 	if err != nil {
 		t.Fatalf("NewRouter() error = %v", err)

@@ -11,13 +11,19 @@ import (
 )
 
 const (
-	missingAPIKeyDetail = "Missing API key"
-	invalidAPIKeyDetail = "Invalid API key"
+	missingAPIKeyDetail      = "Missing API key"
+	invalidAPIKeyDetail      = "Invalid API key"
+	TrustedProxySecretHeader = "X-Trusted-Proxy-Secret"
 )
 
-// UserKeyRecord is the authentication-relevant projection of user_api_keys.
+// UserKeyRecord is the authentication-relevant projection of a user device key
+// joined with its authoritative user account.
 type UserKeyRecord struct {
 	UserID    string
+	Email     string
+	FullName  string
+	RoleType  string
+	IsAdmin   bool
 	RevokedAt *time.Time
 }
 
@@ -27,9 +33,15 @@ type UserKeyResolver interface {
 	ResolveUserKey(ctx context.Context, keyHash string) (*UserKeyRecord, error)
 }
 
-// RequireAPIKey validates the master key first, then user device keys. The
-// resolver is never called for a master-key request.
-func RequireAPIKey(masterKey string, resolver UserKeyResolver) func(http.Handler) http.Handler {
+// RequireAPIKey validates the master key first, then user device keys. A
+// master-key request is trusted as a proxy identity only when it also presents
+// the dedicated proxy secret. The resolver is never called for a master-key
+// request.
+func RequireAPIKey(
+	masterKey string,
+	trustedProxySecret string,
+	resolver UserKeyResolver,
+) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			candidates := apiKeyCandidates(r)
@@ -40,7 +52,11 @@ func RequireAPIKey(masterKey string, resolver UserKeyResolver) func(http.Handler
 
 			for _, candidate := range candidates {
 				if constantTimeKeyEqual(candidate, masterKey) {
-					serveAuthenticated(next, w, r)
+					if !constantTimeKeyEqual(r.Header.Get(TrustedProxySecretHeader), trustedProxySecret) {
+						writeAuthError(w, http.StatusForbidden, invalidAPIKeyDetail)
+						return
+					}
+					serveAuthenticated(next, w, r, UserContextFromRequest(r))
 					return
 				}
 			}
@@ -53,13 +69,41 @@ func RequireAPIKey(masterKey string, resolver UserKeyResolver) func(http.Handler
 						return
 					}
 					if record != nil {
-						serveAuthenticated(next, w, r)
+						serveAuthenticated(next, w, r, UserContextFromUserKey(*record))
 						return
 					}
 				}
 			}
 
 			writeAuthError(w, http.StatusForbidden, invalidAPIKeyDetail)
+		})
+	}
+}
+
+// RequireTrustedProxyForMasterKey protects FastAPI fallback routes. It allows
+// ordinary requests through unchanged, but a request carrying the master key
+// must also carry the dedicated proxy secret. The secret is removed before
+// forwarding so it never reaches FastAPI or an upstream log.
+func RequireTrustedProxyForMasterKey(
+	masterKey string,
+	trustedProxySecret string,
+) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			usesMasterKey := false
+			for _, candidate := range apiKeyCandidates(r) {
+				if constantTimeKeyEqual(candidate, masterKey) {
+					usesMasterKey = true
+					break
+				}
+			}
+			if usesMasterKey &&
+				!constantTimeKeyEqual(r.Header.Get(TrustedProxySecretHeader), trustedProxySecret) {
+				writeAuthError(w, http.StatusForbidden, invalidAPIKeyDetail)
+				return
+			}
+			r.Header.Del(TrustedProxySecretHeader)
+			next.ServeHTTP(w, r)
 		})
 	}
 }
@@ -83,8 +127,8 @@ func apiKeyCandidates(r *http.Request) []string {
 	return candidates
 }
 
-func serveAuthenticated(next http.Handler, w http.ResponseWriter, r *http.Request) {
-	ctx := WithUserContext(r.Context(), UserContextFromRequest(r))
+func serveAuthenticated(next http.Handler, w http.ResponseWriter, r *http.Request, user UserContext) {
+	ctx := WithUserContext(r.Context(), user)
 	next.ServeHTTP(w, r.WithContext(ctx))
 }
 

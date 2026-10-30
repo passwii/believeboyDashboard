@@ -83,12 +83,13 @@ func TestNewRouterOwnedRouteTakesPrecedenceOverFallback(t *testing.T) {
 	t.Cleanup(upstream.Close)
 
 	router, err := NewRouter(config.Config{
-		Addr:          "127.0.0.1:8200",
-		FastAPIOrigin: upstream.URL,
-		APIKey:        "test-api-key",
-		DatabaseURL:   "postgres://localhost/believeboy",
-		RedisURL:      "redis://localhost:6379/0",
-		OwnedModules:  map[string]bool{"health": true},
+		Addr:               "127.0.0.1:8200",
+		FastAPIOrigin:      upstream.URL,
+		APIKey:             "test-api-key",
+		TrustedProxySecret: "test-proxy-secret",
+		DatabaseURL:        "postgres://localhost/believeboy",
+		RedisURL:           "redis://localhost:6379/0",
+		OwnedModules:       map[string]bool{"health": true},
 	}, slog.New(slog.NewTextHandler(io.Discard, nil)), OwnedStores{
 		HealthDatabase: stubPinger{},
 	})
@@ -102,6 +103,7 @@ func TestNewRouterOwnedRouteTakesPrecedenceOverFallback(t *testing.T) {
 		t.Fatalf("http.NewRequest() error = %v", err)
 	}
 	req.Header.Set("X-API-Key", "test-api-key")
+	req.Header.Set("X-Trusted-Proxy-Secret", "test-proxy-secret")
 	resp, err := gateway.Client().Do(req)
 	if err != nil {
 		t.Fatalf("gateway request error = %v", err)

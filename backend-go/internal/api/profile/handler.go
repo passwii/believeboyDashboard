@@ -51,7 +51,12 @@ func NewHandler(store Store) *Handler {
 }
 
 func (h *Handler) GetProfile(w http.ResponseWriter, r *http.Request) {
-	userID := truncateHeaderValue(auth.DecodeHeaderValue(r.Header.Get("X-User-Id")), 64)
+	user, ok := auth.UserContextFromContext(r.Context())
+	if !ok {
+		httpapi.WriteDetail(w, http.StatusUnauthorized, "Not authenticated")
+		return
+	}
+	userID := truncateHeaderValue(user.UserID, 64)
 	if userID == "" {
 		httpapi.WriteDetail(w, http.StatusUnauthorized, "Not authenticated")
 		return

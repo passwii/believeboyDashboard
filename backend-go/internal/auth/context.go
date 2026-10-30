@@ -6,16 +6,19 @@ import (
 	"strings"
 )
 
-// UserContext is the typed form of the user headers forwarded by the web proxy
-// and the native desktop client.
+// UserContext is the typed identity attached by the authentication middleware.
+// Trusted proxy requests derive it from forwarded headers; device-key requests
+// derive it exclusively from the resolved database record.
 type UserContext struct {
-	UserID    string
-	Email     string
-	Name      string
-	Operator  string
-	RoleType  string
-	SessionID string
-	IsAdmin   bool
+	UserID               string
+	Email                string
+	Name                 string
+	Operator             string
+	RoleType             string
+	SessionID            string
+	IsAdmin              bool
+	IsAdminHeader        string
+	IsAdminHeaderPresent bool
 }
 
 type userContextKey struct{}
@@ -35,15 +38,36 @@ func UserContextFromRequest(r *http.Request) UserContext {
 	if operator == "" {
 		operator = name
 	}
+	adminValues, adminPresent := r.Header[http.CanonicalHeaderKey("X-Is-Admin")]
+	adminHeader := ""
+	if len(adminValues) > 0 {
+		adminHeader = adminValues[0]
+	}
 
 	return UserContext{
-		UserID:    truncate(DecodeHeaderValue(r.Header.Get("X-User-Id")), 64),
-		Email:     DecodeHeaderValue(r.Header.Get("X-User-Email")),
-		Name:      name,
-		Operator:  truncate(operator, 255),
-		RoleType:  truncate(DecodeHeaderValue(r.Header.Get("X-Role-Type")), 32),
-		SessionID: DecodeHeaderValue(r.Header.Get("X-Session-Id")),
-		IsAdmin:   isTruthy(r.Header.Get("X-Is-Admin")),
+		UserID:               truncate(DecodeHeaderValue(r.Header.Get("X-User-Id")), 64),
+		Email:                DecodeHeaderValue(r.Header.Get("X-User-Email")),
+		Name:                 name,
+		Operator:             truncate(operator, 255),
+		RoleType:             truncate(DecodeHeaderValue(r.Header.Get("X-Role-Type")), 32),
+		SessionID:            DecodeHeaderValue(r.Header.Get("X-Session-Id")),
+		IsAdmin:              isTruthy(adminHeader),
+		IsAdminHeader:        adminHeader,
+		IsAdminHeaderPresent: adminPresent,
+	}
+}
+
+// UserContextFromUserKey binds identity to the database row resolved from the
+// device key. Client-supplied identity headers are deliberately not consulted.
+func UserContextFromUserKey(record UserKeyRecord) UserContext {
+	displayName := truncate(strings.TrimSpace(record.FullName), 255)
+	return UserContext{
+		UserID:   truncate(record.UserID, 64),
+		Email:    record.Email,
+		Name:     displayName,
+		Operator: displayName,
+		RoleType: truncate(record.RoleType, 32),
+		IsAdmin:  record.IsAdmin,
 	}
 }
 

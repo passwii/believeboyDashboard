@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/passwii/believeboyDashboard/backend-go/internal/auth"
 )
 
 func TestListRequiresXUserID(t *testing.T) {
@@ -27,7 +29,7 @@ func TestListRequiresXUserID(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 
-			NewHandler(store).List(rec, req)
+			NewHandler(store).List(rec, withRequestIdentity(req))
 
 			assertResponse(t, rec, http.StatusUnauthorized, `{"detail":"X-User-Id required"}`)
 			if store.listCalls != 0 {
@@ -45,13 +47,30 @@ func TestListRejectsInvalidXUserID(t *testing.T) {
 			req.Header.Set("X-User-Id", value)
 			rec := httptest.NewRecorder()
 
-			NewHandler(store).List(rec, req)
+			NewHandler(store).List(rec, withRequestIdentity(req))
 
 			assertResponse(t, rec, http.StatusBadRequest, `{"detail":"Invalid X-User-Id"}`)
 			if store.listCalls != 0 {
 				t.Errorf("List() calls = %d, want 0", store.listCalls)
 			}
 		})
+	}
+}
+
+func TestListUsesAuthenticatedContextInsteadOfForgedHeader(t *testing.T) {
+	store := &fakeStore{}
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/notifications", nil)
+	req = req.WithContext(auth.WithUserContext(req.Context(), auth.UserContext{UserID: "10"}))
+	req.Header.Set("X-User-Id", "20")
+	rec := httptest.NewRecorder()
+
+	NewHandler(store).List(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+	if store.listUserID != "10" {
+		t.Errorf("List() user = %q, want authenticated context user", store.listUserID)
 	}
 }
 
@@ -77,7 +96,7 @@ func TestListUsesDefaultPaginationAndReturnsFastAPIShape(t *testing.T) {
 	req.Header.Set("X-User-Id", "1_0")
 	rec := httptest.NewRecorder()
 
-	NewHandler(store).List(rec, req)
+	NewHandler(store).List(rec, withRequestIdentity(req))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
@@ -108,7 +127,7 @@ func TestListPreservesNonUTCTimestampOffset(t *testing.T) {
 	req.Header.Set("X-User-Id", "10")
 	rec := httptest.NewRecorder()
 
-	NewHandler(store).List(rec, req)
+	NewHandler(store).List(rec, withRequestIdentity(req))
 
 	assertResponse(
 		t,
@@ -128,7 +147,7 @@ func TestListPassesFiltersAndPreservesNulls(t *testing.T) {
 	req.Header.Set("X-User-Id", "42")
 	rec := httptest.NewRecorder()
 
-	NewHandler(store).List(rec, req)
+	NewHandler(store).List(rec, withRequestIdentity(req))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
@@ -232,7 +251,7 @@ func TestListUsesLastRepeatedPaginationAndPreservesHugePage(t *testing.T) {
 	req.Header.Set("X-User-Id", "1")
 	rec := httptest.NewRecorder()
 
-	NewHandler(store).List(rec, req)
+	NewHandler(store).List(rec, withRequestIdentity(req))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
@@ -251,7 +270,7 @@ func TestUnreadCountRequiresUserAndReturnsCount(t *testing.T) {
 	req.Header.Set("X-User-Id", "7")
 	rec := httptest.NewRecorder()
 
-	NewHandler(store).UnreadCount(rec, req)
+	NewHandler(store).UnreadCount(rec, withRequestIdentity(req))
 
 	if store.unreadUserID != "7" {
 		t.Errorf("UnreadCount() user = %q, want 7", store.unreadUserID)
@@ -279,13 +298,13 @@ func TestNotificationStoreErrorsReturn500(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/notifications", nil)
 	req.Header.Set("X-User-Id", "1")
 	rec := httptest.NewRecorder()
-	NewHandler(store).List(rec, req)
+	NewHandler(store).List(rec, withRequestIdentity(req))
 	assertInternalError(t, rec)
 
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/notifications/unread-count", nil)
 	req.Header.Set("X-User-Id", "1")
 	rec = httptest.NewRecorder()
-	NewHandler(store).UnreadCount(rec, req)
+	NewHandler(store).UnreadCount(rec, withRequestIdentity(req))
 	assertInternalError(t, rec)
 }
 
@@ -316,6 +335,10 @@ func (s *fakeStore) UnreadCount(_ context.Context, userID string) (int, error) {
 	s.unreadCalls++
 	s.unreadUserID = userID
 	return s.unreadCount, s.err
+}
+
+func withRequestIdentity(req *http.Request) *http.Request {
+	return req.WithContext(auth.WithUserContext(req.Context(), auth.UserContextFromRequest(req)))
 }
 
 func assertResponse(t *testing.T, rec *httptest.ResponseRecorder, status int, body string) {

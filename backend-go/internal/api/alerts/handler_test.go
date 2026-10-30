@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/passwii/believeboyDashboard/backend-go/internal/auth"
 )
 
 func TestMetricsReturnsStaticFastAPIOptions(t *testing.T) {
@@ -37,7 +39,7 @@ func TestRulesReturnsEmptyArrayAndAppliesFilters(t *testing.T) {
 	req.Header.Set("X-Is-Admin", "false")
 	rec := httptest.NewRecorder()
 
-	NewHandler(store).Rules(rec, req)
+	NewHandler(store).Rules(rec, withRequestIdentity(req))
 
 	if store.projectID != "12" {
 		t.Errorf("GetProject() id = %q, want 12", store.projectID)
@@ -76,7 +78,7 @@ func TestRulesAllowsAdminAndSerializesTimestampAndNullables(t *testing.T) {
 	req.Header.Set("X-Is-Admin", "yes")
 	rec := httptest.NewRecorder()
 
-	NewHandler(store).Rules(rec, req)
+	NewHandler(store).Rules(rec, withRequestIdentity(req))
 
 	want := `[{"name":"acos high","project_id":2,"country":"US","metric":"acos","trigger_type":"threshold","condition":"above","threshold":0.25,"window_days":7,"severity":"warning","notification_channels":"in_app","id":2,"is_active":true,"created_by":"operator-a","created_at":"2026-10-01T02:03:04.123000Z","updated_at":"2026-10-01T02:03:04.123000Z"}]`
 	assertResponse(t, rec, http.StatusOK, want)
@@ -150,11 +152,27 @@ func TestRulesChecksProjectVisibilityLikeEnsureProjectAccess(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 
-			NewHandler(store).Rules(rec, req)
+			NewHandler(store).Rules(rec, withRequestIdentity(req))
 
 			assertResponse(t, rec, tt.wantStatus, tt.wantBody)
 		})
 	}
+}
+
+func TestRulesUsesAuthenticatedContextInsteadOfForgedIdentityHeaders(t *testing.T) {
+	store := &fakeStore{project: &Project{ProjectOperator: stringPointer("owner")}}
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/alerts/rules?project_id=9", nil)
+	req = req.WithContext(auth.WithUserContext(req.Context(), auth.UserContext{
+		UserID:   "authoritative-user",
+		Operator: "owner",
+	}))
+	req.Header.Set("X-Operator", "victim")
+	req.Header.Set("X-Is-Admin", "false")
+	rec := httptest.NewRecorder()
+
+	NewHandler(store).Rules(rec, req)
+
+	assertResponse(t, rec, http.StatusOK, `[]`)
 }
 
 func TestRulesRejectsInvalidBooleanHeaderBeforeProjectLookup(t *testing.T) {
@@ -163,7 +181,7 @@ func TestRulesRejectsInvalidBooleanHeaderBeforeProjectLookup(t *testing.T) {
 	req.Header.Set("X-Is-Admin", "maybe")
 	rec := httptest.NewRecorder()
 
-	NewHandler(store).Rules(rec, req)
+	NewHandler(store).Rules(rec, withRequestIdentity(req))
 
 	assertResponse(
 		t,
@@ -186,7 +204,7 @@ func TestRulesAggregatesValidationErrorsInPydanticOrder(t *testing.T) {
 	req.Header.Set("X-Is-Admin", "invalid")
 	rec := httptest.NewRecorder()
 
-	NewHandler(store).Rules(rec, req)
+	NewHandler(store).Rules(rec, withRequestIdentity(req))
 
 	assertResponse(
 		t,
@@ -209,7 +227,7 @@ func TestRulesUsesFirstRepeatedAdminHeaderLikeFastAPI(t *testing.T) {
 	req.Header.Add("X-Is-Admin", "false")
 	rec := httptest.NewRecorder()
 
-	NewHandler(store).Rules(rec, req)
+	NewHandler(store).Rules(rec, withRequestIdentity(req))
 
 	assertResponse(t, rec, http.StatusOK, `[]`)
 }
@@ -245,7 +263,7 @@ func TestEventsUsesDefaultsAndReturnsFastAPIShape(t *testing.T) {
 	req.Header.Set("X-Operator", "operator-a")
 	rec := httptest.NewRecorder()
 
-	NewHandler(store).Events(rec, req)
+	NewHandler(store).Events(rec, withRequestIdentity(req))
 
 	if store.eventFilters.Page != 1 || store.eventFilters.PageSize != 20 ||
 		store.eventFilters.Severity != nil || store.eventFilters.Status != nil {
@@ -267,7 +285,7 @@ func TestEventsAppliesFiltersAndPreservesEmptyArray(t *testing.T) {
 	req.Header.Set("X-Operator", "operator-a")
 	rec := httptest.NewRecorder()
 
-	NewHandler(store).Events(rec, req)
+	NewHandler(store).Events(rec, withRequestIdentity(req))
 
 	if store.eventFilters.Severity == nil || *store.eventFilters.Severity != "critical" ||
 		store.eventFilters.Status == nil || *store.eventFilters.Status != "active" ||
@@ -297,7 +315,7 @@ func TestEventsRejectsPaginationBounds(t *testing.T) {
 			rec := httptest.NewRecorder()
 			NewHandler(store).Events(
 				rec,
-				httptest.NewRequest(http.MethodGet, "/api/v1/alerts/events?"+tt.query, nil),
+				withRequestIdentity(httptest.NewRequest(http.MethodGet, "/api/v1/alerts/events?"+tt.query, nil)),
 			)
 			assertResponse(t, rec, http.StatusUnprocessableEntity, tt.body)
 			if store.calls != 0 {
@@ -317,7 +335,7 @@ func TestEventsAggregatesPageAndHeaderValidationErrors(t *testing.T) {
 	req.Header.Set("X-Is-Admin", "invalid")
 	rec := httptest.NewRecorder()
 
-	NewHandler(store).Events(rec, req)
+	NewHandler(store).Events(rec, withRequestIdentity(req))
 
 	assertResponse(
 		t,
@@ -338,7 +356,7 @@ func TestEventsChecksProjectAccess(t *testing.T) {
 	req.Header.Set("X-Operator", "operator-a")
 	rec := httptest.NewRecorder()
 
-	NewHandler(store).Events(rec, req)
+	NewHandler(store).Events(rec, withRequestIdentity(req))
 
 	assertResponse(t, rec, http.StatusForbidden, `{"detail":"无权限访问该项目"}`)
 	if store.eventListCalls != 0 {
@@ -354,7 +372,7 @@ func TestStatsReturnsEmptyCountsAndProjectFilter(t *testing.T) {
 	req.Header.Set("X-Operator", "operator-a")
 	rec := httptest.NewRecorder()
 
-	NewHandler(store).Stats(rec, req)
+	NewHandler(store).Stats(rec, withRequestIdentity(req))
 
 	if store.statsProjectID == nil || *store.statsProjectID != "8" {
 		t.Errorf("Stats() project = %#v, want 8", store.statsProjectID)
@@ -375,26 +393,26 @@ func TestAlertStoreErrorsReturn500(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/alerts/rules?project_id=1", nil)
 	req.Header.Set("X-Operator", "operator-a")
 	rec := httptest.NewRecorder()
-	NewHandler(store).Rules(rec, req)
+	NewHandler(store).Rules(rec, withRequestIdentity(req))
 	assertInternalError(t, rec)
 
 	store = &fakeStore{err: errors.New("database down")}
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/alerts/events", nil)
 	rec = httptest.NewRecorder()
-	NewHandler(store).Events(rec, req)
+	NewHandler(store).Events(rec, withRequestIdentity(req))
 	assertInternalError(t, rec)
 
 	store = &fakeStore{err: errors.New("database down")}
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/alerts/stats", nil)
 	req.Header.Set("X-Is-Admin", "true")
 	rec = httptest.NewRecorder()
-	NewHandler(store).Stats(rec, req)
+	NewHandler(store).Stats(rec, withRequestIdentity(req))
 	assertInternalError(t, rec)
 
 	store = &fakeStore{err: errors.New("database down")}
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/alerts/rules?project_id=1", nil)
 	rec = httptest.NewRecorder()
-	NewHandler(store).Rules(rec, req)
+	NewHandler(store).Rules(rec, withRequestIdentity(req))
 	assertInternalError(t, rec)
 }
 
@@ -404,7 +422,7 @@ func TestStatsWithoutProjectRequiresAdmin(t *testing.T) {
 	req.Header.Set("X-Operator", "operator-a")
 	rec := httptest.NewRecorder()
 
-	NewHandler(store).Stats(rec, req)
+	NewHandler(store).Stats(rec, withRequestIdentity(req))
 
 	assertResponse(t, rec, http.StatusForbidden, `{"detail":"需要管理员权限"}`)
 	if store.calls != 0 {
@@ -415,10 +433,14 @@ func TestStatsWithoutProjectRequiresAdmin(t *testing.T) {
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/alerts/stats", nil)
 	req.Header.Set("X-Is-Admin", "true")
 	rec = httptest.NewRecorder()
-	NewHandler(store).Stats(rec, req)
+	NewHandler(store).Stats(rec, withRequestIdentity(req))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("admin global stats status = %d, body = %s", rec.Code, rec.Body.String())
 	}
+}
+
+func withRequestIdentity(req *http.Request) *http.Request {
+	return req.WithContext(auth.WithUserContext(req.Context(), auth.UserContextFromRequest(req)))
 }
 
 type fakeStore struct {
@@ -527,7 +549,7 @@ func TestStatsChecksProjectAccessBeforeAggregating(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 
-			NewHandler(store).Stats(rec, req)
+			NewHandler(store).Stats(rec, withRequestIdentity(req))
 
 			if rec.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d; body = %s", rec.Code, tt.wantStatus, rec.Body.String())
