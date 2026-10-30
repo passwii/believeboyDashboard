@@ -100,10 +100,21 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     env:
       # 测试库独立于任何开发 / 生产库；URL 指向 CI 里的 postgres service。
       TEST_DATABASE_URL: postgresql+psycopg://ci:ci@localhost:5432/blf_ci
       DATABASE_URL: postgresql+psycopg://ci:ci@localhost:5432/blf_ci
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
       API_KEY: ci-api-key-placeholder
       TEST_ADMIN_PASSWORD: ci-admin-password-placeholder
       TEST_OPERATOR_PASSWORD: ci-operator-password-placeholder
