@@ -88,13 +88,14 @@ func TestAuthenticatedRequestRejectsLongDisplayNameBeforeHTTP(t *testing.T) {
 	longName := strings.Repeat("营", 256)
 	secrets := newTestSecrets()
 	if err := secrets.Set(auth.CredentialSecretName, mustEnvelope(t, auth.Session{
-		UserID:    "42",
-		Email:     "yawei@example.com",
-		Name:      "yawei",
-		FullName:  &longName,
-		RoleType:  "operator",
-		SessionID: "session-1",
-		IsActive:  true,
+		UserID:        "42",
+		Email:         "yawei@example.com",
+		Name:          "yawei",
+		FullName:      &longName,
+		RoleType:      "operator",
+		SessionID:     "session-1",
+		IsActive:      true,
+		GatewayOrigin: "http://gateway.test",
 	}, "secret-api-key")); err != nil {
 		t.Fatal(err)
 	}

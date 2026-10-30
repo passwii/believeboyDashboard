@@ -271,6 +271,7 @@ func testSession() *auth.Session {
 	return &auth.Session{
 		UserID: "42", Email: "li@example.com", Name: "linxiao",
 		FullName: &name, RoleType: "admin", SessionID: "session-1",
+		GatewayOrigin: "http://gateway.test",
 	}
 }
 
@@ -315,6 +316,9 @@ func TestAppLoginEstablishesSessionBeforeNavigatingHome(t *testing.T) {
 	}
 	if h.currentRouter().CanGoBack() {
 		t.Error("login success left a back entry to /login")
+	}
+	if got := h.sessionSnapshot().GatewayOrigin; got != "http://gateway.test" {
+		t.Errorf("login session gateway origin = %q", got)
 	}
 }
 
@@ -630,11 +634,29 @@ func TestSavedSessionRefreshUpdatesSessionAndKeychain(t *testing.T) {
 	if h.sessions.saved[0].SessionID != "session-1" || h.sessions.apiKeys[0] != "api-key" {
 		t.Errorf("saved credentials = session %q key %q", h.sessions.saved[0].SessionID, h.sessions.apiKeys[0])
 	}
+	if h.sessions.saved[0].GatewayOrigin != "http://gateway.test" {
+		t.Errorf("saved gateway origin = %q", h.sessions.saved[0].GatewayOrigin)
+	}
 }
 
 func TestSavedSessionRevokedClearsCredentialsAndReturnsToLogin(t *testing.T) {
 	h := newAppHarnessConfigured(t, testSession(), func(context.Context) (api.MeResponse, error) {
 		return api.MeResponse{}, &api.HTTPError{StatusCode: http.StatusUnauthorized}
+	})
+	h.waitFor(t, func() bool { return h.currentRouter().Path() == "/login" })
+	h.sessions.mu.Lock()
+	defer h.sessions.mu.Unlock()
+	if h.sessions.cleared != 1 {
+		t.Fatalf("cleared = %d, want 1", h.sessions.cleared)
+	}
+	if !h.tt.HasText("登录工作台") {
+		t.Fatalf("login page missing: %q", h.tt.Texts())
+	}
+}
+
+func TestSavedSessionGatewayMismatchClearsCredentialsAndReturnsToLogin(t *testing.T) {
+	h := newAppHarnessConfigured(t, testSession(), func(context.Context) (api.MeResponse, error) {
+		return api.MeResponse{}, errors.Join(api.ErrSessionUnavailable, auth.ErrGatewayMismatch)
 	})
 	h.waitFor(t, func() bool { return h.currentRouter().Path() == "/login" })
 	h.sessions.mu.Lock()

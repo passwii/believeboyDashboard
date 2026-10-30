@@ -71,13 +71,14 @@ func TestEndpointPoliciesRoundTripTheirBackendDecoders(t *testing.T) {
 			sessions := newTestSessionStore()
 			fullNameValue := fullName
 			if err := sessions.Save(context.Background(), auth.Session{
-				UserID:    "42",
-				Email:     email,
-				Name:      "yawei",
-				FullName:  &fullNameValue,
-				RoleType:  "operator",
-				SessionID: "session-1",
-				IsActive:  true,
+				UserID:        "42",
+				Email:         email,
+				Name:          "yawei",
+				FullName:      &fullNameValue,
+				RoleType:      "operator",
+				SessionID:     "session-1",
+				IsActive:      true,
+				GatewayOrigin: "http://gateway.test",
 			}, "secret-api-key"); err != nil {
 				t.Fatal(err)
 			}

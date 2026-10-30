@@ -5,7 +5,9 @@ Release date: 2026-10-30
 ## Added
 
 - Native Gateway settings with URL validation, trailing-slash normalization,
-  public health checks, saved/runtime Gateway labels, and a restart notice.
+  public liveness checks, saved/runtime Gateway labels, and a restart notice.
+- Keychain credentials are bound to the Gateway origin; changing origin
+  clears the old credentials before any authenticated request.
 - LastRoute restoration for authenticated launches and debounced persistence
   for Home, Projects, Operations, Reports, AI, and Settings navigation.
 - Native error and connection states for invalid addresses, network failures,
@@ -16,6 +18,7 @@ Release date: 2026-10-30
 ## Behavior
 
 - Gateway values must use `http://` or `https://`.
+- Connection tests use the unauthenticated `/api/v1/health/live` endpoint.
 - An invalid or unknown `LastRoute` falls back to Home when authenticated and
   to Login when no saved session exists.
 - Saved Gateway changes apply after the app restarts; the current client stays

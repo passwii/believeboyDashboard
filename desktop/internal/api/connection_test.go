@@ -31,7 +31,7 @@ func TestGatewayConnectionProbesPublicHealthEndpointWithoutCredentials(t *testin
 	if info.BaseURL != "https://gateway.example.test" {
 		t.Errorf("BaseURL = %q", info.BaseURL)
 	}
-	if info.Status != "ok" || info.Version != "" {
+	if info.Status != "ok" || info.Timestamp != 1 || info.Version != "" {
 		t.Errorf("connection info = %#v", info)
 	}
 }

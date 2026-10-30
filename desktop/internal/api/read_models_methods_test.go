@@ -39,6 +39,7 @@ func (readStubSessions) Load(context.Context) (auth.Session, string, error) {
 	return auth.Session{
 		UserID: "42", Email: "li@example.com", Name: "linxiao",
 		SessionID: "session-1", RoleType: "admin",
+		GatewayOrigin: "http://gateway.test",
 	}, "api-key", nil
 }
 

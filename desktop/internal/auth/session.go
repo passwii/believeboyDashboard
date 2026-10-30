@@ -15,6 +15,7 @@ import (
 var (
 	ErrNoSession               = errors.New("auth: no saved session")
 	ErrInvalidSession          = errors.New("auth: invalid saved session")
+	ErrGatewayMismatch         = errors.New("auth: saved session belongs to another gateway")
 	ErrInvalidHeaderCredential = errors.New("auth: invalid header credential")
 	ErrSessionTooLarge         = errors.New("auth: session credentials exceed Keychain size limit")
 )
@@ -40,15 +41,16 @@ func (SystemClock) Now() time.Time {
 
 // Session is the user context stored inside the credential envelope.
 type Session struct {
-	UserID    string    `json:"user_id"`
-	Email     string    `json:"email"`
-	Name      string    `json:"name"`
-	FullName  *string   `json:"full_name"`
-	RoleType  string    `json:"role_type"`
-	SessionID string    `json:"session_id"`
-	IsAdmin   bool      `json:"is_admin"`
-	IsActive  bool      `json:"is_active"`
-	SavedAt   time.Time `json:"saved_at"`
+	UserID        string    `json:"user_id"`
+	Email         string    `json:"email"`
+	Name          string    `json:"name"`
+	FullName      *string   `json:"full_name"`
+	RoleType      string    `json:"role_type"`
+	SessionID     string    `json:"session_id"`
+	IsAdmin       bool      `json:"is_admin"`
+	IsActive      bool      `json:"is_active"`
+	GatewayOrigin string    `json:"gateway_origin"`
+	SavedAt       time.Time `json:"saved_at"`
 }
 
 type credentialEnvelope struct {
@@ -62,6 +64,13 @@ func (s Session) DisplayName() string {
 		return ""
 	}
 	return strings.TrimSpace(*s.FullName)
+}
+
+// BelongsToGateway reports whether the saved credentials were issued by the
+// expected canonical Gateway origin.
+func (s Session) BelongsToGateway(origin string) bool {
+	origin = strings.TrimSpace(origin)
+	return origin != "" && strings.TrimSpace(s.GatewayOrigin) == origin
 }
 
 // Store persists the API key and session JSON in the Keychain.
@@ -130,6 +139,23 @@ func (s *Store) Load(ctx context.Context) (Session, string, error) {
 		return Session{}, "", err
 	}
 	return Session{}, "", ErrNoSession
+}
+
+// LoadForGateway returns credentials only when they were saved for the same
+// Gateway origin. A mismatch is cleared before any authenticated request can
+// use it, forcing the user to sign in again on the new Gateway.
+func (s *Store) LoadForGateway(ctx context.Context, gatewayOrigin string) (Session, string, error) {
+	session, apiKey, err := s.Load(ctx)
+	if err != nil {
+		return Session{}, "", err
+	}
+	if session.BelongsToGateway(gatewayOrigin) {
+		return session, apiKey, nil
+	}
+	if clearErr := s.Clear(ctx); clearErr != nil {
+		return Session{}, "", fmt.Errorf("%w: clear rejected credentials: %w", ErrGatewayMismatch, clearErr)
+	}
+	return Session{}, "", ErrGatewayMismatch
 }
 
 func (s *Store) Clear(ctx context.Context) error {

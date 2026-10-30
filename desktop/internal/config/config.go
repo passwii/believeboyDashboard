@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -439,6 +440,32 @@ func NormalizeAPIBaseURL(raw string) (string, error) {
 		return "", fmt.Errorf("%w: query and fragment are not allowed", ErrInvalidAPIBaseURL)
 	}
 	return strings.TrimRight(parsed.String(), "/"), nil
+}
+
+// APIOrigin returns the canonical scheme, host, and non-default port used to
+// bind saved credentials to one Gateway deployment.
+func APIOrigin(raw string) (string, error) {
+	normalized, err := NormalizeAPIBaseURL(raw)
+	if err != nil {
+		return "", err
+	}
+	parsed, err := url.Parse(normalized)
+	if err != nil {
+		return "", fmt.Errorf("%w: %v", ErrInvalidAPIBaseURL, err)
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	host := strings.ToLower(parsed.Hostname())
+	port := parsed.Port()
+	if (scheme == "http" && port == "80") || (scheme == "https" && port == "443") {
+		port = ""
+	}
+	authority := host
+	if port != "" {
+		authority = net.JoinHostPort(host, port)
+	} else if strings.Contains(host, ":") {
+		authority = "[" + host + "]"
+	}
+	return scheme + "://" + authority, nil
 }
 
 type osDirProvider struct{}

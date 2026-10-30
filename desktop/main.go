@@ -108,7 +108,7 @@ func bootstrap(ctx context.Context) (*desktopRuntime, error) {
 	if err != nil {
 		return nil, err
 	}
-	saved, savedAPIKey, savedErr := sessions.Load(ctx)
+	saved, savedAPIKey, savedErr := sessions.LoadForGateway(ctx, client.GatewayOrigin())
 	var initial *auth.Session
 	if savedErr == nil {
 		copy := saved
@@ -131,6 +131,7 @@ func bootstrap(ctx context.Context) (*desktopRuntime, error) {
 		Quit:           mygo.App.Quit,
 		VerifySession:  client.AuthMe,
 		InitialConfig:  cfg,
+		GatewayOrigin:  client.GatewayOrigin(),
 		SaveAPIBaseURL: store.UpdateAPIBaseURL,
 		TestGateway:    api.TestGatewayConnection,
 		SaveLastRoute: func(ctx context.Context, route string) error {

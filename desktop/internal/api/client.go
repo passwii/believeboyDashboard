@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/passwii/believeboyDashboard/desktop/internal/auth"
+	configpkg "github.com/passwii/believeboyDashboard/desktop/internal/config"
 )
 
 const (
@@ -57,6 +58,7 @@ type ClientConfig struct {
 
 type Client struct {
 	baseURL  string
+	origin   string
 	clientID string
 	http     HTTPClient
 	sessions SessionStore
@@ -100,6 +102,10 @@ func NewClient(config ClientConfig) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	origin, err := configpkg.APIOrigin(baseURL)
+	if err != nil {
+		return nil, err
+	}
 	if strings.TrimSpace(config.ClientID) == "" {
 		return nil, fmt.Errorf("api: client_id is required")
 	}
@@ -114,6 +120,7 @@ func NewClient(config ClientConfig) (*Client, error) {
 
 	return &Client{
 		baseURL:  baseURL,
+		origin:   origin,
 		clientID: strings.TrimSpace(config.ClientID),
 		http:     httpClient,
 		sessions: config.Sessions,
@@ -160,14 +167,15 @@ func (c *Client) Login(
 		return nil, err
 	}
 	session := auth.Session{
-		UserID:    login.ID,
-		Email:     login.Email,
-		Name:      login.Name,
-		FullName:  login.FullName,
-		RoleType:  string(login.RoleType),
-		SessionID: login.SessionID,
-		IsAdmin:   login.IsAdmin,
-		IsActive:  login.IsActive,
+		UserID:        login.ID,
+		Email:         login.Email,
+		Name:          login.Name,
+		FullName:      login.FullName,
+		RoleType:      string(login.RoleType),
+		SessionID:     login.SessionID,
+		IsAdmin:       login.IsAdmin,
+		IsActive:      login.IsActive,
+		GatewayOrigin: c.origin,
 	}
 	if err := auth.ValidateSessionCredentials(session, login.APIKey); err != nil {
 		return nil, &LoginValidationError{Reason: "invalid header credential", Cause: err}
@@ -316,12 +324,9 @@ func (c *Client) doRequest(
 		req.Header.Set(key, value)
 	}
 	if authenticated {
-		session, apiKey, err := c.sessions.Load(ctx)
-		if errors.Is(err, auth.ErrNoSession) {
-			return nil, ErrSessionUnavailable
-		}
+		session, apiKey, err := c.loadAuthenticatedSession(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("api: load session: %w", err)
+			return nil, err
 		}
 		if err := applySessionHeaders(req.Header, session, apiKey, encoding); err != nil {
 			return nil, err
@@ -348,6 +353,36 @@ func (c *Client) endpoint(path string) (string, error) {
 		return "", fmt.Errorf("api: absolute request paths are not allowed")
 	}
 	return c.baseURL + "/" + strings.TrimLeft(path, "/"), nil
+}
+
+func (c *Client) GatewayOrigin() string {
+	if c == nil {
+		return ""
+	}
+	return c.origin
+}
+
+func (c *Client) loadAuthenticatedSession(ctx context.Context) (auth.Session, string, error) {
+	session, apiKey, err := c.sessions.Load(ctx)
+	if errors.Is(err, auth.ErrNoSession) {
+		return auth.Session{}, "", ErrSessionUnavailable
+	}
+	if err != nil {
+		return auth.Session{}, "", fmt.Errorf("api: load session: %w", err)
+	}
+	if session.BelongsToGateway(c.origin) {
+		return session, apiKey, nil
+	}
+	clearErr := c.sessions.Clear(ctx)
+	if clearErr != nil {
+		return auth.Session{}, "", fmt.Errorf(
+			"%w: %w: clear rejected credentials: %w",
+			ErrSessionUnavailable,
+			auth.ErrGatewayMismatch,
+			clearErr,
+		)
+	}
+	return auth.Session{}, "", fmt.Errorf("%w: %w", ErrSessionUnavailable, auth.ErrGatewayMismatch)
 }
 
 func normalizeBaseURL(raw string) (string, error) {

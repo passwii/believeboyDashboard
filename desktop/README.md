@@ -13,9 +13,14 @@ The app stores non-secret settings in:
 
 Open **系统设置** in the app to edit `api_base_url`. The field accepts only
 `http://` and `https://`, removes trailing slashes, and can run a public
-`GET /api/v1/health` check without sending the current account credentials.
+`GET /api/v1/health/live` check without sending the current account credentials.
 Saving changes the local config only; the status panel asks the user to
 restart before the new Gateway is used by login and data requests.
+
+Saved Keychain credentials are bound to the normalized Gateway origin
+(scheme, host, and non-default port). If the configured origin changes, the
+old credentials are cleared before any authenticated request and the user must
+sign in again.
 
 The last valid workspace route is stored as `last_route`. It is restored only
 when the saved Keychain session is present and the route is one of the native

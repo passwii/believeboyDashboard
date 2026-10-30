@@ -11,16 +11,17 @@ import (
 
 const defaultProbeTimeout = 5 * time.Second
 
-// ConnectionInfo is the public health result shown by desktop settings.
+// ConnectionInfo is the public liveness result shown by desktop settings.
 type ConnectionInfo struct {
-	BaseURL string
-	Status  string
-	Version string
-	Latency time.Duration
+	BaseURL   string
+	Status    string
+	Timestamp float64
+	Version   string
+	Latency   time.Duration
 }
 
-// TestGatewayConnection checks a gateway before it is saved. Health is public,
-// so this deliberately does not load or send the current account credentials.
+// TestGatewayConnection checks a gateway before it is saved. Liveness is
+// public, so this deliberately does not load or send account credentials.
 func TestGatewayConnection(ctx context.Context, rawBaseURL string) (ConnectionInfo, error) {
 	return testGatewayConnection(ctx, rawBaseURL, &http.Client{Timeout: defaultProbeTimeout})
 }
@@ -41,7 +42,7 @@ func testGatewayConnection(
 		httpClient = &http.Client{Timeout: defaultProbeTimeout}
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/api/v1/health", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/api/v1/health/live", nil)
 	if err != nil {
 		return ConnectionInfo{}, fmt.Errorf("api: create health probe: %w", err)
 	}
@@ -60,20 +61,21 @@ func testGatewayConnection(
 	if err != nil {
 		return ConnectionInfo{}, err
 	}
-	var health HealthResponse
+	var health struct {
+		Status    string  `json:"status"`
+		Timestamp float64 `json:"timestamp"`
+	}
 	if err := decodeOneJSON(payload, &health); err != nil {
-		return ConnectionInfo{}, fmt.Errorf("%w: decode gateway health: %v", ErrInvalidResponse, err)
+		return ConnectionInfo{}, fmt.Errorf("%w: decode gateway live response: %v", ErrInvalidResponse, err)
 	}
 	if health.Status == "" {
-		return ConnectionInfo{}, fmt.Errorf("%w: gateway health status is empty", ErrInvalidResponse)
+		return ConnectionInfo{}, fmt.Errorf("%w: gateway live status is empty", ErrInvalidResponse)
 	}
 	info := ConnectionInfo{
-		BaseURL: baseURL,
-		Status:  health.Status,
-		Latency: time.Since(started),
-	}
-	if health.Version != nil {
-		info.Version = *health.Version
+		BaseURL:   baseURL,
+		Status:    health.Status,
+		Timestamp: health.Timestamp,
+		Latency:   time.Since(started),
 	}
 	return info, nil
 }

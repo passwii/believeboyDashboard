@@ -39,6 +39,7 @@ type Options struct {
 	Quit           func()
 	VerifySession  func(context.Context) (api.MeResponse, error)
 	InitialConfig  config.Config
+	GatewayOrigin  string
 	SaveAPIBaseURL func(context.Context, string) (config.Config, error)
 	TestGateway    pages.TestGatewayFunc
 	SaveLastRoute  func(context.Context, string) error
@@ -63,6 +64,7 @@ type App struct {
 	update         func(func())
 	verifySession  func(context.Context) (api.MeResponse, error)
 	config         config.Config
+	gatewayOrigin  string
 	runtimeBaseURL string
 	saveAPIBaseURL func(context.Context, string) (config.Config, error)
 	testGateway    pages.TestGatewayFunc
@@ -94,6 +96,10 @@ func New(options Options) *App {
 	}
 	router.Transition = ui.TransitionAuto
 	router.Animation = &ui.Snappy
+	gatewayOrigin := strings.TrimSpace(options.GatewayOrigin)
+	if gatewayOrigin == "" {
+		gatewayOrigin, _ = config.APIOrigin(options.InitialConfig.APIBaseURL)
+	}
 	a := &App{
 		router:         router,
 		sessions:       options.Sessions,
@@ -106,6 +112,7 @@ func New(options Options) *App {
 		apiKey:         options.InitialAPIKey,
 		mainPaneWidth:  design.DefaultMainPaneWidth,
 		config:         options.InitialConfig,
+		gatewayOrigin:  gatewayOrigin,
 		runtimeBaseURL: options.InitialConfig.APIBaseURL,
 		saveAPIBaseURL: options.SaveAPIBaseURL,
 		testGateway:    options.TestGateway,
@@ -129,6 +136,7 @@ func (a *App) SetUpdate(update func(func())) {
 		userID    string
 		sessionID string
 		apiKey    string
+		origin    string
 	)
 	if start {
 		a.refreshStarted = true
@@ -138,10 +146,11 @@ func (a *App) SetUpdate(update func(func())) {
 		userID = a.session.UserID
 		sessionID = a.session.SessionID
 		apiKey = a.apiKey
+		origin = a.gatewayOrigin
 	}
 	a.mu.Unlock()
 	if start {
-		go a.refreshSavedSession(ctx, epoch, userID, sessionID, apiKey)
+		go a.refreshSavedSession(ctx, epoch, userID, sessionID, apiKey, origin)
 	}
 }
 
@@ -169,7 +178,11 @@ func (a *App) sessionActive() bool {
 	return a.hasSession
 }
 
-func (a *App) refreshSavedSession(ctx context.Context, epoch uint64, userID, sessionID, apiKey string) {
+func (a *App) refreshSavedSession(
+	ctx context.Context,
+	epoch uint64,
+	userID, sessionID, apiKey, gatewayOrigin string,
+) {
 	a.mu.RLock()
 	sessions := a.sessions
 	verify := a.verifySession
@@ -215,6 +228,7 @@ func (a *App) refreshSavedSession(ctx context.Context, epoch uint64, userID, ses
 		UserID: response.ID, Email: response.Email, Name: response.Name,
 		FullName: response.FullName, RoleType: string(response.RoleType),
 		SessionID: sessionID, IsAdmin: response.IsAdmin, IsActive: response.IsActive,
+		GatewayOrigin: gatewayOrigin,
 	}
 	if refreshed.UserID == "" {
 		refreshed.UserID = userID
@@ -284,6 +298,9 @@ func (a *App) authRefreshValid(ctx context.Context, epoch uint64) bool {
 }
 
 func invalidSessionError(err error) bool {
+	if errors.Is(err, api.ErrSessionUnavailable) {
+		return true
+	}
 	var httpErr *api.HTTPError
 	return errors.As(err, &httpErr) &&
 		(httpErr.StatusCode == 401 || httpErr.StatusCode == 404)
@@ -533,6 +550,7 @@ func (a *App) loginAttempt(ctx context.Context, email, password string) (*api.Lo
 	a.mu.RLock()
 	login := a.login
 	update := a.update
+	gatewayOrigin := a.gatewayOrigin
 	a.mu.RUnlock()
 	if login == nil {
 		return nil, errors.New("login unavailable")
@@ -545,6 +563,7 @@ func (a *App) loginAttempt(ctx context.Context, email, password string) (*api.Lo
 		UserID: response.ID, Email: response.Email, Name: response.Name,
 		FullName: response.FullName, RoleType: string(response.RoleType),
 		SessionID: response.SessionID, IsAdmin: response.IsAdmin, IsActive: response.IsActive,
+		GatewayOrigin: gatewayOrigin,
 	}
 	if update == nil {
 		return nil, errors.New("window update unavailable")
