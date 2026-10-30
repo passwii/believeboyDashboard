@@ -15,6 +15,7 @@ import (
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/health"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/notifications"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/profile"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/auth"
 )
 
 // These are fast handler-level contract fixtures. They intentionally do not
@@ -136,7 +137,7 @@ func TestWeek1ContractProfileNormalAndNotFound(t *testing.T) {
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/system-management/profile", nil)
 	request.Header.Set("X-User-Id", "user-123")
 	recorder := httptest.NewRecorder()
-	handler.GetProfile(recorder, request)
+	handler.GetProfile(recorder, withRequestIdentity(request))
 	assertStatusAndKeys(t, recorder, http.StatusOK, []string{
 		"id", "email", "name", "full_name", "is_admin", "is_active", "role_type",
 		"avatar_url", "password_changed_at", "created_at", "updated_at",
@@ -146,7 +147,7 @@ func TestWeek1ContractProfileNormalAndNotFound(t *testing.T) {
 	request = httptest.NewRequest(http.MethodGet, "/api/v1/system-management/profile", nil)
 	request.Header.Set("X-User-Id", "missing")
 	recorder = httptest.NewRecorder()
-	notFound.GetProfile(recorder, request)
+	notFound.GetProfile(recorder, withRequestIdentity(request))
 	assertStatusAndBody(t, recorder, http.StatusNotFound, `{"detail":"User not found"}`)
 }
 
@@ -165,31 +166,31 @@ func TestWeek1ContractNotificationsNormalAndEmpty(t *testing.T) {
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/notifications", nil)
 	request.Header.Set("X-User-Id", "1_0")
 	recorder := httptest.NewRecorder()
-	handler.List(recorder, request)
+	handler.List(recorder, withRequestIdentity(request))
 	assertStatusAndBody(t, recorder, http.StatusOK, `{"items":[{"id":1,"user_id":10,"type":"alert","title":"title","message":null,"data":{"project_id":3},"read":true,"read_at":null,"created_at":"2026-10-01T02:03:04.123000Z"}],"total":1,"page":1,"page_size":20}`)
 
 	empty := notifications.NewHandler(&contractNotificationStore{})
 	request = httptest.NewRequest(http.MethodGet, "/api/v1/notifications", nil)
 	request.Header.Set("X-User-Id", "10")
 	recorder = httptest.NewRecorder()
-	empty.List(recorder, request)
+	empty.List(recorder, withRequestIdentity(request))
 	assertStatusAndBody(t, recorder, http.StatusOK, `{"items":[],"total":0,"page":1,"page_size":20}`)
 
 	request = httptest.NewRequest(http.MethodGet, "/api/v1/notifications", nil)
 	recorder = httptest.NewRecorder()
-	empty.List(recorder, request)
+	empty.List(recorder, withRequestIdentity(request))
 	assertStatusAndBody(t, recorder, http.StatusUnauthorized, `{"detail":"X-User-Id required"}`)
 
 	request = httptest.NewRequest(http.MethodGet, "/api/v1/notifications", nil)
 	request.Header.Set("X-User-Id", "invalid")
 	recorder = httptest.NewRecorder()
-	empty.List(recorder, request)
+	empty.List(recorder, withRequestIdentity(request))
 	assertStatusAndBody(t, recorder, http.StatusBadRequest, `{"detail":"Invalid X-User-Id"}`)
 
 	request = httptest.NewRequest(http.MethodGet, "/api/v1/notifications/unread-count", nil)
 	request.Header.Set("X-User-Id", "10")
 	recorder = httptest.NewRecorder()
-	empty.UnreadCount(recorder, request)
+	empty.UnreadCount(recorder, withRequestIdentity(request))
 	assertStatusAndBody(t, recorder, http.StatusOK, `{"count":0}`)
 }
 
@@ -367,8 +368,12 @@ func requestContract(handler http.HandlerFunc, path string) *httptest.ResponseRe
 
 func requestWithHeaders(handler http.HandlerFunc, request *http.Request) *httptest.ResponseRecorder {
 	recorder := httptest.NewRecorder()
-	handler(recorder, request)
+	handler(recorder, withRequestIdentity(request))
 	return recorder
+}
+
+func withRequestIdentity(request *http.Request) *http.Request {
+	return request.WithContext(auth.WithUserContext(request.Context(), auth.UserContextFromRequest(request)))
 }
 
 func requestContractWithParam(handler http.HandlerFunc, path, key, value string) *httptest.ResponseRecorder {

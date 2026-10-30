@@ -2,6 +2,8 @@ package httpserver
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"log/slog"
 	"net/http"
@@ -18,6 +20,8 @@ import (
 	"github.com/passwii/believeboyDashboard/backend-go/internal/auth"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/config"
 )
+
+const testTrustedProxySecret = "test-proxy-secret"
 
 func TestOwnedModulesFallBackIndependently(t *testing.T) {
 	tests := []struct {
@@ -114,6 +118,7 @@ func TestOwnedModulesFallBackIndependently(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
 			if tt.apiKey != "" {
 				req.Header.Set("X-API-Key", tt.apiKey)
+				req.Header.Set(auth.TrustedProxySecretHeader, testTrustedProxySecret)
 			}
 			if tt.userHeader != "" {
 				req.Header.Set("X-User-Id", tt.userHeader)
@@ -155,6 +160,7 @@ func TestOwnedExchangeRateStaticRoutesPrecedeIDRoute(t *testing.T) {
 		t.Run(path, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, path, nil)
 			req.Header.Set("X-API-Key", "test-api-key")
+			req.Header.Set(auth.TrustedProxySecretHeader, testTrustedProxySecret)
 			rec := httptest.NewRecorder()
 			router.ServeHTTP(rec, req)
 
@@ -277,6 +283,7 @@ func TestOwnedAlertMetricsReturnsStaticPayload(t *testing.T) {
 	router := newOwnedTestRouter(t, upstream.URL, map[string]bool{"alerts": true})
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/alerts/metrics", nil)
 	req.Header.Set("X-API-Key", "test-api-key")
+	req.Header.Set(auth.TrustedProxySecretHeader, testTrustedProxySecret)
 	rec := httptest.NewRecorder()
 
 	router.ServeHTTP(rec, req)
@@ -378,18 +385,107 @@ func TestOwnedRoutesOnlyProtectMigratedGETPaths(t *testing.T) {
 	}
 }
 
+func TestOwnedRoutesBindDeviceKeyIdentityAndIgnoreForgedHeaders(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("fastapi"))
+	}))
+	t.Cleanup(upstream.Close)
+
+	const (
+		profileKey      = "blf_profile-device-key"
+		notificationKey = "blf_notification-device-key"
+		alertKey        = "blf_alert-device-key"
+		authoritativeID = "authoritative-user"
+		notificationID  = "10"
+		authorizedOwner = "owner"
+		forgedUserID    = "victim-user"
+	)
+	resolver := &mappingKeyResolver{records: map[string]*auth.UserKeyRecord{
+		deviceKeyHash(profileKey): {
+			UserID: authoritativeID,
+		},
+		deviceKeyHash(notificationKey): {
+			UserID: notificationID,
+		},
+		deviceKeyHash(alertKey): {
+			UserID:   authoritativeID,
+			FullName: authorizedOwner,
+		},
+	}}
+	profileStore := &recordingProfileStore{rows: map[string]*profile.Profile{
+		authoritativeID: {ID: authoritativeID, Email: "owner@example.com", Name: "owner"},
+		forgedUserID:    {ID: forgedUserID, Email: "victim@example.com", Name: "victim"},
+	}}
+	notificationStore := &recordingNotificationStore{}
+	alertStore := &recordingAlertStore{
+		project: &alerts.Project{ProjectOperator: stringPointer(authorizedOwner)},
+	}
+	router := newOwnedTestRouterWithStores(
+		t,
+		upstream.URL,
+		map[string]bool{"profile": true, "notifications": true, "alerts": true},
+		OwnedStores{
+			APIKeys:       resolver,
+			Profile:       profileStore,
+			Notifications: notificationStore,
+			Alerts:        alertStore,
+		},
+	)
+
+	t.Run("profile", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/system-management/profile", nil)
+		req.Header.Set("X-API-Key", profileKey)
+		req.Header.Set("X-User-Id", forgedUserID)
+		req.Header.Set("X-Is-Admin", "true")
+		rec := httptest.NewRecorder()
+
+		router.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+		}
+		if profileStore.lastUserID != authoritativeID {
+			t.Fatalf("profile lookup user = %q, want device-key owner", profileStore.lastUserID)
+		}
+		if !strings.Contains(rec.Body.String(), `"id":"`+authoritativeID+`"`) {
+			t.Errorf("body = %s, want authoritative profile", rec.Body.String())
+		}
+	})
+
+	t.Run("notifications", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/notifications", nil)
+		req.Header.Set("X-API-Key", notificationKey)
+		req.Header.Set("X-User-Id", "20")
+		rec := httptest.NewRecorder()
+
+		router.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+		}
+		if notificationStore.lastUserID != notificationID {
+			t.Fatalf("notification lookup user = %q, want device-key owner", notificationStore.lastUserID)
+		}
+	})
+
+	t.Run("alerts", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/alerts/rules?project_id=9", nil)
+		req.Header.Set("X-API-Key", alertKey)
+		req.Header.Set("X-Operator", "victim")
+		req.Header.Set("X-Is-Admin", "true")
+		rec := httptest.NewRecorder()
+
+		router.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+		}
+	})
+}
+
 func newOwnedTestRouter(t *testing.T, upstreamURL string, owned map[string]bool) chiRouter {
 	t.Helper()
-	router, err := NewRouter(config.Config{
-		Addr:            "127.0.0.1:8200",
-		FastAPIOrigin:   upstreamURL,
-		APIKey:          "test-api-key",
-		DatabaseURL:     "postgres://localhost/test",
-		DatabaseReadURL: "",
-		RedisURL:        "redis://localhost:6379/0",
-		AppEnv:          "test",
-		OwnedModules:    owned,
-	}, slog.New(slog.NewTextHandler(io.Discard, nil)), OwnedStores{
+	return newOwnedTestRouterWithStores(t, upstreamURL, owned, OwnedStores{
 		APIKeys:        &stubKeyResolver{},
 		HealthDatabase: stubPinger{},
 		ExchangeRates:  stubExchangeStore{},
@@ -397,6 +493,26 @@ func newOwnedTestRouter(t *testing.T, upstreamURL string, owned map[string]bool)
 		Notifications:  stubNotificationStore{},
 		Alerts:         stubAlertStore{},
 	})
+}
+
+func newOwnedTestRouterWithStores(
+	t *testing.T,
+	upstreamURL string,
+	owned map[string]bool,
+	stores OwnedStores,
+) chiRouter {
+	t.Helper()
+	router, err := NewRouter(config.Config{
+		Addr:               "127.0.0.1:8200",
+		FastAPIOrigin:      upstreamURL,
+		APIKey:             "test-api-key",
+		TrustedProxySecret: testTrustedProxySecret,
+		DatabaseURL:        "postgres://localhost/test",
+		DatabaseReadURL:    "",
+		RedisURL:           "redis://localhost:6379/0",
+		AppEnv:             "test",
+		OwnedModules:       owned,
+	}, slog.New(slog.NewTextHandler(io.Discard, nil)), stores)
 	if err != nil {
 		t.Fatalf("NewRouter() error = %v", err)
 	}
@@ -405,6 +521,71 @@ func newOwnedTestRouter(t *testing.T, upstreamURL string, owned map[string]bool)
 
 type chiRouter interface {
 	http.Handler
+}
+
+type mappingKeyResolver struct {
+	records map[string]*auth.UserKeyRecord
+}
+
+func (r *mappingKeyResolver) ResolveUserKey(_ context.Context, keyHash string) (*auth.UserKeyRecord, error) {
+	return r.records[keyHash], nil
+}
+
+type recordingProfileStore struct {
+	rows       map[string]*profile.Profile
+	lastUserID string
+}
+
+func (s *recordingProfileStore) GetByUserID(_ context.Context, userID string) (*profile.Profile, error) {
+	s.lastUserID = userID
+	return s.rows[userID], nil
+}
+
+type recordingNotificationStore struct {
+	lastUserID string
+}
+
+func (s *recordingNotificationStore) List(
+	_ context.Context,
+	userID string,
+	_ notifications.ListParams,
+) ([]notifications.Notification, int, error) {
+	s.lastUserID = userID
+	return nil, 0, nil
+}
+
+func (s *recordingNotificationStore) UnreadCount(_ context.Context, userID string) (int, error) {
+	s.lastUserID = userID
+	return 0, nil
+}
+
+type recordingAlertStore struct {
+	project *alerts.Project
+}
+
+func (s *recordingAlertStore) GetProject(context.Context, string) (*alerts.Project, error) {
+	return s.project, nil
+}
+
+func (s *recordingAlertStore) ListRules(context.Context, alerts.RuleFilters) ([]alerts.Rule, error) {
+	return nil, nil
+}
+
+func (s *recordingAlertStore) ListEvents(context.Context, alerts.EventFilters) ([]alerts.Event, int, error) {
+	return nil, 0, nil
+}
+
+func (s *recordingAlertStore) Stats(context.Context, *string, string) (alerts.Stats, error) {
+	return alerts.Stats{}, nil
+}
+
+func deviceKeyHash(key string) string {
+	sum := sha256.Sum256([]byte(key))
+	return hex.EncodeToString(sum[:])
+}
+
+func stringPointer(value string) *string {
+	return &value
 }
 
 type stubExchangeStore struct{}

@@ -130,12 +130,20 @@ func ParseOptionalBoolHeader(
 	name string,
 ) (*bool, *ValidationError) {
 	values, present := r.Header[http.CanonicalHeaderKey(name)]
-	if !present {
-		return nil, nil
-	}
 	raw := ""
 	if len(values) > 0 {
 		raw = values[0]
+	}
+	return ParseOptionalBoolHeaderValue(name, raw, present)
+}
+
+func ParseOptionalBoolHeaderValue(
+	name string,
+	raw string,
+	present bool,
+) (*bool, *ValidationError) {
+	if !present {
+		return nil, nil
 	}
 	value, ok := parseBool(raw)
 	if !ok {

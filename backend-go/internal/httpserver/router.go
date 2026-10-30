@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/auth"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/config"
 )
 
@@ -21,7 +22,8 @@ func NewRouter(cfg config.Config, logger *slog.Logger, stores OwnedStores) (chi.
 	router.Use(PanicRecovery(logger))
 
 	registerOwnedRoutes(router, cfg, stores)
-	router.Handle("/*", proxy)
+	trustedProxyOnly := auth.RequireTrustedProxyForMasterKey(cfg.APIKey, cfg.TrustedProxySecret)
+	router.Handle("/*", trustedProxyOnly(proxy))
 
 	return router, nil
 }

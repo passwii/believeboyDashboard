@@ -6,8 +6,6 @@ BACKEND_GO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$BACKEND_GO_DIR/.." && pwd)"
 
 BACKEND_DIR="${BELIEVEBOY_BACKEND_DIR:-$REPO_ROOT/backend}"
-ENV_FILE="${BELIEVEBOY_ENV_FILE:-$BACKEND_DIR/.env.test}"
-PYTHON="${BELIEVEBOY_PYTHON:-$BACKEND_DIR/.venv/bin/python}"
 PORT="${LIVE_FASTAPI_PORT:-18100}"
 
 if [[ ! -d "$BACKEND_DIR" ]]; then
@@ -15,16 +13,23 @@ if [[ ! -d "$BACKEND_DIR" ]]; then
   echo "set BELIEVEBOY_BACKEND_DIR to a backend checkout with .venv and .env.test" >&2
   exit 2
 fi
+BACKEND_DIR="$(cd "$BACKEND_DIR" && pwd -P)"
+
+ENV_FILE="${BELIEVEBOY_ENV_FILE:-$BACKEND_DIR/.env.test}"
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "live contract: env file not found: $ENV_FILE" >&2
   echo "set BELIEVEBOY_ENV_FILE to the BLF_test environment file" >&2
   exit 2
 fi
+ENV_FILE="$(cd "$(dirname "$ENV_FILE")" && pwd -P)/$(basename "$ENV_FILE")"
+
+PYTHON="${BELIEVEBOY_PYTHON:-$BACKEND_DIR/.venv/bin/python}"
 if [[ ! -x "$PYTHON" ]]; then
   echo "live contract: Python executable not found: $PYTHON" >&2
   echo "set BELIEVEBOY_PYTHON to the backend virtualenv Python" >&2
   exit 2
 fi
+PYTHON="$(cd "$(dirname "$PYTHON")" && pwd -P)/$(basename "$PYTHON")"
 
 # Load .env.test without echoing values. Both primary URL names are accepted,
 # but the target database must be explicitly disposable.

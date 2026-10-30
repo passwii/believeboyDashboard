@@ -24,6 +24,8 @@ import (
 	"github.com/passwii/believeboyDashboard/backend-go/internal/store"
 )
 
+const liveTrustedProxySecret = "live-contract-proxy-secret"
+
 const (
 	liveProjectName       = "__live_contract_project__"
 	liveNotificationTitle = "__live_contract_notification__"
@@ -81,7 +83,10 @@ func TestWeek1LiveContractFastAPIAgainstGo(t *testing.T) {
 
 	goServer := newLiveGoServer(t, cfg, pool)
 	fixture := loadLiveFixture(t, ctx, pool)
-	baseHeaders := map[string]string{"X-API-Key": cfg.apiKey}
+	baseHeaders := map[string]string{
+		"X-API-Key":              cfg.apiKey,
+		"X-Trusted-Proxy-Secret": liveTrustedProxySecret,
+	}
 	notificationHeaders := cloneHeaders(baseHeaders)
 	notificationHeaders["X-User-Id"] = fixture.notificationUserID
 	alertAdminHeaders := cloneHeaders(baseHeaders)
@@ -367,11 +372,12 @@ func newLiveGoServer(
 
 	router, err := httpserver.NewRouter(
 		config.Config{
-			FastAPIOrigin: cfg.fastAPIOrigin,
-			APIKey:        cfg.apiKey,
-			DatabaseURL:   cfg.databaseURL,
-			RedisURL:      cfg.redisURL,
-			AppEnv:        strings.TrimSpace(os.Getenv("APP_ENV")),
+			FastAPIOrigin:      cfg.fastAPIOrigin,
+			APIKey:             cfg.apiKey,
+			TrustedProxySecret: liveTrustedProxySecret,
+			DatabaseURL:        cfg.databaseURL,
+			RedisURL:           cfg.redisURL,
+			AppEnv:             strings.TrimSpace(os.Getenv("APP_ENV")),
 			OwnedModules: map[string]bool{
 				"health":         true,
 				"exchange_rates": true,
