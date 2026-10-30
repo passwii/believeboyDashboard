@@ -16,6 +16,8 @@ from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.main import app
 
+pytestmark = pytest.mark.audit_table_isolation
+
 
 @pytest.fixture
 def client() -> TestClient:

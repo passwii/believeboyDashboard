@@ -9,7 +9,8 @@ The schema is cloned from the source database (``DATABASE_URL``) with
 ``pg_dump --schema-only``. This guarantees the test DB matches the dev/prod
 schema exactly without replaying the full alembic chain (the chain assumes the
 bootstrap tables already exist, so a from-scratch ``alembic upgrade head`` is
-not reliable). Seeding then inserts the test accounts on top.
+not reliable). Seeding then inserts migration-owned reference data (CRM
+categories and workflow templates) plus the test accounts on top.
 
 Usage:
     cd backend && source .venv/bin/activate
@@ -93,7 +94,7 @@ def _create_database_if_missing(test_url: str) -> None:
         raise SystemExit(1)
 
     admin_url = url.set(database="postgres")
-    print(f"[1/3] Ensuring database '{db_name}' exists (best-effort)...")
+    print(f"[1/4] Ensuring database '{db_name}' exists (best-effort)...")
     admin_engine = None
     try:
         admin_engine = create_engine(admin_url, future=True)
@@ -127,7 +128,7 @@ def _libpq_url(url: str) -> str:
 
 def _clone_schema(source_url: str, test_url: str) -> None:
     """Clone the source DB schema (no data) into the test DB via pg_dump|psql."""
-    print("[2/3] Cloning schema from source database (pg_dump --schema-only)...")
+    print("[2/4] Cloning schema from source database (pg_dump --schema-only)...")
     # --clean --if-exists drops existing objects first so re-runs are idempotent.
     dump = subprocess.run(
         ["pg_dump", "-d", _libpq_url(source_url), "--schema-only", "--no-owner",
@@ -156,7 +157,12 @@ def _clone_schema(source_url: str, test_url: str) -> None:
 
 
 def _seed_accounts(reset_password: bool) -> None:
-    print("[3/3] Seeding test accounts (admin / operator / businessdev)...")
+    print("[3/4] Seeding test reference data (CRM categories + workflow templates)...")
+    from scripts.seed_test_reference_data import seed_reference_data
+    from app.db.session import engine
+
+    seed_reference_data(engine)
+    print("[4/4] Seeding test accounts (admin / operator / businessdev)...")
     from scripts.seed_test_accounts import main as seed_main
 
     argv = ["seed_test_accounts.py"]

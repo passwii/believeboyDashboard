@@ -20,6 +20,8 @@ from app.schemas.shipment_schedule import ShipmentScheduleCreate
 from app.services import shipment as shipment_service
 from app.services.shipment.item import replace_shipment_schedule_items
 
+pytestmark = pytest.mark.audit_table_isolation
+
 
 @pytest.fixture
 def client() -> TestClient:

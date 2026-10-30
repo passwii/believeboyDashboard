@@ -10,10 +10,11 @@ import uuid
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 
 from app.db.session import SessionLocal
 from app.main import app
+from app.models.amazon_review_tracking import AmazonReviewExternalLink
 from app.models.complaint_center import Complaint, ComplaintRun, ShopCheck
 from app.models.project import Project
 from app.models.project_shop import ProjectShop
@@ -43,6 +44,7 @@ def _cleanup_identity_tables():
         db.execute(delete(Complaint))
         db.execute(delete(ShopCheck))
         db.execute(delete(ComplaintRun))
+        db.execute(delete(AmazonReviewExternalLink))
         db.execute(delete(ProjectShop))
         db.commit()
     finally:
@@ -74,6 +76,12 @@ def id_project():
     try:
         db.execute(delete(Complaint).where(Complaint.project_id == pid))
         db.execute(delete(ShopCheck).where(ShopCheck.project_id == pid))
+        shop_ids = select(ProjectShop.id).where(ProjectShop.project_id == pid)
+        db.execute(
+            delete(AmazonReviewExternalLink).where(
+                AmazonReviewExternalLink.shop_id.in_(shop_ids)
+            )
+        )
         db.execute(delete(ProjectShop).where(ProjectShop.project_id == pid))
         db.execute(delete(Project).where(Project.id == pid))
         db.commit()

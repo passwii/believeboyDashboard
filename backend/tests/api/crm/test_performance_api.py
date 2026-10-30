@@ -11,6 +11,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+import pytest
 from sqlalchemy import text
 
 from app.models.crm import CrmCustomer, CrmFollow, CrmLead, CrmTask
@@ -19,8 +20,51 @@ SH = ZoneInfo("Asia/Shanghai")
 MONTH_START = datetime(2026, 7, 1, 0, 0, 0, tzinfo=SH)
 NOW = datetime(2026, 7, 24, 10, 0, 0, tzinfo=SH)
 
-OP1_ID = "590dffdf-0383-4731-8fca-a9d61fdb8861"  # 测试运营
-OP2_ID = "8e38c945-6334-4fc5-b215-0dff89557fe0"  # 测试招商
+
+# ── 三个「人」的 id ──────────────────────────────────────────────────────────
+# ⚠️ 这里**不能写死 UUID**：`scripts/seed_test_accounts.py` 用数据库默认的
+# `gen_random_uuid()` 建账号，**每个测试库的账号 id 都不一样**。
+# 写死的历史 UUID 只在"当年那个库"里存在，换个库（CI 的全新库 / 新同事的机器）
+# 就对不上 → 业绩指标算到"不存在的人"头上 → 全 0 / 排名错位。
+#
+# 改成**按 email 从库里查真实 id**（seed 脚本保证这三个账号存在）。
+@pytest.fixture
+def _seeded_accounts(db_session, settings):
+    """按 email 取种子账号的真实 id（operator / businessdev）。"""
+    wanted = {
+        settings.test_operator_email.lower(): "operator",
+        settings.test_businessdev_email.lower(): "businessdev",
+    }
+    rows = db_session.execute(
+        text(
+            "select email, id::text as id from public.user_accounts "
+            "where is_active = true"
+        )
+    ).mappings().all()
+    by_email = {r["email"].lower(): r["id"] for r in rows}
+
+    out = {}
+    missing = [e for e in wanted if e not in by_email]
+    for email, role in wanted.items():
+        if email in by_email:
+            out[role] = by_email[email]
+    if missing:
+        pytest.fail(
+            f"测试账号缺失: {missing} —— 先跑 `python scripts/seed_test_accounts.py`"
+        )
+    return out
+
+
+@pytest.fixture
+def op1_id(_seeded_accounts):
+    """测试运营的真实 id。"""
+    return _seeded_accounts["operator"]
+
+
+@pytest.fixture
+def op2_id(_seeded_accounts):
+    """测试招商的真实 id。"""
+    return _seeded_accounts["businessdev"]
 
 
 def _mk_customer(db, **kw):
@@ -65,23 +109,23 @@ def _mk_task(db, **kw):
     return t
 
 
-def test_performance_mine_for_operator(client, db_session, operator_headers):
-    _mk_customer(db_session, name="C1", owner_id=OP1_ID)
+def test_performance_mine_for_operator(client, db_session, operator_headers, op1_id):
+    _mk_customer(db_session, name="C1", owner_id=op1_id)
     _mk_lead(
         db_session,
         name="L1",
         status="converted",
-        owner_id=OP1_ID,
+        owner_id=op1_id,
         converted_at=MONTH_START + timedelta(days=2),
     )
-    _mk_follow(db_session, created_by=OP1_ID)
+    _mk_follow(db_session, created_by=op1_id)
     _mk_task(
         db_session,
-        owner_id=OP1_ID,
+        owner_id=op1_id,
         status="done",
         completed_at=MONTH_START + timedelta(days=1),
     )
-    _mk_task(db_session, owner_id=OP1_ID, status="pending")
+    _mk_task(db_session, owner_id=op1_id, status="pending")
 
     r = client.get(
         "/api/v1/crm/dashboard/performance?scope=mine&month=2026-07", headers=operator_headers
@@ -99,13 +143,13 @@ def test_performance_mine_for_operator(client, db_session, operator_headers):
     assert body["ranking"] == []
 
 
-def test_performance_all_admin(client, db_session, admin_headers):
-    _mk_customer(db_session, name="C1", owner_id=OP1_ID)
+def test_performance_all_admin(client, db_session, admin_headers, op1_id):
+    _mk_customer(db_session, name="C1", owner_id=op1_id)
     _mk_lead(
         db_session,
         name="L1",
         status="converted",
-        owner_id=OP1_ID,
+        owner_id=op1_id,
         converted_at=MONTH_START + timedelta(days=2),
     )
 
@@ -116,7 +160,7 @@ def test_performance_all_admin(client, db_session, admin_headers):
     assert body["global_metrics"]["new_customers"] == 1
     assert body["global_metrics"]["converted_count"] == 1
     assert len(body["ranking"]) == 3
-    assert body["ranking"][0]["owner_id"] == OP1_ID
+    assert body["ranking"][0]["owner_id"] == op1_id
     assert body["ranking"][0]["rank"] == 1
 
 
@@ -134,11 +178,11 @@ def test_performance_mine_default_scope(client, operator_headers):
     assert r.json()["scope"] == "mine"
 
 
-def test_performance_month_param(client, db_session, operator_headers):
+def test_performance_month_param(client, db_session, operator_headers, op1_id):
     _mk_customer(
         db_session,
         name="C上月",
-        owner_id=OP1_ID,
+        owner_id=op1_id,
         created_at=datetime(2026, 6, 15, tzinfo=SH),
     )
     r = client.get(

@@ -40,6 +40,8 @@ from app.db.session import SessionLocal
 from app.main import app
 from app.services import user_api_key_service
 
+pytestmark = pytest.mark.audit_table_isolation
+
 
 @pytest.fixture(autouse=True)
 def _clear_login_rate_limits(settings) -> None:

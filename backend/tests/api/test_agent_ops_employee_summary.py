@@ -15,7 +15,10 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.models.agent_api_audit_log import AgentApiAuditLog
 
-pytestmark = pytest.mark.usefixtures("db_session")
+pytestmark = [
+    pytest.mark.usefixtures("db_session"),
+    pytest.mark.audit_table_isolation,
+]
 
 ENDPOINT = "/api/v1/agent-ops/employee-summary"
 

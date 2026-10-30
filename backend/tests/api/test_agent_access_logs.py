@@ -15,6 +15,8 @@ from app.main import app
 from app.models.agent_api_audit_log import AgentApiAuditLog
 from app.models.project import Project
 
+pytestmark = pytest.mark.audit_table_isolation
+
 
 @pytest.fixture
 def client() -> TestClient:

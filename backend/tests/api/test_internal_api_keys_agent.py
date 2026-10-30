@@ -13,6 +13,8 @@ from app.db.session import SessionLocal
 from app.main import app
 from app.models.agent_api_key import AgentApiKey
 
+pytestmark = pytest.mark.audit_table_isolation
+
 
 @pytest.fixture
 def client() -> TestClient:

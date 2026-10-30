@@ -13,6 +13,8 @@ from app.db.session import SessionLocal
 from app.main import app
 from app.models import OperationAuditLog
 
+pytestmark = pytest.mark.audit_table_isolation
+
 
 @pytest.fixture
 def client() -> TestClient:

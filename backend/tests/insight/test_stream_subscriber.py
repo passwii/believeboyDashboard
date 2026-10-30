@@ -40,6 +40,14 @@ from app.services.insight.subscriber import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _fast_subscriber_timing(monkeypatch):
+    from app.services.insight import subscriber as subscriber_module
+
+    monkeypatch.setattr(subscriber_module, "_READ_BLOCK_MS", 20)
+    monkeypatch.setattr(subscriber_module, "_DB_POLL_SECONDS", 0.01)
+
+
 @pytest_asyncio.fixture
 async def fake_redis():
     redis = fakeredis.aioredis.FakeRedis()

@@ -113,7 +113,7 @@ def test_timeout_logs_stage_chat_completion_and_model(
     )
 
     def _slow_chat(*args, **kwargs):
-        time.sleep(2.0)
+        time.sleep(0.2)
         return "should not reach here"
 
     monkeypatch.setattr(
