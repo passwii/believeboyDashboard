@@ -93,3 +93,35 @@ func TestUpdateAPIBaseURLRejectsInvalidURLWithoutWriting(t *testing.T) {
 		t.Errorf("invalid update changed config:\n%s", got)
 	}
 }
+
+func TestAPIOrigin(t *testing.T) {
+	tests := []struct {
+		name    string
+		raw     string
+		want    string
+		wantErr bool
+	}{
+		{name: "default port", raw: "http://127.0.0.1:80/control", want: "http://127.0.0.1"},
+		{name: "https default port and case", raw: "https://Gateway.Example.Test:443/api/", want: "https://gateway.example.test"},
+		{name: "custom port", raw: "https://gateway.example.test:8443/api", want: "https://gateway.example.test:8443"},
+		{name: "ipv6", raw: "http://[::1]:8200/api", want: "http://[::1]:8200"},
+		{name: "invalid", raw: "file:///tmp/gateway", wantErr: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := APIOrigin(test.raw)
+			if test.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != test.want {
+				t.Errorf("APIOrigin(%q) = %q, want %q", test.raw, got, test.want)
+			}
+		})
+	}
+}

@@ -86,6 +86,63 @@ func TestSessionStoreClearRemovesSecrets(t *testing.T) {
 	}
 }
 
+func TestSessionStoreLoadForGatewayAcceptsOnlyMatchingCredentials(t *testing.T) {
+	t.Run("matching", func(t *testing.T) {
+		secrets := newMemorySecrets()
+		store := NewStore(NewKeychain(secrets), fixedClock{})
+		if err := store.Save(context.Background(), Session{
+			UserID:        "42",
+			SessionID:     "session-1",
+			Email:         "yawei@example.com",
+			Name:          "yawei",
+			GatewayOrigin: "https://gateway.example.test",
+		}, "secret-api-key"); err != nil {
+			t.Fatal(err)
+		}
+
+		session, apiKey, err := store.LoadForGateway(context.Background(), "https://gateway.example.test")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if session.UserID != "42" || apiKey != "secret-api-key" {
+			t.Errorf("session = %#v key=%q", session, apiKey)
+		}
+	})
+
+	for _, test := range []struct {
+		name          string
+		gatewayOrigin string
+	}{
+		{name: "different origin", gatewayOrigin: "https://old.example.test"},
+		{name: "legacy unbound session", gatewayOrigin: ""},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			secrets := newMemorySecrets()
+			store := NewStore(NewKeychain(secrets), fixedClock{})
+			if err := store.Save(context.Background(), Session{
+				UserID:        "42",
+				SessionID:     "session-1",
+				Email:         "yawei@example.com",
+				Name:          "yawei",
+				GatewayOrigin: test.gatewayOrigin,
+			}, "secret-api-key"); err != nil {
+				t.Fatal(err)
+			}
+
+			_, _, err := store.LoadForGateway(context.Background(), "https://new.example.test")
+			if !errors.Is(err, ErrGatewayMismatch) {
+				t.Fatalf("LoadForGateway() error = %v, want ErrGatewayMismatch", err)
+			}
+			if len(secrets.values) != 0 {
+				t.Errorf("mismatched credentials were not cleared: %#v", secrets.values)
+			}
+			if _, _, err := store.Load(context.Background()); !errors.Is(err, ErrNoSession) {
+				t.Errorf("Load() after mismatch = %v, want ErrNoSession", err)
+			}
+		})
+	}
+}
+
 func TestSessionStoreRejectsIncompleteOrCorruptSession(t *testing.T) {
 	t.Run("missing", func(t *testing.T) {
 		store := NewStore(NewKeychain(newMemorySecrets()), fixedClock{})

@@ -8,7 +8,7 @@ import (
 
 func TestGatewayConnectionProbesPublicHealthEndpointWithoutCredentials(t *testing.T) {
 	httpClient := stubHTTPClient{fn: func(req *http.Request) (*http.Response, error) {
-		if req.Method != http.MethodGet || req.URL.String() != "https://gateway.example.test/api/v1/health" {
+		if req.Method != http.MethodGet || req.URL.String() != "https://gateway.example.test/api/v1/health/live" {
 			t.Errorf("request = %s %s", req.Method, req.URL)
 		}
 		if got := req.Header.Get("X-API-Key"); got != "" {
@@ -16,11 +16,7 @@ func TestGatewayConnectionProbesPublicHealthEndpointWithoutCredentials(t *testin
 		}
 		return jsonResponse(http.StatusOK, `{
 			"status":"ok",
-			"timestamp":1,
-			"database":"ok",
-			"database_replica":"ok",
-			"redis":"ok",
-			"version":"1.2.3"
+			"timestamp":1
 		}`), nil
 	}}
 
@@ -35,7 +31,7 @@ func TestGatewayConnectionProbesPublicHealthEndpointWithoutCredentials(t *testin
 	if info.BaseURL != "https://gateway.example.test" {
 		t.Errorf("BaseURL = %q", info.BaseURL)
 	}
-	if info.Status != "ok" || info.Version != "1.2.3" {
+	if info.Status != "ok" || info.Version != "" {
 		t.Errorf("connection info = %#v", info)
 	}
 }

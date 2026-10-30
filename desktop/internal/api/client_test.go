@@ -65,8 +65,39 @@ func TestLoginSendsClientIDAndPersistsReturnedSession(t *testing.T) {
 	}
 	if apiKey != "secret-api-key" || session.UserID != "42" ||
 		session.SessionID != "session-1" || !session.IsAdmin ||
-		session.DisplayName() != "纪亚伟" {
+		session.DisplayName() != "纪亚伟" ||
+		session.GatewayOrigin != "http://gateway.test" {
 		t.Errorf("persisted session = %#v, api key = %q", session, apiKey)
+	}
+}
+
+func TestAuthenticatedRequestRejectsCredentialsBoundToAnotherGateway(t *testing.T) {
+	sessions := newTestSessionStore()
+	if err := sessions.Save(context.Background(), auth.Session{
+		UserID:        "42",
+		Email:         "yawei@example.com",
+		Name:          "yawei",
+		SessionID:     "session-1",
+		GatewayOrigin: "https://old.example.test",
+	}, "old-key"); err != nil {
+		t.Fatal(err)
+	}
+	called := false
+	client := newTestClient(t, stubHTTPClient{fn: func(req *http.Request) (*http.Response, error) {
+		called = true
+		t.Errorf("new gateway received request with headers: %v", req.Header)
+		return nil, nil
+	}}, sessions)
+
+	err := client.Get(context.Background(), "/api/v1/health", &HealthResponse{})
+	if !errors.Is(err, ErrSessionUnavailable) {
+		t.Fatalf("error = %v, want ErrSessionUnavailable", err)
+	}
+	if called {
+		t.Fatal("credentials were sent to the new gateway")
+	}
+	if _, _, err := sessions.Load(context.Background()); !errors.Is(err, auth.ErrNoSession) {
+		t.Errorf("mismatched credentials were not cleared: %v", err)
 	}
 }
 
@@ -86,13 +117,14 @@ func TestAuthenticatedRequestCarriesPlanHeaders(t *testing.T) {
 			sessions := newTestSessionStore()
 			fullName := "纪亚伟"
 			if err := sessions.Save(context.Background(), auth.Session{
-				UserID:    "42",
-				Email:     "yawei+test@example.com",
-				Name:      "yawei",
-				FullName:  &fullName,
-				RoleType:  "operator",
-				SessionID: "session-1",
-				IsAdmin:   isAdmin,
+				UserID:        "42",
+				Email:         "yawei+test@example.com",
+				Name:          "yawei",
+				FullName:      &fullName,
+				RoleType:      "operator",
+				SessionID:     "session-1",
+				IsAdmin:       isAdmin,
+				GatewayOrigin: "http://gateway.test",
 			}, "secret-api-key"); err != nil {
 				t.Fatal(err)
 			}
@@ -387,12 +419,13 @@ func saveTestSession(t *testing.T, store *auth.Store) {
 	t.Helper()
 	fullName := "纪亚伟"
 	err := store.Save(context.Background(), auth.Session{
-		UserID:    "42",
-		Email:     "yawei@example.com",
-		Name:      "yawei",
-		FullName:  &fullName,
-		RoleType:  "operator",
-		SessionID: "session-1",
+		UserID:        "42",
+		Email:         "yawei@example.com",
+		Name:          "yawei",
+		FullName:      &fullName,
+		RoleType:      "operator",
+		SessionID:     "session-1",
+		GatewayOrigin: "http://gateway.test",
 	}, "secret-api-key")
 	if err != nil {
 		t.Fatal(err)
