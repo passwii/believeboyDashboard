@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
-import fcntl
 import logging
 import os
+import tempfile
+
+try:  # POSIX
+    import fcntl
+except ImportError:  # pragma: no cover - Windows dev boxes
+    fcntl = None  # type: ignore[assignment]
+    import msvcrt
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +18,12 @@ _scheduler: "BackgroundScheduler" | None = None
 _scheduler_lock_fd: int | None = None
 
 _SCHEDULER_LOCK_PATH = "/tmp/believeboy-scheduler.lock"
+
+
+if os.name == "nt":  # Windows has no /tmp; keep the lock in the OS temp dir
+    _SCHEDULER_LOCK_PATH = os.path.join(
+        tempfile.gettempdir(), os.path.basename(_SCHEDULER_LOCK_PATH)
+    )
 
 
 def _try_acquire_lock() -> bool:
@@ -23,7 +35,10 @@ def _try_acquire_lock() -> bool:
     global _scheduler_lock_fd
     fd = os.open(_SCHEDULER_LOCK_PATH, os.O_CREAT | os.O_RDWR, 0o644)
     try:
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if fcntl is not None:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        else:
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
     except OSError:
         os.close(fd)
         return False
