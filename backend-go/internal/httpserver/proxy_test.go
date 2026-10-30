@@ -141,6 +141,43 @@ func TestProxyFallbackRejectsMasterKeyWithoutTrustedProxySecret(t *testing.T) {
 	}
 }
 
+func TestProxyFallbackRejectsRepeatedAPIKeyMasterWithoutTrustedProxySecret(t *testing.T) {
+	var upstreamHit atomic.Bool
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		upstreamHit.Store(true)
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(upstream.Close)
+
+	gateway := newTestGateway(t, upstream.URL)
+	req, err := http.NewRequest(
+		http.MethodGet,
+		gateway.URL+"/api/v1/projects/manage?api_key=decoy&api_key=test-api-key",
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("http.NewRequest() error = %v", err)
+	}
+	req.Header.Set("X-User-Id", "victim-user")
+
+	resp, err := gateway.Client().Do(req)
+	if err != nil {
+		t.Fatalf("gateway request error = %v", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read response body: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403; body = %s", resp.StatusCode, body)
+	}
+	if upstreamHit.Load() {
+		t.Fatal("FastAPI fallback was reached with a repeated master key")
+	}
+}
+
 func TestProxyFallbackAllowsMasterKeyWithTrustedProxySecretAndStripsIt(t *testing.T) {
 	receivedHeader := make(chan http.Header, 1)
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

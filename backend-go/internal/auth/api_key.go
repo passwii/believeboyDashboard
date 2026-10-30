@@ -120,8 +120,10 @@ func apiKeyCandidates(r *http.Request) []string {
 	if key := r.Header.Get("X-API-Key"); key != "" {
 		candidates = append(candidates, key)
 	}
-	if key := r.URL.Query().Get("api_key"); key != "" {
-		candidates = append(candidates, key)
+	for _, key := range r.URL.Query()["api_key"] {
+		if key != "" {
+			candidates = append(candidates, key)
+		}
 	}
 
 	return candidates
