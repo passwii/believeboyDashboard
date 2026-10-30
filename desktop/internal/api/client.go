@@ -117,6 +117,7 @@ func NewClient(config ClientConfig) (*Client, error) {
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: defaultHTTPTimeout}
 	}
+	httpClient = protectRedirects(httpClient)
 
 	return &Client{
 		baseURL:  baseURL,
@@ -125,6 +126,60 @@ func NewClient(config ClientConfig) (*Client, error) {
 		http:     httpClient,
 		sessions: config.Sessions,
 	}, nil
+}
+
+// protectRedirects prevents the standard HTTP client from forwarding
+// credential-bearing headers or request bodies to another origin. The
+// desktop client only talks to one configured Gateway, so cross-origin
+// redirects are treated as an error rather than followed.
+func protectRedirects(httpClient HTTPClient) HTTPClient {
+	standard, ok := httpClient.(*http.Client)
+	if !ok {
+		return httpClient
+	}
+	clone := *standard
+	existing := clone.CheckRedirect
+	clone.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if err := enforceGatewayRedirect(req, via); err != nil {
+			return err
+		}
+		if len(via) >= 10 {
+			return errors.New("api: stopped after 10 redirects")
+		}
+		if existing != nil {
+			return existing(req, via)
+		}
+		return nil
+	}
+	return &clone
+}
+
+func enforceGatewayRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) == 0 {
+		return nil
+	}
+	if req == nil || req.URL == nil || req.URL.User != nil {
+		return http.ErrUseLastResponse
+	}
+	initial := via[0].URL
+	if initial == nil {
+		return http.ErrUseLastResponse
+	}
+	initialOrigin, err := configpkg.APIOrigin((&url.URL{
+		Scheme: initial.Scheme,
+		Host:   initial.Host,
+	}).String())
+	if err != nil {
+		return http.ErrUseLastResponse
+	}
+	nextOrigin, err := configpkg.APIOrigin((&url.URL{
+		Scheme: req.URL.Scheme,
+		Host:   req.URL.Host,
+	}).String())
+	if err != nil || nextOrigin != initialOrigin {
+		return http.ErrUseLastResponse
+	}
+	return nil
 }
 
 func (c *Client) Login(

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"reflect"
 	"strings"
 	"testing"
@@ -98,6 +99,117 @@ func TestAuthenticatedRequestRejectsCredentialsBoundToAnotherGateway(t *testing.
 	}
 	if _, _, err := sessions.Load(context.Background()); !errors.Is(err, auth.ErrNoSession) {
 		t.Errorf("mismatched credentials were not cleared: %v", err)
+	}
+}
+
+func TestGatewayRedirectPolicyRejectsCrossOriginAndDowngrade(t *testing.T) {
+	tests := []struct {
+		name    string
+		initial string
+		next    string
+		want    error
+	}{
+		{
+			name:    "same origin",
+			initial: "https://gateway.example.test/api/v1/health",
+			next:    "https://gateway.example.test/api/v1/health/live",
+		},
+		{
+			name:    "same origin default port",
+			initial: "https://gateway.example.test/api/v1/health",
+			next:    "https://gateway.example.test:443/other",
+		},
+		{
+			name:    "different host",
+			initial: "https://gateway.example.test/api/v1/health",
+			next:    "https://evil.example.test/capture",
+			want:    http.ErrUseLastResponse,
+		},
+		{
+			name:    "https downgrade",
+			initial: "https://gateway.example.test/api/v1/health",
+			next:    "http://gateway.example.test/capture",
+			want:    http.ErrUseLastResponse,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			initialURL, err := url.Parse(test.initial)
+			if err != nil {
+				t.Fatal(err)
+			}
+			nextURL, err := url.Parse(test.next)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = enforceGatewayRedirect(
+				&http.Request{URL: nextURL},
+				[]*http.Request{{URL: initialURL}},
+			)
+			if !errors.Is(err, test.want) {
+				t.Fatalf("redirect error = %v, want %v", err, test.want)
+			}
+		})
+	}
+}
+
+func TestAuthenticatedRedirectDoesNotForwardCredentialsToAnotherOrigin(t *testing.T) {
+	sessions := newTestSessionStore()
+	saveTestSession(t, sessions)
+	var calls []string
+	httpClient := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		calls = append(calls, req.URL.String())
+		response := jsonResponse(http.StatusFound, "")
+		response.Header.Set("Location", "https://evil.example.test/capture")
+		return response, nil
+	})}
+	client, err := NewClient(ClientConfig{
+		BaseURL:    "http://gateway.test",
+		ClientID:   "client-uuid",
+		HTTPClient: httpClient,
+		Sessions:   sessions,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = client.Get(context.Background(), "/api/v1/health", &HealthResponse{})
+	if !errors.Is(err, ErrUnexpectedStatus) {
+		t.Fatalf("error = %v, want ErrUnexpectedStatus", err)
+	}
+	if len(calls) != 1 || calls[0] != "http://gateway.test/api/v1/health" {
+		t.Fatalf("redirected requests = %q, want only the Gateway request", calls)
+	}
+}
+
+func TestLoginRedirectDoesNotForwardPasswordToAnotherOrigin(t *testing.T) {
+	sessions := newTestSessionStore()
+	var calls []string
+	httpClient := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		calls = append(calls, req.URL.String())
+		response := jsonResponse(http.StatusTemporaryRedirect, "")
+		response.Header.Set("Location", "https://evil.example.test/capture")
+		return response, nil
+	})}
+	client, err := NewClient(ClientConfig{
+		BaseURL:    "http://gateway.test",
+		ClientID:   "client-uuid",
+		HTTPClient: httpClient,
+		Sessions:   sessions,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = client.Login(context.Background(), "yawei@example.com", "password-value")
+	if err == nil {
+		t.Fatal("expected redirect to be rejected")
+	}
+	if len(calls) != 1 || calls[0] != "http://gateway.test/api/v1/auth/login" {
+		t.Fatalf("redirected requests = %q, want only the Gateway request", calls)
+	}
+	if _, _, err := sessions.Load(context.Background()); !errors.Is(err, auth.ErrNoSession) {
+		t.Fatalf("redirected login persisted a session: %v", err)
 	}
 }
 
@@ -464,6 +576,12 @@ func (s stubHTTPClient) Do(req *http.Request) (*http.Response, error) {
 		return nil, errors.New("unexpected HTTP request")
 	}
 	return s.fn(req)
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }
 
 type testClock struct{}
