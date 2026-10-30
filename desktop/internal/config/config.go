@@ -7,9 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 )
 
@@ -20,9 +22,11 @@ const (
 )
 
 var (
-	ErrInvalidConfig       = errors.New("config: invalid config")
-	ErrNoConfigDir         = errors.New("config: user config directory is unavailable")
-	canonicalUUIDv4Pattern = regexp.MustCompile(
+	ErrInvalidConfig               = errors.New("config: invalid config")
+	ErrNoConfigDir                 = errors.New("config: user config directory is unavailable")
+	ErrInvalidAPIBaseURL           = errors.New("config: invalid API base URL")
+	ErrUnsupportedAPIBaseURLScheme = errors.New("config: API base URL must use http or https")
+	canonicalUUIDv4Pattern         = regexp.MustCompile(
 		`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`,
 	)
 )
@@ -139,6 +143,15 @@ func (s *Store) loadLocked(ctx context.Context, path string) (Config, error) {
 	if cfg.APIBaseURL == "" {
 		cfg.APIBaseURL = DefaultAPIBaseURL
 		changed = true
+	} else {
+		normalized, normalizeErr := NormalizeAPIBaseURL(cfg.APIBaseURL)
+		if normalizeErr != nil {
+			return Config{}, fmt.Errorf("%w: %v", ErrInvalidConfig, normalizeErr)
+		}
+		if normalized != cfg.APIBaseURL {
+			cfg.APIBaseURL = normalized
+			changed = true
+		}
 	}
 	if changed {
 		if err := s.saveLocked(ctx, path, cfg); err != nil {
@@ -158,6 +171,11 @@ func (s *Store) Save(ctx context.Context, cfg Config) error {
 	if cfg.APIBaseURL == "" {
 		cfg.APIBaseURL = DefaultAPIBaseURL
 	}
+	normalized, err := NormalizeAPIBaseURL(cfg.APIBaseURL)
+	if err != nil {
+		return err
+	}
+	cfg.APIBaseURL = normalized
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -172,6 +190,41 @@ func (s *Store) Save(ctx context.Context, cfg Config) error {
 	}
 	defer unlock()
 	return s.saveLocked(ctx, path, cfg)
+}
+
+// UpdateAPIBaseURL validates and persists a new gateway address without
+// changing the device identity or the last known workspace route.
+func (s *Store) UpdateAPIBaseURL(ctx context.Context, raw string) (Config, error) {
+	if err := ctx.Err(); err != nil {
+		return Config{}, err
+	}
+	normalized, err := NormalizeAPIBaseURL(raw)
+	if err != nil {
+		return Config{}, err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	path, err := s.path()
+	if err != nil {
+		return Config{}, err
+	}
+	unlock, err := s.acquireLock(ctx, path)
+	if err != nil {
+		return Config{}, err
+	}
+	defer unlock()
+
+	cfg, err := s.loadLocked(ctx, path)
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.APIBaseURL = normalized
+	if err := s.saveLocked(ctx, path, cfg); err != nil {
+		return Config{}, err
+	}
+	return cfg, nil
 }
 
 func (s *Store) UpdateLastRoute(ctx context.Context, route string) (Config, error) {
@@ -359,6 +412,33 @@ func newClientID() (string, error) {
 		id[8:10],
 		id[10:16],
 	), nil
+}
+
+// NormalizeAPIBaseURL accepts only HTTP(S) gateway roots, strips surrounding
+// whitespace and trailing slashes, and rejects URL components that would make
+// request construction ambiguous.
+func NormalizeAPIBaseURL(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", fmt.Errorf("%w: address is required", ErrInvalidAPIBaseURL)
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return "", fmt.Errorf("%w: %v", ErrInvalidAPIBaseURL, err)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return "", fmt.Errorf("%w: %q", ErrUnsupportedAPIBaseURLScheme, parsed.Scheme)
+	}
+	if parsed.Opaque != "" || parsed.Hostname() == "" {
+		return "", fmt.Errorf("%w: host is required", ErrInvalidAPIBaseURL)
+	}
+	if parsed.User != nil {
+		return "", fmt.Errorf("%w: credentials are not allowed", ErrInvalidAPIBaseURL)
+	}
+	if parsed.RawQuery != "" || parsed.Fragment != "" {
+		return "", fmt.Errorf("%w: query and fragment are not allowed", ErrInvalidAPIBaseURL)
+	}
+	return strings.TrimRight(parsed.String(), "/"), nil
 }
 
 type osDirProvider struct{}

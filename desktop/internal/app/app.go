@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 	"github.com/passwii/believeboyDashboard/desktop/internal/api"
 	"github.com/passwii/believeboyDashboard/desktop/internal/auth"
 	"github.com/passwii/believeboyDashboard/desktop/internal/components"
+	"github.com/passwii/believeboyDashboard/desktop/internal/config"
 	"github.com/passwii/believeboyDashboard/desktop/internal/design"
 	"github.com/passwii/believeboyDashboard/desktop/internal/pages"
 )
@@ -36,6 +38,13 @@ type Options struct {
 	Logout         func(context.Context) error
 	Quit           func()
 	VerifySession  func(context.Context) (api.MeResponse, error)
+	InitialConfig  config.Config
+	SaveAPIBaseURL func(context.Context, string) (config.Config, error)
+	TestGateway    pages.TestGatewayFunc
+	SaveLastRoute  func(context.Context, string) error
+
+	// RoutePersistDelay is injectable for deterministic debounce tests.
+	RoutePersistDelay time.Duration
 }
 
 // App owns router-level state and keeps all model updates on the UI thread.
@@ -53,6 +62,11 @@ type App struct {
 	quit           func()
 	update         func(func())
 	verifySession  func(context.Context) (api.MeResponse, error)
+	config         config.Config
+	runtimeBaseURL string
+	saveAPIBaseURL func(context.Context, string) (config.Config, error)
+	testGateway    pages.TestGatewayFunc
+	routes         *routeTracker
 	refreshStarted bool
 	refreshCancel  context.CancelFunc
 	authGeneration uint64
@@ -61,6 +75,7 @@ type App struct {
 	loginPage      *pages.LoginPage
 	homePage       *pages.HomePage
 	projectsPage   *pages.ProjectsPage
+	settingsPage   *pages.SettingsPage
 	logoutError    string
 	inspectorOpen  bool
 	mainPaneWidth  float32
@@ -80,20 +95,26 @@ func New(options Options) *App {
 	router.Transition = ui.TransitionAuto
 	router.Animation = &ui.Snappy
 	a := &App{
-		router:        router,
-		sessions:      options.Sessions,
-		login:         options.Login,
-		homeLoader:    options.HomeLoader,
-		projectLoader: options.ProjectLoader,
-		logout:        options.Logout,
-		quit:          options.Quit,
-		verifySession: options.VerifySession,
-		apiKey:        options.InitialAPIKey,
-		mainPaneWidth: design.DefaultMainPaneWidth,
+		router:         router,
+		sessions:       options.Sessions,
+		login:          options.Login,
+		homeLoader:     options.HomeLoader,
+		projectLoader:  options.ProjectLoader,
+		logout:         options.Logout,
+		quit:           options.Quit,
+		verifySession:  options.VerifySession,
+		apiKey:         options.InitialAPIKey,
+		mainPaneWidth:  design.DefaultMainPaneWidth,
+		config:         options.InitialConfig,
+		runtimeBaseURL: options.InitialConfig.APIBaseURL,
+		saveAPIBaseURL: options.SaveAPIBaseURL,
+		testGateway:    options.TestGateway,
+		routes:         newRouteTracker(options.SaveLastRoute, options.RoutePersistDelay),
 	}
 	if options.InitialSession != nil {
 		a.setSession(*options.InitialSession)
 	}
+	a.routes.Seed(router.Path())
 	return a
 }
 
@@ -279,11 +300,14 @@ func (a *App) resetHistory(route string) {
 	login := a.loginPage
 	home := a.homePage
 	projects := a.projectsPage
+	settings := a.settingsPage
 	a.loginPage = nil
 	a.homePage = nil
 	a.projectsPage = nil
+	a.settingsPage = nil
 	a.router = ui.NewRouter(route)
 	a.mu.Unlock()
+	a.routes.Reset(route, isWorkspaceRoute(route))
 	if login != nil {
 		login.Close()
 	}
@@ -292,6 +316,9 @@ func (a *App) resetHistory(route string) {
 	}
 	if projects != nil {
 		projects.Close()
+	}
+	if settings != nil {
+		settings.Close()
 	}
 }
 
@@ -306,8 +333,13 @@ func (a *App) Close() {
 	login := a.loginPage
 	home := a.homePage
 	projects := a.projectsPage
+	settings := a.settingsPage
+	routes := a.routes
 	a.mu.Unlock()
 	a.authStoreMu.Unlock()
+	if routes != nil {
+		routes.Close()
+	}
 	if login != nil {
 		login.Close()
 	}
@@ -316,6 +348,9 @@ func (a *App) Close() {
 	}
 	if projects != nil {
 		projects.Close()
+	}
+	if settings != nil {
+		settings.Close()
 	}
 }
 
@@ -330,6 +365,7 @@ func (a *App) View(c *ui.Context) {
 			a.resetHistory(HomeRoute)
 			router = a.Router()
 		}
+		a.routes.Observe(router.Path())
 		a.workspaceView(c, router)
 	} else {
 		a.loginView(c)
@@ -344,6 +380,7 @@ func (a *App) workspaceView(c *ui.Context, router *ui.Router) {
 	var (
 		homePage        *pages.HomePage
 		projectsPage    *pages.ProjectsPage
+		settingsPage    *pages.SettingsPage
 		projectChoices  []components.ProjectChoice
 		selectedProject int
 		onProjectChange func(int)
@@ -373,8 +410,11 @@ func (a *App) workspaceView(c *ui.Context, router *ui.Router) {
 		}
 	case SettingsRoute:
 		activeID, title, breadcrumb, projectName = "settings", "系统设置", "工作台 / 系统设置", "全部项目"
-		placeholder = pages.PlaceholderOptions{ActiveID: activeID, Title: title, Breadcrumb: breadcrumb, Description: "系统设置"}
-		inspector = func(c *ui.Context) { pages.PlaceholderInspectorContent(c, placeholder) }
+		settingsPage = a.settingsPageModel()
+		if settingsPage != nil {
+			settingsPage.Prepare(c)
+			inspector = settingsPage.Inspector
+		}
 	case OperationsRoute:
 		activeID, title, breadcrumb, projectName = "operations", "运营", "工作台 / 运营", "全部项目"
 		placeholder = pages.PlaceholderOptions{ActiveID: activeID, Title: title, Breadcrumb: breadcrumb, Description: "运营分析"}
@@ -424,7 +464,7 @@ func (a *App) workspaceView(c *ui.Context, router *ui.Router) {
 					a.projectsView(c)
 				case route.Match(SettingsRoute):
 					route.Title("系统设置")
-					a.placeholderView(c, "settings", "系统设置", "工作台 / 系统设置", "系统设置")
+					a.settingsView(c)
 				case route.Match(OperationsRoute):
 					route.Title("运营")
 					a.placeholderView(c, "operations", "运营", "工作台 / 运营", "运营分析")
@@ -601,6 +641,63 @@ func (a *App) projectsPageModel() *pages.ProjectsPage {
 
 func (a *App) projectsView(c *ui.Context) {
 	if page := a.projectsPageModel(); page != nil {
+		page.Content(c)
+	}
+}
+
+func (a *App) settingsPageModel() *pages.SettingsPage {
+	a.mu.RLock()
+	page := a.settingsPage
+	saveGateway := a.saveAPIBaseURL
+	testGateway := a.testGateway
+	update := a.update
+	runtimeURL := a.runtimeBaseURL
+	currentURL := a.config.APIBaseURL
+	closed := a.closed
+	a.mu.RUnlock()
+	if page != nil || closed {
+		return page
+	}
+	candidate := pages.NewSettingsPage(pages.SettingsOptions{
+		RuntimeURL: runtimeURL,
+		CurrentURL: currentURL,
+		SaveGateway: func(ctx context.Context, rawURL string) (string, error) {
+			if saveGateway == nil {
+				return "", errors.New("gateway persistence unavailable")
+			}
+			updated, err := saveGateway(ctx, rawURL)
+			if err != nil {
+				return "", err
+			}
+			a.mu.Lock()
+			a.config.APIBaseURL = updated.APIBaseURL
+			a.mu.Unlock()
+			return updated.APIBaseURL, nil
+		},
+		TestGateway: testGateway,
+		Update:      update,
+	})
+	a.mu.Lock()
+	if a.closed {
+		a.mu.Unlock()
+		candidate.Close()
+		return nil
+	}
+	if a.settingsPage == nil {
+		a.settingsPage = candidate
+		page = candidate
+	} else {
+		page = a.settingsPage
+	}
+	a.mu.Unlock()
+	if page != candidate {
+		candidate.Close()
+	}
+	return page
+}
+
+func (a *App) settingsView(c *ui.Context) {
+	if page := a.settingsPageModel(); page != nil {
 		page.Content(c)
 	}
 }

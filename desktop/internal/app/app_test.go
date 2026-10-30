@@ -11,6 +11,7 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/passwii/believeboyDashboard/desktop/internal/api"
 	"github.com/passwii/believeboyDashboard/desktop/internal/auth"
+	"github.com/passwii/believeboyDashboard/desktop/internal/config"
 	"github.com/passwii/believeboyDashboard/desktop/internal/pages"
 )
 
@@ -118,6 +119,16 @@ func newAppHarnessAuth(
 	verify func(context.Context) (api.MeResponse, error),
 	configure func(*testSessions),
 ) *appHarness {
+	return newAppHarnessWithOptions(t, session, verify, configure, nil)
+}
+
+func newAppHarnessWithOptions(
+	t *testing.T,
+	session *auth.Session,
+	verify func(context.Context) (api.MeResponse, error),
+	configure func(*testSessions),
+	configureApp func(*Options),
+) *appHarness {
 	t.Helper()
 	router := ui.NewRouter("/login")
 	if session != nil {
@@ -148,7 +159,7 @@ func newAppHarnessAuth(
 		}, nil
 	}
 	h.loginFn = loginFn
-	h.app = New(Options{
+	options := Options{
 		Router:         router,
 		Sessions:       sessions,
 		InitialSession: initial,
@@ -159,7 +170,24 @@ func newAppHarnessAuth(
 		Logout:         sessions.Clear,
 		Quit:           func() {},
 		VerifySession:  verify,
-	})
+		InitialConfig: config.Config{
+			ClientID:   "039f5f62-7e79-4de0-aae8-8fb29bbf2f9b",
+			APIBaseURL: "http://gateway.test",
+		},
+		SaveAPIBaseURL: func(_ context.Context, rawURL string) (config.Config, error) {
+			return config.Config{
+				ClientID:   "039f5f62-7e79-4de0-aae8-8fb29bbf2f9b",
+				APIBaseURL: rawURL,
+			}, nil
+		},
+		TestGateway: func(context.Context, string) (api.ConnectionInfo, error) {
+			return api.ConnectionInfo{Status: "ok", Version: "test"}, nil
+		},
+	}
+	if configureApp != nil {
+		configureApp(&options)
+	}
+	h.app = New(options)
 	h.app.SetUpdate(func(fn func()) { h.mainWork <- fn })
 	h.tt = ui.NewTester(func(c *ui.Context) {
 		h.context = c
@@ -290,7 +318,7 @@ func TestAppLoginEstablishesSessionBeforeNavigatingHome(t *testing.T) {
 	}
 }
 
-func TestAppNavigatesToNativeSettingsPlaceholder(t *testing.T) {
+func TestAppNavigatesToNativeGatewaySettings(t *testing.T) {
 	h := newAppHarness(t, testSession())
 	h.waitFor(t, func() bool { return h.tt.HasText("工作台概览") })
 	if err := h.tt.Click("系统设置"); err != nil {
@@ -300,14 +328,15 @@ func TestAppNavigatesToNativeSettingsPlaceholder(t *testing.T) {
 	if h.currentRouter().Path() != "/settings" {
 		t.Fatalf("route = %q, want /settings", h.currentRouter().Path())
 	}
-	if !h.tt.HasText("暂未开放") || !h.tt.HasText("系统设置") {
-		t.Fatalf("placeholder missing: %q", h.tt.Texts())
+	if !h.tt.HasText("Gateway 设置") || !h.tt.HasText("当前运行 Gateway") ||
+		!h.tt.HasText("http://gateway.test") {
+		t.Fatalf("settings page missing: %q", h.tt.Texts())
 	}
 	if !h.tt.Focused("系统设置") {
 		t.Error("navigation did not keep focus on the selected sidebar item")
 	}
 	if opened := h.tt.OpenedURLs(); len(opened) != 0 {
-		t.Errorf("placeholder opened web URLs: %q", opened)
+		t.Errorf("settings page opened web URLs: %q", opened)
 	}
 }
 
@@ -321,7 +350,7 @@ func TestAppKeepsWorkspaceChromeStableDuringRouteTransition(t *testing.T) {
 	if h.currentRouter().Path() != SettingsRoute {
 		t.Fatalf("route = %q, want %q", h.currentRouter().Path(), SettingsRoute)
 	}
-	if !h.tt.HasText("暂未开放") {
+	if !h.tt.HasText("Gateway 设置") {
 		t.Fatalf("settings content missing during route transition: %q", h.tt.Texts())
 	}
 	h.tt.Advance(75 * time.Millisecond)
@@ -405,6 +434,70 @@ func TestAppHistoryUsesPushAndSupportsBackForward(t *testing.T) {
 	h.tt.Frame()
 	if h.currentRouter().Path() != "/reports" || !h.tt.HasText("报表") {
 		t.Fatalf("forward route = %q texts=%q", h.currentRouter().Path(), h.tt.Texts())
+	}
+}
+
+func TestAppPersistsOnlyLatestDebouncedWorkspaceRoute(t *testing.T) {
+	saved := make(chan string, 4)
+	h := newAppHarnessWithOptions(t, testSession(), nil, nil, func(options *Options) {
+		options.RoutePersistDelay = 500 * time.Millisecond
+		options.SaveLastRoute = func(_ context.Context, route string) error {
+			saved <- route
+			return nil
+		}
+	})
+	h.waitFor(t, func() bool { return h.tt.HasText("工作台概览") })
+
+	if err := h.tt.Click("系统设置"); err != nil {
+		t.Fatal(err)
+	}
+	h.tt.Frame()
+	if err := h.tt.Click("报表中心"); err != nil {
+		t.Fatal(err)
+	}
+	h.tt.Frame()
+
+	select {
+	case route := <-saved:
+		if route != ReportsRoute {
+			t.Fatalf("persisted route = %q, want %q", route, ReportsRoute)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("navigation was not persisted")
+	}
+	select {
+	case route := <-saved:
+		t.Fatalf("stale route was persisted: %q", route)
+	case <-time.After(60 * time.Millisecond):
+	}
+}
+
+func TestAppRoutePersistenceFailureDoesNotBlockNavigation(t *testing.T) {
+	attempted := make(chan struct{}, 1)
+	h := newAppHarnessWithOptions(t, testSession(), nil, nil, func(options *Options) {
+		options.RoutePersistDelay = 20 * time.Millisecond
+		options.SaveLastRoute = func(context.Context, string) error {
+			attempted <- struct{}{}
+			return errors.New("disk unavailable")
+		}
+	})
+	h.waitFor(t, func() bool { return h.tt.HasText("工作台概览") })
+
+	if err := h.tt.Click("系统设置"); err != nil {
+		t.Fatal(err)
+	}
+	h.tt.Frame()
+	if h.currentRouter().Path() != SettingsRoute || !h.tt.HasText("Gateway 设置") {
+		t.Fatalf("navigation was blocked: route=%q texts=%q", h.currentRouter().Path(), h.tt.Texts())
+	}
+	select {
+	case <-attempted:
+	case <-time.After(time.Second):
+		t.Fatal("route persistence was not attempted")
+	}
+	h.tt.Frame()
+	if h.currentRouter().Path() != SettingsRoute || !h.tt.HasText("Gateway 设置") {
+		t.Fatalf("route write failure changed the UI: route=%q texts=%q", h.currentRouter().Path(), h.tt.Texts())
 	}
 }
 

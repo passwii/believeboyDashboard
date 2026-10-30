@@ -56,6 +56,7 @@ func TestMyGoConfiguration(t *testing.T) {
 	var config struct {
 		Name       string `json:"name"`
 		Identifier string `json:"identifier"`
+		Version    string `json:"version"`
 		MacOS      struct {
 			MinimumSystemVersion string `json:"minimumSystemVersion"`
 		} `json:"macos"`
@@ -69,6 +70,9 @@ func TestMyGoConfiguration(t *testing.T) {
 	}
 	if config.Identifier != "com.passwii.dashboard.desktop" {
 		t.Errorf("identifier = %q", config.Identifier)
+	}
+	if config.Version != "0.2.0" {
+		t.Errorf("version = %q, want 0.2.0", config.Version)
 	}
 	if config.MacOS.MinimumSystemVersion != "13.0" {
 		t.Errorf("minimumSystemVersion = %q", config.MacOS.MinimumSystemVersion)
@@ -87,6 +91,18 @@ func TestMyGoConfiguration(t *testing.T) {
 	} {
 		if _, ok := rawConfig[key]; ok {
 			t.Errorf("mygo.json contains frontend key %q", key)
+		}
+	}
+}
+
+func TestDesktopReleaseNoteExists(t *testing.T) {
+	note, err := os.ReadFile("RELEASE_NOTES.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"0.2.0", "Gateway", "LastRoute"} {
+		if !strings.Contains(string(note), want) {
+			t.Errorf("release note does not mention %q", want)
 		}
 	}
 }

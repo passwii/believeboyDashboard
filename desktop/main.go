@@ -96,7 +96,8 @@ func main() {
 // bootstrap loads non-secret config, creates the real gateway client, and
 // decides the initial route. A missing saved Keychain session stays on login.
 func bootstrap(ctx context.Context) (*desktopRuntime, error) {
-	cfg, err := config.NewStore().Load(ctx)
+	store := config.NewStore()
+	cfg, err := store.Load(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -109,14 +110,13 @@ func bootstrap(ctx context.Context) (*desktopRuntime, error) {
 	}
 	saved, savedAPIKey, savedErr := sessions.Load(ctx)
 	var initial *auth.Session
-	route := app.LoginRoute
 	if savedErr == nil {
 		copy := saved
 		initial = &copy
-		route = pages.HomeRoute
 	} else if !errors.Is(savedErr, auth.ErrNoSession) {
 		log.Printf("desktop session: %v", savedErr)
 	}
+	route := app.InitialRoute(cfg.LastRoute, savedErr == nil)
 
 	loader := app.GatewayLoader{Client: client}
 	desktopApp := app.New(app.Options{
@@ -130,6 +130,13 @@ func bootstrap(ctx context.Context) (*desktopRuntime, error) {
 		Logout:         client.Logout,
 		Quit:           mygo.App.Quit,
 		VerifySession:  client.AuthMe,
+		InitialConfig:  cfg,
+		SaveAPIBaseURL: store.UpdateAPIBaseURL,
+		TestGateway:    api.TestGatewayConnection,
+		SaveLastRoute: func(ctx context.Context, route string) error {
+			_, err := store.UpdateLastRoute(ctx, route)
+			return err
+		},
 	})
 	return &desktopRuntime{config: cfg, app: desktopApp}, nil
 }
