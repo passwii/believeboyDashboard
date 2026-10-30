@@ -64,7 +64,6 @@ jobs:
               - ".github/workflows/test-ci.yml"
             frontend:
               - "frontend/**"
-              - ".github/workflows/test-ci.yml"
 
   backend:
     name: backend pytest (${{ matrix.shard }})
