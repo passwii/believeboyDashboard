@@ -49,17 +49,23 @@ def _restore_external_state():
 
 
 @pytest.fixture(autouse=True)
-def _cleanup_agent_audit_tables():
-    """每次测试后清空 agent 审计相关表。
+def _cleanup_agent_audit_tables(request):
+    """Only audit-sensitive modules pay for table cleanup.
 
     Agent 命名空间中间件对每个请求写一条访问日志（``agent_api_audit_log``）；
-    写路由落 ``operation_audit_logs``（agent_id 归因行）。``test_agent_access_logs``
-    与 ``test_agent_operation_logs`` 都做**全局计数**断言且按字母序最先执行——
-    若共享测试库残留上一会话/同会话前置测试的 agent 行，断言会误失败。
-    在包级 autouse 清理，惠及所有 agent 测试（含 BLF-502 补货分析路由的 R6
-    confirm 写测试）。
+    写路由落 ``operation_audit_logs``（agent_id 归因行）。只有直接查询这两张表、
+    或依赖全局计数的模块需要每次测试前清空；其余约 4/5 的 API 用例不应为它们
+    承担额外 Session + DELETE + COMMIT。
     """
+    if request.node.get_closest_marker("audit_table_isolation") is None:
+        yield
+        return
+
+    _clear_agent_audit_tables()
     yield
+
+
+def _clear_agent_audit_tables() -> None:
     from sqlalchemy import delete
 
     from app.db.session import SessionLocal

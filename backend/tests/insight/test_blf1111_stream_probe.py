@@ -42,9 +42,10 @@ from app.schemas.insight import (
     InsightStatus,
     make_error,
 )
+from app.services.insight import subscriber as subscriber_module
 from app.services.insight.events import ErrorEvent
 from app.services.insight.stream_bus import EVENT_FIELD, stream_key
-from app.services.insight.subscriber import _DB_POLL_SECONDS, InsightStreamSubscriber
+from app.services.insight.subscriber import InsightStreamSubscriber
 
 #: 场景帧数 / 间隔：与 issue 里的探针一致（20 帧 @100ms ≈ 1.9s 发布跨度）。
 _FRAMES = 20
@@ -54,6 +55,12 @@ _INTERVAL = 0.1
 #: 所以这两个门槛既不会误报、也不会漏掉回归。
 _MAX_FIRST_FRAME_LAG = 0.3
 _MIN_ARRIVAL_SPAN = 1.5
+
+
+@pytest.fixture(autouse=True)
+def _fast_subscriber_timing(monkeypatch):
+    monkeypatch.setattr(subscriber_module, "_READ_BLOCK_MS", 20)
+    monkeypatch.setattr(subscriber_module, "_DB_POLL_SECONDS", 0.05)
 
 
 @pytest_asyncio.fixture
@@ -149,15 +156,16 @@ async def _measure(
 
 
 @pytest.mark.asyncio
-async def test_scenario_a_idle_silence_does_not_batch_frames(fake_redis: Any) -> None:
+async def test_scenario_a_idle_silence_does_not_batch_frames(
+    fake_redis: Any, monkeypatch
+) -> None:
     """场景 A：静默超过 DB 回读周期后逐帧发布 → 必须逐帧到达。
 
     修复前这里两个断言都挂：首帧要等下一次空闲唤醒（~2s+ 的节拍），20 帧在
     同一瞬间投完（到达跨度 0.0s）。
     """
-    arrivals, published_at = await _measure(
-        fake_redis, silence=_DB_POLL_SECONDS + 1.0
-    )
+    monkeypatch.setattr(subscriber_module, "_DB_POLL_SECONDS", 0.2)
+    arrivals, published_at = await _measure(fake_redis, silence=0.3)
 
     assert len(arrivals) == _FRAMES
     first_frame_lag = arrivals[0] - published_at

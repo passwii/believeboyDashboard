@@ -20,6 +20,7 @@ from __future__ import annotations
 import copy
 import fnmatch
 import json
+import threading
 import time
 import uuid
 from datetime import UTC, date, datetime, timedelta
@@ -427,24 +428,26 @@ def test_cold_start_single_flight_waits_for_winner(fake_redis):
 
     def _winner_compute() -> bytes:
         computed.append(b"winner")
-        # 模拟"先到者"在持锁期间回填快照
-        redis_service.store_daily_analysis_all_snapshot(key, b"winner-payload")
         return b"winner-payload"
 
     assert redis_service.try_acquire_daily_analysis_all_lock(key) is True
-    body = redis_service.load_or_compute_daily_analysis_all_body(key, _winner_compute)
-    assert body == (b"winner-payload", False)
-    assert len(computed) == 1
-    redis_service.release_daily_analysis_all_lock(key)
-
-    # 另一个 key：锁被占用且先到者始终没回填 → 等待超时后自行计算，不覆盖缓存
-    other_key = "bb:test:daily-all:snapshot:single-flight-2"
-    assert redis_service.try_acquire_daily_analysis_all_lock(other_key) is True
-    body_after = redis_service.load_or_compute_daily_analysis_all_body(
-        other_key, lambda: b"fallback"
+    # 模拟持锁的“先到者”并发回填；调用方应等到快照后直接复用。
+    winner = threading.Timer(
+        0.05,
+        redis_service.store_daily_analysis_all_snapshot,
+        args=(key, b"winner-payload"),
     )
-    assert body_after == (b"fallback", False)
-    redis_service.release_daily_analysis_all_lock(other_key)
+    winner.start()
+    try:
+        body = redis_service.load_or_compute_daily_analysis_all_body(
+            key, _winner_compute
+        )
+    finally:
+        winner.join()
+        redis_service.release_daily_analysis_all_lock(key)
+
+    assert body == (b"winner-payload", False)
+    assert computed == []
 
 
 def test_cold_start_wait_timeout_falls_back_to_compute(fake_redis, monkeypatch, env):

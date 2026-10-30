@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Iterator
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import make_url, text
 from sqlalchemy.orm import Session
 
 ROOT = Path(__file__).resolve().parents[1]  # backend/
@@ -51,6 +51,27 @@ def _load_env_test() -> None:
 
 
 _load_env_test()
+
+
+def _test_database_url_from_fallback(database_url: str | None) -> str | None:
+    """Promote ``DATABASE_URL`` only when it is explicitly the local BLF_test DB."""
+    if not database_url:
+        return None
+    try:
+        database = make_url(database_url).database
+    except Exception:  # noqa: BLE001 - malformed config must fail closed
+        return None
+    return database_url if (database or "").casefold() == "blf_test" else None
+
+
+# Older local .env.test files only define DATABASE_URL. Promote that value only
+# after checking the DB name; dev/prod URLs must continue to trigger the guard.
+if not os.environ.get("TEST_DATABASE_URL"):
+    fallback_test_url = _test_database_url_from_fallback(
+        os.environ.get("DATABASE_URL")
+    )
+    if fallback_test_url:
+        os.environ["TEST_DATABASE_URL"] = fallback_test_url
 
 # Known before importing app (engine is built from get_settings() at import).
 HAS_TEST_DATABASE = bool(os.environ.get("TEST_DATABASE_URL"))
@@ -141,22 +162,41 @@ def _auth_headers(settings, account: dict) -> dict:
     }
 
 
+@pytest.fixture(scope="session")
+def _seed_accounts() -> dict[str, dict]:
+    """Read the three seeded identities once per pytest session."""
+    _require_test_database()
+    from app.core.config import get_settings
+    from app.db.session import SessionLocal
+
+    settings = get_settings()
+    db = SessionLocal()
+    try:
+        return {
+            "admin": _fetch_account(db, settings.test_admin_email),
+            "operator": _fetch_account(db, settings.test_operator_email),
+            "businessdev": _fetch_account(db, settings.test_businessdev_email),
+        }
+    finally:
+        db.close()
+
+
 @pytest.fixture
-def test_admin(db_session, settings) -> dict:
+def test_admin(_seed_accounts) -> dict:
     """The seeded test admin account (is_admin=true)."""
-    return _fetch_account(db_session, settings.test_admin_email)
+    return dict(_seed_accounts["admin"])
 
 
 @pytest.fixture
-def test_operator(db_session, settings) -> dict:
+def test_operator(_seed_accounts) -> dict:
     """The seeded test operator account (role_type=operator)."""
-    return _fetch_account(db_session, settings.test_operator_email)
+    return dict(_seed_accounts["operator"])
 
 
 @pytest.fixture
-def test_businessdev(db_session, settings) -> dict:
+def test_businessdev(_seed_accounts) -> dict:
     """The seeded test businessdev account (role_type=businessdev)."""
-    return _fetch_account(db_session, settings.test_businessdev_email)
+    return dict(_seed_accounts["businessdev"])
 
 
 @pytest.fixture

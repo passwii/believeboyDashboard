@@ -188,7 +188,7 @@ def test_timeout_returns_fallback_and_does_not_raise(
     )
     monkeypatch.setattr(
         "app.services.ai.llm.generate_assistant_content",
-        lambda **kwargs: time.sleep(1.0) or "should not reach",
+        lambda **kwargs: time.sleep(0.2) or "should not reach",
     )
 
     result = generate_summary("weekly", _weekly_payload(), timeout_sec=0.05)

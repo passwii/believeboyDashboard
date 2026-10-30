@@ -300,8 +300,9 @@ esac
 exit 0
 """
 
-# 假 /proc 单核 100% = 每 0.1s 涨 10 ticks（CLK_TCK=100）
-TICKS_PER_INTERVAL = 10
+# 假 /proc 单核 100%：每 0.02s 涨 20 ticks（CLK_TCK=100）。
+TICKS_PER_INTERVAL = 20
+_CPU_BUMP_INTERVAL = 0.02
 
 
 def _write_fake_proc(proc_root: Path, pid: int, ticks: int, comm: str = "dockerd"):
@@ -346,7 +347,7 @@ def watchdog_env(tmp_path):
         "FAKE_RESTART_LOG": str(tmp_path / "restarts.log"),
         "FAKE_PID": str(pid),
         "CLK_TCK": "100",
-        "SAMPLE_SECONDS": "1",
+        "SAMPLE_SECONDS": "0.1",
     }
     return {
         "env": env,
@@ -393,7 +394,7 @@ def _cpu_growing(ctx) -> Iterator[None]:
         while not stop.is_set():
             ticks[0] += TICKS_PER_INTERVAL
             _write_fake_proc(ctx["proc_root"], ctx["pid"], ticks[0])
-            stop.wait(0.1)
+            stop.wait(_CPU_BUMP_INTERVAL)
 
     thread = threading.Thread(target=bump, daemon=True)
     thread.start()

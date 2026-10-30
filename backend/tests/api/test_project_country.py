@@ -14,6 +14,8 @@ from app.models.operation_audit_log import OperationAuditLog
 from app.models.project import Project
 from app.utils.country import get_country_label_cn
 
+pytestmark = pytest.mark.audit_table_isolation
+
 
 @pytest.fixture(scope="module")
 def client():

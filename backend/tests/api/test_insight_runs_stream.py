@@ -59,7 +59,7 @@ def insight_app(monkeypatch: pytest.MonkeyPatch) -> FastAPI:
     from app.api.deps import protected
     from app.api.v1.endpoints.insight_runs import router as insight_router
     from app.core.config import get_settings
-    from app.services.insight import stream_bus
+    from app.services.insight import stream_bus, subscriber
 
     settings = get_settings()
     monkeypatch.setattr(
@@ -68,6 +68,11 @@ def insight_app(monkeypatch: pytest.MonkeyPatch) -> FastAPI:
     monkeypatch.setattr(settings, "ai_chat_provider_api_key", "test-key", raising=False)
     monkeypatch.setattr(settings, "insight_default_model", "test-insight-model", raising=False)
     monkeypatch.setattr(settings, "ai_chat_default_model", "test-insight-model", raising=False)
+    # This file tests run/SSE lifecycle, not provider-model discovery. Avoid a
+    # real (and failing) /v1/models request on every run creation.
+    monkeypatch.setattr(
+        settings, "insight_allow_provider_models", False, raising=False
+    )
 
     # No broker in unit tests: enqueue is recorded, never sent.
     enqueued: list[tuple[str, int]] = []
@@ -99,6 +104,9 @@ def insight_app(monkeypatch: pytest.MonkeyPatch) -> FastAPI:
     monkeypatch.setattr(stream_bus, "make_stream_client", make_sync)
     monkeypatch.setattr(stream_bus, "make_async_stream_client", make_async)
     monkeypatch.setattr(stream_bus, "close_async_stream_client", close_async)
+    # Unit/E2E tests must not wait the production 2s idle-read beat.
+    monkeypatch.setattr(subscriber, "_READ_BLOCK_MS", 20)
+    monkeypatch.setattr(subscriber, "_DB_POLL_SECONDS", 0.01)
     return app
 
 

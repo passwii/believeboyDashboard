@@ -81,6 +81,8 @@ def _patch_downstream(monkeypatch):
     """Stub out the heavy downstream so tests don't render/send/AI."""
     import app.services.scheduled_report.dispatcher as dispatcher_mod
 
+    monkeypatch.setattr(dispatcher_mod, "_STAGE_MIN_SEC", 0)
+
     def fake_build(*args, **kwargs):
         return {"sales": {}, "country": "US", "log_id": kwargs.get("log_id")}
 

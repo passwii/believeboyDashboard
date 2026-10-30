@@ -28,10 +28,67 @@ NOW = datetime(2026, 7, 24, 10, 0, 0, tzinfo=SH)
 MONTH_START = datetime(2026, 7, 1, 0, 0, 0, tzinfo=SH)
 MONTH_LABEL = "2026-07"
 
-# 用测试库真实种子用户（user_accounts 里存在，_active_user_roster 才能给出姓名）
-ADMIN_ID = "90a937fd-761e-4b02-b136-ec8ea508a6f8"  # 测试管理员
-OP1_ID = "590dffdf-0383-4731-8fca-a9d61fdb8861"  # 测试运营
-OP2_ID = "8e38c945-6334-4fc5-b215-0dff89557fe0"  # 测试招商
+
+# ── 三个「人」的 id ──────────────────────────────────────────────────────────
+# ⚠️ 这里**不能写死 UUID**：`scripts/seed_test_accounts.py` 用数据库默认的
+# `gen_random_uuid()` 建账号，**每个测试库的账号 id 都不一样**。
+# 写死的历史 UUID 只在"当年那个库"里存在，换个库（CI 的全新库 / 新同事的机器）
+# 就对不上 → `_active_user_roster` 认不出这个人 → 业绩指标全 0、排名错位。
+#
+# 所以改成**按 email 从库里查真实 id**（seed 脚本保证这三个账号存在）。
+# 名字也要对上：排名 tiebreak 按姓名 codepoint，测试里的排名期望依赖
+# 「测试招商 < 测试管理员 < 测试运营」的顺序。
+@pytest.fixture
+def _seeded_accounts(db_session, settings):
+    """按 email 取三个种子账号的真实 id（admin / operator / businessdev）。
+
+    名字按「测试管理员 / 测试运营 / 测试招商」对应：
+    ranking tiebreak 按姓名 codepoint，测试里的排名期望依赖
+    「测试招商 < 测试管理员 < 测试运营」这个顺序。
+    """
+    wanted = {
+        settings.test_admin_email.lower(): "admin",
+        settings.test_operator_email.lower(): "operator",
+        settings.test_businessdev_email.lower(): "businessdev",
+    }
+    rows = db_session.execute(
+        text(
+            "select email, id::text as id, name from public.user_accounts "
+            "where is_active = true"
+        )
+    ).mappings().all()
+    by_email = {r["email"].lower(): (r["id"], r["name"]) for r in rows}
+
+    out = {}
+    missing = []
+    for email, role in wanted.items():
+        if email not in by_email:
+            missing.append(email)
+        else:
+            out[role] = by_email[email]
+    if missing:
+        pytest.fail(
+            f"测试账号缺失: {missing} —— 先跑 `python scripts/seed_test_accounts.py`"
+        )
+    return out
+
+
+@pytest.fixture
+def admin_id(_seeded_accounts):
+    """测试管理员的真实 id。"""
+    return _seeded_accounts["admin"][0]
+
+
+@pytest.fixture
+def op1_id(_seeded_accounts):
+    """测试运营的真实 id。"""
+    return _seeded_accounts["operator"][0]
+
+
+@pytest.fixture
+def op2_id(_seeded_accounts):
+    """测试招商的真实 id。"""
+    return _seeded_accounts["businessdev"][0]
 
 
 @pytest.fixture(autouse=True)
@@ -99,20 +156,20 @@ def _mk_task(db, **kw):
 # =====================================================================
 
 
-def test_scope_mine_allowed_for_non_admin(db_session):
+def test_scope_mine_allowed_for_non_admin(db_session, op1_id):
     # 非管理员看自己 → 允许（员工看自己）
     board = get_performance_board(
-        db_session, user_id=OP1_ID, is_admin=False, scope="mine", now=NOW
+        db_session, user_id=op1_id, is_admin=False, scope="mine", now=NOW
     )
     assert board.scope == "mine"
     assert board.month == MONTH_LABEL
     assert board.ranking == []
 
 
-def test_scope_all_requires_admin(db_session):
+def test_scope_all_requires_admin(db_session, op1_id):
     with pytest.raises(HTTPException) as exc:
         get_performance_board(
-            db_session, user_id=OP1_ID, is_admin=False, scope="all", now=NOW
+            db_session, user_id=op1_id, is_admin=False, scope="all", now=NOW
         )
     assert exc.value.status_code == 403
 
@@ -122,29 +179,29 @@ def test_scope_all_requires_admin(db_session):
 # =====================================================================
 
 
-def test_mine_metrics_and_rank(db_session):
-    _mk_customer(db_session, name="C1", owner_id=OP1_ID)
-    _mk_customer(db_session, name="C2", owner_id=OP1_ID)
-    _mk_customer(db_session, name="C其他", owner_id=OP2_ID)
+def test_mine_metrics_and_rank(db_session, op1_id, op2_id):
+    _mk_customer(db_session, name="C1", owner_id=op1_id)
+    _mk_customer(db_session, name="C2", owner_id=op1_id)
+    _mk_customer(db_session, name="C其他", owner_id=op2_id)
     _mk_lead(
         db_session,
         name="L1",
         status="converted",
-        owner_id=OP1_ID,
+        owner_id=op1_id,
         converted_at=MONTH_START + timedelta(days=2),
     )
-    _mk_follow(db_session, created_by=OP1_ID)
-    _mk_follow(db_session, created_by=OP1_ID)
+    _mk_follow(db_session, created_by=op1_id)
+    _mk_follow(db_session, created_by=op1_id)
     _mk_task(
         db_session,
-        owner_id=OP1_ID,
+        owner_id=op1_id,
         status="done",
         completed_at=MONTH_START + timedelta(days=1),
     )
-    _mk_task(db_session, owner_id=OP1_ID, status="pending")
+    _mk_task(db_session, owner_id=op1_id, status="pending")
 
     board = get_performance_board(
-        db_session, user_id=OP1_ID, is_admin=False, scope="mine", now=NOW
+        db_session, user_id=op1_id, is_admin=False, scope="mine", now=NOW
     )
     m = board.mine
     assert m.new_customers == 2
@@ -156,9 +213,9 @@ def test_mine_metrics_and_rank(db_session):
     assert board.ranking == []  # 员工只见自己
 
 
-def test_mine_zero_metrics_when_no_data(db_session):
+def test_mine_zero_metrics_when_no_data(db_session, op2_id):
     board = get_performance_board(
-        db_session, user_id=OP2_ID, is_admin=False, scope="mine", now=NOW
+        db_session, user_id=op2_id, is_admin=False, scope="mine", now=NOW
     )
     m = board.mine
     assert m.new_customers == 0
@@ -175,43 +232,43 @@ def test_mine_zero_metrics_when_no_data(db_session):
 # =====================================================================
 
 
-def test_all_global_and_ranking(db_session):
+def test_all_global_and_ranking(db_session, op1_id, op2_id, admin_id):
     # OP1：2 客户 / 1 转化 / 2 跟进 / 完成率 0.5
-    _mk_customer(db_session, name="C1", owner_id=OP1_ID)
-    _mk_customer(db_session, name="C2", owner_id=OP1_ID)
+    _mk_customer(db_session, name="C1", owner_id=op1_id)
+    _mk_customer(db_session, name="C2", owner_id=op1_id)
     _mk_lead(
         db_session,
         name="L1",
         status="converted",
-        owner_id=OP1_ID,
+        owner_id=op1_id,
         converted_at=MONTH_START + timedelta(days=2),
     )
-    _mk_follow(db_session, created_by=OP1_ID)
-    _mk_follow(db_session, created_by=OP1_ID)
+    _mk_follow(db_session, created_by=op1_id)
+    _mk_follow(db_session, created_by=op1_id)
     _mk_task(
         db_session,
-        owner_id=OP1_ID,
+        owner_id=op1_id,
         status="done",
         completed_at=MONTH_START + timedelta(days=1),
     )
-    _mk_task(db_session, owner_id=OP1_ID, status="pending")
+    _mk_task(db_session, owner_id=op1_id, status="pending")
 
     # OP2：1 客户 / 0 转化 / 1 跟进 / 完成率 None
-    _mk_customer(db_session, name="C3", owner_id=OP2_ID)
-    _mk_follow(db_session, created_by=OP2_ID)
+    _mk_customer(db_session, name="C3", owner_id=op2_id)
+    _mk_follow(db_session, created_by=op2_id)
 
     # 全局额外有：无主客户（公海）+ 上月客户 + 已删除客户 → 不计本月全局
     _mk_customer(db_session, name="公海", owner_id=None)
     _mk_customer(
         db_session,
         name="上月",
-        owner_id=OP1_ID,
+        owner_id=op1_id,
         created_at=MONTH_START - timedelta(days=1),
     )
-    _mk_customer(db_session, name="已删", owner_id=OP1_ID, is_deleted=True)
+    _mk_customer(db_session, name="已删", owner_id=op1_id, is_deleted=True)
 
     board = get_performance_board(
-        db_session, user_id=ADMIN_ID, is_admin=True, scope="all", now=NOW
+        db_session, user_id=admin_id, is_admin=True, scope="all", now=NOW
     )
     # 全局合计：4 本月客户（OP1×2 + OP2×1 + 公海×1）/ 1 转化 / 3 跟进 / done 1 + open 1
     g = board.global_metrics
@@ -223,68 +280,68 @@ def test_all_global_and_ranking(db_session):
     # 排名表：3 人，OP1 转化第一 → rank1；OP2 全 0（但有新增）→ 转化相同比新增 → rank2
     assert len(board.ranking) == 3
     r1, r2, r3 = board.ranking
-    assert r1.owner_id == OP1_ID and r1.rank == 1
+    assert r1.owner_id == op1_id and r1.rank == 1
     assert r1.new_customers == 2 and r1.converted_count == 1 and r1.follow_count == 2
     assert r1.completion_rate == pytest.approx(0.5)
     # OP2：转化 0、新增 1 > 管理员（转化 0、新增 0）→ rank2
-    assert r2.owner_id == OP2_ID and r2.rank == 2
+    assert r2.owner_id == op2_id and r2.rank == 2
     assert r2.new_customers == 1 and r2.converted_count == 0
     assert r2.completion_rate is None
-    assert r3.owner_id == ADMIN_ID and r3.rank == 3
+    assert r3.owner_id == admin_id and r3.rank == 3
 
     # admin 本人的 mine 指标（无数据）
     assert board.mine.new_customers == 0
     assert board.my_rank == 3
 
 
-def test_all_ranking_sort_by_new_customers(db_session):
+def test_all_ranking_sort_by_new_customers(db_session, op1_id, op2_id, admin_id):
     # OP2 新增客户多但转化少：按转化默认 OP1 前；按新增 OP2 前
-    _mk_customer(db_session, name="C1", owner_id=OP1_ID)
+    _mk_customer(db_session, name="C1", owner_id=op1_id)
     _mk_lead(
         db_session,
         name="L1",
         status="converted",
-        owner_id=OP1_ID,
+        owner_id=op1_id,
         converted_at=MONTH_START + timedelta(days=1),
     )
-    _mk_customer(db_session, name="C2", owner_id=OP2_ID)
-    _mk_customer(db_session, name="C3", owner_id=OP2_ID)
+    _mk_customer(db_session, name="C2", owner_id=op2_id)
+    _mk_customer(db_session, name="C3", owner_id=op2_id)
 
     board_conv = get_performance_board(
-        db_session, user_id=ADMIN_ID, is_admin=True, scope="all", now=NOW
+        db_session, user_id=admin_id, is_admin=True, scope="all", now=NOW
     )
-    assert board_conv.ranking[0].owner_id == OP1_ID
+    assert board_conv.ranking[0].owner_id == op1_id
 
     board_new = get_performance_board(
         db_session,
-        user_id=ADMIN_ID,
+        user_id=admin_id,
         is_admin=True,
         scope="all",
         sort_by="new_customers",
         now=NOW,
     )
-    assert board_new.ranking[0].owner_id == OP2_ID
+    assert board_new.ranking[0].owner_id == op2_id
 
 
-def test_month_param_scopes_to_that_month(db_session):
+def test_month_param_scopes_to_that_month(db_session, op1_id):
     # 6 月的数据不影响 7 月看板
     jun_start = datetime(2026, 6, 1, tzinfo=SH)
-    _mk_customer(db_session, name="C上月", owner_id=OP1_ID, created_at=jun_start)
+    _mk_customer(db_session, name="C上月", owner_id=op1_id, created_at=jun_start)
     _mk_customer(
         db_session,
         name="C本月",
-        owner_id=OP1_ID,
+        owner_id=op1_id,
         created_at=MONTH_START + timedelta(days=1),
     )
 
     board = get_performance_board(
-        db_session, user_id=OP1_ID, is_admin=False, scope="mine", now=NOW
+        db_session, user_id=op1_id, is_admin=False, scope="mine", now=NOW
     )
     assert board.mine.new_customers == 1
 
     board_jun = get_performance_board(
         db_session,
-        user_id=OP1_ID,
+        user_id=op1_id,
         is_admin=False,
         scope="mine",
         month="2026-06",
@@ -294,11 +351,11 @@ def test_month_param_scopes_to_that_month(db_session):
     assert board_jun.mine.new_customers == 1
 
 
-def test_month_param_invalid_raises_value_error(db_session):
+def test_month_param_invalid_raises_value_error(db_session, op1_id):
     with pytest.raises(ValueError):
         get_performance_board(
             db_session,
-            user_id=OP1_ID,
+            user_id=op1_id,
             is_admin=False,
             scope="mine",
             month="2026-13",
@@ -306,11 +363,11 @@ def test_month_param_invalid_raises_value_error(db_session):
         )
 
 
-def test_invalid_sort_by_raises_value_error(db_session):
+def test_invalid_sort_by_raises_value_error(db_session, admin_id):
     with pytest.raises(ValueError):
         get_performance_board(
             db_session,
-            user_id=ADMIN_ID,
+            user_id=admin_id,
             is_admin=True,
             scope="all",
             sort_by="bogus",
@@ -318,34 +375,34 @@ def test_invalid_sort_by_raises_value_error(db_session):
         )
 
 
-def test_ranking_sort_by_completion_rate_none_last(db_session):
+def test_ranking_sort_by_completion_rate_none_last(db_session, op1_id, op2_id, admin_id):
     # OP1 完成率 1.0（done 1 / open 0）；OP2 完成率 0.5；管理员 None（无任务）
     _mk_task(
         db_session,
-        owner_id=OP1_ID,
+        owner_id=op1_id,
         status="done",
         completed_at=MONTH_START + timedelta(days=1),
     )
     _mk_task(
         db_session,
-        owner_id=OP2_ID,
+        owner_id=op2_id,
         status="done",
         completed_at=MONTH_START + timedelta(days=1),
     )
-    _mk_task(db_session, owner_id=OP2_ID, status="pending")
+    _mk_task(db_session, owner_id=op2_id, status="pending")
 
     board = get_performance_board(
         db_session,
-        user_id=ADMIN_ID,
+        user_id=admin_id,
         is_admin=True,
         scope="all",
         sort_by="completion_rate",
         now=NOW,
     )
-    assert board.ranking[0].owner_id == OP1_ID  # 1.0
+    assert board.ranking[0].owner_id == op1_id  # 1.0
     assert board.ranking[0].completion_rate == 1.0
-    assert board.ranking[1].owner_id == OP2_ID  # 0.5
+    assert board.ranking[1].owner_id == op2_id  # 0.5
     assert board.ranking[1].completion_rate == 0.5
     # None（无任务）排最后，即使姓名 codepoint 最小
-    assert board.ranking[2].owner_id == ADMIN_ID
+    assert board.ranking[2].owner_id == admin_id
     assert board.ranking[2].completion_rate is None

@@ -13,6 +13,8 @@ from app.main import app
 
 from conftest import seed_schedule
 
+pytestmark = pytest.mark.audit_table_isolation
+
 
 @pytest.fixture
 def client() -> TestClient:

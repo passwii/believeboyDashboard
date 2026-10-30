@@ -12,6 +12,7 @@ fastapi < 0.139（无 _IncludedRouter 懒物化）时 include_lazy_router 走急
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -39,39 +40,23 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def test_lazy_groups_not_imported_at_startup() -> None:
-    """新进程冷启动：懒分组 endpoint 模块必须保持未 import。"""
+@pytest.fixture(scope="module")
+def lazy_probe() -> dict:
+    """Run cold-start + first-hit checks once in one fresh interpreter."""
     db_url = os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL", "")
     code = (
-        "import sys; import app.main; "
+        "import json, sys; import app.main; "
         f"lazy={LAZY_MARKERS!r}; "
-        "print([m for m in lazy if m in sys.modules])"
-    )
-    env = {**os.environ, "PYTHONPATH": str(ROOT), "DATABASE_URL": db_url}
-    proc = subprocess.run(
-        [sys.executable, "-c", code],
-        cwd=ROOT,
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
-    assert proc.returncode == 0, proc.stderr[-2000:]
-    assert proc.stdout.strip() == "[]", f"启动时已加载懒分组: {proc.stdout.strip()}"
-
-
-def test_lazy_group_loads_on_first_hit() -> None:
-    """新进程内：首次命中懒分组路由时才 import 该分组；未命中分组保持未加载。"""
-    db_url = os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL", "")
-    code = (
-        "import sys; import app.main; "
+        "loaded_before=[m for m in lazy if m in sys.modules]; "
         "from fastapi.testclient import TestClient; "
         "c = TestClient(app.main.app); "
         "r = c.get('/api/v1/inventory-ledger/months?project_id=1'); "
         "assert r.status_code == 401, r.status_code; "
-        "imported = [m for m in sys.modules if 'inventory_ledger' in m]; "
-        "crm_loaded = 'app.api.v1.endpoints.crm' in sys.modules; "
-        "print(f'status={r.status_code} inventory_imported={bool(imported)} crm_loaded={crm_loaded}')"
+        "inventory_loaded=any('inventory_ledger' in m for m in sys.modules); "
+        "crm_loaded='app.api.v1.endpoints.crm' in sys.modules; "
+        "print(json.dumps({'loaded_before': loaded_before, "
+        "'status': r.status_code, 'inventory_loaded': inventory_loaded, "
+        "'crm_loaded': crm_loaded}))"
     )
     env = {**os.environ, "PYTHONPATH": str(ROOT), "DATABASE_URL": db_url}
     proc = subprocess.run(
@@ -83,9 +68,21 @@ def test_lazy_group_loads_on_first_hit() -> None:
         timeout=120,
     )
     assert proc.returncode == 0, proc.stderr[-2000:]
-    out = proc.stdout.strip().splitlines()[-1]
-    assert "inventory_imported=True" in out, out
-    assert "crm_loaded=False" in out, out
+    return json.loads(proc.stdout.strip().splitlines()[-1])
+
+
+def test_lazy_groups_not_imported_at_startup(lazy_probe: dict) -> None:
+    """新进程冷启动：懒分组 endpoint 模块必须保持未 import。"""
+    assert lazy_probe["loaded_before"] == [], (
+        f"启动时已加载懒分组: {lazy_probe['loaded_before']}"
+    )
+
+
+def test_lazy_group_loads_on_first_hit(lazy_probe: dict) -> None:
+    """新进程内：首次命中懒分组路由时才 import 该分组；未命中分组保持未加载。"""
+    assert lazy_probe["status"] == 401
+    assert lazy_probe["inventory_loaded"] is True
+    assert lazy_probe["crm_loaded"] is False
 
 
 def test_openapi_paths_identical_to_eager_and_stable() -> None:

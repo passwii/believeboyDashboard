@@ -227,10 +227,11 @@ _SERVICE_FN = {
     "/api/v1/order-info/live-stream": "query_order_live_stream",
 }
 
-#: 端点测试用的紧预算（Settings 允许的最小值）。`get_settings` 是 lru_cache
-#: 单例，进程内改 env 不生效 —— 必须直接改这个对象（与 tests/api/conftest.py
-#: 里既有的 "mutate the singleton then restore" 约定一致）。
-TEST_BOUND_MS = 1_000
+#: 端点映射测试用的紧预算。生产 Settings 下限仍是 1000ms；这里直接改单例，
+#: 让 7 个参数化端点快速触发同一条 statement_timeout 路径。
+#: 进程内改 env 对 lru_cache 单例不生效，必须直接改对象（与 tests/api 既有
+#: "mutate the singleton then restore" 约定一致）。
+TEST_BOUND_MS = 100
 
 
 @pytest.fixture

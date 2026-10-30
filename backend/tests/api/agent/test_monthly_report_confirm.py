@@ -37,6 +37,8 @@ from conftest import (
     run_build_inline,
 )
 
+pytestmark = pytest.mark.audit_table_isolation
+
 
 @pytest.fixture
 def client() -> TestClient:

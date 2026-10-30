@@ -20,6 +20,8 @@ from conftest import (
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
+pytestmark = pytest.mark.audit_table_isolation
+
 
 @pytest.fixture
 def client() -> TestClient:

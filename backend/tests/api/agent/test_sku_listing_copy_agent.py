@@ -25,6 +25,8 @@ from app.models import Project
 from app.models.operation_audit_log import OperationAuditLog
 from app.models.sku_info import SkuRecord
 
+pytestmark = pytest.mark.audit_table_isolation
+
 LISTING_FIELDS = (
     "listing_title",
     "listing_bullet_1",

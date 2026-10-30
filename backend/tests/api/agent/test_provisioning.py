@@ -30,6 +30,8 @@ from app.main import app
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
+pytestmark = pytest.mark.audit_table_isolation
+
 
 @pytest.fixture
 def client() -> TestClient:

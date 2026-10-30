@@ -14,6 +14,8 @@ from app.services.audit_log_service import append_operation_audit_log
 
 from conftest import seed_schedule
 
+pytestmark = pytest.mark.audit_table_isolation
+
 
 @pytest.fixture
 def client() -> TestClient:
