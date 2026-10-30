@@ -60,7 +60,9 @@ MyGo Native ──►│ owned Go handlers    │──► PostgreSQL
 - 桌面登录继续调用 `POST /api/v1/auth/login`，请求携带稳定的 `X-Client-Id`。
 - 桌面端把登录返回的 `api_key` 和 `session_id` 存入 macOS Keychain，不写明文文件。
 - Go 自有路由校验主 API key、用户设备 API key、可选的 `?api_key=` 回退参数。
-- 用户上下文继续从 `X-User-Id`、`X-User-Name`、`X-Operator`、`X-Is-Admin` 读取，语义与 FastAPI 一致。
+- 用户设备 key 的用户上下文只取 `user_api_keys -> user_accounts` 的数据库身份；客户端提交的 `X-User-Id`、`X-User-Name`、`X-Operator`、`X-Is-Admin` 一律不作为设备直连路径的授权依据。
+- master key 保留受信代理语义，但必须同时携带服务端共享密钥头 `X-Trusted-Proxy-Secret`（环境变量 `GO_API_TRUSTED_PROXY_SECRET`）；缺失或不匹配时返回 403。该头只允许由 Next.js 服务端代理注入，不得进入浏览器，且 Go Gateway 转发 FastAPI 前会剥离。
+- `GO_API_TRUSTED_PROXY_SECRET` 为空时设备 key 仍可用，但 master key 代理模式关闭。FastAPI 直连行为在 Phase 1 不变，Web 流量仍不切到 Gateway。
 
 ## 3. 目录结构
 

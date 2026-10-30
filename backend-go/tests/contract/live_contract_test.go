@@ -22,6 +22,8 @@ import (
 	"github.com/passwii/believeboyDashboard/backend-go/internal/store"
 )
 
+const liveTrustedProxySecret = "live-contract-proxy-secret"
+
 func TestWeek1LiveContractFastAPIAgainstGo(t *testing.T) {
 	fastAPIOrigin := strings.TrimRight(strings.TrimSpace(os.Getenv("FASTAPI_ORIGIN")), "/")
 	databaseURL := strings.TrimSpace(os.Getenv("GO_API_TEST_DATABASE_URL"))
@@ -62,15 +64,18 @@ func TestWeek1LiveContractFastAPIAgainstGo(t *testing.T) {
 
 	goServer := newLiveGoServer(t, fastAPIOrigin, apiKey, pool)
 	headers := map[string]string{
-		"X-API-Key": apiKey,
+		"X-API-Key":              apiKey,
+		"X-Trusted-Proxy-Secret": liveTrustedProxySecret,
 	}
 	notificationHeaders := map[string]string{
-		"X-API-Key": apiKey,
-		"X-User-Id": liveNotificationUserID(t, ctx, pool),
+		"X-API-Key":              apiKey,
+		"X-Trusted-Proxy-Secret": liveTrustedProxySecret,
+		"X-User-Id":              liveNotificationUserID(t, ctx, pool),
 	}
 	alertHeaders := map[string]string{
-		"X-API-Key":  apiKey,
-		"X-Is-Admin": "true",
+		"X-API-Key":              apiKey,
+		"X-Trusted-Proxy-Secret": liveTrustedProxySecret,
+		"X-Is-Admin":             "true",
 	}
 	projectID := liveProjectID(t, ctx, pool)
 	ruleFilters := liveRuleFilters(t, ctx, pool, projectID)
@@ -142,8 +147,9 @@ func newLiveGoServer(
 	db := store.NewPGXDB(pool)
 	router, err := httpserver.NewRouter(
 		config.Config{
-			FastAPIOrigin: fastAPIOrigin,
-			APIKey:        apiKey,
+			FastAPIOrigin:      fastAPIOrigin,
+			APIKey:             apiKey,
+			TrustedProxySecret: liveTrustedProxySecret,
 			OwnedModules: map[string]bool{
 				"notifications": true,
 				"alerts":        true,

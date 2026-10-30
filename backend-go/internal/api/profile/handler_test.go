@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 	"unicode/utf8"
+
+	"github.com/passwii/believeboyDashboard/backend-go/internal/auth"
 )
 
 func TestGetProfileRequiresUserHeader(t *testing.T) {
@@ -50,7 +52,7 @@ func TestGetProfileDecodesUserHeaderAndReturnsResponseShape(t *testing.T) {
 	req.Header.Set("X-User-Id", url.PathEscape("user-123"))
 	rec := httptest.NewRecorder()
 
-	NewHandler(store).GetProfile(rec, req)
+	NewHandler(store).GetProfile(rec, withRequestIdentity(req))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
@@ -75,6 +77,23 @@ func TestGetProfileDecodesUserHeaderAndReturnsResponseShape(t *testing.T) {
 	}
 }
 
+func TestGetProfileUsesAuthenticatedContextInsteadOfForgedHeader(t *testing.T) {
+	store := &fakeStore{row: &Profile{ID: "authoritative-user", Email: "owner@example.com", Name: "owner"}}
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/system-management/profile", nil)
+	req = req.WithContext(auth.WithUserContext(req.Context(), auth.UserContext{UserID: "authoritative-user"}))
+	req.Header.Set("X-User-Id", "victim-user")
+	rec := httptest.NewRecorder()
+
+	NewHandler(store).GetProfile(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+	if store.getUserID != "authoritative-user" {
+		t.Errorf("store user id = %q, want authenticated context user", store.getUserID)
+	}
+}
+
 func TestGetProfileFallsBackRoleFromAdminFlag(t *testing.T) {
 	store := &fakeStore{row: &Profile{
 		ID:       "user-456",
@@ -87,7 +106,7 @@ func TestGetProfileFallsBackRoleFromAdminFlag(t *testing.T) {
 	req.Header.Set("X-User-Id", "user-456")
 	rec := httptest.NewRecorder()
 
-	NewHandler(store).GetProfile(rec, req)
+	NewHandler(store).GetProfile(rec, withRequestIdentity(req))
 
 	var got profileResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
@@ -103,7 +122,7 @@ func TestGetProfileUnknownUserReturns404(t *testing.T) {
 	req.Header.Set("X-User-Id", "00000000-0000-0000-0000-000000000000")
 	rec := httptest.NewRecorder()
 
-	NewHandler(&fakeStore{}).GetProfile(rec, req)
+	NewHandler(&fakeStore{}).GetProfile(rec, withRequestIdentity(req))
 
 	assertDetail(t, rec, http.StatusNotFound, "User not found")
 }
@@ -114,7 +133,7 @@ func TestGetProfileDecodesBase64UserID(t *testing.T) {
 	req.Header.Set("X-User-Id", base64.StdEncoding.EncodeToString([]byte("user-123")))
 	rec := httptest.NewRecorder()
 
-	NewHandler(store).GetProfile(rec, req)
+	NewHandler(store).GetProfile(rec, withRequestIdentity(req))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
@@ -130,7 +149,7 @@ func TestGetProfileDecodesURLEncodedUnicodeAndCapsUserID(t *testing.T) {
 	req.Header.Set("X-User-Id", url.PathEscape("用户 123"))
 	rec := httptest.NewRecorder()
 
-	NewHandler(store).GetProfile(rec, req)
+	NewHandler(store).GetProfile(rec, withRequestIdentity(req))
 
 	if store.getUserID != "用户 123" {
 		t.Errorf("store user id = %q, want URL-decoded Unicode", store.getUserID)
@@ -141,7 +160,7 @@ func TestGetProfileDecodesURLEncodedUnicodeAndCapsUserID(t *testing.T) {
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/system-management/profile", nil)
 	req.Header.Set("X-User-Id", longID)
 	rec = httptest.NewRecorder()
-	NewHandler(store).GetProfile(rec, req)
+	NewHandler(store).GetProfile(rec, withRequestIdentity(req))
 	if got := store.getUserID; got != strings.Repeat("用", 64) {
 		t.Errorf("capped user id = %q, want Python-style first 64 code points", got)
 	}
@@ -155,7 +174,7 @@ func TestGetProfileStoreErrorReturns500(t *testing.T) {
 	req.Header.Set("X-User-Id", "user-123")
 	rec := httptest.NewRecorder()
 
-	NewHandler(&fakeStore{err: errors.New("database down")}).GetProfile(rec, req)
+	NewHandler(&fakeStore{err: errors.New("database down")}).GetProfile(rec, withRequestIdentity(req))
 
 	assertDetail(t, rec, http.StatusInternalServerError, "Internal Server Error")
 }
@@ -174,6 +193,10 @@ type fakeStore struct {
 	row       *Profile
 	err       error
 	getUserID string
+}
+
+func withRequestIdentity(req *http.Request) *http.Request {
+	return req.WithContext(auth.WithUserContext(req.Context(), auth.UserContextFromRequest(req)))
 }
 
 func (s *fakeStore) GetByUserID(_ context.Context, userID string) (*Profile, error) {

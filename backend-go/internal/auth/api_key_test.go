@@ -12,7 +12,10 @@ import (
 	"time"
 )
 
-const testMasterKey = "master-key"
+const (
+	testMasterKey       = "master-key"
+	testTrustedProxyKey = "trusted-proxy-secret"
+)
 
 type fakeUserKeyResolver struct {
 	records map[string]*UserKeyRecord
@@ -46,12 +49,69 @@ func TestRequireAPIKeyAcceptsMasterKeyWithoutDatabaseLookup(t *testing.T) {
 			resolver := &fakeUserKeyResolver{}
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/health", nil)
 			apply(req)
+			req.Header.Set(TrustedProxySecretHeader, testTrustedProxyKey)
 
 			rec := serveProtected(t, testMasterKey, resolver, req)
 
 			if rec.Code != http.StatusOK {
 				t.Fatalf("status = %d, want %d; body = %s", rec.Code, http.StatusOK, rec.Body.String())
 			}
+			if len(resolver.hashes) != 0 {
+				t.Fatalf("resolver called with %q, want no database lookup", resolver.hashes)
+			}
+		})
+	}
+}
+
+func TestRequireAPIKeyMasterKeyPreservesTrustedProxyIdentity(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/system-management/profile", nil)
+	req.Header.Set("X-API-Key", testMasterKey)
+	req.Header.Set(TrustedProxySecretHeader, testTrustedProxyKey)
+	req.Header.Set("X-User-Id", " proxied-user ")
+	req.Header.Set("X-Operator", "运营 A")
+	req.Header.Set("X-Is-Admin", "true")
+
+	var got UserContext
+	handler := RequireAPIKey(testMasterKey, testTrustedProxyKey, &fakeUserKeyResolver{})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got, _ = UserContextFromContext(r.Context())
+		w.WriteHeader(http.StatusOK)
+	}))
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	want := UserContext{
+		UserID:               "proxied-user",
+		Operator:             "运营 A",
+		IsAdmin:              true,
+		IsAdminHeader:        "true",
+		IsAdminHeaderPresent: true,
+	}
+	if got != want {
+		t.Fatalf("trusted proxy context = %#v, want %#v", got, want)
+	}
+}
+
+func TestRequireAPIKeyDoesNotTrustMasterKeyIdentityHeadersWithoutProxySecret(t *testing.T) {
+	for name, proxySecret := range map[string]string{
+		"missing": "",
+		"wrong":   "wrong-proxy-secret",
+	} {
+		t.Run(name, func(t *testing.T) {
+			resolver := &fakeUserKeyResolver{}
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/system-management/profile", nil)
+			req.Header.Set("X-API-Key", testMasterKey)
+			req.Header.Set("X-User-Id", "victim-user")
+			req.Header.Set("X-Is-Admin", "true")
+			if proxySecret != "" {
+				req.Header.Set(TrustedProxySecretHeader, proxySecret)
+			}
+
+			rec := serveProtected(t, testMasterKey, resolver, req)
+
+			assertErrorResponse(t, rec, http.StatusForbidden, `{"detail":"Invalid API key"}`)
 			if len(resolver.hashes) != 0 {
 				t.Fatalf("resolver called with %q, want no database lookup", resolver.hashes)
 			}
@@ -80,6 +140,51 @@ func TestRequireAPIKeyAcceptsBearerUserKeyAndHashesCandidate(t *testing.T) {
 	}
 	if resolver.hashes[0] == candidate {
 		t.Fatal("resolver received the raw API key")
+	}
+}
+
+func TestRequireAPIKeyBindsDeviceIdentityFromResolvedRecord(t *testing.T) {
+	const candidate = "blf_device-key"
+	resolver := &fakeUserKeyResolver{
+		records: map[string]*UserKeyRecord{
+			sha256Hex(candidate): {
+				UserID:   "authoritative-user",
+				Email:    "authoritative@example.com",
+				FullName: "Authoritative User",
+				RoleType: "operator",
+				IsAdmin:  false,
+			},
+		},
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/notifications", nil)
+	req.Header.Set("X-API-Key", candidate)
+	req.Header.Set("X-User-Id", "victim-user")
+	req.Header.Set("X-User-Email", "victim@example.com")
+	req.Header.Set("X-User-Name", "Victim")
+	req.Header.Set("X-Operator", "Victim")
+	req.Header.Set("X-Role-Type", "admin")
+	req.Header.Set("X-Is-Admin", "true")
+
+	var got UserContext
+	handler := RequireAPIKey(testMasterKey, testTrustedProxyKey, resolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got, _ = UserContextFromContext(r.Context())
+		w.WriteHeader(http.StatusOK)
+	}))
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body = %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	want := UserContext{
+		UserID:   "authoritative-user",
+		Email:    "authoritative@example.com",
+		Name:     "Authoritative User",
+		Operator: "Authoritative User",
+		RoleType: "operator",
+	}
+	if got != want {
+		t.Fatalf("device key context = %#v, want %#v", got, want)
 	}
 }
 
@@ -171,13 +276,15 @@ func TestUserContextFromRequest(t *testing.T) {
 	got := UserContextFromRequest(req)
 
 	want := UserContext{
-		UserID:    "user-123",
-		Email:     "person+tag@example.com",
-		Name:      "测试用户",
-		Operator:  "运营 A",
-		RoleType:  "admin",
-		SessionID: "session-456",
-		IsAdmin:   true,
+		UserID:               "user-123",
+		Email:                "person+tag@example.com",
+		Name:                 "测试用户",
+		Operator:             "运营 A",
+		RoleType:             "admin",
+		SessionID:            "session-456",
+		IsAdmin:              true,
+		IsAdminHeader:        "YES",
+		IsAdminHeaderPresent: true,
 	}
 	if got != want {
 		t.Fatalf("UserContextFromRequest() = %#v, want %#v", got, want)
@@ -215,13 +322,10 @@ func TestWithUserContext(t *testing.T) {
 
 func serveProtected(t *testing.T, masterKey string, resolver UserKeyResolver, req *http.Request) *httptest.ResponseRecorder {
 	t.Helper()
-	handler := RequireAPIKey(masterKey, resolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user, ok := UserContextFromContext(r.Context())
+	handler := RequireAPIKey(masterKey, testTrustedProxyKey, resolver)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, ok := UserContextFromContext(r.Context())
 		if !ok {
 			t.Error("user context missing from authenticated request")
-		}
-		if user.UserID != r.Header.Get("X-User-Id") && r.Header.Get("X-User-Id") != "" {
-			t.Errorf("user context id = %q, want header value", user.UserID)
 		}
 		w.WriteHeader(http.StatusOK)
 	}))

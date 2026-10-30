@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/passwii/believeboyDashboard/backend-go/internal/auth"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/httpapi"
 )
 
@@ -168,7 +169,12 @@ type unreadCountResponse struct {
 }
 
 func requireUserID(w http.ResponseWriter, r *http.Request) (string, bool) {
-	raw := r.Header.Get("X-User-Id")
+	user, ok := auth.UserContextFromContext(r.Context())
+	if !ok {
+		httpapi.WriteDetail(w, http.StatusUnauthorized, "X-User-Id required")
+		return "", false
+	}
+	raw := user.UserID
 	if raw == "" {
 		httpapi.WriteDetail(w, http.StatusUnauthorized, "X-User-Id required")
 		return "", false

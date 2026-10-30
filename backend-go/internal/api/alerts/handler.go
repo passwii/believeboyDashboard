@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/passwii/believeboyDashboard/backend-go/internal/auth"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/httpapi"
@@ -349,26 +348,30 @@ func optionalNonEmptyQuery(r *http.Request, name string) *string {
 }
 
 func adminHeader(r *http.Request) (bool, *httpapi.ValidationError) {
-	value, err := httpapi.ParseOptionalBoolHeader(r, "X-Is-Admin")
+	user, ok := auth.UserContextFromContext(r.Context())
+	if !ok {
+		return false, nil
+	}
+	value, err := httpapi.ParseOptionalBoolHeaderValue(
+		"X-Is-Admin",
+		user.IsAdminHeader,
+		user.IsAdminHeaderPresent,
+	)
 	if err != nil {
 		return false, err
 	}
-	return value != nil && *value, nil
+	if value != nil {
+		return *value, nil
+	}
+	return user.IsAdmin, nil
 }
 
 func requestOperator(r *http.Request) string {
-	values, present := r.Header["X-Operator"]
-	if !present {
-		values, present = r.Header["X-User-Name"]
-	}
-	if !present || len(values) == 0 {
+	user, ok := auth.UserContextFromContext(r.Context())
+	if !ok {
 		return ""
 	}
-	value := auth.DecodeHeaderValue(values[0])
-	if value == "" {
-		return ""
-	}
-	return truncateRunes(value, 255)
+	return user.Operator
 }
 
 func textContainsName(value *string, target string) bool {
@@ -400,14 +403,6 @@ func splitMultiNames(value string) []string {
 		}
 	}
 	return result
-}
-
-func truncateRunes(value string, limit int) string {
-	if utf8.RuneCountInString(value) <= limit {
-		return value
-	}
-	runes := []rune(value)
-	return string(runes[:limit])
 }
 
 type metricOptionsResponse struct {

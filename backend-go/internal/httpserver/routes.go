@@ -27,7 +27,7 @@ func registerOwnedRoutes(
 	cfg config.Config,
 	stores OwnedStores,
 ) {
-	requireAPIKey := auth.RequireAPIKey(cfg.APIKey, stores.APIKeys)
+	requireAPIKey := auth.RequireAPIKey(cfg.APIKey, cfg.TrustedProxySecret, stores.APIKeys)
 
 	if cfg.OwnedModules["health"] {
 		healthHandler := health.NewHandler(health.HandlerConfig{

@@ -13,14 +13,17 @@ const (
 )
 
 type Config struct {
-	Addr            string
-	FastAPIOrigin   string
-	APIKey          string
-	DatabaseURL     string
-	DatabaseReadURL string
-	RedisURL        string
-	AppEnv          string
-	OwnedModules    map[string]bool
+	Addr          string
+	FastAPIOrigin string
+	APIKey        string
+	// TrustedProxySecret gates master-key access to Go-owned routes. An empty
+	// value leaves device-key access enabled but disables trusted proxy mode.
+	TrustedProxySecret string
+	DatabaseURL        string
+	DatabaseReadURL    string
+	RedisURL           string
+	AppEnv             string
+	OwnedModules       map[string]bool
 }
 
 func Load() (Config, error) {
@@ -29,10 +32,11 @@ func Load() (Config, error) {
 
 func load(lookup func(string) (string, bool)) (Config, error) {
 	cfg := Config{
-		Addr:          valueOrDefault(lookup, "GO_API_ADDR", defaultAddr),
-		FastAPIOrigin: valueOrDefault(lookup, "FASTAPI_ORIGIN", defaultFastAPIOrigin),
-		AppEnv:        valueOrDefault(lookup, "APP_ENV", "development"),
-		OwnedModules:  parseOwnedModules(valueOrDefault(lookup, "GO_API_OWNED", "")),
+		Addr:               valueOrDefault(lookup, "GO_API_ADDR", defaultAddr),
+		FastAPIOrigin:      valueOrDefault(lookup, "FASTAPI_ORIGIN", defaultFastAPIOrigin),
+		TrustedProxySecret: valueOrDefault(lookup, "GO_API_TRUSTED_PROXY_SECRET", ""),
+		AppEnv:             valueOrDefault(lookup, "APP_ENV", "development"),
+		OwnedModules:       parseOwnedModules(valueOrDefault(lookup, "GO_API_OWNED", "")),
 	}
 
 	for _, required := range []struct {

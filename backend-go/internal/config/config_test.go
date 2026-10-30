@@ -12,6 +12,7 @@ func TestLoadUsesDefaultsAndParsesOwnedModules(t *testing.T) {
 	unsetEnv(t, "FASTAPI_ORIGIN")
 	setRequiredEnv(t)
 	t.Setenv("GO_API_OWNED", "health, exchange_rates,, alerts ")
+	t.Setenv("GO_API_TRUSTED_PROXY_SECRET", "proxy-secret")
 
 	got, err := Load()
 	if err != nil {
@@ -23,6 +24,9 @@ func TestLoadUsesDefaultsAndParsesOwnedModules(t *testing.T) {
 	}
 	if got.FastAPIOrigin != "http://127.0.0.1:8100" {
 		t.Errorf("FastAPIOrigin = %q, want %q", got.FastAPIOrigin, "http://127.0.0.1:8100")
+	}
+	if got.TrustedProxySecret != "proxy-secret" {
+		t.Errorf("TrustedProxySecret = %q, want proxy-secret", got.TrustedProxySecret)
 	}
 	wantOwned := map[string]bool{
 		"health":         true,

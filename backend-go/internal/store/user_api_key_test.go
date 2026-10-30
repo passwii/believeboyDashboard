@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,7 +13,14 @@ import (
 func TestUserKeyStoreResolvesKeyHashAndNullableRevocation(t *testing.T) {
 	db := &fakeDB{
 		row: fakeRow{
-			values: []any{"user-123", nil},
+			values: []any{
+				"user-123",
+				nil,
+				"person@example.com",
+				"Person Name",
+				"operator",
+				false,
+			},
 		},
 	}
 	store := NewUserKeyStore(db)
@@ -21,11 +29,17 @@ func TestUserKeyStoreResolvesKeyHashAndNullableRevocation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveUserKey() error = %v", err)
 	}
-	if got == nil || got.UserID != "user-123" || got.RevokedAt != nil {
-		t.Fatalf("ResolveUserKey() = %#v, want user-123 with nil revoked_at", got)
+	if got == nil || got.UserID != "user-123" || got.RevokedAt != nil ||
+		got.Email != "person@example.com" || got.FullName != "Person Name" ||
+		got.RoleType != "operator" || got.IsAdmin {
+		t.Fatalf("ResolveUserKey() = %#v, want user identity with nil revoked_at", got)
 	}
 	if len(db.queryRowCalls) != 1 || db.queryRowCalls[0].sql == "" {
 		t.Fatal("QueryRow() sql is empty")
+	}
+	if !strings.Contains(db.queryRowCalls[0].sql, "user_accounts") ||
+		!strings.Contains(db.queryRowCalls[0].sql, "full_name") {
+		t.Fatal("QueryRow() must resolve user identity from user_accounts")
 	}
 	if len(db.queryRowCalls[0].args) != 1 || db.queryRowCalls[0].args[0] != "hash-123" {
 		t.Errorf("QueryRow() args = %#v, want [hash-123]", db.queryRowCalls[0].args)
@@ -36,7 +50,14 @@ func TestUserKeyStoreReturnsRevokedAt(t *testing.T) {
 	revokedAt := time.Date(2026, 10, 27, 8, 0, 0, 0, time.UTC)
 	db := &fakeDB{
 		row: fakeRow{
-			values: []any{"user-456", revokedAt},
+			values: []any{
+				"user-456",
+				revokedAt,
+				"revoked@example.com",
+				"Revoked User",
+				"admin",
+				true,
+			},
 		},
 	}
 
