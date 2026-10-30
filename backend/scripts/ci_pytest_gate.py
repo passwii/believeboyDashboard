@@ -72,6 +72,9 @@ def write_baseline(nodeids: set[str]) -> None:
 
 def run_pytest(pytest_args: list[str] | None = None) -> tuple[int, str]:
     """跑 pytest，实时转发输出，同时保留文本供解析失败清单。"""
+    extra_args = list(pytest_args or [])
+    if extra_args[:1] == ["--"]:
+        extra_args = extra_args[1:]
     args = [
         sys.executable,
         "-m",
@@ -79,7 +82,7 @@ def run_pytest(pytest_args: list[str] | None = None) -> tuple[int, str]:
         "-v",
         "--durations=50",
         "--durations-min=1",
-        *(pytest_args or []),
+        *extra_args,
     ]
     proc = subprocess.Popen(
         args,
