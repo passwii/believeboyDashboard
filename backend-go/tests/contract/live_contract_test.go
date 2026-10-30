@@ -11,41 +11,60 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"sort"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/api/health"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/config"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/httpserver"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/store"
 )
 
-func TestWeek1LiveContractFastAPIAgainstGo(t *testing.T) {
-	fastAPIOrigin := strings.TrimRight(strings.TrimSpace(os.Getenv("FASTAPI_ORIGIN")), "/")
-	databaseURL := strings.TrimSpace(os.Getenv("GO_API_TEST_DATABASE_URL"))
-	apiKey := strings.TrimSpace(os.Getenv("LIVE_CONTRACT_API_KEY"))
-	if fastAPIOrigin == "" || databaseURL == "" || apiKey == "" {
-		t.Skip("live contract skipped: set FASTAPI_ORIGIN, GO_API_TEST_DATABASE_URL, and LIVE_CONTRACT_API_KEY")
-	}
+const (
+	liveProjectName       = "__live_contract_project__"
+	liveNotificationTitle = "__live_contract_notification__"
+	liveExchangeCurrency  = "LVC"
+	liveExchangeYearMonth = "2026-10"
+	liveProfileEmail      = "test_admin@believeboy.com"
+)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+type liveContractConfig struct {
+	fastAPIOrigin string
+	databaseURL   string
+	apiKey        string
+	redisURL      string
+}
+
+type liveFixture struct {
+	notificationUserID string
+	projectID          string
+	exchangeRateID     string
+	profileUserID      string
+}
+
+func TestWeek1LiveContractFastAPIAgainstGo(t *testing.T) {
+	cfg := liveConfig(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	pool, err := store.OpenPool(ctx, databaseURL)
+	pool, err := store.OpenPool(ctx, cfg.databaseURL)
 	if err != nil {
 		t.Fatalf("OpenPool() error = %v", err)
 	}
 	defer pool.Close()
 	if err := pool.Ping(ctx); err != nil {
-		t.Skipf("live contract skipped: test database unavailable: %v", err)
+		t.Fatalf("test database unavailable: %v", err)
 	}
 
-	client := &http.Client{Timeout: 5 * time.Second}
+	client := &http.Client{Timeout: 10 * time.Second}
 	healthRequest, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodGet,
-		fastAPIOrigin+"/api/v1/health/live",
+		cfg.fastAPIOrigin+"/api/v1/health/live",
 		nil,
 	)
 	if err != nil {
@@ -53,74 +72,161 @@ func TestWeek1LiveContractFastAPIAgainstGo(t *testing.T) {
 	}
 	healthResponse, err := client.Do(healthRequest)
 	if err != nil {
-		t.Skipf("live contract skipped: FastAPI unavailable at %s: %v", fastAPIOrigin, err)
+		t.Fatalf("FastAPI unavailable at %s: %v", cfg.fastAPIOrigin, err)
 	}
 	_ = healthResponse.Body.Close()
 	if healthResponse.StatusCode != http.StatusOK {
 		t.Fatalf("FastAPI health status = %d, want 200", healthResponse.StatusCode)
 	}
 
-	goServer := newLiveGoServer(t, fastAPIOrigin, apiKey, pool)
-	headers := map[string]string{
-		"X-API-Key": apiKey,
+	goServer := newLiveGoServer(t, cfg, pool)
+	fixture := loadLiveFixture(t, ctx, pool)
+	baseHeaders := map[string]string{"X-API-Key": cfg.apiKey}
+	notificationHeaders := cloneHeaders(baseHeaders)
+	notificationHeaders["X-User-Id"] = fixture.notificationUserID
+	alertAdminHeaders := cloneHeaders(baseHeaders)
+	alertAdminHeaders["X-Is-Admin"] = "true"
+	alertOperatorHeaders := cloneHeaders(baseHeaders)
+	alertOperatorHeaders["X-Operator"] = "live-contract-operator"
+	alertOperatorHeaders["X-Is-Admin"] = "false"
+	profileHeaders := cloneHeaders(baseHeaders)
+	profileHeaders["X-User-Id"] = fixture.profileUserID
+
+	alertProjectFilters := url.Values{
+		"project_id": []string{fixture.projectID},
+		"metric":     []string{"acos"},
+		"is_active":  []string{"true"},
 	}
-	notificationHeaders := map[string]string{
-		"X-API-Key": apiKey,
-		"X-User-Id": liveNotificationUserID(t, ctx, pool),
+	alertEventFilters := url.Values{
+		"project_id": []string{fixture.projectID},
+		"severity":   []string{"warning"},
+		"status":     []string{"active"},
+		"page":       []string{"1"},
+		"page_size":  []string{"100"},
 	}
-	alertHeaders := map[string]string{
-		"X-API-Key":  apiKey,
-		"X-Is-Admin": "true",
-	}
-	projectID := liveProjectID(t, ctx, pool)
-	ruleFilters := liveRuleFilters(t, ctx, pool, projectID)
-	eventFilters := liveEventFilters(t, ctx, pool, projectID)
 
 	cases := []struct {
 		name    string
+		route   string
 		path    string
 		headers map[string]string
 	}{
 		{
-			name:    "notifications list",
-			path:    "/api/v1/notifications?page=1&page_size=100",
+			name:    "health",
+			route:   "/api/v1/health",
+			path:    "/api/v1/health",
+			headers: baseHeaders,
+		},
+		{
+			name:    "health live",
+			route:   "/api/v1/health/live",
+			path:    "/api/v1/health/live",
+			headers: baseHeaders,
+		},
+		{
+			name:    "health ready",
+			route:   "/api/v1/health/ready",
+			path:    "/api/v1/health/ready",
+			headers: baseHeaders,
+		},
+		{
+			name:  "exchange rates list",
+			route: "/api/v1/exchange-rates",
+			path: "/api/v1/exchange-rates?" + url.Values{
+				"currency":   []string{liveExchangeCurrency},
+				"year_month": []string{liveExchangeYearMonth},
+				"page":       []string{"1"},
+				"page_size":  []string{"50"},
+			}.Encode(),
+			headers: baseHeaders,
+		},
+		{
+			name:  "exchange rate resolve",
+			route: "/api/v1/exchange-rates/resolve",
+			path: "/api/v1/exchange-rates/resolve?" + url.Values{
+				"currency":   []string{liveExchangeCurrency},
+				"year_month": []string{liveExchangeYearMonth},
+			}.Encode(),
+			headers: baseHeaders,
+		},
+		{
+			name:    "exchange rate options",
+			route:   "/api/v1/exchange-rates/options",
+			path:    "/api/v1/exchange-rates/options",
+			headers: baseHeaders,
+		},
+		{
+			name:    "exchange rate detail",
+			route:   "/api/v1/exchange-rates/{exchange_rate_id}",
+			path:    "/api/v1/exchange-rates/" + fixture.exchangeRateID,
+			headers: baseHeaders,
+		},
+		{
+			name:  "notifications list",
+			route: "/api/v1/notifications",
+			path: "/api/v1/notifications?" + url.Values{
+				"type":      []string{"alert"},
+				"read":      []string{"false"},
+				"page":      []string{"1"},
+				"page_size": []string{"100"},
+			}.Encode(),
 			headers: notificationHeaders,
 		},
 		{
 			name:    "notifications unread count",
+			route:   "/api/v1/notifications/unread-count",
 			path:    "/api/v1/notifications/unread-count",
 			headers: notificationHeaders,
 		},
 		{
 			name:    "alert metrics",
+			route:   "/api/v1/alerts/metrics",
 			path:    "/api/v1/alerts/metrics",
-			headers: headers,
+			headers: baseHeaders,
 		},
 		{
 			name:    "alert rules",
-			path:    "/api/v1/alerts/rules?" + ruleFilters.Encode(),
-			headers: alertHeaders,
+			route:   "/api/v1/alerts/rules",
+			path:    "/api/v1/alerts/rules?" + alertProjectFilters.Encode(),
+			headers: alertAdminHeaders,
 		},
 		{
 			name:    "alert events",
-			path:    "/api/v1/alerts/events?" + eventFilters.Encode(),
-			headers: alertHeaders,
+			route:   "/api/v1/alerts/events",
+			path:    "/api/v1/alerts/events?" + alertEventFilters.Encode(),
+			headers: alertAdminHeaders,
 		},
 		{
-			name: "alert stats",
+			name:  "alert stats with project",
+			route: "/api/v1/alerts/stats",
 			path: "/api/v1/alerts/stats?" + url.Values{
-				"project_id": []string{projectID},
+				"project_id": []string{fixture.projectID},
 			}.Encode(),
-			headers: alertHeaders,
+			headers: alertAdminHeaders,
+		},
+		{
+			name:    "alert stats global non-admin",
+			route:   "/api/v1/alerts/stats",
+			path:    "/api/v1/alerts/stats",
+			headers: alertOperatorHeaders,
+		},
+		{
+			name:    "profile",
+			route:   "/api/v1/system-management/profile",
+			path:    "/api/v1/system-management/profile",
+			headers: profileHeaders,
 		},
 	}
+
+	coveredRoutes := make(map[string]bool)
 	for _, liveCase := range cases {
+		liveCase := liveCase
 		t.Run(liveCase.name, func(t *testing.T) {
-			fastAPIResponse := fetchLiveJSON(t, client, fastAPIOrigin+liveCase.path, liveCase.headers)
+			fastAPIResponse := fetchLiveJSON(t, client, cfg.fastAPIOrigin+liveCase.path, liveCase.headers)
 			goResponse := fetchLiveJSON(t, client, goServer.URL+liveCase.path, liveCase.headers)
 			if fastAPIResponse.status != goResponse.status {
 				t.Fatalf(
-					"status mismatch: FastAPI=%d go=%d FastAPI body=%s Go body=%s",
+					"status mismatch: FastAPI=%d Go=%d FastAPI body=%s Go body=%s",
 					fastAPIResponse.status,
 					goResponse.status,
 					fastAPIResponse.body,
@@ -128,32 +234,154 @@ func TestWeek1LiveContractFastAPIAgainstGo(t *testing.T) {
 				)
 			}
 			assertLiveJSONEqual(t, fastAPIResponse.value, goResponse.value)
+			t.Logf(
+				"contract matched: %s status=%d FastAPI bytes=%d Go bytes=%d",
+				liveCase.route,
+				fastAPIResponse.status,
+				len(fastAPIResponse.body),
+				len(goResponse.body),
+			)
+		})
+		coveredRoutes[liveCase.route] = true
+	}
+
+	if len(coveredRoutes) != 14 {
+		t.Fatalf("covered %d Week 1 GET routes, want 14", len(coveredRoutes))
+	}
+	routes := make([]string, 0, len(coveredRoutes))
+	for route := range coveredRoutes {
+		routes = append(routes, route)
+	}
+	sort.Strings(routes)
+	t.Logf(
+		"Week 1 live contract coverage: %d routes / %d cases\n%s",
+		len(routes),
+		len(cases),
+		strings.Join(routes, "\n"),
+	)
+}
+
+func liveConfig(t *testing.T) liveContractConfig {
+	t.Helper()
+	cfg := liveContractConfig{
+		fastAPIOrigin: strings.TrimRight(strings.TrimSpace(os.Getenv("FASTAPI_ORIGIN")), "/"),
+		databaseURL:   strings.TrimSpace(os.Getenv("GO_API_TEST_DATABASE_URL")),
+		apiKey:        strings.TrimSpace(os.Getenv("LIVE_CONTRACT_API_KEY")),
+		redisURL:      strings.TrimSpace(os.Getenv("REDIS_URL")),
+	}
+	if cfg.redisURL == "" {
+		host := strings.TrimSpace(os.Getenv("REDIS_HOST"))
+		if host != "" {
+			port := strings.TrimSpace(os.Getenv("REDIS_PORT"))
+			if port == "" {
+				port = "6379"
+			}
+			database := strings.TrimSpace(os.Getenv("REDIS_DB"))
+			if database == "" {
+				database = "0"
+			}
+			cfg.redisURL = fmt.Sprintf("redis://%s:%s/%s", host, port, database)
+		}
+	}
+
+	missing := make([]string, 0, 3)
+	if cfg.fastAPIOrigin == "" {
+		missing = append(missing, "FASTAPI_ORIGIN")
+	}
+	if cfg.databaseURL == "" {
+		missing = append(missing, "GO_API_TEST_DATABASE_URL")
+	}
+	if cfg.apiKey == "" {
+		missing = append(missing, "LIVE_CONTRACT_API_KEY")
+	}
+	required := liveContractRequired()
+	if len(missing) > 0 {
+		message := "live contract requires " + strings.Join(missing, ", ")
+		if required {
+			t.Fatal(message)
+		}
+		if len(missing) < 3 {
+			t.Fatalf("incomplete live contract environment: %s", message)
+		}
+		t.Skip(message + " (set LIVE_CONTRACT_REQUIRED=1 to make this a gate)")
+	}
+	return cfg
+}
+
+func liveContractRequired() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("LIVE_CONTRACT_REQUIRED"))) {
+	case "1", "true", "yes":
+		return true
+	default:
+		return false
+	}
+}
+
+func TestLiveContractRequiredFlag(t *testing.T) {
+	tests := []struct {
+		value string
+		want  bool
+	}{
+		{value: "", want: false},
+		{value: "0", want: false},
+		{value: "1", want: true},
+		{value: "true", want: true},
+		{value: "YES", want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.value, func(t *testing.T) {
+			t.Setenv("LIVE_CONTRACT_REQUIRED", tt.value)
+			if got := liveContractRequired(); got != tt.want {
+				t.Errorf("liveContractRequired(%q) = %v, want %v", tt.value, got, tt.want)
+			}
 		})
 	}
 }
 
 func newLiveGoServer(
 	t *testing.T,
-	fastAPIOrigin string,
-	apiKey string,
+	cfg liveContractConfig,
 	pool *pgxpool.Pool,
 ) *httptest.Server {
 	t.Helper()
 	db := store.NewPGXDB(pool)
+	stores := httpserver.OwnedStores{
+		APIKeys:        store.NewUserKeyStore(db),
+		HealthDatabase: db,
+		ExchangeRates:  store.NewExchangeRateStore(db),
+		Notifications:  store.NewNotificationStore(db),
+		Alerts:         store.NewAlertStore(db),
+		Profile:        store.NewProfileStore(db),
+	}
+	if cfg.redisURL != "" {
+		redisClient := health.NewRedisClient(cfg.redisURL)
+		if redisClient == nil {
+			t.Fatalf("parse REDIS_URL %q", cfg.redisURL)
+		}
+		probe := health.NewRedisProbe(redisClient, nil)
+		stores.HealthRedis = probe
+		t.Cleanup(func() {
+			_ = probe.Close()
+		})
+	}
+
 	router, err := httpserver.NewRouter(
 		config.Config{
-			FastAPIOrigin: fastAPIOrigin,
-			APIKey:        apiKey,
+			FastAPIOrigin: cfg.fastAPIOrigin,
+			APIKey:        cfg.apiKey,
+			DatabaseURL:   cfg.databaseURL,
+			RedisURL:      cfg.redisURL,
+			AppEnv:        strings.TrimSpace(os.Getenv("APP_ENV")),
 			OwnedModules: map[string]bool{
-				"notifications": true,
-				"alerts":        true,
+				"health":         true,
+				"exchange_rates": true,
+				"notifications":  true,
+				"alerts":         true,
+				"profile":        true,
 			},
 		},
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
-		httpserver.OwnedStores{
-			Notifications: store.NewNotificationStore(db),
-			Alerts:        store.NewAlertStore(db),
-		},
+		stores,
 	)
 	if err != nil {
 		t.Fatalf("NewRouter() error = %v", err)
@@ -163,98 +391,52 @@ func newLiveGoServer(
 	return server
 }
 
-func liveNotificationUserID(t *testing.T, ctx context.Context, db rowQuerier) string {
+func loadLiveFixture(t *testing.T, ctx context.Context, db rowQuerier) liveFixture {
 	t.Helper()
-	var userID string
-	err := db.QueryRow(
+	fixture := liveFixture{}
+	if err := db.QueryRow(
 		ctx,
-		"select user_id::text from public.notifications order by id limit 1",
-	).Scan(&userID)
-	if err == pgx.ErrNoRows {
-		t.Skip("live contract skipped: no notification fixture in test database")
+		"select user_id::text from public.notifications where title = $1",
+		liveNotificationTitle,
+	).Scan(&fixture.notificationUserID); err != nil {
+		t.Fatalf("load live notification fixture: %v", err)
 	}
-	if err != nil {
-		t.Fatalf("load notification fixture: %v", err)
-	}
-	return userID
-}
-
-func liveProjectID(t *testing.T, ctx context.Context, db rowQuerier) string {
-	t.Helper()
-	var projectID string
-	err := db.QueryRow(
+	if err := db.QueryRow(
 		ctx,
-		"select id::text from public.projects order by id limit 1",
-	).Scan(&projectID)
-	if err == pgx.ErrNoRows {
-		t.Skip("live contract skipped: no project fixture in test database")
+		"select id::text from public.projects where project_name = $1",
+		liveProjectName,
+	).Scan(&fixture.projectID); err != nil {
+		t.Fatalf("load live project fixture: %v", err)
 	}
-	if err != nil {
-		t.Fatalf("load project fixture: %v", err)
-	}
-	return projectID
-}
-
-func liveRuleFilters(
-	t *testing.T,
-	ctx context.Context,
-	db rowQuerier,
-	fallbackProjectID string,
-) url.Values {
-	t.Helper()
-	values := url.Values{"project_id": []string{fallbackProjectID}}
-	var projectID, metric string
-	var isActive bool
-	err := db.QueryRow(
+	if err := db.QueryRow(
 		ctx,
-		`select project_id::text, metric, is_active
-		 from public.alert_rules
-		 order by id
+		`select id::text
+		 from public.exchange_rates
+		 where currency = $1 and year_month = $2`,
+		liveExchangeCurrency,
+		liveExchangeYearMonth,
+	).Scan(&fixture.exchangeRateID); err != nil {
+		t.Fatalf("load live exchange-rate fixture: %v", err)
+	}
+	if err := db.QueryRow(
+		ctx,
+		`select id::text
+		 from public.user_accounts
+		 where lower(email) = lower($1)
 		 limit 1`,
-	).Scan(&projectID, &metric, &isActive)
-	if err == nil {
-		values.Set("project_id", projectID)
-		values.Set("metric", metric)
-		values.Set("is_active", fmt.Sprintf("%t", isActive))
-		return values
+		liveProfileEmail,
+	).Scan(&fixture.profileUserID); err != nil {
+		t.Fatalf("load live profile fixture: %v", err)
 	}
-	if err != pgx.ErrNoRows {
-		t.Fatalf("load rule fixture: %v", err)
-	}
-	values.Set("is_active", "true")
-	return values
+	return fixture
 }
 
-func liveEventFilters(
-	t *testing.T,
-	ctx context.Context,
-	db rowQuerier,
-	fallbackProjectID string,
-) url.Values {
-	t.Helper()
-	values := url.Values{
-		"project_id": []string{fallbackProjectID},
-		"page":       []string{"1"},
-		"page_size":  []string{"100"},
+func cloneHeaders(source map[string]string) map[string]string {
+	cloned := make(map[string]string, len(source)+2)
+	for key, value := range source {
+		cloned[key] = value
 	}
-	var projectID, severity, status string
-	err := db.QueryRow(
-		ctx,
-		`select project_id::text, severity, status
-		 from public.alert_events
-		 order by id
-		 limit 1`,
-	).Scan(&projectID, &severity, &status)
-	if err == nil {
-		values.Set("project_id", projectID)
-		values.Set("severity", severity)
-		values.Set("status", status)
-		return values
-	}
-	if err != pgx.ErrNoRows {
-		t.Fatalf("load event fixture: %v", err)
-	}
-	return values
+	return cloned
 }
 
 type rowQuerier interface {
@@ -308,7 +490,26 @@ func normalizeLiveJSON(value any) any {
 	case map[string]any:
 		result := make(map[string]any, len(typed))
 		for key, item := range typed {
-			result[key] = normalizeLiveJSON(item)
+			switch key {
+			case "timestamp":
+				// Health probes run at slightly different instants.
+				result[key] = "<runtime>"
+			case "redis":
+				if status, ok := item.(string); ok && strings.HasPrefix(status, "ok (") {
+					result[key] = "ok"
+				} else {
+					result[key] = normalizeLiveJSON(item)
+				}
+			case "redis_memory":
+				// Redis reports process-wide memory, which can move between calls.
+				if item == nil {
+					result[key] = nil
+				} else {
+					result[key] = "<runtime>"
+				}
+			default:
+				result[key] = normalizeLiveJSON(item)
+			}
 		}
 		return result
 	case []any:
@@ -359,7 +560,11 @@ func assertLiveJSONEqual(t *testing.T, want, got any) {
 		}
 	case float64:
 		typedGot, ok := got.(float64)
-		if !ok || typedWant != typedGot {
+		if !ok {
+			t.Fatalf("number type mismatch: FastAPI=number Go=%T", got)
+		}
+		tolerance := math.Max(1e-9, math.Abs(typedWant)*1e-9)
+		if math.Abs(typedWant-typedGot) > tolerance {
 			t.Fatalf("number mismatch: FastAPI=%v Go=%#v", typedWant, got)
 		}
 	case string:

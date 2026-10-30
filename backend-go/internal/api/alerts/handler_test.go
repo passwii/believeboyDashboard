@@ -398,7 +398,7 @@ func TestAlertStoreErrorsReturn500(t *testing.T) {
 	assertInternalError(t, rec)
 }
 
-func TestStatsWithoutProjectRequiresAdmin(t *testing.T) {
+func TestStatsWithoutProjectAllowsNonAdminLikeFastAPI(t *testing.T) {
 	store := &fakeStore{}
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/alerts/stats", nil)
 	req.Header.Set("X-Operator", "operator-a")
@@ -406,9 +406,17 @@ func TestStatsWithoutProjectRequiresAdmin(t *testing.T) {
 
 	NewHandler(store).Stats(rec, req)
 
-	assertResponse(t, rec, http.StatusForbidden, `{"detail":"需要管理员权限"}`)
-	if store.calls != 0 {
-		t.Error("store was called for a non-admin global stats request")
+	assertResponse(
+		t,
+		rec,
+		http.StatusOK,
+		`{"total_active":0,"critical_count":0,"warning_count":0,"info_count":0,"acknowledged_today":0,"resolved_today":0}`,
+	)
+	if store.calls == 0 {
+		t.Error("store was not called for a non-admin global stats request")
+	}
+	if store.statsProjectID != nil {
+		t.Errorf("Stats() project = %#v, want nil for global stats", store.statsProjectID)
 	}
 
 	store = &fakeStore{}

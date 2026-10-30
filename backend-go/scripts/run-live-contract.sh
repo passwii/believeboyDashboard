@@ -55,6 +55,12 @@ for key, value in values.items():
 PY
 )"
 
+echo "live contract: seeding deterministic fixtures..."
+(
+  cd "$BACKEND_DIR"
+  "$PYTHON" scripts/seed_live_contract_data.py
+)
+
 LOG_FILE="$(mktemp -t live-contract.XXXXXX)"
 SERVER_PID=""
 
@@ -107,4 +113,5 @@ cd "$BACKEND_GO_DIR"
 FASTAPI_ORIGIN="$FASTAPI_ORIGIN" \
 GO_API_TEST_DATABASE_URL="$DATABASE_URL" \
 LIVE_CONTRACT_API_KEY="$API_KEY" \
+LIVE_CONTRACT_REQUIRED=1 \
   go test ./tests/contract -run TestWeek1LiveContractFastAPIAgainstGo -count=1 -v
