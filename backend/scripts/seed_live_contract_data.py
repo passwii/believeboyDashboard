@@ -9,6 +9,7 @@ Only ephemeral/test databases named BLF_test or BLF_ci are accepted.
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
@@ -30,25 +31,60 @@ LIVE_EXCHANGE_YEAR_MONTH = "2026-10"
 LIVE_PROFILE_EMAIL = "test_admin@believeboy.com"
 
 
+def _read_env_file(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        values[key.strip()] = value.strip().strip('"').strip("'")
+    return values
+
+
+def _export_env(values: dict[str, str]) -> None:
+    for key, value in values.items():
+        os.environ[key] = value
+
+
 def _load_env_files() -> None:
-    paths = [(ROOT / ".env", False), (ROOT / ".env.test", True)]
     explicit_env = os.environ.get("LIVE_CONTRACT_ENV_FILE")
     if explicit_env:
-        paths.append((Path(explicit_env), True))
-    for path, override in paths:
+        explicit_path = Path(explicit_env)
+        if not explicit_path.exists():
+            raise SystemExit(
+                f"seed_live_contract_data failed: env file not found: {explicit_path}"
+            )
+        values = _read_env_file(explicit_path)
+        database_url = values.get("DATABASE_URL")
+        test_database_url = values.get("TEST_DATABASE_URL")
+        if database_url and test_database_url and database_url != test_database_url:
+            raise SystemExit(
+                "seed_live_contract_data failed: DATABASE_URL and TEST_DATABASE_URL "
+                "in LIVE_CONTRACT_ENV_FILE point to different databases"
+            )
+        chosen_db_url = database_url or test_database_url
+        if chosen_db_url:
+            values["DATABASE_URL"] = chosen_db_url
+            values["TEST_DATABASE_URL"] = chosen_db_url
+        _export_env(values)
+        return
+
+    for path, override in ((ROOT / ".env", False), (ROOT / ".env.test", True)):
         if not path.exists():
             continue
-        for raw in path.read_text(encoding="utf-8").splitlines():
-            line = raw.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, _, value = line.partition("=")
-            if override or key.strip() not in os.environ:
-                os.environ[key.strip()] = value.strip().strip('"').strip("'")
+        for key, value in _read_env_file(path).items():
+            if override or key not in os.environ:
+                os.environ[key] = value
 
 
-def _database_url() -> str:
-    url = os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL") or ""
+def _database_url(explicit_url: str | None = None) -> str:
+    url = (
+        (explicit_url or "").strip()
+        or os.environ.get("LIVE_CONTRACT_DATABASE_URL", "").strip()
+        or os.environ.get("TEST_DATABASE_URL", "").strip()
+        or os.environ.get("DATABASE_URL", "").strip()
+    )
     if not url:
         raise SystemExit(
             "seed_live_contract_data failed: TEST_DATABASE_URL or DATABASE_URL is required"
@@ -62,8 +98,8 @@ def _database_url() -> str:
     return url
 
 
-def seed() -> None:
-    engine = create_engine(_database_url(), future=True)
+def seed(database_url: str | None = None) -> None:
+    engine = create_engine(_database_url(database_url), future=True)
     with engine.begin() as conn:
         profile = conn.execute(
             text(
@@ -223,6 +259,16 @@ def seed() -> None:
     )
 
 
-if __name__ == "__main__":
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--database-url",
+        help="Exact database URL chosen by the caller; takes precedence over env files.",
+    )
+    args = parser.parse_args(argv)
     _load_env_files()
-    seed()
+    seed(args.database_url)
+
+
+if __name__ == "__main__":
+    main()

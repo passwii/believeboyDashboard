@@ -330,7 +330,7 @@ jobs:
 
       - name: 灌 live contract 固定数据
         working-directory: backend
-        run: python scripts/seed_live_contract_data.py
+        run: python scripts/seed_live_contract_data.py --database-url "$TEST_DATABASE_URL"
 
       - name: 启动 FastAPI
         working-directory: backend

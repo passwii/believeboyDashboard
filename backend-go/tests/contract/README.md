@@ -42,6 +42,10 @@ It refuses any database whose name is not `BLF_test` or `BLF_ci`.
 
 The local runner reads a test environment file, seeds the fixtures, starts
 FastAPI on `127.0.0.1:18100`, runs the contract, and always stops FastAPI.
+It validates one disposable database URL, exports it as both
+`DATABASE_URL` and `TEST_DATABASE_URL`, and passes it to the fixture seeder
+with `--database-url`. A custom `BELIEVEBOY_ENV_FILE` is authoritative;
+`backend/.env.test` cannot redirect the fixture to a different database.
 
 ```bash
 cd backend-go
@@ -97,7 +101,9 @@ or status difference must turn CI red.
    `GO_API_TEST_DATABASE_URL`, and `LIVE_CONTRACT_API_KEY`.
 3. `load live ... fixture`: rerun `seed_live_contract_data.py`; the test admin
    must already exist via `seed_test_accounts.py`.
-4. `status mismatch` or `JSON ... mismatch`: compare the two response bodies in
+4. `DATABASE_URL and TEST_DATABASE_URL ... different databases`: keep only one
+   URL in the custom env file, or make both entries identical.
+5. `status mismatch` or `JSON ... mismatch`: compare the two response bodies in
    the failure output, then update FastAPI/Go behavior. Do not weaken the
    assertion unless the difference is genuinely runtime-only and documented
    above.

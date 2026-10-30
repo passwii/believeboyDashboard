@@ -26,21 +26,27 @@ if [[ ! -x "$PYTHON" ]]; then
   exit 2
 fi
 
-# Load .env.test without echoing values. Refuse to start unless DATABASE_URL
-# names BLF_test explicitly.
-"$PYTHON" - "$ENV_FILE" <<'PY'
+# Load .env.test without echoing values. Both primary URL names are accepted,
+# but the target database must be explicitly disposable.
+SELECTED_DATABASE_URL="$("$PYTHON" - "$ENV_FILE" <<'PY'
 import sys
 from urllib.parse import urlparse
 
 from dotenv import dotenv_values
 
 values = dotenv_values(sys.argv[1])
-parsed = urlparse(values.get("DATABASE_URL", ""))
-if parsed.path.lower() != "/blf_test":
-    raise SystemExit("live contract refused: DATABASE_URL must target BLF_test")
+database_url = values.get("DATABASE_URL") or values.get("TEST_DATABASE_URL") or ""
+parsed = urlparse(database_url)
+if parsed.path.lower() not in {"/blf_test", "/blf_ci"}:
+    raise SystemExit(
+        "live contract refused: DATABASE_URL/TEST_DATABASE_URL must target "
+        "BLF_test or BLF_ci"
+    )
 if not values.get("API_KEY"):
     raise SystemExit("live contract refused: API_KEY is empty")
+print(database_url)
 PY
+)"
 
 eval "$("$PYTHON" - "$ENV_FILE" <<'PY'
 import shlex
@@ -55,10 +61,18 @@ for key, value in values.items():
 PY
 )"
 
+# The env file may define either or both URL names. Pin FastAPI, the seeder,
+# and the Go test to the exact URL validated above.
+export DATABASE_URL="$SELECTED_DATABASE_URL"
+export TEST_DATABASE_URL="$SELECTED_DATABASE_URL"
+
 echo "live contract: seeding deterministic fixtures..."
 (
   cd "$BACKEND_DIR"
-  "$PYTHON" scripts/seed_live_contract_data.py
+  LIVE_CONTRACT_ENV_FILE="$ENV_FILE" \
+  LIVE_CONTRACT_DATABASE_URL="$SELECTED_DATABASE_URL" \
+    "$PYTHON" scripts/seed_live_contract_data.py \
+      --database-url "$SELECTED_DATABASE_URL"
 )
 
 LOG_FILE="$(mktemp -t live-contract.XXXXXX)"
