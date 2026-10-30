@@ -172,6 +172,29 @@ Playwright E2E (Layer 2):
 
 ---
 
+## Go Gateway 测试与 FastAPI live contract
+
+`backend-go/` 与 `desktop/` 由 `.github/workflows/test-ci.yml` 独立跑
+`go test ./...` + `go vet ./...`；`backend-go` 额外跑 `go test -race ./...`。
+
+FastAPI ↔ Go 的 14 条 Week 1 GET 语义对账在专用 CI job 中启动 FastAPI、
+Postgres、Redis，并强制设置 `LIVE_CONTRACT_REQUIRED=1`。缺环境、服务不可用、
+fixture 缺失、status 或 JSON 任一差异都会失败。
+
+本地一键复现（只写 `BLF_test`，不会碰 `BLF`）：
+
+```bash
+cd backend-go
+BELIEVEBOY_PYTHON=../backend/.venv/bin/python \
+BELIEVEBOY_ENV_FILE=../backend/.env.test \
+./scripts/run-live-contract.sh
+```
+
+覆盖清单、归一化规则、已知差异和失败排查见
+[`backend-go/tests/contract/README.md`](backend-go/tests/contract/README.md)。
+
+---
+
 ## 前端单测（Vitest）— 全量耗时口径与「卡住」排查
 
 > 前端单测是 `frontend/` 下的 `*.test.ts(x)`（Vitest + jsdom，配置 `frontend/vitest.config.ts`），

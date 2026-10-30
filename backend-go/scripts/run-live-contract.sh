@@ -6,8 +6,6 @@ BACKEND_GO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$BACKEND_GO_DIR/.." && pwd)"
 
 BACKEND_DIR="${BELIEVEBOY_BACKEND_DIR:-$REPO_ROOT/backend}"
-ENV_FILE="${BELIEVEBOY_ENV_FILE:-$BACKEND_DIR/.env.test}"
-PYTHON="${BELIEVEBOY_PYTHON:-$BACKEND_DIR/.venv/bin/python}"
 PORT="${LIVE_FASTAPI_PORT:-18100}"
 
 if [[ ! -d "$BACKEND_DIR" ]]; then
@@ -15,32 +13,45 @@ if [[ ! -d "$BACKEND_DIR" ]]; then
   echo "set BELIEVEBOY_BACKEND_DIR to a backend checkout with .venv and .env.test" >&2
   exit 2
 fi
+BACKEND_DIR="$(cd "$BACKEND_DIR" && pwd -P)"
+
+ENV_FILE="${BELIEVEBOY_ENV_FILE:-$BACKEND_DIR/.env.test}"
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "live contract: env file not found: $ENV_FILE" >&2
   echo "set BELIEVEBOY_ENV_FILE to the BLF_test environment file" >&2
   exit 2
 fi
+ENV_FILE="$(cd "$(dirname "$ENV_FILE")" && pwd -P)/$(basename "$ENV_FILE")"
+
+PYTHON="${BELIEVEBOY_PYTHON:-$BACKEND_DIR/.venv/bin/python}"
 if [[ ! -x "$PYTHON" ]]; then
   echo "live contract: Python executable not found: $PYTHON" >&2
   echo "set BELIEVEBOY_PYTHON to the backend virtualenv Python" >&2
   exit 2
 fi
+PYTHON="$(cd "$(dirname "$PYTHON")" && pwd -P)/$(basename "$PYTHON")"
 
-# Load .env.test without echoing values. Refuse to start unless DATABASE_URL
-# names BLF_test explicitly.
-"$PYTHON" - "$ENV_FILE" <<'PY'
+# Load .env.test without echoing values. Both primary URL names are accepted,
+# but the target database must be explicitly disposable.
+SELECTED_DATABASE_URL="$("$PYTHON" - "$ENV_FILE" <<'PY'
 import sys
 from urllib.parse import urlparse
 
 from dotenv import dotenv_values
 
 values = dotenv_values(sys.argv[1])
-parsed = urlparse(values.get("DATABASE_URL", ""))
-if parsed.path.lower() != "/blf_test":
-    raise SystemExit("live contract refused: DATABASE_URL must target BLF_test")
+database_url = values.get("DATABASE_URL") or values.get("TEST_DATABASE_URL") or ""
+parsed = urlparse(database_url)
+if parsed.path.lower() not in {"/blf_test", "/blf_ci"}:
+    raise SystemExit(
+        "live contract refused: DATABASE_URL/TEST_DATABASE_URL must target "
+        "BLF_test or BLF_ci"
+    )
 if not values.get("API_KEY"):
     raise SystemExit("live contract refused: API_KEY is empty")
+print(database_url)
 PY
+)"
 
 eval "$("$PYTHON" - "$ENV_FILE" <<'PY'
 import shlex
@@ -54,6 +65,20 @@ for key, value in values.items():
         print(f"export {key}={shlex.quote(value)}")
 PY
 )"
+
+# The env file may define either or both URL names. Pin FastAPI, the seeder,
+# and the Go test to the exact URL validated above.
+export DATABASE_URL="$SELECTED_DATABASE_URL"
+export TEST_DATABASE_URL="$SELECTED_DATABASE_URL"
+
+echo "live contract: seeding deterministic fixtures..."
+(
+  cd "$BACKEND_DIR"
+  LIVE_CONTRACT_ENV_FILE="$ENV_FILE" \
+  LIVE_CONTRACT_DATABASE_URL="$SELECTED_DATABASE_URL" \
+    "$PYTHON" scripts/seed_live_contract_data.py \
+      --database-url "$SELECTED_DATABASE_URL"
+)
 
 LOG_FILE="$(mktemp -t live-contract.XXXXXX)"
 SERVER_PID=""
@@ -107,4 +132,5 @@ cd "$BACKEND_GO_DIR"
 FASTAPI_ORIGIN="$FASTAPI_ORIGIN" \
 GO_API_TEST_DATABASE_URL="$DATABASE_URL" \
 LIVE_CONTRACT_API_KEY="$API_KEY" \
+LIVE_CONTRACT_REQUIRED=1 \
   go test ./tests/contract -run TestWeek1LiveContractFastAPIAgainstGo -count=1 -v

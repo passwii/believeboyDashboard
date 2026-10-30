@@ -281,9 +281,6 @@ func (h *Handler) Stats(w http.ResponseWriter, r *http.Request) {
 		if !h.requireProjectAccess(w, r, value, isAdmin) {
 			return
 		}
-	} else if !isAdmin {
-		httpapi.WriteDetail(w, http.StatusForbidden, "需要管理员权限")
-		return
 	}
 	stats, err := h.store.Stats(
 		r.Context(),

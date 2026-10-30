@@ -18,8 +18,9 @@ import (
 	"github.com/passwii/believeboyDashboard/backend-go/internal/auth"
 )
 
-// These are handler-level contract fixtures. They intentionally do not require
-// FastAPI, Redis, or PostgreSQL; live semantic diffing is a documented skip.
+// These are fast handler-level contract fixtures. They intentionally do not
+// require FastAPI, Redis, or PostgreSQL. The required live FastAPI/Go semantic
+// diff runs in live_contract_test.go when LIVE_CONTRACT_REQUIRED=1 or in CI.
 func TestWeek1ContractHealthNormalAndEmptyDependencies(t *testing.T) {
 	normal := health.NewHandler(health.HandlerConfig{
 		Database:   contractPinger{},
@@ -253,7 +254,8 @@ func TestWeek1ContractAlertsNormalAndEmpty(t *testing.T) {
 	}
 
 	statsRequest := httptest.NewRequest(http.MethodGet, "/api/v1/alerts/stats", nil)
-	statsRequest.Header.Set("X-Is-Admin", "true")
+	statsRequest.Header.Set("X-Operator", "operator-a")
+	statsRequest.Header.Set("X-Is-Admin", "false")
 	stats := requestWithHeaders(handler.Stats, statsRequest)
 	assertStatusAndBody(t, stats, http.StatusOK, `{"total_active":0,"critical_count":0,"warning_count":0,"info_count":0,"acknowledged_today":0,"resolved_today":0}`)
 
@@ -264,10 +266,6 @@ func TestWeek1ContractAlertsNormalAndEmpty(t *testing.T) {
 	emptyEventsRequest := httptest.NewRequest(http.MethodGet, "/api/v1/alerts/events", nil)
 	emptyEvents := requestWithHeaders(empty.Events, emptyEventsRequest)
 	assertStatusAndBody(t, emptyEvents, http.StatusOK, `{"items":[],"total":0,"page":1,"page_size":20}`)
-}
-
-func TestWeek1LiveFastAPIDiffSkipped(t *testing.T) {
-	t.Skip("live FastAPI/Go semantic diff intentionally skipped; offline fixture contracts run above")
 }
 
 type contractPinger struct{}
