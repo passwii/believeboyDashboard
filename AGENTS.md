@@ -71,6 +71,7 @@ git rev-list --left-right --count origin/main...HEAD  # 左侧计数为 0，才�
 
 ## 关键约定
 
+- **前端反 AI Slop / 克制文案（强制）**：新增或重构 `frontend/` UI 前，先读 [`frontend/docs/design-spec.md`](./frontend/docs/design-spec.md) §0.3.7 与 [`docs/terminal-design/master-prompt.md`](./docs/terminal-design/master-prompt.md) §0.1，先列设计决定再写代码。**每个可见元素必须可追溯到需求、真实字段 / 状态、导航或无障碍需要**；禁止自创 `description`、副标题、eyebrow、badge、统计数字、客户 logo、评价、假数据和装饰性卡片。控件名已表达动作时不再加说明文字；缺文案列为待确认项，不编营销话术。现有 V3 Terminal 规范（零圆角 / 1px 边框 / term token / mono 数值）优先，不机械套用外部反-slop 风格建议。
 - **Projects API**：前端取项目列表用 `/api/v1/projects/manage`（非 `/api/v1/projects`），因其按 `X-Operator` 过滤可见项目。
 - **Commit**：中文 + Conventional Commits（feat/fix/docs/test/chore…），scope 中文，subject 动宾短语 ≤50 字无句号。详细见 `chinese-commit-conventions` 技能。
 - **Superpowers**：收到任务先检查是否匹配 skill（哪怕 1% 可能）；设计先于编码、测试先于实现、验证先于完成。
