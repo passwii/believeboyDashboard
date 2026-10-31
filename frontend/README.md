@@ -2,7 +2,7 @@
 
 ## 📋 环境要求
 
-- Node.js 18+
+- Node.js 22.12+（CI 固定 Node 24 LTS，以仓库根 `.nvmrc` 为准）
 - pnpm（推荐）或 npm
 
 ## 🚀 快速开始

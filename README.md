@@ -159,7 +159,7 @@ believeboyDashboard/
 ## 🚀 快速开始
 
 ### 环境要求
-- Node.js 18+
+- Node.js 22.12+（CI 固定 Node 24 LTS，以仓库根 `.nvmrc` 为准）
 - Python 3.9+
 - PostgreSQL 12+（本机 brew `postgresql@18`，常驻运行，本地库即生产快照，详见 [TESTING.md](./TESTING.md#本地生产快照库bel-376-集成--手动读写测试)）
 - Redis（Celery broker；本地 mac 用 `brew install redis`，跑测试前 `brew services start redis`，测完 `brew services stop redis` 省资源；完整启停见 [TESTING.md](./TESTING.md#本地服务mac--brew)）

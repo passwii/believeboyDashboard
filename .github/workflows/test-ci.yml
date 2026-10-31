@@ -58,7 +58,7 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       backend_go: ${{ steps.filter.outputs.backend_go }}
       desktop: ${{ steps.filter.outputs.desktop }}
-      frontend: ${{ steps.filter.outputs.frontend }}
+      frontend: ${{ steps.frontend_filter.outputs.frontend }}
       live_contract: ${{ steps.filter.outputs.live_contract }}
     steps:
       - uses: actions/checkout@v4
@@ -78,12 +78,21 @@ jobs:
             desktop:
               - "desktop/**"
               - ".github/workflows/test-ci.yml"
-            frontend:
-              - "frontend/**"
             live_contract:
               - "backend/**"
               - "backend-go/**"
               - ".github/workflows/test-ci.yml"
+      - uses: dorny/paths-filter@v3
+        id: frontend_filter
+        with:
+          # every：代码文件需同时命中“frontend/**”和两个否定规则；
+          # 文档路径会被排除，避免 frontend/docs/** 误触发全量 Vitest。
+          predicate-quantifier: every
+          filters: |
+            frontend:
+              - "frontend/**"
+              - "!frontend/docs/**"
+              - "!frontend/**/*.md"
 
   backend-go:
     name: backend-go test + vet
@@ -398,7 +407,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: .nvmrc
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
 
