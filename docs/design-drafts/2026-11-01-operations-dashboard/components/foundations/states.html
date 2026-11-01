@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#09090a" />
+    <link rel="icon" href="data:," />
+    <title>Warm Ledger · 状态画廊</title>
+    <link rel="stylesheet" href="./tokens.css" />
+    <style>
+      * { box-sizing: border-box; }
+      html { color-scheme: dark; background: var(--warm-ledger-color-stage); }
+      body.warm-ledger {
+        min-width: 320px;
+        margin: 0;
+        padding: 32px;
+        color: var(--warm-ledger-color-text);
+        background: var(--warm-ledger-color-stage);
+        font: 14px/1.5 var(--warm-ledger-font-sans);
+      }
+      .warm-ledger button,
+      .warm-ledger select,
+      .warm-ledger a { color: inherit; font: inherit; }
+      .warm-ledger button,
+      .warm-ledger a,
+      .warm-ledger select { -webkit-tap-highlight-color: transparent; }
+      .warm-ledger button,
+      .warm-ledger a { cursor: pointer; }
+      .warm-ledger :focus-visible {
+        outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color);
+        outline-offset: var(--warm-ledger-focus-offset);
+      }
+      .gallery { width: min(1120px, 100%); margin: 0 auto; }
+      .gallery-head {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 24px;
+        padding: 0 0 24px;
+        border-bottom: 1px solid var(--warm-ledger-color-hairline-strong);
+      }
+      .eyebrow { margin: 0 0 8px; color: var(--warm-ledger-color-text-soft); font-size: 11px; }
+      h1 { margin: 0; font-size: 32px; font-weight: 400; line-height: 1.1; }
+      .scope-note { max-width: 280px; margin: 0; color: var(--warm-ledger-color-text-muted); font-size: 12px; }
+      .gallery-section { padding: 24px 0; border-bottom: 1px solid var(--warm-ledger-color-hairline); }
+      h2 { margin: 0 0 16px; font-size: 16px; font-weight: 500; }
+      h3 { margin: 0; font-size: 14px; font-weight: 500; }
+      .sample-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+      .sample { min-width: 0; padding: 16px; border: 1px solid var(--warm-ledger-color-hairline); border-radius: var(--warm-ledger-radius-panel); background: var(--warm-ledger-color-panel); }
+      .sample-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+      .sample-label { color: var(--warm-ledger-color-text-muted); font-size: 11px; }
+      .state-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+      .state-cell { display: grid; justify-items: start; gap: 8px; min-width: 0; }
+      .button,
+      .icon-button,
+      .select-control,
+      .sort-option {
+        min-height: var(--warm-ledger-control-height);
+        border: 1px solid var(--warm-ledger-color-hairline);
+        border-radius: var(--warm-ledger-radius-control);
+        background: var(--warm-ledger-color-panel);
+        box-shadow: var(--warm-ledger-highlight-rest);
+        transition: color 140ms var(--warm-ledger-motion-ease), background-color 140ms var(--warm-ledger-motion-ease), border-color 140ms var(--warm-ledger-motion-ease), box-shadow 140ms var(--warm-ledger-motion-ease), transform 100ms var(--warm-ledger-motion-ease);
+      }
+      .button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 12px; font-size: 12px; }
+      .button:hover,
+      .icon-button:hover,
+      .sort-option:hover { border-color: var(--warm-ledger-color-hairline-strong); background: var(--warm-ledger-color-raised-hover); box-shadow: var(--warm-ledger-highlight-hover); }
+      .button:active,
+      .icon-button:active,
+      .sort-option:active { transform: translateY(var(--warm-ledger-motion-distance-press)); box-shadow: var(--warm-ledger-highlight-pressed); }
+      .button--primary { border-color: var(--warm-ledger-color-accent); background: var(--warm-ledger-color-accent); color: #17130e; font-weight: 500; }
+      .button--primary:hover { background: var(--warm-ledger-color-accent-strong); }
+      .button--disabled:disabled,
+      .icon-button:disabled { cursor: not-allowed; opacity: 0.5; }
+      .button--loading:disabled { cursor: progress; opacity: 1; color: var(--warm-ledger-color-text); background: var(--warm-ledger-color-raised); }
+      .loading-dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: var(--warm-ledger-color-accent); }
+      .button--preview-hover,
+      .icon-button--preview-hover { border-color: var(--warm-ledger-color-hairline-strong); background: var(--warm-ledger-color-raised-hover); box-shadow: var(--warm-ledger-highlight-hover); }
+      .button--preview-focus,
+      .icon-button--preview-focus { outline: 2px solid var(--warm-ledger-focus-color); outline-offset: 3px; }
+      .button--preview-pressed,
+      .icon-button--preview-pressed { transform: translateY(1px); box-shadow: var(--warm-ledger-highlight-pressed); }
+      .icon-button { display: inline-grid; width: var(--warm-ledger-control-size-icon); height: var(--warm-ledger-control-size-icon); min-height: 0; place-items: center; padding: 0; }
+      .icon { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.55; stroke-linecap: round; stroke-linejoin: round; }
+      .select-wrap { display: grid; gap: 8px; width: min(280px, 100%); }
+      .field-label { color: var(--warm-ledger-color-text-soft); font-size: 12px; }
+      .select-control { width: 100%; height: var(--warm-ledger-control-height-select); padding: 0 12px; color: var(--warm-ledger-color-text); background: var(--warm-ledger-color-window); font-size: 13px; }
+      .select-control:hover { border-color: var(--warm-ledger-color-hairline-strong); }
+      .select-control[aria-invalid="true"] { border-color: var(--warm-ledger-color-negative); }
+      .field-error { color: var(--warm-ledger-color-negative); font-size: 12px; }
+      .sort-control { display: inline-flex; gap: 4px; padding: 4px; border: 1px solid var(--warm-ledger-color-hairline); border-radius: var(--warm-ledger-radius-control); }
+      .sort-option { min-height: var(--warm-ledger-control-height-compact); padding: 0 8px; background: transparent; box-shadow: none; font-size: 12px; }
+      .sort-option[aria-pressed="true"] { border-color: transparent; background: var(--warm-ledger-color-raised); color: var(--warm-ledger-color-text); box-shadow: var(--warm-ledger-highlight-rest); }
+      .nav-demo { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr); gap: 20px; }
+      .nav-list,
+      .quick-list { display: grid; align-content: start; gap: 8px; }
+      .nav-item,
+      .quick-link { display: flex; align-items: center; gap: 12px; min-width: 0; min-height: var(--warm-ledger-nav-height); padding: 4px 8px; border: 1px solid transparent; border-radius: var(--warm-ledger-radius-inner); color: var(--warm-ledger-color-text-soft); text-decoration: none; }
+      .nav-item:hover,
+      .quick-link:hover { background: var(--warm-ledger-color-raised-hover); box-shadow: var(--warm-ledger-highlight-hover); color: var(--warm-ledger-color-text); }
+      .nav-item[aria-current="page"] { border-left: 2px solid var(--warm-ledger-color-accent); background: var(--warm-ledger-color-raised); color: var(--warm-ledger-color-text); }
+      .nav-item .icon,
+      .quick-link .icon { flex: 0 0 18px; color: var(--warm-ledger-color-text-muted); }
+      .nav-item[aria-current="page"] .icon { color: var(--warm-ledger-color-text); }
+      .nav-item span,
+      .quick-link span { min-width: 0; overflow-wrap: anywhere; }
+      .nav-item--long { min-height: 48px; }
+      .order-groups { display: grid; gap: 8px; }
+      .order-group { overflow: hidden; border: 1px solid var(--warm-ledger-color-hairline); border-radius: var(--warm-ledger-radius-inner); background: var(--warm-ledger-color-window); }
+      .order-group summary { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 44px; padding: 8px 12px; cursor: pointer; list-style: none; }
+      .order-group summary::-webkit-details-marker { display: none; }
+      .order-group summary:hover { background: var(--warm-ledger-color-raised); }
+      .order-group summary .icon { width: 14px; height: 14px; transform: rotate(-90deg); transition: transform 140ms var(--warm-ledger-motion-ease); }
+      .order-group[open] summary .icon { transform: rotate(0); }
+      .order-group-name { min-width: 0; overflow-wrap: anywhere; }
+      .order-count { color: var(--warm-ledger-color-text-muted); font: 12px var(--warm-ledger-font-mono); }
+      .order-group-body { padding: 12px 16px 16px 40px; border-top: 1px solid var(--warm-ledger-color-hairline); color: var(--warm-ledger-color-text-soft); font-size: 12px; }
+      .order-group-body p { margin: 0; }
+      .order-group-body .loading-row { min-height: 44px; }
+      .order-group-body .state-message { min-height: 0; padding: 12px; }
+      .order-identifiers { display: grid; gap: 12px; }
+      .order-identifier { display: grid; gap: 4px; min-width: 0; padding: 12px; border: 1px solid var(--warm-ledger-color-hairline); border-radius: var(--warm-ledger-radius-inner); background: var(--warm-ledger-color-window); }
+      .order-identifier code { color: var(--warm-ledger-color-text); font: 12px/1.5 var(--warm-ledger-font-mono); overflow-wrap: anywhere; }
+      .state-message { display: grid; justify-items: start; gap: 12px; min-height: 112px; padding: 16px; border: 1px solid var(--warm-ledger-color-hairline); border-radius: var(--warm-ledger-radius-inner); background: var(--warm-ledger-color-window); }
+      .state-message p { max-width: 48ch; margin: 0; color: var(--warm-ledger-color-text-soft); }
+      .state-message--empty { border-style: dashed; }
+      .state-message--error { border-color: rgba(238, 133, 128, 0.42); }
+      .state-message--error h3 { color: var(--warm-ledger-color-negative); }
+      .skeleton-stack { display: grid; gap: 12px; width: 100%; }
+      .skeleton-line { display: block; height: 12px; border-radius: 2px; background: var(--warm-ledger-color-raised); }
+      .skeleton-line--short { width: 28%; }
+      .skeleton-line--medium { width: 52%; }
+      .skeleton-line--long { width: 82%; }
+      .skeleton-value { display: block; width: 46%; height: 32px; border-radius: 2px; background: var(--warm-ledger-color-raised-hover); }
+      .loading-row { display: flex; align-items: center; gap: 12px; color: var(--warm-ledger-color-text-soft); }
+      .loading-mark { width: 4px; height: 20px; background: var(--warm-ledger-color-accent); }
+      .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+      .mono { font-family: var(--warm-ledger-font-mono); font-variant-numeric: var(--warm-ledger-font-variant-numeric); }
+      @media (max-width: 820px) {
+        body.warm-ledger { padding: 20px 16px; }
+        .gallery-head { align-items: start; flex-direction: column; gap: 12px; }
+        .sample-grid { grid-template-columns: 1fr; }
+        .nav-demo { grid-template-columns: 1fr; }
+        .nav-item,
+        .quick-link { min-height: var(--warm-ledger-control-target-touch); }
+        .quick-link { min-height: var(--warm-ledger-quick-link-height-mobile); }
+        .icon-button { width: var(--warm-ledger-control-target-touch); height: var(--warm-ledger-control-target-touch); }
+        .button { min-height: var(--warm-ledger-control-target-touch); }
+        .select-control { height: var(--warm-ledger-control-target-touch); min-height: var(--warm-ledger-control-target-touch); }
+        .sort-option,
+        .order-group summary { min-height: var(--warm-ledger-control-target-touch); }
+      }
+      @media (max-width: 460px) {
+        body.warm-ledger { padding: 16px 12px; }
+        h1 { font-size: 26px; }
+        .sample { padding: 12px; }
+        .sort-control { width: 100%; }
+        .sort-option { flex: 1; min-height: var(--warm-ledger-control-target-touch); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+      }
+    </style>
+  </head>
+  <body class="warm-ledger">
+    <main class="gallery">
+      <header class="gallery-head">
+        <div>
+          <p class="eyebrow">FOUNDATIONS / B0</p>
+          <h1>Warm Ledger · 状态画廊</h1>
+        </div>
+        <p class="scope-note">只展示交互与数据状态，不含业务统计或订单示例。</p>
+      </header>
+
+      <section class="gallery-section" aria-labelledby="actions-title">
+        <h2 id="actions-title">动作与筛选</h2>
+        <div class="sample-grid">
+          <article class="sample">
+            <div class="sample-head"><h3>Button</h3><span class="sample-label">默认 / hover / focus / pressed / disabled / loading</span></div>
+            <div class="state-row">
+              <div class="state-cell"><button class="button button--primary" type="button">刷新</button><span class="sample-label">默认</span></div>
+              <div class="state-cell"><button class="button button--primary button--preview-hover" type="button">刷新</button><span class="sample-label">hover 预览</span></div>
+              <div class="state-cell"><button class="button button--preview-focus" type="button">重试</button><span class="sample-label">focus 预览</span></div>
+              <div class="state-cell"><button class="button button--preview-pressed" type="button">确认</button><span class="sample-label">active 预览</span></div>
+              <div class="state-cell"><button class="button button--loading" type="button" aria-label="正在刷新当前页数据" aria-busy="true" disabled><span class="loading-dot" aria-hidden="true"></span>刷新中</button><span class="sample-label">loading</span></div>
+              <div class="state-cell"><button class="button button--disabled" type="button" disabled>不可用</button><span class="sample-label">disabled</span></div>
+            </div>
+          </article>
+
+          <article class="sample">
+            <div class="sample-head"><h3>IconButton</h3><span class="sample-label">图标操作需有可访问名称</span></div>
+            <div class="state-row">
+              <div class="state-cell"><button class="icon-button" type="button" aria-label="刷新当前页数据" title="刷新"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 8.5V4.8l-2.2 2.2A8 8 0 1 0 20 12"/><path d="M19.5 4.8h-3.7"/></svg></button><span class="sample-label">默认</span></div>
+              <div class="state-cell"><button class="icon-button icon-button--preview-hover" type="button" aria-label="搜索" title="搜索"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.2"/><path d="m15.5 15.5 4 4"/></svg></button><span class="sample-label">hover 预览</span></div>
+              <div class="state-cell"><button class="icon-button icon-button--preview-focus" type="button" aria-label="通知" title="通知"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 17.5h11l-1.2-1.7V10a4.3 4.3 0 0 0-8.6 0v5.8z"/><path d="M10 20h4"/></svg></button><span class="sample-label">focus 预览</span></div>
+              <div class="state-cell"><button class="icon-button" type="button" aria-label="刷新中" aria-busy="true"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 8.5V4.8l-2.2 2.2A8 8 0 1 0 20 12"/><path d="M19.5 4.8h-3.7"/></svg></button><span class="sample-label">loading</span></div>
+              <div class="state-cell"><button class="icon-button" type="button" aria-label="不可用" disabled><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 8.5V4.8l-2.2 2.2A8 8 0 1 0 20 12"/><path d="M19.5 4.8h-3.7"/></svg></button><span class="sample-label">disabled</span></div>
+            </div>
+          </article>
+
+          <article class="sample">
+            <div class="sample-head"><h3>Select</h3><span class="sample-label">项目筛选</span></div>
+            <div class="select-wrap">
+              <label class="field-label" for="project-select">项目</label>
+              <select class="select-control" id="project-select">
+                <option>全部项目</option>
+                <option>单个项目</option>
+              </select>
+              <span class="sample-label">窄屏保留完整可访问名称</span>
+            </div>
+            <div class="select-wrap" style="margin-top: 16px">
+              <label class="field-label" for="project-select-error">项目（错误）</label>
+              <select class="select-control" id="project-select-error" aria-invalid="true" aria-describedby="project-select-error-message">
+                <option>全部项目</option>
+              </select>
+              <span class="field-error" id="project-select-error-message" role="alert">项目列表加载失败</span>
+              <button class="button" type="button">重试项目列表</button>
+            </div>
+          </article>
+
+          <article class="sample">
+            <div class="sample-head"><h3>SortControl</h3><span class="sample-label">项目排行字段切换</span></div>
+            <div class="sort-control" role="group" aria-label="项目排行排序">
+              <button class="sort-option" type="button" aria-pressed="true">销售额</button>
+              <button class="sort-option" type="button" aria-pressed="false">广告花费</button>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="gallery-section" aria-labelledby="navigation-title">
+        <h2 id="navigation-title">导航</h2>
+        <div class="sample nav-demo">
+          <nav class="nav-list" aria-label="业务域状态示例">
+            <a class="nav-item" href="/dashboard/agent-center/overview" aria-current="page" aria-label="数据流总览">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg>
+              <span>数据流总览</span>
+            </a>
+            <a class="nav-item" href="/dashboard/operations/daily-analysis" aria-label="销售数据">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m14.8 5.2 4 4a3 3 0 0 1-4 4l-6.3 6.3-4-4L10.8 9a3 3 0 0 1 4-3.8Z"/></svg>
+              <span>销售数据</span>
+            </a>
+            <a class="nav-item nav-item--long" href="/dashboard/crm/dashboard" aria-label="CRM 客户">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.4-3.3 2.2-5 5.5-5s5.1 1.7 5.5 5"/></svg>
+              <span>CRM 客户</span>
+            </a>
+          </nav>
+          <nav class="quick-list" aria-label="快捷入口状态示例">
+            <a class="quick-link" href="/dashboard/reports/order-info" aria-label="订单信息"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5V4.5M4 19.5h16"/><path d="m7.5 15 3.2-4.2 3.1 2.1 4.2-6.2"/></svg><span>订单信息</span></a>
+            <a class="quick-link" href="/dashboard/operations/inventory-analysis" aria-label="库存分析"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8.5L18 7v13.5H6z"/><path d="M14.5 3.5V7H18M9 12h6M9 16h6"/></svg><span>库存分析</span></a>
+            <a class="quick-link" href="/dashboard/operations/complaint-center" aria-label="客户消息"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 4 8 4-8 4-8-4 8-4Z"/><path d="m4 12 8 4 8-4"/></svg><span>客户消息</span></a>
+            <a class="quick-link" href="/dashboard/operations/platform-inspection" aria-label="平台巡检"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 17.5h11l-1.2-1.7V10a4.3 4.3 0 0 0-8.6 0v5.8z"/><path d="M10 20h4"/></svg><span>平台巡检</span></a>
+          </nav>
+        </div>
+      </section>
+
+      <section class="gallery-section" aria-labelledby="order-title">
+        <h2 id="order-title">OrderGroup</h2>
+        <div class="sample-grid">
+          <article class="sample">
+            <div class="sample-head"><h3>Count 0</h3><span class="sample-label">零值是有效总数</span></div>
+            <details class="order-group">
+              <summary><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9.5 5 5 5-5"/></svg><span class="order-group-name">项目分组名称</span><span class="order-count" aria-label="待处理订单数量 0">0</span></summary>
+              <div class="order-group-body"><p>待处理订单数量为 0；不替换成占位符。</p></div>
+            </details>
+          </article>
+          <article class="sample">
+            <div class="sample-head"><h3>List loading</h3><span class="sample-label">保留已知 count 与列表区域</span></div>
+            <details class="order-group" open>
+              <summary><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9.5 5 5 5-5"/></svg><span class="order-group-name">项目分组名称</span><span class="order-count" aria-label="项目 count 待加载">—</span></summary>
+              <div class="order-group-body" aria-busy="true"><div class="loading-row" role="status" aria-live="polite"><span class="loading-mark" aria-hidden="true"></span><span>正在读取订单列表</span></div></div>
+            </details>
+          </article>
+          <article class="sample">
+            <div class="sample-head"><h3>List empty</h3><span class="sample-label">count 0 与空列表分别表达</span></div>
+            <details class="order-group" open>
+              <summary><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9.5 5 5 5-5"/></svg><span class="order-group-name">项目分组名称</span><span class="order-count" aria-label="待处理订单数量 0">0</span></summary>
+              <div class="order-group-body"><div class="state-message state-message--empty"><p>该项目当前没有待处理订单。</p></div></div>
+            </details>
+          </article>
+          <article class="sample">
+            <div class="sample-head"><h3>List error</h3><span class="sample-label">保留当前筛选并允许重试</span></div>
+            <details class="order-group" open>
+              <summary><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 9.5 5 5 5-5"/></svg><span class="order-group-name">项目分组名称</span><span class="order-count" aria-label="项目 count 待加载">—</span></summary>
+              <div class="order-group-body"><div class="state-message state-message--error" role="alert"><p>订单列表加载失败。</p><button class="button" type="button">重试订单列表</button></div></div>
+            </details>
+          </article>
+          <article class="sample">
+            <div class="sample-head"><h3>长 Order ID / SKU</h3><span class="sample-label">在容器内安全换行</span></div>
+            <div class="order-identifiers">
+              <div class="order-identifier"><span class="sample-label">Order ID</span><code>113-1234567-1234567-EXTENDED-REFERENCE</code></div>
+              <div class="order-identifier"><span class="sample-label">SKU</span><code>WARM-LEDGER-OPERATIONS-DASHBOARD-LONG-SKU-CODE-01</code></div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="gallery-section" aria-labelledby="feedback-title">
+        <h2 id="feedback-title">Loading / Empty / Error</h2>
+        <div class="sample-grid">
+          <article class="sample" aria-busy="true">
+            <div class="sample-head"><h3>Loading</h3><span class="sample-label">保留内容几何与计数位置</span></div>
+            <div class="skeleton-stack" aria-hidden="true"><span class="skeleton-line skeleton-line--short"></span><span class="skeleton-value"></span><span class="skeleton-line skeleton-line--medium"></span></div>
+            <p class="sr-only" role="status" aria-live="polite">正在读取待处理订单</p>
+            <div class="loading-row" role="presentation"><span class="loading-mark" aria-hidden="true"></span><span>正在读取待处理订单</span></div>
+          </article>
+          <article class="sample">
+            <div class="sample-head"><h3>Skeleton</h3><span class="sample-label">静态占位，无闪烁</span></div>
+            <div class="skeleton-stack" aria-hidden="true"><span class="skeleton-line skeleton-line--long"></span><span class="skeleton-line skeleton-line--medium"></span><span class="skeleton-line skeleton-line--short"></span></div>
+          </article>
+          <article class="sample">
+            <div class="sample-head"><h3>Empty</h3><span class="sample-label">销售数据</span></div>
+            <div class="state-message state-message--empty">
+              <p>当前区间暂无销售数据。</p>
+              <span class="sample-label">可提供真实动作：切换到上周 / 刷新</span>
+            </div>
+          </article>
+          <article class="sample">
+            <div class="sample-head"><h3>Error</h3><span class="sample-label">保留筛选并允许重试</span></div>
+            <div class="state-message state-message--error" role="alert">
+              <h3>销售数据加载失败</h3>
+              <p>错误状态应说明失败数据域。重试接入真实刷新回调。</p>
+              <button class="button" type="button">重试</button>
+            </div>
+          </article>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
