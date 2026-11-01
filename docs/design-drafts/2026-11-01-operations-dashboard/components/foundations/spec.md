@@ -1,39 +1,39 @@
 # Warm Ledger Foundations Contract
 
-> B0 design contract for the `/dashboard` route. This document and the other files in `components/foundations/` are frozen inputs and read-only for A1–A5; it does not authorize production-code changes.
+> B0 design contract with a user-approved post-launch refinement for `/dashboard`. The current values below supersede the initial B0 surface ramp while keeping the route boundary, amber accent, and component promotion rules.
 
 ## Scope and source of truth
 
 - Warm Ledger is a dark, route-scoped visual system for the BelieveBoy operations dashboard. Its character is warm, operational, and exact; real operating data carries the visual emphasis.
 - The app root uses `.warm-ledger`. All tokens use the `--warm-ledger-*` namespace. Do not change, alias, or override `--term-*`, global shadcn tokens, or the V3 Terminal defaults.
 - Light theme is outside B0. Do not infer a light palette from the dark values.
-- The reviewed `index.html` is the source for current dark values. The `design.md` table still lists muted text as `#7e766b`; the reviewed page corrected it to `#91887c` for readable auxiliary copy. B0 freezes `#91887c`. `#605a52` is non-text only.
+- The user's 2026-11-01 post-launch refinement supersedes the initial B0 surface ramp below: it raises grayscale separation and highlights while retaining the warm graphite direction and amber data accent. `tokens.css` is the source for current dark values.
 - The dashboard draft demonstrates values and layout. Its sample business numbers, timestamps, order IDs, and percentages are not product data and must not be carried into production or this state gallery.
 
 ## Color
 
 | Token role | Value | Use |
 | --- | --- | --- |
-| Stage | `#09090a` | Outside the centered desktop work window |
-| Window | `#121110` | Dashboard work surface |
-| Sidebar | `#0e0d0c` | Navigation surface |
-| Panel | `#181614` | Metric and content surfaces |
-| Panel strong | `#1c1916` | Local panel emphasis where hierarchy requires it |
-| Raised | `#24201b` | Selected and raised controls |
-| Raised hover | `#2a251f` | Interactive hover surface |
-| Hairline | `rgba(246, 238, 226, 0.075)` | Quiet 1px separators and panel outlines |
-| Strong hairline | `rgba(246, 238, 226, 0.13)` | Window edge and important control outline |
-| Text | `#f0ebe2` | Primary text |
-| Soft text | `#b2aa9e` | Secondary text |
-| Muted text | `#91887c` | Labels and supporting copy; retain at least 4.5:1 contrast for text |
-| Faint | `#605a52` | Non-text chart grid and decorative separators only |
+| Stage | `#141413` | Outside the centered desktop work window |
+| Window | `#1c1b19` | Dashboard work surface |
+| Sidebar | `#181715` | Navigation surface |
+| Panel | `#242220` | Metric and content surfaces |
+| Panel strong | `#2b2926` | Local panel emphasis where hierarchy requires it |
+| Raised | `#32302e` | Selected and raised controls |
+| Raised hover | `#3a3733` | Interactive hover surface |
+| Hairline | `rgba(246, 238, 226, 0.09)` | Quiet 1px separators and panel outlines |
+| Strong hairline | `rgba(246, 238, 226, 0.16)` | Window edge and important control outline |
+| Text | `#f1ede5` | Primary text |
+| Soft text | `#c2bbaf` | Secondary text |
+| Muted text | `#9e968c` | Labels and supporting copy; retain at least 4.5:1 contrast for text |
+| Faint | `#777066` | Non-text chart grid and decorative separators only |
 | Accent | `#e8b35a` | Current-week series, Pending emphasis, selected marker |
 | Accent strong | `#f3c875` | Focus ring and small key numeric accents |
 | Accent soft | `rgba(232, 179, 90, 0.12)` | Selected surface tint |
 | Accent area | `rgba(232, 179, 90, 0.10)` | Current-series chart area |
 | Positive | `#65cfa1` | Positive comparison only |
 | Negative | `#ee8580` | Negative comparison or error only |
-| Chart grid | `rgba(246, 238, 226, 0.055)` | Chart grid lines |
+| Chart grid | `rgba(246, 238, 226, 0.075)` | Chart grid lines |
 
 Color rules:
 
@@ -62,15 +62,15 @@ Color rules:
 ## Spacing and shape
 
 - Base spacing unit is 4px. Use 4px increments for component internals and group gaps.
-- Desktop stage inset: 20px. Main content inset: 28px. Panel inset: 20px. At narrow widths, page inset becomes 16px and then 12px at `<=460px`.
+- Desktop stage inset: 12px. Main content inset: 24px. Panel inset: 20px. At narrow widths, page inset becomes 16px and then 12px at `<=460px`.
 - Related control/icon gaps: 8px. Dense item gaps: 8–12px. Between sections: 16–24px. Dashboard metric cards: 12px gap.
 - Window radius: 22px. Panel radius: 16px. Primary control radius: 10px. Nested rows, nav items, and order groups: 8px maximum. Mobile app window: square edges, no desktop shadow.
 - Borders are 1px. The active navigation rail is 2px amber. Avoid thick colored outlines.
 
 ## Surface highlight and elevation
 
-- The desktop work window uses a restrained exterior shadow and a top inset highlight of `rgba(255, 255, 255, 0.025)`.
-- Controls use a 1px warm hairline and a 1px top inset highlight at rest (`rgba(255, 255, 255, 0.035)`). Hover may raise that highlight to `0.065` while shifting the surface to Raised hover.
+- The desktop work window uses a restrained exterior shadow and a top inset highlight of `rgba(255, 255, 255, 0.05)`.
+- Controls use a 1px warm hairline and a 1px top inset highlight at rest (`rgba(255, 255, 255, 0.06)`). Hover may raise that highlight to `0.1` while shifting the surface to Raised hover.
 - Pressed controls use a subtle dark inset (`rgba(0, 0, 0, 0.28)`) and translate down by 1px. No colored outer glow or broad colored shadow.
 - Panels do not receive hover treatment unless the whole panel is an actionable target.
 
@@ -106,7 +106,7 @@ Expand hit areas on touch layouts without shrinking visible labels or focus ring
 
 | Viewport | Layout contract |
 | --- | --- |
-| `>=1241px` | 272px full sidebar; three metric columns; chart and order flow side by side; project rank and daily ledger side by side. |
+| `>=1241px` | 280px full sidebar; three metric columns; chart and order flow side by side; project rank and daily ledger side by side. |
 | `1051–1240px` | 88px icon rail; featured metric takes a full row; chart and narrower order flow remain side by side. |
 | `821–1050px` | 88px icon rail; two metric columns with featured metric spanning both; chart/order flow and rank/daily ledger stack; diagnostics use two columns. |
 | `<=820px` | Full-width work surface; no outer radius or shadow; full navigation moves to a left drawer; sticky topbar retains menu, project filter, and notification; content stacks in reading order; tables may scroll horizontally. |

@@ -18,6 +18,17 @@
 
 G0 is complete. Implementation proceeds with direct production use.
 
+## Post-launch visual refinement
+
+On 2026-11-01 Damon approved a detail pass after seeing the production page. It supersedes the initial B0 grayscale and geometry values:
+
+- Raise the neutral surface ramp and hairline/highlight contrast; keep amber as the chart/data accent.
+- Expand the desktop work window and reduce the outer/content insets.
+- Set the sidebar to 280px and align icon/title columns at 18px.
+- Replace the dashboard project filter's native browser menu with a Warm-styled accessible Select; keep its API and project filtering behavior unchanged.
+
+`tokens.css` and `spec.md` contain the revised values. The redesign remains scoped to `/dashboard`; do not alter `--term-*`, global components, or other routes.
+
 ## Allowed and frozen files
 
 This A0F delivery may add or update only:

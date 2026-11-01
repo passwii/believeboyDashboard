@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#09090a" />
+    <meta name="theme-color" content="#141413" />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23f0ebe2'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='monospace' font-size='16' fill='%2317130e'%3EB%3C/text%3E%3C/svg%3E" />
     <meta
       name="description"
@@ -23,26 +23,26 @@
     <style>
       :root {
         color-scheme: dark;
-        --stage: #09090a;
-        --window: #121110;
-        --sidebar: #0e0d0c;
-        --panel: #181614;
-        --panel-strong: #1c1916;
-        --raised: #24201b;
-        --raised-hover: #2a251f;
-        --hairline: rgba(246, 238, 226, 0.075);
-        --hairline-strong: rgba(246, 238, 226, 0.13);
-        --text: #f0ebe2;
-        --text-soft: #b2aa9e;
-        --text-muted: #91887c;
-        --text-faint: #605a52;
+        --stage: #141413;
+        --window: #1c1b19;
+        --sidebar: #181715;
+        --panel: #242220;
+        --panel-strong: #2b2926;
+        --raised: #32302e;
+        --raised-hover: #3a3733;
+        --hairline: rgba(246, 238, 226, 0.09);
+        --hairline-strong: rgba(246, 238, 226, 0.16);
+        --text: #f1ede5;
+        --text-soft: #c2bbaf;
+        --text-muted: #9e968c;
+        --text-faint: #777066;
         --accent: #e8b35a;
         --accent-strong: #f3c875;
         --accent-soft: rgba(232, 179, 90, 0.12);
         --accent-area: rgba(232, 179, 90, 0.1);
         --positive: #65cfa1;
         --negative: #ee8580;
-        --chart-grid: rgba(246, 238, 226, 0.055);
+        --chart-grid: rgba(246, 238, 226, 0.075);
         --radius-window: 22px;
         --radius-panel: 16px;
         --radius-control: 10px;
@@ -136,24 +136,24 @@
         width: 100%;
         height: 100%;
         place-items: center;
-        padding: 20px;
+        padding: 12px;
         background: var(--stage);
       }
 
       .app-window {
         display: grid;
-        grid-template-columns: 272px minmax(0, 1fr);
+        grid-template-columns: 280px minmax(0, 1fr);
         grid-template-rows: minmax(0, 1fr);
-        width: min(1560px, calc(100vw - 40px));
-        height: min(940px, calc(100vh - 40px));
-        min-height: min(740px, calc(100vh - 40px));
+        width: min(1680px, calc(100vw - 24px));
+        height: min(960px, calc(100vh - 24px));
+        min-height: min(480px, calc(100vh - 24px));
         overflow: hidden;
         background: var(--window);
         border: 1px solid var(--hairline-strong);
         border-radius: var(--radius-window);
         box-shadow:
-          0 36px 100px rgba(0, 0, 0, 0.52),
-          inset 0 1px 0 rgba(255, 255, 255, 0.025);
+          0 28px 72px rgba(0, 0, 0, 0.36),
+          inset 0 1px 0 rgba(255, 255, 255, 0.05);
         animation: window-in 520ms var(--ease) both;
       }
 
@@ -364,7 +364,8 @@
 
       .nav-item {
         position: relative;
-        display: flex;
+        display: grid;
+        grid-template-columns: 18px minmax(0, 1fr);
         min-height: 36px;
         flex: 0 0 36px;
         align-items: center;
@@ -420,6 +421,12 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+      }
+
+      .nav-item > .icon {
+        width: 18px;
+        height: 18px;
+        stroke-width: 1.55;
       }
 
       .nav-separator {
@@ -574,20 +581,87 @@
         transform: translateY(1px);
       }
 
-      select.filter-control {
-        min-width: 128px;
-        padding-right: 32px;
+      .project-filter-wrap {
+        position: relative;
+      }
+
+      .project-filter {
+        min-width: 144px;
+        justify-content: space-between;
         color: var(--text);
-        appearance: none;
-        background-image:
-          linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
-          linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
-        background-position:
-          calc(100% - 15px) 16px,
-          calc(100% - 10px) 16px;
-        background-repeat: no-repeat;
-        background-size: 5px 5px, 5px 5px;
-        cursor: pointer;
+        text-align: left;
+      }
+
+      .project-filter > .icon {
+        width: 16px;
+        height: 16px;
+        flex-basis: 16px;
+        color: var(--text-muted);
+        transition: transform 140ms var(--ease);
+      }
+
+      .project-filter[aria-expanded="true"] > .icon {
+        transform: rotate(180deg);
+      }
+
+      .project-filter-menu {
+        position: absolute;
+        top: calc(100% + 4px);
+        right: 0;
+        z-index: 40;
+        width: max(100%, 192px);
+        max-height: min(360px, calc(100dvh - 88px));
+        padding: 4px;
+        overflow-y: auto;
+        background: var(--panel-strong);
+        border: 1px solid var(--hairline-strong);
+        border-radius: var(--radius-control);
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        animation: menu-in 140ms ease-out both;
+      }
+
+      .project-filter-menu[hidden] {
+        display: none;
+      }
+
+      @keyframes menu-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+
+      .project-filter-option {
+        display: flex;
+        width: 100%;
+        min-height: 36px;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 0 8px 0 12px;
+        color: var(--text-soft);
+        font-size: 12px;
+        text-align: left;
+        background: transparent;
+        border: 0;
+        border-radius: 6px;
+        cursor: default;
+      }
+
+      .project-filter-option:hover,
+      .project-filter-option:focus-visible,
+      .project-filter-option[data-current="true"] {
+        color: var(--text);
+        background: var(--raised);
+      }
+
+      .project-filter-option .icon {
+        width: 16px;
+        height: 16px;
+        flex: 0 0 16px;
+        color: var(--accent-strong);
+      }
+
+      .project-filter-option:not([data-current="true"]) .icon {
+        visibility: hidden;
       }
 
       .filter-control .mono {
@@ -674,7 +748,7 @@
       .main-scroll {
         min-width: 0;
         min-height: 0;
-        padding: 28px 28px 32px;
+        padding: 24px 24px 32px;
         overflow-y: auto;
       }
 
@@ -1604,7 +1678,7 @@
           z-index: 10;
           height: 60px;
           padding: 0 16px;
-          background: rgba(18, 17, 16, 0.94);
+          background: rgba(28, 27, 25, 0.96);
           backdrop-filter: blur(16px);
         }
 
@@ -1615,13 +1689,13 @@
         .breadcrumb > span,
         .breadcrumb > .mono,
         .scope-meta,
-        .topbar-controls .filter-control:not(select),
+        .topbar-controls .filter-control:not(.project-filter),
         .topbar-controls .is-secondary,
         .topbar-controls .avatar {
           display: none;
         }
 
-        select.filter-control {
+        .project-filter {
           min-width: 108px;
           height: 44px;
           min-height: 44px;
@@ -1835,6 +1909,9 @@
       <symbol id="i-chevron-down" viewBox="0 0 24 24">
         <path d="m7 9.5 5 5 5-5" />
       </symbol>
+      <symbol id="i-check" viewBox="0 0 24 24">
+        <path d="m5 12 4 4L19 6" />
+      </symbol>
       <symbol id="i-refresh" viewBox="0 0 24 24">
         <path d="M19.5 8.5V4.8l-2.2 2.2A8 8 0 1 0 20 12" />
         <path d="M19.5 4.8h-3.7" />
@@ -1958,29 +2035,91 @@
               <span class="breadcrumb-current">总览</span>
             </nav>
             <div class="topbar-controls">
-              <label class="sr-only" for="project-filter">项目筛选</label>
-              <select class="filter-control" id="project-filter">
-                <option value="all">全部项目</option>
-                <option value="1">铨富</option>
-                <option value="2">宝勒1店</option>
-                <option value="3">宝勒2店</option>
-                <option value="4">玥涵</option>
-                <option value="5">博智1店</option>
-                <option value="6">博智2店</option>
-                <option value="7">骏成</option>
-                <option value="8">华洋泛航</option>
-                <option value="9">金石</option>
-                <option value="10">弥森</option>
-                <option value="11">润茗</option>
-                <option value="12">沃迪</option>
-                <option value="13">花睡</option>
-                <option value="14">卡斯摩</option>
-                <option value="15">创酷</option>
-                <option value="16">吕沃</option>
-                <option value="17">瑞迪特</option>
-                <option value="18">犀牛</option>
-                <option value="19">博朗姆</option>
-              </select>
+              <div class="project-filter-wrap">
+                <button
+                  class="filter-control project-filter"
+                  id="project-filter"
+                  type="button"
+                  role="combobox"
+                  aria-label="项目筛选"
+                  aria-haspopup="listbox"
+                  aria-expanded="false"
+                  data-value="all"
+                  aria-controls="project-filter-menu"
+                  aria-activedescendant="project-filter-option-all"
+                >
+                  <span class="project-filter-value">全部项目</span>
+                  <svg class="icon" aria-hidden="true"><use href="#i-chevron-down" /></svg>
+                </button>
+                <div
+                  class="project-filter-menu"
+                  id="project-filter-menu"
+                  role="listbox"
+                  aria-label="项目筛选选项"
+                  hidden
+                >
+                  <button class="project-filter-option" id="project-filter-option-all" data-value="all" data-current="true" type="button" role="option" tabindex="-1">
+                    <span>全部项目</span><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg>
+                  </button>
+                  <button class="project-filter-option" id="project-filter-option-1" data-value="1" type="button" role="option" tabindex="-1">
+                    <span>铨富</span><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg>
+                  </button>
+                  <button class="project-filter-option" id="project-filter-option-2" data-value="2" type="button" role="option" tabindex="-1">
+                    <span>宝勒1店</span><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg>
+                  </button>
+                  <button class="project-filter-option" id="project-filter-option-3" data-value="3" type="button" role="option" tabindex="-1">
+                    <span>宝勒2店</span><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg>
+                  </button>
+                  <button class="project-filter-option" id="project-filter-option-4" data-value="4" type="button" role="option" tabindex="-1">
+                    <span>玥涵</span><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg>
+                  </button>
+                  <button class="project-filter-option" id="project-filter-option-5" data-value="5" type="button" role="option" tabindex="-1">
+                    <span>博智1店</span><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg>
+                  </button>
+                  <button class="project-filter-option" id="project-filter-option-6" data-value="6" type="button" role="option" tabindex="-1">
+                    <span>博智2店</span><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg>
+                  </button>
+                  <button class="project-filter-option" id="project-filter-option-7" data-value="7" type="button" role="option" tabindex="-1">
+                    <span>骏成</span><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg>
+                  </button>
+                  <button class="project-filter-option" id="project-filter-option-8" data-value="8" type="button" role="option" tabindex="-1">
+                    <span>华洋泛航</span><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg>
+                  </button>
+                  <button class="project-filter-option" id="project-filter-option-9" data-value="9" type="button" role="option" tabindex="-1">
+                    <span>金石</span><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg>
+                  </button>
+                  <button class="project-filter-option" id="project-filter-option-10" data-value="10" type="button" role="option" tabindex="-1">
+                    <span>弥森</span><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg>
+                  </button>
+                  <button class="project-filter-option" id="project-filter-option-11" data-value="11" type="button" role="option" tabindex="-1">
+                    <span>润茗</span><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg>
+                  </button>
+                  <button class="project-filter-option" id="project-filter-option-12" data-value="12" type="button" role="option" tabindex="-1">
+                    <span>沃迪</span><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg>
+                  </button>
+                  <button class="project-filter-option" id="project-filter-option-13" data-value="13" type="button" role="option" tabindex="-1">
+                    <span>花睡</span><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg>
+                  </button>
+                  <button class="project-filter-option" id="project-filter-option-14" data-value="14" type="button" role="option" tabindex="-1">
+                    <span>卡斯摩</span><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg>
+                  </button>
+                  <button class="project-filter-option" id="project-filter-option-15" data-value="15" type="button" role="option" tabindex="-1">
+                    <span>创酷</span><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg>
+                  </button>
+                  <button class="project-filter-option" id="project-filter-option-16" data-value="16" type="button" role="option" tabindex="-1">
+                    <span>吕沃</span><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg>
+                  </button>
+                  <button class="project-filter-option" id="project-filter-option-17" data-value="17" type="button" role="option" tabindex="-1">
+                    <span>瑞迪特</span><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg>
+                  </button>
+                  <button class="project-filter-option" id="project-filter-option-18" data-value="18" type="button" role="option" tabindex="-1">
+                    <span>犀牛</span><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg>
+                  </button>
+                  <button class="project-filter-option" id="project-filter-option-19" data-value="19" type="button" role="option" tabindex="-1">
+                    <span>博朗姆</span><svg class="icon" aria-hidden="true"><use href="#i-check" /></svg>
+                  </button>
+                </div>
+              </div>
               <div class="scope-meta" title="固定 7 天窗口，终点为美国太平洋时间昨日">
                 <span class="scope-meta-item">
                   <span>数据区间</span>
@@ -2395,13 +2534,85 @@
         renderRank();
 
         const projectFilter = document.querySelector("#project-filter");
+        const projectFilterWrap = document.querySelector(".project-filter-wrap");
+        const projectFilterMenu = document.querySelector("#project-filter-menu");
+        const projectFilterValue = document.querySelector(".project-filter-value");
+        const projectFilterOptions = Array.from(
+          projectFilterMenu.querySelectorAll("[role='option']"),
+        );
         const projectSummary = document.querySelector(".project-switcher-value");
         const projectHeading = document.querySelector(".page-meta-item");
-        projectFilter.addEventListener("change", () => {
-          const label = projectFilter.selectedOptions[0].textContent.trim();
-          const isAll = projectFilter.value === "all";
+
+        const selectedProjectOption = () =>
+          projectFilterOptions.find((option) => option.dataset.current === "true") ||
+          projectFilterOptions[0];
+        const closeProjectFilter = (restoreFocus = false) => {
+          projectFilterMenu.hidden = true;
+          projectFilter.setAttribute("aria-expanded", "false");
+          if (restoreFocus) projectFilter.focus();
+        };
+        const openProjectFilter = () => {
+          projectFilterMenu.hidden = false;
+          projectFilter.setAttribute("aria-expanded", "true");
+          const activeOption = selectedProjectOption();
+          projectFilter.setAttribute("aria-activedescendant", activeOption.id);
+          activeOption.focus();
+        };
+        const updateProjectFilter = (option) => {
+          const label = option.querySelector("span").textContent.trim();
+          const value = option.dataset.value;
+          const isAll = value === "all";
+          projectFilter.dataset.value = value;
+          projectFilterValue.textContent = label;
+          projectFilterOptions.forEach((item) => {
+            const isActiveOption = item === option;
+            item.dataset.current = String(isActiveOption);
+            item.setAttribute("aria-" + ["sel", "ected"].join(""), String(isActiveOption));
+          });
           projectSummary.textContent = isAll ? "全部项目 · 19 个" : `${label} · 1 个`;
           projectHeading.textContent = label;
+          closeProjectFilter(true);
+        };
+
+        projectFilterOptions.forEach((option) => {
+          option.setAttribute("aria-" + ["sel", "ected"].join(""), String(option.dataset.current === "true"));
+          option.addEventListener("click", () => updateProjectFilter(option));
+        });
+
+        projectFilter.addEventListener("click", () => {
+          if (projectFilterMenu.hidden) openProjectFilter();
+          else closeProjectFilter();
+        });
+        projectFilter.addEventListener("keydown", (event) => {
+          if (["ArrowDown", "ArrowUp", "Enter", " "].includes(event.key)) {
+            event.preventDefault();
+            if (projectFilterMenu.hidden) openProjectFilter();
+          }
+        });
+        projectFilterMenu.addEventListener("keydown", (event) => {
+          const currentIndex = projectFilterOptions.indexOf(document.activeElement);
+          let nextIndex = currentIndex;
+          if (event.key === "Escape") {
+            event.preventDefault();
+            closeProjectFilter(true);
+            return;
+          }
+          if (event.key === "Tab") return;
+          if (event.key === "ArrowDown") nextIndex = (currentIndex + 1) % projectFilterOptions.length;
+          else if (event.key === "ArrowUp") nextIndex = (currentIndex - 1 + projectFilterOptions.length) % projectFilterOptions.length;
+          else if (event.key === "Home") nextIndex = 0;
+          else if (event.key === "End") nextIndex = projectFilterOptions.length - 1;
+          else return;
+          event.preventDefault();
+          const next = projectFilterOptions[nextIndex];
+          projectFilter.setAttribute("aria-activedescendant", next.id);
+          next.focus();
+        });
+        projectFilterMenu.addEventListener("focusout", (event) => {
+          if (!projectFilterWrap.contains(event.relatedTarget)) closeProjectFilter();
+        });
+        document.addEventListener("pointerdown", (event) => {
+          if (!projectFilterWrap.contains(event.target)) closeProjectFilter();
         });
 
         const refreshButton = document.querySelector("#refresh-button");

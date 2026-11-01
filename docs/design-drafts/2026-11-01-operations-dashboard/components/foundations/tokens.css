@@ -1,24 +1,24 @@
 .warm-ledger {
-  --warm-ledger-color-stage: #09090a;
-  --warm-ledger-color-window: #121110;
-  --warm-ledger-color-sidebar: #0e0d0c;
-  --warm-ledger-color-panel: #181614;
-  --warm-ledger-color-panel-strong: #1c1916;
-  --warm-ledger-color-raised: #24201b;
-  --warm-ledger-color-raised-hover: #2a251f;
-  --warm-ledger-color-hairline: rgba(246, 238, 226, 0.075);
-  --warm-ledger-color-hairline-strong: rgba(246, 238, 226, 0.13);
-  --warm-ledger-color-text: #f0ebe2;
-  --warm-ledger-color-text-soft: #b2aa9e;
-  --warm-ledger-color-text-muted: #91887c;
-  --warm-ledger-color-text-faint: #605a52;
+  --warm-ledger-color-stage: #141413;
+  --warm-ledger-color-window: #1c1b19;
+  --warm-ledger-color-sidebar: #181715;
+  --warm-ledger-color-panel: #242220;
+  --warm-ledger-color-panel-strong: #2b2926;
+  --warm-ledger-color-raised: #32302e;
+  --warm-ledger-color-raised-hover: #3a3733;
+  --warm-ledger-color-hairline: rgba(246, 238, 226, 0.09);
+  --warm-ledger-color-hairline-strong: rgba(246, 238, 226, 0.16);
+  --warm-ledger-color-text: #f1ede5;
+  --warm-ledger-color-text-soft: #c2bbaf;
+  --warm-ledger-color-text-muted: #9e968c;
+  --warm-ledger-color-text-faint: #777066;
   --warm-ledger-color-accent: #e8b35a;
   --warm-ledger-color-accent-strong: #f3c875;
   --warm-ledger-color-accent-soft: rgba(232, 179, 90, 0.12);
   --warm-ledger-color-accent-area: rgba(232, 179, 90, 0.1);
   --warm-ledger-color-positive: #65cfa1;
   --warm-ledger-color-negative: #ee8580;
-  --warm-ledger-color-chart-grid: rgba(246, 238, 226, 0.055);
+  --warm-ledger-color-chart-grid: rgba(246, 238, 226, 0.075);
 
   --warm-ledger-font-sans: "Instrument Sans", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
   --warm-ledger-font-mono: "DM Mono", "SFMono-Regular", "PingFang SC", monospace;
@@ -50,8 +50,8 @@
   --warm-ledger-space-9: 36px;
   --warm-ledger-space-10: 40px;
   --warm-ledger-space-12: 48px;
-  --warm-ledger-inset-stage: 20px;
-  --warm-ledger-inset-content: 28px;
+  --warm-ledger-inset-stage: 12px;
+  --warm-ledger-inset-content: 24px;
   --warm-ledger-inset-panel: 20px;
 
   --warm-ledger-radius-window: 22px;
@@ -61,11 +61,11 @@
   --warm-ledger-border-width: 1px;
   --warm-ledger-nav-indicator-width: 2px;
 
-  --warm-ledger-highlight-shell: inset 0 1px 0 rgba(255, 255, 255, 0.025);
-  --warm-ledger-highlight-rest: inset 0 1px 0 rgba(255, 255, 255, 0.035);
-  --warm-ledger-highlight-hover: inset 0 1px 0 rgba(255, 255, 255, 0.065);
+  --warm-ledger-highlight-shell: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --warm-ledger-highlight-rest: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --warm-ledger-highlight-hover: inset 0 1px 0 rgba(255, 255, 255, 0.1);
   --warm-ledger-highlight-pressed: inset 0 1px 2px rgba(0, 0, 0, 0.28);
-  --warm-ledger-shadow-window: 0 36px 100px rgba(0, 0, 0, 0.52);
+  --warm-ledger-shadow-window: 0 28px 72px rgba(0, 0, 0, 0.36);
 
   --warm-ledger-focus-width: 2px;
   --warm-ledger-focus-offset: 3px;
