@@ -59,7 +59,7 @@ describe('Warm controls', () => {
     expect(onChange).toHaveBeenCalledWith('adSpend')
   })
 
-  it('renders a labeled select and retains its disabled native state', () => {
+  it('renders a labeled styled select and retains its disabled state', () => {
     const onChange = vi.fn()
 
     render(
@@ -74,7 +74,7 @@ describe('Warm controls', () => {
     )
 
     const select = screen.getByRole('combobox', { name: '项目筛选' })
-    expect(select).toHaveValue('all')
+    expect(screen.getByText('全部项目')).toBeInTheDocument()
     expect(select).toBeDisabled()
   })
 

@@ -5,7 +5,9 @@ import type {
   HTMLAttributes,
   ReactNode,
 } from 'react'
-import { forwardRef } from 'react'
+import { forwardRef, useEffect, useState } from 'react'
+import * as SelectPrimitive from '@radix-ui/react-select'
+import { Check, ChevronDown, ChevronUp } from 'lucide-react'
 
 export type WarmSelectOption = {
   value: string
@@ -155,36 +157,72 @@ export function WarmSelect({
   error,
   className,
 }: WarmSelectProps) {
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null)
+  const labelId = `${id}-label`
   const errorId = `${id}-error`
 
+  useEffect(() => {
+    setPortalContainer(document.getElementById('warm-ledger-portal-root'))
+  }, [])
+
   return (
-    <label
+    <div
       className={['warm-ledger__select-wrap', className].filter(Boolean).join(' ')}
       data-invalid={error ? 'true' : undefined}
     >
-      <span className="warm-ledger__control-label">{label}</span>
-      <select
-        id={id}
-        className="warm-ledger__select"
-        value={value}
-        disabled={disabled}
-        aria-label={label}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={error ? errorId : undefined}
-        onChange={(event) => onChange(event.currentTarget.value)}
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
+      <span id={labelId} className="warm-ledger__control-label">
+        {label}
+      </span>
+      <SelectPrimitive.Root value={value} onValueChange={onChange} disabled={disabled}>
+        <SelectPrimitive.Trigger
+          id={id}
+          className="warm-ledger__select"
+          aria-labelledby={labelId}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
+        >
+          <SelectPrimitive.Value />
+          <SelectPrimitive.Icon asChild>
+            <ChevronDown className="warm-ledger__select-chevron" aria-hidden="true" />
+          </SelectPrimitive.Icon>
+        </SelectPrimitive.Trigger>
+        <SelectPrimitive.Portal container={portalContainer}>
+          <SelectPrimitive.Content
+            className="warm-ledger__select-content"
+            position="popper"
+            align="start"
+            sideOffset={4}
+            collisionPadding={8}
+          >
+            <SelectPrimitive.ScrollUpButton className="warm-ledger__select-scroll-button">
+              <ChevronUp aria-hidden="true" />
+            </SelectPrimitive.ScrollUpButton>
+            <SelectPrimitive.Viewport className="warm-ledger__select-viewport">
+              {options.map((option) => (
+                <SelectPrimitive.Item
+                  key={option.value}
+                  className="warm-ledger__select-item"
+                  value={option.value}
+                >
+                  <SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
+                  <SelectPrimitive.ItemIndicator className="warm-ledger__select-item-indicator">
+                    <Check aria-hidden="true" />
+                  </SelectPrimitive.ItemIndicator>
+                </SelectPrimitive.Item>
+              ))}
+            </SelectPrimitive.Viewport>
+            <SelectPrimitive.ScrollDownButton className="warm-ledger__select-scroll-button">
+              <ChevronDown aria-hidden="true" />
+            </SelectPrimitive.ScrollDownButton>
+          </SelectPrimitive.Content>
+        </SelectPrimitive.Portal>
+      </SelectPrimitive.Root>
       {error ? (
         <span id={errorId} className="warm-ledger__select-error" role="alert">
           {error}
         </span>
       ) : null}
-    </label>
+    </div>
   )
 }
 

@@ -190,6 +190,7 @@ export function WarmLedgerShell({ children, sidebar, topbar }: WarmLedgerShellPr
             </main>
           </section>
         </section>
+        <div id="warm-ledger-portal-root" className="warm-ledger__portal-root" />
       </div>
     </WarmLedgerNavigationContext.Provider>
   )

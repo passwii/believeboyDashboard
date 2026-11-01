@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { OPEN_SEARCH_EVENT } from '@/components/dashboard/search-command'
@@ -202,14 +203,16 @@ describe('DashboardHomePage', () => {
     )
   })
 
-  it('updates the project scope and refreshes all dashboard sources from the topbar', () => {
+  it('updates the project scope and refreshes all dashboard sources from the topbar', async () => {
+    const user = userEvent.setup()
     render(<DashboardHomePage />)
-    fireEvent.change(screen.getByLabelText('项目筛选'), { target: { value: '2' } })
+    await user.click(screen.getByRole('combobox', { name: '项目筛选' }))
+    await user.click(screen.getByRole('option', { name: '项目B' }))
 
     expect(mocks.useDashboardHomeData).toHaveBeenLastCalledWith(
       expect.objectContaining({ projectId: '2' })
     )
-    fireEvent.click(screen.getByRole('button', { name: '刷新当前页数据' }))
+    await user.click(screen.getByRole('button', { name: '刷新当前页数据' }))
     expect(mocks.refresh).toHaveBeenCalledOnce()
   })
 
