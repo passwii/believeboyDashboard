@@ -1,0 +1,207 @@
+.home {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  max-width: 1440px;
+  flex-direction: column;
+  gap: var(--warm-ledger-space-4);
+  margin: 0 auto;
+  padding-bottom: var(--warm-ledger-space-4);
+}
+
+.heading {
+  display: flex;
+  min-width: 0;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--warm-ledger-space-6);
+}
+
+.headingCopy {
+  min-width: 0;
+}
+
+.title {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--warm-ledger-space-2);
+  margin: 0;
+  color: var(--warm-ledger-color-text);
+  font-size: var(--warm-ledger-font-size-page-title);
+  font-weight: var(--warm-ledger-font-weight-regular);
+  letter-spacing: var(--warm-ledger-letter-spacing-page-title);
+  line-height: 1.05;
+}
+
+.titlePeriod {
+  font-family: var(--warm-ledger-font-mono);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+  white-space: nowrap;
+}
+
+.pageMeta {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: var(--warm-ledger-space-2);
+  margin-top: var(--warm-ledger-space-3);
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-control);
+}
+
+.pageMeta > span + span::before {
+  margin-right: var(--warm-ledger-space-2);
+  color: var(--warm-ledger-color-text-faint);
+  content: '/';
+}
+
+.freshness {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--warm-ledger-space-2);
+  margin: 0 0 var(--warm-ledger-space-1);
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-label);
+  white-space: nowrap;
+}
+
+.freshness > span:first-child {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 5px;
+  border-radius: 50%;
+  background: var(--warm-ledger-color-positive);
+}
+
+.errorBanner {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--warm-ledger-space-3);
+  padding: var(--warm-ledger-space-3) var(--warm-ledger-space-4);
+  color: var(--warm-ledger-color-negative);
+  font-size: var(--warm-ledger-font-size-control);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-negative);
+  border-radius: var(--warm-ledger-radius-inner);
+  background: var(--warm-ledger-color-panel);
+}
+
+.primaryGrid,
+.detailGrid {
+  display: grid;
+  min-width: 0;
+  gap: var(--warm-ledger-space-3);
+}
+
+.primaryGrid {
+  grid-template-columns: minmax(0, 1.8fr) minmax(300px, 1fr);
+  align-items: stretch;
+}
+
+.detailGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+.primaryGrid > *,
+.detailGrid > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.panel {
+  min-width: 0;
+  overflow: hidden;
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-panel);
+  background: var(--warm-ledger-color-panel);
+}
+
+.panelHeader {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--warm-ledger-space-2) var(--warm-ledger-space-4);
+  padding: var(--warm-ledger-space-4) var(--warm-ledger-inset-panel);
+  border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+}
+
+.panelHeader > h2 {
+  min-width: 0;
+  margin: 0;
+  color: var(--warm-ledger-color-text);
+  font-size: var(--warm-ledger-font-size-section);
+  font-weight: var(--warm-ledger-font-weight-medium);
+}
+
+.panelHeader > span {
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-label);
+}
+
+@media (max-width: 1240px) {
+  .title {
+    font-size: var(--warm-ledger-font-size-page-title-compact);
+  }
+
+  .primaryGrid {
+    grid-template-columns: minmax(0, 1.55fr) minmax(280px, 1fr);
+  }
+}
+
+@media (max-width: 1050px) {
+  .primaryGrid,
+  .detailGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .freshness {
+    white-space: normal;
+  }
+}
+
+@media (max-width: 820px) {
+  .home {
+    gap: var(--warm-ledger-space-4);
+  }
+
+  .heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .title {
+    font-size: var(--warm-ledger-font-size-page-title-tablet);
+  }
+
+  .freshness {
+    margin: 0;
+  }
+}
+
+@media (max-width: 460px) {
+  .home {
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .title {
+    font-size: var(--warm-ledger-font-size-page-title-mobile);
+  }
+
+  .titlePeriod {
+    white-space: normal;
+  }
+
+  .panelHeader {
+    align-items: flex-start;
+    padding: var(--warm-ledger-space-4);
+  }
+}

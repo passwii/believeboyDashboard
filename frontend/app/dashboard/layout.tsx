@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
+import { SearchCommand } from '@/components/dashboard/search-command'
 import { TerminalShell } from '@/components/terminal/terminal-shell'
 import { ServerNotificationsProvider } from '@/components/notifications/server-notifications-context'
 import { getDashboardPageTitle } from '@/lib/dashboard-route-meta'
@@ -10,6 +11,7 @@ import { buildLoginCallbackUrl } from '@/lib/login-callback-url'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const isWarmLedgerHome = pathname === '/dashboard'
   const pageTitle = useMemo(() => getDashboardPageTitle(pathname), [pathname])
   const { status } = useSession()
   const wasAuthenticatedRef = useRef(false)
@@ -57,7 +59,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <ServerNotificationsProvider>
-      <TerminalShell>{children}</TerminalShell>
+      {isWarmLedgerHome ? (
+        <>
+          {children}
+          <SearchCommand />
+        </>
+      ) : (
+        <TerminalShell>{children}</TerminalShell>
+      )}
     </ServerNotificationsProvider>
   )
 }

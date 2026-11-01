@@ -537,6 +537,29 @@ describe('订单信息页终端化（BLF-817）', () => {
     expect(String(fetchMock.mock.calls[0]![0])).toContain('project_ids=1')
   })
 
+  it('首页今日出单跳转：URL order_id_keyword 会进入订单号筛选', async () => {
+    const realGet = mockSearchParams.get
+    mockSearchParams.get = vi.fn((key: string) =>
+      key === 'order_id_keyword' ? '114-1234567-1234567' : null
+    )
+    try {
+      render(
+        <TerminalGlobalFilterProvider>
+          <OrderInfoPage />
+        </TerminalGlobalFilterProvider>
+      )
+
+      await screen.findByText('111-1111111-0000001')
+      await waitFor(() => {
+        expect(String(fetchMock.mock.calls.at(-1)![0])).toContain(
+          'order_id_keyword=114-1234567-1234567'
+        )
+      })
+    } finally {
+      mockSearchParams.get = realGet
+    }
+  })
+
   // ====== BLF-1019：筛选下拉按需加载（失败可重试，不再永久空白） ======
 
   const FILTER_OPTIONS_OK = {

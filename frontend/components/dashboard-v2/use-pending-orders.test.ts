@@ -203,4 +203,33 @@ describe('usePendingOrders（BLF-927）', () => {
       expect(lastUrl).toContain('page=1')
     })
   })
+
+  it('筛选变化时立即清空旧范围数据，避免加载期间串单', async () => {
+    let resolveSecondRequest: ((value: Response) => void) | undefined
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('date_to=2026-08-30')) {
+        return new Promise<Response>((resolve) => {
+          resolveSecondRequest = resolve
+        })
+      }
+      return jsonResponse({ items: ROW_PAGE_1.slice(0, 2), total: 2 })
+    })
+    const { result, rerender } = renderHook(
+      ({ dateTo }: { dateTo: string }) =>
+        usePendingOrders({ enabled: true, projectIds: [1], dateFrom: '2026-08-25', dateTo }),
+      { initialProps: { dateTo: '2026-08-31' } }
+    )
+
+    await waitFor(() => expect(result.current.items).toHaveLength(2))
+    rerender({ dateTo: '2026-08-30' })
+
+    expect(result.current.items).toEqual([])
+    expect(result.current.total).toBe(0)
+
+    await act(async () => {
+      resolveSecondRequest?.(jsonResponse({ items: ROW_PAGE_1.slice(2, 3), total: 1 }))
+    })
+    await waitFor(() => expect(result.current.items).toHaveLength(1))
+  })
 })

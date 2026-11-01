@@ -344,6 +344,12 @@ function OrderInfoPageInner() {
       changed = true
     }
 
+    const orderIdParam = searchParams.get('order_id_keyword')?.trim()
+    if (orderIdParam) {
+      setOrderIdKeyword(orderIdParam)
+      changed = true
+    }
+
     if (changed) setPage(1)
     urlPrefillApplied.current = true
   }, [searchParams])

@@ -111,6 +111,10 @@ export function usePendingOrders({
       return
     }
 
+    // 筛选变化时先清掉旧范围的数据，避免新请求完成前把旧项目订单展示成当前结果。
+    setItems([])
+    setTotal(0)
+    setError(null)
     // enabled 之外的入参变化 → 回到第 1 页（loadMore 触发的 page 变化除外）
     setPage(1)
   }, [ready, projectIdsKey, dateFrom, dateTo])
