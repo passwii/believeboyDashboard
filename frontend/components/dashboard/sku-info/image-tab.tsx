@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useRef } from 'react'
 import { ImageIcon, Pencil, Trash2, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -10,6 +10,7 @@ import { useNotifications } from '@/components/notifications/notifications-conte
 import { ImageUploadSheet } from './image-upload-sheet'
 import { ImageLightbox } from './image-lightbox'
 import type { ProductCostItem } from '@/app/dashboard/operations/sku-info/page'
+import styles from '@/app/dashboard/operations/sku-info/sku-info-warm.module.css'
 
 const API_BASE = '/api/backend'
 
@@ -18,15 +19,34 @@ interface ImageTabContentProps {
   skus: ProductCostItem[]
   loading: boolean
   onRefresh: () => void
+  portalContainer?: HTMLElement | null
 }
 
-export function ImageTabContent({ projectName, skus, loading, onRefresh }: ImageTabContentProps) {
+export function ImageTabContent({
+  projectName,
+  skus,
+  loading,
+  onRefresh,
+  portalContainer,
+}: ImageTabContentProps) {
   const { notify } = useNotifications()
   const [search, setSearch] = useState('')
   const [uploadSheetOpen, setUploadSheetOpen] = useState(false)
   const [editingSku, setEditingSku] = useState<ProductCostItem | null>(null)
   const [lightboxOpen, setLightboxOpen] = useState(false)
   const [lightboxSku, setLightboxSku] = useState<ProductCostItem | null>(null)
+  const uploadOpenerRef = useRef<HTMLButtonElement | null>(null)
+  const lightboxOpenerRef = useRef<HTMLButtonElement | null>(null)
+
+  const restoreUploadFocus = (event: Event) => {
+    event.preventDefault()
+    if (uploadOpenerRef.current?.isConnected) uploadOpenerRef.current.focus()
+  }
+
+  const restoreLightboxFocus = (event: Event) => {
+    event.preventDefault()
+    if (lightboxOpenerRef.current?.isConnected) lightboxOpenerRef.current.focus()
+  }
 
   const filteredSkus = useMemo(() => {
     if (!search) return skus
@@ -39,12 +59,14 @@ export function ImageTabContent({ projectName, skus, loading, onRefresh }: Image
     )
   }, [skus, search])
 
-  const handleUploadClick = useCallback((sku: ProductCostItem) => {
+  const handleUploadClick = useCallback((sku: ProductCostItem, opener: HTMLButtonElement) => {
+    uploadOpenerRef.current = opener
     setEditingSku(sku)
     setUploadSheetOpen(true)
   }, [])
 
-  const handleThumbnailClick = useCallback((sku: ProductCostItem) => {
+  const handleThumbnailClick = useCallback((sku: ProductCostItem, opener: HTMLButtonElement) => {
+    lightboxOpenerRef.current = opener
     setLightboxSku(sku)
     setLightboxOpen(true)
   }, [])
@@ -81,8 +103,8 @@ export function ImageTabContent({ projectName, skus, loading, onRefresh }: Image
 
   if (!projectName) {
     return (
-      <DataTableCard>
-        <DataTableCardBody>
+      <DataTableCard className={`${styles.tableCard} ${styles.emptyImageCard}`}>
+        <DataTableCardBody className={styles.emptyImageCardBody}>
           <div className="px-6 py-12 text-center text-sm text-muted-foreground">
             请先在顶部选择项目
           </div>
@@ -93,7 +115,7 @@ export function ImageTabContent({ projectName, skus, loading, onRefresh }: Image
 
   return (
     <>
-      <DataTableCard className="flex flex-col">
+      <DataTableCard className={`${styles.tableCard} flex flex-col`}>
         <DataTableCardHeader
           title="产品图片"
           description="为项目下每个 SKU 维护一张产品主图"
@@ -109,7 +131,7 @@ export function ImageTabContent({ projectName, skus, loading, onRefresh }: Image
             </div>
           }
         />
-        <DataTableCardBody className="flex-1 min-h-0 overflow-auto">
+        <DataTableCardBody className={`${styles.tableViewport} flex-1 min-h-0 overflow-auto`}>
           {loading ? (
             <div className="space-y-2 p-4">
               {Array.from({ length: 5 }).map((_, i) => (
@@ -122,7 +144,7 @@ export function ImageTabContent({ projectName, skus, loading, onRefresh }: Image
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className={`${styles.table} ${styles.imageTable}`}>
                 <thead>
                   <tr className="border-b border-border/50 bg-[hsl(var(--surface-subtle))] text-left">
                     <th className="w-20 px-4 py-2.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -158,7 +180,7 @@ export function ImageTabContent({ projectName, skus, loading, onRefresh }: Image
                         {sku.product_image_thumbnail_r2_url ? (
                           <button
                             type="button"
-                            onClick={() => handleThumbnailClick(sku)}
+                            onClick={(event) => handleThumbnailClick(sku, event.currentTarget)}
                             className="block h-12 w-12 overflow-hidden rounded border border-border/50 transition-opacity hover:opacity-80"
                             aria-label="查看大图"
                           >
@@ -172,7 +194,7 @@ export function ImageTabContent({ projectName, skus, loading, onRefresh }: Image
                         ) : (
                           <button
                             type="button"
-                            onClick={() => handleUploadClick(sku)}
+                            onClick={(event) => handleUploadClick(sku, event.currentTarget)}
                             className="flex h-12 w-12 items-center justify-center rounded border-2 border-dashed border-border/50 text-muted-foreground transition-colors hover:border-border hover:text-foreground"
                             aria-label="上传图片"
                           >
@@ -202,7 +224,7 @@ export function ImageTabContent({ projectName, skus, loading, onRefresh }: Image
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleUploadClick(sku)}
+                            onClick={(event) => handleUploadClick(sku, event.currentTarget)}
                             aria-label="上传/替换"
                           >
                             <Pencil className="h-3.5 w-3.5" />
@@ -234,11 +256,17 @@ export function ImageTabContent({ projectName, skus, loading, onRefresh }: Image
         onOpenChange={setUploadSheetOpen}
         sku={editingSku}
         onSuccess={onRefresh}
+        portalContainer={portalContainer}
+        contentClassName={styles.sheetSurface}
+        onCloseAutoFocus={restoreUploadFocus}
       />
 
       <ImageLightbox
         open={lightboxOpen}
         onOpenChange={setLightboxOpen}
+        portalContainer={portalContainer}
+        contentClassName={styles.lightboxSurface}
+        onCloseAutoFocus={restoreLightboxFocus}
         src={lightboxSku?.product_image_r2_url || ''}
         alt={lightboxSku?.sku || ''}
         meta={

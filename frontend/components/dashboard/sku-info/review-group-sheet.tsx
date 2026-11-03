@@ -1,20 +1,22 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useState, type ComponentProps } from 'react'
+import { Check, ChevronDown, X } from 'lucide-react'
 
 import { useConfirm } from '@/hooks/use-confirm'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
-import { MultiSelect } from '@/components/ui/multi-select'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Sheet,
   SheetContent,
@@ -26,6 +28,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { useNotifications } from '@/components/notifications'
 import { getCountryLabel } from '@/lib/country'
+import { WarmSelect, type WarmSelectOption } from '@/components/dashboard-v2/warm-ledger/controls'
 import {
   type ReviewGroup,
   ReviewTrackingApiError,
@@ -69,6 +72,10 @@ export interface ReviewGroupSheetProps {
   /** 当前行 SKU 记录 id，用于建组时默认选中 */
   currentSkuId: number | null
   onChanged?: () => void
+  portalContainer?: HTMLElement | null
+  contentClassName?: string
+  memberPickerClassName?: string
+  onCloseAutoFocus?: ComponentProps<typeof SheetContent>['onCloseAutoFocus']
 }
 
 interface GroupFormState {
@@ -85,6 +92,120 @@ const EMPTY_FORM: GroupFormState = {
   representativeId: '',
 }
 
+function MemberPicker({
+  options,
+  selected,
+  onChange,
+  portalContainer,
+  contentClassName,
+}: {
+  options: ReadonlyArray<WarmSelectOption>
+  selected: string[]
+  onChange: (values: string[]) => void
+  portalContainer?: HTMLElement | null
+  contentClassName?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const listId = useId()
+  const optionByValue = new Map(options.map((option) => [option.value, option]))
+  const selectedEntries = selected.map((value) => ({
+    value,
+    label: optionByValue.get(value)?.label ?? `#${value}`,
+  }))
+
+  const toggleValue = (value: string) => {
+    onChange(
+      selected.includes(value)
+        ? selected.filter((current) => current !== value)
+        : [...selected, value]
+    )
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <div className="space-y-2">
+        {selectedEntries.length > 0 ? (
+          <div className="flex flex-wrap gap-1" role="group" aria-label="已选成员 SKU">
+            {selectedEntries.slice(0, 2).map((option) => (
+              <span key={option.value} className="review-member-token">
+                <span>{option.label}</span>
+                <button
+                  type="button"
+                  aria-label={`移除成员 SKU ${option.label}`}
+                  onClick={() => toggleValue(option.value)}
+                >
+                  <X aria-hidden="true" />
+                </button>
+              </span>
+            ))}
+            {selectedEntries.length > 2 ? (
+              <span className="review-member-count">+{selectedEntries.length - 2}</span>
+            ) : null}
+          </div>
+        ) : null}
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            role="combobox"
+            aria-label="选择成员 SKU"
+            aria-controls={listId}
+            aria-expanded={open}
+            className="warm-ledger__select review-member-trigger"
+          >
+            <span>{selected.length ? `已选 ${selected.length} 个成员 SKU` : '选择成员 SKU'}</span>
+            <ChevronDown aria-hidden="true" />
+          </button>
+        </PopoverTrigger>
+      </div>
+      <PopoverContent
+        portalContainer={portalContainer}
+        align="start"
+        className={contentClassName}
+      >
+        <Command>
+          <CommandInput placeholder="搜索..." />
+          <CommandList id={listId}>
+            <CommandEmpty>没有找到</CommandEmpty>
+            <CommandGroup>
+              {options.map((option) => (
+                <CommandItem
+                  key={option.value}
+                  value={option.value}
+                  onSelect={() => toggleValue(option.value)}
+                >
+                  <span
+                    className="review-member-check"
+                    data-selected={selected.includes(option.value) ? 'true' : undefined}
+                    aria-hidden="true"
+                  >
+                    {selected.includes(option.value) ? <Check /> : null}
+                  </span>
+                  <span>{option.label}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+          {selected.length > 0 ? (
+            <div className="review-member-clear">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  onChange([])
+                  setOpen(false)
+                }}
+              >
+                清除全部
+              </Button>
+            </div>
+          ) : null}
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 export default function ReviewGroupSheet({
   open,
   onClose,
@@ -94,6 +215,10 @@ export default function ReviewGroupSheet({
   candidates,
   currentSkuId,
   onChanged,
+  portalContainer,
+  contentClassName,
+  memberPickerClassName,
+  onCloseAutoFocus,
 }: ReviewGroupSheetProps) {
   const { notify } = useNotifications()
   const { confirm } = useConfirm()
@@ -305,7 +430,14 @@ export default function ReviewGroupSheet({
 
   return (
     <Sheet open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-[720px]">
+      <SheetContent
+        side="right"
+        portalContainer={portalContainer}
+        onCloseAutoFocus={onCloseAutoFocus}
+        className={['w-full overflow-y-auto sm:max-w-[720px]', contentClassName]
+          .filter(Boolean)
+          .join(' ')}
+      >
         <SheetHeader>
           <SheetTitle>评论共享组</SheetTitle>
           <SheetDescription>
@@ -317,7 +449,7 @@ export default function ReviewGroupSheet({
         <div className="mt-4 space-y-4">
           <section className="space-y-2 border border-term-border bg-term-panel p-3">
             <div className="flex items-center justify-between">
-              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-term-muted">
+              <p className="review-section-label">
                 {editingGroupId === null ? '新建共享组' : '编辑共享组'}
               </p>
               {editingGroupId !== null ? (
@@ -347,35 +479,29 @@ export default function ReviewGroupSheet({
 
             <div className="space-y-1">
               <p className="font-mono text-[10px] text-term-muted">成员 SKU（同项目 + 站点）</p>
-              <MultiSelect
+              <MemberPicker
                 options={memberOptions}
                 selected={form.memberIds}
                 onChange={updateMemberIds}
-                placeholder="选择成员 SKU"
-                className="w-full"
+                portalContainer={portalContainer}
+                contentClassName={memberPickerClassName}
               />
             </div>
 
             <div className="space-y-1">
               <p className="font-mono text-[10px] text-term-muted">代表 ASIN（必须是成员）</p>
-              <Select
+              <WarmSelect
+                id="review-group-representative"
+                label="代表 ASIN"
                 value={form.representativeId}
-                onValueChange={(value) =>
+                options={representativeOptions}
+                placeholder="先选择成员，再指定代表"
+                className="review-representative-select"
+                onChange={(value) =>
                   setForm((current) => ({ ...current, representativeId: value }))
                 }
                 disabled={representativeOptions.length === 0}
-              >
-                <SelectTrigger className="h-9" aria-label="代表 ASIN">
-                  <SelectValue placeholder="先选择成员，再指定代表" />
-                </SelectTrigger>
-                <SelectContent>
-                  {representativeOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </div>
 
             <div className="flex justify-end gap-2">
@@ -389,7 +515,7 @@ export default function ReviewGroupSheet({
           </section>
 
           <section className="space-y-2">
-            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-term-muted">
+            <p className="review-section-label">
               当前有效共享组（{groups.length}）
             </p>
             {loading ? (
@@ -407,7 +533,7 @@ export default function ReviewGroupSheet({
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="truncate font-mono text-[12px] font-semibold text-term-text">
+                          <span className="font-mono text-[12px] font-semibold text-term-text">
                             {group.name}
                           </span>
                           <Badge variant="outline" className="border-term-border text-term-muted">
@@ -438,7 +564,7 @@ export default function ReviewGroupSheet({
                         </Button>
                       </div>
                     </div>
-                    <p className="mt-1 truncate font-mono text-[10px] text-term-faint">
+                    <p className="mt-1 break-all font-mono text-[10px] text-term-faint">
                       {group.memberIds
                         .map((id) => candidateById.get(id)?.asin ?? `#${id}`)
                         .join(' / ')}

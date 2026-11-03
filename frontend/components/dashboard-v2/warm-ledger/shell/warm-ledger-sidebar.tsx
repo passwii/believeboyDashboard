@@ -8,6 +8,13 @@ import { WarmIconButton } from '../controls'
 import { useWarmLedgerNavigation } from './warm-ledger-navigation'
 
 const QUICK_LINK_TITLES = ['销售数据', '订单信息', '库存分析', '客户消息'] as const
+const PORTFOLIO_ROUTE = '/dashboard/operations/portfolio-overview'
+const INVENTORY_FULFILLMENT_ROUTES = [
+  '/dashboard/operations/inventory-ledger',
+  '/dashboard/operations/shipping-plan',
+  '/dashboard/operations/shipment-management',
+  '/dashboard/operations/sku-info',
+] as const
 const OVERVIEW_ICON = SIDEBAR_TOP_GROUPS.find((group) => group.id === 'operations')?.icon
 
 const primaryNavigation = SIDEBAR_TOP_GROUPS.flatMap((group) => {
@@ -40,6 +47,36 @@ const quickLinks = QUICK_LINK_TITLES.flatMap((title) => {
   }
   return []
 })
+
+const portfolioNavigation = SIDEBAR_TOP_GROUPS.flatMap((group) => {
+  const item = filterByRole(group.items).find((entry) => entry.url === PORTFOLIO_ROUTE)
+  if (!item) return []
+
+  return [
+    {
+      title: item.title,
+      href: item.url,
+      icon: item.icon ?? group.icon,
+      routeMatches: [item.url, ...(item.matchPrefixes ?? [])],
+    },
+  ]
+})
+
+const inventoryFulfillmentNavigation = INVENTORY_FULFILLMENT_ROUTES.flatMap((route) =>
+  SIDEBAR_TOP_GROUPS.flatMap((group) => {
+    const item = filterByRole(group.items).find((entry) => entry.url === route)
+    if (!item) return []
+
+    return [
+      {
+        title: item.title,
+        href: item.url,
+        icon: item.icon ?? group.icon,
+        routeMatches: [item.url, ...(item.matchPrefixes ?? [])],
+      },
+    ]
+  })
+)
 
 function isCurrentRoute(pathname: string, routes: string[]) {
   return routes.some((route) => pathname === route || pathname.startsWith(`${route}/`))
@@ -121,6 +158,51 @@ export function WarmLedgerSidebar() {
               </Link>
             )
           })}
+          {portfolioNavigation.map(({ title, href, icon: Icon, routeMatches }) => {
+            const active = isCurrentRoute(pathname, routeMatches)
+            return (
+              <Link
+                key={href}
+                href={href}
+                className="warm-ledger__nav-item"
+                aria-label={title}
+                title={title}
+                aria-current={active ? 'page' : undefined}
+                onClick={closeAfterNavigation}
+              >
+                <span className="warm-ledger__nav-indicator" aria-hidden="true" />
+                <span className="warm-ledger__nav-icon-wrap">
+                  <Icon aria-hidden="true" />
+                </span>
+                <span className="warm-ledger__nav-copy">{title}</span>
+              </Link>
+            )
+          })}
+        </div>
+
+        <div className="warm-ledger__nav-separator" aria-hidden="true" />
+        <span className="warm-ledger__nav-label">库存与履约</span>
+        <div className="warm-ledger__nav-list">
+          {inventoryFulfillmentNavigation.map(({ title, href, icon: Icon, routeMatches }) => {
+            const active = isCurrentRoute(pathname, routeMatches)
+            return (
+              <Link
+                key={href}
+                href={href}
+                className="warm-ledger__nav-item"
+                aria-label={title}
+                title={title}
+                aria-current={active ? 'page' : undefined}
+                onClick={closeAfterNavigation}
+              >
+                <span className="warm-ledger__nav-indicator" aria-hidden="true" />
+                <span className="warm-ledger__nav-icon-wrap">
+                  <Icon aria-hidden="true" />
+                </span>
+                <span className="warm-ledger__nav-copy">{title}</span>
+              </Link>
+            )
+          })}
         </div>
 
         <div className="warm-ledger__nav-separator" aria-hidden="true" />
@@ -136,7 +218,9 @@ export function WarmLedgerSidebar() {
               aria-current={isCurrentRoute(pathname, routeMatches) ? 'page' : undefined}
               onClick={closeAfterNavigation}
             >
-              <Icon aria-hidden="true" />
+              <span className="warm-ledger__quick-icon-wrap" aria-hidden="true">
+                <Icon />
+              </span>
               <span>{title}</span>
             </Link>
           ))}

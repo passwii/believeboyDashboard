@@ -4,7 +4,7 @@
 
 ## Freeze checklist
 
-- [x] Dashboard-only scope: `.warm-ledger` tokens are route scoped and do not change `--term-*` or global UI defaults.
+- [x] D0 scope: `.warm-ledger` tokens were introduced on `/dashboard` and do not change `--term-*` or global UI defaults.
 - [x] Damon confirms the whole-page Warm Ledger direction, keeps `DiagnosticStrip` and project sorting, defaults order groups to collapsed, and ships dark-only first; light theme is deferred.
 - [x] Dark token values, typography, spacing, shapes, focus, motion, control sizes, breakpoints, accessibility, and component states are documented in `spec.md` and `tokens.css`.
 - [x] `states.html` covers required controls, navigation, order disclosure, data states, long text, and responsive behavior without a component library or business statistics.
@@ -27,7 +27,33 @@ On 2026-11-01 Damon approved a detail pass after seeing the production page. It 
 - Set the sidebar to 280px and align icon/title columns at 18px.
 - Replace the dashboard project filter's native browser menu with a Warm-styled accessible Select; keep its API and project filtering behavior unchanged.
 
-`tokens.css` and `spec.md` contain the revised values. The redesign remains scoped to `/dashboard`; do not alter `--term-*`, global components, or other routes.
+`tokens.css` and `spec.md` contain the revised values. The D0 release remains scoped to `/dashboard`.
+
+On 2026-11-01 Damon approved extending the same unchanged Warm Ledger tokens to these exact C1 routes:
+
+- `/dashboard/operations/daily-analysis`
+- `/dashboard/operations/portfolio-overview`
+- `/dashboard/operations/inventory-analysis`
+
+This is a route allowlist extension, not a token or global-theme change. The Warm frame is mounted only on `/dashboard` and the three listed C1 routes; every other route keeps `TerminalShell`. Do not alter `--term-*`, shared component defaults, or `sidebar-config.ts`.
+
+On 2026-11-02 Damon approved another post-launch refinement after using the live dashboard:
+
+- Lift and neutralize the graphite ramp; strengthen hairlines and top highlights so the window, sidebar, panels, and raised controls read as separate surfaces.
+- Expand the desktop work window maximum to 1840px, reduce the stage inset to 8px and the main content inset to 20px, and allow the dashboard home to use up to 1600px.
+- Align sidebar navigation and QuickLinks on a shared 20px icon track with an 8px text gap and consistent 36px rows. Align section labels with the title column.
+- Keep the homepage project filter on the Radix-based WarmSelect. During category migration, replace native selects with Warm controls when their existing API and interaction contracts fit; leave unmigrated pages unchanged.
+
+These values supersede the 2026-11-01 refinement where they differ. At this point, the Warm scope remained limited to `/dashboard` and the three C1 routes; do not alter `--term-*`, shared defaults, or `sidebar-config.ts`.
+
+On 2026-11-02 Damon approved extending the unchanged Warm Ledger route frame to these exact C2 routes:
+
+- `/dashboard/operations/inventory-ledger`
+- `/dashboard/operations/shipping-plan`
+- `/dashboard/operations/shipment-management`
+- `/dashboard/operations/sku-info`
+
+This adds only an exact route allowlist and navigation scope. C2 pages provide their own filters through the existing slots; do not add a global-filter bar or change tokens, `--term-*`, shared defaults, or `sidebar-config.ts`. All other dashboard routes continue to use `TerminalShell`.
 
 ## Allowed and frozen files
 

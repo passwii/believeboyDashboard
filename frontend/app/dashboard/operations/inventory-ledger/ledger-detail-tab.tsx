@@ -7,7 +7,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 
-import { Badge } from '@/components/ui/badge'
+import { WarmBadge } from '@/components/dashboard-v2/warm-ledger/controls'
 import {
   DataTableCard,
   DataTableCardBody,
@@ -30,6 +30,7 @@ import { dailyEventSummary } from './ledger-derive'
 import { ColumnHeader, PaginationBar } from './ledger-table-parts'
 import { detailEn, detailLabel, technicalEn, technicalLabel } from './ledger-glossary'
 import { eventTypeLabel, type LedgerDetailRow } from './ledger-types'
+import styles from './inventory-ledger-warm.module.css'
 
 const PAGE_SIZE = 50
 
@@ -75,35 +76,46 @@ export function LedgerDetailTab({
 
   return (
     <div className="space-y-4">
-      <DataTableCard>
+      <DataTableCard className={styles.tableCard}>
         <DataTableCardHeader
+          className={styles.tableHeader}
           title="每日事件汇总"
           description={`${dailyRows.length} 个有事件日期 · 按 Detail 实际发生日期聚合`}
         />
-        <DataTableCardBody>
-          <Table>
+        <DataTableCardBody className={styles.tableBody}>
+          <div className={styles.tableScroll}>
+          <Table className={cn(styles.ledgerTable, styles.dailyEventsTable)}>
             <TableHeader>
               <TableRow>
-                <ColumnHeader label="日期" />
-                <ColumnHeader label="事件数" className="text-right" />
-                <ColumnHeader label="净数量" className="text-right" />
+                <ColumnHeader label="日期" className={styles.dailyEventsDate} />
+                <ColumnHeader
+                  label="事件数"
+                  className={cn('text-right', styles.dailyEventsCount)}
+                />
+                <ColumnHeader
+                  label="净数量"
+                  className={cn('text-right', styles.dailyEventsNetQty)}
+                />
               </TableRow>
             </TableHeader>
             <TableBody>
               {dailyRows.map((row) => (
                 <TableRow key={row.date}>
-                  <TableCell className={DENSE_CELL}>{row.date}</TableCell>
-                  <TableCell className={cn(DENSE_CELL, 'text-right tabular-nums')}>
+                  <TableCell className={cn(DENSE_CELL, styles.dailyEventsDate)}>{row.date}</TableCell>
+                  <TableCell
+                    className={cn(DENSE_CELL, 'text-right tabular-nums', styles.dailyEventsCount)}
+                  >
                     {row.eventCount}
                   </TableCell>
                   <TableCell
                     className={cn(
                       DENSE_CELL,
                       'text-right tabular-nums',
+                      styles.dailyEventsNetQty,
                       row.netQty > 0
-                        ? 'text-[hsl(var(--data-positive))]'
+                        ? styles.positive
                         : row.netQty < 0
-                          ? 'text-[hsl(var(--data-negative))]'
+                          ? styles.negative
                           : undefined,
                     )}
                   >
@@ -113,17 +125,20 @@ export function LedgerDetailTab({
               ))}
             </TableBody>
           </Table>
+          </div>
         </DataTableCardBody>
       </DataTableCard>
 
-      <DataTableCard>
+      <DataTableCard className={styles.tableCard}>
         <DataTableCardHeader
+          className={styles.tableHeader}
           title="事件明细"
           description={`${rows.length} 条事件 · 净数量 ${netQty > 0 ? `+${netQty}` : netQty}`}
         />
-        <DataTableCardBody>
+        <DataTableCardBody className={styles.tableBody}>
           <TooltipProvider delayDuration={150}>
-            <Table>
+            <div className={styles.tableScroll}>
+            <Table className={styles.ledgerTable}>
               <TableHeader>
                 <TableRow>
                   {DETAIL_HEADERS.map((h) => (
@@ -145,15 +160,15 @@ export function LedgerDetailTab({
                       <TableCell className={DENSE_CELL}>{r.date}</TableCell>
                       <TableCell className={cn(DENSE_CELL, 'font-mono text-xs')}>{r.msku}</TableCell>
                       <TableCell className={DENSE_CELL}>
-                        <Badge variant="outline" className="text-xs">
+                        <WarmBadge className={styles.eventBadge}>
                           {eventTypeLabel(r.event_type)}
-                        </Badge>
+                        </WarmBadge>
                       </TableCell>
                       <TableCell
                         className={cn(
                           DENSE_CELL,
                           'text-right font-mono text-xs tabular-nums',
-                          r.quantity > 0 ? 'text-[hsl(var(--data-positive))]' : r.quantity < 0 ? 'text-[hsl(var(--data-negative))]' : undefined,
+                          r.quantity > 0 ? styles.positive : r.quantity < 0 ? styles.negative : undefined,
                         )}
                       >
                         {r.quantity > 0 ? `+${r.quantity}` : r.quantity}
@@ -175,6 +190,7 @@ export function LedgerDetailTab({
                 )}
               </TableBody>
             </Table>
+            </div>
           </TooltipProvider>
           <PaginationBar page={page} pageCount={pageCount} total={rows.length} onPageChange={setPage} />
         </DataTableCardBody>

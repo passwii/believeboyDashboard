@@ -2,6 +2,8 @@
 
 import Link from 'next/link'
 import { Bell, ChevronRight, Menu, RefreshCw, Search, UserRound } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
 import { WarmIconButton, WarmSelect, type WarmSelectOption } from '../controls'
 import { useWarmLedgerNavigation } from './warm-ledger-navigation'
 
@@ -10,8 +12,19 @@ export type WarmLedgerBreadcrumb = {
   href?: string
 }
 
+export type WarmLedgerRouteSlots = {
+  action?: ReactNode
+  primary?: ReactNode
+  secondary?: ReactNode
+}
+
+type RefreshFeedbackStatus = 'idle' | 'loading' | 'requested' | 'success' | 'error'
+
 export type WarmLedgerTopbarProps = {
+  routeFrame?: boolean
   breadcrumbs?: ReadonlyArray<WarmLedgerBreadcrumb>
+  routeSlots?: WarmLedgerRouteSlots
+  showScopeMeta?: boolean
   projectId?: string
   projectOptions?: ReadonlyArray<WarmSelectOption>
   onProjectChange?: (value: string) => void
@@ -20,10 +33,13 @@ export type WarmLedgerTopbarProps = {
   siteLabel?: string
   onRefresh?: () => void
   refreshing?: boolean
+  refreshFeedbackMessage?: string
+  refreshFeedbackStatus?: RefreshFeedbackStatus
   onSearch?: () => void
   onNotifications?: () => void
   unreadCount?: number
   onUserAction?: () => void
+  profileHref?: string
   userLabel?: string
 }
 
@@ -33,7 +49,10 @@ const DEFAULT_BREADCRUMBS: ReadonlyArray<WarmLedgerBreadcrumb> = [
 ]
 
 export function WarmLedgerTopbar({
+  routeFrame = false,
   breadcrumbs = DEFAULT_BREADCRUMBS,
+  routeSlots,
+  showScopeMeta = true,
   projectId,
   projectOptions,
   onProjectChange,
@@ -42,17 +61,28 @@ export function WarmLedgerTopbar({
   siteLabel,
   onRefresh,
   refreshing = false,
+  refreshFeedbackMessage,
+  refreshFeedbackStatus = 'idle',
   onSearch,
   onNotifications,
   unreadCount = 0,
   onUserAction,
+  profileHref,
   userLabel = '用户菜单',
 }: WarmLedgerTopbarProps) {
   const { isMobile, isDrawerOpen, menuButtonRef, openNavigation } = useWarmLedgerNavigation()
   const notificationLabel = unreadCount > 0 ? `通知，${unreadCount} 条未读` : '通知'
+  const hasRouteSlots = Boolean(routeSlots?.action || routeSlots?.primary || routeSlots?.secondary)
+  const refreshIconClass = [
+    'warm-ledger__refresh-icon',
+    refreshing && 'is-refreshing',
+    !refreshing && refreshFeedbackStatus === 'success' && 'is-success',
+    !refreshing && refreshFeedbackStatus === 'error' && 'is-error',
+    !refreshing && refreshFeedbackStatus === 'requested' && 'is-requested',
+  ].filter(Boolean).join(' ')
 
   return (
-    <header className="warm-ledger__topbar">
+    <header className={routeFrame ? 'warm-ledger__topbar warm-ledger__topbar--route' : 'warm-ledger__topbar'}>
       <WarmIconButton
         ref={menuButtonRef}
         className="warm-ledger__mobile-menu"
@@ -83,7 +113,7 @@ export function WarmLedgerTopbar({
       </nav>
 
       <div className="warm-ledger__topbar-controls">
-        {projectId !== undefined && projectOptions?.length && onProjectChange ? (
+        {!routeFrame && projectId !== undefined && projectOptions?.length && onProjectChange ? (
           <WarmSelect
             id="warm-ledger-project-filter"
             label="项目筛选"
@@ -96,41 +126,40 @@ export function WarmLedgerTopbar({
           />
         ) : null}
 
-        <div
-          className="warm-ledger__scope-meta"
-          aria-label={
-            siteLabel
-              ? `数据区间：${dateRangeLabel}，PT 运营日，站点：${siteLabel}`
-              : `数据区间：${dateRangeLabel}，PT 运营日`
-          }
-          title="按 PT 运营日计算"
-        >
-          <span className="warm-ledger__scope-item">
-            <span>数据区间</span>
-            <span className="warm-ledger__scope-value">{dateRangeLabel}</span>
-            <span className="warm-ledger__scope-zone">PT 运营日</span>
-          </span>
-          {siteLabel ? (
+        {!routeFrame && showScopeMeta ? (
+          <div
+            className="warm-ledger__scope-meta"
+            aria-label={
+              siteLabel
+                ? `数据区间：${dateRangeLabel}，PT 运营日，站点：${siteLabel}`
+                : `数据区间：${dateRangeLabel}，PT 运营日`
+            }
+            title="按 PT 运营日计算"
+          >
             <span className="warm-ledger__scope-item">
-              <span>站点</span>
-              <span className="warm-ledger__scope-value">{siteLabel}</span>
+              <span>数据区间</span>
+              <span className="warm-ledger__scope-value">{dateRangeLabel}</span>
+              <span className="warm-ledger__scope-zone">PT 运营日</span>
             </span>
-          ) : null}
-        </div>
+            {siteLabel ? (
+              <span className="warm-ledger__scope-item">
+                <span>站点</span>
+                <span className="warm-ledger__scope-value">{siteLabel}</span>
+              </span>
+            ) : null}
+          </div>
+        ) : null}
 
         {onRefresh ? (
           <WarmIconButton
             className="warm-ledger__topbar-action"
             aria-label={refreshing ? '正在刷新当前页数据' : '刷新当前页数据'}
-            title="刷新"
+            title={refreshFeedbackMessage || '刷新'}
             loading={refreshing}
             loadingLabel="正在刷新当前页数据"
             onClick={onRefresh}
           >
-            <RefreshCw
-              aria-hidden="true"
-              className={refreshing ? 'warm-ledger__refresh-icon is-refreshing' : 'warm-ledger__refresh-icon'}
-            />
+            <RefreshCw aria-hidden="true" className={refreshIconClass} />
           </WarmIconButton>
         ) : null}
         {onSearch ? (
@@ -156,7 +185,16 @@ export function WarmLedgerTopbar({
             ) : null}
           </WarmIconButton>
         ) : null}
-        {onUserAction ? (
+        {profileHref ? (
+          <RouteLoadingLink
+            href={profileHref}
+            className="warm-ledger__icon-button warm-ledger__topbar-action warm-ledger__topbar-action--secondary"
+            aria-label={userLabel}
+            title={userLabel}
+          >
+            <UserRound aria-hidden="true" />
+          </RouteLoadingLink>
+        ) : onUserAction ? (
           <WarmIconButton
             className="warm-ledger__topbar-action warm-ledger__topbar-action--secondary"
             aria-label={userLabel}
@@ -167,6 +205,18 @@ export function WarmLedgerTopbar({
           </WarmIconButton>
         ) : null}
       </div>
+      {routeFrame && hasRouteSlots ? (
+        <div className="warm-ledger__route-slot-row">
+          {routeSlots?.action}
+          {routeSlots?.primary}
+          {routeSlots?.secondary}
+        </div>
+      ) : null}
+      {routeFrame && refreshFeedbackMessage !== undefined ? (
+        <span className="warm-ledger__visually-hidden" role="status" aria-live="polite" aria-atomic="true">
+          {refreshFeedbackMessage}
+        </span>
+      ) : null}
     </header>
   )
 }

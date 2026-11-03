@@ -1,21 +1,13 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, FileDown, Loader2 } from 'lucide-react'
+import { AlertTriangle, FileDown, Loader2, RotateCw } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
 
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
-import { TermPanel } from '@/components/terminal/term-panel'
 import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
+import { TermPanel } from '@/components/terminal/term-panel'
 import {
   TermBody,
   TermCell,
@@ -24,9 +16,7 @@ import {
   TermTHead,
   TermTable,
 } from '@/components/terminal/term-table'
-import { useTerminalGlobalFilter } from '@/components/terminal/global-filter-context'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
-import { HeaderSlotBadge, HeaderSlotSelect, HeaderSlotButton, TERM_HEADER_W_SM, TERM_HEADER_W_MD, TERM_HEADER_W_LG } from '@/components/terminal/header-filter-suite'
 import {
   useHeaderRefresh,
   useHeaderSlot,
@@ -37,10 +27,12 @@ import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
 import { useNotifications } from '@/components/notifications'
-import { cn, formatLocalTimestampForFilename } from '@/lib/utils'
+import { formatLocalTimestampForFilename } from '@/lib/utils'
 import { applyBorder, applyDataRowBanding, applyHeaderBorder, applyRowBorder } from '@/lib/excel-styles'
 import { getCountryLabel } from '@/lib/country'
 import { downloadBlob } from '@/lib/download-blob'
+import { WarmButton, WarmIconButton, WarmSelect } from '@/components/dashboard-v2/warm-ledger/controls'
+import styles from './inventory-analysis-warm.module.css'
 
 const API_BASE = '/api/backend/api/v1'
 
@@ -156,7 +148,6 @@ function agingExcelFontColor(status: string): string {
   return 'FF0369A1'
 }
 
-/** 统计条磁贴：终端规格（1px 边界、mono 数值、语义色） */
 function SummaryTile({
   label,
   value,
@@ -168,16 +159,9 @@ function SummaryTile({
 }) {
   const alert = tone === 'neg' && value > 0
   return (
-    <div className="flex min-w-0 flex-col gap-0.5 border border-term-border bg-term-panel px-2 py-1.5">
-      <span className="truncate font-mono text-xs uppercase tracking-wider text-term-muted">
-        {label}
-      </span>
-      <span
-        className={cn(
-          'font-mono text-base leading-6 tabular-nums',
-          alert ? 'text-term-neg' : 'text-term-text'
-        )}
-      >
+    <div className={styles.summaryTile}>
+      <span className={styles.summaryLabel}>{label}</span>
+      <span className={styles.summaryValue} data-tone={alert ? 'negative' : undefined}>
         {formatInt(value)}
       </span>
     </div>
@@ -190,6 +174,8 @@ export default function InventoryAnalysisPage() {
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
+  const [projectLoadAttempt, setProjectLoadAttempt] = useState(0)
+  const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
   // 项目 / 国家 / 报表快照日期 同步到 URL search param，刷新 / 分享链接 / 浏览器后退都能记住选择。
   // reportDate 是后端响应里带回来的"数据是几号的"，属于衍生展示值，不放 URL。
   const [projectId, setProjectId] = useUrlParam<string>('project', '')
@@ -243,27 +229,14 @@ export default function InventoryAnalysisPage() {
     let active = true
     async function loadProjects() {
       setProjectsLoading(true)
+      setProjectLoadError(null)
       try {
         const payload = await fetchManagedProjectsCached<ProjectOption[]>(session)
         if (!active) return
         setProjects(payload)
-        // 1. URL 没指定 projectId（空字符串）→ 选第一个
-        // 2. URL 指定了具体项目但项目列表里找不到（用户失去权限、项目被删除）→ 回退到第一个
-        // 用 payload（刚 fetch 到的），不用 projects（state 还是旧值）。
-        if (payload.length > 0) {
-          const existsInList = projectId && payload.some((p) => String(p.id) === projectId)
-          if (!projectId || !existsInList) {
-            const first = payload.find((p) => p.id !== null && p.id !== undefined)
-            if (first?.id != null) setProjectId(String(first.id))
-          }
-        }
-      } catch (loadError) {
+      } catch {
         if (!active) return
-        notify({
-          type: 'error',
-          title: '项目列表加载失败',
-          message: loadError instanceof Error ? loadError.message : '项目列表加载失败',
-        })
+        setProjectLoadError('项目列表加载失败')
       } finally {
         if (active) setProjectsLoading(false)
       }
@@ -272,7 +245,7 @@ export default function InventoryAnalysisPage() {
     return () => {
       active = false
     }
-  }, [notify, projectId, session])
+  }, [projectLoadAttempt, session])
 
   const loadData = async (force = false) => {
     if (!currentProjectId) return
@@ -312,7 +285,7 @@ export default function InventoryAnalysisPage() {
   // 刷新语义：当前筛选条件下强刷（跳客户端缓存）。
   const loadDataRef = useRef(loadData)
   loadDataRef.current = loadData
-  const { setLoading: setHeaderRefreshLoading } = useHeaderRefresh(() => loadDataRef.current(true), {
+  useHeaderRefresh(() => loadDataRef.current(true), {
     loading,
   })
 
@@ -518,51 +491,91 @@ export default function InventoryAnalysisPage() {
     }
   }
 
-  const filterControls = (
-    <>
-      <HeaderSlotSelect
-        value={projectId}
+  const selectedProjectExists = projects.some((project) => String(project.id) === projectId)
+  const projectSelectValue = selectedProjectExists ? projectId : ''
+  const projectPlaceholder = projectsLoading
+    ? '正在加载项目…'
+    : projectLoadError
+      ? '项目列表加载失败'
+      : projects.length === 0
+        ? '没有可用项目'
+        : '请选择项目'
+
+  const projectFilterControl = (id: string, className: string) => (
+    <div className={styles.projectFilter}>
+      <WarmSelect
+        id={id}
+        label="项目"
+        value={projectSelectValue}
         onChange={setProjectId}
         options={projects.map((project) => ({ value: String(project.id), label: project.name }))}
-        widthClass={TERM_HEADER_W_MD}
-        placeholder="请选择项目"
+        placeholder={projectPlaceholder}
+        disabled={projectsLoading || projects.length === 0}
+        error={projectLoadError}
+        className={`${styles.filterSelect} ${styles.projectSelect} ${className}`}
       />
-      <HeaderSlotSelect
+      {projectLoadError ? (
+        <WarmIconButton
+          className={styles.projectRetry}
+          aria-label="重试项目列表加载"
+          loading={projectsLoading}
+          loadingLabel="正在重新加载项目列表"
+          onClick={() => {
+            setProjectLoadError(null)
+            setProjectsLoading(true)
+            setProjectLoadAttempt((attempt) => attempt + 1)
+          }}
+        >
+          <RotateCw aria-hidden="true" />
+        </WarmIconButton>
+      ) : null}
+    </div>
+  )
+
+  const filterControls = (
+    <>
+      {projectFilterControl('inventory-analysis-project', '')}
+      <WarmSelect
+        id="inventory-analysis-country"
+        label="站点"
         value={country}
         onChange={(value) => setCountry(value as 'US' | 'DE' | 'UK' | 'ALL')}
         options={[
-          { value: 'ALL', label: '全部站点' },
+          { value: 'ALL', label: '全部站点（接口暂不支持）' },
           { value: 'US', label: '美国站 (US)' },
           { value: 'DE', label: '德国站 (DE)' },
           { value: 'UK', label: '英国站 (UK)' },
         ]}
-        widthClass={TERM_HEADER_W_SM}
+        className={`${styles.filterSelect} ${styles.countrySelect}`}
       />
-      <Select
-        value={selectedSnapshotDate}
-        onValueChange={setSelectedSnapshotDate}
-        open={snapshotSelectOpen}
-        onOpenChange={setSnapshotSelectOpen}
+      <div
+        className={`${styles.snapshotSelectControl} ${styles.desktopSnapshotSelect}`}
       >
-        <SelectTrigger className={cn('h-10 w-full border-term-border bg-term-panel text-xs shadow-none', TERM_HEADER_W_LG)}>
-          <SelectValue placeholder="选择业务日期" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="current">最新业务日期</SelectItem>
-          {snapshotOptions.map((option) => (
-            <SelectItem key={option.report_date} value={option.report_date}>
-              {formatBusinessDate(option.report_date)}
-              {option.is_current ? ' (当前)' : ''}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <HeaderSlotBadge title="业务日期">
-        <span className="font-mono text-xs uppercase tracking-wider text-term-faint">业务日期</span>
-        <span className="truncate font-mono text-xs tabular-nums text-term-text">
+        <WarmSelect
+          id="inventory-analysis-snapshot"
+          label="快照"
+          value={selectedSnapshotDate}
+          onOpenChange={setSnapshotSelectOpen}
+          onChange={(value) => {
+            setSelectedSnapshotDate(value)
+            setSnapshotSelectOpen(false)
+          }}
+          options={[
+            { value: 'current', label: '最新业务日期' },
+            ...snapshotOptions.map((option) => ({
+              value: option.report_date,
+              label: `${formatBusinessDate(option.report_date)}${option.is_current ? ' (当前)' : ''}`,
+            })),
+          ]}
+          className={`${styles.filterSelect} ${styles.snapshotSelect}`}
+        />
+      </div>
+      <div className={styles.snapshotReadout} role="group" aria-label="当前库存业务日期">
+        <span className={styles.snapshotLabel}>业务日期</span>
+        <span className={styles.snapshotValue}>
           {reportDate ? formatBusinessDate(reportDate) : '--'}
         </span>
-      </HeaderSlotBadge>
+      </div>
     </>
   )
 
@@ -571,8 +584,14 @@ export default function InventoryAnalysisPage() {
   )
 
   // BLF-931 · 移动端：筛选控件下迁为正文顶部可折叠筛选条
-  const mobileProjectLabel = projects.find((p) => String(p.id) === projectId)?.name ?? projectId
-  const mobileCountryLabel = country === 'ALL' ? '全部站点' : getCountryLabel(country)
+  const mobileProjectLabel =
+    projects.find((p) => String(p.id) === projectId)?.name ??
+    (projectsLoading
+      ? '正在加载项目…'
+      : projectLoadError
+        ? '项目列表加载失败'
+        : projectId || '未选择项目')
+  const mobileCountryLabel = country === 'ALL' ? '全部站点（不可用）' : getCountryLabel(country)
   const mobileSnapshotLabel =
     selectedSnapshotDate === 'current'
       ? '最新'
@@ -585,49 +604,48 @@ export default function InventoryAnalysisPage() {
       summary={mobileFilterSummary}
       controls={
         <>
-          <HeaderSlotSelect
-            value={projectId}
-            onChange={setProjectId}
-            options={projects.map((project) => ({ value: String(project.id), label: project.name }))}
-            widthClass="w-full"
-            placeholder="请选择项目"
-          />
-          <HeaderSlotSelect
+          {projectFilterControl('inventory-analysis-mobile-project', styles.mobileFilterSelect)}
+          <WarmSelect
+            id="inventory-analysis-mobile-country"
+            label="站点"
             value={country}
             onChange={(value) => setCountry(value as 'US' | 'DE' | 'UK' | 'ALL')}
             options={[
-              { value: 'ALL', label: '全部站点' },
+              { value: 'ALL', label: '全部站点（接口暂不支持）' },
               { value: 'US', label: '美国站 (US)' },
               { value: 'DE', label: '德国站 (DE)' },
               { value: 'UK', label: '英国站 (UK)' },
             ]}
-            widthClass="w-full"
+            className={`${styles.filterSelect} ${styles.mobileFilterSelect}`}
           />
           <MobileFilterWide>
-            <Select
-              value={selectedSnapshotDate}
-              onValueChange={setSelectedSnapshotDate}
-              open={snapshotSelectOpen}
-              onOpenChange={setSnapshotSelectOpen}
+            <div
+              className={`${styles.snapshotSelectControl} ${styles.mobileSnapshotSelect}`}
             >
-              <SelectTrigger className="h-10 w-full border-term-border bg-term-panel text-xs shadow-none">
-                <SelectValue placeholder="选择业务日期" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="current">最新业务日期</SelectItem>
-                {snapshotOptions.map((option) => (
-                  <SelectItem key={option.report_date} value={option.report_date}>
-                    {formatBusinessDate(option.report_date)}
-                    {option.is_current ? ' (当前)' : ''}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <WarmSelect
+                id="inventory-analysis-mobile-snapshot"
+                label="快照"
+                value={selectedSnapshotDate}
+                onOpenChange={setSnapshotSelectOpen}
+                onChange={(value) => {
+                  setSelectedSnapshotDate(value)
+                  setSnapshotSelectOpen(false)
+                }}
+                options={[
+                  { value: 'current', label: '最新业务日期' },
+                  ...snapshotOptions.map((option) => ({
+                    value: option.report_date,
+                    label: `${formatBusinessDate(option.report_date)}${option.is_current ? ' (当前)' : ''}`,
+                  })),
+                ]}
+                className={`${styles.filterSelect} ${styles.mobileFilterSelect}`}
+              />
+            </div>
           </MobileFilterWide>
           <MobileFilterWide>
-            <div className="flex h-10 items-center gap-1.5 border border-term-border bg-term-panel px-2">
-              <span className="font-mono text-xs uppercase tracking-wider text-term-faint">业务日期</span>
-              <span className="truncate font-mono text-xs tabular-nums text-term-text">
+            <div className={styles.snapshotReadout} role="group" aria-label="当前库存业务日期">
+              <span className={styles.snapshotLabel}>业务日期</span>
+              <span className={styles.snapshotValue}>
                 {reportDate ? formatBusinessDate(reportDate) : '--'}
               </span>
             </div>
@@ -640,37 +658,43 @@ export default function InventoryAnalysisPage() {
   const colCount = 12 + shipmentColumns.length
 
   return (
-    <div className="flex min-w-0 flex-col gap-3">
+    <div className={styles.page} aria-busy={projectsLoading || loading}>
       {/* BLF-826 阶段 C：筛选控件已上移 Top Header 中段插槽；页面仅渲染 portal 宿主 */}
       {headerSlotPortal}
       {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
       {mobileFilterStrip}
 
-      {/* 统计条：终端磁贴（mono 数值 + 语义色） */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className={styles.summaryGrid}>
         <SummaryTile label="SKU 总数" value={summary.sku_count} />
         <SummaryTile label="可售总量" value={summary.total_available_qty} />
         <SummaryTile label="缺货 SKU" value={summary.out_of_stock_count} tone="neg" />
         <SummaryTile label="365+ 库龄" value={summary.total_age_365_plus_qty} tone="neg" />
       </div>
 
+      <p className={styles.apiNote}>
+        库存接口仅支持 US、DE、UK 站点；全部站点暂不可用，当前响应也未包含在途货件字段。
+      </p>
+
       <TermPanel
+        className={styles.tablePanel}
         title="库存明细"
-        bodyClassName="min-h-0 overflow-hidden"
+        bodyClassName={styles.tablePanelBody}
         actions={
-          <HeaderSlotButton variant="muted" onClick={exportToExcel} disabled={exporting || loading || rows.length === 0}>
-            {exporting ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} />
-            ) : (
-              <FileDown className="h-3.5 w-3.5" strokeWidth={1.75} />
-            )}
+          <WarmButton
+            variant="secondary"
+            className={styles.exportButton}
+            onClick={exportToExcel}
+            disabled={loading || rows.length === 0}
+            loading={exporting}
+            loadingLabel="正在导出库存 Excel"
+          >
+            <FileDown className={styles.exportIcon} aria-hidden="true" strokeWidth={1.75} />
             {exporting ? '导出中...' : '导出 Excel'}
-          </HeaderSlotButton>
+          </WarmButton>
         }
       >
-        {/* 滚动收口在面板内（Canvas 内滚动），表头 sticky */}
-        <div className="max-h-[calc(100vh-320px)] min-h-[240px] overflow-auto term-scroll">
-          <TermTable>
+        <div className={styles.tableScroll} role="region" aria-label="库存明细表格" tabIndex={0}>
+          <TermTable className={styles.table} aria-label="库存明细">
             <TermTHead>
               <TermRow className="hover:bg-transparent">
                 <TermHead>SKU</TermHead>
@@ -698,36 +722,38 @@ export default function InventoryAnalysisPage() {
             </TermTHead>
             <TermBody>
               {loading ? (
-                <TermRow className="hover:bg-transparent">
+                <TermRow className={styles.stateRow}>
                   <TermCell colSpan={colCount} className="h-24 text-center" tone="muted">
-                    <span className="inline-flex items-center justify-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.75} />
+                    <span className={styles.stateMessage} role="status">
+                      <Loader2 className={styles.loadingIcon} aria-hidden="true" strokeWidth={1.75} />
                       正在加载库存数据...
                     </span>
                   </TermCell>
                 </TermRow>
               ) : loadError ? (
-                <TermRow className="hover:bg-transparent">
+                <TermRow className={styles.stateRow}>
                   <TermCell colSpan={colCount} className="h-24 text-center" tone="neg">
-                    <span className="inline-flex items-center justify-center gap-2">
-                      <AlertTriangle className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+                    <span className={styles.stateMessage} role="alert">
+                      <AlertTriangle className={styles.errorIcon} aria-hidden="true" strokeWidth={1.75} />
                       {loadError}
                     </span>
                   </TermCell>
                 </TermRow>
               ) : rows.length === 0 ? (
-                <TermRow className="hover:bg-transparent">
+                <TermRow className={styles.stateRow}>
                   <TermCell colSpan={colCount} className="h-24 text-center" tone="muted">
-                    当前筛选下暂无库存快照数据
+                    <span className={styles.stateMessage} role="status">
+                      当前筛选下暂无库存快照数据
+                    </span>
                   </TermCell>
                 </TermRow>
               ) : (
                 <>
                   {rows.map((row) => (
-                    <TermRow key={`${row.sku}::${row.asin || 'na'}`}>
-                      <TermCell>{row.sku}</TermCell>
-                      <TermCell tone="muted">{row.asin || '--'}</TermCell>
-                      <TermCell title={row.product_name || undefined}>
+                    <TermRow className={styles.dataRow} key={`${row.sku}::${row.asin || 'na'}`}>
+                      <TermCell className={styles.skuCell}>{row.sku}</TermCell>
+                      <TermCell className={styles.asinCell} tone="muted">{row.asin || '--'}</TermCell>
+                      <TermCell className={styles.productCell} title={row.product_name || undefined}>
                         {row.product_name || '--'}
                       </TermCell>
                       <TermCell numeric>{formatInt(row.available_qty)}</TermCell>
@@ -742,11 +768,15 @@ export default function InventoryAnalysisPage() {
                         {formatInt(row.age_365_plus_qty)}
                       </TermCell>
                       <TermCell>{row.recommended_action_label || '--'}</TermCell>
-                      <TermCell tone={stockTone(row.stock_status)}>
-                        {stockStatusLabel(row.stock_status)}
+                      <TermCell>
+                        <span className={styles.status} data-tone={stockTone(row.stock_status)}>
+                          {stockStatusLabel(row.stock_status)}
+                        </span>
                       </TermCell>
-                      <TermCell tone={agingTone(row.aging_status)}>
-                        {agingStatusLabel(row.aging_status)}
+                      <TermCell>
+                        <span className={styles.status} data-tone={agingTone(row.aging_status)}>
+                          {agingStatusLabel(row.aging_status)}
+                        </span>
                       </TermCell>
                       {shipmentColumns.map((col) => {
                         const qty = row.shipment_quantities?.[col.shipment_no]
@@ -758,7 +788,7 @@ export default function InventoryAnalysisPage() {
                       })}
                     </TermRow>
                   ))}
-                  <TermRow highlight className="[&>td]:font-semibold [&>td]:bg-term-raised hover:bg-term-raised">
+                  <TermRow highlight className={styles.totalRow}>
                     <TermCell colSpan={3}>合计</TermCell>
                     <TermCell numeric>{formatInt(detailTotals.available_qty)}</TermCell>
                     <TermCell numeric>{formatInt(detailTotals.age_0_90_qty)}</TermCell>
@@ -783,9 +813,6 @@ export default function InventoryAnalysisPage() {
           </TermTable>
         </div>
       </TermPanel>
-
-      {/* 加载骨架（首次进入 / 项目切换时统计条同步占位） */}
-      {projectsLoading && <Skeleton className="hidden h-10 w-full rounded-none" />}
     </div>
   )
 }

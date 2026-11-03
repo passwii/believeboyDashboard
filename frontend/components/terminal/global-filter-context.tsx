@@ -24,7 +24,7 @@ import { usePathname, useRouter } from 'next/navigation'
  */
 
 export type TerminalGlobalFilterState = {
-  /** 项目 ID 字符串；'' = 尚未选择（项目列表加载后自动选第一个），'all' = 全部项目 */
+  /** 项目 ID 字符串；'' = 尚未选择，'all' = 全部项目 */
   projectId: string
   /** 国家站点代码；默认 'US'，'ALL' = 全部站点 */
   country: string
@@ -34,12 +34,28 @@ export type TerminalGlobalFilterState = {
   dateTo: string
 }
 
+export type TerminalDailyAnalysisPageFilters = Pick<
+  TerminalGlobalFilterState,
+  'projectId' | 'country'
+>
+
+export type TerminalDailyAnalysisFilterSync = {
+  filters: TerminalGlobalFilterState
+  pageFilters: TerminalDailyAnalysisPageFilters
+}
+
 export type TerminalGlobalFilterContextValue = TerminalGlobalFilterState & {
   /** 水合（URL → localStorage → 默认值）是否完成；完成前消费者应跳过绑定 */
   ready: boolean
   setProjectId: (v: string) => void
+  setFiltersForNavigation: (filters: TerminalGlobalFilterState) => void
   setCountry: (v: string) => void
   setDateRange: (from: string, to: string) => void
+  syncDailyAnalysisFilters: (
+    filters: TerminalGlobalFilterState,
+    pageFilters: TerminalDailyAnalysisPageFilters
+  ) => void
+  lastDailyAnalysisSync: TerminalDailyAnalysisFilterSync | null
 }
 
 /** URL query 键名（g 前缀 = global，避免与页面级参数冲突） */
@@ -75,15 +91,16 @@ function todayYMDInTimezone(tz = US_TIMEZONE): string {
 }
 
 /** 默认日期窗口：美西时区近 7 天（含今天），与首页 / 销售数据页口径一致 */
-export function defaultGlobalDateRange(): { dateFrom: string; dateTo: string } {
-  const dateTo = todayYMDInTimezone()
+export function defaultGlobalDateRange(
+  timezone = US_TIMEZONE
+): { dateFrom: string; dateTo: string } {
+  const dateTo = todayYMDInTimezone(timezone)
   const [y, m, d] = dateTo.split('-').map(Number)
-  const fromDate = new Date(y!, m! - 1, d!)
-  fromDate.setDate(fromDate.getDate() - 6)
+  const fromDate = new Date(Date.UTC(y!, m! - 1, d! - 6))
   const dateFrom = [
-    fromDate.getFullYear(),
-    String(fromDate.getMonth() + 1).padStart(2, '0'),
-    String(fromDate.getDate()).padStart(2, '0'),
+    fromDate.getUTCFullYear(),
+    String(fromDate.getUTCMonth() + 1).padStart(2, '0'),
+    String(fromDate.getUTCDate()).padStart(2, '0'),
   ].join('-')
   return { dateFrom, dateTo }
 }
@@ -140,6 +157,8 @@ export function TerminalGlobalFilterProvider({ children }: { children: React.Rea
     dateFrom: '',
     dateTo: '',
   })
+  const [lastDailyAnalysisSync, setLastDailyAnalysisSync] =
+    React.useState<TerminalDailyAnalysisFilterSync | null>(null)
 
   // 水合：URL > localStorage > 默认值。只在 mount 跑一次（客户端），无 SSR 水合风险。
   React.useEffect(() => {
@@ -213,10 +232,55 @@ export function TerminalGlobalFilterProvider({ children }: { children: React.Rea
     [pathname, router]
   )
 
+  const syncDailyAnalysisFilters = React.useCallback(
+    (
+      filters: TerminalGlobalFilterState,
+      pageFilters: TerminalDailyAnalysisPageFilters
+    ) => {
+      const next = { ...filters }
+      const nextPageFilters = { ...pageFilters }
+      setState(next)
+      writeStored(next)
+
+      const params = new URLSearchParams(
+        typeof window === 'undefined' ? '' : window.location.search
+      )
+      for (const key of Object.keys(GLOBAL_FILTER_URL_KEYS) as Array<
+        keyof typeof GLOBAL_FILTER_URL_KEYS
+      >) {
+        const value = next[key]
+        const urlKey = GLOBAL_FILTER_URL_KEYS[key]
+        if (value) params.set(urlKey, value)
+        else params.delete(urlKey)
+      }
+
+      if (pathname === '/dashboard/operations/daily-analysis') {
+        if (nextPageFilters.projectId) params.set('project', nextPageFilters.projectId)
+        else params.delete('project')
+        if (nextPageFilters.country && nextPageFilters.country !== 'US') {
+          params.set('country', nextPageFilters.country)
+        } else {
+          params.delete('country')
+        }
+      }
+
+      const qs = params.toString()
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+      setLastDailyAnalysisSync({ filters: next, pageFilters: nextPageFilters })
+    },
+    [pathname, router]
+  )
+
   const setProjectId = React.useCallback(
     (v: string) => update({ projectId: v }),
     [update]
   )
+  // Seed the complete destination scope before a SPA drilldown mounts its page.
+  const setFiltersForNavigation = React.useCallback((filters: TerminalGlobalFilterState) => {
+    setState(filters)
+    writeStored(filters)
+    setLastDailyAnalysisSync(null)
+  }, [])
   const setCountry = React.useCallback((v: string) => update({ country: v }), [update])
   const setDateRange = React.useCallback(
     (from: string, to: string) => update({ dateFrom: from, dateTo: to }),
@@ -224,8 +288,26 @@ export function TerminalGlobalFilterProvider({ children }: { children: React.Rea
   )
 
   const value = React.useMemo<TerminalGlobalFilterContextValue>(
-    () => ({ ...state, ready, setProjectId, setCountry, setDateRange }),
-    [state, ready, setProjectId, setCountry, setDateRange]
+    () => ({
+      ...state,
+      ready,
+      setProjectId,
+      setFiltersForNavigation,
+      setCountry,
+      setDateRange,
+      syncDailyAnalysisFilters,
+      lastDailyAnalysisSync,
+    }),
+    [
+      state,
+      ready,
+      setProjectId,
+      setFiltersForNavigation,
+      setCountry,
+      setDateRange,
+      syncDailyAnalysisFilters,
+      lastDailyAnalysisSync,
+    ]
   )
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

@@ -6,6 +6,16 @@
 >
 > 原则：页面先行，组件后置晋升；V3 Terminal 继续服务其他路由。
 
+## C1 Warm scope extension (2026-11-01)
+
+The original G0 freeze scoped the first release to `/dashboard`. Damon has now approved reusing the unchanged Warm Ledger contract on these exact C1 paths, with no feature flag:
+
+- `/dashboard/operations/daily-analysis`
+- `/dashboard/operations/portfolio-overview`
+- `/dashboard/operations/inventory-analysis`
+
+Only these route roots receive the Warm shell. All other dashboard routes continue to use `TerminalShell`. The route frame preserves `TerminalGlobalFilterProvider`, `TerminalHeaderSlotProvider`, page header slots, refresh, mobile filter strips, search, notifications, and profile navigation. Date meaning remains page-owned: the homepage uses its seven-day PT operational window; Daily Analysis uses the selected marketplace calendar; Portfolio keeps its date picker's existing “近7天” preset as explicit filter state and uses the selected marketplace timezone; Inventory uses the chosen snapshot date. Token values, `--term-*`, and shared UI defaults remain unchanged.
+
 ## 1. 推荐结论
 
 先构建 `/dashboard` 是正确的。
@@ -162,8 +172,8 @@ Damon 已确认生产直接使用新设计，不设 feature flag：
 | 批次 | 类目 | 代表页面 | 进入条件 |
 | --- | --- | --- | --- |
 | D0 | Dashboard 基准 | `/dashboard` | **已完成（2026-11-01）**：数据层拆分、Warm shell、真实 API、响应式与交互门禁通过 |
-| C1 | 运营分析 | `daily-analysis`、`portfolio-overview`、`inventory-analysis` | D0 全部门禁通过 |
-| C2 | 运营执行 / 库存 | `inventory-ledger`、`shipping-plan`、`shipment-management`、`sku-info` | C1 至少两页证明可复用 |
+| C1 | 运营分析 | `daily-analysis`、`portfolio-overview`、`inventory-analysis` | 已完成（2026-11-02；最终 Luna max review PASS） |
+| C2 | 运营执行 / 库存 | `inventory-ledger`、`shipping-plan`、`shipment-management`、`sku-info` | Tasks 1–5 页面实现与独立 Luna max R1 均已完成；Task 6 整批集成、测试、构建与视口/交互验收尚未开始 |
 | C3 | 报表 / 订单 | `order-info`、`product-analysis`、`monthly-report` | 表格与导出契约稳定 |
 | C4 | 广告 | `ad-analysis/overview`、`ad-data` | 图表 / 筛选契约已验证 |
 | C5 | 财务 | `platform-revenue`、`exchange-rate`、`commission-management` | 账期、币种、汇总口径明确 |
@@ -260,3 +270,37 @@ A1 owns Warm controls wrapper and Dashboard token consumption. A2–A5 may work 
 - 不要把日快照当成 Pending KPI 或订单流 headline，也不要在 per-project Pending API 未确认前展示项目总数 / 占比。
 - 不要让 A2–A5 各自实现 Warm controls，也不要让 A1–A5 修改 foundations 文件或复制共享 props types。
 - 不要为了视觉一致抹平不同业务页面的数据口径。
+
+## 11. C1 implementation QA (2026-11-02; final review PASS)
+
+- Warm route frame is limited to `/dashboard/operations/daily-analysis`, `/dashboard/operations/portfolio-overview`, and `/dashboard/operations/inventory-analysis`; other dashboard routes retain `TerminalShell`.
+- Portfolio keeps the existing date picker's `近7天` selection as explicit filter state. The initial US range uses the US marketplace calendar; the date control uses the selected marketplace timezone. This is distinct from the homepage's explicitly labeled PT operational window. Inventory remains snapshot-date based.
+- Portfolio detail navigation now carries the selected project, site, and date range in page/global query state and seeds the global context/local storage before SPA navigation. Daily Analysis waits for global-filter hydration and page-state alignment before loading scope-dependent data; goal progress also uses the resolved global project/site while that sync completes.
+- Daily Analysis fallback filters are hidden at `xl` while the global project/country/date controls are active; the page-local SKU control remains available. The global project selector can be used when its initial value is empty, including when the page-local project request fails.
+- Inventory's empty/loading/error project states are visible, project-list retry is actionable, the snapshot-options request follows the selector's actual open/close events, and unrelated URL filter changes do not refetch the project list.
+- Responsive breakpoint record: the compact Warm topbar and 44px touch targets apply through 820px; Daily Analysis uses its fallback filter controls from 768px up to `xl`, and the shared mobile filter strip appears below 768px. Browser inspection confirmed fallback controls at 820px and the mobile strip at 767px, with no page-level horizontal overflow; the 820px capture is `assets/daily-analysis-production-820.png`.
+- Browser inspection used isolated API fixtures at 1440, 1280, 1279, 1024, 821, 820, 390, and 320px for Daily Analysis, and 1440, 390, and 320px for Portfolio and Inventory. No page-level horizontal overflow was observed; tables keep their own horizontal scroll containers.
+- Interactions inspected: snapshot selector Escape close; project-list 503 error and retry control; Portfolio project selection, sorting, trend/contribution tabs, and detail navigation while the stored global project/site/date differed from Portfolio's active scope. The destination URL and Daily Analysis requests used the Portfolio project/site/date. A direct Daily Analysis URL with page site US and global site DE sent only DE requests after synchronization; no pre-sync US request was observed. Also checked global/fallback filter handoff and long SKU/product-name option wrapping.
+- Updated browser captures are in `assets/` with `*-production-*` names. The browser used mock API responses; the 503 was an intentional error-state fixture. Local Vercel Analytics/Speed Insights returned 404, with no uncaught page errors.
+- `pnpm lint`: 0 errors, 17 warnings in unchanged files. `pnpm build` and `git diff --check` passed. Tests were not run under this batch's approved validation rule.
+- The post-fix Luna max review returned PASS with no blocking findings. It was a source-only review; the browser and build evidence above were captured separately. C1's exit gate is closed and C2 inventory/fulfillment planning may proceed.
+
+## 12. C2 kickoff (2026-11-02)
+
+- The C2 page contracts are recorded in `components/c2-page-contracts.md`, and the task sequence is in `docs/superpowers/plans/2026-11-02-warm-ledger-c2.md`.
+- C2 exact routes are `inventory-ledger`, `shipping-plan`, `shipment-management`, and `sku-info`. The shell/sidebar work must expose those pages without a feature flag and keep all other routes on `TerminalShell`.
+- Task 1 exact-route/title/sidebar integration is complete and passed an independent Luna max review; focused ESLint and `git diff --check` passed.
+- Task 2 Inventory Ledger is implemented and passed the final Luna max R1 review. It preserves full-month export semantics, URL keys, formulas, filter scopes, and 50-row paging. It also keeps scope-matched data visible after same-scope refresh failures, hides prior-scope rows/options during project/month changes, and maps supported month aliases to the canonical response month for display.
+- Inventory Ledger validation: directory ESLint, `git diff --check`, and CodeGraph sync passed. A 320px browser screenshot verified the daily event summary table and contained detail view; the Summary tab's table containment was verified from its local scroll CSS. No tests/build/browser matrix was run in this page task; those are deferred to Task 6 integration.
+- Task 3 Shipping Plan passed the fifth-round independent Luna max R1. Task 4 Shipment Management also passed final independent source-only Luna max R1 after several remediation rounds. Both preserve their API and write contracts; Task 4 includes keyboard-accessible imports, focus-returning dialogs, portal-scoped Warm overlays, accessible batch hiding/clearing, and protected date selection. Tests/build/browser evidence and all six viewport/interaction checks remain in Task 6. C2 Task 5 SKU Info may begin.
+- Page contracts preserve each route's URL filters, dates, APIs, formula/supply scopes, write actions, import/export behavior, and error states. New page panels, tables, and dialogs stay page-local until a second consumer proves the same interaction contract.
+- Security follow-up: source-verified SKU Info project-name search and record-ID write scope gaps, plus Shipment Management write routes without operator project checks, are documented in [`2026-11-02-warm-ledger-c2-security-follow-up.md`](../../../superpowers/plans/2026-11-02-warm-ledger-c2-security-follow-up.md). C2 is a UI migration and does not claim or implement backend authorization fixes.
+
+## 13. C2 stage checkpoint (2026-11-03)
+
+- C2 Tasks 1–5 have completed their implementation and independent Luna max source-review gates: exact route/navigation frame, Inventory Ledger, Shipping Plan, Shipment Management, and SKU Info. Task 5's final focused Luna max re-review passed after fixing the member-search focus ring and preserving selected review-group IDs that are absent from the current candidate results.
+- Page-level validation remains deliberately scoped: focused ESLint, `git diff --check`, and relevant whitespace checks passed as recorded in each task report. The C2-wide tests, production build, and six-viewport interaction matrix have not run; those belong to Task 6.
+- Task 6 is the next stage and has not started. It owns the stale Shipping Plan test fixture/assertions, focused C2 regression tests, integration lint/build, browser checks at 1440/1024/820/767/390/320px, route-specific state/action coverage, rollout evidence, and a final independent Luna max integration review.
+- The SKU Info and Shipment Management project-scope authorization findings remain open in the security follow-up. C2 UI work does not establish backend project isolation.
+- Promote a page-local component only after a second real route demonstrates the same behavior and accessibility contract. Keep unproven controls and layouts local during C2 integration and the next category audits.
+- Stage handoff and Task 6 exit criteria are recorded in [`2026-11-03-warm-ledger-c2-stage-checkpoint.md`](../../../superpowers/plans/2026-11-03-warm-ledger-c2-stage-checkpoint.md).

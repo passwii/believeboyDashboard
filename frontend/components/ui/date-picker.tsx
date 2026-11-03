@@ -62,6 +62,10 @@ type SharedDatePickerProps = {
   clearable?: boolean
   /** IANA timezone string (e.g. "America/Los_Angeles") for timezone-aware preset calculations. Defaults to browser local. */
   timezone?: string
+  /** Opt-in portal destination for surfaces that need a local theme scope. */
+  portalContainer?: HTMLElement | null
+  /** Opt-in class for styling the popover content without changing shared defaults. */
+  popoverClassName?: string
 }
 
 type SingleDatePickerProps = SharedDatePickerProps & {
@@ -229,6 +233,8 @@ export function DatePicker(props: DatePickerProps) {
     toDate,
     clearable = true,
     timezone,
+    portalContainer,
+    popoverClassName,
   } = props
 
   const today = new Date()
@@ -306,6 +312,8 @@ export function DatePicker(props: DatePickerProps) {
         disabled={disabled}
         presets={presets}
         timezone={timezone}
+        portalContainer={portalContainer}
+        popoverClassName={popoverClassName}
       />
     )
   }
@@ -323,7 +331,11 @@ export function DatePicker(props: DatePickerProps) {
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-[320px] rounded-none border border-term-border bg-term-panel p-4 text-term-text shadow-none"
+        portalContainer={portalContainer}
+        className={cn(
+          'w-[320px] rounded-none border border-term-border bg-term-panel p-4 text-term-text shadow-none',
+          popoverClassName
+        )}
         align="start"
       >
         <div className="space-y-3">
@@ -449,6 +461,8 @@ interface RangeDatePickerWithPresetsProps {
   disabled?: boolean
   presets: Record<string, { from: Date; to: Date }>
   timezone?: string
+  portalContainer?: HTMLElement | null
+  popoverClassName?: string
 }
 
 function RangeDatePickerWithPresets({
@@ -459,6 +473,8 @@ function RangeDatePickerWithPresets({
   disabled,
   presets,
   timezone,
+  portalContainer,
+  popoverClassName,
 }: RangeDatePickerWithPresetsProps) {
   const tz = timezone ?? 'UTC'
   const todayInTz = getTodayInTimezone(tz)
@@ -515,7 +531,11 @@ function RangeDatePickerWithPresets({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-auto max-h-[460px] rounded-none border border-term-border bg-term-panel p-0 text-term-text shadow-none"
+        portalContainer={portalContainer}
+        className={cn(
+          'w-auto max-h-[460px] rounded-none border border-term-border bg-term-panel p-0 text-term-text shadow-none',
+          popoverClassName
+        )}
         align="start"
       >
         <div className="flex max-sm:flex-col max-h-[420px]">
@@ -577,6 +597,8 @@ interface SingleDatePickerWithPresetsProps {
   fromDate?: Date
   toDate?: Date
   timezone?: string
+  portalContainer?: HTMLElement | null
+  popoverClassName?: string
 }
 
 function SingleDatePickerWithPresets({
@@ -588,6 +610,8 @@ function SingleDatePickerWithPresets({
   fromDate,
   toDate,
   timezone,
+  portalContainer,
+  popoverClassName,
 }: SingleDatePickerWithPresetsProps) {
   const tz = timezone ?? 'UTC'
   const todayInTz = getTodayInTimezone(tz)
@@ -642,7 +666,11 @@ function SingleDatePickerWithPresets({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-auto max-h-[460px] rounded-none border border-term-border bg-term-panel p-0 text-term-text shadow-none"
+        portalContainer={portalContainer}
+        className={cn(
+          'w-auto max-h-[460px] rounded-none border border-term-border bg-term-panel p-0 text-term-text shadow-none',
+          popoverClassName
+        )}
         align="start"
       >
         <div className="flex max-sm:flex-col max-h-[420px]">

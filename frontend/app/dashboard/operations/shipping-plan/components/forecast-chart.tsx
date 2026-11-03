@@ -14,7 +14,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { DataTableCard, DataTableCardBody, DataTableCardHeader } from '@/components/ui/data-card'
+import styles from '../shipping-plan-warm.module.css'
 
 type DecimalValue = number | string
 
@@ -155,35 +155,35 @@ export function ForecastChart({ forecast }: { forecast: ShippingPlanForecast }) 
   const plannedGap = useMemo(() => calculateInventoryGap(points, 'planned_sales'), [points])
 
   return (
-    <section className="min-w-0" aria-label={`${forecast.sku} 180 天销量与库存预测`}>
-      <div className="mb-3 grid grid-cols-1 border border-term-border sm:grid-cols-2">
-        <div className="border-b border-term-border px-3 py-2 sm:border-b-0 sm:border-r">
-          <div className="font-mono text-[10px] text-term-muted">确定情景 · 销量上限 {formatValue(forecast.confirmed_180d_sales_upper_bound)}</div>
-          <div className={`mt-1 font-mono text-sm tabular-nums ${confirmedGap.complete && confirmedGap.quantity ? 'text-term-neg' : 'text-term-text'}`}>库存缺口：{gapLabel(confirmedGap)}</div>
+    <section className={styles.forecastChart} aria-label={`${forecast.sku} 180 天销量与库存预测`}>
+      <div className={styles.forecastScenarioGrid}>
+        <div className={styles.forecastScenario}>
+          <div className={styles.scenarioLabel}>确定情景 · 销量上限 {formatValue(forecast.confirmed_180d_sales_upper_bound)}</div>
+          <div className={`${styles.scenarioGap} ${confirmedGap.complete && confirmedGap.quantity ? styles.scenarioGapActive : ''}`}>库存缺口：{gapLabel(confirmedGap)}</div>
         </div>
-        <div className="px-3 py-2">
-          <div className="font-mono text-[10px] text-term-muted">计划情景 · 销量上限 {formatValue(forecast.planned_180d_sales_upper_bound)}</div>
-          <div className={`mt-1 font-mono text-sm tabular-nums ${plannedGap.complete && plannedGap.quantity ? 'text-term-neg' : 'text-term-text'}`}>库存缺口：{gapLabel(plannedGap)}</div>
+        <div className={styles.forecastScenario}>
+          <div className={styles.scenarioLabel}>计划情景 · 销量上限 {formatValue(forecast.planned_180d_sales_upper_bound)}</div>
+          <div className={`${styles.scenarioGap} ${plannedGap.complete && plannedGap.quantity ? styles.scenarioGapActive : ''}`}>库存缺口：{gapLabel(plannedGap)}</div>
         </div>
       </div>
-      <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-term-muted">
+      <div className={styles.forecastPeriod}>
         <span>预测区间 {dateLabel(forecast.forecast_start_date)}–{dateLabel(forecast.forecast_end_date)}</span>
         <span>库存快照 {forecast.inventory_snapshot_date ?? '未知'}</span>
       </div>
       {forecast.data_quality.length > 0 ? (
-        <div role="status" className="mb-3 border border-term-warn/40 px-3 py-2 text-xs leading-5 text-term-warn">
+        <div role="status" className={styles.forecastQuality}>
           数据待核实：{forecast.data_quality.map(qualityReason).join('、')}
         </div>
       ) : null}
-      <div className="h-[300px] min-w-0 w-full" data-testid="shipping-plan-forecast-chart">
+      <div className={styles.forecastPlot} data-testid="shipping-plan-forecast-chart">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 8, right: 4, bottom: 4, left: 0 }}>
-            <CartesianGrid stroke="var(--term-border)" strokeDasharray="2 4" vertical={false} />
-            <XAxis dataKey="label" tickLine={false} axisLine={{ stroke: 'var(--term-border)' }} tick={{ fill: 'var(--term-muted)', fontSize: 10, fontFamily: 'ui-monospace, SFMono-Regular, monospace' }} interval="preserveStartEnd" minTickGap={18} />
-            <YAxis yAxisId="sales" tickLine={false} axisLine={false} width={44} tick={{ fill: 'var(--term-muted)', fontSize: 10, fontFamily: 'ui-monospace, SFMono-Regular, monospace' }} />
-            <YAxis yAxisId="inventory" orientation="right" tickLine={false} axisLine={false} width={40} tick={{ fill: 'var(--term-muted)', fontSize: 10, fontFamily: 'ui-monospace, SFMono-Regular, monospace' }} />
+            <CartesianGrid stroke="var(--warm-ledger-color-chart-grid)" strokeDasharray="2 4" vertical={false} />
+            <XAxis dataKey="label" tickLine={false} axisLine={{ stroke: 'var(--warm-ledger-color-hairline)' }} tick={{ fill: 'var(--warm-ledger-color-text-muted)', fontSize: 11, fontFamily: 'var(--warm-ledger-font-mono)' }} interval="preserveStartEnd" minTickGap={18} />
+            <YAxis yAxisId="sales" tickLine={false} axisLine={false} width={44} tick={{ fill: 'var(--warm-ledger-color-text-muted)', fontSize: 11, fontFamily: 'var(--warm-ledger-font-mono)' }} />
+            <YAxis yAxisId="inventory" orientation="right" tickLine={false} axisLine={false} width={40} tick={{ fill: 'var(--warm-ledger-color-text-muted)', fontSize: 11, fontFamily: 'var(--warm-ledger-font-mono)' }} />
             <Tooltip
-              cursor={{ stroke: 'var(--term-border-strong)', strokeDasharray: '3 3' }}
+              cursor={{ stroke: 'var(--warm-ledger-color-hairline-strong)', strokeDasharray: '3 3' }}
               content={({ active, payload }) => {
                 const point = payload?.[0]?.payload as MonthlyForecastPoint | undefined
                 if (!active || !point) return null
@@ -194,22 +194,22 @@ export function ForecastChart({ forecast }: { forecast: ShippingPlanForecast }) 
                   ['确定情景月末库存', point.confirmed_closing_inventory],
                   ['计划情景月末库存', point.planned_closing_inventory],
                 ] as const
-                return <div className="min-w-48 border border-term-border bg-term-panel p-3 text-xs"><div className="mb-2 border-b border-term-border pb-2 font-mono text-term-text">{point.label}</div>{rows.map(([label, value]) => <div key={label} className="flex justify-between gap-5 py-0.5"><span className="text-term-muted">{label}</span><span className="font-mono tabular-nums text-term-text">{formatValue(value)}</span></div>)}</div>
+                return <div className={styles.chartTooltip}><div className={styles.tooltipTitle}>{point.label}</div>{rows.map(([label, value]) => <div key={label} className={styles.tooltipRow}><span>{label}</span><strong>{formatValue(value)}</strong></div>)}</div>
               }}
             />
-            <Legend wrapperStyle={{ fontSize: 11, paddingTop: 10 }} formatter={(value) => <span className="text-term-muted">{value}</span>} />
-            <Bar yAxisId="sales" dataKey="confirmed_sales" name="确定情景销量" fill="var(--term-accent)" maxBarSize={20} />
-            <Bar yAxisId="sales" dataKey="planned_sales" name="计划情景销量" fill="var(--term-pos)" fillOpacity={0.7} maxBarSize={20} />
-            {hasHistoricalData ? <Line yAxisId="sales" type="monotone" dataKey="historical_order_sales" name="去年同期销售" stroke="var(--term-warn)" strokeDasharray="5 3" strokeWidth={1.5} dot={false} connectNulls={false} /> : null}
-            <ReferenceLine yAxisId="inventory" y={0} stroke="var(--term-neg)" strokeDasharray="3 3" />
-            <Line yAxisId="inventory" type="monotone" dataKey="confirmed_closing_inventory" name="确定情景月末库存" stroke="var(--term-accent)" strokeWidth={1.5} dot={false} connectNulls={false} />
-            <Line yAxisId="inventory" type="monotone" dataKey="planned_closing_inventory" name="计划情景月末库存" stroke="var(--term-pos)" strokeWidth={1.5} dot={false} connectNulls={false} />
-            <Line yAxisId="sales" type="monotone" dataKey="confirmed_gap" name="确定情景缺口" stroke="var(--term-neg)" strokeWidth={1.5} dot={false} connectNulls={false} />
-            <Line yAxisId="sales" type="monotone" dataKey="planned_gap" name="计划情景缺口" stroke="var(--term-warn)" strokeWidth={1.5} dot={false} connectNulls={false} />
+            <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} formatter={(value) => <span className={styles.chartLegend}>{value}</span>} />
+            <Bar yAxisId="sales" dataKey="confirmed_sales" name="确定情景销量" fill="var(--warm-ledger-color-accent)" maxBarSize={20} />
+            <Bar yAxisId="sales" dataKey="planned_sales" name="计划情景销量" fill="var(--warm-ledger-color-text-soft)" fillOpacity={0.72} maxBarSize={20} />
+            {hasHistoricalData ? <Line yAxisId="sales" type="monotone" dataKey="historical_order_sales" name="去年同期销售" stroke="var(--warm-ledger-color-text-muted)" strokeDasharray="5 3" strokeWidth={1.5} dot={false} connectNulls={false} /> : null}
+            <ReferenceLine yAxisId="inventory" y={0} stroke="var(--warm-ledger-color-chart-grid)" strokeDasharray="3 3" />
+            <Line yAxisId="inventory" type="monotone" dataKey="confirmed_closing_inventory" name="确定情景月末库存" stroke="var(--warm-ledger-color-accent)" strokeWidth={2} dot={false} connectNulls={false} />
+            <Line yAxisId="inventory" type="monotone" dataKey="planned_closing_inventory" name="计划情景月末库存" stroke="var(--warm-ledger-color-text-soft)" strokeDasharray="5 3" strokeWidth={1.5} dot={false} connectNulls={false} />
+            <Line yAxisId="sales" type="monotone" dataKey="confirmed_gap" name="确定情景缺口" stroke="var(--warm-ledger-color-negative)" strokeWidth={1.5} dot={false} connectNulls={false} />
+            <Line yAxisId="sales" type="monotone" dataKey="planned_gap" name="计划情景缺口" stroke="var(--warm-ledger-color-negative)" strokeDasharray="5 3" strokeWidth={1.5} dot={false} connectNulls={false} />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
-      <div className="mt-2 border-t border-term-border pt-2 text-[11px] leading-5 text-term-muted">按自然月汇总；缺口为当月预测需求未能满足的数量{hasHistoricalData ? '；去年同期销售按相同月份对齐' : ''}。</div>
+      <div className={styles.chartFootnote}>按自然月汇总；缺口为当月预测需求未能满足的数量{hasHistoricalData ? '；去年同期销售按相同月份对齐' : ''}</div>
     </section>
   )
 }

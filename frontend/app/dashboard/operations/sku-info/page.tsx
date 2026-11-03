@@ -20,14 +20,13 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { HoverCard } from '@/components/ui/hover-card'
 import { UploadZone } from '@/components/ui/upload-zone'
 import { useNotifications } from '@/components/notifications'
-import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
-import { MobileFilterStrip } from '@/components/terminal/mobile-filter-strip'
+import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
 import {
-  HeaderSlotSelect,
-  TERM_HEADER_W_MD,
-  TERM_HEADER_W_SM,
-} from '@/components/terminal/header-filter-suite'
-import { useHeaderRefresh, useHeaderSlot, useMobileFilterStrip } from '@/components/terminal/terminal-header-slot'
+  useHeaderRefresh,
+  useMobileFilterStrip,
+  usePrimaryFilterSlot,
+  useSecondaryHeaderSlot,
+} from '@/components/terminal/terminal-header-slot'
 import { useConfirm } from '@/hooks/use-confirm'
 import {
   DataTableCard,
@@ -35,13 +34,6 @@ import {
   DataTableCardBody,
 } from '@/components/ui/data-card'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   DirectionalTabTransition,
@@ -59,8 +51,14 @@ import { ImageTabContent } from '@/components/dashboard/sku-info/image-tab'
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { getCountryLabel } from '@/lib/country'
-import { formatLocalTimestampForFilename, cn } from '@/lib/utils'
+import { formatLocalTimestampForFilename } from '@/lib/utils'
 import { formatInch, formatLb } from '@/lib/unit-convert'
+import {
+  WarmButton,
+  WarmSelect,
+  type WarmSelectOption,
+} from '@/components/dashboard-v2/warm-ledger/controls'
+import styles from './sku-info-warm.module.css'
 
 export type ProductCostItem = {
   id: number
@@ -140,23 +138,11 @@ const ACTIVE_TAB_ORDER: ActiveTab[] = ['cost', 'dimension', 'factory', 'label', 
 const API_BASE = '/api/backend'
 const HISTORY_SHIPMENT_STATUSES = ['completed', 'in_transit'] as const
 const DEFAULT_PAGE_SIZE = 10000
-const COUNTRY_OPTIONS = [
+const COUNTRY_OPTIONS: ReadonlyArray<WarmSelectOption> = [
   { value: 'US', label: '美国站 (US)' },
   { value: 'DE', label: '德国站 (DE)' },
   { value: 'UK', label: '英国站 (UK)' },
 ] as const
-
-/**
- * Header 插槽「查询 / 重置」按钮基类（term 规格 h-10：与 TERM_HEADER_TRIGGER 同高（BLF-887 上档），
- * 零圆角 / 1px term 边界 / mono）。sku-info 为提交制查询，按钮随筛选控件一起
- * portal 进 Top Header 中段插槽（operations header migration B3）。
- */
-const TERM_HEADER_BUTTON =
-  'flex h-10 shrink-0 items-center justify-center rounded-none border px-3 font-mono text-sm shadow-none transition-colors focus-visible:outline-none focus-visible:border-term-border-strong disabled:cursor-not-allowed disabled:opacity-50'
-/** 查询 = 强调态（提交制主操作） */
-const TERM_HEADER_BUTTON_PRIMARY = `${TERM_HEADER_BUTTON} border-term-border-strong bg-term-panel text-term-text hover:bg-term-hover active:bg-term-raised`
-/** 重置 = 弱化态 */
-const TERM_HEADER_BUTTON_MUTED = `${TERM_HEADER_BUTTON} border-term-border bg-transparent text-term-muted hover:border-term-border-strong hover:text-term-text active:bg-term-raised`
 
 function normalizeCountry(raw: string): 'US' | 'DE' | 'UK' | null {
   const normalized = raw.trim().toUpperCase()
@@ -384,7 +370,14 @@ export default function SkuInfoPage() {
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
+  const [projectLoadAttempt, setProjectLoadAttempt] = useState(0)
+  const [warmPortalContainer, setWarmPortalContainer] = useState<HTMLElement | null>(null)
   const { data: session, status } = useSession()
+  const sheetOpenerRef = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    setWarmPortalContainer(document.getElementById('warm-ledger-portal-root'))
+  }, [])
 
   const [projectFilter, setProjectFilter] = useState('')
   const [identifierFilter, setIdentifierFilter] = useState('')
@@ -474,7 +467,12 @@ export default function SkuInfoPage() {
     }
 
     void loadProjects()
-  }, [session, status])
+  }, [projectLoadAttempt, session, status])
+
+  const restoreSheetFocus = (event: Event) => {
+    event.preventDefault()
+    if (sheetOpenerRef.current?.isConnected) sheetOpenerRef.current.focus()
+  }
 
   const loadData = async (
     filters?: {
@@ -580,9 +578,6 @@ export default function SkuInfoPage() {
   // 从 URL search params 自动触发一次查询（关联跳转场景：从「订单信息」点击 SKU/ASIN 进入）
   // 仅触发一次；触发后用户再修改筛选条件走正常 onSearch 流程
   // loadData intentionally uses the current submitted filters; this effect only runs for URL-driven entry.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  // URL entry should run only when the route-derived filters change.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (initialSearchTriggeredRef.current) return
     if (projectsLoading) return
@@ -612,7 +607,7 @@ export default function SkuInfoPage() {
     )
 
     initialSearchTriggeredRef.current = true
-  }, [projectsLoading, projectLoadError, searchParams])
+  }, [projectsLoading, projectLoadError, searchParams]) // eslint-disable-line react-hooks/exhaustive-deps -- URL entry runs once with its explicit filters.
 
   const onSearch = async () => {
     await loadData(undefined, { resetPage: true, clearOnMissingProject: true })
@@ -643,28 +638,65 @@ export default function SkuInfoPage() {
   handleHeaderRefreshRef.current = handleHeaderRefresh
   useHeaderRefresh(() => handleHeaderRefreshRef.current(), { loading })
 
-  // 4 个筛选控件 + 查询/重置按钮 portal 进 Top Header 中段插槽（提交制：选择/填写不自动查询）
-  const filterControls = (
-    <>
-      <HeaderSlotSelect
-        value={projectFilter}
-        onChange={setProjectFilter}
-        options={projects.map((project) => ({ value: project.name, label: project.name }))}
-        placeholder={
-          projectLoadError
-            ? '项目加载失败'
-            : projectsLoading
-              ? '项目加载中…'
-              : projects.length
-                ? '选择项目'
-                : '暂无可选项目'
-        }
-        disabled={projectsLoading || projects.length === 0}
-        widthClass={TERM_HEADER_W_MD}
-        title={projectLoadError ?? '项目筛选'}
-      />
-      {/* SKU / ASIN 输入：Input lg 档即 h-10 term 规格（rounded-none / term 边界 / mono），与 TERM_HEADER_TRIGGER 高度对齐（BLF-887 上档） */}
+  const projectOptions = useMemo<ReadonlyArray<WarmSelectOption>>(() => {
+    return projects.map((project) => ({ value: project.name, label: project.name }))
+  }, [projects])
+  const countryOptions: ReadonlyArray<WarmSelectOption> = [
+    { value: 'all', label: '全部站点' },
+    ...COUNTRY_OPTIONS,
+  ]
+  const statusOptions: ReadonlyArray<WarmSelectOption> = [
+    { value: 'all', label: '全部状态' },
+    { value: 'active', label: '活跃' },
+    { value: 'inactive', label: '不活跃' },
+  ]
+  const projectRetryPending = projectLoadAttempt > 0 && projectsLoading
+  const projectFilterControl = (id: string) => (
+    <WarmSelect
+      id={id}
+      label="项目"
+      value={projectFilter}
+      options={projectOptions}
+      placeholder={
+        projectLoadError
+          ? '项目加载失败'
+          : projectsLoading
+            ? '项目加载中…'
+            : projects.length
+              ? '选择项目'
+              : '暂无可选项目'
+      }
+      onChange={setProjectFilter}
+      disabled={projectsLoading || projects.length === 0}
+      error={projectLoadError}
+      className={styles.projectSelect}
+    />
+  )
+  const countryFilterControl = (id: string) => (
+    <WarmSelect
+      id={id}
+      label="站点"
+      value={countryFilter}
+      options={countryOptions}
+      onChange={(value) => setCountryFilter(value as 'all' | 'US' | 'DE' | 'UK')}
+      className={styles.countrySelect}
+    />
+  )
+  const statusFilterControl = (id: string) => (
+    <WarmSelect
+      id={id}
+      label="状态"
+      value={statusFilter}
+      options={statusOptions}
+      onChange={(value) => setStatusFilter(value as 'all' | 'active' | 'inactive')}
+      className={styles.statusSelect}
+    />
+  )
+  const identifierFilterControl = (id: string) => (
+    <div className={styles.identifierField}>
+      <label htmlFor={id} className={styles.filterLabel}>SKU / ASIN</label>
       <Input
+        id={id}
         size="lg"
         value={identifierFilter}
         onChange={(event) => setIdentifierFilter(event.target.value)}
@@ -673,43 +705,48 @@ export default function SkuInfoPage() {
         }}
         placeholder="输入 SKU 或 ASIN"
         aria-label="SKU 或 ASIN 搜索"
-        className={cn('shrink-0', TERM_HEADER_W_MD)}
+        className={styles.identifierInput}
         title="10 位字母数字按 ASIN 查询；SKU 可加 SKU: 前缀"
       />
-      <HeaderSlotSelect
-        value={countryFilter}
-        onChange={(value) => setCountryFilter(value as 'all' | 'US' | 'DE' | 'UK')}
-        options={[
-          { value: 'all', label: '全部站点' },
-          ...COUNTRY_OPTIONS.map((option) => ({ value: option.value, label: option.label })),
-        ]}
-        widthClass={TERM_HEADER_W_SM}
-        title="站点筛选"
-      />
-      <HeaderSlotSelect
-        value={statusFilter}
-        onChange={(value) => setStatusFilter(value as 'all' | 'active' | 'inactive')}
-        options={[
-          { value: 'all', label: '全部状态' },
-          { value: 'active', label: '活跃' },
-          { value: 'inactive', label: '不活跃' },
-        ]}
-        widthClass={TERM_HEADER_W_SM}
-        title="状态筛选"
-      />
-      <button type="button" className={TERM_HEADER_BUTTON_PRIMARY} onClick={() => void onSearch()}>
-        查询
-      </button>
-      <button type="button" className={TERM_HEADER_BUTTON_MUTED} onClick={onResetFilters}>
-        重置
-      </button>
-    </>
+    </div>
   )
-  const headerSlotPortal = useHeaderSlot(
-    <HeaderFilterControls isMobileView={false} controls={filterControls} />
+  const projectRetryButton = (
+    <WarmButton
+      variant="quiet"
+      className={styles.projectRetry}
+      aria-label="重试加载项目列表"
+      loading={projectRetryPending}
+      loadingLabel="正在重试项目列表"
+      onClick={() => setProjectLoadAttempt((attempt) => attempt + 1)}
+    >
+      重试
+    </WarmButton>
+  )
+  const filterActions = (
+    <div className={styles.filterActions}>
+      <WarmButton variant="primary" onClick={() => void onSearch()}>
+        查询
+      </WarmButton>
+      <WarmButton variant="secondary" onClick={onResetFilters}>
+        重置
+      </WarmButton>
+    </div>
+  )
+  const primaryFilterSlot = usePrimaryFilterSlot(
+    <div className={styles.primaryFilters} role="group" aria-label="项目与编号筛选">
+      {projectFilterControl('sku-project-filter-desktop')}
+      {identifierFilterControl('sku-identifier-filter-desktop')}
+      {projectLoadError || projectRetryPending ? projectRetryButton : null}
+    </div>
+  )
+  const secondaryFilterSlot = useSecondaryHeaderSlot(
+    <div className={styles.secondaryFilters} role="group" aria-label="站点、状态与查询操作">
+      {countryFilterControl('sku-country-filter-desktop')}
+      {statusFilterControl('sku-status-filter-desktop')}
+      {filterActions}
+    </div>
   )
 
-  // BLF-931 · 移动端：筛选控件下迁为正文顶部可折叠筛选条
   const mobileProjectLabel = projectFilter || '未选项目'
   const mobileCountryLabel = countryFilter === 'all' ? '全部站点' : (COUNTRY_OPTIONS.find((o) => o.value === countryFilter)?.label ?? countryFilter)
   const mobileStatusLabel = statusFilter === 'all' ? '全部状态' : (statusFilter === 'active' ? '活跃' : '不活跃')
@@ -717,64 +754,17 @@ export default function SkuInfoPage() {
   const mobileFilterStrip = useMobileFilterStrip(
     <MobileFilterStrip
       summary={mobileFilterSummary}
+      className={styles.mobileFilterStrip}
       controls={
         <>
-          <HeaderSlotSelect
-            value={projectFilter}
-            onChange={setProjectFilter}
-            options={projects.map((project) => ({ value: project.name, label: project.name }))}
-            placeholder={
-              projectLoadError
-                ? '项目加载失败'
-                : projectsLoading
-                  ? '项目加载中…'
-                  : projects.length
-                    ? '选择项目'
-                    : '暂无可选项目'
-            }
-            disabled={projectsLoading || projects.length === 0}
-            widthClass={TERM_HEADER_W_MD}
-            title={projectLoadError ?? '项目筛选'}
-          />
-          <HeaderSlotSelect
-            value={countryFilter}
-            onChange={(value) => setCountryFilter(value as 'all' | 'US' | 'DE' | 'UK')}
-            options={[
-              { value: 'all', label: '全部站点' },
-              ...COUNTRY_OPTIONS.map((option) => ({ value: option.value, label: option.label })),
-            ]}
-            widthClass={TERM_HEADER_W_SM}
-            title="站点筛选"
-          />
-          <Input
-            size="lg"
-            value={identifierFilter}
-            onChange={(event) => setIdentifierFilter(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') void onSearch()
-            }}
-            placeholder="输入 SKU 或 ASIN"
-            aria-label="SKU 或 ASIN 搜索"
-            className={cn('w-full', TERM_HEADER_W_MD)}
-            title="10 位字母数字按 ASIN 查询；SKU 可加 SKU: 前缀"
-          />
-          <HeaderSlotSelect
-            value={statusFilter}
-            onChange={(value) => setStatusFilter(value as 'all' | 'active' | 'inactive')}
-            options={[
-              { value: 'all', label: '全部状态' },
-              { value: 'active', label: '活跃' },
-              { value: 'inactive', label: '不活跃' },
-            ]}
-            widthClass={TERM_HEADER_W_SM}
-            title="状态筛选"
-          />
-          <button type="button" className={TERM_HEADER_BUTTON_PRIMARY} onClick={() => void onSearch()}>
-            查询
-          </button>
-          <button type="button" className={TERM_HEADER_BUTTON_MUTED} onClick={onResetFilters}>
-            重置
-          </button>
+          {projectFilterControl('sku-project-filter-mobile')}
+          {countryFilterControl('sku-country-filter-mobile')}
+          {statusFilterControl('sku-status-filter-mobile')}
+          <MobileFilterWide>{identifierFilterControl('sku-identifier-filter-mobile')}</MobileFilterWide>
+          {projectLoadError || projectRetryPending ? (
+            <MobileFilterWide>{projectRetryButton}</MobileFilterWide>
+          ) : null}
+          <MobileFilterWide>{filterActions}</MobileFilterWide>
         </>
       }
     />
@@ -1073,21 +1063,18 @@ export default function SkuInfoPage() {
   }
 
   return (
-    <div className="w-full space-y-6 text-foreground">
-      {/* Header 化：4 个筛选控件 + 查询/重置按钮已上移 Top Header 中段插槽（提交制查询），
-          页面仅渲染 portal 宿主；全局刷新按钮为唯一刷新入口（operations header migration B3） */}
-      {headerSlotPortal}
-      {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
+    <div className={styles.page} aria-busy={loading || undefined}>
+      {primaryFilterSlot}
+      {secondaryFilterSlot}
       {mobileFilterStrip}
       <Tabs
           value={activeTab}
           onValueChange={(value) => setActiveTab(value as ActiveTab)}
-          className="space-y-4"
+          className={styles.tabs}
         >
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className={styles.tabHeader}>
           <TabsMotionGroup id="sku-cost-tabs">
-            {/* BLF-883 term tabs：w-fit 让基座贴合内容，避免 justify-center 在固定宽面板内留左右空白（对齐 shipment-management 5-tab 规格） */}
-            <TabsList variant="term" className="w-fit max-w-full justify-start">
+            <TabsList variant="term" className={styles.tabList}>
               <SlidingTabsTrigger
                 value="cost"
                 activeValue={activeTab}
@@ -1147,7 +1134,7 @@ export default function SkuInfoPage() {
           <div className="flex gap-2">
             <Badge
               variant="outline"
-              className="border-border/60 bg-term-panel text-muted-foreground dark:bg-term-panel"
+              className={styles.resultCount}
             >
               {loading && items.length === 0
                 ? '数据准备中...'
@@ -1159,7 +1146,7 @@ export default function SkuInfoPage() {
         <DirectionalTabTransition value={activeTab} order={ACTIVE_TAB_ORDER}>
           <TabsContent forceMount value={activeTab}>
             {activeTab === 'cost' ? (
-<DataTableCard className="flex flex-col overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
+<DataTableCard className={`${styles.tableCard} flex flex-col overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90`}>
                 <DataTableCardHeader className="px-6 py-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="space-y-1">
@@ -1182,7 +1169,10 @@ export default function SkuInfoPage() {
                         type="button"
                         size="sm"
                         variant="outline"
-                        onClick={() => setBatchSheetOpen(true)}
+                        onClick={(event) => {
+                          sheetOpenerRef.current = event.currentTarget
+                          setBatchSheetOpen(true)
+                        }}
                       >
                         批量编辑属性 ({selectedSkus.length})
                       </Button>
@@ -1190,15 +1180,15 @@ export default function SkuInfoPage() {
                   </div>
                 </DataTableCardHeader>
                 <DataTableCardBody
-                  className="relative overflow-auto"
+                  className={`${styles.tableViewport} relative overflow-auto`}
                   style={{ maxHeight: 'calc(100vh - 260px)' }}
                 >
                     {loading && items.length > 0 ? (
-                      <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-term-panel px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
+                      <div className={styles.updatingStatus} role="status">
                         数据更新中...
                       </div>
                     ) : null}
-                  <table className="w-full border-separate border-spacing-0 text-sm">
+                  <table className={`${styles.table} ${styles.costTable}`}>
                     <thead className="[&_tr]:border-b">
                       <tr className="border-b bg-term-raised">
                         <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-2 text-center w-10">
@@ -1287,7 +1277,7 @@ export default function SkuInfoPage() {
                             {row.project_name}
                           </td>
                           <td className="border-b border-r border-border/60 p-4 align-top">
-                            <div>
+                            <div className={styles.identityChain}>
                               <div className="font-medium">
                                 {editingId === row.id ? (
                                   <Input
@@ -1400,26 +1390,19 @@ export default function SkuInfoPage() {
                           </td>
                           <td className="border-b border-r border-border/60 p-4 align-top">
                             {editingId === row.id ? (
-                              <Select
+                              <WarmSelect
+                                id={`sku-country-edit-${row.id}`}
+                                label="站点"
                                 value={editRow.country}
-                                onValueChange={(value) =>
+                                options={COUNTRY_OPTIONS}
+                                className={styles.inlineSelect}
+                                onChange={(value) =>
                                   setEditRow((current) => ({
                                     ...current,
                                     country: value as 'US' | 'DE' | 'UK',
                                   }))
                                 }
-                              >
-                                <SelectTrigger className="h-8 w-28">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {COUNTRY_OPTIONS.map((option) => (
-                                    <SelectItem key={option.value} value={option.value}>
-                                      {option.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              />
                             ) : (
                               COUNTRY_OPTIONS.find((option) => option.value === row.country)
                                 ?.label || row.country
@@ -1427,31 +1410,26 @@ export default function SkuInfoPage() {
                           </td>
                           <td className="border-b border-r border-border/60 p-4 align-top">
                             {editingId === row.id ? (
-                              <Select
+                              <WarmSelect
+                                id={`sku-status-edit-${row.id}`}
+                                label="状态"
                                 value={editRow.is_active ? 'active' : 'inactive'}
-                                onValueChange={(value) =>
+                                options={[
+                                  { value: 'active', label: '活跃' },
+                                  { value: 'inactive', label: '不活跃' },
+                                ]}
+                                className={styles.inlineSelect}
+                                onChange={(value) =>
                                   setEditRow((current) => ({
                                     ...current,
                                     is_active: value === 'active',
                                   }))
                                 }
-                              >
-                                <SelectTrigger className="h-8 w-24">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="active">活跃</SelectItem>
-                                  <SelectItem value="inactive">不活跃</SelectItem>
-                                </SelectContent>
-                              </Select>
+                              />
                             ) : (
                               <Badge
                                 variant="outline"
-                                className={
-                                  row.is_active
-                                    ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
-                                    : 'border-border/70 bg-term-raised text-muted-foreground dark:bg-term-panel dark:text-foreground'
-                                }
+                                className={row.is_active ? styles.positiveBadge : styles.neutralBadge}
                               >
                                 {row.is_active ? '活跃' : '不活跃'}
                               </Badge>
@@ -1500,7 +1478,8 @@ export default function SkuInfoPage() {
                                       type="button"
                                       size="sm"
                                       variant="ghost"
-                                      onClick={() => {
+                                      onClick={(event) => {
+                                        sheetOpenerRef.current = event.currentTarget
                                         setReviewGroupRow(row)
                                         setReviewGroupSheetOpen(true)
                                       }}
@@ -1529,7 +1508,7 @@ export default function SkuInfoPage() {
                 </DataTableCardBody>
               </DataTableCard>
             ) : activeTab === 'dimension' ? (
-              <DataTableCard className="flex flex-col overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
+              <DataTableCard className={`${styles.tableCard} flex flex-col overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90`}>
                 <DataTableCardHeader className="px-6 py-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="space-y-1">
@@ -1549,13 +1528,13 @@ export default function SkuInfoPage() {
                     />
                   </div>
                 </DataTableCardHeader>
-                <DataTableCardBody className="relative flex-1 min-h-0 overflow-auto">
+                <DataTableCardBody className={`${styles.tableViewport} relative flex-1 min-h-0 overflow-auto`}>
                   {loading && items.length > 0 ? (
-                    <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-term-panel px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
+                    <div className={styles.updatingStatus} role="status">
                       数据更新中...
                     </div>
                   ) : null}
-                  <table className="w-full border-separate border-spacing-0 text-sm">
+                  <table className={`${styles.table} ${styles.dimensionTable}`}>
                     <thead className="[&_tr]:border-b">
                       <tr className="border-b bg-term-raised">
                         <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -1600,7 +1579,7 @@ export default function SkuInfoPage() {
                             {row.project_name}
                           </td>
                           <td className="border-b border-r border-border/60 p-4 align-top">
-                            <div>
+                            <div className={styles.identityChain}>
                               <div className="font-medium">
                                 {editingId === row.id ? (
                                   <Input
@@ -1781,31 +1760,26 @@ export default function SkuInfoPage() {
                           </td>
                           <td className="border-b border-r border-border/60 p-4 align-top">
                             {editingId === row.id ? (
-                              <Select
+                              <WarmSelect
+                                id={`sku-status-edit-${row.id}`}
+                                label="状态"
                                 value={editRow.is_active ? 'active' : 'inactive'}
-                                onValueChange={(value) =>
+                                options={[
+                                  { value: 'active', label: '活跃' },
+                                  { value: 'inactive', label: '不活跃' },
+                                ]}
+                                className={styles.inlineSelect}
+                                onChange={(value) =>
                                   setEditRow((current) => ({
                                     ...current,
                                     is_active: value === 'active',
                                   }))
                                 }
-                              >
-                                <SelectTrigger className="h-8 w-24">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="active">活跃</SelectItem>
-                                  <SelectItem value="inactive">不活跃</SelectItem>
-                                </SelectContent>
-                              </Select>
+                              />
                             ) : (
                               <Badge
                                 variant="outline"
-                                className={
-                                  row.is_active
-                                    ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
-                                    : 'border-border/70 bg-term-raised text-muted-foreground dark:bg-term-panel dark:text-foreground'
-                                }
+                                className={row.is_active ? styles.positiveBadge : styles.neutralBadge}
                               >
                                 {row.is_active ? '活跃' : '不活跃'}
                               </Badge>
@@ -1868,7 +1842,7 @@ export default function SkuInfoPage() {
                 </DataTableCardBody>
               </DataTableCard>
 ) : activeTab === 'factory' ? (
-               <DataTableCard className="flex flex-col overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
+               <DataTableCard className={`${styles.tableCard} flex flex-col overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90`}>
                  <DataTableCardHeader className="px-6 py-5">
                    <div className="flex flex-wrap items-center justify-between gap-3">
                      <div className="space-y-1">
@@ -1876,13 +1850,13 @@ export default function SkuInfoPage() {
                      </div>
                    </div>
                  </DataTableCardHeader>
-                 <DataTableCardBody className="relative flex-1 min-h-0 overflow-auto">
+                 <DataTableCardBody className={`${styles.tableViewport} relative flex-1 min-h-0 overflow-auto`}>
                   {loading && items.length > 0 ? (
-                    <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-term-panel px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
+                    <div className={styles.updatingStatus} role="status">
                       数据更新中...
                     </div>
                   ) : null}
-                  <table className="w-full border-separate border-spacing-0 text-sm">
+                  <table className={`${styles.table} ${styles.factoryTable}`}>
                     <thead className="[&_tr]:border-b">
                       <tr className="border-b bg-term-raised">
                         <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-4 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -1916,7 +1890,7 @@ export default function SkuInfoPage() {
                               {row.project_name}
                             </td>
                             <td className="border-b border-r border-border/60 p-4 align-top">
-                              <div>
+                              <div className={styles.identityChain}>
                                 <div className="font-medium">{row.sku}</div>
                                 <div className="mt-0.5 flex gap-3 text-xs text-muted-foreground">
                                   <span>ASIN: <AsinLink row={row} /></span>
@@ -1931,10 +1905,7 @@ export default function SkuInfoPage() {
                                   side="top"
                                   scaleOnHover={false}
                                   trigger={
-                                    <Badge
-                                      variant="outline"
-                                      className="cursor-help border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
-                                    >
+                                    <Badge variant="outline" className={`${styles.positiveBadge} cursor-help`}>
                                       有描述
                                     </Badge>
                                   }
@@ -1965,10 +1936,7 @@ export default function SkuInfoPage() {
                                   }
                                 />
                               ) : (
-                                <Badge
-                                  variant="outline"
-                                  className="border-border/70 bg-term-raised text-muted-foreground dark:bg-term-panel dark:text-foreground"
-                                >
+                                <Badge variant="outline" className={styles.neutralBadge}>
                                   未填写
                                 </Badge>
                               )}
@@ -1986,7 +1954,8 @@ export default function SkuInfoPage() {
                                 type="button"
                                 size="sm"
                                 variant="outline"
-                                onClick={() => {
+                                onClick={(event) => {
+                                  sheetOpenerRef.current = event.currentTarget
                                   setFactoryEditingRow(row)
                                   setFactorySheetOpen(true)
                                 }}
@@ -2016,14 +1985,15 @@ export default function SkuInfoPage() {
                 items={items}
                 loading={loading}
                 onExport={() => void handleExportCurrentFiltered()}
-                onEdit={(row) => {
+                onEdit={(row, opener) => {
+                  sheetOpenerRef.current = opener
                   setListingEditingRow(row)
                   setListingSheetOpen(true)
                 }}
               />
             ) : activeTab === 'label' ? (
                /* ── 产品标签 Tab ── */
-               <DataTableCard className="flex flex-col overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
+               <DataTableCard className={`${styles.tableCard} flex flex-col overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90`}>
                  <DataTableCardHeader className="px-6 py-5">
                    <div className="flex flex-wrap items-center justify-between gap-3">
                      <div className="space-y-1">
@@ -2048,13 +2018,13 @@ export default function SkuInfoPage() {
                      )}
                    </div>
                  </DataTableCardHeader>
-                 <DataTableCardBody className="relative flex-1 min-h-0 overflow-auto">
+                 <DataTableCardBody className={`${styles.tableViewport} relative flex-1 min-h-0 overflow-auto`}>
                   {loading && items.length > 0 ? (
-                    <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-term-panel px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
+                    <div className={styles.updatingStatus} role="status">
                       数据更新中...
                     </div>
                   ) : null}
-                  <table className="w-full border-separate border-spacing-0 text-sm">
+                  <table className={`${styles.table} ${styles.labelTable}`}>
                     <thead className="[&_tr]:border-b">
                       <tr className="border-b bg-term-raised">
                         <th className="sticky top-0 z-10 h-12 border-b border-r border-border/60 bg-term-raised px-2 text-center w-10">
@@ -2118,7 +2088,7 @@ export default function SkuInfoPage() {
                               {row.project_name}
                             </td>
                             <td className="border-b border-r border-border/60 p-4 align-top">
-                              <div>
+                              <div className={styles.identityChain}>
                                 <div className="font-medium">{row.sku}</div>
                                 <div className="mt-0.5 flex gap-3 text-xs text-muted-foreground">
                                   <span>ASIN: <AsinLink row={row} /></span>
@@ -2131,17 +2101,11 @@ export default function SkuInfoPage() {
                             </td>
                             <td className="border-b border-r border-border/60 p-4 align-top">
                               {row.fnsku_label_r2_key ? (
-                                <Badge
-                                  variant="outline"
-                                  className="border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
-                                >
+                                <Badge variant="outline" className={styles.positiveBadge}>
                                   已上传
                                 </Badge>
                               ) : (
-                                <Badge
-                                  variant="outline"
-                                  className="border-border/70 bg-term-raised text-muted-foreground dark:bg-term-panel dark:text-foreground"
-                                >
+                                <Badge variant="outline" className={styles.neutralBadge}>
                                   未上传
                                 </Badge>
                               )}
@@ -2266,6 +2230,7 @@ export default function SkuInfoPage() {
                 projectName={projectFilter}
                 skus={items}
                 loading={loading}
+                portalContainer={warmPortalContainer}
                 onRefresh={() => void loadData()}
               />
             )}
@@ -2283,6 +2248,10 @@ export default function SkuInfoPage() {
           marketplace={reviewGroupRow.country}
           candidates={reviewGroupCandidates}
           currentSkuId={reviewGroupRow.id}
+          portalContainer={warmPortalContainer}
+          contentClassName={styles.sheetSurface}
+          memberPickerClassName={styles.memberPicker}
+          onCloseAutoFocus={restoreSheetFocus}
           onClose={() => {
             setReviewGroupSheetOpen(false)
             setReviewGroupRow(null)
@@ -2297,6 +2266,9 @@ export default function SkuInfoPage() {
         <ListingCopySheet
           open={listingSheetOpen}
           row={listingEditingRow}
+          portalContainer={warmPortalContainer}
+          contentClassName={styles.sheetSurface}
+          onCloseAutoFocus={restoreSheetFocus}
           onClose={() => {
             setListingSheetOpen(false)
             setListingEditingRow(null)
@@ -2315,6 +2287,9 @@ export default function SkuInfoPage() {
           productCostId={factoryEditingRow.id}
           skuLabel={factoryEditingRow.sku}
           factoryInfo={factoryEditingRow.sku_factory_info}
+          portalContainer={warmPortalContainer}
+          contentClassName={styles.sheetSurface}
+          onCloseAutoFocus={restoreSheetFocus}
           onClose={() => {
             setFactorySheetOpen(false)
             setFactoryEditingRow(null)
@@ -2330,6 +2305,9 @@ export default function SkuInfoPage() {
       <BatchFactoryInfoSheet
         open={batchSheetOpen}
         selectedSkus={selectedSkus}
+        portalContainer={warmPortalContainer}
+        contentClassName={styles.sheetSurface}
+        onCloseAutoFocus={restoreSheetFocus}
         onClose={() => {
           setBatchSheetOpen(false)
           setSelectedSkus([])
@@ -2353,7 +2331,7 @@ function ListingCopyTable({
   items: ProductCostItem[]
   loading: boolean
   onExport: () => void
-  onEdit: (row: ProductCostItem) => void
+  onEdit: (row: ProductCostItem, opener: HTMLButtonElement) => void
 }) {
   const bulletFields = [
     'listing_bullet_1',
@@ -2364,7 +2342,7 @@ function ListingCopyTable({
   ] as const
 
   return (
-    <DataTableCard className="flex flex-col overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90">
+    <DataTableCard className={`${styles.tableCard} flex flex-col overflow-hidden border-border/70 shadow-[var(--shadow-soft)] dark:border-border/90`}>
       <DataTableCardHeader className="px-6 py-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="space-y-1">
@@ -2377,13 +2355,13 @@ function ListingCopyTable({
           </Button>
         </div>
       </DataTableCardHeader>
-      <DataTableCardBody className="relative flex-1 min-h-0 overflow-auto">
+      <DataTableCardBody className={`${styles.tableViewport} relative flex-1 min-h-0 overflow-auto`}>
         {loading && items.length > 0 ? (
-          <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-term-panel px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-sm">
+          <div className={styles.updatingStatus} role="status">
             数据更新中...
           </div>
         ) : null}
-        <table className="w-full border-separate border-spacing-0 text-sm">
+        <table className={`${styles.table} ${styles.listingTable}`}>
           <thead>
             <tr className="border-b bg-term-raised">
               {['SKU', 'ASIN', '品名', '标题', '五点描述', 'Description', '卖点提炼', '更新时间', '操作'].map((heading) => (
@@ -2402,25 +2380,35 @@ function ListingCopyTable({
                   <td className="border-b border-r border-border/60 p-4 align-top font-medium">{row.sku}</td>
                   <td className="border-b border-r border-border/60 p-4 align-top"><AsinLink row={row} /></td>
                   <td className="border-b border-r border-border/60 p-4 align-top">{row.product_name || '-'}</td>
-                  <td className="max-w-[260px] border-b border-r border-border/60 p-4 align-top">
-                    <span className="block truncate" title={row.listing_title || undefined}>{row.listing_title || '-'}</span>
+                  <td className={styles.copyCell}>
+                    <span className={styles.copyText}>{row.listing_title || '-'}</span>
                   </td>
                   <td className="border-b border-r border-border/60 p-4 align-top">
-                    <Badge variant="outline" className={completedBullets > 0 ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300' : undefined}>
+                    <Badge
+                      variant="outline"
+                      className={completedBullets > 0 ? styles.positiveBadge : styles.neutralBadge}
+                    >
                       已填 {completedBullets}/5
                     </Badge>
                   </td>
-                  <td className="max-w-[260px] border-b border-r border-border/60 p-4 align-top">
-                    <span className="block truncate" title={row.listing_description || undefined}>{row.listing_description || '-'}</span>
+                  <td className={styles.copyCell}>
+                    <span className={styles.copyText}>{row.listing_description || '-'}</span>
                   </td>
-                  <td className="max-w-[260px] border-b border-r border-border/60 p-4 align-top">
-                    <span className="block truncate" title={row.listing_selling_points || undefined}>{row.listing_selling_points || '-'}</span>
+                  <td className={styles.copyCell}>
+                    <span className={styles.copyText}>{row.listing_selling_points || '-'}</span>
                   </td>
                   <td className="border-b border-r border-border/60 p-4 align-top text-sm text-muted-foreground">
                     {row.listing_copy_updated_at ? new Date(row.listing_copy_updated_at).toLocaleString('zh-CN') : '-'}
                   </td>
                   <td className="border-b border-border/60 p-4 align-top">
-                    <Button type="button" size="sm" variant="outline" onClick={() => onEdit(row)}>编辑</Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={(event) => onEdit(row, event.currentTarget)}
+                    >
+                      编辑
+                    </Button>
                   </td>
                 </tr>
               )

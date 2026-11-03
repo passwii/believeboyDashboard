@@ -1,39 +1,39 @@
 # Warm Ledger Foundations Contract
 
-> B0 design contract with a user-approved post-launch refinement for `/dashboard`. The current values below supersede the initial B0 surface ramp while keeping the route boundary, amber accent, and component promotion rules.
+> B0 design contract with user-approved post-launch refinements for `/dashboard` and the C1 route allowlist. The current values below supersede the initial B0 surface ramp while keeping the route boundary, amber accent, and component promotion rules.
 
 ## Scope and source of truth
 
 - Warm Ledger is a dark, route-scoped visual system for the BelieveBoy operations dashboard. Its character is warm, operational, and exact; real operating data carries the visual emphasis.
 - The app root uses `.warm-ledger`. All tokens use the `--warm-ledger-*` namespace. Do not change, alias, or override `--term-*`, global shadcn tokens, or the V3 Terminal defaults.
 - Light theme is outside B0. Do not infer a light palette from the dark values.
-- The user's 2026-11-01 post-launch refinement supersedes the initial B0 surface ramp below: it raises grayscale separation and highlights while retaining the warm graphite direction and amber data accent. `tokens.css` is the source for current dark values.
+- The user's 2026-11-02 post-launch refinement supersedes the earlier surface ramp below: it lifts the warm graphite surfaces, makes hairlines and highlights clearer, expands the desktop canvas, and aligns the sidebar on a 20px icon column. `tokens.css` is the source for current values.
 - The dashboard draft demonstrates values and layout. Its sample business numbers, timestamps, order IDs, and percentages are not product data and must not be carried into production or this state gallery.
 
 ## Color
 
 | Token role | Value | Use |
 | --- | --- | --- |
-| Stage | `#141413` | Outside the centered desktop work window |
-| Window | `#1c1b19` | Dashboard work surface |
-| Sidebar | `#181715` | Navigation surface |
-| Panel | `#242220` | Metric and content surfaces |
-| Panel strong | `#2b2926` | Local panel emphasis where hierarchy requires it |
-| Raised | `#32302e` | Selected and raised controls |
-| Raised hover | `#3a3733` | Interactive hover surface |
-| Hairline | `rgba(246, 238, 226, 0.09)` | Quiet 1px separators and panel outlines |
-| Strong hairline | `rgba(246, 238, 226, 0.16)` | Window edge and important control outline |
+| Stage | `#1c1d1d` | Outside the centered desktop work window |
+| Window | `#242525` | Dashboard work surface |
+| Sidebar | `#202120` | Navigation surface |
+| Panel | `#2b2c2b` | Metric and content surfaces |
+| Panel strong | `#333433` | Local panel emphasis where hierarchy requires it |
+| Raised | `#3b3c3b` | Selected and raised controls |
+| Raised hover | `#454644` | Interactive hover surface |
+| Hairline | `rgba(246, 238, 226, 0.12)` | Quiet 1px separators and panel outlines |
+| Strong hairline | `rgba(246, 238, 226, 0.20)` | Window edge and important control outline |
 | Text | `#f1ede5` | Primary text |
 | Soft text | `#c2bbaf` | Secondary text |
-| Muted text | `#9e968c` | Labels and supporting copy; retain at least 4.5:1 contrast for text |
-| Faint | `#777066` | Non-text chart grid and decorative separators only |
+| Muted text | `#a9a297` | Labels and supporting copy; retain at least 4.5:1 contrast for text |
+| Faint | `#837d74` | Non-text chart grid and decorative separators only |
 | Accent | `#e8b35a` | Current-week series, Pending emphasis, selected marker |
 | Accent strong | `#f3c875` | Focus ring and small key numeric accents |
 | Accent soft | `rgba(232, 179, 90, 0.12)` | Selected surface tint |
 | Accent area | `rgba(232, 179, 90, 0.10)` | Current-series chart area |
 | Positive | `#65cfa1` | Positive comparison only |
 | Negative | `#ee8580` | Negative comparison or error only |
-| Chart grid | `rgba(246, 238, 226, 0.075)` | Chart grid lines |
+| Chart grid | `rgba(246, 238, 226, 0.09)` | Chart grid lines |
 
 Color rules:
 
@@ -62,15 +62,16 @@ Color rules:
 ## Spacing and shape
 
 - Base spacing unit is 4px. Use 4px increments for component internals and group gaps.
-- Desktop stage inset: 12px. Main content inset: 24px. Panel inset: 20px. At narrow widths, page inset becomes 16px and then 12px at `<=460px`.
-- Related control/icon gaps: 8px. Dense item gaps: 8–12px. Between sections: 16–24px. Dashboard metric cards: 12px gap.
+- Desktop stage inset: 8px. Main content inset: 20px. Panel inset: 20px. At narrow widths, page inset becomes 16px and then 12px at `<=460px`.
+- Desktop work window maximum width: 1840px. The dashboard home can use up to 1600px of its available workspace. The full sidebar remains 280px.
+- Related control/icon gaps: 8px. Sidebar icon/title columns use a shared 20px icon track and the same 8px gap; section labels align with title text. Dense item gaps: 8–12px. Between sections: 16–24px. Dashboard metric cards: 12px gap.
 - Window radius: 22px. Panel radius: 16px. Primary control radius: 10px. Nested rows, nav items, and order groups: 8px maximum. Mobile app window: square edges, no desktop shadow.
 - Borders are 1px. The active navigation rail is 2px amber. Avoid thick colored outlines.
 
 ## Surface highlight and elevation
 
-- The desktop work window uses a restrained exterior shadow and a top inset highlight of `rgba(255, 255, 255, 0.05)`.
-- Controls use a 1px warm hairline and a 1px top inset highlight at rest (`rgba(255, 255, 255, 0.06)`). Hover may raise that highlight to `0.1` while shifting the surface to Raised hover.
+- The desktop work window uses a restrained exterior shadow and a top inset highlight of `rgba(255, 255, 255, 0.07)`.
+- Controls use a 1px warm hairline and a 1px top inset highlight at rest (`rgba(255, 255, 255, 0.08)`). Hover may raise that highlight to `0.14` while shifting the surface to Raised hover.
 - Pressed controls use a subtle dark inset (`rgba(0, 0, 0, 0.28)`) and translate down by 1px. No colored outer glow or broad colored shadow.
 - Panels do not receive hover treatment unless the whole panel is an actionable target.
 
@@ -162,7 +163,7 @@ Expand hit areas on touch layouts without shrinking visible labels or focus ring
 
 ## Component ownership
 
-- B0 tokens and visual rules are scoped to `/dashboard` through `.warm-ledger`.
+- B0 introduced its tokens and visual rules on `/dashboard` through `.warm-ledger`. The user-approved C1 extension reuses the unchanged values on the exact routes recorded in `foundations/freeze.md`; do not extend these tokens globally.
 - The four `components/foundations/` files are frozen B0 inputs and read-only for A1–A5.
 - A1 owns the Warm controls wrapper and token consumption in the Dashboard implementation: Button, IconButton, ProjectSelect, FilterControl, SortControl, Badge, and Input. A2–A5 consume A1's controls and do not implement parallel versions.
 - A1 owns the implementation use of `--warm-ledger-*` tokens; token values in the frozen B0 files change only through an explicit B0/Damon decision.

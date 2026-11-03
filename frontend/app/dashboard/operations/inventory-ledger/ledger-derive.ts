@@ -1,10 +1,9 @@
 /**
  * Pure derivation helpers for the inventory-ledger page (BLF-428 前端重构).
  *
- * Design rule (D6): the Summary + Detail raw row sets are the page's only
- * truth source. Every overview number/chart is derived here from the
- * FILTERED raw rows, so the global filter bar drives everything. Keeping
- * these functions pure makes them trivially unit-testable.
+ * Summary applies MSKU, location, and disposition filters; Detail also
+ * applies event type. Project trend and snapshot-based month-over-month
+ * values keep their separate scopes. These helpers remain pure for reuse.
  */
 
 import {
@@ -382,8 +381,9 @@ export function topLocations(rows: LedgerSummaryRow[], topN = 5): LocationSlice[
 export type WaterLevelDatum = { date: string } & Record<string, number | string>
 
 /**
- * 每 SKU 的每日期末水位（跨 location/disposition 求和），透视成 recharts
- * 行数据：[{ date, 'SKU-A': 12, 'SKU-B': 5 }, ...]，日期升序。
+ * 仅对传入的 rows 按 SKU 汇总每日期末水位（跨 location/disposition 求和），
+ * 因此结果范围跟随调用方当前 Summary 筛选。透视成 recharts 行数据：
+ * [{ date, 'SKU-A': 12, 'SKU-B': 5 }, ...]，日期升序。
  */
 export function waterLevelSeries(rows: LedgerSummaryRow[]): {
   mskus: string[]

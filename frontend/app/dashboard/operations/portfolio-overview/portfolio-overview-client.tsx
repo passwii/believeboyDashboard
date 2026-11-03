@@ -1,11 +1,19 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
+import { useSession } from 'next-auth/react'
 
-import { PortfolioFilters } from '@/components/dashboard/portfolio/portfolio-filters'
-import { TermPanel } from '@/components/terminal/term-panel'
+import {
+  PortfolioFilters,
+  type PortfolioProjectOption,
+} from '@/components/dashboard/portfolio/portfolio-filters'
+import {
+  COUNTRY_TIMEZONE_MAP,
+  formatDateInputValue,
+  getTodayInTimezone,
+} from '@/components/ui/date-picker'
 import {
   TermBody,
   TermCell,
@@ -22,10 +30,28 @@ import {
   useMobileFilterStrip,
 } from '@/components/terminal/terminal-header-slot'
 import { usePortfolioData, type ProjectPortfolioKPI } from '@/lib/hooks/use-portfolio-data'
-import { BarChart3, PieChart, TrendingUp, type LucideIcon } from 'lucide-react'
-import { Skeleton } from '@/components/ui/skeleton'
+import { ArrowDown, ArrowUp, BarChart3, PieChart, TrendingUp, type LucideIcon } from 'lucide-react'
+import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { useTerminalGlobalFilter } from '@/components/terminal/global-filter-context'
+
+import styles from './portfolio-overview-warm.module.css'
 
 type Tab = 'comparison' | 'trend' | 'contribution'
+
+function getInitialPortfolioDateRange() {
+  const end = getTodayInTimezone(COUNTRY_TIMEZONE_MAP.US)
+  const start = new Date(end)
+  start.setDate(start.getDate() - 6)
+  return {
+    startDate: formatDateInputValue(start),
+    endDate: formatDateInputValue(end),
+  }
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message
+  return typeof error === 'string' ? error : String(error)
+}
 
 // recharts 强依赖 window/document，必须 ssr:false 才能从 portfolio 页面 bundle 拆出 recharts 主体
 const LazyPortfolioTrendChart = dynamic(
@@ -36,8 +62,9 @@ const LazyPortfolioTrendChart = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="border border-term-border bg-term-panel p-2">
-        <Skeleton className="h-[320px] w-full rounded-none" />
+      <div className={styles.chartLoader} role="status" aria-busy="true">
+        <span className={styles.visuallyHidden}>正在加载趋势数据</span>
+        <div className={styles.chartLoadingSurface} aria-hidden="true" />
       </div>
     ),
   }
@@ -49,8 +76,9 @@ const LazyPortfolioPieChart = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="border border-term-border bg-term-panel p-2">
-        <Skeleton className="h-[320px] w-full rounded-none" />
+      <div className={styles.chartLoader} role="status" aria-busy="true">
+        <span className={styles.visuallyHidden}>正在加载贡献数据</span>
+        <div className={styles.chartLoadingSurface} aria-hidden="true" />
       </div>
     ),
   }
@@ -79,13 +107,28 @@ function formatPercent(value: number): string {
 /** KPI 终端磁贴：mono 数值 + 标签行（与 HeaderKpiTile / TermMetricTile 同规格） */
 function KpiTile({ label, value }: { label: string; value: string }) {
   return (
-    <div data-testid="portfolio-kpi-card" className="flex min-w-0 flex-col gap-0.5 border border-term-border bg-term-panel px-2 py-1.5">
-      <span className="truncate font-mono text-xs uppercase tracking-wider text-term-muted">
-        {label}
-      </span>
-      <span className="truncate font-mono text-base leading-6 tabular-nums text-term-text" title={value}>
+    <div data-testid="portfolio-kpi-card" className={styles.kpiTile}>
+      <span className={styles.kpiLabel}>{label}</span>
+      <span className={styles.kpiValue} title={value}>
         {value}
       </span>
+    </div>
+  )
+}
+
+function PortfolioLoadingState() {
+  return (
+    <div className={styles.initialLoading} role="status" aria-busy="true">
+      <span>正在加载组合数据</span>
+      <div className={styles.kpiSkeletonGrid} aria-hidden="true">
+        {Array.from({ length: 5 }, (_, index) => (
+          <div className={styles.kpiSkeleton} key={index} />
+        ))}
+      </div>
+      <div className={styles.panelSkeleton} aria-hidden="true">
+        <div className={styles.tabSkeleton} />
+        <div className={styles.chartLoadingSurface} />
+      </div>
     </div>
   )
 }
@@ -126,22 +169,47 @@ function ComparisonTable({
     }
   }
 
+  const sortHeader = (key: keyof ProjectPortfolioKPI, label: string, numeric = false) => {
+    const active = key === sortKey
+    const direction = sortDir === 'asc' ? 'ascending' : 'descending'
+    const DirectionIcon = sortDir === 'asc' ? ArrowUp : ArrowDown
+
+    return (
+      <th
+        key={key}
+        scope="col"
+        aria-sort={active ? direction : undefined}
+        className={`${styles.sortHead} ${numeric ? styles.sortHeadNumeric : ''}`}
+      >
+        <button
+          type="button"
+          className={`${styles.sortButton} ${numeric ? styles.sortButtonNumeric : ''}`}
+          onClick={() => toggleSort(key)}
+          aria-label={active ? `按${label}排序，当前${sortDir === 'asc' ? '升序' : '降序'}` : `按${label}排序`}
+        >
+          <span>{label}</span>
+          {active ? <DirectionIcon className={styles.sortDirection} aria-hidden="true" /> : null}
+        </button>
+      </th>
+    )
+  }
+
   const currency = CURRENCY_SYMBOL[country] ?? '$'
 
   return (
-    <div className="max-h-[420px] overflow-auto term-scroll">
-      <TermTable>
+    <div className={styles.tableScroll}>
+      <TermTable className={styles.comparisonTable} aria-label="项目对比表">
         <TermTHead>
           <TermRow className="hover:bg-transparent">
-            <TermHead onClick={() => toggleSort('project_name')}>项目</TermHead>
-            <TermHead numeric onClick={() => toggleSort('sales_amount')}>销售额</TermHead>
-            <TermHead numeric onClick={() => toggleSort('sales_contribution')}>占比</TermHead>
-            <TermHead numeric onClick={() => toggleSort('order_qty')}>订单量</TermHead>
-            <TermHead numeric onClick={() => toggleSort('ad_spend')}>广告费</TermHead>
-            <TermHead numeric onClick={() => toggleSort('cpc')}>CPC</TermHead>
-            <TermHead numeric onClick={() => toggleSort('conversion_rate')}>转化率</TermHead>
-            <TermHead numeric onClick={() => toggleSort('clicks')}>点击量</TermHead>
-            <TermHead numeric onClick={() => toggleSort('sessions')}>访问量</TermHead>
+            {sortHeader('project_name', '项目')}
+            {sortHeader('sales_amount', '销售额', true)}
+            {sortHeader('sales_contribution', '占比', true)}
+            {sortHeader('order_qty', '订单量', true)}
+            {sortHeader('ad_spend', '广告费', true)}
+            {sortHeader('cpc', 'CPC', true)}
+            {sortHeader('conversion_rate', '转化率', true)}
+            {sortHeader('clicks', '点击量', true)}
+            {sortHeader('sessions', '访问量', true)}
             <TermHead />
           </TermRow>
         </TermTHead>
@@ -162,7 +230,8 @@ function ComparisonTable({
               <TermCell>
                 <button
                   type="button"
-                  className="text-xs text-term-muted underline-offset-2 transition-colors hover:text-term-text hover:underline"
+                  className={styles.detailButton}
+                  aria-label={`查看${p.project_name}详情`}
                   onClick={(e) => {
                     e.stopPropagation()
                     onSelectProject(p.project_id)
@@ -181,11 +250,66 @@ function ComparisonTable({
 
 export default function PortfolioOverviewClient() {
   const router = useRouter()
+  const { data: session } = useSession()
+  const { setFiltersForNavigation } = useTerminalGlobalFilter()
   const [projectIds, setProjectIds] = useState<number[]>([])
   const [country, setCountry] = useState('US')
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
+  const [dateRange, setDateRange] = useState(getInitialPortfolioDateRange)
+  const { startDate, endDate } = dateRange
   const [activeTab, setActiveTab] = useState<Tab>('comparison')
+  const [projects, setProjects] = useState<PortfolioProjectOption[]>([])
+  const [loadingProjects, setLoadingProjects] = useState(true)
+  const [retryingProjects, setRetryingProjects] = useState(false)
+  const [projectError, setProjectError] = useState<string | null>(null)
+  const [projectLoadAttempt, setProjectLoadAttempt] = useState(0)
+  const forceProjectFetchRef = useRef(false)
+
+  useEffect(() => {
+    let active = true
+    const forceFetch = forceProjectFetchRef.current
+    forceProjectFetchRef.current = false
+    setLoadingProjects(true)
+    setProjectError(null)
+
+    void (async () => {
+      try {
+        const data = await fetchManagedProjectsCached<PortfolioProjectOption[]>(
+          session,
+          undefined,
+          forceFetch ? { force: true } : undefined
+        )
+        if (!active) return
+        setProjects(data)
+      } catch (error) {
+        if (active) setProjectError(getErrorMessage(error))
+      } finally {
+        if (active) {
+          setLoadingProjects(false)
+          setRetryingProjects(false)
+        }
+      }
+    })()
+
+    return () => {
+      active = false
+    }
+  }, [projectLoadAttempt, session])
+
+  function retryProjects() {
+    forceProjectFetchRef.current = true
+    setRetryingProjects(true)
+    setLoadingProjects(true)
+    setProjectError(null)
+    setProjectLoadAttempt((attempt) => attempt + 1)
+  }
+
+  function setStartDate(startDate: string) {
+    setDateRange((current) => ({ ...current, startDate }))
+  }
+
+  function setEndDate(endDate: string) {
+    setDateRange((current) => ({ ...current, endDate }))
+  }
 
   const { data, loading, error, refresh } = usePortfolioData({
     projectIds,
@@ -193,6 +317,17 @@ export default function PortfolioOverviewClient() {
     startDate,
     endDate,
   })
+
+  const missingProjectSelection = projectIds.length === 0
+  const missingDateRange = !startDate || !endDate
+  const filterPrompt =
+    missingProjectSelection && missingDateRange
+      ? '请先选择项目并设置完整日期范围，再查看组合数据。'
+      : missingProjectSelection
+        ? '请先选择至少一个项目，再查看组合数据。'
+        : missingDateRange
+          ? '请设置完整日期范围，再查看组合数据。'
+          : null
 
   // —— BLF-826 阶段 B/C：head 插槽 + 全局刷新 ——
   // 刷新语义与原 RefreshButton 一致。
@@ -212,7 +347,11 @@ export default function PortfolioOverviewClient() {
       onStartDateChange={setStartDate}
       endDate={endDate}
       onEndDateChange={setEndDate}
-      loading={loading}
+      projects={projects}
+      loadingProjects={loadingProjects}
+      retryingProjects={retryingProjects}
+      projectError={projectError}
+      onRetryProjects={retryProjects}
     />
   )
 
@@ -221,7 +360,8 @@ export default function PortfolioOverviewClient() {
   )
 
   // BLF-931 · 移动端：筛选控件下迁为正文顶部可折叠筛选条
-  const mobileFilterSummary = `${projectIds.length === 0 ? '全部项目' : `${projectIds.length} 个项目`} · ${country} · ${startDate || '?'}~${endDate || '?'}`
+  const projectSummary = projectIds.length === 0 ? '未选项目' : `${projectIds.length} 个项目`
+  const mobileFilterSummary = `${projectSummary} · ${country} · ${startDate || '未设置'}~${endDate || '未设置'}`
   const mobileFilterStrip = useMobileFilterStrip(
     <MobileFilterStrip
       summary={mobileFilterSummary}
@@ -236,7 +376,11 @@ export default function PortfolioOverviewClient() {
             onStartDateChange={setStartDate}
             endDate={endDate}
             onEndDateChange={setEndDate}
-            loading={loading}
+            projects={projects}
+            loadingProjects={loadingProjects}
+            retryingProjects={retryingProjects}
+            projectError={projectError}
+            onRetryProjects={retryProjects}
           />
         </div>
       }
@@ -250,26 +394,40 @@ export default function PortfolioOverviewClient() {
   ]
 
   return (
-    <div className="flex min-w-0 flex-col gap-3">
+    <div className={styles.page} aria-busy={loading}>
       {/* BLF-826 阶段 C：筛选控件已上移 Top Header 中段插槽；页面仅渲染 portal 宿主 */}
       {headerSlotPortal}
       {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
       {mobileFilterStrip}
       {/* 页面级标题已由 TerminalHeader 面包屑承载；不再渲染 PageHeader 胶囊（BLF-824 去重原则） */}
 
+      {loading && data && data.projects.length > 0 && (
+        <div className={styles.refreshStatus} role="status">
+          正在更新组合数据
+        </div>
+      )}
+
       {error && (
-        <div
-          role="alert"
-          className="border border-term-neg/50 bg-term-neg/10 px-2 py-1 font-mono text-xs text-term-neg"
-        >
-          ERR · {error}
+        <div role="alert" className={styles.errorState}>
+          <span>组合数据加载失败：{error}</span>
+          <button type="button" className={styles.retryButton} onClick={refresh}>
+            重试
+          </button>
+        </div>
+      )}
+
+      {loading && (!data || data.projects.length === 0) && <PortfolioLoadingState />}
+
+      {!loading && !error && !data && filterPrompt && (
+        <div className={styles.emptyState} role="status">
+          {filterPrompt}
         </div>
       )}
 
       {data && data.projects.length > 0 ? (
         <>
           {/* KPI 统计条：终端磁贴 */}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5" data-testid="portfolio-kpi-cards">
+          <div className={styles.kpiGrid} data-testid="portfolio-kpi-cards">
             <KpiTile
               label="总销售额"
               value={formatMoneyShort(data.total_sales_amount, country)}
@@ -283,55 +441,101 @@ export default function PortfolioOverviewClient() {
             <KpiTile label="项目数量" value={String(data.projects.length)} />
           </div>
 
-          <TermPanel bodyClassName="min-h-0">
-            {/* 页内 Tab 切换条（h-10 标题带规格，BLF-887 上档）；BLF-883：前置 icon + 激活态 accent 发光指示条，
-                与全局 term Tab 激活语言一致 */}
-            <div className="flex h-10 shrink-0 items-center gap-1 border-b border-term-border px-2">
+          <section className={styles.analyticsPanel}>
+            <div className={styles.tabBar} role="tablist" aria-label="组合数据视图">
               {tabs.map((tab) => {
                 const Icon = tab.icon
                 const isActive = activeTab === tab.key
                 return (
                   <button
                     key={tab.key}
+                    id={`portfolio-tab-${tab.key}`}
                     type="button"
                     onClick={() => setActiveTab(tab.key)}
+                    onKeyDown={(event) => {
+                      const currentIndex = tabs.findIndex(({ key }) => key === tab.key)
+                      let nextIndex = currentIndex
+
+                      if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tabs.length
+                      else if (event.key === 'ArrowLeft') {
+                        nextIndex = (currentIndex - 1 + tabs.length) % tabs.length
+                      } else if (event.key === 'Home') nextIndex = 0
+                      else if (event.key === 'End') nextIndex = tabs.length - 1
+                      else return
+
+                      event.preventDefault()
+                      const nextTab = tabs[nextIndex]
+                      setActiveTab(nextTab.key)
+                      document.getElementById(`portfolio-tab-${nextTab.key}`)?.focus()
+                    }}
                     aria-selected={isActive}
                     role="tab"
-                    className={
-                      isActive
-                        ? 'relative flex h-8 items-center gap-1.5 border border-term-border bg-term-raised px-2 font-mono text-xs font-semibold text-term-text'
-                        : 'flex h-8 items-center gap-1.5 border border-transparent px-2 font-mono text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text'
-                    }
+                    aria-controls="portfolio-tabpanel"
+                    tabIndex={isActive ? 0 : -1}
+                    className={`${styles.tab} ${isActive ? styles.tabActive : ''}`}
                   >
-                    <Icon className="h-3.5 w-3.5" aria-hidden />
+                    <Icon className="h-4 w-4" aria-hidden />
                     {tab.label}
-                    {isActive && (
-                      <span className="absolute inset-x-0 bottom-0 h-[2px] bg-term-accent shadow-[0_0_8px_color-mix(in_srgb,var(--term-accent)_60%,transparent),0_0_16px_color-mix(in_srgb,var(--term-accent)_30%,transparent)]" />
-                    )}
                   </button>
                 )
               })}
             </div>
 
-            {activeTab === 'comparison' && (
-              <ComparisonTable
-                projects={data.projects}
-                country={country}
-                onSelectProject={(projectId) =>
-                  router.push(`/dashboard/operations/daily-analysis?project=${projectId}`)
-                }
-              />
-            )}
-            {activeTab === 'trend' && (
-              <LazyPortfolioTrendChart projects={data.projects} country={country} />
-            )}
-            {activeTab === 'contribution' && (
-              <LazyPortfolioPieChart projects={data.projects} country={country} />
-            )}
-          </TermPanel>
+            <div
+              className={styles.panelContent}
+              id="portfolio-tabpanel"
+              role="tabpanel"
+              aria-labelledby={`portfolio-tab-${activeTab}`}
+              tabIndex={0}
+            >
+              {activeTab === 'comparison' && (
+                <ComparisonTable
+                  projects={data.projects}
+                  country={country}
+                  onSelectProject={(projectId) => {
+                    if (!startDate || !endDate) return
+
+                    const value = String(projectId)
+                    setFiltersForNavigation({
+                      projectId: value,
+                      country,
+                      dateFrom: startDate,
+                      dateTo: endDate,
+                    })
+                    const params = new URLSearchParams({
+                      project: value,
+                      country,
+                      gProject: value,
+                      gCountry: country,
+                      gDateFrom: startDate,
+                      gDateTo: endDate,
+                    })
+                    router.push(
+                      `/dashboard/operations/daily-analysis?${params.toString()}`
+                    )
+                  }}
+                />
+              )}
+              {activeTab === 'trend' && (
+                <div className={styles.chartRegion} role="group" aria-label="多项目趋势对比">
+                  <span className={styles.visuallyHidden}>
+                    按日期比较以下项目的趋势：
+                    {data.projects.map((project) => project.project_name).join('、')}。
+                    图表可切换销售额、订单量、广告费和转化率。
+                  </span>
+                  <LazyPortfolioTrendChart projects={data.projects} country={country} />
+                </div>
+              )}
+              {activeTab === 'contribution' && (
+                <div className={styles.chartRegion}>
+                  <LazyPortfolioPieChart projects={data.projects} country={country} />
+                </div>
+              )}
+            </div>
+          </section>
         </>
-      ) : !loading && projectIds.length > 0 ? (
-        <div className="flex flex-col items-center justify-center border border-dashed border-term-border py-16 font-mono text-xs text-term-faint">
+      ) : !loading && !error && data ? (
+        <div className={styles.emptyState}>
           暂无数据，请检查日期范围或项目选择
         </div>
       ) : null}
