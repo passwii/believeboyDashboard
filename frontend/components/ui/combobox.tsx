@@ -32,6 +32,10 @@ interface ComboboxProps {
   disabled?: boolean
   className?: string
   triggerClassName?: string
+  showClearButton?: boolean
+  triggerGroupClassName?: string
+  clearButtonClassName?: string
+  portalContainer?: HTMLElement | null
   testId?: string
 }
 
@@ -46,11 +50,16 @@ export function Combobox({
   disabled = false,
   className,
   triggerClassName,
+  showClearButton = false,
+  triggerGroupClassName,
+  clearButtonClassName,
+  portalContainer,
   testId,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
   const [query, setQuery] = React.useState('')
   const inputRef = React.useRef<HTMLInputElement | null>(null)
+  const triggerRef = React.useRef<HTMLButtonElement | null>(null)
 
   React.useEffect(() => {
     if (!open) {
@@ -70,6 +79,8 @@ export function Combobox({
       (opt) => opt.value.toLowerCase().includes(q) || opt.label.toLowerCase().includes(q)
     )
   }, [options, query])
+  const hideableOptions = filtered.filter((option) => option.onHide)
+  const hideActionsLabelId = React.useId()
 
   const hasExactMatch = options.some((opt) => opt.value === query.trim() && query.trim().length > 0)
   const showFreeInputRow = allowFreeInput && query.trim().length > 0 && !hasExactMatch
@@ -79,16 +90,17 @@ export function Combobox({
     setOpen(false)
   }
 
-  const handleClear = (event: React.MouseEvent<HTMLButtonElement>) => {
+  const handleClear = (event: React.MouseEvent<HTMLElement>) => {
     event.stopPropagation()
     onChange('')
     setQuery('')
   }
 
-  return (
+  const popover = (
     <Popover open={open} onOpenChange={setOpen} modal={false}>
       <PopoverTrigger asChild>
         <Button
+          ref={triggerRef}
           type="button"
           variant="outline"
           role="combobox"
@@ -112,7 +124,7 @@ export function Combobox({
             {value ? displayLabel : placeholder}
           </span>
           <span className="flex shrink-0 items-center gap-1">
-            {value && !disabled ? (
+            {value && !disabled && !showClearButton ? (
               <span
                 role="button"
                 tabIndex={-1}
@@ -130,6 +142,7 @@ export function Combobox({
       <PopoverContent
         align="start"
         sideOffset={4}
+        portalContainer={portalContainer}
         className={cn('w-[var(--radix-popover-trigger-width)] rounded-none border border-term-border bg-term-panel p-0 text-term-text shadow-none', className)}
         onOpenAutoFocus={(event) => {
           event.preventDefault()
@@ -153,28 +166,11 @@ export function Combobox({
                     key={option.value}
                     value={option.value}
                     onSelect={() => commitValue(option.value)}
-                    className="group"
                   >
                     <Check
                       className={cn('h-4 w-4 shrink-0', isSelected ? 'opacity-100' : 'opacity-0')}
                     />
                     <span className="truncate">{option.label}</span>
-                    {option.onHide ? (
-                      <span
-                        role="button"
-                        tabIndex={-1}
-                        aria-label={`隐藏 ${option.label}`}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={(event) => {
-                          event.preventDefault()
-                          event.stopPropagation()
-                          option.onHide?.(option.value)
-                        }}
-                        className="ml-auto rounded-sm p-0.5 text-muted-foreground/70 opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </span>
-                    ) : null}
                   </CommandItem>
                 )
               })}
@@ -191,7 +187,59 @@ export function Combobox({
             </CommandGroup>
           </CommandList>
         </Command>
+        {hideableOptions.length > 0 ? (
+          <div
+            className="combobox-hide-actions"
+            role="group"
+            aria-labelledby={hideActionsLabelId}
+          >
+            <span id={hideActionsLabelId} className="combobox-hide-actions-label">
+              隐藏历史批次
+            </span>
+            {hideableOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                aria-label={`隐藏 ${option.label}`}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  option.onHide?.(option.value)
+                  requestAnimationFrame(() => inputRef.current?.focus())
+                }}
+                className="combobox-hide-action"
+              >
+                <span className="truncate">{option.label}</span>
+                <X aria-hidden="true" className="h-4 w-4 shrink-0" />
+              </button>
+            ))}
+          </div>
+        ) : null}
       </PopoverContent>
     </Popover>
+  )
+
+  if (!showClearButton) return popover
+
+  return (
+    <div className={triggerGroupClassName}>
+      {popover}
+      {value && !disabled ? (
+        <Button
+          type="button"
+          variant="outline"
+          aria-label="清除"
+          title="清除"
+          className={clearButtonClassName}
+          onClick={(event) => {
+            handleClear(event)
+            requestAnimationFrame(() => triggerRef.current?.focus())
+          }}
+        >
+          <X aria-hidden="true" className="h-4 w-4" />
+        </Button>
+      ) : null}
+    </div>
   )
 }

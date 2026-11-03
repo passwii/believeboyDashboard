@@ -2,7 +2,7 @@
  * 上传批次 tab（BLF-428 前端重构：从 v1 页面原样迁移，降级为运维/追溯视图）。
  */
 
-import { Badge, type BadgeProps } from '@/components/ui/badge'
+import { WarmBadge, type WarmBadgeTone } from '@/components/dashboard-v2/warm-ledger/controls'
 import {
   DataTableCard,
   DataTableCardBody,
@@ -22,25 +22,28 @@ import { EmptyTableState } from '@/components/ui/empty-state'
 import { cn } from '@/lib/utils'
 
 import type { IngestBatchInfo } from './ledger-types'
+import styles from './inventory-ledger-warm.module.css'
 
-const BATCH_STATUS_LABELS: Record<string, { label: string; variant: NonNullable<BadgeProps['variant']> }> = {
-  success: { label: '成功', variant: 'success' },
-  failed: { label: '失败', variant: 'destructive' },
-  running: { label: '处理中', variant: 'info' },
-  pending: { label: '等待中', variant: 'warning' },
-  partial: { label: '部分成功', variant: 'warning' },
+const BATCH_STATUS_LABELS: Record<string, { label: string; tone: WarmBadgeTone }> = {
+  success: { label: '成功', tone: 'positive' },
+  failed: { label: '失败', tone: 'negative' },
+  running: { label: '处理中', tone: 'accent' },
+  pending: { label: '等待中', tone: 'accent' },
+  partial: { label: '部分成功', tone: 'accent' },
 }
 
 export function LedgerBatchesTab({ batches, failed }: { batches: IngestBatchInfo[]; failed?: boolean }) {
   const emptyText = failed ? '数据加载失败，请点击右上角刷新按钮重试' : '暂无上传记录'
   return (
-    <DataTableCard>
+    <DataTableCard className={styles.tableCard}>
       <DataTableCardHeader
+        className={styles.tableHeader}
         title="上传批次"
-        description="每次 CSV 上传留档：文件指纹 / 行数 / 状态 / 对账结果，用于排查数据版本"
+        description="所选项目 / 月份的 CSV 上传留档：文件指纹 / 行数 / 状态 / 对账结果，用于排查数据版本"
       />
-      <DataTableCardBody>
-        <Table>
+      <DataTableCardBody className={styles.tableBody}>
+        <div className={styles.tableScroll}>
+        <Table className={styles.ledgerTable}>
           <TableHeader>
             <TableRow>
               <TableHead className={DENSE_HEAD}>批次 ID</TableHead>
@@ -62,16 +65,16 @@ export function LedgerBatchesTab({ batches, failed }: { batches: IngestBatchInfo
               batches.map((b) => {
                 const st = BATCH_STATUS_LABELS[b.status] ?? {
                   label: b.status,
-                  variant: 'outline' as const,
+                  tone: 'neutral' as const,
                 }
                 return (
                   <TableRow key={b.id}>
                     <TableCell className={cn(DENSE_CELL, 'font-mono text-xs')}>{b.id}</TableCell>
                     <TableCell className={DENSE_CELL}>{b.report_month}</TableCell>
                     <TableCell className={DENSE_CELL}>
-                      <Badge variant="outline" className="text-xs">
+                      <WarmBadge>
                         {b.file_kind === 'summary' ? '汇总' : b.file_kind === 'detail' ? '明细' : b.file_kind}
-                      </Badge>
+                      </WarmBadge>
                     </TableCell>
                     <TableCell
                       className={cn(DENSE_CELL, 'max-w-[260px] truncate text-xs')}
@@ -89,25 +92,25 @@ export function LedgerBatchesTab({ batches, failed }: { batches: IngestBatchInfo
                       {b.rows_written_detail}
                     </TableCell>
                     <TableCell className={DENSE_CELL}>
-                      <Badge className="text-xs" variant={st.variant}>
+                      <WarmBadge tone={st.tone}>
                         {st.label}
-                      </Badge>
+                      </WarmBadge>
                     </TableCell>
                     <TableCell className={DENSE_CELL}>
                       {b.consistency_check ? (
                         b.consistency_check === 'ok' ? (
-                          <Badge variant="success" className="text-xs">
+                          <WarmBadge tone="positive">
                             OK
-                          </Badge>
+                          </WarmBadge>
                         ) : b.consistency_check === 'mismatch' ? (
-                          <Badge variant="destructive" className="text-xs">
+                          <WarmBadge tone="negative">
                             异常（{b.consistency_mismatch_count}）
-                          </Badge>
+                          </WarmBadge>
                         ) : (
-                          <span className="text-xs text-muted-foreground">{b.consistency_check}</span>
+                          <WarmBadge>{b.consistency_check}</WarmBadge>
                         )
                       ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
+                        <span>—</span>
                       )}
                     </TableCell>
                     <TableCell className={cn(DENSE_CELL, 'text-xs text-muted-foreground')}>
@@ -119,6 +122,7 @@ export function LedgerBatchesTab({ batches, failed }: { batches: IngestBatchInfo
             )}
           </TableBody>
         </Table>
+        </div>
       </DataTableCardBody>
     </DataTableCard>
   )

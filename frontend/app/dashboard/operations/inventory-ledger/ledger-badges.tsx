@@ -5,78 +5,79 @@
 
 import { AlertTriangle, CheckCircle2, Clock4 } from 'lucide-react'
 
-import { Badge } from '@/components/ui/badge'
+import { WarmBadge } from '@/components/dashboard-v2/warm-ledger/controls'
 import { dispositionLabel } from './ledger-types'
 import type { ConsistencyCheckResult, IntegrityCheck } from './ledger-types'
+import styles from './inventory-ledger-warm.module.css'
 
 export function IntegrityBadge({ integrity }: { integrity: IntegrityCheck }) {
   if (integrity.status === 'OK') {
     return (
-      <Badge variant="success" className="gap-1">
+      <WarmBadge tone="positive" className={styles.statusBadge}>
         <CheckCircle2 className="h-3.5 w-3.5" />
         跨月连续性校验通过
-      </Badge>
+      </WarmBadge>
     )
   }
   if (integrity.status === 'PENDING') {
     return (
-      <Badge variant="warning" className="gap-1">
+      <WarmBadge tone="accent" className={styles.statusBadge}>
         <Clock4 className="h-3.5 w-3.5" />
         对比数据不完整，暂无法完整校验
-      </Badge>
+      </WarmBadge>
     )
   }
   return (
-    <Badge variant="destructive" className="gap-1">
+    <WarmBadge tone="negative" className={styles.statusBadge}>
       <AlertTriangle className="h-3.5 w-3.5" />
       跨月连续性异常（{integrity.mismatch_count} 项）
-    </Badge>
+    </WarmBadge>
   )
 }
 
 export function ConsistencyBadge({ consistency }: { consistency: ConsistencyCheckResult }) {
   if (consistency.status === 'OK') {
     return (
-      <Badge variant="success" className="gap-1">
+      <WarmBadge tone="positive" className={styles.statusBadge}>
         <CheckCircle2 className="h-3.5 w-3.5" />
         双表对账通过（明细累加 = 汇总水位变动）
-      </Badge>
+      </WarmBadge>
     )
   }
   if (consistency.status === 'PENDING') {
     return (
-      <Badge variant="warning" className="gap-1">
+      <WarmBadge tone="accent" className={styles.statusBadge}>
         <Clock4 className="h-3.5 w-3.5" />
         本月无数据，暂无法对账
-      </Badge>
+      </WarmBadge>
     )
   }
   return (
-    <Badge variant="destructive" className="gap-1">
+    <WarmBadge tone="negative" className={styles.statusBadge}>
       <AlertTriangle className="h-3.5 w-3.5" />
       双表对账异常（{consistency.mismatch_count} 项）
-    </Badge>
+    </WarmBadge>
   )
 }
 
 export function DispositionBadge({ disposition }: { disposition: string }) {
   if (disposition === 'SELLABLE') {
     return (
-      <Badge variant="success" className="text-xs">
+      <WarmBadge tone="positive" className={styles.statusBadge}>
         可售
-      </Badge>
+      </WarmBadge>
     )
   }
   return (
-    <Badge variant="warning" className="text-xs">
+    <WarmBadge tone="accent" className={styles.statusBadge}>
       {dispositionLabel(disposition)}
-    </Badge>
+    </WarmBadge>
   )
 }
 
 export function ChangeIndicator({ value }: { value: number | null }) {
-  if (value === null) return <span className="text-muted-foreground">—</span>
-  if (value > 0) return <span className="text-[hsl(var(--data-positive))]">↑{value}</span>
-  if (value < 0) return <span className="text-[hsl(var(--data-negative))]">↓{Math.abs(value)}</span>
-  return <span className="text-muted-foreground">—</span>
+  if (value === null) return <span>—</span>
+  if (value > 0) return <span className={styles.changePositive}>↑{value}</span>
+  if (value < 0) return <span className={styles.changeNegative}>↓{Math.abs(value)}</span>
+  return <span>—</span>
 }

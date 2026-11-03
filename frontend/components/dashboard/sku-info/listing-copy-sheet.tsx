@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, type ChangeEvent } from 'react'
+import { useEffect, useState, type ChangeEvent, type ComponentProps } from 'react'
 
 import { useNotifications } from '@/components/notifications'
 import { Button } from '@/components/ui/button'
@@ -56,11 +56,17 @@ export default function ListingCopySheet({
   row,
   onClose,
   onSaved,
+  portalContainer,
+  contentClassName,
+  onCloseAutoFocus,
 }: {
   open: boolean
   row: ListingCopyRow | null
   onClose: () => void
   onSaved: () => void
+  portalContainer?: HTMLElement | null
+  contentClassName?: string
+  onCloseAutoFocus?: ComponentProps<typeof SheetContent>['onCloseAutoFocus']
 }) {
   const { notify } = useNotifications()
   const [initialValues, setInitialValues] = useState<CopyValues | null>(null)
@@ -109,7 +115,11 @@ export default function ListingCopySheet({
 
   return (
     <Sheet open={open} onOpenChange={(nextOpen: boolean) => !nextOpen && onClose()}>
-      <SheetContent className="w-full max-w-2xl overflow-y-auto">
+      <SheetContent
+        portalContainer={portalContainer}
+        onCloseAutoFocus={onCloseAutoFocus}
+        className={['w-full max-w-2xl overflow-y-auto', contentClassName].filter(Boolean).join(' ')}
+      >
         <SheetHeader>
           <SheetTitle>编辑产品文案{row ? ` · ${row.sku}` : ''}</SheetTitle>
         </SheetHeader>

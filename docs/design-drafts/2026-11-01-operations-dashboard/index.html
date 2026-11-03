@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#141413" />
+    <meta name="theme-color" content="#1c1d1d" />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23f0ebe2'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='monospace' font-size='16' fill='%2317130e'%3EB%3C/text%3E%3C/svg%3E" />
     <meta
       name="description"
@@ -23,26 +23,26 @@
     <style>
       :root {
         color-scheme: dark;
-        --stage: #141413;
-        --window: #1c1b19;
-        --sidebar: #181715;
-        --panel: #242220;
-        --panel-strong: #2b2926;
-        --raised: #32302e;
-        --raised-hover: #3a3733;
-        --hairline: rgba(246, 238, 226, 0.09);
-        --hairline-strong: rgba(246, 238, 226, 0.16);
+        --stage: #1c1d1d;
+        --window: #242525;
+        --sidebar: #202120;
+        --panel: #2b2c2b;
+        --panel-strong: #333433;
+        --raised: #3b3c3b;
+        --raised-hover: #454644;
+        --hairline: rgba(246, 238, 226, 0.12);
+        --hairline-strong: rgba(246, 238, 226, 0.2);
         --text: #f1ede5;
         --text-soft: #c2bbaf;
-        --text-muted: #9e968c;
-        --text-faint: #777066;
+        --text-muted: #a9a297;
+        --text-faint: #837d74;
         --accent: #e8b35a;
         --accent-strong: #f3c875;
         --accent-soft: rgba(232, 179, 90, 0.12);
         --accent-area: rgba(232, 179, 90, 0.1);
         --positive: #65cfa1;
         --negative: #ee8580;
-        --chart-grid: rgba(246, 238, 226, 0.075);
+        --chart-grid: rgba(246, 238, 226, 0.09);
         --radius-window: 22px;
         --radius-panel: 16px;
         --radius-control: 10px;
@@ -136,7 +136,7 @@
         width: 100%;
         height: 100%;
         place-items: center;
-        padding: 12px;
+        padding: 8px;
         background: var(--stage);
       }
 
@@ -144,16 +144,16 @@
         display: grid;
         grid-template-columns: 280px minmax(0, 1fr);
         grid-template-rows: minmax(0, 1fr);
-        width: min(1680px, calc(100vw - 24px));
-        height: min(960px, calc(100vh - 24px));
-        min-height: min(480px, calc(100vh - 24px));
+        width: min(1840px, calc(100vw - 16px));
+        height: min(960px, calc(100vh - 16px));
+        min-height: min(480px, calc(100vh - 16px));
         overflow: hidden;
         background: var(--window);
         border: 1px solid var(--hairline-strong);
         border-radius: var(--radius-window);
         box-shadow:
           0 28px 72px rgba(0, 0, 0, 0.36),
-          inset 0 1px 0 rgba(255, 255, 255, 0.05);
+          inset 0 1px 0 rgba(255, 255, 255, 0.07);
         animation: window-in 520ms var(--ease) both;
       }
 
@@ -351,7 +351,7 @@
       }
 
       .nav-label {
-        margin: 0 8px 8px;
+        margin: 0 0 8px 40px;
         color: var(--text-muted);
         font-size: 11px;
       }
@@ -365,12 +365,12 @@
       .nav-item {
         position: relative;
         display: grid;
-        grid-template-columns: 18px minmax(0, 1fr);
+        grid-template-columns: 20px minmax(0, 1fr);
         min-height: 36px;
         flex: 0 0 36px;
         align-items: center;
         gap: 8px;
-        padding: 0 8px;
+        padding: 0 12px;
         color: var(--text-soft);
         border: 1px solid transparent;
         border-radius: 9px;
@@ -387,7 +387,7 @@
         color: var(--text);
         background: var(--raised);
         border-color: var(--hairline);
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.055);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
       }
 
       .nav-item:active {
@@ -401,7 +401,7 @@
         background: var(--raised);
         border-color: var(--hairline-strong);
         box-shadow:
-          inset 0 1px 0 rgba(255, 255, 255, 0.075),
+          inset 0 1px 0 rgba(255, 255, 255, 0.14),
           0 1px 0 rgba(0, 0, 0, 0.18);
       }
 
@@ -426,12 +426,26 @@
       .nav-item > .icon {
         width: 18px;
         height: 18px;
+        justify-self: center;
         stroke-width: 1.55;
+      }
+
+      .quick-icon-wrap {
+        display: grid;
+        width: 20px;
+        height: 20px;
+        flex: 0 0 20px;
+        place-items: center;
+      }
+
+      .quick-icon-wrap > .icon {
+        width: 18px;
+        height: 18px;
       }
 
       .nav-separator {
         height: 1px;
-        margin: 16px 8px;
+        margin: 16px 12px;
         background: var(--hairline);
       }
 
@@ -446,7 +460,7 @@
         min-height: 48px;
         align-items: center;
         gap: 8px;
-        padding: 0 8px;
+        padding: 0 12px;
         color: var(--text-soft);
         background: transparent;
         border: 1px solid var(--hairline);
@@ -473,7 +487,7 @@
         transform: translateY(1px);
       }
 
-      .quick-link span {
+      .quick-link > span:not(.quick-icon-wrap) {
         overflow: hidden;
         font-size: 11px;
         text-overflow: ellipsis;
@@ -748,7 +762,7 @@
       .main-scroll {
         min-width: 0;
         min-height: 0;
-        padding: 24px 24px 32px;
+        padding: 20px 20px 32px;
         overflow-y: auto;
       }
 
@@ -1453,7 +1467,7 @@
         .project-switcher > .icon:last-child,
         .nav-label,
         .nav-item span,
-        .quick-link span,
+        .quick-link > span:not(.quick-icon-wrap),
         .sidebar-foot span {
           display: none;
         }
@@ -1620,7 +1634,7 @@
         .project-switcher > .icon:last-child,
         .nav-label,
         .nav-item span,
-        .quick-link span,
+        .quick-link > span:not(.quick-icon-wrap),
         .sidebar-foot span {
           display: block;
         }
@@ -1646,10 +1660,11 @@
         }
 
         .nav-item {
+          grid-template-columns: 20px minmax(0, 1fr);
           min-height: 44px;
           flex-basis: 44px;
           justify-content: flex-start;
-          padding: 0 8px;
+          padding: 0 12px;
         }
 
         .quick-list {
@@ -1659,7 +1674,7 @@
         .quick-link {
           min-height: 48px;
           justify-content: flex-start;
-          padding: 0 8px;
+          padding: 0 12px;
         }
 
         .sidebar-foot {
@@ -1996,16 +2011,16 @@
             <p class="nav-label">快捷入口</p>
             <div class="quick-list">
               <a class="quick-link" href="/dashboard/operations/daily-analysis" aria-label="销售数据">
-                <svg class="icon"><use href="#i-chart" /></svg><span>销售数据</span>
+                <span class="quick-icon-wrap" aria-hidden="true"><svg class="icon"><use href="#i-chart" /></svg></span><span>销售数据</span>
               </a>
               <a class="quick-link" href="/dashboard/reports/order-info" aria-label="订单信息">
-                <svg class="icon"><use href="#i-report" /></svg><span>订单信息</span>
+                <span class="quick-icon-wrap" aria-hidden="true"><svg class="icon"><use href="#i-report" /></svg></span><span>订单信息</span>
               </a>
               <a class="quick-link" href="/dashboard/operations/inventory-analysis" aria-label="库存分析">
-                <svg class="icon"><use href="#i-layers" /></svg><span>库存分析</span>
+                <span class="quick-icon-wrap" aria-hidden="true"><svg class="icon"><use href="#i-layers" /></svg></span><span>库存分析</span>
               </a>
               <a class="quick-link" href="/dashboard/operations/complaint-center" aria-label="客户消息">
-                <svg class="icon"><use href="#i-bell" /></svg><span>客户消息</span>
+                <span class="quick-icon-wrap" aria-hidden="true"><svg class="icon"><use href="#i-bell" /></svg></span><span>客户消息</span>
               </a>
             </div>
           </nav>

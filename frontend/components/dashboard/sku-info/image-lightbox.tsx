@@ -1,14 +1,20 @@
 'use client'
 
 import { useState } from 'react'
+import type { ComponentProps } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
+
+type CloseAutoFocusHandler = ComponentProps<typeof DialogContent>['onCloseAutoFocus']
 
 interface ImageLightboxProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   src: string
   alt: string
+  portalContainer?: HTMLElement | null
+  contentClassName?: string
+  onCloseAutoFocus?: CloseAutoFocusHandler
   meta?: {
     sku?: string
     productName?: string | null
@@ -17,7 +23,16 @@ interface ImageLightboxProps {
   }
 }
 
-export function ImageLightbox({ open, onOpenChange, src, alt, meta }: ImageLightboxProps) {
+export function ImageLightbox({
+  open,
+  onOpenChange,
+  src,
+  alt,
+  portalContainer,
+  contentClassName,
+  onCloseAutoFocus,
+  meta,
+}: ImageLightboxProps) {
   const [zoomed, setZoomed] = useState(false)
 
   return (
@@ -30,19 +45,25 @@ export function ImageLightbox({ open, onOpenChange, src, alt, meta }: ImageLight
       }}
     >
       <DialogContent
+        portalContainer={portalContainer}
+        onCloseAutoFocus={onCloseAutoFocus}
         className={cn(
           // 覆盖 DialogContent 默认的 bg-background / border / shadow，
           // 让 DialogContent 自身透明，只承载布局，背景由 DialogOverlay 黑色遮罩负责
           'flex flex-col items-center gap-3 border-0 bg-transparent p-2 shadow-none sm:p-4 dark:bg-transparent',
           // 默认 max-w-lg；lightbox 用 max-w-3xl，zoomed 状态接近全屏
-          zoomed ? '!max-w-[96vw]' : '!max-w-3xl'
+          zoomed ? '!max-w-[96vw]' : '!max-w-3xl',
+          contentClassName
         )}
       >
         <DialogTitle className="sr-only">{alt}</DialogTitle>
 
-        <div
+        <button
+          type="button"
+          aria-label={zoomed ? '缩小图片' : '放大图片'}
+          aria-pressed={zoomed}
           className={cn(
-            'flex w-full items-center justify-center overflow-hidden rounded-md text-center',
+            'flex w-full appearance-none items-center justify-center overflow-hidden rounded-md border-0 bg-transparent p-0 font-[inherit] text-inherit text-center',
             zoomed ? 'cursor-zoom-out' : 'cursor-zoom-in'
           )}
           style={{ maxHeight: zoomed ? 'calc(100vh - 8rem)' : '85vh' }}
@@ -56,7 +77,7 @@ export function ImageLightbox({ open, onOpenChange, src, alt, meta }: ImageLight
           <img
             src={src}
             alt={alt}
-            className="rounded-md transition-all duration-[var(--duration-fast)]"
+            className="rounded-md"
             style={{
               maxHeight: zoomed ? 'calc(100vh - 8rem)' : '85vh',
               maxWidth: zoomed ? '96vw' : '100%',
@@ -65,7 +86,7 @@ export function ImageLightbox({ open, onOpenChange, src, alt, meta }: ImageLight
               objectFit: 'contain',
             }}
           />
-        </div>
+        </button>
 
         {meta && (
           <div className="rounded-md bg-black/60 px-4 py-2 text-sm text-white">

@@ -1,24 +1,19 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Check, ChevronsUpDown, Search } from 'lucide-react'
-import { useSession } from 'next-auth/react'
-import { cn } from '@/lib/utils'
-import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Button } from '@/components/ui/button'
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command'
+import { useEffect, useId, useState } from 'react'
+import { ChevronsUpDown, Search } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { CountrySelect } from '@/components/dashboard/console'
-import { DateRangePicker } from '@/components/ui/date-picker'
+import {
+  COUNTRY_TIMEZONE_MAP,
+  DateRangePicker,
+  formatDateInputValue,
+  parseDateRangeInputValue,
+} from '@/components/ui/date-picker'
+import { COUNTRY_OPTIONS } from '@/lib/console-constants'
+import { WarmSelect } from '@/components/dashboard-v2/warm-ledger/controls'
 import type { DateRange } from 'react-day-picker'
+
+import styles from './portfolio-filters-warm.module.css'
 
 interface PortfolioFiltersProps {
   projectIds: number[]
@@ -29,10 +24,14 @@ interface PortfolioFiltersProps {
   onStartDateChange: (date: string) => void
   endDate: string
   onEndDateChange: (date: string) => void
-  loading: boolean
+  projects: PortfolioProjectOption[]
+  loadingProjects: boolean
+  retryingProjects: boolean
+  projectError: string | null
+  onRetryProjects: () => void
 }
 
-type ProjectOption = { id: number; name: string }
+export type PortfolioProjectOption = { id: number; name: string }
 
 export function PortfolioFilters({
   projectIds,
@@ -43,143 +42,164 @@ export function PortfolioFilters({
   onStartDateChange,
   endDate,
   onEndDateChange,
-  loading,
+  projects,
+  loadingProjects,
+  retryingProjects,
+  projectError,
+  onRetryProjects,
 }: PortfolioFiltersProps) {
-  const { data: session } = useSession()
-  const [projects, setProjects] = useState<ProjectOption[]>([])
-  const [loadingProjects, setLoadingProjects] = useState(true)
+  const countrySelectId = useId()
+  const projectOptionsId = useId()
   const [open, setOpen] = useState(false)
+  const [projectSearch, setProjectSearch] = useState('')
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null)
 
   useEffect(() => {
-    let active = true
-    setLoadingProjects(true)
-    void (async () => {
-      try {
-        const data = await fetchManagedProjectsCached<ProjectOption[]>(session)
-        if (!active) return
-        setProjects(data)
-      } finally {
-        if (active) setLoadingProjects(false)
-      }
-    })()
-    return () => {
-      active = false
-    }
-  }, [session])
+    setPortalContainer(document.getElementById('warm-ledger-portal-root'))
+  }, [])
 
   function toggleProject(id: number) {
     if (projectIds.includes(id)) {
-      onProjectIdsChange(projectIds.filter((p) => p !== id))
+      onProjectIdsChange(projectIds.filter((projectId) => projectId !== id))
     } else {
       onProjectIdsChange([...projectIds, id])
     }
   }
 
   function handleDateRangeChange(range: DateRange | undefined) {
-    if (range?.from) onStartDateChange(range.from.toISOString().split('T')[0])
-    else onStartDateChange('')
-    if (range?.to) onEndDateChange(range.to.toISOString().split('T')[0])
-    else onEndDateChange('')
+    onStartDateChange(formatDateInputValue(range?.from))
+    onEndDateChange(formatDateInputValue(range?.to))
   }
 
-  function parseDate(str: string): Date | undefined {
-    return str ? new Date(str) : undefined
-  }
-
-  const selectedProjects = projects.filter((p) => projectIds.includes(p.id))
+  const selectedProjects = projects.filter((project) => projectIds.includes(project.id))
+  const normalizedSearch = projectSearch.trim().toLocaleLowerCase()
+  const filteredProjects = projects.filter((project) => {
+    if (!normalizedSearch) return true
+    return (
+      project.name.toLocaleLowerCase().includes(normalizedSearch) ||
+      String(project.id).includes(normalizedSearch)
+    )
+  })
+  let projectEmptyMessage = '未找到项目'
+  if (projectError) projectEmptyMessage = '项目列表加载失败'
+  else if (projects.length === 0) projectEmptyMessage = '暂无可用项目'
+  const timezone = COUNTRY_TIMEZONE_MAP[country === 'ALL' ? 'US' : country] ?? COUNTRY_TIMEZONE_MAP.US
 
   return (
-    // BLF-614：手机端 2 列网格（总则 1 / 规则 2）——项目多选与日期范围占满整行，国家/刷新同行；
-    // md+ 还原横向 flex 排列，桌面布局零回归。
-    <div
-      data-testid="portfolio-filter-controls"
-      className="grid grid-cols-2 items-center gap-2 md:flex md:flex-wrap md:items-center md:gap-3"
-    >
-      {/* Multi-project selector */}
-      <div className="col-span-2 w-full md:col-span-1 md:w-72">
-        {loadingProjects ? (
-          <Skeleton className="h-10 w-full rounded-none" />
-        ) : (
-          <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                data-testid="portfolio-project-trigger"
-                variant="outline"
-                role="combobox"
-                className={cn(
-                  // BLF-893：portfolio 筛选终端化——零圆角、term 触发器基线（h-10）。
-                  'h-10 w-full justify-between rounded-none border border-term-border bg-term-bg font-mono text-xs leading-5 text-term-text shadow-none hover:border-term-border-strong',
-                  projectIds.length === 0 && 'text-term-muted'
-                )}
-              >
-                {projectIds.length === 0 ? (
+    <div data-testid="portfolio-filter-controls" className={styles.filters}>
+      <div className={styles.projectField} aria-busy={loadingProjects || undefined}>
+        <Popover
+          open={open}
+          onOpenChange={(nextOpen) => {
+            setOpen(nextOpen)
+            if (!nextOpen) setProjectSearch('')
+          }}
+        >
+          <PopoverTrigger asChild>
+            <button
+              data-testid="portfolio-project-trigger"
+              type="button"
+              className={styles.projectTrigger}
+              aria-controls={projectOptionsId}
+              data-invalid={projectError ? 'true' : undefined}
+              aria-describedby={projectError ? `${projectOptionsId}-error` : undefined}
+              disabled={loadingProjects}
+            >
+              <span className={styles.projectTriggerValue}>
+                {loadingProjects && projectIds.length === 0 ? (
+                  '加载项目…'
+                ) : projectIds.length === 0 ? (
                   '选择项目（多选）'
+                ) : selectedProjects.length > 0 && selectedProjects.length === projectIds.length && selectedProjects.length <= 3 ? (
+                  selectedProjects.map((project) => (
+                    <span className={styles.projectChip} key={project.id}>
+                      {project.name}
+                    </span>
+                  ))
                 ) : (
-                  <span className="flex flex-wrap gap-1 overflow-hidden">
-                    {selectedProjects.length <= 3 ? (
-                      selectedProjects.map((p) => (
-                        <span
-                          key={p.id}
-                          className="inline-flex h-5 items-center rounded-none border border-term-border bg-term-panel px-1.5 font-mono text-[11px] leading-4 text-term-text"
-                        >
-                          {p.name}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="inline-flex h-5 items-center rounded-none border border-term-border bg-term-panel px-1.5 font-mono text-[11px] leading-4 text-term-text">
-                        已选 {selectedProjects.length} 个项目
-                      </span>
-                    )}
-                  </span>
+                  `已选 ${projectIds.length} 个项目`
                 )}
-                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-72 p-0" align="start">
-              <Command>
-                <CommandInput placeholder="搜索项目..." />
-                <CommandList>
-                  <CommandEmpty>未找到项目</CommandEmpty>
-                  <CommandGroup>
-                    {projects.map((p) => (
-                      <CommandItem
-                        key={p.id}
-                        value={String(p.id)}
-                        onSelect={() => toggleProject(p.id)}
-                        className="cursor-pointer"
-                      >
-                        <Check
-                          className={cn(
-                            'mr-2 h-4 w-4',
-                            projectIds.includes(p.id) ? 'opacity-100' : 'opacity-0'
-                          )}
-                        />
-                        {p.name}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
-        )}
+              </span>
+              <ChevronsUpDown className={styles.projectChevron} aria-hidden="true" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent
+            portalContainer={portalContainer}
+            className={styles.projectPopover}
+            align="start"
+            aria-label="选择项目"
+          >
+            <div className={styles.projectPopoverBody} id={projectOptionsId}>
+              <label className={styles.projectSearch}>
+                <Search aria-hidden="true" />
+                <input
+                  type="search"
+                  value={projectSearch}
+                  onChange={(event) => setProjectSearch(event.target.value)}
+                  placeholder="搜索项目"
+                  aria-label="搜索项目"
+                />
+              </label>
+              <div className={styles.projectOptions} role="group" aria-label="项目列表">
+                {filteredProjects.length > 0 ? (
+                  filteredProjects.map((project) => (
+                    <label className={styles.projectOption} key={project.id}>
+                      <input
+                        className={styles.projectCheckbox}
+                        type="checkbox"
+                        checked={projectIds.includes(project.id)}
+                        onChange={() => toggleProject(project.id)}
+                      />
+                      <span>{project.name}</span>
+                    </label>
+                  ))
+                ) : (
+                  <div className={styles.projectEmpty} role="status">
+                    {projectEmptyMessage}
+                  </div>
+                )}
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
+        {projectError || retryingProjects ? (
+          <div className={styles.projectError} role={projectError ? 'alert' : 'status'}>
+            <span id={`${projectOptionsId}-error`}>
+              {projectError ? `项目列表加载失败：${projectError}` : '正在重试项目列表'}
+            </span>
+            {projectError ? (
+              <button
+                type="button"
+                className={styles.retryButton}
+                disabled={loadingProjects}
+                onClick={onRetryProjects}
+                aria-label="重试加载项目列表"
+              >
+                {loadingProjects ? '重试中' : '重试'}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
-      <CountrySelect
+      <WarmSelect
+        id={`portfolio-country-${countrySelectId}`}
+        label="站点筛选"
         value={country}
+        options={COUNTRY_OPTIONS}
         onChange={onCountryChange}
-        triggerClassName="h-10 w-full md:h-9 md:w-auto"
+        className={styles.countrySelect}
       />
 
       <DateRangePicker
-        value={
-          startDate || endDate ? { from: parseDate(startDate), to: parseDate(endDate) } : undefined
-        }
+        value={parseDateRangeInputValue(startDate, endDate)}
         onChange={handleDateRangeChange}
-        className="col-span-2 h-10 w-full md:col-span-1 md:h-9 md:w-64"
+        className={styles.dateTrigger}
         placeholder="日期范围"
+        timezone={timezone}
+        portalContainer={portalContainer}
+        popoverClassName={`${styles.datePopover} warm-ledger__date-picker-content`}
       />
-
     </div>
   )
 }

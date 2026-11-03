@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ComponentProps } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useNotifications } from '@/components/notifications'
@@ -44,6 +44,9 @@ interface BatchFactoryInfoSheetProps {
   selectedSkus: SkuRecordItem[]
   onClose: () => void
   onSaved: () => void
+  portalContainer?: HTMLElement | null
+  contentClassName?: string
+  onCloseAutoFocus?: ComponentProps<typeof SheetContent>['onCloseAutoFocus']
 }
 
 export default function BatchFactoryInfoSheet({
@@ -51,6 +54,9 @@ export default function BatchFactoryInfoSheet({
   selectedSkus,
   onClose,
   onSaved,
+  portalContainer,
+  contentClassName,
+  onCloseAutoFocus,
 }: BatchFactoryInfoSheetProps) {
   const { notify } = useNotifications()
   const { confirm } = useConfirm()
@@ -192,7 +198,11 @@ export default function BatchFactoryInfoSheet({
         if (!openState) onClose()
       }}
     >
-      <SheetContent className="w-full max-w-2xl overflow-y-auto">
+      <SheetContent
+        portalContainer={portalContainer}
+        onCloseAutoFocus={onCloseAutoFocus}
+        className={['w-full max-w-2xl overflow-y-auto', contentClassName].filter(Boolean).join(' ')}
+      >
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             批量编辑产品属性

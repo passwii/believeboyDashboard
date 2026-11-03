@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type ComponentProps } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -36,6 +36,9 @@ export default function FactoryInfoSheet({
   factoryInfo,
   onClose,
   onSaved,
+  portalContainer,
+  contentClassName,
+  onCloseAutoFocus,
 }: {
   open: boolean
   productCostId: number
@@ -43,6 +46,9 @@ export default function FactoryInfoSheet({
   factoryInfo: Record<string, unknown> | null
   onClose: () => void
   onSaved: (saved: boolean) => void
+  portalContainer?: HTMLElement | null
+  contentClassName?: string
+  onCloseAutoFocus?: ComponentProps<typeof SheetContent>['onCloseAutoFocus']
 }) {
   const { notify } = useNotifications()
   const { confirm } = useConfirm()
@@ -186,7 +192,11 @@ export default function FactoryInfoSheet({
         if (!openState) onClose()
       }}
     >
-      <SheetContent className="w-full max-w-2xl overflow-y-auto">
+      <SheetContent
+        portalContainer={portalContainer}
+        onCloseAutoFocus={onCloseAutoFocus}
+        className={['w-full max-w-2xl overflow-y-auto', contentClassName].filter(Boolean).join(' ')}
+      >
         <SheetHeader>
           <SheetTitle>编辑产品属性 - {skuLabel}</SheetTitle>
         </SheetHeader>

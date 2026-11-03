@@ -5,8 +5,8 @@
 
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
+import { WarmIconButton } from '@/components/dashboard-v2/warm-ledger/controls'
 import { DENSE_HEAD } from '@/components/ui/data-card'
-import { Button } from '@/components/ui/button'
 import { TableHead } from '@/components/ui/table'
 import {
   Tooltip,
@@ -15,6 +15,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import styles from './inventory-ledger-warm.module.css'
 
 /**
  * 列头单元格（BLF-431）：显示中文 label，hover 时以 tooltip 显示英文列名
@@ -34,16 +35,22 @@ export function ColumnHeader({
 }) {
   if (!tooltip) {
     return (
-      <TableHead className={cn(DENSE_HEAD, className)}>
+      <TableHead className={cn(DENSE_HEAD, styles.tableColumnHeader, className)}>
         {label}
       </TableHead>
     )
   }
   return (
-    <TableHead className={cn(DENSE_HEAD, className)}>
+    <TableHead className={cn(DENSE_HEAD, styles.tableColumnHeader, className)}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <span className="cursor-help border-b border-dashed border-border/60">{label}</span>
+          <span
+            className={styles.tableColumnLabel}
+            tabIndex={0}
+            aria-label={`${label}，Amazon 英文列名：${tooltip}`}
+          >
+            {label}
+          </span>
         </TooltipTrigger>
         <TooltipContent side="top">{tooltip}</TooltipContent>
       </Tooltip>
@@ -64,31 +71,25 @@ export function PaginationBar({
 }) {
   if (total === 0) return null
   return (
-    <div className="flex items-center justify-between border-t px-3 py-2 text-xs text-muted-foreground">
+    <div className={styles.pagination}>
       <span>
         共 {total} 条 · 第 {page + 1} / {Math.max(pageCount, 1)} 页
       </span>
       <div className="flex items-center gap-1">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 max-md:min-h-[44px] max-md:min-w-[44px]"
+        <WarmIconButton
           disabled={page <= 0}
           onClick={() => onPageChange(page - 1)}
           aria-label="上一页"
         >
           <ChevronLeft className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 max-md:min-h-[44px] max-md:min-w-[44px]"
+        </WarmIconButton>
+        <WarmIconButton
           disabled={page >= pageCount - 1}
           onClick={() => onPageChange(page + 1)}
           aria-label="下一页"
         >
           <ChevronRight className="h-4 w-4" />
-        </Button>
+        </WarmIconButton>
       </div>
     </div>
   )

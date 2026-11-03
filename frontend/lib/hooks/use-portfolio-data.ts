@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 
 import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
@@ -110,6 +110,7 @@ function buildPortfolioSummary(data: DailyAnalysisAllProjectsResponse): Portfoli
       sales_amount: salesAmount,
       order_qty: orderQty,
       ad_spend: adSpend,
+      // Preserve the existing discrepancy: project conversion uses ordered sales, while the KPI uses order quantity.
       conversion_rate:
         sumField(rows, 'ordered_sales_amount') > 0
           ? (sumField(rows, 'ordered_sales_amount') / (sumField(rows, 'sessions') || 1)) * 100
@@ -140,6 +141,7 @@ function buildPortfolioSummary(data: DailyAnalysisAllProjectsResponse): Portfoli
     total_sales_amount: totalSalesAmount,
     total_order_qty: totalOrderQty,
     total_ad_spend: totalAdSpend,
+    // Keep the aggregate formula unchanged: total orders divided by total sessions.
     avg_conversion_rate: totalSessions > 0 ? (totalOrderQty / totalSessions) * 100 : 0,
     total_impressions: totalImpressions,
     total_clicks: totalClicks,
@@ -169,48 +171,72 @@ export function usePortfolioData({
 }: UsePortfolioDataOptions): UsePortfolioDataResult {
   const { data: session } = useSession()
   const [data, setData] = useState<PortfolioSummary | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [settledRequestKey, setSettledRequestKey] = useState<string | null>(null)
+  const [requestError, setRequestError] = useState<{ key: string; message: string } | null>(null)
   const [nonce, setNonce] = useState(0)
+  const lastForcedRefreshNonce = useRef(0)
 
   const refresh = useCallback(() => setNonce((n) => n + 1), [])
+  const hasValidFilters = projectIds.length > 0 && Boolean(startDate && endDate)
+  const params = new URLSearchParams({
+    project_ids: projectIds.join(','),
+    country,
+    start_date: startDate,
+    end_date: endDate,
+    // BLF-1038：本页只消费 project_breakdown[*].summary_rows，不需要
+    // detail_rows（30 天窗口实测 3.64MB → 91KB）。
+    include_detail: 'false',
+  })
+  const requestUrl = hasValidFilters
+    ? `${API_BASE}/api/v1/daily-analysis/all?${params.toString()}`
+    : null
+  const user = (session?.user ?? {}) as {
+    id?: string | null
+    roleType?: string | null
+    name?: string | null
+  }
+  const sessionScope = [
+    user.roleType ?? 'unknown',
+    (user.name || '').trim() || 'none',
+    (user.id || '').trim() || 'none',
+  ].join(':')
+  const requestKey = requestUrl ? `${sessionScope}:${requestUrl}:${nonce}` : null
+  const loading = requestKey !== null && settledRequestKey !== requestKey
+  const error = requestKey && requestError?.key === requestKey ? requestError.message : null
 
   useEffect(() => {
-    if (projectIds.length === 0 || !startDate || !endDate) {
+    const activeRequestUrl = requestUrl ?? ''
+    const activeRequestKey = requestKey ?? ''
+    if (!activeRequestUrl || !activeRequestKey) {
       setData(null)
-      setLoading(false)
-      setError(null)
+      setRequestError(null)
+      setSettledRequestKey(null)
       return
     }
 
     let active = true
-    setLoading(true)
-    setError(null)
+    const force = nonce !== lastForcedRefreshNonce.current
+    if (force) lastForcedRefreshNonce.current = nonce
 
     async function load() {
       try {
-        const params = new URLSearchParams({
-          project_ids: projectIds.join(','),
-          country,
-          start_date: startDate,
-          end_date: endDate,
-          // BLF-1038：本页只消费 project_breakdown[*].summary_rows，不需要
-          // detail_rows（30 天窗口实测 3.64MB → 91KB）。
-          include_detail: 'false',
-        })
         // BEL-423：与 daily-analysis 共用 daily-analysis/all 端点的 2min 客户端缓存，
         // 两页来回切换不重复请求。
         const raw = await fetchOpsJsonCached<DailyAnalysisAllProjectsResponse>(
-          `${API_BASE}/api/v1/daily-analysis/all?${params.toString()}`,
-          { session, fallbackError: '加载失败' }
+          activeRequestUrl,
+          { session, fallbackError: '加载失败', force }
         )
         if (!active) return
         setData(buildPortfolioSummary(raw))
+        setRequestError(null)
       } catch (e) {
         if (!active) return
-        setError(e instanceof Error ? e.message : '加载失败')
+        setRequestError({
+          key: activeRequestKey,
+          message: e instanceof Error ? e.message : '加载失败',
+        })
       } finally {
-        if (active) setLoading(false)
+        if (active) setSettledRequestKey(activeRequestKey)
       }
     }
 
@@ -218,7 +244,7 @@ export function usePortfolioData({
     return () => {
       active = false
     }
-  }, [projectIds.join(','), country, startDate, endDate, nonce, session])
+  }, [requestUrl, requestKey, nonce, session])
 
   return { data, loading, error, refresh }
 }

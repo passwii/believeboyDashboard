@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ComponentProps } from 'react'
 import { Upload } from 'lucide-react'
 import {
   Sheet,
@@ -18,11 +18,22 @@ interface ImageUploadSheetProps {
   onOpenChange: (open: boolean) => void
   sku: ProductCostItem | null
   onSuccess: () => void
+  portalContainer?: HTMLElement | null
+  contentClassName?: string
+  onCloseAutoFocus?: ComponentProps<typeof SheetContent>['onCloseAutoFocus']
 }
 
 const API_BASE = '/api/backend'
 
-export function ImageUploadSheet({ open, onOpenChange, sku, onSuccess }: ImageUploadSheetProps) {
+export function ImageUploadSheet({
+  open,
+  onOpenChange,
+  sku,
+  onSuccess,
+  portalContainer,
+  contentClassName,
+  onCloseAutoFocus,
+}: ImageUploadSheetProps) {
   const { notify } = useNotifications()
   const [uploading, setUploading] = useState(false)
 
@@ -64,7 +75,11 @@ export function ImageUploadSheet({ open, onOpenChange, sku, onSuccess }: ImageUp
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-[480px] sm:max-w-[480px]">
+      <SheetContent
+        portalContainer={portalContainer}
+        onCloseAutoFocus={onCloseAutoFocus}
+        className={['w-[480px] sm:max-w-[480px]', contentClassName].filter(Boolean).join(' ')}
+      >
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <Upload className="h-4 w-4" />

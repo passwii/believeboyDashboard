@@ -8,9 +8,9 @@ import {
   FileDown,
   FileSpreadsheet,
   Plus,
-  Pencil,
   Trash2,
   X,
+  AlertTriangle,
   ChevronsUpDown,
   Check,
   Tag,
@@ -19,7 +19,6 @@ import {
   Package,
   Boxes,
 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
 import {
   DirectionalTabTransition,
   SlidingTabsTrigger,
@@ -51,13 +50,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { EmptyTableState } from '@/components/ui/empty-state'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TableSkeletonRows } from '@/components/ui/table-skeleton'
@@ -78,17 +70,21 @@ import {
 } from '@/components/ui/command'
 import { ShipmentBatchCombobox } from '@/components/dashboard/shipment/shipment-batch-combobox'
 import { useNotifications } from '@/components/notifications'
-import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
 import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
 import {
-  HeaderSlotSelect,
-  TERM_HEADER_TRIGGER,
-  TERM_HEADER_W_LG,
-  TERM_HEADER_W_MD,
-  TERM_HEADER_W_SM,
-  TERM_SELECT_CONTENT,
-} from '@/components/terminal/header-filter-suite'
-import { useHeaderRefresh, useHeaderSlot, useMobileFilterStrip } from '@/components/terminal/terminal-header-slot'
+  useHeaderRefresh,
+  useMobileFilterStrip,
+  usePrimaryFilterSlot,
+  useSecondaryHeaderSlot,
+} from '@/components/terminal/terminal-header-slot'
+import {
+  WarmBadge,
+  WarmButton,
+  WarmIconButton,
+  WarmSelect,
+  type WarmBadgeTone,
+  type WarmSelectOption,
+} from '@/components/dashboard-v2/warm-ledger/controls'
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
@@ -105,6 +101,7 @@ import {
 import { downloadBlob } from '@/lib/download-blob'
 import type { Cell } from 'exceljs'
 import { ImageLightbox } from '@/components/dashboard/sku-info/image-lightbox'
+import styles from './shipment-management-warm.module.css'
 
 const API_BASE = '/api/backend'
 const HISTORY_SHIPMENT_STATUSES = ['completed', 'in_transit'] as const
@@ -410,36 +407,14 @@ function downloadCsvFile(
   URL.revokeObjectURL(url)
 }
 
-function statusMeta(status: string): { label: string; className: string } {
-  const map: Record<string, { label: string; className: string }> = {
-    draft: {
-      label: '草稿',
-      className:
-        'border border-term-border bg-term-panel text-term-muted dark:bg-term-raised dark:text-term-text',
-    },
-    in_transit: {
-      label: '在途',
-      className:
-        'border border-sky-200 bg-sky-100 text-sky-700 dark:border-sky-900/80 dark:bg-sky-950/60 dark:text-sky-300',
-    },
-    completed: {
-      label: '已完成',
-      className:
-        'border border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-900/80 dark:bg-emerald-950/60 dark:text-emerald-300',
-    },
-    cancelled: {
-      label: '已取消',
-      className:
-        'border border-rose-200 bg-rose-100 text-rose-700 dark:border-rose-900/80 dark:bg-rose-950/60 dark:text-rose-300',
-    },
+function statusMeta(status: string): { label: string; tone: WarmBadgeTone } {
+  const map: Record<string, { label: string; tone: WarmBadgeTone }> = {
+    draft: { label: '草稿', tone: 'neutral' },
+    in_transit: { label: '在途', tone: 'accent' },
+    completed: { label: '已完成', tone: 'positive' },
+    cancelled: { label: '已取消', tone: 'negative' },
   }
-  return (
-    map[status] || {
-      label: status,
-      className:
-        'border border-term-border bg-term-panel text-term-muted dark:bg-term-raised dark:text-term-text',
-    }
-  )
+  return map[status] || { label: status, tone: 'neutral' }
 }
 
 function methodLabel(method: string): string {
@@ -450,31 +425,44 @@ function countryLabel(country: string): string {
   return COUNTRY_OPTIONS.find((item) => item.value === country)?.label || country
 }
 
-function countryMeta(country: string): { label: string; className: string } {
-  const map: Record<string, { label: string; className: string }> = {
-    US: {
-      label: 'US',
-      className:
-        'border border-blue-200 bg-blue-100 text-blue-700 dark:border-blue-900/80 dark:bg-blue-950/60 dark:text-blue-300',
-    },
-    UK: {
-      label: 'UK',
-      className:
-        'border border-violet-200 bg-violet-100 text-violet-700 dark:border-violet-900/80 dark:bg-violet-950/60 dark:text-violet-300',
-    },
-    DE: {
-      label: 'DE',
-      className:
-        'border border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900/80 dark:bg-amber-950/60 dark:text-amber-300',
-    },
-  }
+function countryMeta(country: string): { label: string } {
+  return { label: COUNTRY_OPTIONS.some((option) => option.value === country) ? country : countryLabel(country) }
+}
+
+function RequestStateNotice({
+  title,
+  message,
+  onRetry,
+}: {
+  title: string
+  message: string
+  onRetry?: () => void | Promise<void>
+}) {
   return (
-    map[country] || {
-      label: countryLabel(country),
-      className:
-        'border border-term-border bg-term-panel text-term-muted dark:bg-term-raised dark:text-term-text',
-    }
+    <div className={styles.requestNotice} role="alert">
+      <AlertTriangle aria-hidden="true" className={styles.requestNoticeIcon} />
+      <div className={styles.requestNoticeCopy}>
+        <strong>{title}</strong>
+        <p>{message}</p>
+      </div>
+      {onRetry ? (
+        <WarmButton className={styles.requestNoticeAction} onClick={() => void onRetry()}>
+          重试
+        </WarmButton>
+      ) : null}
+    </div>
   )
+}
+
+function restoreDialogOpenerFocus(
+  event: Event,
+  opener: HTMLElement | null,
+  fallback?: HTMLElement | null
+) {
+  const target = opener?.isConnected ? opener : fallback?.isConnected ? fallback : null
+  if (!target) return
+  event.preventDefault()
+  target.focus()
 }
 
 function buildFormFromDetail(detail: ShipmentScheduleDetail): ScheduleFormState {
@@ -563,14 +551,21 @@ function SearchableSkuField({
   value,
   options,
   loading,
+  error,
+  portalContainer,
   onChange,
+  onRetry,
 }: {
   value: string
   options: ProjectSkuOption[]
   loading: boolean
+  error: string | null
+  portalContainer?: HTMLElement | null
   onChange: (value: string) => void
+  onRetry: () => void
 }) {
   const [open, setOpen] = useState(false)
+  const openerRef = useRef<HTMLButtonElement | null>(null)
   const selectedSku = options.find((option) => option.sku === value)
 
   return (
@@ -578,25 +573,38 @@ function SearchableSkuField({
       <Button
         type="button"
         variant="outline"
-        className="h-7 w-full justify-between px-2 font-normal text-xs"
+        className={styles.skuPickerTrigger}
+        ref={openerRef}
         onClick={() => setOpen(true)}
       >
         <span className="truncate text-left">
           {selectedSku ? selectedSku.sku : loading ? '加载中...' : '选择 SKU'}
         </span>
-        <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0" />
       </Button>
       <DialogContent
         aria-describedby="shipment-sku-search-dialog-description"
-        className="max-w-[calc(100%-2rem)] overflow-hidden rounded-none p-0 sm:max-w-xl"
+        className={cn(styles.dialog, styles.skuPickerDialog)}
+        portalContainer={portalContainer}
+        onCloseAutoFocus={(event) => restoreDialogOpenerFocus(event, openerRef.current)}
       >
         <span id="shipment-sku-search-dialog-description" className="sr-only">
           搜索并选择 SKU
         </span>
+        {error ? (
+          <div className={styles.filterError} role="alert">
+            <span>{error}</span>
+            <WarmButton className={styles.filterRetry} onClick={onRetry} loading={loading}>
+              重试加载
+            </WarmButton>
+          </div>
+        ) : null}
         <Command className="max-h-[70vh]">
           <CommandInput placeholder="搜索 SKU" />
           <CommandList>
-            <CommandEmpty>{loading ? 'SKU 加载中...' : '没有匹配的 SKU'}</CommandEmpty>
+            {!error ? (
+              <CommandEmpty>{loading ? 'SKU 加载中...' : '没有匹配的 SKU'}</CommandEmpty>
+            ) : null}
             {options.map((option) => {
               const missingUnits = !option.units_per_carton || option.units_per_carton <= 0
               return (
@@ -626,7 +634,7 @@ function SearchableSkuField({
                       </span>
                     )}
                     {missingUnits && (
-                      <span className="shrink-0 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                      <span className={styles.missingUnitsBadge}>
                         未维护单箱数
                       </span>
                     )}
@@ -641,26 +649,26 @@ function SearchableSkuField({
   )
 }
 
-/**
- * Header 插槽用货件编号可搜索多选 combobox（term 规格）：
- * TERM_HEADER_TRIGGER 触发器 + Command 弹层（cmdk 过滤），宽度 TERM_HEADER_W_LG。
- * BEL-423：选项懒加载——下拉首次打开才取数（onOpen 回调）。
- * 多选语义不变：「全部货件」清空 / 点条目切换选中 / 支持直接添加输入值；
- * 已选条目在弹层内以可移除 chip 展示（header 插槽 48px 高，chip 不再展开在触发器下方）。
- */
+/** The shipment-number multi-select still loads options only when first opened. */
 function SearchableShipmentNoFilter({
   value,
   options,
   loading,
+  error,
+  portalContainer,
   onChange,
   onOpen,
+  onRetry,
 }: {
   value: string[]
   options: string[]
   loading: boolean
+  error: string | null
+  portalContainer?: HTMLElement | null
   onChange: (value: string[]) => void
   /** BEL-423：下拉首次打开时回调（父级据此懒加载选项列表）。 */
   onOpen?: () => void
+  onRetry: () => void
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -692,21 +700,31 @@ function SearchableShipmentNoFilter({
           variant="outline"
           role="combobox"
           aria-expanded={open}
+          aria-label="按货件编号筛选"
           title="货件编号筛选"
-          className={cn(TERM_HEADER_TRIGGER, TERM_HEADER_W_LG, 'justify-between px-2')}
+          className={styles.shipmentNoTrigger}
         >
           <span className={cn('truncate', value.length === 0 && 'text-term-muted')}>
             {selectedLabel}
           </span>
-          <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
         align="start"
         sideOffset={6}
-        className={cn(TERM_SELECT_CONTENT, 'w-[280px] p-0')}
+        className={styles.filterPopover}
+        portalContainer={portalContainer}
       >
-        <Command shouldFilter className="max-h-[320px]">
+        {error ? (
+          <div className={styles.filterError} role="alert">
+            <span>{error}</span>
+            <WarmButton className={styles.filterRetry} onClick={onRetry} loading={loading}>
+              重试加载
+            </WarmButton>
+          </div>
+        ) : null}
+        <Command shouldFilter className={styles.filterCommand}>
           <CommandInput placeholder="搜索货件编号" value={query} onValueChange={setQuery} />
           <CommandList>
             <CommandItem
@@ -735,7 +753,7 @@ function SearchableShipmentNoFilter({
                 />
                 <div className="flex min-w-0 flex-col">
                   <span className="truncate">{normalizedQuery}</span>
-                  <span className="text-term-muted text-xs">添加当前输入到筛选</span>
+                  <span className="text-xs">添加当前输入到筛选</span>
                 </div>
               </CommandItem>
             ) : null}
@@ -757,16 +775,17 @@ function SearchableShipmentNoFilter({
           </CommandList>
         </Command>
         {value.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5 border-t border-term-border p-2">
+          <div className={styles.selectedShipments}>
             {value.map((item) => (
               <button
                 key={item}
                 type="button"
+                aria-label={`移除货件筛选 ${item}`}
                 onClick={() => onChange(value.filter((current) => current !== item))}
-                className="inline-flex items-center gap-1 rounded-none border border-term-border bg-term-bg px-2 py-1 text-[11px] text-term-text transition hover:bg-term-hover"
+                className={styles.selectedShipment}
               >
                 <span className="max-w-[180px] truncate">{item}</span>
-                <X className="h-3 w-3" />
+                <X aria-hidden="true" className="h-4 w-4" />
               </button>
             ))}
           </div>
@@ -802,6 +821,10 @@ export default function ShipmentManagementPage() {
   const { data: session, status } = useSession()
   const searchParams = useSearchParams()
   const { notify } = useNotifications()
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null)
+  useEffect(() => {
+    setPortalContainer(document.getElementById('warm-ledger-portal-root'))
+  }, [])
   const isAdmin = Boolean(session?.user?.isAdmin)
   // BEL-423 页内懒加载：cost / sku-summary 两个 tab 的数据仅在首次激活后取数，
   // 避免 mount 即并发拉全部汇总；激活过的 tab 仍随筛选条件变化重载。
@@ -823,6 +846,7 @@ export default function ShipmentManagementPage() {
   const shipmentNoOptionsRequestedRef = useRef(false)
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
+  const [projectsError, setProjectsError] = useState<string | null>(null)
 
   const [items, setItems] = useState<ShipmentScheduleListItem[]>([])
   const [skuSummaryItems, setSkuSummaryItems] = useState<ShipmentSkuSummaryItem[]>([])
@@ -834,9 +858,13 @@ export default function ShipmentManagementPage() {
     total_logistics_cost: 0,
   })
   const [loading, setLoading] = useState(false)
+  const [listError, setListError] = useState<string | null>(null)
   const [skuSummaryLoading, setSkuSummaryLoading] = useState(false)
+  const [skuSummaryError, setSkuSummaryError] = useState<string | null>(null)
   const [costSummaryLoading, setCostSummaryLoading] = useState(false)
+  const [costSummaryError, setCostSummaryError] = useState<string | null>(null)
   const [fbaBoxLoading, setFbaBoxLoading] = useState(false)
+  const [fbaBoxError, setFbaBoxError] = useState<string | null>(null)
 
   const [page, setPage] = useState(1)
   const [pageSize] = useState(20)
@@ -849,6 +877,7 @@ export default function ShipmentManagementPage() {
   const [shipmentNoFilter, setShipmentNoFilter] = useState<string[]>([])
   const [shipmentNoOptions, setShipmentNoOptions] = useState<string[]>([])
   const [shipmentNoOptionsLoading, setShipmentNoOptionsLoading] = useState(false)
+  const [shipmentNoOptionsError, setShipmentNoOptionsError] = useState<string | null>(null)
   const [shipmentDateFrom, setShipmentDateFrom] = useState('')
   const [shipmentDateTo, setShipmentDateTo] = useState('')
 
@@ -863,14 +892,19 @@ export default function ShipmentManagementPage() {
   const [editableItems, setEditableItems] = useState<EditableShipmentItem[]>([])
   const [projectSkuOptions, setProjectSkuOptions] = useState<ProjectSkuOption[]>([])
   const [projectSkuLoading, setProjectSkuLoading] = useState(false)
+  const [projectSkuError, setProjectSkuError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const dialogOpenerRef = useRef<HTMLElement | null>(null)
+  const deleteDialogOpenerRef = useRef<HTMLElement | null>(null)
 
   const [skuDialogOpen, setSkuDialogOpen] = useState(false)
+  const skuDialogOpenerRef = useRef<HTMLElement | null>(null)
   const [skuDialogScheduleId, setSkuDialogScheduleId] = useState<number | null>(null)
   const [skuDialogDetail, setSkuDialogDetail] = useState<ShipmentScheduleDetail | null>(null)
   const [skuDialogLoading, setSkuDialogLoading] = useState(false)
+  const [skuDialogError, setSkuDialogError] = useState<string | null>(null)
   const [logisticsUnitPrice, setLogisticsUnitPrice] = useState('')
   const [costPreviewRows, setCostPreviewRows] = useState<ShipmentCostPreviewRow[]>([])
   const [costPreviewLoading, setCostPreviewLoading] = useState(false)
@@ -878,6 +912,10 @@ export default function ShipmentManagementPage() {
 
   const [importing, setImporting] = useState(false)
   const [batchImporting, setBatchImporting] = useState(false)
+  const skuImportFileInputRef = useRef<HTMLInputElement>(null)
+  const skuImportInFlightRef = useRef(false)
+  const batchImportFileInputRef = useRef<HTMLInputElement>(null)
+  const batchImportInFlightRef = useRef(false)
   const [exporting, setExporting] = useState(false)
   const [costExporting, setCostExporting] = useState(false)
   const [skuSummaryExporting, setSkuSummaryExporting] = useState(false)
@@ -889,6 +927,7 @@ export default function ShipmentManagementPage() {
   } | null>(null)
   const [fbaBoxItems, setFbaBoxItems] = useState<ShipmentFbaBoxDetailItem[]>([])
   const [fbaLightboxItem, setFbaLightboxItem] = useState<ShipmentFbaBoxDetailItem | null>(null)
+  const fbaLightboxOpenerRef = useRef<HTMLElement | null>(null)
   const [labelDownloading, setLabelDownloading] = useState(false)
 
   const summary = useMemo(() => {
@@ -1081,9 +1120,13 @@ export default function ShipmentManagementPage() {
     return groups
   }, [fbaBoxItems])
 
-  const openFbaImageLightbox = useCallback((item: ShipmentFbaBoxDetailItem) => {
-    setFbaLightboxItem(item)
-  }, [])
+  const openFbaImageLightbox = useCallback(
+    (item: ShipmentFbaBoxDetailItem, opener: HTMLElement) => {
+      fbaLightboxOpenerRef.current = opener
+      setFbaLightboxItem(item)
+    },
+    []
+  )
 
   const closeFbaImageLightbox = useCallback(() => {
     setFbaLightboxItem(null)
@@ -1117,6 +1160,7 @@ export default function ShipmentManagementPage() {
     }
 
     setProjectsLoading(true)
+    setProjectsError(null)
     try {
       const payload = await fetchManagedProjectsCached<ProjectOption[]>(session)
       setProjects(payload)
@@ -1124,7 +1168,9 @@ export default function ShipmentManagementPage() {
         setProjectFilter(String(payload[0].id))
       }
     } catch (loadError) {
-      notify({ type: 'error', title: normalizeErrorMessage(loadError, '项目列表加载失败') })
+      const message = normalizeErrorMessage(loadError, '项目列表加载失败')
+      setProjectsError(message)
+      notify({ type: 'error', title: message })
     } finally {
       setProjectsLoading(false)
     }
@@ -1136,10 +1182,12 @@ export default function ShipmentManagementPage() {
       const projectName = projects.find((project) => project.id === projectId)?.name
       if (!projectName) {
         setProjectSkuOptions([])
+        setProjectSkuError(null)
         return
       }
 
       setProjectSkuLoading(true)
+      setProjectSkuError(null)
       try {
         const allItems: ProjectSkuOption[] = []
         let nextPage = 1
@@ -1192,7 +1240,9 @@ export default function ShipmentManagementPage() {
         setProjectSkuOptions(allItems)
       } catch (loadError) {
         setProjectSkuOptions([])
-        notify({ type: 'error', title: normalizeErrorMessage(loadError, '项目 SKU 列表加载失败') })
+        const message = normalizeErrorMessage(loadError, '项目 SKU 列表加载失败')
+        setProjectSkuError(message)
+        notify({ type: 'error', title: message })
       } finally {
         setProjectSkuLoading(false)
       }
@@ -1208,11 +1258,13 @@ export default function ShipmentManagementPage() {
         setTotal(0)
         setHasNext(false)
         setSelectedId(null)
+        setListError(null)
         setLoading(false)
         return
       }
 
       setLoading(true)
+      setListError(null)
       try {
         const params = new URLSearchParams({
           page: String(targetPage),
@@ -1249,7 +1301,9 @@ export default function ShipmentManagementPage() {
           return visibleItems[0].id
         })
       } catch (loadError) {
-        notify({ type: 'error', title: normalizeErrorMessage(loadError, '船期列表加载失败') })
+        const message = normalizeErrorMessage(loadError, '船期列表加载失败')
+        setListError(message)
+        notify({ type: 'error', title: message })
         setItems([])
       } finally {
         setLoading(false)
@@ -1269,7 +1323,9 @@ export default function ShipmentManagementPage() {
   )
 
   const loadShipmentNoOptions = useCallback(async () => {
+    shipmentNoOptionsRequestedRef.current = true
     setShipmentNoOptionsLoading(true)
+    setShipmentNoOptionsError(null)
     try {
       const shipmentNos: string[] = []
       let nextPage = 1
@@ -1305,8 +1361,12 @@ export default function ShipmentManagementPage() {
       }
 
       setShipmentNoOptions(Array.from(new Set(shipmentNos)))
-    } catch {
+    } catch (loadError) {
       setShipmentNoOptions([])
+      shipmentNoOptionsRequestedRef.current = false
+      setShipmentNoOptionsError(
+        normalizeErrorMessage(loadError, '货件编号筛选选项加载失败')
+      )
     } finally {
       setShipmentNoOptionsLoading(false)
     }
@@ -1347,11 +1407,13 @@ export default function ShipmentManagementPage() {
   const loadSkuSummary = useCallback(async () => {
     if (statusFilter === 'cancelled') {
       setSkuSummaryItems([])
+      setSkuSummaryError(null)
       setSkuSummaryLoading(false)
       return
     }
 
     setSkuSummaryLoading(true)
+    setSkuSummaryError(null)
     try {
       const params = new URLSearchParams()
       if (projectFilter !== 'all') params.set('project_id', projectFilter)
@@ -1376,7 +1438,9 @@ export default function ShipmentManagementPage() {
       setSkuSummaryItems(payload.items)
     } catch (loadError) {
       setSkuSummaryItems([])
-      notify({ type: 'error', title: normalizeErrorMessage(loadError, 'SKU 汇总加载失败') })
+      const message = normalizeErrorMessage(loadError, 'SKU 汇总加载失败')
+      setSkuSummaryError(message)
+      notify({ type: 'error', title: message })
     } finally {
       setSkuSummaryLoading(false)
     }
@@ -1392,6 +1456,7 @@ export default function ShipmentManagementPage() {
 
   const loadCostSummary = useCallback(async () => {
     if (statusFilter === 'cancelled') {
+      setCostSummaryError(null)
       setCostSummary({
         shipment_count: 0,
         total_sku: 0,
@@ -1404,6 +1469,7 @@ export default function ShipmentManagementPage() {
     }
 
     setCostSummaryLoading(true)
+    setCostSummaryError(null)
     try {
       const params = new URLSearchParams()
       if (projectFilter !== 'all') params.set('project_id', projectFilter)
@@ -1426,6 +1492,8 @@ export default function ShipmentManagementPage() {
       const payload = (await response.json()) as ShipmentScheduleCostSummary
       setCostSummary(payload)
     } catch (loadError) {
+      const message = normalizeErrorMessage(loadError, '发货费用汇总加载失败')
+      setCostSummaryError(message)
       setCostSummary({
         shipment_count: 0,
         total_sku: 0,
@@ -1433,7 +1501,7 @@ export default function ShipmentManagementPage() {
         total_chargeable_weight_kg: 0,
         total_logistics_cost: 0,
       })
-      notify({ type: 'error', title: normalizeErrorMessage(loadError, '发货费用汇总加载失败') })
+      notify({ type: 'error', title: message })
     } finally {
       setCostSummaryLoading(false)
     }
@@ -1452,11 +1520,13 @@ export default function ShipmentManagementPage() {
       if (statusFilter === 'cancelled') {
         setFbaBoxMeta(null)
         setFbaBoxItems([])
+        setFbaBoxError(null)
         setFbaBoxLoading(false)
         return
       }
 
       setFbaBoxLoading(true)
+      setFbaBoxError(null)
       try {
         const params = new URLSearchParams()
         shipmentNos.forEach((shipmentNo) => params.append('shipment_no', shipmentNo))
@@ -1478,7 +1548,9 @@ export default function ShipmentManagementPage() {
       } catch (loadError) {
         setFbaBoxMeta(null)
         setFbaBoxItems([])
-        notify({ type: 'error', title: normalizeErrorMessage(loadError, 'FBA 箱单明细加载失败') })
+        const message = normalizeErrorMessage(loadError, 'FBA 箱单明细加载失败')
+        setFbaBoxError(message)
+        notify({ type: 'error', title: message })
       } finally {
         setFbaBoxLoading(false)
       }
@@ -1542,6 +1614,7 @@ export default function ShipmentManagementPage() {
     if (selectedShipmentNoFilter.length === 0) {
       setFbaBoxMeta(null)
       setFbaBoxItems([])
+      setFbaBoxError(null)
       return
     }
     void loadFbaBoxDetails(selectedShipmentNoFilter)
@@ -1552,11 +1625,13 @@ export default function ShipmentManagementPage() {
     void loadProjectSkus(form.project_id, form.country)
   }, [dialogMode, dialogOpen, form.country, form.project_id, loadProjectSkus])
 
-  const openCreateDialog = () => {
+  const openCreateDialog = (opener: HTMLElement) => {
+    dialogOpenerRef.current = opener
     setDialogMode('create')
     setForm(createEmptyForm())
     setEditableItems([])
     setProjectSkuOptions([])
+    setProjectSkuError(null)
     setLogisticsUnitPrice('')
     setCostPreviewRows([])
     setCostPreviewError(null)
@@ -1570,7 +1645,8 @@ export default function ShipmentManagementPage() {
     setDialogOpen(true)
   }
 
-  const handleEditSchedule = async (scheduleId: number) => {
+  const handleEditSchedule = async (scheduleId: number, opener: HTMLElement) => {
+    dialogOpenerRef.current = opener
     setSelectedId(scheduleId)
     if (detail?.id === scheduleId) {
       openEditDialog()
@@ -1597,10 +1673,16 @@ export default function ShipmentManagementPage() {
     }
   }
 
-  const openSkuDialog = async (scheduleId: number) => {
+  const openSkuDialog = async (scheduleId: number, opener?: HTMLElement) => {
+    if (opener) {
+      skuDialogOpenerRef.current = opener
+    } else if (!skuDialogOpen && document.activeElement instanceof HTMLElement) {
+      skuDialogOpenerRef.current = document.activeElement
+    }
     setSkuDialogScheduleId(scheduleId)
     setSkuDialogOpen(true)
     setSkuDialogLoading(true)
+    setSkuDialogError(null)
     try {
       const response = await fetch(`${API_BASE}/api/v1/shipment-schedules/${scheduleId}`, {
         headers: authHeaders(),
@@ -1611,6 +1693,7 @@ export default function ShipmentManagementPage() {
       setSkuDialogDetail(payload)
     } catch (loadError) {
       setSkuDialogDetail(null)
+      setSkuDialogError(normalizeErrorMessage(loadError, 'SKU 明细加载失败'))
     } finally {
       setSkuDialogLoading(false)
     }
@@ -1905,8 +1988,9 @@ export default function ShipmentManagementPage() {
   const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     event.target.value = ''
-    if (!file || !selectedId) return
+    if (!file || !selectedId || skuImportInFlightRef.current) return
 
+    skuImportInFlightRef.current = true
     setImporting(true)
     try {
       const formData = new FormData()
@@ -1939,6 +2023,7 @@ export default function ShipmentManagementPage() {
     } catch (importError) {
       notify({ type: 'error', title: normalizeErrorMessage(importError, 'CSV 导入失败') })
     } finally {
+      skuImportInFlightRef.current = false
       setImporting(false)
     }
   }
@@ -1946,8 +2031,9 @@ export default function ShipmentManagementPage() {
   const handleBatchImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     event.target.value = ''
-    if (!file) return
+    if (!file || batchImportInFlightRef.current) return
 
+    batchImportInFlightRef.current = true
     setBatchImporting(true)
     try {
       const formData = new FormData()
@@ -1972,6 +2058,7 @@ export default function ShipmentManagementPage() {
     } catch (importError) {
       notify({ type: 'error', title: normalizeErrorMessage(importError, '批量导入失败') })
     } finally {
+      batchImportInFlightRef.current = false
       setBatchImporting(false)
     }
   }
@@ -2915,13 +3002,7 @@ export default function ShipmentManagementPage() {
     }
   }
 
-  // —— Header 化：head 插槽 + 全局刷新（BLF-826 范式，蓝本 return-analysis / weekly-product-analysis）——
-  // 刷新语义（计划 §1.4「页面多 tab」）：重拉「当前激活 tab」的数据集——
-  //   overview → loadList(1)（保持当前筛选，回到第 1 页）
-  //   cost → loadCostSummary() + loadList(1)（该 tab 同时展示成本汇总统计条与批次表格，两者都属当前 tab 数据集）
-  //   sku-summary → loadSkuSummary()
-  //   fba-box-detail → loadFbaBoxDetails(已选货件编号)（未选货件编号时 no-op，与原 tab 内刷新按钮禁用态一致）
-  // 本页无缓存可跳，直接重拉；handler 用 ref 桥接防过期闭包，触发时永远读到当前 tab 与最新筛选。
+  // Refresh the active tab using the current local filter state.
   const refreshActiveTabRef = useRef<() => void>(() => {})
   refreshActiveTabRef.current = () => {
     if (activeTab === 'cost') {
@@ -2948,55 +3029,102 @@ export default function ShipmentManagementPage() {
             : loading,
   })
 
-  // 筛选控件 portal 进 Top Header 中段插槽（项目 / 状态 / 国家 / 货件编号，term 规格）
-  const filterControls = (
-    <>
-      <HeaderSlotSelect
-        value={projectFilter}
-        onChange={setProjectFilter}
-        options={[
-          { value: 'all', label: '全部项目' },
-          ...projects.map((project) => ({ value: String(project.id), label: project.name })),
-        ]}
-        placeholder={projectsLoading ? '项目加载中…' : '全部项目'}
-        disabled={projectsLoading}
-        widthClass={TERM_HEADER_W_MD}
-        title="项目筛选"
-      />
-      <HeaderSlotSelect
-        value={statusFilter}
-        onChange={setStatusFilter}
-        options={[
-          { value: 'all', label: '全部状态' },
-          ...STATUS_OPTIONS.map((option) => ({ value: option.value, label: option.label })),
-        ]}
-        widthClass={TERM_HEADER_W_SM}
-        title="状态筛选"
-      />
-      <HeaderSlotSelect
-        value={countryFilter}
-        onChange={setCountryFilter}
-        options={[
-          { value: 'all', label: '全部国家' },
-          ...COUNTRY_OPTIONS.map((option) => ({ value: option.value, label: option.label })),
-        ]}
-        widthClass={TERM_HEADER_W_SM}
-        title="国家筛选"
-      />
-      <SearchableShipmentNoFilter
-        value={shipmentNoFilter}
-        options={shipmentNoOptions}
-        loading={shipmentNoOptionsLoading}
-        onChange={setShipmentNoFilter}
-        onOpen={handleShipmentNoFilterOpen}
-      />
-    </>
+  const projectFilterOptions = useMemo<ReadonlyArray<WarmSelectOption>>(
+    () => [
+      { value: 'all', label: '全部项目' },
+      ...projects.map((project) => ({ value: String(project.id), label: project.name })),
+    ],
+    [projects]
   )
-  const headerSlotPortal = useHeaderSlot(
-    <HeaderFilterControls isMobileView={false} controls={filterControls} />
+  const statusFilterOptions = useMemo<ReadonlyArray<WarmSelectOption>>(
+    () => [
+      { value: 'all', label: '全部状态' },
+      ...STATUS_OPTIONS.map((option) => ({ value: option.value, label: option.label })),
+    ],
+    []
+  )
+  const countryFilterOptions = useMemo<ReadonlyArray<WarmSelectOption>>(
+    () => [
+      { value: 'all', label: '全部国家' },
+      ...COUNTRY_OPTIONS.map((option) => ({ value: option.value, label: option.label })),
+    ],
+    []
+  )
+  const shipmentNoFilterControl = () => (
+    <SearchableShipmentNoFilter
+      value={shipmentNoFilter}
+      options={shipmentNoOptions}
+      loading={shipmentNoOptionsLoading}
+      error={shipmentNoOptionsError}
+      portalContainer={portalContainer}
+      onChange={setShipmentNoFilter}
+      onOpen={handleShipmentNoFilterOpen}
+      onRetry={() => void loadShipmentNoOptions()}
+    />
+  )
+  const dateFilterControl = activeTab === 'cost' ? (
+    <div className={styles.dateRangeField}>
+      <span className={styles.filterLabel}>发货日期</span>
+      <DateRangePicker
+        value={parseDateRangeInputValue(shipmentDateFrom, shipmentDateTo)}
+        onChange={(range) => {
+          setShipmentDateFrom(formatPickerDateInputValue(range?.from))
+          setShipmentDateTo(formatPickerDateInputValue(range?.to))
+        }}
+        className={styles.dateRangeButton}
+        portalContainer={portalContainer}
+        popoverClassName={cn(styles.dateRangePopover, 'warm-ledger__date-picker-content')}
+      />
+    </div>
+  ) : null
+
+  const primaryFilterPortal = usePrimaryFilterSlot(
+    <div className={styles.primaryFilters}>
+      <WarmSelect
+        id="shipment-project-filter-desktop"
+        label="项目"
+        value={projectFilter}
+        options={projectFilterOptions}
+        onChange={setProjectFilter}
+        placeholder={projectsLoading ? '项目加载中' : '全部项目'}
+        disabled={projectsLoading}
+        error={projectsError}
+        className={`${styles.filterSelect} ${styles.projectSelect}`}
+      />
+      {projectsError ? (
+        <WarmButton
+          className={styles.filterRetryButton}
+          onClick={() => void loadProjects()}
+          loading={projectsLoading}
+        >
+          重试项目
+        </WarmButton>
+      ) : null}
+      {shipmentNoFilterControl()}
+    </div>
+  )
+  const secondaryFilterPortal = useSecondaryHeaderSlot(
+    <div className={styles.secondaryFilters}>
+      <WarmSelect
+        id="shipment-status-filter-desktop"
+        label="状态"
+        value={statusFilter}
+        options={statusFilterOptions}
+        onChange={setStatusFilter}
+        className={`${styles.filterSelect} ${styles.statusSelect}`}
+      />
+      <WarmSelect
+        id="shipment-country-filter-desktop"
+        label="国家"
+        value={countryFilter}
+        options={countryFilterOptions}
+        onChange={setCountryFilter}
+        className={`${styles.filterSelect} ${styles.countrySelect}`}
+      />
+      {dateFilterControl}
+    </div>
   )
 
-  // BLF-931 · 移动端：筛选控件下迁为正文顶部可折叠筛选条
   const mobileProjectLabel =
     projectFilter === 'all'
       ? '全部项目'
@@ -3011,53 +3139,67 @@ export default function ShipmentManagementPage() {
       : shipmentNoFilter.length === 1
         ? shipmentNoFilter[0]
         : `${shipmentNoFilter.length} 个货件`
-  const mobileFilterSummary = `${mobileProjectLabel} · ${mobileStatusLabel} · ${mobileCountryLabel} · ${mobileShipmentLabel}`
+  const mobileDateLabel =
+    activeTab === 'cost' && (shipmentDateFrom || shipmentDateTo)
+      ? `${shipmentDateFrom || '—'} 至 ${shipmentDateTo || '—'}`
+      : null
+  const mobileFilterSummary = [
+    mobileProjectLabel,
+    mobileStatusLabel,
+    mobileCountryLabel,
+    mobileShipmentLabel,
+    mobileDateLabel,
+  ]
+    .filter(Boolean)
+    .join(' · ')
   const mobileFilterStrip = useMobileFilterStrip(
     <MobileFilterStrip
+      className={styles.mobileFilterStrip}
       summary={mobileFilterSummary}
       controls={
         <>
-          <HeaderSlotSelect
-            value={projectFilter}
-            onChange={setProjectFilter}
-            options={[
-              { value: 'all', label: '全部项目' },
-              ...projects.map((project) => ({ value: String(project.id), label: project.name })),
-            ]}
-            placeholder={projectsLoading ? '项目加载中…' : '全部项目'}
-            disabled={projectsLoading}
-            widthClass={TERM_HEADER_W_MD}
-            title="项目筛选"
-          />
-          <HeaderSlotSelect
+          <MobileFilterWide className={styles.mobileProjectGroup}>
+            <WarmSelect
+              id="shipment-project-filter-mobile"
+              label="项目"
+              value={projectFilter}
+              options={projectFilterOptions}
+              onChange={setProjectFilter}
+              placeholder={projectsLoading ? '项目加载中' : '全部项目'}
+              disabled={projectsLoading}
+              error={projectsError}
+              className={`${styles.filterSelect} ${styles.mobileProjectSelect}`}
+            />
+            {projectsError ? (
+              <WarmButton
+                className={styles.filterRetryButton}
+                onClick={() => void loadProjects()}
+                loading={projectsLoading}
+              >
+                重试项目
+              </WarmButton>
+            ) : null}
+          </MobileFilterWide>
+          <WarmSelect
+            id="shipment-status-filter-mobile"
+            label="状态"
             value={statusFilter}
+            options={statusFilterOptions}
             onChange={setStatusFilter}
-            options={[
-              { value: 'all', label: '全部状态' },
-              ...STATUS_OPTIONS.map((option) => ({ value: option.value, label: option.label })),
-            ]}
-            widthClass={TERM_HEADER_W_SM}
-            title="状态筛选"
+            className={`${styles.filterSelect} ${styles.mobileOtherSelect}`}
           />
-          <HeaderSlotSelect
+          <WarmSelect
+            id="shipment-country-filter-mobile"
+            label="国家"
             value={countryFilter}
+            options={countryFilterOptions}
             onChange={setCountryFilter}
-            options={[
-              { value: 'all', label: '全部国家' },
-              ...COUNTRY_OPTIONS.map((option) => ({ value: option.value, label: option.label })),
-            ]}
-            widthClass={TERM_HEADER_W_SM}
-            title="国家筛选"
+            className={`${styles.filterSelect} ${styles.mobileOtherSelect}`}
           />
           <MobileFilterWide>
-            <SearchableShipmentNoFilter
-              value={shipmentNoFilter}
-              options={shipmentNoOptions}
-              loading={shipmentNoOptionsLoading}
-              onChange={setShipmentNoFilter}
-              onOpen={handleShipmentNoFilterOpen}
-            />
+            {shipmentNoFilterControl()}
           </MobileFilterWide>
+          {dateFilterControl ? <MobileFilterWide>{dateFilterControl}</MobileFilterWide> : null}
         </>
       }
     />
@@ -3066,30 +3208,42 @@ export default function ShipmentManagementPage() {
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
 
   return (
-    <div className="min-w-0 space-y-6 text-term-text">
-      {/* Header 化：筛选控件已上移 Top Header 中段插槽，页面仅渲染 portal 宿主 */}
-      {headerSlotPortal}
-      {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
+    <div className={styles.page}>
+      {primaryFilterPortal}
+      {secondaryFilterPortal}
       {mobileFilterStrip}
 
-      <div className="grid min-w-0 gap-6">
+      <div className={styles.content}>
+        {detailError ? (
+          <RequestStateNotice
+            title="货件详情加载失败"
+            message={detailError}
+            onRetry={selectedId ? () => void loadDetail(selectedId) : undefined}
+          />
+        ) : null}
+        {detailLoading ? (
+          <span className={styles.inlineStatus} role="status">
+            货件详情读取中
+          </span>
+        ) : null}
         <Tabs
           value={activeTab}
           onValueChange={(value) => activateTab(value as ShipmentPageTab)}
-          className="min-w-0 w-full"
+          className={styles.tabs}
         >
           <div
             data-testid="shipment-management-toolbar"
-            className="mb-4 flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
+            className={styles.toolbar}
           >
-            <div className="min-w-0 flex-1 overflow-hidden">
+            <div className={styles.tabViewport}>
               <TabsMotionGroup id="shipment-management-tabs">
-                <TabsList variant="term" className="w-fit max-w-full justify-start">
+                <TabsList variant="term" className={styles.tabList}>
                   <SlidingTabsTrigger
                     value="overview"
                     activeValue={activeTab}
                     layoutId="shipment-management-tab-indicator"
                     variant="term"
+                    className={styles.tabTrigger}
                   >
                     <LayoutDashboard aria-hidden />
                     总览
@@ -3099,6 +3253,7 @@ export default function ShipmentManagementPage() {
                     activeValue={activeTab}
                     layoutId="shipment-management-tab-indicator"
                     variant="term"
+                    className={styles.tabTrigger}
                   >
                     <Coins aria-hidden />
                     发货费用
@@ -3108,15 +3263,17 @@ export default function ShipmentManagementPage() {
                     activeValue={activeTab}
                     layoutId="shipment-management-tab-indicator"
                     variant="term"
+                    className={styles.tabTrigger}
                   >
                     <Package aria-hidden />
-                    SKU汇总
+                    SKU 汇总
                   </SlidingTabsTrigger>
                   <SlidingTabsTrigger
                     value="fba-box-detail"
                     activeValue={activeTab}
                     layoutId="shipment-management-tab-indicator"
                     variant="term"
+                    className={styles.tabTrigger}
                   >
                     <Boxes aria-hidden />
                     FBA 箱单明细
@@ -3125,104 +3282,109 @@ export default function ShipmentManagementPage() {
               </TabsMotionGroup>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 lg:shrink-0 lg:justify-end">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={openCreateDialog}
-                className="h-10 gap-1.5 px-3 text-xs"
+            <div className={styles.toolbarActions}>
+              <WarmButton
+                variant="primary"
+                className={styles.primaryAction}
+                onClick={(event) => openCreateDialog(event.currentTarget)}
               >
                 <Plus className="h-4 w-4" />
                 新建批次
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
+              </WarmButton>
+              <WarmButton
+                className={styles.actionButton}
                 onClick={downloadBatchTemplate}
-                className="h-10 gap-1.5 px-3 text-xs"
               >
                 <FileDown className="h-4 w-4" />
                 下载模板
-              </Button>
-              <Button
-                asChild
-                size="sm"
-                variant="outline"
-                disabled={batchImporting}
-                className="h-10 gap-1.5 px-3 text-xs"
+              </WarmButton>
+              <WarmButton
+                id="shipment-batch-import-button"
+                type="button"
+                aria-controls="shipment-batch-import-input"
+                loading={batchImporting}
+                loadingLabel="正在导入批次 CSV"
+                className={styles.actionButton}
+                onClick={() => batchImportFileInputRef.current?.click()}
               >
-                <label>
-                  <Upload className="h-4 w-4" />
-                  {batchImporting ? '导入中...' : '批量导入'}
-                  <input
-                    type="file"
-                    accept=".csv"
-                    className="hidden"
-                    onChange={handleBatchImportFile}
-                  />
-                </label>
-              </Button>
+                <Upload className="h-4 w-4" />
+                {batchImporting ? '导入中...' : '批量导入'}
+              </WarmButton>
+              <input
+                ref={batchImportFileInputRef}
+                id="shipment-batch-import-input"
+                type="file"
+                accept=".csv"
+                aria-labelledby="shipment-batch-import-button"
+                tabIndex={-1}
+                disabled={batchImporting}
+                className={styles.batchImportFileInput}
+                onChange={handleBatchImportFile}
+              />
             </div>
           </div>
 
           <DirectionalTabTransition value={activeTab} order={SHIPMENT_TAB_ORDER}>
             <TabsContent forceMount value={activeTab} className="mt-0 min-w-0">
               {activeTab === 'overview' ? (
-                <DataTableCard className="min-w-0">
-                  {/* 上半部分：标题 + 按钮 */}
-                  <DataTableCardHeader className="flex min-w-0 flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+                <DataTableCard className={cn(styles.panel, 'min-w-0')} aria-busy={loading}>
+                  <DataTableCardHeader className={styles.panelHeader}>
                     <div>
-                      <CardTitle className="text-base">船期批次总览</CardTitle>
-                      <p className="text-sm text-term-muted">
+                      <CardTitle className={styles.sectionTitle}>船期批次总览</CardTitle>
+                      <p className={styles.secondaryMeta}>
                         共 {total} 条记录，当前第 {page} / {pageCount} 页
                       </p>
+                      {loading && items.length > 0 ? (
+                        <span className={styles.inlineStatus} role="status">
+                          列表更新中
+                        </span>
+                      ) : loading ? (
+                        <span className={styles.inlineStatus} role="status">
+                          正在加载货件列表
+                        </span>
+                      ) : null}
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant="outline"
+                    <div className={styles.panelActions}>
+                      <WarmButton
                         disabled={loading || exporting || items.length === 0}
                         onClick={() => void exportOverviewToExcel()}
                       >
                         <FileDown className="h-4 w-4" />
                         {exporting ? '导出中...' : '导出 Excel'}
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="max-md:min-h-[44px]"
+                      </WarmButton>
+                      <WarmButton
+                        className={styles.secondaryAction}
                         disabled={page <= 1 || loading}
                         onClick={() => void loadList(page - 1)}
                       >
                         上一页
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="max-md:min-h-[44px]"
+                      </WarmButton>
+                      <WarmButton
+                        className={styles.secondaryAction}
                         disabled={!hasNext || loading}
                         onClick={() => void loadList(page + 1)}
                       >
                         下一页
-                      </Button>
+                      </WarmButton>
                     </div>
                   </DataTableCardHeader>
-                  {/* 下半部分：表格 */}
                   <DataTableCardBody>
-                    {items.length === 0 && !loading ? (
-                      <div className="m-4 rounded-none border border-dashed border-term-border bg-term-panel py-14 text-center text-sm text-term-muted">
-                        当前没有符合筛选条件的船期记录。
-                      </div>
+                    {listError ? (
+                      <RequestStateNotice
+                        title="货件列表加载失败"
+                        message={listError}
+                        onRetry={() => loadList(page)}
+                      />
+                    ) : items.length === 0 && !loading ? (
+                      <div className={styles.emptyState}>当前没有符合筛选条件的船期记录</div>
                     ) : (
-                      <div className="relative">
-                        {loading && items.length > 0 ? (
-                          <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-term-border bg-term-panel px-3 py-1 text-xs text-term-muted shadow-none">
-                            列表更新中...
-                          </div>
-                        ) : null}
+                      <div className={styles.tableFrame}>
                         <Table
-                          containerClassName={TABLE_SCROLL_CONTAINER_CLASS}
-                          className="w-full min-w-[1080px]"
+                          containerClassName={cn(TABLE_SCROLL_CONTAINER_CLASS, styles.tableViewport)}
+                          className={cn('w-full min-w-[1080px]', styles.table)}
                         >
                           <TableHeader>
-                            <TableRow className="bg-term-panel">
+                            <TableRow>
                               <TableHead
                                 className={`w-[90px] whitespace-nowrap border-r border-term-border text-sm last:border-r-0 ${DENSE_HEAD}`}
                               >
@@ -3296,7 +3458,7 @@ export default function ShipmentManagementPage() {
                                 <TableRow
                                   key={item.id}
                                   className={
-                                    item.id === selectedId ? 'bg-primary/8 dark:bg-primary/10' : ''
+                                    item.id === selectedId ? styles.selectedRow : undefined
                                   }
                                 >
                                   <TableCell
@@ -3307,9 +3469,9 @@ export default function ShipmentManagementPage() {
                                   <TableCell
                                     className={`w-[72px] border-r border-term-border text-sm ${DENSE_CELL}`}
                                   >
-                                    <Badge className={`${country.className} h-5 px-2 text-[11px]`}>
+                                    <WarmBadge className={styles.stateBadge}>
                                       {country.label}
-                                    </Badge>
+                                    </WarmBadge>
                                   </TableCell>
                                   <TableCell
                                     className={`w-[90px] border-r border-term-border text-sm ${DENSE_CELL}`}
@@ -3317,16 +3479,16 @@ export default function ShipmentManagementPage() {
                                     {formatDate(item.created_date)}
                                   </TableCell>
                                   <TableCell
-                                    className={`w-[120px] border-r border-term-border text-sm font-medium ${DENSE_CELL}`}
+                                    className={`w-[120px] border-r border-term-border text-sm font-medium ${DENSE_CELL} ${styles.shipmentIdentity}`}
                                   >
                                     {item.shipment_no}
                                   </TableCell>
                                   <TableCell
                                     className={`w-[70px] border-r border-term-border ${DENSE_CELL}`}
                                   >
-                                    <Badge className={`${status.className} text-[11px] py-0 h-5`}>
+                                    <WarmBadge tone={status.tone} className={styles.stateBadge}>
                                       {status.label}
-                                    </Badge>
+                                    </WarmBadge>
                                   </TableCell>
                                   <TableCell
                                     className={`w-[80px] border-r border-term-border text-sm ${DENSE_CELL}`}
@@ -3351,7 +3513,17 @@ export default function ShipmentManagementPage() {
                                   <TableCell
                                     className={`w-[50px] border-r border-term-border text-right text-sm ${DENSE_CELL}`}
                                   >
-                                    {item.sku_count}
+                                    <button
+                                      type="button"
+                                      className={styles.skuCountButton}
+                                      aria-label={`查看 ${item.shipment_no} 的 SKU 明细`}
+                                      disabled={item.sku_count <= 0}
+                                      onClick={(event) =>
+                                        void openSkuDialog(item.id, event.currentTarget)
+                                      }
+                                    >
+                                      {item.sku_count}
+                                    </button>
                                   </TableCell>
                                   <TableCell
                                     className={`w-[60px] border-r border-term-border text-right text-sm ${DENSE_CELL}`}
@@ -3359,17 +3531,15 @@ export default function ShipmentManagementPage() {
                                     {item.total_quantity.toLocaleString()}
                                   </TableCell>
                                   <TableCell className={`w-[60px] ${DENSE_CELL}`}>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-7 text-xs px-2"
+                                    <WarmButton
+                                      className={styles.rowAction}
                                       onClick={(event) => {
                                         event.stopPropagation()
-                                        void handleEditSchedule(item.id)
+                                        void handleEditSchedule(item.id, event.currentTarget)
                                       }}
                                     >
                                       编辑
-                                    </Button>
+                                    </WarmButton>
                                   </TableCell>
                                 </TableRow>
                               )
@@ -3381,42 +3551,46 @@ export default function ShipmentManagementPage() {
                   </DataTableCardBody>
                 </DataTableCard>
               ) : activeTab === 'cost' ? (
-                <DataTableCard className="min-w-0">
-                  {/* Row1: 标题 + 筛选/按钮 */}
-                  <DataTableCardHeader className="flex min-w-0 flex-col gap-3 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
+                <DataTableCard
+                  className={cn(styles.panel, 'min-w-0')}
+                  aria-busy={costSummaryLoading || loading}
+                >
+                  <DataTableCardHeader className={styles.panelHeader}>
                     <div className="min-w-0">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-term-muted">
-                        Shipping Cost
-                      </div>
-                      <CardTitle>发货费用</CardTitle>
+                      <CardTitle className={styles.sectionTitle}>发货费用</CardTitle>
+                      {loading && costSummaryLoading ? (
+                        <span className={styles.inlineStatus} role="status">
+                          列表与费用汇总加载中
+                        </span>
+                      ) : loading ? (
+                        <span className={styles.inlineStatus} role="status">
+                          正在加载货件列表
+                        </span>
+                      ) : costSummaryLoading ? (
+                        <span className={styles.inlineStatus} role="status">
+                          费用汇总更新中
+                        </span>
+                      ) : null}
                     </div>
-                    <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end xl:flex-nowrap xl:gap-3">
-                      <div className="min-w-[220px] space-y-1">
-                        <div className="text-[11px] font-medium text-term-muted">
-                          日期范围
-                        </div>
-                        <DateRangePicker
-                          value={parseDateRangeInputValue(shipmentDateFrom, shipmentDateTo)}
-                          onChange={(range) => {
-                            setShipmentDateFrom(formatPickerDateInputValue(range?.from))
-                            setShipmentDateTo(formatPickerDateInputValue(range?.to))
-                          }}
-                          className="h-10 w-full"
-                        />
-                      </div>
-                      <Button
-                        variant="outline"
+                    <div className={styles.panelActions}>
+                      <WarmButton
                         disabled={loading || costExporting || items.length === 0}
                         onClick={() => void exportCostToExcel()}
                       >
                         <FileDown className="h-4 w-4" />
                         {costExporting ? '导出中...' : '导出 Excel'}
-                      </Button>
+                      </WarmButton>
                     </div>
                   </DataTableCardHeader>
-                  {/* Row2: 统计条 */}
-                  {costSummaryLoading ? (
+                  {costSummaryError ? (
+                    <RequestStateNotice
+                      title="费用汇总加载失败"
+                      message={costSummaryError}
+                      onRetry={loadCostSummary}
+                    />
+                  ) : costSummaryLoading ? (
                     <DataTableCardStatBar
+                      className={styles.statBar}
                       items={[
                         { label: '批次', value: <Skeleton className="h-6 w-12" /> },
                         { label: '数量', value: <Skeleton className="h-6 w-16" /> },
@@ -3426,6 +3600,7 @@ export default function ShipmentManagementPage() {
                     />
                   ) : (
                     <DataTableCardStatBar
+                      className={styles.statBar}
                       items={[
                         { label: '批次', value: costSummary.shipment_count },
                         { label: '数量', value: costSummary.total_quantity.toLocaleString() },
@@ -3441,25 +3616,23 @@ export default function ShipmentManagementPage() {
                       ]}
                     />
                   )}
-                  {/* 表格 */}
                   <DataTableCardBody>
-                    {items.length === 0 && !loading ? (
-                      <div className="py-14 text-center text-sm text-term-muted">
-                        当前没有符合筛选条件的发货批次。
-                      </div>
+                    {listError ? (
+                      <RequestStateNotice
+                        title="费用列表加载失败"
+                        message={listError}
+                        onRetry={() => loadList(page)}
+                      />
+                    ) : items.length === 0 && !loading ? (
+                      <div className={styles.emptyState}>当前没有符合筛选条件的发货批次</div>
                     ) : (
-                      <div className="relative">
-                        {loading && items.length > 0 ? (
-                          <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-term-border bg-term-panel px-3 py-1 text-xs text-term-muted shadow-none">
-                            发货费用计算中...
-                          </div>
-                        ) : null}
+                      <div className={styles.tableFrame}>
                         <Table
-                          containerClassName={TABLE_SCROLL_CONTAINER_CLASS}
-                          className="w-full min-w-[1320px]"
+                          containerClassName={cn(TABLE_SCROLL_CONTAINER_CLASS, styles.tableViewport)}
+                          className={cn('w-full min-w-[1320px]', styles.table)}
                         >
                           <TableHeader>
-                            <TableRow className="bg-term-panel">
+                            <TableRow>
                               <TableHead className={`w-[100px] whitespace-nowrap ${DENSE_HEAD}`}>
                                 项目
                               </TableHead>
@@ -3517,7 +3690,7 @@ export default function ShipmentManagementPage() {
                                 <TableRow
                                   key={`cost-${item.id}`}
                                   className={
-                                    item.id === selectedId ? 'bg-primary/8 dark:bg-primary/10' : ''
+                                    item.id === selectedId ? styles.selectedRow : undefined
                                   }
                                 >
                                   <TableCell className={`w-[100px] font-medium ${DENSE_CELL}`}>
@@ -3526,13 +3699,16 @@ export default function ShipmentManagementPage() {
                                   <TableCell className={`w-[90px] ${DENSE_CELL}`}>
                                     {formatDate(item.created_date || item.etd_date)}
                                   </TableCell>
-                                  <TableCell className={`w-[120px] font-medium ${DENSE_CELL}`}>
-                                    {item.shipment_no}
+                                  <TableCell className={`w-[120px] font-medium ${DENSE_CELL} ${styles.shipmentIdentity}`}>
+                                    <span>{item.shipment_no}</span>
+                                    <span className={styles.routeDates}>
+                                      ETD {formatDate(item.etd_date)} · ETA {formatDate(item.eta_date)}
+                                    </span>
                                   </TableCell>
                                   <TableCell className={`w-[70px] ${DENSE_CELL}`}>
-                                    <Badge className={`${status.className} text-[11px] py-0 h-5`}>
+                                    <WarmBadge tone={status.tone} className={styles.stateBadge}>
                                       {status.label}
-                                    </Badge>
+                                    </WarmBadge>
                                   </TableCell>
                                   <TableCell className={`w-[80px] ${DENSE_CELL}`}>
                                     {item.forwarder_name || '-'}
@@ -3574,18 +3750,18 @@ export default function ShipmentManagementPage() {
                   </DataTableCardBody>
                 </DataTableCard>
               ) : activeTab === 'sku-summary' ? (
-                <DataTableCard className="min-w-0">
-                  {/* Row1: 标题 + 按钮 */}
-                  <DataTableCardHeader className="flex min-w-0 flex-col gap-3 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
+                <DataTableCard className={cn(styles.panel, 'min-w-0')} aria-busy={skuSummaryLoading}>
+                  <DataTableCardHeader className={styles.panelHeader}>
                     <div className="min-w-0">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-term-muted">
-                        SKU Summary
-                      </div>
-                      <CardTitle>SKU 汇总</CardTitle>
+                      <CardTitle className={styles.sectionTitle}>SKU 汇总</CardTitle>
+                      {skuSummaryLoading ? (
+                        <span className={styles.inlineStatus} role="status">
+                          SKU 汇总更新中
+                        </span>
+                      ) : null}
                     </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
+                    <div className={styles.panelActions}>
+                      <WarmButton
                         disabled={
                           skuSummaryLoading || skuSummaryExporting || skuSummaryItems.length === 0
                         }
@@ -3593,12 +3769,18 @@ export default function ShipmentManagementPage() {
                       >
                         <FileDown className="h-4 w-4" />
                         {skuSummaryExporting ? '导出中...' : '导出 Excel'}
-                      </Button>
+                      </WarmButton>
                     </div>
                   </DataTableCardHeader>
-                  {/* Row2: 统计条 */}
-                  {skuSummaryLoading ? (
+                  {skuSummaryError ? (
+                    <RequestStateNotice
+                      title="SKU 汇总加载失败"
+                      message={skuSummaryError}
+                      onRetry={loadSkuSummary}
+                    />
+                  ) : skuSummaryLoading ? (
                     <DataTableCardStatBar
+                      className={styles.statBar}
                       items={[
                         { label: 'SKU 数', value: <Skeleton className="h-6 w-12" /> },
                         { label: '总数量', value: <Skeleton className="h-6 w-16" /> },
@@ -3608,6 +3790,7 @@ export default function ShipmentManagementPage() {
                     />
                   ) : (
                     <DataTableCardStatBar
+                      className={styles.statBar}
                       items={[
                         { label: 'SKU 数', value: skuSummaryItems.length },
                         {
@@ -3634,25 +3817,17 @@ export default function ShipmentManagementPage() {
                       ]}
                     />
                   )}
-                  {/* 表格 */}
                   <DataTableCardBody>
-                    {skuSummaryItems.length === 0 && !skuSummaryLoading ? (
-                      <div className="py-14 text-center text-sm text-term-muted">
-                        当前没有符合口径的 SKU 汇总数据。
-                      </div>
+                    {skuSummaryError ? null : skuSummaryItems.length === 0 && !skuSummaryLoading ? (
+                      <div className={styles.emptyState}>当前没有符合口径的 SKU 汇总数据</div>
                     ) : (
-                      <div className="relative">
-                        {skuSummaryLoading && skuSummaryItems.length > 0 ? (
-                          <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-term-border bg-term-panel px-3 py-1 text-xs text-term-muted shadow-none">
-                            SKU 汇总更新中...
-                          </div>
-                        ) : null}
+                      <div className={styles.tableFrame}>
                         <Table
-                          containerClassName={TABLE_SCROLL_CONTAINER_CLASS}
-                          className="w-full min-w-[1120px]"
+                          containerClassName={cn(TABLE_SCROLL_CONTAINER_CLASS, styles.tableViewport)}
+                          className={cn('w-full min-w-[1120px]', styles.table)}
                         >
                           <TableHeader>
-                            <TableRow className="bg-term-panel">
+                            <TableRow>
                               <TableHead className={`w-[100px] whitespace-nowrap ${DENSE_HEAD}`}>
                                 项目
                               </TableHead>
@@ -3701,9 +3876,9 @@ export default function ShipmentManagementPage() {
                                     {item.project_name}
                                   </TableCell>
                                   <TableCell className={`w-[70px] ${DENSE_CELL}`}>
-                                    <Badge className={`${country.className} h-5 px-2 text-[11px]`}>
+                                    <WarmBadge className={styles.stateBadge}>
                                       {country.label}
-                                    </Badge>
+                                    </WarmBadge>
                                   </TableCell>
                                   <TableCell className={`w-[120px] font-medium ${DENSE_CELL}`}>
                                     {item.sku}
@@ -3733,15 +3908,16 @@ export default function ShipmentManagementPage() {
                   </DataTableCardBody>
                 </DataTableCard>
               ) : (
-                <DataTableCard className="min-w-0">
-                  {/* Row1: 标题 + 按钮 */}
-                  <DataTableCardHeader className="flex min-w-0 flex-col gap-2 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
+                <DataTableCard className={cn(styles.panel, 'min-w-0')} aria-busy={fbaBoxLoading}>
+                  <DataTableCardHeader className={styles.panelHeader}>
                     <div className="flex min-w-0 flex-col gap-1 xl:flex-row xl:items-center xl:gap-6">
                       <div className="min-w-0">
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-term-muted">
-                          FBA Box List
-                        </div>
-                        <CardTitle>FBA 箱单明细</CardTitle>
+                        <CardTitle className={styles.sectionTitle}>FBA 箱单明细</CardTitle>
+                        {fbaBoxLoading ? (
+                          <span className={styles.inlineStatus} role="status">
+                            箱单明细更新中
+                          </span>
+                        ) : null}
                       </div>
                       {/* Row2: 项目/国家/货件数量 — 扁平无边框 */}
                       {fbaBoxMeta ? (
@@ -3762,15 +3938,13 @@ export default function ShipmentManagementPage() {
                                   ? countryMeta(fbaBoxMeta.countries[0])
                                   : null
                               return singleCountry ? (
-                                <Badge
-                                  className={`${singleCountry.className} h-5 px-2 text-[11px]`}
-                                >
+                                <WarmBadge className={styles.stateBadge}>
                                   {singleCountry.label}
-                                </Badge>
+                                </WarmBadge>
                               ) : (
-                                <Badge variant="secondary" className="h-5 px-2 text-[11px]">
+                                <WarmBadge className={styles.stateBadge}>
                                   {fbaBoxMeta.countries.length} 个
-                                </Badge>
+                                </WarmBadge>
                               )
                             })()}
                           </div>
@@ -3781,20 +3955,25 @@ export default function ShipmentManagementPage() {
                         </div>
                       ) : null}
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant="outline"
+                    <div className={styles.panelActions}>
+                      <WarmButton
                         disabled={fbaBoxItems.length === 0 || fbaBoxExporting}
                         onClick={() => void exportFbaBoxDetailsToExcel()}
                       >
                         <FileDown className="h-4 w-4" />
                         {fbaBoxExporting ? '导出中...' : '导出 Excel'}
-                      </Button>
+                      </WarmButton>
                     </div>
                   </DataTableCardHeader>
-                  {/* Row2: 统计条 */}
-                  {fbaBoxLoading ? (
+                  {fbaBoxError ? (
+                    <RequestStateNotice
+                      title="FBA 箱单明细加载失败"
+                      message={fbaBoxError}
+                      onRetry={() => loadFbaBoxDetails(selectedShipmentNoFilter)}
+                    />
+                  ) : fbaBoxLoading ? (
                     <DataTableCardStatBar
+                      className={styles.statBar}
                       items={[
                         { label: 'SKU', value: <Skeleton className="h-6 w-12" /> },
                         { label: '外箱数', value: <Skeleton className="h-6 w-12" /> },
@@ -3804,6 +3983,7 @@ export default function ShipmentManagementPage() {
                     />
                   ) : (
                     <DataTableCardStatBar
+                      className={styles.statBar}
                       items={[
                         { label: 'SKU', value: fbaBoxItems.length },
                         { label: '外箱数', value: fbaBoxSummary.totalCartons },
@@ -3819,208 +3999,186 @@ export default function ShipmentManagementPage() {
                       ]}
                     />
                   )}
-                  {/* 表格 */}
                   <DataTableCardBody>
                     {selectedShipmentNoFilter.length === 0 ? (
-                      <div className="py-14 text-center text-sm text-term-muted">
-                        请选择一个或多个 FBA 货件编号后再加载箱单明细。
-                      </div>
-                    ) : fbaBoxItems.length === 0 && !fbaBoxLoading ? (
-                      <div className="py-14 text-center text-sm text-term-muted">
-                        当前筛选货件暂无可展示的 FBA 箱单明细。
-                      </div>
-                    ) : (
-                      <div className="relative">
-                        {fbaBoxLoading && fbaBoxItems.length > 0 ? (
-                          <div className="pointer-events-none absolute right-3 top-3 z-20 rounded-full border border-term-border bg-term-panel px-3 py-1 text-xs text-term-muted shadow-none">
-                            箱单明细更新中...
-                          </div>
-                        ) : null}
-                        <Table
-                          containerClassName={TABLE_SCROLL_CONTAINER_CLASS}
-                          className="w-full min-w-[1300px]"
-                        >
-                          <TableHeader>
-                            <TableRow className="bg-term-panel">
-                              <TableHead className={`whitespace-nowrap w-[140px] ${DENSE_HEAD}`}>
-                                货件编号
-                              </TableHead>
-                              <TableHead className={`whitespace-nowrap w-[120px] ${DENSE_HEAD}`}>
-                                追踪 ID
-                              </TableHead>
-                              <TableHead className={`whitespace-nowrap w-[80px] ${DENSE_HEAD}`}>
-                                仓库 ID
-                              </TableHead>
-                              <TableHead className={`whitespace-nowrap w-[140px] ${DENSE_HEAD}`}>
-                                SKU
-                              </TableHead>
-                              <TableHead className={`whitespace-nowrap w-[80px] ${DENSE_HEAD}`}>
-                                产品图片
-                              </TableHead>
-                              <TableHead className={`whitespace-nowrap w-[180px] ${DENSE_HEAD}`}>
-                                外箱尺寸和重量
-                              </TableHead>
-                              <TableHead
-                                className={`whitespace-nowrap w-[80px] text-right ${DENSE_HEAD}`}
-                              >
-                                装箱率
-                              </TableHead>
-                              <TableHead
-                                className={`whitespace-nowrap w-[60px] text-right ${DENSE_HEAD}`}
-                              >
-                                总箱数
-                              </TableHead>
-                              <TableHead
-                                className={`whitespace-nowrap w-[100px] text-right ${DENSE_HEAD}`}
-                              >
-                                标签号段
-                              </TableHead>
-                              <TableHead
-                                className={`whitespace-nowrap w-[80px] text-right ${DENSE_HEAD}`}
-                              >
-                                总数量
-                              </TableHead>
-                              <TableHead
-                                className={`whitespace-nowrap w-[80px] text-right ${DENSE_HEAD}`}
-                              >
-                                总体积(m³)
-                              </TableHead>
-                              <TableHead
-                                className={`whitespace-nowrap w-[80px] text-right ${DENSE_HEAD}`}
-                              >
-                                总重量(kg)
-                              </TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {fbaBoxLoading && fbaBoxItems.length === 0 ? (
-                              <TableSkeletonRows columns={12} />
-                            ) : null}
-                            {fbaBoxItems.map((item, index) => {
-                              const warehouseGroup = fbaBoxWarehouseGroups.find(
-                                (g) =>
-                                  g.shipmentNo === item.shipment_no &&
-                                  index >= g.startIndex &&
-                                  index <= g.endIndex
-                              )
-                              const warehouseRowSpan = warehouseGroup
-                                ? warehouseGroup.endIndex - warehouseGroup.startIndex + 1
-                                : 1
-                              const showWarehouse =
-                                warehouseGroup && warehouseGroup.startIndex === index
+                      <div className={styles.emptyState}>请选择一个或多个 FBA 货件编号后再加载箱单明细</div>
+                    ) : fbaBoxError ? null : (
+                      fbaBoxItems.length === 0 && !fbaBoxLoading ? (
+                        <div className={styles.emptyState}>当前筛选货件暂无可展示的 FBA 箱单明细</div>
+                      ) : (
+                        <div className={styles.tableFrame}>
+                          <Table
+                            containerClassName={cn(TABLE_SCROLL_CONTAINER_CLASS, styles.tableViewport)}
+                            className={cn('w-full min-w-[1300px]', styles.table)}
+                          >
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className={`whitespace-nowrap w-[140px] ${DENSE_HEAD}`}>
+                                  货件编号
+                                </TableHead>
+                                <TableHead className={`whitespace-nowrap w-[120px] ${DENSE_HEAD}`}>
+                                  追踪 ID
+                                </TableHead>
+                                <TableHead className={`whitespace-nowrap w-[80px] ${DENSE_HEAD}`}>
+                                  仓库 ID
+                                </TableHead>
+                                <TableHead className={`whitespace-nowrap w-[140px] ${DENSE_HEAD}`}>
+                                  SKU
+                                </TableHead>
+                                <TableHead className={`whitespace-nowrap w-[80px] ${DENSE_HEAD}`}>
+                                  产品图片
+                                </TableHead>
+                                <TableHead className={`whitespace-nowrap w-[180px] ${DENSE_HEAD}`}>
+                                  外箱尺寸和重量
+                                </TableHead>
+                                <TableHead className={`whitespace-nowrap w-[80px] text-right ${DENSE_HEAD}`}>
+                                  装箱率
+                                </TableHead>
+                                <TableHead className={`whitespace-nowrap w-[60px] text-right ${DENSE_HEAD}`}>
+                                  总箱数
+                                </TableHead>
+                                <TableHead className={`whitespace-nowrap w-[100px] text-right ${DENSE_HEAD}`}>
+                                  标签号段
+                                </TableHead>
+                                <TableHead className={`whitespace-nowrap w-[80px] text-right ${DENSE_HEAD}`}>
+                                  总数量
+                                </TableHead>
+                                <TableHead className={`whitespace-nowrap w-[80px] text-right ${DENSE_HEAD}`}>
+                                  总体积(m³)
+                                </TableHead>
+                                <TableHead className={`whitespace-nowrap w-[80px] text-right ${DENSE_HEAD}`}>
+                                  总重量(kg)
+                                </TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {fbaBoxLoading && fbaBoxItems.length === 0 ? (
+                                <TableSkeletonRows columns={12} />
+                              ) : null}
+                              {fbaBoxItems.map((item, index) => {
+                                const warehouseGroup = fbaBoxWarehouseGroups.find(
+                                  (g) =>
+                                    g.shipmentNo === item.shipment_no &&
+                                    index >= g.startIndex &&
+                                    index <= g.endIndex
+                                )
+                                const warehouseRowSpan = warehouseGroup
+                                  ? warehouseGroup.endIndex - warehouseGroup.startIndex + 1
+                                  : 1
+                                const showWarehouse =
+                                  warehouseGroup && warehouseGroup.startIndex === index
 
-                              const shipmentGroup = fbaBoxShipmentGroups.find(
-                                (g) =>
-                                  g.shipmentNo === item.shipment_no &&
-                                  index >= g.startIndex &&
-                                  index <= g.endIndex
-                              )
-                              const shipmentRowSpan = shipmentGroup
-                                ? shipmentGroup.endIndex - shipmentGroup.startIndex + 1
-                                : 1
-                              const showShipment =
-                                shipmentGroup && shipmentGroup.startIndex === index
+                                const shipmentGroup = fbaBoxShipmentGroups.find(
+                                  (g) =>
+                                    g.shipmentNo === item.shipment_no &&
+                                    index >= g.startIndex &&
+                                    index <= g.endIndex
+                                )
+                                const shipmentRowSpan = shipmentGroup
+                                  ? shipmentGroup.endIndex - shipmentGroup.startIndex + 1
+                                  : 1
+                                const showShipment =
+                                  shipmentGroup && shipmentGroup.startIndex === index
 
-                              const trackingGroup = fbaBoxTrackingGroups.find(
-                                (g) =>
-                                  g.shipmentNo === item.shipment_no &&
-                                  index >= g.startIndex &&
-                                  index <= g.endIndex
-                              )
-                              const trackingRowSpan = trackingGroup
-                                ? trackingGroup.endIndex - trackingGroup.startIndex + 1
-                                : 1
-                              const showTracking =
-                                trackingGroup && trackingGroup.startIndex === index
+                                const trackingGroup = fbaBoxTrackingGroups.find(
+                                  (g) =>
+                                    g.shipmentNo === item.shipment_no &&
+                                    index >= g.startIndex &&
+                                    index <= g.endIndex
+                                )
+                                const trackingRowSpan = trackingGroup
+                                  ? trackingGroup.endIndex - trackingGroup.startIndex + 1
+                                  : 1
+                                const showTracking =
+                                  trackingGroup && trackingGroup.startIndex === index
 
-                              const cartonInfo =
-                                item.length_cm || item.width_cm || item.height_cm
-                                  ? `${formatDimensionText(item.length_cm, item.width_cm, item.height_cm)}${item.carton_weight_kg ? ` / ${formatDecimal(item.carton_weight_kg, 3)} kg` : ''}`
-                                  : '-'
+                                const cartonInfo =
+                                  item.length_cm || item.width_cm || item.height_cm
+                                    ? `${formatDimensionText(item.length_cm, item.width_cm, item.height_cm)}${item.carton_weight_kg ? ` / ${formatDecimal(item.carton_weight_kg, 3)} kg` : ''}`
+                                    : '-'
 
-                              return (
-                                <TableRow key={`fba-box-${item.shipment_no}-${item.sku}-${index}`}>
-                                  {showShipment ? (
-                                    <TableCell
-                                      className={`w-[140px] font-semibold text-primary bg-primary/5 ${DENSE_CELL}`}
-                                      rowSpan={shipmentRowSpan}
-                                    >
-                                      {item.shipment_no}
-                                    </TableCell>
-                                  ) : null}
-                                  {showTracking ? (
-                                    <TableCell
-                                      className={`w-[120px] font-mono text-xs ${DENSE_CELL}`}
-                                      rowSpan={trackingRowSpan}
-                                    >
-                                      {item.tracking_no || '-'}
-                                    </TableCell>
-                                  ) : null}
-                                  {showWarehouse ? (
-                                    <TableCell
-                                      className={`w-[80px] font-semibold text-primary bg-primary/5 ${DENSE_CELL}`}
-                                      rowSpan={warehouseRowSpan}
-                                    >
-                                      {item.warehouse_code || '-'}
-                                    </TableCell>
-                                  ) : null}
-                                  <TableCell className={`w-[140px] font-medium ${DENSE_CELL}`}>
-                                    {item.sku}
-                                  </TableCell>
-                                  <TableCell className={`w-[80px] ${DENSE_CELL}`}>
-                                    {item.product_image_thumbnail_r2_url ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => openFbaImageLightbox(item)}
-                                        className="block h-[60px] w-[60px] overflow-hidden rounded border border-term-border/50 transition-opacity hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-primary/50"
-                                        aria-label={`查看 ${item.sku} 产品大图`}
+                                return (
+                                  <TableRow key={`fba-box-${item.shipment_no}-${item.sku}-${index}`}>
+                                    {showShipment ? (
+                                      <TableCell
+                                        className={`w-[140px] font-semibold ${DENSE_CELL} ${styles.shipmentIdentity}`}
+                                        rowSpan={shipmentRowSpan}
                                       >
-                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                        <img
-                                          src={item.product_image_thumbnail_r2_url}
-                                          alt={item.sku}
-                                          className="h-full w-full object-cover"
-                                        />
-                                      </button>
-                                    ) : (
-                                      <div className="flex h-[60px] w-[60px] items-center justify-center rounded border border-dashed border-term-border/50 text-[10px] text-term-muted">
-                                        无图
-                                      </div>
-                                    )}
-                                  </TableCell>
-                                  <TableCell className={`w-[180px] ${DENSE_CELL}`}>
-                                    {cartonInfo}
-                                  </TableCell>
-                                  <TableCell className={`w-[80px] text-right ${DENSE_CELL}`}>
-                                    {item.units_per_carton > 0
-                                      ? `${item.units_per_carton} / 箱`
-                                      : '-'}
-                                  </TableCell>
-                                  <TableCell className={`w-[60px] text-right ${DENSE_CELL}`}>
-                                    {item.carton_count > 0 ? item.carton_count : '-'}
-                                  </TableCell>
-                                  <TableCell
-                                    className={`w-[100px] text-right font-mono text-xs ${DENSE_CELL}`}
-                                  >
-                                    {fbaBoxLabelRanges[index] ?? '-'}
-                                  </TableCell>
-                                  <TableCell className={`w-[80px] text-right ${DENSE_CELL}`}>
-                                    {item.quantity > 0 ? item.quantity : '-'}
-                                  </TableCell>
-                                  <TableCell className={`w-[80px] text-right ${DENSE_CELL}`}>
-                                    {formatDecimal(item.total_volume_m3, 4)}
-                                  </TableCell>
-                                  <TableCell className={`w-[80px] text-right ${DENSE_CELL}`}>
-                                    {item.total_weight_kg > 0
-                                      ? formatDecimal(item.total_weight_kg)
-                                      : '0'}
-                                  </TableCell>
-                                </TableRow>
-                              )
-                            })}
-                          </TableBody>
-                        </Table>
-                      </div>
+                                        {item.shipment_no}
+                                      </TableCell>
+                                    ) : null}
+                                    {showTracking ? (
+                                      <TableCell
+                                        className={`w-[120px] font-mono text-xs ${DENSE_CELL}`}
+                                        rowSpan={trackingRowSpan}
+                                      >
+                                        {item.tracking_no || '-'}
+                                      </TableCell>
+                                    ) : null}
+                                    {showWarehouse ? (
+                                      <TableCell
+                                        className={`w-[80px] font-semibold ${DENSE_CELL}`}
+                                        rowSpan={warehouseRowSpan}
+                                      >
+                                        {item.warehouse_code || '-'}
+                                      </TableCell>
+                                    ) : null}
+                                    <TableCell className={`w-[140px] font-medium ${DENSE_CELL}`}>
+                                      {item.sku}
+                                    </TableCell>
+                                    <TableCell className={`w-[80px] ${DENSE_CELL}`}>
+                                      {item.product_image_thumbnail_r2_url ? (
+                                        <button
+                                          type="button"
+                                          onClick={(event) =>
+                                            openFbaImageLightbox(item, event.currentTarget)
+                                          }
+                                          className={styles.productThumbnail}
+                                          aria-label={`查看 ${item.sku} 产品大图`}
+                                        >
+                                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                                          <img
+                                            src={item.product_image_thumbnail_r2_url}
+                                            alt={item.sku}
+                                            className="h-full w-full object-cover"
+                                          />
+                                        </button>
+                                      ) : (
+                                        <div className={styles.noProductImage}>无图</div>
+                                      )}
+                                    </TableCell>
+                                    <TableCell className={`w-[180px] ${DENSE_CELL}`}>
+                                      {cartonInfo}
+                                    </TableCell>
+                                    <TableCell className={`w-[80px] text-right ${DENSE_CELL}`}>
+                                      {item.units_per_carton > 0
+                                        ? `${item.units_per_carton} / 箱`
+                                        : '-'}
+                                    </TableCell>
+                                    <TableCell className={`w-[60px] text-right ${DENSE_CELL}`}>
+                                      {item.carton_count > 0 ? item.carton_count : '-'}
+                                    </TableCell>
+                                    <TableCell className={`w-[100px] text-right font-mono text-xs ${DENSE_CELL}`}>
+                                      {fbaBoxLabelRanges[index] ?? '-'}
+                                    </TableCell>
+                                    <TableCell className={`w-[80px] text-right ${DENSE_CELL}`}>
+                                      {item.quantity > 0 ? item.quantity : '-'}
+                                    </TableCell>
+                                    <TableCell className={`w-[80px] text-right ${DENSE_CELL}`}>
+                                      {formatDecimal(item.total_volume_m3, 4)}
+                                    </TableCell>
+                                    <TableCell className={`w-[80px] text-right ${DENSE_CELL}`}>
+                                      {item.total_weight_kg > 0
+                                        ? formatDecimal(item.total_weight_kg)
+                                        : '0'}
+                                    </TableCell>
+                                  </TableRow>
+                                )
+                              })}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      )
                     )}
                   </DataTableCardBody>
                 </DataTableCard>
@@ -4037,6 +4195,11 @@ export default function ShipmentManagementPage() {
         }}
         src={fbaLightboxItem?.product_image_r2_url || ''}
         alt={fbaLightboxItem?.sku || ''}
+        portalContainer={portalContainer}
+        contentClassName={styles.fbaImageLightbox}
+        onCloseAutoFocus={(event) =>
+          restoreDialogOpenerFocus(event, fbaLightboxOpenerRef.current)
+        }
         meta={{
           sku: fbaLightboxItem?.sku,
           productName: null,
@@ -4046,40 +4209,39 @@ export default function ShipmentManagementPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent
           aria-describedby="shipment-dialog-description"
-          className="max-w-[calc(100%-2rem)] max-h-[calc(100vh-3rem)] overflow-auto rounded-none border-term-border bg-term-panel dark:border-term-border/90 sm:max-w-5xl"
+          className={cn(styles.dialog, styles.editDialog)}
+          portalContainer={portalContainer}
+          onCloseAutoFocus={(event) =>
+            restoreDialogOpenerFocus(event, dialogOpenerRef.current)
+          }
         >
           <span id="shipment-dialog-description" className="sr-only">
             {dialogMode === 'create' ? '新建船期批次' : '编辑船期批次'}
           </span>
-          <DialogHeader>
-            <DialogTitle className="text-term-text">
+          <DialogHeader className={styles.dialogHeader}>
+            <DialogTitle className={styles.dialogTitle}>
               {dialogMode === 'create' ? '新建船期批次' : '编辑船期批次'}
             </DialogTitle>
-            <DialogDescription className="text-term-muted">
-              {dialogMode === 'create'
-                ? '先创建批次，再在编辑页维护 SKU 明细。'
-                : '可直接在下方维护 SKU 明细，支持项目 SKU 下拉选择与手动增行。'}
-            </DialogDescription>
+            {dialogMode === 'create' ? (
+              <DialogDescription className={styles.dialogDescription}>
+                先创建批次，再在编辑页维护 SKU 明细。
+              </DialogDescription>
+            ) : null}
           </DialogHeader>
 
-          <div className="grid gap-4 py-2 md:grid-cols-2 lg:grid-cols-4 [&>div]:min-w-0">
-            <div className="space-y-2">
-              <div className="text-sm font-medium text-term-text">项目</div>
-              <Select
+          <div className={styles.dialogGrid}>
+            <div>
+              <WarmSelect
+                id="shipment-form-project"
+                label="项目"
                 value={form.project_id}
-                onValueChange={(value) => handleFormChange('project_id', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="选择项目" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={String(project.id)}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={projects.map((project) => ({ value: String(project.id), label: project.name }))}
+                onChange={(value) => handleFormChange('project_id', value)}
+                placeholder={projectsLoading ? '项目加载中' : '选择项目'}
+                disabled={projectsLoading}
+                error={projectsError}
+                className={styles.dialogSelect}
+              />
             </div>
 
             <div className="space-y-2">
@@ -4089,6 +4251,14 @@ export default function ShipmentManagementPage() {
                 onChange={(value) => handleFormChange('shipment_batch', value)}
                 projectId={form.project_id}
                 country={form.country}
+                portalContainer={portalContainer}
+                wrapperClassName={styles.batchPicker}
+                errorClassName={styles.batchPickerError}
+                triggerClassName={styles.batchPickerTrigger}
+                contentClassName={styles.batchPickerContent}
+                showClearButton
+                triggerGroupClassName={styles.batchPickerTriggerGroup}
+                clearButtonClassName={styles.batchPickerClear}
               />
             </div>
 
@@ -4097,65 +4267,41 @@ export default function ShipmentManagementPage() {
               <Input
                 value={form.shipment_no}
                 onChange={(event) => handleFormChange('shipment_no', event.target.value)}
-                placeholder="如 FBA19647N7ZW"
+                className={styles.dialogInput}
               />
             </div>
 
-            <div className="space-y-2">
-              <div className="text-sm font-medium text-term-text">运输方式</div>
-              <Select
+            <div>
+              <WarmSelect
+                id="shipment-form-method"
+                label="运输方式"
                 value={form.shipping_method}
-                onValueChange={(value) => handleFormChange('shipping_method', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {METHOD_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={METHOD_OPTIONS}
+                onChange={(value) => handleFormChange('shipping_method', value)}
+                className={styles.dialogSelect}
+              />
             </div>
 
-            <div className="space-y-2">
-              <div className="text-sm font-medium text-term-text">国家地区</div>
-              <Select
+            <div>
+              <WarmSelect
+                id="shipment-form-country"
+                label="国家地区"
                 value={form.country}
-                onValueChange={(value) => handleFormChange('country', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {COUNTRY_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={COUNTRY_OPTIONS}
+                onChange={(value) => handleFormChange('country', value)}
+                className={styles.dialogSelect}
+              />
             </div>
 
-            <div className="space-y-2">
-              <div className="text-sm font-medium text-term-text">状态</div>
-              <Select
+            <div>
+              <WarmSelect
+                id="shipment-form-status"
+                label="状态"
                 value={form.shipment_status}
-                onValueChange={(value) => handleFormChange('shipment_status', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={STATUS_OPTIONS}
+                onChange={(value) => handleFormChange('shipment_status', value)}
+                className={styles.dialogSelect}
+              />
             </div>
 
             <div className="space-y-2">
@@ -4187,6 +4333,8 @@ export default function ShipmentManagementPage() {
                 onChange={(date) =>
                   handleFormChange('created_date', formatPickerDateInputValue(date))
                 }
+                portalContainer={portalContainer}
+                popoverClassName={cn(styles.dateRangePopover, 'warm-ledger__date-picker-content')}
               />
             </div>
             <div className="space-y-2">
@@ -4194,6 +4342,8 @@ export default function ShipmentManagementPage() {
               <SingleDatePicker
                 value={parseDateInputValue(form.etd_date)}
                 onChange={(date) => handleFormChange('etd_date', formatPickerDateInputValue(date))}
+                portalContainer={portalContainer}
+                popoverClassName={cn(styles.dateRangePopover, 'warm-ledger__date-picker-content')}
               />
             </div>
             <div className="space-y-2">
@@ -4201,6 +4351,8 @@ export default function ShipmentManagementPage() {
               <SingleDatePicker
                 value={parseDateInputValue(form.eta_date)}
                 onChange={(date) => handleFormChange('eta_date', formatPickerDateInputValue(date))}
+                portalContainer={portalContainer}
+                popoverClassName={cn(styles.dateRangePopover, 'warm-ledger__date-picker-content')}
               />
             </div>
             <div className="space-y-2">
@@ -4210,6 +4362,8 @@ export default function ShipmentManagementPage() {
                 onChange={(date) =>
                   handleFormChange('actual_inbound_date', formatPickerDateInputValue(date))
                 }
+                portalContainer={portalContainer}
+                popoverClassName={cn(styles.dateRangePopover, 'warm-ledger__date-picker-content')}
               />
             </div>
 
@@ -4223,22 +4377,20 @@ export default function ShipmentManagementPage() {
               />
             </div>
 
-            <div className="space-y-2">
-              <div className="text-sm font-medium text-term-text">是否参与历史发货核算</div>
-              <Select
+            <div>
+              <WarmSelect
+                id="shipment-form-history-cost"
+                label="是否参与历史发货核算"
                 value={form.include_in_history_shipping_calc}
-                onValueChange={(value) =>
+                options={[
+                  { value: 'yes', label: '是' },
+                  { value: 'no', label: '否' },
+                ]}
+                onChange={(value) =>
                   handleFormChange('include_in_history_shipping_calc', value)
                 }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="yes">是</SelectItem>
-                  <SelectItem value="no">否</SelectItem>
-                </SelectContent>
-              </Select>
+                className={styles.dialogSelect}
+              />
             </div>
 
             <div className="space-y-2 xl:col-span-4">
@@ -4247,7 +4399,7 @@ export default function ShipmentManagementPage() {
                 value={form.remark}
                 onChange={(event) => handleFormChange('remark', event.target.value)}
                 rows={3}
-                className="w-full rounded-none border border-input bg-term-panel px-3 py-2 text-sm shadow-none outline-none ring-offset-background placeholder:text-term-muted focus-visible:ring-2 focus-visible:ring-ring dark:border-term-border dark:bg-term-raised dark:text-term-text"
+                className={styles.dialogTextarea}
               />
             </div>
           </div>
@@ -4264,16 +4416,16 @@ export default function ShipmentManagementPage() {
                       {editableItemStats.totalQuantity.toLocaleString()} 件
                     </div>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      className="gap-2"
+                  <div className={styles.dialogActions}>
+                    <WarmButton
                       disabled={costPreviewLoading || hasPendingItemChanges}
+                      loading={costPreviewLoading}
+                      loadingLabel="正在核算并写回成本"
                       onClick={() => void handleCalculateShipmentCosts(detail)}
                     >
-                      {costPreviewLoading ? '核算中...' : '核算'}
-                    </Button>
-                    <Button
-                      variant="outline"
+                      {costPreviewLoading ? '核算并写回中' : '核算并写回'}
+                    </WarmButton>
+                    <WarmButton
                       onClick={() => {
                         if (detail) {
                           downloadCsvFile(
@@ -4283,92 +4435,95 @@ export default function ShipmentManagementPage() {
                           )
                         }
                       }}
-                      className="gap-2"
                     >
                       <FileDown className="h-4 w-4" />
                       下载模板
-                    </Button>
-                    <Button asChild variant="outline" disabled={importing} className="gap-2">
-                      <label>
-                        <Upload className="h-4 w-4" />
-                        {importing ? '导入中...' : '上传 CSV'}
-                        <input
-                          type="file"
-                          accept=".csv"
-                          className="hidden"
-                          onChange={handleImportFile}
-                        />
-                      </label>
-                    </Button>
-                    <Button
-                      variant="outline"
+                    </WarmButton>
+                    <WarmButton
+                      id="shipment-sku-import-button"
+                      type="button"
+                      aria-controls="shipment-sku-import-input"
+                      disabled={importing}
+                      loading={importing}
+                      loadingLabel="正在导入 SKU CSV"
+                      className={styles.dialogActionButton}
+                      onClick={() => skuImportFileInputRef.current?.click()}
+                    >
+                      <Upload className="h-4 w-4" />
+                      {importing ? '导入中...' : 'CSV 整体替换'}
+                    </WarmButton>
+                    <input
+                      ref={skuImportFileInputRef}
+                      id="shipment-sku-import-input"
+                      type="file"
+                      accept=".csv"
+                      aria-labelledby="shipment-sku-import-button"
+                      tabIndex={-1}
+                      disabled={importing}
+                      className={styles.skuImportFileInput}
+                      onChange={handleImportFile}
+                    />
+                    <WarmButton
                       onClick={() => void handleDownloadProductLabels()}
                       disabled={editableItems.length === 0 || labelDownloading}
-                      className="gap-2"
+                      loading={labelDownloading}
+                      loadingLabel="正在下载产品标签"
                     >
                       <Tag className="h-4 w-4" />
                       {labelDownloading ? '下载中...' : '下载产品标签'}
-                    </Button>
-                    <Button
-                      variant="outline"
+                    </WarmButton>
+                    <WarmButton
                       onClick={() => void exportFbaDeliveryTemplateToExcel()}
                       disabled={!detail || exporting}
-                      className="gap-2"
+                      loading={exporting}
+                      loadingLabel="正在导出 FBA 发货模板"
                     >
                       <FileSpreadsheet className="h-4 w-4" />
                       {exporting ? '导出中...' : 'FBA发货模板'}
-                    </Button>
+                    </WarmButton>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                  <div className="rounded-none border border-term-border bg-term-panel px-4 py-3">
-                    <div className="text-[11px] uppercase tracking-[0.16em] text-term-muted">
-                      SKU 数
-                    </div>
-                    <div className="mt-1 text-lg font-semibold">{detail.sku_count}</div>
+                <div className={styles.costMetrics}>
+                  <div className={styles.costMetric}>
+                    <span className={styles.costMetricLabel}>SKU 数</span>
+                    <span className={styles.costMetricValue}>{detail.sku_count}</span>
                   </div>
-                  <div className="rounded-none border border-term-border bg-term-panel px-4 py-3">
-                    <div className="text-[11px] uppercase tracking-[0.16em] text-term-muted">
-                      体积
-                    </div>
-                    <div className="mt-1 text-lg font-semibold">
+                  <div className={styles.costMetric}>
+                    <span className={styles.costMetricLabel}>体积</span>
+                    <span className={styles.costMetricValue}>
                       {costPreviewRows.length > 0
                         ? `${formatDecimal(costPreviewSummary.totalVolumeM3, 4)} m³`
                         : '待核算'}
-                    </div>
+                    </span>
                   </div>
-                  <div className="rounded-none border border-term-border bg-term-panel px-4 py-3">
-                    <div className="text-[11px] uppercase tracking-[0.16em] text-term-muted">
-                      计费重
-                    </div>
-                    <div className="mt-1 text-lg font-semibold">
+                  <div className={styles.costMetric}>
+                    <span className={styles.costMetricLabel}>计费重</span>
+                    <span className={styles.costMetricValue}>
                       {costPreviewRows.length > 0
                         ? `${formatDecimal(costPreviewSummary.totalChargeableWeightKg)} kg`
                         : '待核算'}
-                    </div>
+                    </span>
                   </div>
-                  <div className="rounded-none border border-term-border bg-term-panel px-4 py-3">
-                    <div className="text-[11px] uppercase tracking-[0.16em] text-term-muted">
-                      预估运费
-                    </div>
-                    <div className="mt-1 text-lg font-semibold">
+                  <div className={styles.costMetric}>
+                    <span className={styles.costMetricLabel}>核算运费</span>
+                    <span className={styles.costMetricValue}>
                       {costPreviewRows.length > 0
                         ? `¥ ${formatDecimal(costPreviewSummary.totalEstimatedCost, 2)}`
                         : '待核算'}
-                    </div>
+                    </span>
                   </div>
                 </div>
                 {hasPendingItemChanges ? (
-                  <div className="rounded-none border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-200">
+                  <div className={styles.pendingItemsNotice}>
                     SKU 明细已修改，先点保存，再执行核算。
                   </div>
                 ) : null}
                 {costPreviewError ? (
-                  <div className="rounded-none border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-200">
+                  <div className={styles.errorMessage} role="alert">
                     {costPreviewError}
                   </div>
                 ) : null}
-                <div className="overflow-hidden rounded-none border border-term-border">
+                <div className={styles.editableTableFrame}>
                   <div className="max-h-[280px] overflow-auto">
                     <Table>
                       <TableHeader>
@@ -4437,16 +4592,20 @@ export default function ShipmentManagementPage() {
                                     value={item.sku}
                                     options={projectSkuOptions}
                                     loading={projectSkuLoading}
+                                    error={projectSkuError}
+                                    portalContainer={portalContainer}
                                     onChange={(value) =>
                                       handleEditableItemChange(item.tempId, 'sku', value)
                                     }
+                                    onRetry={() => void loadProjectSkus(form.project_id, form.country)}
                                   />
                                   {item.originalQuantity === null &&
                                   item.sku &&
                                   selectedSku &&
                                   (selectedSku.units_per_carton ?? 0) <= 0 ? (
-                                    <p className="mt-0.5 text-[10px] text-amber-600 dark:text-amber-400">
-                                      ⚠️ 该 SKU 未维护装箱率，请先在 SKU 信息中补充
+                                    <p className={styles.skuPackingWarning}>
+                                      <AlertTriangle aria-hidden="true" />
+                                      该 SKU 未维护装箱率，请先在 SKU 信息中补充
                                     </p>
                                   ) : null}
                                 </TableCell>
@@ -4464,7 +4623,7 @@ export default function ShipmentManagementPage() {
                                         event.target.value
                                       )
                                     }
-                                    className="h-7 w-full text-right text-xs"
+                                    className={styles.cartonCountInput}
                                     placeholder="箱数"
                                   />
                                 </TableCell>
@@ -4486,15 +4645,12 @@ export default function ShipmentManagementPage() {
                                     : '-'}
                                 </TableCell>
                                 <TableCell className="py-1.5 text-right">
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-6 w-6"
+                                  <WarmIconButton
+                                    aria-label={`移除 ${item.sku || 'SKU 明细行'}`}
                                     onClick={() => handleRemoveEditableItem(item.tempId)}
                                   >
-                                    <X className="h-3.5 w-3.5" />
-                                  </Button>
+                                    <X aria-hidden="true" />
+                                  </WarmIconButton>
                                 </TableCell>
                               </TableRow>
                             )
@@ -4504,42 +4660,46 @@ export default function ShipmentManagementPage() {
                     </Table>
                   </div>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="gap-2"
+                <WarmButton
                   onClick={handleAddEditableItem}
                 >
                   <Plus className="h-4 w-4" />
                   增加一行
-                </Button>
+                </WarmButton>
               </div>
             </>
           )}
 
-          <Separator className="bg-border" />
-          <DialogFooter>
+          <Separator className={styles.dialogSeparator} />
+          <DialogFooter className={styles.dialogFooter}>
             {dialogMode === 'edit' && isAdmin ? (
               <Button
                 variant="destructive"
-                className="mr-auto"
-                onClick={() => setDeleteDialogOpen(true)}
+                className={cn(styles.dangerAction, 'mr-auto')}
+                onClick={(event) => {
+                  deleteDialogOpenerRef.current = event.currentTarget
+                  setDeleteDialogOpen(true)
+                }}
                 disabled={submitting || deleting}
               >
                 <Trash2 className="h-4 w-4" />
                 删除批次
               </Button>
             ) : null}
-            <Button
-              variant="outline"
+            <WarmButton
+              variant="secondary"
               onClick={() => setDialogOpen(false)}
-              className="dark:border-term-border dark:bg-term-raised dark:text-term-text"
             >
               取消
-            </Button>
-            <Button onClick={() => void submitForm()} disabled={submitting}>
+            </WarmButton>
+            <WarmButton
+              variant="primary"
+              onClick={() => void submitForm()}
+              loading={submitting}
+              loadingLabel="正在保存货件批次"
+            >
               {submitting ? '保存中...' : dialogMode === 'create' ? '创建' : '保存'}
-            </Button>
+            </WarmButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -4547,7 +4707,11 @@ export default function ShipmentManagementPage() {
       <Dialog open={skuDialogOpen} onOpenChange={setSkuDialogOpen}>
         <DialogContent
           aria-describedby="sku-detail-dialog-description"
-          className="max-w-[calc(100%-2rem)] max-h-[calc(100vh-3rem)] overflow-auto rounded-none border-term-border bg-term-panel dark:border-term-border/90 sm:max-w-2xl"
+          className={cn(styles.dialog, styles.skuDetailsDialog)}
+          portalContainer={portalContainer}
+          onCloseAutoFocus={(event) =>
+            restoreDialogOpenerFocus(event, skuDialogOpenerRef.current)
+          }
         >
           <span id="sku-detail-dialog-description" className="sr-only">
             SKU 明细：
@@ -4555,9 +4719,9 @@ export default function ShipmentManagementPage() {
               ? `${skuDialogDetail.shipment_no} - ${skuDialogDetail.sku_count} 个 SKU，合计 ${skuDialogDetail.total_quantity.toLocaleString()} 件`
               : ''}
           </span>
-          <DialogHeader>
-            <DialogTitle className="text-term-text">SKU 明细</DialogTitle>
-            <DialogDescription className="text-term-muted">
+          <DialogHeader className={styles.dialogHeader}>
+            <DialogTitle className={styles.dialogTitle}>SKU 明细</DialogTitle>
+            <DialogDescription className={styles.dialogDescription}>
               {skuDialogDetail
                 ? `${skuDialogDetail.shipment_no} - ${skuDialogDetail.sku_count} 个 SKU，合计 ${skuDialogDetail.total_quantity.toLocaleString()} 件`
                 : ''}
@@ -4565,15 +4729,22 @@ export default function ShipmentManagementPage() {
           </DialogHeader>
 
           {skuDialogLoading ? (
-            <div className="space-y-3">
+            <div className={styles.dialogLoading} aria-busy="true">
+              <span role="status">正在加载 SKU 明细</span>
               <Skeleton className="h-12 w-full" />
               <Skeleton className="h-12 w-full" />
               <Skeleton className="h-12 w-full" />
             </div>
+          ) : skuDialogError ? (
+            <RequestStateNotice
+              title="SKU 明细加载失败"
+              message={skuDialogError}
+              onRetry={skuDialogScheduleId ? () => openSkuDialog(skuDialogScheduleId) : undefined}
+            />
           ) : skuDialogDetail ? (
-            <div className="overflow-hidden rounded-none border border-term-border">
-              <div className="max-h-[500px] overflow-auto">
-                <Table>
+            <div className={styles.editableTableFrame}>
+              <div className={styles.skuDetailsScroll}>
+                <Table className={styles.table}>
                   <TableHeader>
                     <TableRow>
                       <TableHead>SKU</TableHead>
@@ -4595,20 +4766,15 @@ export default function ShipmentManagementPage() {
                 </Table>
               </div>
             </div>
-          ) : (
-            <div className="rounded-none border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              加载失败
-            </div>
-          )}
+          ) : null}
 
-          <DialogFooter>
-            <Button
-              variant="outline"
+          <DialogFooter className={styles.dialogFooter}>
+            <WarmButton
+              variant="secondary"
               onClick={() => setSkuDialogOpen(false)}
-              className="dark:border-term-border dark:bg-term-raised dark:text-term-text"
             >
               关闭
-            </Button>
+            </WarmButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -4616,7 +4782,15 @@ export default function ShipmentManagementPage() {
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent
           aria-describedby="delete-shipment-dialog-description"
-          className="max-w-[calc(100%-2rem)] rounded-none sm:max-w-md"
+          className={cn(styles.dialog, styles.deleteDialog)}
+          portalContainer={portalContainer}
+          onCloseAutoFocus={(event) =>
+            restoreDialogOpenerFocus(
+              event,
+              deleteDialogOpenerRef.current,
+              dialogOpenerRef.current
+            )
+          }
         >
           <span id="delete-shipment-dialog-description" className="sr-only">
             确认删除船期批次
@@ -4624,24 +4798,25 @@ export default function ShipmentManagementPage() {
               ? `，确定删除船期批次 ${detail.shipment_no} 吗？该批次下的 SKU 明细也会一并删除，且无法恢复。`
               : '，此操作不可恢复。'}
           </span>
-          <DialogHeader>
-            <DialogTitle>确认删除批次</DialogTitle>
-            <DialogDescription>
+          <DialogHeader className={styles.dialogHeader}>
+            <DialogTitle className={styles.dialogTitle}>确认删除批次</DialogTitle>
+            <DialogDescription className={styles.dialogDescription}>
               {detail
                 ? `确定删除船期批次 ${detail.shipment_no} 吗？该批次下的 SKU 明细也会一并删除，且无法恢复。`
                 : '此操作不可恢复。'}
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
+          <DialogFooter className={styles.dialogFooter}>
+            <WarmButton
+              variant="secondary"
               onClick={() => setDeleteDialogOpen(false)}
               disabled={deleting}
             >
               取消
-            </Button>
+            </WarmButton>
             <Button
               variant="destructive"
+              className={styles.dangerAction}
               onClick={() => void handleDeleteSchedule()}
               disabled={deleting}
             >

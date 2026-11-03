@@ -12,13 +12,7 @@ import {
   ChartLegendContent,
   type ChartConfig,
 } from '@/components/charts'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { WarmSelect } from '@/components/dashboard-v2/warm-ledger/controls'
 import { useMobile } from '@/lib/hooks/use-mobile'
 import type { ProjectPortfolioKPI } from '@/lib/hooks/use-portfolio-data'
 
@@ -27,11 +21,7 @@ interface PortfolioPieChartProps {
   country: string
 }
 
-/**
- * Per-slice palette — uses `--chart-N` CSS variables so light/dark themes
- * stay in sync. The same palette is referenced by the contribution table
- * below to keep swatches and pie wedges aligned.
- */
+/** Page-local Warm Ledger chart colors are supplied through the existing `--chart-N` variables. */
 const CHART_COLORS = [
   'hsl(var(--chart-1))',
   'hsl(var(--chart-2))',
@@ -68,6 +58,7 @@ function formatValue(value: number, metric: MetricKey, country: string): string 
 export function PortfolioPieChart({ projects, country }: PortfolioPieChartProps) {
   const [metric, setMetric] = useState<MetricKey>('sales_amount')
   const isMobile = useMobile()
+  const isSessionsMetric = metric === 'sessions'
 
   // 图例/tooltip 的 label 解析：ChartLegendContent 走 item.value（= 项目名），
   // ChartTooltipContent 走 item.name（= 项目名）——都以项目名为 config key。
@@ -105,21 +96,25 @@ export function PortfolioPieChart({ projects, country }: PortfolioPieChartProps)
   }
 
   return (
-    <div className="rounded-none border border-term-border bg-term-bg p-3 sm:p-4">
+    <div
+      data-portfolio-pie-chart
+      className="rounded-none border border-term-border bg-term-bg p-3 sm:p-4"
+    >
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="font-mono text-xs uppercase tracking-wider text-term-text">各项目贡献占比</h3>
-        <Select value={metric} onValueChange={(v) => setMetric(v as MetricKey)}>
-          <SelectTrigger className="h-9 w-32 rounded-none border-term-border bg-term-bg font-mono text-xs leading-5 text-term-text shadow-none focus-visible:outline-none focus-visible:border-term-border-strong">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(Object.keys(METRIC_CONFIG) as MetricKey[]).map((k) => (
-              <SelectItem key={k} value={k}>
-                {METRIC_CONFIG[k].label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <h3 className="font-mono text-xs uppercase tracking-wider text-term-text">
+          {isSessionsMetric ? '各项目访问量' : '各项目贡献占比'}
+        </h3>
+        <WarmSelect
+          id="portfolio-pie-metric"
+          label="图表指标"
+          value={metric}
+          options={(Object.keys(METRIC_CONFIG) as MetricKey[]).map((key) => ({
+            value: key,
+            label: METRIC_CONFIG[key].label,
+          }))}
+          onChange={(value) => setMetric(value as MetricKey)}
+          className="portfolio-pie-metric-select"
+        />
       </div>
       <ChartContainer config={chartConfig} className="h-[260px] w-full sm:h-[350px]">
         <PieChart>
@@ -151,7 +146,7 @@ export function PortfolioPieChart({ projects, country }: PortfolioPieChartProps)
                       <span className="font-mono text-xs leading-5 tabular-nums text-term-text">
                         {formatValue(Number(value), metric, country)}
                       </span>
-                      {payload?.contribution !== undefined && (
+                      {!isSessionsMetric && payload?.contribution !== undefined && (
                         <span className="font-mono text-[11px] leading-4 text-term-muted">
                           ({payload.contribution.toFixed(1)}%)
                         </span>
@@ -169,7 +164,7 @@ export function PortfolioPieChart({ projects, country }: PortfolioPieChartProps)
       <div className="mt-4">
         <div className="flex items-center justify-between border-b border-term-border px-2 py-1 font-mono text-[11px] uppercase tracking-wider text-term-muted">
           <span>项目</span>
-          <span>贡献占比</span>
+          <span>{isSessionsMetric ? METRIC_CONFIG[metric].label : '贡献占比'}</span>
         </div>
         {pieData.map((d, i) => (
           <div
@@ -187,9 +182,11 @@ export function PortfolioPieChart({ projects, country }: PortfolioPieChartProps)
               <span className="font-mono text-xs leading-5 tabular-nums text-term-text">
                 {formatValue(d.value, metric, country)}
               </span>
-              <span className="font-mono text-[11px] leading-4 text-term-muted">
-                ({d.contribution.toFixed(1)}%)
-              </span>
+              {!isSessionsMetric && (
+                <span className="font-mono text-[11px] leading-4 text-term-muted">
+                  ({d.contribution.toFixed(1)}%)
+                </span>
+              )}
             </div>
           </div>
         ))}

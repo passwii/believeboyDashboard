@@ -142,6 +142,8 @@ type WarmSelectProps = {
   value: string
   options: ReadonlyArray<WarmSelectOption>
   onChange: (value: string) => void
+  onOpenChange?: (open: boolean) => void
+  placeholder?: string
   disabled?: boolean
   error?: string | null
   className?: string
@@ -153,6 +155,8 @@ export function WarmSelect({
   value,
   options,
   onChange,
+  onOpenChange,
+  placeholder,
   disabled = false,
   error,
   className,
@@ -173,7 +177,12 @@ export function WarmSelect({
       <span id={labelId} className="warm-ledger__control-label">
         {label}
       </span>
-      <SelectPrimitive.Root value={value} onValueChange={onChange} disabled={disabled}>
+      <SelectPrimitive.Root
+        value={value}
+        onValueChange={onChange}
+        onOpenChange={onOpenChange}
+        disabled={disabled}
+      >
         <SelectPrimitive.Trigger
           id={id}
           className="warm-ledger__select"
@@ -181,7 +190,7 @@ export function WarmSelect({
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errorId : undefined}
         >
-          <SelectPrimitive.Value />
+          <SelectPrimitive.Value placeholder={placeholder} />
           <SelectPrimitive.Icon asChild>
             <ChevronDown className="warm-ledger__select-chevron" aria-hidden="true" />
           </SelectPrimitive.Icon>

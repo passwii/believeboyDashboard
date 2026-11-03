@@ -3,8 +3,7 @@
 /**
  * 库存分类账页面（BLF-428 前端重构，方案 A；operations 全域 header 化迁移）.
  *
- * 三层结构：Top Header 中段插槽（项目/月份 + 4 维派生筛选 + 清除筛选，portal）
- * → 总览区（常驻，响应筛选）→ 汇总/明细/批次 tabs。
+ * 页面结构：primary/secondary header slots → 总览区 → 汇总/明细/批次 tabs。
  *
  * 数据流：/month-analysis 一次返回所选月份全量 Summary / Detail、Snapshot、
  * Trend、Consistency 与批次元数据；页面筛选只影响展示，Excel 导出始终使用
@@ -17,7 +16,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import {
-  AlertTriangle,
   Clock4,
   FileSpreadsheet,
   LayoutGrid,
@@ -26,17 +24,15 @@ import {
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
-import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
 import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
 import {
-  HeaderSlotSelect,
-  TERM_HEADER_W_MD,
-  TERM_HEADER_W_SM,
-} from '@/components/terminal/header-filter-suite'
-import { useHeaderRefresh, useHeaderSlot, useMobileFilterStrip } from '@/components/terminal/terminal-header-slot'
+  useHeaderRefresh,
+  useMobileFilterStrip,
+  usePrimaryFilterSlot,
+  useSecondaryHeaderSlot,
+} from '@/components/terminal/terminal-header-slot'
+import { WarmButton, WarmSelect } from '@/components/dashboard-v2/warm-ledger/controls'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useUrlParam, useUrlParams } from '@/lib/hooks/use-url-param'
 import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
@@ -47,6 +43,8 @@ import { exportLedgerAnalysisToExcel } from './ledger-excel-export'
 import { LedgerBatchesTab } from './ledger-batches-tab'
 import { LedgerDetailTab } from './ledger-detail-tab'
 import { LedgerSummaryTab } from './ledger-summary-tab'
+import { ConsistencyBadge, IntegrityBadge } from './ledger-badges'
+import styles from './inventory-ledger-warm.module.css'
 import {
   ALL,
   dispositionLabel,
@@ -62,19 +60,44 @@ import {
 } from './ledger-types'
 
 const API_BASE = '/api/backend/api/v1'
+const ALL_FILTERS = { msku: ALL, fc: ALL, disp: ALL, evt: ALL }
+
+function getLedgerMonthKey(value: string): string | null {
+  const match = /^(\d{4})-(\d{2})(?:-\d{2})?$/.exec(value.trim())
+  if (!match) return null
+
+  const [, year, month] = match
+  const monthNumber = Number(month)
+  if (Number(year) < 1 || monthNumber < 1 || monthNumber > 12) return null
+
+  return `${year}-${month}`
+}
 
 // recharts 只在客户端渲染（对齐 dashboard v1/v2 的代码分割模式）
 const LazyLedgerOverview = dynamic(
   () => import('./ledger-overview').then((m) => m.LedgerOverview),
   {
     ssr: false,
-    loading: () => <Skeleton className="h-64 w-full" />,
+    loading: () => (
+      <div className={styles.overviewLoading} role="status" aria-busy="true">
+        <span className={styles.visuallyHidden}>正在加载库存概览</span>
+        <div className={styles.skeletonKpiGrid} aria-hidden="true">
+          {Array.from({ length: 8 }, (_, index) => (
+            <div className={styles.skeletonKpi} key={index} />
+          ))}
+        </div>
+        <div className={styles.skeletonMain} aria-hidden="true" />
+      </div>
+    ),
   },
 )
 
 export default function InventoryLedgerPage() {
-  const { data: session } = useSession()
+  const { data: session, status: sessionStatus } = useSession()
   const [projects, setProjects] = useState<ProjectOption[]>([])
+  const [projectsLoading, setProjectsLoading] = useState(true)
+  const [projectsError, setProjectsError] = useState<string | null>(null)
+  const [projectRetryKey, setProjectRetryKey] = useState(0)
 
   // ── 全局筛选状态（唯一真相源，URL 同步） ─────────────────────────────────
   const [projectId, setProjectId] = useUrlParam<string>('project_id', '')
@@ -88,15 +111,26 @@ export default function InventoryLedgerPage() {
   })
 
   const [months, setMonths] = useState<string[]>([])
-  const [monthsLoaded, setMonthsLoaded] = useState(false)
+  const [monthsLoading, setMonthsLoading] = useState(false)
+  const [monthsError, setMonthsError] = useState<string | null>(null)
+  const [monthRetryKey, setMonthRetryKey] = useState(0)
   const [loading, setLoading] = useState(false)
   const [analysisData, setAnalysisData] = useState<LedgerMonthAnalysisResponse | null>(null)
+  const [analysisRequestScope, setAnalysisRequestScope] = useState<{
+    projectId: string
+    month: string
+  } | null>(null)
   const [exporting, setExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
   // BEL-417 教训：后端 500 不能伪装成"暂无数据"或白屏。
-  const [loadError, setLoadError] = useState<string | null>(null)
+  const [analysisError, setAnalysisError] = useState<string | null>(null)
   // 竞态保护：快速切换项目/月份时丢弃过期响应。
   const loadSeq = useRef(0)
+  const monthOptionsSeq = useRef(0)
+  const monthRef = useRef(month)
+  const setMonthRef = useRef(setMonth)
+  monthRef.current = month
+  setMonthRef.current = setMonth
 
   // Data states
   const [snapshot, setSnapshot] = useState<SnapshotResponse | null>(null)
@@ -106,36 +140,101 @@ export default function InventoryLedgerPage() {
   const [batches, setBatches] = useState<IngestBatchesResponse | null>(null)
   const [consistency, setConsistency] = useState<ConsistencyCheckResult | null>(null)
 
-  // Load projects
+  // Project options stay in the page's existing managed-project scope.
   useEffect(() => {
-    if (!session) return
-    fetchManagedProjectsCached<ProjectOption[]>().then((items) => {
-      setProjects(items)
-    })
-  }, [session])
+    let active = true
+    if (sessionStatus === 'loading') {
+      setProjectsLoading(true)
+      return () => {
+        active = false
+      }
+    }
+    if (!session) {
+      setProjects([])
+      setProjectsLoading(false)
+      setProjectsError(null)
+      return () => {
+        active = false
+      }
+    }
+
+    setProjectsLoading(true)
+    setProjectsError(null)
+    const request = projectRetryKey === 0
+      ? fetchManagedProjectsCached<ProjectOption[]>()
+      : fetchManagedProjectsCached<ProjectOption[]>(undefined, false, { force: true })
+
+    request
+      .then((items) => {
+        if (active) setProjects(items)
+      })
+      .catch((err) => {
+        if (active) {
+          setProjects([])
+          setProjectsError(err instanceof Error ? err.message : '项目列表加载失败')
+        }
+      })
+      .finally(() => {
+        if (active) setProjectsLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [projectRetryKey, session, sessionStatus])
+
+  const retryProjects = useCallback(() => {
+    setProjectsLoading(true)
+    setProjectsError(null)
+    setProjectRetryKey((key) => key + 1)
+  }, [])
 
   useAutoSelectFirstProject(projects, projectId, setProjectId)
 
-  // Load months when project changes
+  // Ignore late month-option responses after a project switch or retry.
   useEffect(() => {
-    if (!projectId) return
-    setMonthsLoaded(false)
+    const seq = ++monthOptionsSeq.current
+    if (!projectId) {
+      setMonths([])
+      setMonthsLoading(false)
+      setMonthsError(null)
+      return () => {
+        if (monthOptionsSeq.current === seq) monthOptionsSeq.current += 1
+      }
+    }
+
+    setMonths([])
+    setMonthsLoading(true)
+    setMonthsError(null)
     fetchLedgerJson<{ months?: string[] }>(
       `${API_BASE}/inventory-ledger/months?project_id=${projectId}`,
     )
       .then((data) => {
+        if (seq !== monthOptionsSeq.current) return
         const list = data.months ?? []
         setMonths(list)
-        if (!month && list.length > 0) {
-          setMonth(list[0])
+        if (!monthRef.current && list.length > 0) {
+          setMonthRef.current(list[0])
         }
       })
       .catch((err) => {
+        if (seq !== monthOptionsSeq.current) return
         setMonths([])
-        setLoadError(err instanceof Error ? err.message : '月份列表加载失败')
+        setMonthsError(err instanceof Error ? err.message : '月份列表加载失败')
       })
-      .finally(() => setMonthsLoaded(true))
-  }, [projectId]) // eslint-disable-line react-hooks/exhaustive-deps
+      .finally(() => {
+        if (seq === monthOptionsSeq.current) setMonthsLoading(false)
+      })
+    return () => {
+      if (monthOptionsSeq.current === seq) monthOptionsSeq.current += 1
+    }
+  }, [projectId, monthRetryKey])
+
+  const retryMonths = useCallback(() => {
+    setMonthsLoading(true)
+    setMonthsError(null)
+    setMonthRetryKey((key) => key + 1)
+  }, [])
 
   // 切换项目/月份时重置维度筛选（首次挂载不重置，保住深链分享）
   const prevScope = useRef<{ project: string; month: string } | null>(null)
@@ -143,7 +242,7 @@ export default function InventoryLedgerPage() {
     const prev = prevScope.current
     prevScope.current = { project: projectId, month }
     if (prev && (prev.project !== projectId || prev.month !== month)) {
-      setFilters({ msku: ALL, fc: ALL, disp: ALL, evt: ALL })
+      setFilters(ALL_FILTERS)
     }
   }, [projectId, month, setFilters])
 
@@ -152,7 +251,7 @@ export default function InventoryLedgerPage() {
     if (!projectId || !month) return
     const seq = ++loadSeq.current
     setLoading(true)
-    setLoadError(null)
+    setAnalysisError(null)
     try {
       const base = `${API_BASE}/inventory-ledger`
       const params = `project_id=${projectId}&period=${month}`
@@ -168,9 +267,10 @@ export default function InventoryLedgerPage() {
       setBatches({ project_id: data.project_id, batches: data.batches })
       setConsistency(data.consistency)
       setAnalysisData(data)
+      setAnalysisRequestScope({ projectId, month })
     } catch (err) {
       if (seq === loadSeq.current) {
-        setLoadError(err instanceof Error ? err.message : '加载失败')
+        setAnalysisError(err instanceof Error ? err.message : '加载失败')
       }
     } finally {
       if (seq === loadSeq.current) setLoading(false)
@@ -188,8 +288,22 @@ export default function InventoryLedgerPage() {
   loadDataRef.current = loadData
   useHeaderRefresh(() => loadDataRef.current(), { loading })
 
+  // project/month 切换后，取数 effect 设置 loading 前会先渲染一次；范围校验同时保护展示和导出，
+  // 避免新范围取数失败时展示或导出旧数据；同范围刷新失败时仍可导出保留的数据。
+  const selectedMonthKey = getLedgerMonthKey(month)
+  const analysisMonthKey = analysisData ? getLedgerMonthKey(analysisData.report_month) : null
+  const analysisMatchesScope = Boolean(
+    analysisData &&
+      analysisRequestScope &&
+      analysisRequestScope.projectId === projectId &&
+      analysisRequestScope.month === month &&
+      String(analysisData.project_id) === projectId &&
+      analysisMonthKey !== null &&
+      (selectedMonthKey === null || analysisMonthKey === selectedMonthKey),
+  )
+
   const handleExport = useCallback(async () => {
-    if (!analysisData || exporting) return
+    if (!analysisData || !analysisMatchesScope || exporting) return
     setExporting(true)
     setExportError(null)
     try {
@@ -199,11 +313,17 @@ export default function InventoryLedgerPage() {
     } finally {
       setExporting(false)
     }
-  }, [analysisData, exporting])
+  }, [analysisData, analysisMatchesScope, exporting])
 
   // ── 筛选选项（从原始行派生） ────────────────────────────────────────────
-  const rawSummary = useMemo(() => summaryRows?.rows ?? [], [summaryRows])
-  const rawDetail = useMemo(() => detailRows?.rows ?? [], [detailRows])
+  const rawSummary = useMemo(
+    () => (analysisMatchesScope ? summaryRows?.rows ?? [] : []),
+    [analysisMatchesScope, summaryRows],
+  )
+  const rawDetail = useMemo(
+    () => (analysisMatchesScope ? detailRows?.rows ?? [] : []),
+    [analysisMatchesScope, detailRows],
+  )
 
   const filterOptions = useMemo(() => {
     const mskus = new Set<string>()
@@ -248,269 +368,365 @@ export default function InventoryLedgerPage() {
     [rawDetail, globalFilters],
   )
 
-  const hasAnyData = rawSummary.length > 0 || rawDetail.length > 0 || snapshot !== null
+  const hasAnyData =
+    analysisMatchesScope &&
+    (rawSummary.length > 0 || rawDetail.length > 0 || snapshot !== null)
   const activeFilterCount = [filters.msku, filters.fc, filters.disp, filters.evt].filter(
     (v) => v !== ALL,
   ).length
 
-  // 筛选控件 portal 进 Top Header 中段插槽（项目/月份 + 4 维派生筛选 + 清除筛选）。
-  // 派生筛选的选项集合随数据更新——控件由页面自身渲染，portal 天然实时，无过期快照。
-  const filterControls = (
-    <>
-      <HeaderSlotSelect
+  const projectOptions = projects.map((project) => ({
+    value: String(project.id),
+    label: project.name,
+  }))
+  const projectPlaceholder = projectsLoading
+    ? '加载项目…'
+    : projectsError
+      ? '项目列表加载失败'
+      : projects.length === 0
+        ? '暂无可用项目'
+        : '选择项目'
+  const monthOptions = months.map((value) => ({ value, label: formatLedgerMonthLabel(value) }))
+  const selectedDisplayMonthKey = analysisMatchesScope ? analysisMonthKey : selectedMonthKey
+  const selectedMonthOption = selectedDisplayMonthKey === null
+    ? undefined
+    : monthOptions.find((option) => getLedgerMonthKey(option.value) === selectedDisplayMonthKey)
+  const fallbackMonthDisplayValue = analysisMatchesScope && analysisData
+    ? analysisData.report_month
+    : month
+  const displayMonthOption = selectedMonthOption ?? (
+    selectedDisplayMonthKey !== null && fallbackMonthDisplayValue
+      ? {
+          value: fallbackMonthDisplayValue,
+          label: formatLedgerMonthLabel(fallbackMonthDisplayValue),
+        }
+      : undefined
+  )
+  const displayMonthOptions = displayMonthOption && !selectedMonthOption
+    ? [...monthOptions, displayMonthOption]
+    : monthOptions
+  const displayMonthValue = selectedDisplayMonthKey === null ? '' : displayMonthOption?.value ?? ''
+  const monthPlaceholder = monthsLoading
+    ? '加载月份…'
+    : monthsError
+      ? '月份列表加载失败'
+      : months.length === 0
+        ? '暂无可选月份'
+        : '选择月份'
+
+  const renderProjectFilter = (id: string) => (
+    <div
+      className={`${styles.filterField} ${styles.projectField}`}
+      aria-busy={projectsLoading || undefined}
+    >
+      <WarmSelect
+        id={id}
+        label="项目筛选"
         value={projectId}
+        options={projectOptions}
+        placeholder={projectPlaceholder}
+        disabled={projectsLoading || Boolean(projectsError) || projects.length === 0}
+        error={projectsError}
         onChange={setProjectId}
-        options={projects.map((p) => ({ value: String(p.id), label: p.name }))}
-        placeholder="选择项目"
-        widthClass={TERM_HEADER_W_MD}
-        title="项目筛选"
       />
-      <HeaderSlotSelect
-        value={month}
-        onChange={setMonth}
-        options={months.map((m) => ({ value: m, label: formatLedgerMonthLabel(m) }))}
-        placeholder="选择月份"
-        widthClass={TERM_HEADER_W_SM}
-        title="月份筛选"
-      />
-      <HeaderSlotSelect
-        value={filters.msku}
-        onChange={(v) => setFilters({ msku: v })}
-        options={[
-          { value: ALL, label: '全部 SKU' },
-          ...filterOptions.mskus.map((s) => ({ value: s, label: s })),
-        ]}
-        widthClass={TERM_HEADER_W_MD}
-        title="SKU 筛选"
-      />
-      <HeaderSlotSelect
-        value={filters.fc}
-        onChange={(v) => setFilters({ fc: v })}
-        options={[
-          { value: ALL, label: '全部仓库' },
-          ...filterOptions.locations.map((l) => ({ value: l, label: l })),
-        ]}
-        widthClass={TERM_HEADER_W_SM}
-        title="仓库筛选"
-      />
-      <HeaderSlotSelect
-        value={filters.disp}
-        onChange={(v) => setFilters({ disp: v })}
-        options={[
-          { value: ALL, label: '全部状态' },
-          ...filterOptions.dispositions.map((d) => ({ value: d, label: dispositionLabel(d) })),
-        ]}
-        widthClass={TERM_HEADER_W_SM}
-        title="状态筛选"
-      />
-      <HeaderSlotSelect
-        value={filters.evt}
-        onChange={(v) => setFilters({ evt: v })}
-        options={[
-          { value: ALL, label: '全部事件类型' },
-          ...filterOptions.eventTypes.map((e) => ({ value: e, label: eventTypeLabel(e) })),
-        ]}
-        widthClass={TERM_HEADER_W_MD}
-        title="事件类型筛选"
-      />
-      {activeFilterCount > 0 && (
-        <button
-          type="button"
-          onClick={() => setFilters({ msku: ALL, fc: ALL, disp: ALL, evt: ALL })}
-          className="flex h-10 shrink-0 items-center rounded-none border border-term-border bg-term-panel px-2.5 font-mono text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
+      {projectsError && (
+        <WarmButton
+          className={styles.filterRetry}
+          variant="quiet"
+          aria-label="重试加载项目列表"
+          onClick={retryProjects}
         >
-          清除筛选（{activeFilterCount}）
-        </button>
+          重试
+        </WarmButton>
+      )}
+    </div>
+  )
+
+  const renderMonthFilter = (id: string) => (
+    <div
+      className={`${styles.filterField} ${styles.monthField}`}
+      aria-busy={monthsLoading || undefined}
+    >
+      <WarmSelect
+        id={id}
+        label="月份筛选"
+        value={displayMonthValue}
+        options={displayMonthOptions}
+        placeholder={monthPlaceholder}
+        disabled={!projectId || monthsLoading || Boolean(monthsError) || months.length === 0}
+        error={monthsError}
+        onChange={setMonth}
+      />
+      {monthsError && (
+        <WarmButton
+          className={styles.filterRetry}
+          variant="quiet"
+          aria-label="重试加载月份列表"
+          onClick={retryMonths}
+        >
+          重试
+        </WarmButton>
+      )}
+    </div>
+  )
+
+  const renderDimensionFilter = (
+    id: string,
+    label: string,
+    value: string,
+    options: Array<{ value: string; label: string }>,
+    onChange: (next: string) => void,
+    className: string,
+  ) => (
+    <div className={`${styles.filterField} ${className}`}>
+      <WarmSelect
+        id={id}
+        label={label}
+        value={value}
+        options={options}
+        onChange={onChange}
+      />
+    </div>
+  )
+
+  const clearFilters = () => setFilters(ALL_FILTERS)
+  const renderDimensionFilters = (suffix: string, mobile = false) => (
+    <>
+      {renderDimensionFilter(
+        `inventory-ledger-msku-${suffix}`,
+        'SKU 筛选',
+        filters.msku,
+        [
+          { value: ALL, label: '全部 SKU' },
+          ...filterOptions.mskus.map((value) => ({ value, label: value })),
+        ],
+        (value) => setFilters({ msku: value }),
+        styles.mskuField,
+      )}
+      {renderDimensionFilter(
+        `inventory-ledger-location-${suffix}`,
+        '仓库筛选',
+        filters.fc,
+        [
+          { value: ALL, label: '全部仓库' },
+          ...filterOptions.locations.map((value) => ({ value, label: value })),
+        ],
+        (value) => setFilters({ fc: value }),
+        styles.locationField,
+      )}
+      {renderDimensionFilter(
+        `inventory-ledger-disposition-${suffix}`,
+        '状态筛选',
+        filters.disp,
+        [
+          { value: ALL, label: '全部状态' },
+          ...filterOptions.dispositions.map((value) => ({
+            value,
+            label: dispositionLabel(value),
+          })),
+        ],
+        (value) => setFilters({ disp: value }),
+        styles.dispositionField,
+      )}
+      {renderDimensionFilter(
+        `inventory-ledger-event-${suffix}`,
+        '事件类型筛选',
+        filters.evt,
+        [
+          { value: ALL, label: '全部事件类型' },
+          ...filterOptions.eventTypes.map((value) => ({ value, label: eventTypeLabel(value) })),
+        ],
+        (value) => setFilters({ evt: value }),
+        styles.eventField,
+      )}
+      {activeFilterCount > 0 && (
+        mobile ? (
+          <MobileFilterWide className={styles.mobileFilterWide}>
+            <WarmButton className={styles.filterClear} variant="quiet" onClick={clearFilters}>
+              清除筛选（{activeFilterCount}）
+            </WarmButton>
+          </MobileFilterWide>
+        ) : (
+          <WarmButton className={styles.filterClear} variant="quiet" onClick={clearFilters}>
+            清除筛选（{activeFilterCount}）
+          </WarmButton>
+        )
       )}
     </>
   )
-  const headerSlotPortal = useHeaderSlot(
-    <HeaderFilterControls isMobileView={false} controls={filterControls} />
+
+  const primaryFilterSlot = usePrimaryFilterSlot(
+    <div
+      className={styles.primaryFilters}
+      role="group"
+      aria-label="项目和月份筛选"
+      aria-busy={projectsLoading || monthsLoading || undefined}
+    >
+      {renderProjectFilter('inventory-ledger-project-primary')}
+      {renderMonthFilter('inventory-ledger-month-primary')}
+    </div>,
+  )
+  const secondaryHeaderSlot = useSecondaryHeaderSlot(
+    <div className={styles.secondaryFilters} role="group" aria-label="库存维度筛选">
+      {renderDimensionFilters('secondary')}
+    </div>,
   )
 
-  // BLF-931 · 移动端：筛选控件下迁为正文顶部可折叠筛选条
-  const mobileProjectLabel = projects.find((p) => String(p.id) === projectId)?.name ?? projectId
+  const mobileProjectLabel = projects.find((project) => String(project.id) === projectId)?.name
+    ?? (projectId || '未选择项目')
   const mobileMonthLabel = month ? formatLedgerMonthLabel(month) : '未选月份'
-  const mobileFilterSummary = `${mobileProjectLabel} · ${mobileMonthLabel}${activeFilterCount > 0 ? ` · ${activeFilterCount} 个筛选` : ''}`
+  const mobileFilterSummary = `${mobileProjectLabel} · ${mobileMonthLabel} · ${activeFilterCount} 个筛选`
   const mobileFilterStrip = useMobileFilterStrip(
     <MobileFilterStrip
       summary={mobileFilterSummary}
+      className={styles.mobileFilterStrip}
       controls={
         <>
-          <HeaderSlotSelect
-            value={projectId}
-            onChange={setProjectId}
-            options={projects.map((p) => ({ value: String(p.id), label: p.name }))}
-            placeholder="选择项目"
-            widthClass={TERM_HEADER_W_MD}
-            title="项目筛选"
-          />
-          <HeaderSlotSelect
-            value={month}
-            onChange={setMonth}
-            options={months.map((m) => ({ value: m, label: formatLedgerMonthLabel(m) }))}
-            placeholder="选择月份"
-            widthClass={TERM_HEADER_W_SM}
-            title="月份筛选"
-          />
-          <HeaderSlotSelect
-            value={filters.msku}
-            onChange={(v) => setFilters({ msku: v })}
-            options={[
-              { value: ALL, label: '全部 SKU' },
-              ...filterOptions.mskus.map((s) => ({ value: s, label: s })),
-            ]}
-            widthClass={TERM_HEADER_W_MD}
-            title="SKU 筛选"
-          />
-          <HeaderSlotSelect
-            value={filters.fc}
-            onChange={(v) => setFilters({ fc: v })}
-            options={[
-              { value: ALL, label: '全部仓库' },
-              ...filterOptions.locations.map((l) => ({ value: l, label: l })),
-            ]}
-            widthClass={TERM_HEADER_W_SM}
-            title="仓库筛选"
-          />
-          <HeaderSlotSelect
-            value={filters.disp}
-            onChange={(v) => setFilters({ disp: v })}
-            options={[
-              { value: ALL, label: '全部状态' },
-              ...filterOptions.dispositions.map((d) => ({ value: d, label: dispositionLabel(d) })),
-            ]}
-            widthClass={TERM_HEADER_W_SM}
-            title="状态筛选"
-          />
-          <HeaderSlotSelect
-            value={filters.evt}
-            onChange={(v) => setFilters({ evt: v })}
-            options={[
-              { value: ALL, label: '全部事件类型' },
-              ...filterOptions.eventTypes.map((e) => ({ value: e, label: eventTypeLabel(e) })),
-            ]}
-            widthClass={TERM_HEADER_W_MD}
-            title="事件类型筛选"
-          />
-          <MobileFilterWide>
-            <button
-              type="button"
-              onClick={() => setFilters({ msku: ALL, fc: ALL, disp: ALL, evt: ALL })}
-              className="flex h-10 w-full shrink-0 items-center justify-center rounded-none border border-term-border bg-term-panel px-2.5 font-mono text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
-            >
-              清除筛选（{activeFilterCount}）
-            </button>
-          </MobileFilterWide>
+          {renderProjectFilter('inventory-ledger-project-mobile')}
+          {renderMonthFilter('inventory-ledger-month-mobile')}
+          {renderDimensionFilters('mobile', true)}
         </>
       }
     />
   )
+  const canShowEmptyMonth =
+    !loading &&
+    !hasAnyData &&
+    !analysisError &&
+    Boolean(projectId) &&
+    !monthsLoading &&
+    !monthsError &&
+    (Boolean(month) || months.length === 0)
+  const noProjectsAvailable =
+    !projectsLoading && !projectsError && projects.length === 0 && !projectId
 
   return (
-    <div className="flex min-w-0 flex-col gap-3">
-      {/* Header 化：筛选控件已上移 Top Header 中段插槽，页面仅渲染 portal 宿主 */}
-      {headerSlotPortal}
-      {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
+    <div className={styles.page}>
+      {primaryFilterSlot}
+      {secondaryHeaderSlot}
       {mobileFilterStrip}
 
-      {/* Load error banner（BEL-417：真实错误 + 重试，不再静默假空态；destructive token 自动适配 dark） */}
-      {loadError && (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 shrink-0" />
-            <span>{loadError}</span>
-          </div>
-          <Button variant="outline" size="sm" onClick={loadData}>
+      {analysisError && (
+        <div className={styles.pageError} role="alert">
+          <span className={styles.pageErrorMessage}>{analysisError}</span>
+          <WarmButton variant="secondary" onClick={() => void loadData()}>
             重试
-          </Button>
+          </WarmButton>
         </div>
       )}
 
-      {/* Loading */}
       {loading && !hasAnyData && (
-        <div className="space-y-3">
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-64 w-full" />
+        <div className={styles.initialLoading} role="status" aria-busy="true">
+          <span className={styles.loadingLabel}>正在加载所选月份库存分类账</span>
+          <div className={styles.skeletonKpiGrid} aria-hidden="true">
+            {Array.from({ length: 8 }, (_, index) => (
+              <div className={styles.skeletonKpi} key={index} />
+            ))}
+          </div>
+          <div className={styles.skeletonMain} aria-hidden="true" />
+          <div className={styles.skeletonTable} aria-hidden="true" />
         </div>
       )}
 
-      {/* Empty state */}
-      {!loading && !hasAnyData && !loadError && projectId && monthsLoaded && (month || months.length === 0) && (
-        <div className="flex flex-col items-center justify-center gap-2 py-16 text-muted-foreground">
-          <Clock4 className="h-8 w-8" />
-          <p className="text-sm font-medium">暂无库存分类账数据</p>
-          <p className="text-xs">请通过「报表上传」页面上传 Amazon Inventory Ledger CSV（Summary / Detailed 视图均可自动识别）</p>
+      {noProjectsAvailable && (
+        <div className={styles.emptyState} role="status">
+          <p className={styles.emptyTitle}>暂无可用项目</p>
         </div>
       )}
 
-      {/* 总览区（常驻）+ 明细 tabs */}
+      {canShowEmptyMonth && (
+        <div className={styles.emptyState} role="status">
+          <Clock4 className={styles.emptyIcon} aria-hidden="true" />
+          <p className={styles.emptyTitle}>暂无库存分类账数据</p>
+          <p className={styles.emptyHelp}>
+            请通过「报表上传」页面上传 Amazon Inventory Ledger CSV（Summary / Detailed 视图均可自动识别）
+          </p>
+        </div>
+      )}
+
       {hasAnyData && (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="font-mono text-[11px] text-term-muted">
-              Excel 按所选月份全量导出，不受页面维度筛选影响
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              disabled={!analysisData || exporting || loading}
-              onClick={() => void handleExport()}
+          <div className={styles.exportRow}>
+            <div className={styles.exportControls}>
+              <WarmButton
+                className={styles.exportButton}
+                variant="secondary"
+                disabled={!analysisMatchesScope || loading}
+                loading={exporting}
+                loadingLabel="正在导出库存分析 Excel"
+                onClick={() => void handleExport()}
+              >
+                <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
+                {exporting ? '导出中…' : '导出库存分析 Excel'}
+              </WarmButton>
+              <p className={styles.exportNote}>
+                Excel 按所选月份全量导出，不受页面维度筛选影响
+              </p>
+            </div>
+            <div
+              className={styles.healthStates}
+              aria-label="所选项目与月份的数据完整性与对账状态"
             >
-              <FileSpreadsheet className="h-3.5 w-3.5" />
-              {exporting ? '导出中…' : '导出库存分析 Excel'}
-            </Button>
+              {(snapshot?.integrity || consistency) && (
+                <span className={styles.healthScope}>项目 / 月份范围</span>
+              )}
+              {snapshot?.integrity && <IntegrityBadge integrity={snapshot.integrity} />}
+              {consistency && <ConsistencyBadge consistency={consistency} />}
+            </div>
           </div>
           {exportError && (
-            <p className="rounded-none border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            <p className={styles.exportError} role="alert">
               {exportError}
             </p>
           )}
           <LazyLedgerOverview
             snapshot={snapshot}
             trend={trend}
-            consistency={consistency}
             summaryRows={filteredSummary}
             detailRows={filteredDetail}
             mskuFilter={filters.msku}
           />
 
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            {/* BLF-883 全局统一：variant="term" + 前置 icon */}
-            <TabsList variant="term" className="w-fit justify-start">
-              <TabsTrigger value="summary" variant="term">
-                <LayoutGrid aria-hidden />
-                汇总视图 Summary
-              </TabsTrigger>
-              <TabsTrigger value="detail" variant="term">
-                <List aria-hidden />
-                明细视图 Detail
-              </TabsTrigger>
-              <TabsTrigger value="batches" variant="term">
-                <UploadCloud aria-hidden />
-                上传批次
-              </TabsTrigger>
-            </TabsList>
+            <div className={styles.tabsFrame}>
+              <TabsList
+                variant="term"
+                aria-label="库存分类账视图"
+                className={styles.tabsList}
+              >
+                <TabsTrigger value="summary" variant="term" className={styles.tabsTrigger}>
+                  <LayoutGrid aria-hidden />
+                  汇总视图 Summary
+                </TabsTrigger>
+                <TabsTrigger value="detail" variant="term" className={styles.tabsTrigger}>
+                  <List aria-hidden />
+                  明细视图 Detail
+                </TabsTrigger>
+                <TabsTrigger value="batches" variant="term" className={styles.tabsTrigger}>
+                  <UploadCloud aria-hidden />
+                  上传批次
+                </TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="summary">
-              <LedgerSummaryTab
-                rows={filteredSummary}
-                failed={loadError !== null && summaryRows === null}
-              />
-            </TabsContent>
-            <TabsContent value="detail">
-              <LedgerDetailTab
-                rows={filteredDetail}
-                failed={loadError !== null && detailRows === null}
-              />
-            </TabsContent>
-            <TabsContent value="batches">
-              <LedgerBatchesTab
-                batches={batches?.batches ?? []}
-                failed={loadError !== null && batches === null}
-              />
-            </TabsContent>
+              <TabsContent value="summary" className={styles.tabContent}>
+                <LedgerSummaryTab
+                  rows={filteredSummary}
+                  failed={analysisError !== null && summaryRows === null}
+                />
+              </TabsContent>
+              <TabsContent value="detail" className={styles.tabContent}>
+                <LedgerDetailTab
+                  rows={filteredDetail}
+                  failed={analysisError !== null && detailRows === null}
+                />
+              </TabsContent>
+              <TabsContent value="batches" className={styles.tabContent}>
+                <LedgerBatchesTab
+                  batches={batches?.batches ?? []}
+                  failed={analysisError !== null && batches === null}
+                />
+              </TabsContent>
+            </div>
           </Tabs>
         </>
       )}

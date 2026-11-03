@@ -1,14 +1,14 @@
 /**
  * 汇总视图 tab（BLF-428 前端重构）— Summary 视图每日水位账。
  *
- * 上半部分：每 SKU 期末水位线（跨仓库/状态求和）；
+ * 上半部分：每 SKU 期末水位线（按当前筛选范围求和）；
  * 下半部分：原始水位表（主列 + 可展开次级列）+ 客户端分页 + CSV 导出。
  */
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts'
 
-import { Button } from '@/components/ui/button'
+import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
 import {
   type ChartConfig,
   ChartContainer,
@@ -37,15 +37,16 @@ import { skuEndingSummary, waterLevelSeries } from './ledger-derive'
 import { ColumnHeader, PaginationBar } from './ledger-table-parts'
 import { summaryEn, summaryLabel } from './ledger-glossary'
 import type { LedgerSummaryRow } from './ledger-types'
+import styles from './inventory-ledger-warm.module.css'
 
 const PAGE_SIZE = 50
 const SKU_LINE_COLORS = [
-  'hsl(var(--chart-1))',
-  'hsl(var(--chart-2))',
-  'hsl(var(--chart-3))',
-  'hsl(var(--chart-4))',
-  'hsl(var(--chart-5))',
-  'hsl(var(--chart-6))',
+  'var(--warm-ledger-color-accent)',
+  'var(--warm-ledger-color-text-soft)',
+  'var(--warm-ledger-color-text-muted)',
+  'var(--warm-ledger-color-text-faint)',
+  'var(--warm-ledger-color-raised-hover)',
+  'var(--warm-ledger-color-panel-strong)',
 ]
 
 const waterChartConfig = Object.fromEntries(
@@ -65,7 +66,7 @@ type ColumnDef = {
 }
 
 const num = (v: number) => (
-  <span className={cn('tabular-nums', v > 0 && 'text-[hsl(var(--data-positive))]', v < 0 && 'text-[hsl(var(--data-negative))]')}>
+  <span className={cn('tabular-nums', v > 0 && styles.positive, v < 0 && styles.negative)}>
     {v}
   </span>
 )
@@ -228,13 +229,15 @@ export function LedgerSummaryTab({
   return (
     <div className="space-y-4">
       {skuSummary.length > 0 && (
-        <DataTableCard>
+        <DataTableCard className={styles.tableCard}>
           <DataTableCardHeader
+            className={styles.tableHeader}
             title="SKU 月度汇总"
-            description={`${skuSummary.length} 个 MSKU · 跨仓库与状态汇总后的期末库存`}
+            description={`${skuSummary.length} 个 MSKU · 按当前筛选汇总期末库存`}
           />
-          <DataTableCardBody>
-            <Table>
+          <DataTableCardBody className={styles.tableBody}>
+            <div className={styles.tableScroll}>
+              <Table className={styles.skuSummaryTable}>
               <TableHeader>
                 <TableRow>
                   <ColumnHeader label="MSKU" />
@@ -267,24 +270,26 @@ export function LedgerSummaryTab({
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+              </Table>
+            </div>
           </DataTableCardBody>
         </DataTableCard>
       )}
 
       {/* 每 SKU 期末水位线 */}
       {rows.length > 0 && (
-        <DataTableCard>
+        <DataTableCard className={styles.tableCard}>
           <DataTableCardHeader
+            className={styles.tableHeader}
             title="每 SKU 月度水位"
-            description={`按日期汇总各 MSKU 期末库存（跨仓库/状态）${
+            description={`按当前筛选范围汇总各 MSKU 期末库存${
               mskus.length > SKU_LINE_COLORS.length
                 ? ` · 仅显示前 ${SKU_LINE_COLORS.length} 个 SKU`
                 : ''
             }`}
           />
-          <DataTableCardBody>
-            <ChartContainer className="h-56 w-full" config={waterChartConfig}>
+          <DataTableCardBody className={styles.tableBody}>
+            <ChartContainer className={styles.chartContainer} config={waterChartConfig}>
               <LineChart accessibilityLayer data={data} margin={{ left: 4, right: 12, top: 8 }}>
                 <CartesianGrid className="stroke-border" vertical={false} />
                 <XAxis
@@ -314,25 +319,27 @@ export function LedgerSummaryTab({
       )}
 
       {/* 水位表 */}
-      <DataTableCard>
+      <DataTableCard className={styles.tableCard}>
         <DataTableCardHeader
+          className={styles.tableHeader}
           title="月度水位明细"
           description={`${rows.length} 行 · 每行 = 1 个 MSKU × 仓库 × 状态 × 日期的水位快照`}
           action={
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
+                <WarmButton
+                className={styles.tableAction}
+                variant="secondary"
                 onClick={() => setShowAllColumns((v) => !v)}
               >
                 {showAllColumns ? '收起次级列' : '展开全部列'}
-              </Button>
+              </WarmButton>
             </div>
           }
         />
-        <DataTableCardBody>
+        <DataTableCardBody className={styles.tableBody}>
           <TooltipProvider delayDuration={150}>
-            <Table>
+            <div className={styles.tableScroll}>
+            <Table className={styles.ledgerTable}>
               <TableHeader>
                 <TableRow>
                   {columns.map((c) => (
@@ -361,6 +368,7 @@ export function LedgerSummaryTab({
                 )}
               </TableBody>
             </Table>
+            </div>
           </TooltipProvider>
           <PaginationBar
             page={page}

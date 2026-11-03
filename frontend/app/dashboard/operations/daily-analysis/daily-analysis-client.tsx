@@ -2,14 +2,17 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef, useSyncExternalStore } from 'react'
 import { DateRange } from 'react-day-picker'
-import { CalendarDays, FileDown, Loader2, Package } from 'lucide-react'
+import { CalendarDays, Check, ChevronsUpDown, FileDown, Package } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
 import {
-  LegacyFallbackCountryFilter,
-  LegacyFallbackProjectDateFilters,
-  SkuSearchField,
-} from '@/components/dashboard/daily-analysis-header-filters'
+  Command,
+  CommandEmpty,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { DailyAnalysisHeaderSlots } from '@/components/dashboard/daily-analysis-header-slots'
 import { MetricSwitcherCard, type MetricDef } from '@/components/dashboard/metric-switcher-card'
 import {
@@ -18,14 +21,6 @@ import {
   isGoalProgressScopeValid,
   type GoalRingItem,
 } from '@/components/ui/goal-progress-rings'
-import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { DataTableCard, DataTableCardHeader, DataTableCardBody } from '@/components/ui/data-card'
 import {
   COUNTRY_TIMEZONE_MAP,
@@ -53,7 +48,12 @@ import { logClientOperation } from '@/lib/operation-audit'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
-import { useTerminalGlobalFilter } from '@/components/terminal/global-filter-context'
+import {
+  useTerminalGlobalFilter,
+  type TerminalDailyAnalysisFilterSync,
+  type TerminalDailyAnalysisPageFilters,
+  type TerminalGlobalFilterState,
+} from '@/components/terminal/global-filter-context'
 import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import {
@@ -77,6 +77,8 @@ import {
 } from '@/lib/daily-analysis-sku-scope'
 import { TableSkeletonRows } from '@/components/ui/table-skeleton'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { WarmButton, WarmSelect } from '@/components/dashboard-v2/warm-ledger/controls'
+import styles from './daily-analysis-warm.module.css'
 
 type CountryOption = 'US' | 'DE' | 'UK' | 'ALL'
 type ViewTab = 'summary' | 'details'
@@ -268,21 +270,133 @@ const CHART_METRICS: Array<{ key: ChartMetricKey; label: string }> = [
 ]
 
 const SINGLE_METRIC_CHART_CONFIG = {
-  order_qty: { label: '订单', color: 'var(--term-pos)' },
-  sales_amount: { label: '销售额', color: 'var(--term-accent)' },
-  impressions: { label: '曝光量', color: 'var(--term-warn)' },
-  clicks: { label: '点击量', color: 'var(--term-pos)' },
-  cpc: { label: 'CPC', color: 'var(--term-warn)' },
-  ad_spend: { label: '广告花费', color: 'var(--term-neg)' },
-  ad_orders: { label: '广告订单', color: 'var(--term-pos)' },
-  page_views: { label: '页面浏览量', color: 'var(--term-accent)' },
-  units_ordered: { label: '销量', color: 'var(--term-pos)' },
-  sessions: { label: '访问量', color: 'var(--term-warn)' },
-  conversion_rate: { label: '转化率', color: 'var(--term-accent)' },
+  order_qty: { label: '订单', color: 'var(--warm-ledger-color-accent)' },
+  sales_amount: { label: '销售额', color: 'var(--warm-ledger-color-accent)' },
+  impressions: { label: '曝光量', color: 'var(--warm-ledger-color-accent)' },
+  clicks: { label: '点击量', color: 'var(--warm-ledger-color-accent)' },
+  cpc: { label: 'CPC', color: 'var(--warm-ledger-color-accent)' },
+  ad_spend: { label: '广告花费', color: 'var(--warm-ledger-color-accent)' },
+  ad_orders: { label: '广告订单', color: 'var(--warm-ledger-color-accent)' },
+  page_views: { label: '页面浏览量', color: 'var(--warm-ledger-color-accent)' },
+  units_ordered: { label: '销量', color: 'var(--warm-ledger-color-accent)' },
+  sessions: { label: '访问量', color: 'var(--warm-ledger-color-accent)' },
+  conversion_rate: { label: '转化率', color: 'var(--warm-ledger-color-accent)' },
 } satisfies MetricChartConfig
 
 const EMPTY_SUMMARY_ROWS: DailyAnalysisRow[] = []
 const EMPTY_DETAIL_ROWS: DailyAnalysisDetailRow[] = []
+
+type WarmSkuSearchFieldProps = {
+  value: string
+  options: ProjectSkuOption[]
+  loading: boolean
+  onChange: (value: string) => void
+  disabled?: boolean
+  onOpen?: () => void
+}
+
+function WarmSkuSearchField({
+  value,
+  options,
+  loading,
+  onChange,
+  disabled = false,
+  onOpen,
+}: WarmSkuSearchFieldProps) {
+  const [open, setOpen] = useState(false)
+  const selectedSku = options.find((option) => option.sku === value)
+  const selectedSkuLabel = selectedSku
+    ? `${selectedSku.sku}${selectedSku.product_name ? ` / ${selectedSku.product_name}` : ''}`
+    : null
+
+  const handleOpen = () => {
+    onOpen?.()
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => setOpen(disabled ? false : nextOpen)}
+    >
+      <DialogTrigger asChild>
+        <WarmButton
+          className={styles.skuTrigger}
+          type="button"
+          disabled={disabled}
+          title={selectedSkuLabel ?? '搜索并选择 SKU（清空即恢复全部 SKU）'}
+          aria-label={selectedSkuLabel ? `SKU ${selectedSkuLabel}` : undefined}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          onClick={handleOpen}
+        >
+          <span className={styles.skuTriggerLabel}>
+            {selectedSkuLabel ?? (loading ? 'SKU 加载中…' : '全部 SKU')}
+          </span>
+          <ChevronsUpDown className={styles.skuChevron} aria-hidden="true" />
+        </WarmButton>
+      </DialogTrigger>
+      <DialogContent
+        className={styles.skuDialog}
+      >
+        <DialogTitle className="sr-only">搜索 SKU</DialogTitle>
+        <Command className={styles.skuCommand}>
+          <CommandInput className={styles.skuSearch} placeholder="搜索 SKU" />
+          <CommandList className={styles.skuList}>
+            <CommandEmpty className={styles.skuEmpty}>
+              {loading ? 'SKU 加载中…' : '没有匹配的 SKU'}
+            </CommandEmpty>
+            <CommandItem
+              value="__all__"
+              onSelect={() => {
+                onChange('')
+                setOpen(false)
+              }}
+              className={styles.skuOption}
+            >
+              <Check
+                className={value ? styles.skuCheck : styles.skuCheckSelected}
+                aria-hidden="true"
+              />
+              <span className={styles.skuOptionLabel}>全部 SKU</span>
+            </CommandItem>
+            {options.map((option) => {
+              const missingUnits = !option.units_per_carton || option.units_per_carton <= 0
+              const isSelected = value === option.sku
+
+              return (
+                <CommandItem
+                  key={option.sku}
+                  value={option.sku}
+                  disabled={missingUnits}
+                  onSelect={() => {
+                    if (missingUnits) return
+                    onChange(option.sku)
+                    setOpen(false)
+                  }}
+                  className={styles.skuOption}
+                >
+                  <Check
+                    className={isSelected ? styles.skuCheckSelected : styles.skuCheck}
+                    aria-hidden="true"
+                  />
+                  <span className={styles.skuOptionLabel}>{option.sku}</span>
+                  {option.product_name ? (
+                  <span className={styles.skuProductName} title={option.product_name}>
+                    {option.product_name}
+                  </span>
+                  ) : null}
+                  {missingUnits ? (
+                    <span className={styles.skuMissingUnits}>未维护单箱数</span>
+                  ) : null}
+                </CommandItem>
+              )
+            })}
+          </CommandList>
+        </Command>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 function authHeaders(): Record<string, string> {
   return {}
@@ -319,7 +433,8 @@ function formatMetricCardValue(metric: ChartMetricKey, value: number) {
 
 /** Returns today's calendar date as a Date in local time, calculated in the country's timezone. */
 function getTodayInTimezone(country: string): Date {
-  const tz = COUNTRY_TIMEZONE_MAP[country] ?? 'UTC'
+  const timezoneCountry = country === 'ALL' ? 'US' : country
+  const tz = COUNTRY_TIMEZONE_MAP[timezoneCountry] ?? 'UTC'
   const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: tz }) // YYYY-MM-DD in target TZ
   const now = new Date()
   const [y, m, d] = formatter.format(now).split('-').map(Number)
@@ -780,6 +895,22 @@ function lastSevenDaysRange(country: string): DateRange {
   return { from: start, to: end }
 }
 
+function matchesDailyAnalysisFilterSync(
+  sync: TerminalDailyAnalysisFilterSync | null,
+  filters: TerminalGlobalFilterState,
+  pageFilters: TerminalDailyAnalysisPageFilters
+): boolean {
+  return Boolean(
+    sync &&
+      sync.filters.projectId === filters.projectId &&
+      sync.filters.country === filters.country &&
+      sync.filters.dateFrom === filters.dateFrom &&
+      sync.filters.dateTo === filters.dateTo &&
+      sync.pageFilters.projectId === pageFilters.projectId &&
+      sync.pageFilters.country === pageFilters.country
+  )
+}
+
 function formatYMD(date: Date): string {
   const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, '0')
@@ -823,75 +954,202 @@ export default function DailyAnalysisPage() {
   const { notify } = useNotifications()
   const { data: session } = useSession()
   const isMobile = useIsMobile()
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null)
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [projectsLoading, setProjectsLoading] = useState(true)
+  const [projectListError, setProjectListError] = useState<string | null>(null)
   // 默认不预设 "all"：项目加载完成后由下方 effect 自动选中第一个真实项目，
   // 以满足"控制台默认选择第一个项目"的需求。
-  // 项目 / 国家站点 同步到 URL search param，刷新 / 分享链接 / 浏览器后退都能记住选择。
-  // BLF-819：全局筛选就绪时，头部四件套的选择会同步覆盖到本页（见下方 effect）。
-  const [projectId, setProjectId] = useUrlParam<string>('project', '')
-  const [country, setCountry] = useUrlParam<CountryOption>('country', 'US', {
+  // Page filters stay URL-backed; a resolved page selection seeds an empty global project.
+  const [projectId] = useUrlParam<string>('project', '')
+  const [country] = useUrlParam<CountryOption>('country', 'US', {
     allowed: ['US', 'DE', 'UK', 'ALL'],
   })
   const globalFilter = useTerminalGlobalFilter()
-  const gfProjectId = globalFilter.ready ? globalFilter.projectId : null
-  const gfCountry = globalFilter.ready ? globalFilter.country : null
-  const gfDateFrom = globalFilter.ready ? globalFilter.dateFrom : null
-  const gfDateTo = globalFilter.ready ? globalFilter.dateTo : null
+  const globalFilterReady = globalFilter.ready
+  const globalProjectId = globalFilter.projectId
+  const globalCountry = globalFilter.country
+  const globalDateFrom = globalFilter.dateFrom
+  const globalDateTo = globalFilter.dateTo
+  const lastDailyAnalysisSync = globalFilter.lastDailyAnalysisSync
+  const syncDailyAnalysisFilters = globalFilter.syncDailyAnalysisFilters
+  const gfProjectId = globalFilterReady ? globalProjectId : null
+  const gfCountry = globalFilterReady ? globalCountry : null
+  const gfDateFrom = globalFilterReady ? globalDateFrom : null
+  const gfDateTo = globalFilterReady ? globalDateTo : null
 
-  // BLF-819 头部 → 页面同步：头部四件套变化（含首次水合出的持久化值）写入本页筛选。
-  // 只在头部值真正变化时触发，页面内手动切换不受影响；日期仅在头部有完整范围时应用。
-  // BLF-925 follow-up：头部有项目时置 owned 守卫（对齐 order-info 的 gfProjectOwnedRef）——
-  // 否则「自动选第一个项目」effect 可能在头部 setProjectId 的 router.replace 回填 URL 之前
-  // 抢跑覆盖（列表缓存命中时两帧内竞态），导致 head 显示 A、URL/请求却打到 B。
+  // A resolved global project owns the page; otherwise resolved page filters seed global state.
   const gfProjectOwnedRef = useRef(false)
-  const loadDataRef = useRef<
-    ((rangeOverride?: DateRange, clearCache?: boolean) => Promise<void>) | null
-  >(null)
   const lastAppliedGfRef = useRef('')
-  useEffect(() => {
-    if (!globalFilter.ready) return
-    const signature = `${gfProjectId}|${gfCountry}|${gfDateFrom}|${gfDateTo}`
-    if (signature === lastAppliedGfRef.current) return
-    const isFirstApply = lastAppliedGfRef.current === ''
-    lastAppliedGfRef.current = signature
-    if (isFirstApply) {
-      // 首次水合：仅当头部带用户上次选择（URL/localStorage 有项目）时才覆盖，
-      // 否则保留本页 URL param 的既有行为（自动选第一个项目）。
-      if (!gfProjectId) return
-    }
-    const projectWillChange = Boolean(gfProjectId) && gfProjectId !== projectId
-    if (gfProjectId) {
-      gfProjectOwnedRef.current = true
-      if (projectWillChange) {
-        setProjectId(gfProjectId === 'all' ? 'all' : gfProjectId)
-      }
-    }
-    if (gfCountry && ['US', 'DE', 'UK', 'ALL'].includes(gfCountry) && gfCountry !== country) {
-      setCountry(gfCountry as CountryOption)
-    }
-    if (gfDateFrom && gfDateTo) {
-      const from = parseDateInputValue(gfDateFrom)
-      const to = parseDateInputValue(gfDateTo)
-      if (from && to) {
-        setDatePresetKey(undefined)
-        setDateRange({ from, to })
-        // BLF-882：项目即将变化时，当前 render 的 loadData 闭包仍持有旧 projectId
-        //（进入页面常为空），直连会以旧值发请求并误报「请先选择项目」；
-        // 此时跳过直连，setProjectId/setDateRange 落定后 [loadData] effect 会自然重跑。
-        if (!projectWillChange && projectId) {
-          void loadDataRef.current?.({ from, to })
-        }
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 只响应头部四件套的变化
-  }, [globalFilter.ready, gfProjectId, gfCountry, gfDateFrom, gfDateTo])
-
   const defaultRange = useMemo(() => lastSevenDaysRange(country), [country])
   const [dateRange, setDateRange] = useState<DateRange | undefined>(defaultRange)
+  const resolvedGlobalCountry =
+    gfCountry && ['US', 'DE', 'UK', 'ALL'].includes(gfCountry)
+      ? (gfCountry as CountryOption)
+      : country
+  const currentPageDateFrom = dateRange?.from ? formatYMD(dateRange.from) : ''
+  const currentPageDateTo = dateRange?.to ? formatYMD(dateRange.to) : ''
+  const globalFiltersApplied =
+    globalFilterReady &&
+    (!gfProjectId ||
+      (projectId === gfProjectId &&
+        country === resolvedGlobalCountry &&
+        Boolean(gfDateFrom && gfDateTo) &&
+        currentPageDateFrom === gfDateFrom &&
+        currentPageDateTo === gfDateTo))
   // 当用户在 DateRangePicker 里点了 preset 侧边栏时，记下触发的 preset label；
   // 手动选日期（onChange 第二参数 meta 为 undefined）会清掉它，之后按 days diff 判定粒度。
   const [datePresetKey, setDatePresetKey] = useState<string | undefined>(undefined)
+
+  const syncPageAndGlobalFilters = useCallback(
+    (
+      nextProjectId: string,
+      nextCountry: CountryOption,
+      nextDateRange: DateRange | undefined
+    ) => {
+      syncDailyAnalysisFilters(
+        {
+          projectId: nextProjectId,
+          country: nextCountry,
+          dateFrom: nextDateRange?.from ? formatYMD(nextDateRange.from) : '',
+          dateTo: nextDateRange?.to ? formatYMD(nextDateRange.to) : '',
+        },
+        { projectId: nextProjectId, country: nextCountry }
+      )
+    },
+    [syncDailyAnalysisFilters]
+  )
+
+  useEffect(() => {
+    if (!globalFilterReady) return
+
+    if (gfProjectId) {
+      const signature = JSON.stringify([gfProjectId, gfCountry, gfDateFrom, gfDateTo])
+      if (signature === lastAppliedGfRef.current) return
+      lastAppliedGfRef.current = signature
+      gfProjectOwnedRef.current = true
+
+      const globalFilters: TerminalGlobalFilterState = {
+        projectId: gfProjectId,
+        country: gfCountry ?? country,
+        dateFrom: gfDateFrom ?? '',
+        dateTo: gfDateTo ?? '',
+      }
+      const pageFilters: TerminalDailyAnalysisPageFilters = {
+        projectId: gfProjectId,
+        country: resolvedGlobalCountry,
+      }
+      if (
+        !matchesDailyAnalysisFilterSync(
+          lastDailyAnalysisSync,
+          globalFilters,
+          pageFilters
+        )
+      ) {
+        syncDailyAnalysisFilters(globalFilters, pageFilters)
+      }
+
+      if (gfDateFrom && gfDateTo) {
+        const from = parseDateInputValue(gfDateFrom)
+        const to = parseDateInputValue(gfDateTo)
+        if (from && to) {
+          const rangeChanged =
+            !dateRange?.from ||
+            !dateRange.to ||
+            formatYMD(dateRange.from) !== gfDateFrom ||
+            formatYMD(dateRange.to) !== gfDateTo
+          if (rangeChanged) {
+            setDatePresetKey(undefined)
+            setDateRange({ from, to })
+          }
+        }
+      }
+      return
+    }
+
+    const pageProjectResolved =
+      projectId === 'all' ||
+      (projectId
+        ? projects.length === 0 || projects.some((project) => String(project.id) === projectId)
+        : projects.length === 0)
+    if (projectsLoading || !pageProjectResolved) return
+
+    const pageFilters: TerminalDailyAnalysisPageFilters = { projectId, country }
+    const lastSync = lastDailyAnalysisSync
+    const lastSyncIsCurrent = Boolean(
+      lastSync &&
+        lastSync.filters.projectId === globalProjectId &&
+        lastSync.filters.country === globalCountry &&
+        lastSync.filters.dateFrom === globalDateFrom &&
+        lastSync.filters.dateTo === globalDateTo
+    )
+    const pageOwnsSyncedRange = Boolean(
+      lastSync &&
+        lastSyncIsCurrent &&
+        lastSync.filters.projectId === '' &&
+        lastSync.pageFilters.country === country
+    )
+    const pageDateFrom = pageOwnsSyncedRange && lastSync
+      ? lastSync.filters.dateFrom
+      : dateRange?.from
+        ? formatYMD(dateRange.from)
+        : ''
+    const pageDateTo = pageOwnsSyncedRange && lastSync
+      ? lastSync.filters.dateTo
+      : dateRange?.to
+        ? formatYMD(dateRange.to)
+        : ''
+    const pageFiltersAsGlobal: TerminalGlobalFilterState = {
+      projectId,
+      country,
+      dateFrom: pageDateFrom,
+      dateTo: pageDateTo,
+    }
+    const syncedFrom = pageDateFrom ? parseDateInputValue(pageDateFrom) : undefined
+    const syncedTo = pageDateTo ? parseDateInputValue(pageDateTo) : undefined
+    const syncedRange: DateRange | undefined =
+      syncedFrom || syncedTo ? { from: syncedFrom, to: syncedTo } : undefined
+
+    const currentDateFrom = dateRange?.from ? formatYMD(dateRange.from) : ''
+    const currentDateTo = dateRange?.to ? formatYMD(dateRange.to) : ''
+    if (
+      pageOwnsSyncedRange &&
+      (currentDateFrom !== pageDateFrom || currentDateTo !== pageDateTo)
+    ) {
+      setDatePresetKey(undefined)
+      setDateRange(syncedRange)
+    }
+
+    if (
+      !matchesDailyAnalysisFilterSync(
+        lastSync,
+        pageFiltersAsGlobal,
+        pageFilters
+      )
+    ) {
+      syncPageAndGlobalFilters(projectId, country, syncedRange ?? dateRange)
+    }
+  }, [
+    country,
+    dateRange,
+    gfCountry,
+    gfDateFrom,
+    gfDateTo,
+    gfProjectId,
+    globalCountry,
+    globalDateFrom,
+    globalDateTo,
+    globalFilterReady,
+    globalProjectId,
+    lastDailyAnalysisSync,
+    resolvedGlobalCountry,
+    syncDailyAnalysisFilters,
+    projectId,
+    projects,
+    projectsLoading,
+    syncPageAndGlobalFilters,
+  ])
+
   // 'daily' = 保持原样；'monthly' = 图表 / 表格 / Excel 全部按月汇总。
   const granularity = useMemo<'daily' | 'monthly'>(() => {
     if (
@@ -909,13 +1167,16 @@ export default function DailyAnalysisPage() {
   }, [datePresetKey, dateRange])
   const [activeTab, setActiveTab] = useState<ViewTab>('summary')
 
-  const { goalProgress, goalLoading } = useGoalProgress(projectId, country, session)
+  const goalProjectId = globalFilterReady ? gfProjectId || projectId : ''
+  const goalCountry = gfProjectId ? resolvedGlobalCountry : country
+  const { goalProgress, goalLoading } = useGoalProgress(goalProjectId, goalCountry, session)
   const [data, setData] = useState<DailyAnalysisResponse | null>(null)
   const [rawComparisonSummaryRows, setComparisonSummaryRows] =
     useState<DailyAnalysisRow[]>(EMPTY_SUMMARY_ROWS)
   const [rawComparisonDetailRows, setComparisonDetailRows] =
     useState<DailyAnalysisDetailRow[]>(EMPTY_DETAIL_ROWS)
   const [loading, setLoading] = useState(false)
+  const [requestError, setRequestError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
   const [skuOptions, setSkuOptions] = useState<ProjectSkuOption[]>([])
   const [skuOptionsScope, setSkuOptionsScope] = useState<string | null>(null)
@@ -933,47 +1194,102 @@ export default function DailyAnalysisPage() {
   )
 
   useEffect(() => {
-    const loadProjects = async () => {
+    setPortalContainer(document.getElementById('warm-ledger-portal-root'))
+  }, [])
+
+  const loadProjects = useCallback(
+    async (force = false) => {
       setProjectsLoading(true)
       try {
-        const rows = await fetchManagedProjectsCached<ProjectOption[]>(session)
+        const rows = await fetchManagedProjectsCached<ProjectOption[]>(
+          session,
+          undefined,
+          force ? { force: true } : undefined
+        )
         setProjects(rows.filter((item) => item.id !== null))
+        setProjectListError(null)
       } catch (fetchError) {
+        const message =
+          fetchError instanceof Error ? fetchError.message : '项目列表加载失败'
+        setProjectListError(message)
         notify({
           type: 'error',
           title: '项目列表加载失败',
-          message: fetchError instanceof Error ? fetchError.message : '项目列表加载失败',
+          message,
         })
       } finally {
         setProjectsLoading(false)
       }
-    }
-    void loadProjects()
-  }, [notify, session])
+    },
+    [notify, session]
+  )
 
   useEffect(() => {
-    if (projects.length === 0) return
+    void loadProjects()
+  }, [loadProjects])
+
+  useEffect(() => {
+    if (!globalFilterReady || projectsLoading || projects.length === 0) return
     // 1. URL 没指定 projectId（空字符串）→ 选第一个
     // 2. URL 指定了 "all"（"全部项目"）→ 保留
     // 3. URL 指定了具体项目但项目列表里找不到（用户失去权限、项目被删除）→ 回退到第一个
-    // BLF-925 follow-up：头部项目已接管（owned）时不再自动选第一个 —— 否则会在头部
-    // setProjectId 的 URL 回填完成前抢跑覆盖，造成 head 显示与 URL/请求不一致。
+    // BLF-925 follow-up：global-to-page effect runs first and marks its project as owned,
+    // so this fallback cannot replace a global selection.
     if (gfProjectOwnedRef.current) return
     const isAllSentinel = projectId === 'all'
     const existsInList =
       projectId && !isAllSentinel && projects.some((p) => String(p.id) === projectId)
     if (!projectId || (!isAllSentinel && !existsInList)) {
       const first = projects.find((item) => item.id !== null)
-      if (first?.id != null) setProjectId(String(first.id))
+      if (first?.id != null) {
+        syncPageAndGlobalFilters(String(first.id), country, dateRange)
+      }
     }
-  }, [projectId, projects])
+  }, [
+    country,
+    dateRange,
+    globalFilterReady,
+    projectId,
+    projects,
+    projectsLoading,
+    syncPageAndGlobalFilters,
+  ])
 
   const isAllProjects = projectId === 'all'
 
-  // When country changes, reset dateRange to "last 7 days in that country's timezone".
+  // Page-owned country changes keep the existing last-seven-days reset behavior.
   useEffect(() => {
+    const validGlobalCountry = gfProjectId ? resolvedGlobalCountry : null
+    const globalCountryWillApply = Boolean(gfProjectId && validGlobalCountry && validGlobalCountry !== country)
+    const lastSync = lastDailyAnalysisSync
+    const lastSyncIsCurrent = Boolean(
+      lastSync &&
+        lastSync.filters.projectId === globalProjectId &&
+        lastSync.filters.country === globalCountry &&
+        lastSync.filters.dateFrom === globalDateFrom &&
+        lastSync.filters.dateTo === globalDateTo
+    )
+    const atomicCountryWillApply = Boolean(
+      lastSync &&
+        lastSyncIsCurrent &&
+        lastSync.pageFilters.country === globalCountry &&
+        lastSync.pageFilters.country !== country
+    )
+    if (globalCountryWillApply || atomicCountryWillApply) return
+    if (globalCountry === country) return
     setDateRange(defaultRange)
-  }, [country, defaultRange])
+  }, [
+    country,
+    defaultRange,
+    gfCountry,
+    gfProjectId,
+    globalCountry,
+    globalDateFrom,
+    globalDateTo,
+    globalProjectId,
+    lastDailyAnalysisSync,
+    resolvedGlobalCountry,
+  ])
 
   const loadData = useCallback(
     async (rangeOverride?: DateRange, clearCache: boolean = false) => {
@@ -990,6 +1306,7 @@ export default function DailyAnalysisPage() {
       const endDate = formatYMD(effectiveRange.to)
       const previousRange = getPreviousPeriodRange(effectiveRange)
 
+      setRequestError(null)
       setLoading(true)
       const requestId = latestLoadRequestRef.current + 1
       latestLoadRequestRef.current = requestId
@@ -1187,10 +1504,12 @@ export default function DailyAnalysisPage() {
         }
       } catch (fetchError) {
         if (requestId !== latestLoadRequestRef.current) return
+        const message = fetchError instanceof Error ? fetchError.message : '销售数据加载失败'
+        setRequestError(message)
         notify({
           type: 'error',
           title: '销售数据加载失败',
-          message: fetchError instanceof Error ? fetchError.message : '销售数据加载失败',
+          message,
         })
         setData(null)
         setComparisonSummaryRows(EMPTY_SUMMARY_ROWS)
@@ -1202,9 +1521,6 @@ export default function DailyAnalysisPage() {
     },
     [projectId, country, dateRange, notify, isAllProjects, projects, projectsLoading, session]
   )
-  // BLF-819：供头部同步 effect 桥接调用（定义顺序解耦）
-  loadDataRef.current = loadData
-
   const loadProjectSkus = useCallback(
     async (projectIdText: string, countryValue: string) => {
       const requestScope = buildSkuScopeKey(projectIdText, countryValue)
@@ -1330,9 +1646,9 @@ export default function DailyAnalysisPage() {
   }, [activeTab, ensureSkuOptions])
 
   useEffect(() => {
-    if (!projectId) return
+    if (!projectId || !globalFiltersApplied) return
     void loadData()
-  }, [loadData])
+  }, [globalFiltersApplied, loadData, projectId])
 
   const rawSummaryRows = data?.summary_rows ?? EMPTY_SUMMARY_ROWS
   const rawDetailRows = data?.detail_rows ?? EMPTY_DETAIL_ROWS
@@ -1363,7 +1679,7 @@ export default function DailyAnalysisPage() {
         caption: `已完成 ${money(goalProgress.achieved_amount)} / 应完成 ${money(
           (goalProgress.target_amount * goalProgress.today_day) / goalProgress.days_in_month
         )}`,
-        color: 'hsl(var(--chart-1))',
+        color: 'var(--warm-ledger-color-accent)',
       },
       {
         key: 'monthly',
@@ -1372,7 +1688,7 @@ export default function DailyAnalysisPage() {
         value: goalProgress.completion_vs_monthly,
         display: `${(goalProgress.completion_vs_monthly * 100).toFixed(1)}%`,
         caption: `已完成 ${money(goalProgress.achieved_amount)} / 目标 ${money(goalProgress.target_amount)}`,
-        color: 'hsl(var(--chart-2))',
+        color: 'var(--warm-ledger-color-text-soft)',
       },
       {
         key: 'pace_ratio',
@@ -1386,7 +1702,7 @@ export default function DailyAnalysisPage() {
               ? '已达标'
               : `${(paceRatio * 100).toFixed(1)}%`,
         caption: '当前日均 / 剩余所需日均',
-        color: 'hsl(var(--chart-3))',
+        color: 'var(--warm-ledger-color-text-muted)',
       },
     ]
   }, [goalProgress])
@@ -1619,15 +1935,14 @@ export default function DailyAnalysisPage() {
 
   const handleQuickRange = async (nextRange: DateRange) => {
     setDateRange(nextRange)
+    syncPageAndGlobalFilters(projectId, country, nextRange)
     await loadData(nextRange)
   }
 
   // —— BLF-826 阶段 B：head 插槽 + 全局刷新 ——
   // 刷新语义与原「控制台」RefreshButton 一致：当前筛选条件下强刷（跳 Redis/客户端缓存）。
-  const { setLoading: setHeaderRefreshLoading } = useHeaderRefresh(
-    () => loadData(undefined, true),
-    { loading }
-  )
+  const refreshData = useCallback(() => loadData(undefined, true), [loadData])
+  useHeaderRefresh(refreshData, { loading })
 
   const handleSkuChange = (value: string) => {
     selectedSkuRef.current = value
@@ -1636,34 +1951,91 @@ export default function DailyAnalysisPage() {
     void loadData()
   }
 
-  // xl+ 项目/日期与站点由 TerminalHeader 全局筛选承载；页面 slot 只承载 SKU。
-  // md~xl 首层使用页面的项目/日期降级控件，第二层使用站点与 SKU。
-  const fallbackProjects = projects.filter(
-    (p): p is { id: number; name: string } => p.id !== null
-  )
+  // xl+ 项目/日期与站点由 Warm Ledger 全局筛选承载；中等宽度和移动端沿用同一状态源。
+  const projectFilterValue = projectId || '__project_pending__'
+  const projectFilterError = projectListError
+    ? `项目列表加载失败：${projectListError}`
+    : null
+  const projectFilterOptions = [
+    ...(!projectId
+      ? [
+          {
+            value: '__project_pending__',
+            label: projectsLoading ? '加载项目…' : '选择项目',
+          },
+        ]
+      : []),
+    ...(projectListError ? [] : [{ value: 'all', label: '全部项目' }]),
+    ...(projectListError
+      ? []
+      : projects.flatMap((project) =>
+          project.id == null ? [] : [{ value: String(project.id), label: project.name }]
+        )),
+  ]
+  const handleProjectFilterChange = (nextProjectId: string) => {
+    syncPageAndGlobalFilters(nextProjectId, country, dateRange)
+  }
+  const handleCountryFilterChange = (value: string) => {
+    const nextCountry = value as CountryOption
+    const nextRange = lastSevenDaysRange(nextCountry)
+    setDateRange(nextRange)
+    setDatePresetKey(undefined)
+    syncPageAndGlobalFilters(projectId, nextCountry, nextRange)
+  }
+  const handleDateRangeChange = (range?: DateRange) => {
+    setDateRange(range)
+    setDatePresetKey(undefined)
+    syncPageAndGlobalFilters(projectId, country, range)
+  }
   const fallbackProjectDateControls = (
-    <div className="hidden items-center gap-1.5 md:flex xl:hidden">
-      <LegacyFallbackProjectDateFilters
-        projectId={projectId}
-        projects={fallbackProjects}
-        country={country}
-        dateRange={dateRange}
-        onProjectChange={setProjectId}
-        onDateRangeChange={(range) => {
-          setDateRange(range)
-          setDatePresetKey(undefined)
-        }}
-        onDateApply={() => void loadData()}
+    <div className={cn(styles.fallbackPrimary, 'hidden items-center md:flex xl:hidden')}>
+      <div className={styles.projectControl}>
+        <WarmSelect
+          id="daily-analysis-project-filter-fallback"
+          label="项目"
+          value={projectFilterValue}
+          options={projectFilterOptions}
+          onChange={handleProjectFilterChange}
+          disabled={projectsLoading || !projectId || Boolean(projectListError)}
+          error={projectFilterError}
+          className={cn(styles.filterSelect, styles.projectSelect)}
+        />
+        {projectListError ? (
+          <WarmButton
+            className={styles.projectRetry}
+            type="button"
+            aria-label="重试项目列表加载"
+            loading={projectsLoading}
+            loadingLabel="正在重新加载项目列表"
+            onClick={() => void loadProjects(true)}
+          >
+            重试
+          </WarmButton>
+        ) : null}
+      </div>
+      <DateRangePicker
+        value={dateRange}
+        timezone={COUNTRY_TIMEZONE_MAP[country === 'ALL' ? 'US' : country]}
+        onChange={handleDateRangeChange}
+        onApply={() => void loadData()}
+        placeholder="选择日期范围"
+        className={cn(styles.dateTrigger, styles.fallbackDateTrigger)}
+        portalContainer={portalContainer}
+        popoverClassName={cn(styles.datePopover, 'warm-ledger__date-picker-content')}
       />
     </div>
   )
   const fallbackSecondaryControls = (
-    <div className="hidden items-center gap-1.5 md:flex xl:hidden">
-      <LegacyFallbackCountryFilter
-        country={country}
-        onCountryChange={(value) => setCountry(value as CountryOption)}
+    <div className={cn(styles.fallbackSecondary, 'hidden items-center md:flex xl:hidden')}>
+      <WarmSelect
+        id="daily-analysis-country-filter-fallback"
+        label="站点"
+        value={country}
+        options={COUNTRY_OPTIONS}
+        onChange={handleCountryFilterChange}
+        className={cn(styles.filterSelect, styles.countrySelect)}
       />
-      <SkuSearchField
+      <WarmSkuSearchField
         value={selectedSku}
         options={skuOptions}
         loading={skuLoading}
@@ -1674,8 +2046,8 @@ export default function DailyAnalysisPage() {
     </div>
   )
   const wideSecondaryControls = (
-    <div className="hidden items-center gap-1.5 xl:flex">
-      <SkuSearchField
+    <div className={cn(styles.wideSecondary, 'hidden items-center xl:flex')}>
+      <WarmSkuSearchField
         value={selectedSku}
         options={skuOptions}
         loading={skuLoading}
@@ -1700,81 +2072,64 @@ export default function DailyAnalysisPage() {
       : '未选日期'
   const mobileFilterSummary = `${mobileProjectLabel} · ${mobileCountryLabel} · ${mobileDateLabel}`
 
-  const mobileProjectSelect = (
-    <Select value={projectId} onValueChange={setProjectId}>
-      <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs leading-5 text-term-text shadow-none focus:ring-0 [&>span]:truncate">
-        <SelectValue placeholder="选择项目" />
-      </SelectTrigger>
-      <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
-        <SelectItem
-          value="all"
-          className="rounded-none text-xs leading-5 focus:bg-term-hover focus:text-term-text"
-        >
-          全部项目
-        </SelectItem>
-        {projects.map((p) =>
-          p.id == null ? null : (
-            <SelectItem
-              key={p.id}
-              value={String(p.id)}
-              className="rounded-none text-xs leading-5 focus:bg-term-hover focus:text-term-text"
-            >
-              {p.name}
-            </SelectItem>
-          )
-        )}
-      </SelectContent>
-    </Select>
-  )
-
-  const mobileCountrySelect = (
-    <Select value={country} onValueChange={(v) => setCountry(v as CountryOption)}>
-      <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs leading-5 text-term-text shadow-none focus:ring-0 [&>span]:truncate">
-        <SelectValue placeholder="选择站点" />
-      </SelectTrigger>
-      <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
-        {COUNTRY_OPTIONS.map((opt) => (
-          <SelectItem
-            key={opt.value}
-            value={opt.value}
-            className="rounded-none text-xs leading-5 focus:bg-term-hover focus:text-term-text"
-          >
-            {opt.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  )
-
   const mobileFilterStrip = (
     <MobileFilterStrip
       summary={mobileFilterSummary}
+      className={styles.mobileFilterStrip}
       controls={
         <>
-          {mobileProjectSelect}
-          {mobileCountrySelect}
-          <MobileFilterWide>
+          <div className={styles.mobileProjectControl}>
+            <WarmSelect
+              id="daily-analysis-project-filter-mobile"
+              label="项目"
+              value={projectFilterValue}
+              options={projectFilterOptions}
+              onChange={handleProjectFilterChange}
+              disabled={projectsLoading || !projectId || Boolean(projectListError)}
+              error={projectFilterError}
+              className={cn(styles.filterSelect, styles.mobileSelect)}
+            />
+            {projectListError ? (
+              <WarmButton
+                className={styles.projectRetry}
+                type="button"
+                aria-label="重试项目列表加载"
+                loading={projectsLoading}
+                loadingLabel="正在重新加载项目列表"
+                onClick={() => void loadProjects(true)}
+              >
+                重试
+              </WarmButton>
+            ) : null}
+          </div>
+          <WarmSelect
+            id="daily-analysis-country-filter-mobile"
+            label="站点"
+            value={country}
+            options={COUNTRY_OPTIONS}
+            onChange={handleCountryFilterChange}
+            className={cn(styles.filterSelect, styles.mobileSelect)}
+          />
+          <MobileFilterWide className={styles.mobileWide}>
             <DateRangePicker
               value={dateRange}
               timezone={COUNTRY_TIMEZONE_MAP[country === 'ALL' ? 'US' : country]}
-              onChange={(range) => {
-                setDateRange(range)
-                setDatePresetKey(undefined)
-              }}
+              onChange={handleDateRangeChange}
               onApply={() => void loadData()}
               placeholder="选择日期范围"
-              className="h-10 w-full rounded-none border-term-border bg-term-panel font-mono text-xs font-normal text-term-text shadow-none focus:ring-0 data-[state=open]:border-term-border-strong [&>span]:truncate justify-start px-2 text-left"
+              className={cn(styles.dateTrigger, styles.mobileDateTrigger)}
+              portalContainer={portalContainer}
+              popoverClassName={cn(styles.datePopover, 'warm-ledger__date-picker-content')}
             />
           </MobileFilterWide>
-          <MobileFilterWide>
-            <SkuSearchField
+          <MobileFilterWide className={styles.mobileWide}>
+            <WarmSkuSearchField
               value={selectedSku}
               options={skuOptions}
               loading={skuLoading}
               disabled={country === 'ALL'}
               onOpen={ensureSkuOptions}
               onChange={handleSkuChange}
-              widthClass="w-full"
             />
           </MobileFilterWide>
         </>
@@ -1796,91 +2151,121 @@ export default function DailyAnalysisPage() {
   )
 
   return (
-    <div className="flex min-w-0 flex-col gap-3">
+    <div className={styles.page} data-warm-daily-analysis>
       {headerSlots}
-      {/* BLF-930：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
-      {summaryRows.length || (selectedSku && filteredDetailRows.length) ? (
-        // MetricSwitcherCard 自身是 <Card> (dashboard-surface)，不再额外套 DataCard
-        // 不传 defaultMetric —— MetricSwitcherCard 内部 selected 用 metrics[0] = 'order_qty' 初始化。
-        // 选中 metric 由 MetricSwitcherCard 内部 state 管理；renderLine 接收其当前 selected
-        // 并按 selected 现场重算 chart rows（compareMetricValue 跟随 metric 切换）。
-        <MetricSwitcherCard<ChartMetricKey>
-          metrics={LINE_METRICS}
-          chartKind="auto"
-          showChartKindToggle
-          colors={
-            Object.fromEntries(
-              LINE_METRICS.map((m) => [m.key, SINGLE_METRIC_CHART_CONFIG[m.key]?.color ?? ''])
-            ) as Partial<Record<ChartMetricKey, string>>
-          }
-          heightClass={isMobile ? 'h-[260px]' : 'h-[360px]'}
-          extraContent={
-            showGoalProgressStat ? (
-              <GoalProgressStat
-                href={goalHref}
-                items={goalRingItems}
-                loading={goalLoading}
-              />
-            ) : null
-          }
-          getCurrent={(k) => aggregateMetric(chartDataRows, k)}
-          getPrevious={(k) =>
-            comparisonDataRows.length > 0 ? aggregateMetric(comparisonDataRows, k) : null
-          }
-          renderLine={(selected) => buildChartRows(selected)}
-          tooltipFormatter={(value, key) => formatMetricValue(key, value)}
-          yAxisFormatter={(value, key) => formatAxisValue(key, value)}
-          xTickFormatter={(value) => {
-            const parts = String(value).split('-')
-            const month = parts[1] ?? ''
-            // 月度桶 key = 'YYYY-MM-01'（第三段固定 '01'）；日度 key = 'YYYY-MM-DD'。
-            if (granularity === 'monthly' || parts.length < 3) {
-              return `${Number(month)}月`
-            }
-            const day = parts[2]
-            return isMobile ? `${month}/${day}` : `${month}月${day}日`
-          }}
-        />
-      ) : (
-        <div className="flex min-h-[320px] items-center justify-center border border-term-border bg-term-panel px-6 text-center">
-          <div className="space-y-2">
-            <div className="text-base font-semibold text-foreground">图表区域暂时没有内容</div>
-            <div className="text-sm text-muted-foreground">当前筛选范围内暂无可用于绘图的数据</div>
+      <section className={styles.chartRegion} aria-busy={loading || projectsLoading}>
+        {requestError ? (
+          <div
+            className={styles.dataError}
+            role="alert"
+            aria-labelledby="daily-analysis-error-title"
+          >
+            <div className={styles.errorCopy}>
+              <h2 id="daily-analysis-error-title">销售数据加载失败</h2>
+              <p>{requestError}</p>
+            </div>
+            <WarmButton
+              className={styles.retryButton}
+              variant="secondary"
+              loading={loading}
+              loadingLabel="正在重试销售数据"
+              onClick={refreshData}
+            >
+              重试
+            </WarmButton>
           </div>
-        </div>
-      )}
+        ) : data && chartDataRows.length > 0 ? (
+          <>
+            {loading ? (
+              <div className={styles.loadingStatus} role="status">
+                正在更新销售数据
+              </div>
+            ) : null}
+            <div className={styles.chartCard}>
+              <MetricSwitcherCard<ChartMetricKey>
+                metrics={LINE_METRICS}
+                defaultMetric="sales_amount"
+                chartKind="auto"
+                showChartKindToggle
+                colors={
+                  Object.fromEntries(
+                    LINE_METRICS.map((m) => [m.key, SINGLE_METRIC_CHART_CONFIG[m.key]?.color ?? ''])
+                  ) as Partial<Record<ChartMetricKey, string>>
+                }
+                heightClass={isMobile ? 'h-[260px]' : 'h-[360px]'}
+                extraContent={
+                  showGoalProgressStat ? (
+                    <GoalProgressStat
+                      href={goalHref}
+                      items={goalRingItems}
+                      loading={goalLoading}
+                    />
+                  ) : null
+                }
+                getCurrent={(k) => aggregateMetric(chartDataRows, k)}
+                getPrevious={(k) =>
+                  comparisonDataRows.length > 0 ? aggregateMetric(comparisonDataRows, k) : null
+                }
+                renderLine={(selected) => buildChartRows(selected)}
+                tooltipFormatter={(value, key) => formatMetricValue(key, value)}
+                yAxisFormatter={(value, key) => formatAxisValue(key, value)}
+                xTickFormatter={(value) => {
+                  const parts = String(value).split('-')
+                  const month = parts[1] ?? ''
+                  // 月度桶 key = 'YYYY-MM-01'（第三段固定 '01'）；日度 key = 'YYYY-MM-DD'。
+                  if (granularity === 'monthly' || parts.length < 3) {
+                    return `${Number(month)}月`
+                  }
+                  const day = parts[2]
+                  return isMobile ? `${month}/${day}` : `${month}月${day}日`
+                }}
+              />
+            </div>
+          </>
+        ) : loading || projectsLoading ? (
+          <div className={styles.chartStatus} role="status">
+            正在加载销售数据
+          </div>
+        ) : data ? (
+          <div className={styles.chartStatus} role="status">
+            当前筛选范围内没有销售数据
+          </div>
+        ) : null}
+      </section>
 
       <Tabs
         value={activeTab}
         onValueChange={(value) => setActiveTab(value as ViewTab)}
         className="w-full"
       >
-        <div className="sticky top-0 z-30">
-          <DataTableCard>
-            <DataTableCardHeader className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:items-center lg:justify-between pb-3 sm:pb-4 px-4 md:px-6">
-              <div>
-                <div className="text-sm sm:text-base font-semibold text-foreground">
-                  销售数据工作区
-                </div>
+        <div className={styles.tableSection}>
+          <DataTableCard className={styles.tablePanel}>
+            <DataTableCardHeader className={styles.tableHeader}>
+              <div className={styles.tableHeading}>
+                <h2>销售明细</h2>
               </div>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <Button
+              <div className={styles.tableActions}>
+                <WarmButton
                   type="button"
-                  variant="outline"
-                  size="sm"
+                  className={styles.exportButton}
                   onClick={() => void handleExportExcel()}
                   disabled={exportDisabled}
-                  className="h-10 px-3 sm:px-4 w-full sm:w-auto"
+                  loading={exporting}
+                  loadingLabel="正在导出销售数据"
                 >
-                  {exporting ? (
-                    <Loader2 className="mr-1.5 sm:mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <FileDown className="mr-1.5 sm:mr-2 h-4 w-4" />
-                  )}
+                  {!exporting ? (
+                    <FileDown className={styles.exportIcon} aria-hidden="true" />
+                  ) : null}
                   导出
-                </Button>
+                </WarmButton>
                 <TabsMotionGroup id="daily-analysis-tabs">
-                  <TabsList variant="term" className="grid h-auto w-full grid-cols-2 sm:w-[260px]">
+                  <TabsList
+                    variant="term"
+                    className={cn(
+                      styles.tabsList,
+                      'grid h-auto w-full grid-cols-2 sm:w-[260px]'
+                    )}
+                  >
                     <SlidingTabsTrigger
                       value="summary"
                       activeValue={activeTab}
@@ -1904,12 +2289,12 @@ export default function DailyAnalysisPage() {
               </div>
             </DataTableCardHeader>
 
-            <DataTableCardBody>
+            <DataTableCardBody className={styles.tableBody}>
               <DirectionalTabTransition value={activeTab} order={VIEW_TAB_ORDER}>
                 <TabsContent forceMount value={activeTab} className="m-0">
                   {activeTab === 'summary' ? (
-                    <Table containerClassName="bg-term-panel max-h-[calc(100vh-16rem)] overflow-auto">
-                      <TableHeader className={STICKY_TOP_ROW}>
+                    <Table containerClassName={styles.tableScroll}>
+                      <TableHeader className={cn(STICKY_TOP_ROW, styles.stickyHeader)}>
                         <TableRow className="border-0 hover:bg-transparent">
                           <TableHead className="min-w-[120px]">日期</TableHead>
                           <TableHead className={numericHead}>订单量</TableHead>
@@ -1927,13 +2312,15 @@ export default function DailyAnalysisPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {loading ? (
+                        {loading || (projectsLoading && !data) ? (
                           <TableSkeletonRows
                             columns={13}
                             rows={6}
                             widths={Array(13).fill('w-full max-w-[90px]')}
                             rowClassName="border-0"
                           />
+                        ) : requestError ? (
+                          <EmptyTableState colSpan={13} message="销售数据加载失败" />
                         ) : summaryTableRows.length ? (
                           summaryTableRows.map((row, index) => (
                             <TableRow
@@ -1981,17 +2368,17 @@ export default function DailyAnalysisPage() {
                               </TableCell>
                             </TableRow>
                           ))
-                        ) : (
+                        ) : data ? (
                           <EmptyTableState
                             colSpan={13}
                             message="当前筛选范围内还没有可展示的销售数据汇总。"
                           />
-                        )}
+                        ) : null}
                       </TableBody>
                     </Table>
                   ) : (
-                    <Table containerClassName="bg-term-panel max-h-[calc(100vh-16rem)] overflow-auto">
-                      <TableHeader className={STICKY_TOP_ROW}>
+                    <Table containerClassName={styles.tableScroll}>
+                      <TableHeader className={cn(STICKY_TOP_ROW, styles.stickyHeader)}>
                         <TableRow className="hover:bg-transparent">
                           <TableHead className="min-w-[120px] bg-term-raised">
                             日期
@@ -2014,12 +2401,14 @@ export default function DailyAnalysisPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {loading ? (
+                        {loading || (projectsLoading && !data) ? (
                           <TableSkeletonRows
-                            columns={15}
+                            columns={16}
                             rows={8}
-                            widths={Array(15).fill('w-full max-w-[90px]')}
+                            widths={Array(16).fill('w-full max-w-[90px]')}
                           />
+                        ) : requestError ? (
+                          <EmptyTableState colSpan={16} message="销售数据加载失败" />
                         ) : detailDisplayRows.length ? (
                           detailDisplayRows.map(
                             ({ row, rowKey, showDate, rowSpan, isTintedGroup, productName }) => (
@@ -2073,7 +2462,7 @@ export default function DailyAnalysisPage() {
                                 </TableCell>
                                 <TableCell className={numericCell}>
                                   {row.in_transit_qty > 0 ? (
-                                    <span className="font-medium text-blue-600 dark:text-blue-400">
+                                    <span className="font-medium text-[var(--warm-ledger-color-text-soft)]">
                                       {row.in_transit_qty.toLocaleString('zh-CN')}
                                     </span>
                                   ) : (
@@ -2095,12 +2484,12 @@ export default function DailyAnalysisPage() {
                               </TableRow>
                             )
                           )
-                        ) : (
+                        ) : data ? (
                           <EmptyTableState
-                            colSpan={15}
+                            colSpan={16}
                             message="当前筛选范围内还没有可展示的 SKU 销售数据明细。"
                           />
-                        )}
+                        ) : null}
                       </TableBody>
                     </Table>
                   )}
