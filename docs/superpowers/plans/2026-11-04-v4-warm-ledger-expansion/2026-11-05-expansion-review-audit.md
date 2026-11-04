@@ -2,7 +2,7 @@
 
 Date: 2026-11-05
 
-Status: implementation and domain remediation complete; final whole-batch Luna/max gate pending.
+Status: complete. Final whole-batch Luna/max gate passed at `e5f3ee13` with no blocking findings.
 
 ## Scope
 
@@ -62,6 +62,7 @@ AI landing/chat, Office presentation mode, white document previews, and Digital 
 - `pnpm check:mocks`: 345 test files, 0 findings.
 - `pnpm check:motion`: all hard gates passed.
 - `git diff --check`: passed.
+- Final whole-batch Luna/max gate: PASS at `e5f3ee13`; no new or blocking findings, with the security/behavior follow-ups below explicitly retained.
 
 Known non-blocking output remains: Node `localStorage` experimental warnings, stale Browserslist data, Tailwind ambiguous-duration warnings, and the existing Turbopack NFT trace warning.
 

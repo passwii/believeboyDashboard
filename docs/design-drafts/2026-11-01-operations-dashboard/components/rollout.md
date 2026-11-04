@@ -183,9 +183,9 @@ Damon 已确认生产直接使用新设计，不设 feature flag：
 | C2 | 运营执行 / 库存 | `inventory-ledger`、`shipping-plan`、`shipment-management`、`sku-info` | **已完成（2026-11-04）**：27 Vitest files / 199 tests、build、focused ESLint、78/78 Playwright、最终独立 review PASS；授权/技术 follow-ups 保留 |
 | C3 | 报表 / 订单 | `order-info`、`product-analysis`、`monthly-report/display` | **已完成（2026-11-04）**：三条精确路由、1440×900 desktop acceptance、全量 Vitest 基线对账、lint/build 完成；前三次 Luna review 的 P2 均已修复，第六轮 Luna/max 最终门禁 PASS；无组件晋升 |
 | C4 | 广告 | `ad-analysis/*`、`ad-data` | **暂缓（2026-11-04）**：用户判断当前阶段价值不足，未启动实现；保留范围记录，不自动推进 |
-| C5 | 财务 | `platform-revenue`、`exchange-rate`、`vat-invoice`、`commission-management` | **纳入合并扩张批次**：4 个 canonical routes / 8 个可见视图；VAT 2 tab、Commission 4 tab；`vat-invoices` 仅重定向 |
-| C6 | CRM | 10 个实际页面（8 sidebar + proposal detail + sea） | **纳入合并扩张批次**：`/crm` 与 `/crm/workbench` 仅重定向；proposal detail 需 dynamic route；CRM 状态不并入订单状态 |
-| C7 | AI / 工具 / 系统 | AI 10 routes、Tools 5 dashboard routes + `/p/[id]`、System 9 routes | **拆为三个子域并入合并扩张批次**：Chat landing/chat 与 presentation/digital-display 保持视觉例外；权限/安全单独评审 |
+| C5 | 财务 | `platform-revenue`、`exchange-rate`、`vat-invoice`、`commission-management` | **已完成（2026-11-05）**：4 routes / 8 views 迁移 V4；Finance `12 files / 49 tests`；C5 Luna/max review PASS with documented P1 scope follow-ups |
+| C6 | CRM | 10 个实际页面（8 sidebar + proposal detail + sea） | **已完成（2026-11-05）**：10 routes 迁移 V4；CRM `50 files / 276 tests`；C6 Luna/max review PASS；重定向、dynamic route 与业务权限语义未改 |
+| C7 | AI / 工具 / 系统 | AI 10 routes、Tools 5 dashboard routes + `/p/[id]`、System 9 routes | **已完成（2026-11-05）**：AI `20 files / 113 tests`、Tools `19 files / 145 tests`、System domain tests 通过；Chat/presentation/Tools 白纸/Digital Display 例外保留；最终 whole-batch Luna/max gate PASS |
 
 Stage-order gate from 2026-11-04:
 
@@ -350,3 +350,13 @@ A1 owns Warm controls wrapper and Dashboard token consumption. A2–A5 may work 
 - The Warm sidebar continues to derive labels, icons, and hrefs from `sidebar-config.ts`, keeps the existing C1/C2/C3 links and four QuickLinks, expands the new groups beyond their first item, deduplicates hrefs, and maps dynamic detail routes to their parent navigation item with exact `aria-current` behavior.
 - Route matrix: [`2026-11-04-wave-1-shared-frame.md`](../../../superpowers/plans/2026-11-04-v4-warm-ledger-expansion/2026-11-04-wave-1-shared-frame.md).
 - The five audit security follow-ups remain separate and are not changed by this shared visual frame.
+
+## 16. C5-C7 merged expansion final gate (2026-11-05)
+
+- 35 expansion templates were migrated at desktop-only `1440x900`: C5 Finance 4, C6 CRM 10, C7-AI 8, C7-Tools 5 dashboard routes, and C7-System 8.
+- The shared layout now reads query state inside a Suspense boundary, restoring production static generation while preserving the Office `?mode=presentation` exception outside the Warm frame.
+- The combined desktop Playwright matrix passed with equal 8px four-sided stage insets, a 22px app-window radius, Warm route topbar visibility, and no page-level horizontal overflow. The Office presentation exception passed separately.
+- Full verification passed: `345 files / 2517 tests`; Next production build generated `97/97` static pages; `pnpm lint` reported `0 errors / 13 existing warnings`; `pnpm check:mocks`, `pnpm check:motion`, and `git diff --check` passed.
+- Domain review remediation covered C5 finance error/export interactions, C6 loading/pagination/Audit surfaces, C7-AI Office/tabs/shared purity boundaries, and C7-Tools upload/Page Render acceptance.
+- Final whole-batch Luna/max review passed at `e5f3ee13` with no new or blocking findings. The P1 Commission/VAT scope risks, Exchange Rate single-field filtering, System Logs/Project Info consistency risks, and the remaining CRM/Tools/AI/security follow-ups stay explicitly out of the visual migration claim.
+- Full audit: [`2026-11-05-expansion-review-audit.md`](../../../superpowers/plans/2026-11-04-v4-warm-ledger-expansion/2026-11-05-expansion-review-audit.md).

@@ -160,7 +160,7 @@ Wave 4: integrated matrix + final Luna/max review
 - [x] Full Vitest has no new failures beyond the reconciled `main` baseline; CI-unblock work is tracked separately.
 - [x] `pnpm lint`, `pnpm build`, and `git diff --check` pass.
 - [x] All five domain reviewers pass.
-- [ ] Final Luna/max review passes before the expansion batch is marked complete.
+- [x] Final Luna/max review passes before the expansion batch is marked complete.
 
 Review evidence: [`2026-11-05-expansion-review-audit.md`](./2026-11-05-expansion-review-audit.md).
 
