@@ -341,3 +341,12 @@ A1 owns Warm controls wrapper and Dashboard token consumption. A2–A5 may work 
 - The fourth Luna/max re-review found no remaining code defect and reported only stale Task 5 checklist state. The technical checklist was reconciled.
 - Luna/max round six then completed the final gate with **PASS and no findings**. C3 is complete.
 - Existing behavioral/security follow-ups remain separate and are not represented as fixed by this UI migration.
+
+## 15. C5-C7 Wave 1 shared frame (2026-11-04)
+
+- The shared Warm frame recognizes 45 exact/dynamic route templates: 10 existing C1-C3 templates plus 35 expansion templates. Expansion coverage is C5 Finance 4, C6 CRM 10 (including proposal detail), C7-AI 8 (including digital-employee detail), C7-Tools 5, and C7-System 8.
+- Route metadata now supplies exact titles and breadcrumb sections: `财务资金`, `CRM 客户与合作伙伴`, `AI 智能`, `工具箱`, and `系统管理`. Warm routes no longer fall back to an incorrect `运营` section label.
+- `/dashboard/ai`, `/dashboard/ai/chat`, and `/dashboard/system/digital-display` remain visual exceptions; `/dashboard/finance/vat-invoices`, `/dashboard/crm`, and `/dashboard/crm/workbench` remain redirects. Public `/p/[id]` remains outside the dashboard shell. Office presentation mode and Tools white document previews remain page-owned exceptions.
+- The Warm sidebar continues to derive labels, icons, and hrefs from `sidebar-config.ts`, keeps the existing C1/C2/C3 links and four QuickLinks, expands the new groups beyond their first item, deduplicates hrefs, and maps dynamic detail routes to their parent navigation item with exact `aria-current` behavior.
+- Route matrix: [`2026-11-04-wave-1-shared-frame.md`](../../../superpowers/plans/2026-11-04-v4-warm-ledger-expansion/2026-11-04-wave-1-shared-frame.md).
+- The five audit security follow-ups remain separate and are not changed by this shared visual frame.

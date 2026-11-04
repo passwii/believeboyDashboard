@@ -58,6 +58,7 @@ Wave 4: integrated matrix + final Luna/max review
 - Keep Chat landing/chat visual exception, presentation mode exception, and digital-display exception outside Warm content migration.
 - Consume existing `sidebar-config.ts`; do not create a second navigation source.
 - Do not change page business logic.
+- [x] Wave 1 shared frame complete: 35 expansion templates added to the exact/dynamic matcher, route titles and breadcrumbs aligned, and all configured items exposed without duplicate links. Route matrix and exceptions: [`2026-11-04-wave-1-shared-frame.md`](./2026-11-04-wave-1-shared-frame.md).
 
 ## C5 Finance Team
 

@@ -29,40 +29,17 @@ import { WarmLedgerShell } from './warm-ledger-shell'
 import { WarmLedgerTopbar, type WarmLedgerRouteSlots } from './warm-ledger-topbar'
 import { WarmButton, WarmSelect, type WarmSelectOption } from '../controls'
 import { useServerNotifications } from '@/components/notifications'
-import { getDashboardPageTitle } from '@/lib/dashboard-route-meta'
+import {
+  getDashboardPageTitle,
+  getDashboardRouteMeta,
+  type DashboardRouteMeta,
+} from '@/lib/dashboard-route-meta'
 import { COUNTRY_LABELS } from '@/lib/country'
 import { useManagedProjects } from '@/lib/hooks/use-managed-projects'
 
-const WARM_LEDGER_ROUTES = [
-  '/dashboard/operations/daily-analysis',
-  '/dashboard/operations/portfolio-overview',
-  '/dashboard/operations/inventory-analysis',
-  '/dashboard/operations/inventory-ledger',
-  '/dashboard/operations/shipping-plan',
-  '/dashboard/operations/shipment-management',
-  '/dashboard/operations/sku-info',
-  '/dashboard/reports/order-info',
-  '/dashboard/reports/product-analysis',
-  '/dashboard/reports/monthly-report/display',
-] as const
-
-type WarmLedgerRoute = (typeof WARM_LEDGER_ROUTES)[number]
-
-const DAILY_ANALYSIS_ROUTE: WarmLedgerRoute = '/dashboard/operations/daily-analysis'
-const ORDER_INFO_ROUTE: WarmLedgerRoute = '/dashboard/reports/order-info'
+const DAILY_ANALYSIS_ROUTE = '/dashboard/operations/daily-analysis'
+const ORDER_INFO_ROUTE = '/dashboard/reports/order-info'
 const FALLBACK_REFRESH_WATCHDOG_MS = 10_000
-const WARM_LEDGER_ROUTE_TITLES: Record<WarmLedgerRoute, string> = {
-  '/dashboard/operations/daily-analysis': '销售数据',
-  '/dashboard/operations/portfolio-overview': '组合分析',
-  '/dashboard/operations/inventory-analysis': '库存分析',
-  '/dashboard/operations/inventory-ledger': '库存分类账',
-  '/dashboard/operations/shipping-plan': '发货规划',
-  '/dashboard/operations/shipment-management': '货件管理',
-  '/dashboard/operations/sku-info': 'SKU 信息中心',
-  '/dashboard/reports/order-info': '订单信息',
-  '/dashboard/reports/product-analysis': '产品分析',
-  '/dashboard/reports/monthly-report/display': '财务月报',
-}
 
 const GLOBAL_COUNTRY_OPTIONS: ReadonlyArray<WarmSelectOption> = [
   { value: 'ALL', label: '全部站点' },
@@ -81,20 +58,26 @@ function readDailyAnalysisPageFilters(): TerminalDailyAnalysisPageFilters {
   }
 }
 
-export function isWarmLedgerRoute(pathname: string): pathname is WarmLedgerRoute {
-  return (WARM_LEDGER_ROUTES as ReadonlyArray<string>).includes(pathname)
+export function getWarmLedgerRouteMeta(
+  pathname: string
+): (DashboardRouteMeta & { warm: true }) | undefined {
+  const routeMeta = getDashboardRouteMeta(pathname)
+  return routeMeta?.warm ? (routeMeta as DashboardRouteMeta & { warm: true }) : undefined
+}
+
+export function isWarmLedgerRoute(pathname: string) {
+  return Boolean(getWarmLedgerRouteMeta(pathname))
 }
 
 export function getWarmLedgerPageTitle(pathname: string) {
-  if (isWarmLedgerRoute(pathname)) return WARM_LEDGER_ROUTE_TITLES[pathname]
-  return getDashboardPageTitle(pathname)
+  return getWarmLedgerRouteMeta(pathname)?.title ?? getDashboardPageTitle(pathname)
 }
 
 export function WarmLedgerRouteFrame({
   pathname,
   children,
 }: {
-  pathname: WarmLedgerRoute
+  pathname: string
   children: ReactNode
 }) {
   return (
@@ -472,7 +455,7 @@ function WarmLedgerRouteContent({
   pathname,
   children,
 }: {
-  pathname: WarmLedgerRoute
+  pathname: string
   children: ReactNode
 }) {
   const router = useRouter()
@@ -498,10 +481,14 @@ function WarmLedgerRouteContent({
   const isOrderInfo = pathname === ORDER_INFO_ROUTE
   const hasGlobalFilters = (isDailyAnalysis || isOrderInfo) && globalFilter.ready
   const showPrimarySlot = hasGlobalFilters || primaryFilterSlotActive
-  const title = getWarmLedgerPageTitle(pathname)
-  const breadcrumbs = pathname.startsWith('/dashboard/reports/')
-    ? [{ label: '报表中心' }, { label: title }]
-    : [{ label: '运营', href: '/dashboard' }, { label: title }]
+  const routeMeta = getWarmLedgerRouteMeta(pathname)
+  const title = routeMeta?.title ?? getDashboardPageTitle(pathname)
+  const breadcrumbs = routeMeta?.sectionLabel
+    ? [
+        { label: routeMeta.sectionLabel, href: routeMeta.sectionHref },
+        { label: title },
+      ]
+    : [{ label: title }]
 
   useEffect(() => {
     announceRefresh('', 'idle')

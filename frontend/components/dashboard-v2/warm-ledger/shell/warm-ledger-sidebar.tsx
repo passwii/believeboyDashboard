@@ -1,11 +1,28 @@
 'use client'
 
+import { Fragment } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { X } from 'lucide-react'
-import { SIDEBAR_TOP_GROUPS, filterByRole } from '@/lib/sidebar-config'
+import { X, type LucideIcon } from 'lucide-react'
+import {
+  SIDEBAR_TOP_GROUPS,
+  filterByRole,
+  type SidebarSubItem,
+} from '@/lib/sidebar-config'
+import { getDashboardRouteMeta } from '@/lib/dashboard-route-meta'
 import { WarmIconButton } from '../controls'
 import { useWarmLedgerNavigation } from './warm-ledger-navigation'
+
+type WarmNavigationItem = {
+  title: string
+  href: string
+  icon: LucideIcon
+}
+
+type WarmNavigationSection = {
+  label: string
+  items: WarmNavigationItem[]
+}
 
 const QUICK_LINK_TITLES = ['销售数据', '订单信息', '库存分析', '客户消息'] as const
 const PORTFOLIO_ROUTE = '/dashboard/operations/portfolio-overview'
@@ -16,9 +33,61 @@ const INVENTORY_FULFILLMENT_ROUTES = [
   '/dashboard/operations/shipment-management',
   '/dashboard/operations/sku-info',
 ] as const
+const PRIMARY_GROUP_IDS = new Set([
+  'operations',
+  'project-management',
+  'reports',
+  'advertising',
+])
+const WARM_SECTION_GROUP_IDS = ['finance', 'crm', 'ai', 'tools', 'system'] as const
+const SYSTEM_EXTRA_ROUTES = ['/dashboard/system/agent-management'] as const
 const OVERVIEW_ICON = SIDEBAR_TOP_GROUPS.find((group) => group.id === 'operations')?.icon
 
+function toNavigationItem(
+  item: SidebarSubItem,
+  groupIcon: LucideIcon
+): WarmNavigationItem {
+  return {
+    title: item.title,
+    href: item.url,
+    icon: item.icon ?? groupIcon,
+  }
+}
+
+function findConfiguredItem(url: string) {
+  for (const group of SIDEBAR_TOP_GROUPS) {
+    const item = filterByRole(group.items).find((entry) => entry.url === url)
+    if (item) return { group, item }
+  }
+  return undefined
+}
+
+function getConfiguredGroupItems(groupId: string) {
+  const group = SIDEBAR_TOP_GROUPS.find((entry) => entry.id === groupId)
+  if (!group) return []
+  return filterByRole(group.items).map((item) => toNavigationItem(item, group.icon))
+}
+
+const warmNavigationSections: WarmNavigationSection[] = WARM_SECTION_GROUP_IDS.map((groupId) => {
+  const group = SIDEBAR_TOP_GROUPS.find((entry) => entry.id === groupId)
+  const items = getConfiguredGroupItems(groupId)
+
+  if (groupId !== 'system') {
+    return { label: group?.label ?? groupId, items }
+  }
+
+  for (const route of SYSTEM_EXTRA_ROUTES) {
+    const configured = findConfiguredItem(route)
+    if (configured && !items.some((item) => item.href === route)) {
+      items.push(toNavigationItem(configured.item, configured.group.icon))
+    }
+  }
+
+  return { label: group?.label ?? groupId, items }
+})
+
 const primaryNavigation = SIDEBAR_TOP_GROUPS.flatMap((group) => {
+  if (!PRIMARY_GROUP_IDS.has(group.id)) return []
   const firstItem = filterByRole(group.items)[0]
   if (!firstItem) return []
 
@@ -27,7 +96,6 @@ const primaryNavigation = SIDEBAR_TOP_GROUPS.flatMap((group) => {
       title: group.id === 'operations' ? firstItem.title : group.label,
       href: firstItem.url,
       icon: group.id === 'operations' ? firstItem.icon ?? group.icon : group.icon,
-      routeMatches: [firstItem.url, ...(firstItem.matchPrefixes ?? [])],
     },
   ]
 })
@@ -41,7 +109,6 @@ const quickLinks = QUICK_LINK_TITLES.flatMap((title) => {
           title: item.title,
           href: item.url,
           icon: item.icon ?? group.icon,
-          routeMatches: [item.url, ...(item.matchPrefixes ?? [])],
         },
       ]
     }
@@ -58,7 +125,6 @@ const portfolioNavigation = SIDEBAR_TOP_GROUPS.flatMap((group) => {
       title: item.title,
       href: item.url,
       icon: item.icon ?? group.icon,
-      routeMatches: [item.url, ...(item.matchPrefixes ?? [])],
     },
   ]
 })
@@ -72,7 +138,6 @@ const productAnalysisNavigation = SIDEBAR_TOP_GROUPS.flatMap((group) => {
       title: item.title,
       href: item.url,
       icon: item.icon ?? group.icon,
-      routeMatches: [item.url, ...(item.matchPrefixes ?? [])],
     },
   ]
 })
@@ -87,14 +152,13 @@ const inventoryFulfillmentNavigation = INVENTORY_FULFILLMENT_ROUTES.flatMap((rou
         title: item.title,
         href: item.url,
         icon: item.icon ?? group.icon,
-        routeMatches: [item.url, ...(item.matchPrefixes ?? [])],
       },
     ]
   })
 )
 
-function isCurrentRoute(pathname: string, routes: string[]) {
-  return routes.some((route) => pathname === route || pathname.startsWith(`${route}/`))
+function isCurrentRoute(pathname: string, href: string) {
+  return (getDashboardRouteMeta(pathname)?.navHref ?? pathname) === href
 }
 
 export function WarmLedgerSidebar() {
@@ -153,8 +217,8 @@ export function WarmLedgerSidebar() {
             <span className="warm-ledger__nav-copy">运营总览</span>
           </Link>
 
-          {primaryNavigation.map(({ title, href, icon: Icon, routeMatches }) => {
-            const active = isCurrentRoute(pathname, routeMatches)
+          {primaryNavigation.map(({ title, href, icon: Icon }) => {
+            const active = isCurrentRoute(pathname, href)
             return (
               <Link
                 key={href}
@@ -173,8 +237,8 @@ export function WarmLedgerSidebar() {
               </Link>
             )
           })}
-          {productAnalysisNavigation.map(({ title, href, icon: Icon, routeMatches }) => {
-            const active = isCurrentRoute(pathname, routeMatches)
+          {productAnalysisNavigation.map(({ title, href, icon: Icon }) => {
+            const active = isCurrentRoute(pathname, href)
             return (
               <Link
                 key={href}
@@ -193,8 +257,8 @@ export function WarmLedgerSidebar() {
               </Link>
             )
           })}
-          {portfolioNavigation.map(({ title, href, icon: Icon, routeMatches }) => {
-            const active = isCurrentRoute(pathname, routeMatches)
+          {portfolioNavigation.map(({ title, href, icon: Icon }) => {
+            const active = isCurrentRoute(pathname, href)
             return (
               <Link
                 key={href}
@@ -215,11 +279,40 @@ export function WarmLedgerSidebar() {
           })}
         </div>
 
+        {warmNavigationSections.map((section) => (
+          <Fragment key={section.label}>
+            <div className="warm-ledger__nav-separator" aria-hidden="true" />
+            <span className="warm-ledger__nav-label">{section.label}</span>
+            <div className="warm-ledger__nav-list">
+              {section.items.map(({ title, href, icon: Icon }) => {
+                const active = isCurrentRoute(pathname, href)
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className="warm-ledger__nav-item"
+                    aria-label={title}
+                    title={title}
+                    aria-current={active ? 'page' : undefined}
+                    onClick={closeAfterNavigation}
+                  >
+                    <span className="warm-ledger__nav-indicator" aria-hidden="true" />
+                    <span className="warm-ledger__nav-icon-wrap">
+                      <Icon aria-hidden="true" />
+                    </span>
+                    <span className="warm-ledger__nav-copy">{title}</span>
+                  </Link>
+                )
+              })}
+            </div>
+          </Fragment>
+        ))}
+
         <div className="warm-ledger__nav-separator" aria-hidden="true" />
         <span className="warm-ledger__nav-label">库存与履约</span>
         <div className="warm-ledger__nav-list">
-          {inventoryFulfillmentNavigation.map(({ title, href, icon: Icon, routeMatches }) => {
-            const active = isCurrentRoute(pathname, routeMatches)
+          {inventoryFulfillmentNavigation.map(({ title, href, icon: Icon }) => {
+            const active = isCurrentRoute(pathname, href)
             return (
               <Link
                 key={href}
@@ -243,14 +336,14 @@ export function WarmLedgerSidebar() {
         <div className="warm-ledger__nav-separator" aria-hidden="true" />
         <span className="warm-ledger__nav-label">快捷入口</span>
         <div className="warm-ledger__quick-list">
-          {quickLinks.map(({ title, href, icon: Icon, routeMatches }) => (
+          {quickLinks.map(({ title, href, icon: Icon }) => (
             <Link
               key={title}
               href={href}
               className="warm-ledger__quick-link"
               aria-label={title}
               title={title}
-              aria-current={isCurrentRoute(pathname, routeMatches) ? 'page' : undefined}
+              aria-current={isCurrentRoute(pathname, href) ? 'page' : undefined}
               onClick={closeAfterNavigation}
             >
               <span className="warm-ledger__quick-icon-wrap" aria-hidden="true">
