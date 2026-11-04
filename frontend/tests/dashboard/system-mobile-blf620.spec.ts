@@ -4,19 +4,17 @@ import { encode } from 'next-auth/jwt'
 import { BLF611_FIXTURE_SECRET } from '../setup/blf611-fixture'
 
 /**
- * BLF-620 系统域手机端适配回归（账号 / Agent 接入 / 告警 / 日志 / 数字大屏）。
+ * BLF-620 系统域回归（账号 / Agent 接入 / 告警 / 日志 / 数字大屏）。
  *
  * 自包含：session 与 backend 请求经 page.route mock，不依赖真实后端 / 登录态。
- * 默认随 mobile project（Pixel 5，393×851）跑；另加 360×800 小屏用例覆盖验收下界；
- * 桌面零回归用例在测试内切 1440×900。
+ * 日志与数字大屏保留既有 mobile 覆盖；C7-System-A 已迁 Warm Ledger，
+ * 账号 / Agent / 告警仅接受 1440×900 桌面视图，不再断言手机布局。
  *
  * 覆盖验收（MOBILE_ADAPTATION_RULES.md，BLF-610 版）：
  * - 总则 1：数字大屏 KPI 手机端一行两个（grid-cols-2），第 3 个换行；
- * - 总则 5/规则 9：日志/Agent 接入 TabList 手机端 2 列网格（第 3/4 个 Tab 换行），无挤压溢出；
- * - 规则 3：告警规则 Dialog 手机端 阈值/窗口同一行、级别全宽换行（grid-cols-2 而非 3）；
- * - 规则 10：多列表格容器内横滑（min-width: max-content 兜底），页面无整体横向滚动；
- * - 规则 1 例外：账号手机端卡片列表（md:hidden 分支），无整体横向滚动；
- * - 桌面 1440 零回归（TabList 恢复单行 inline-flex，表格照常）。
+ * - 日志 TabList 手机端 2 列网格（第 3 个 Tab 换行），无挤压溢出；
+ * - 数字大屏保留手机 KPI / 宽组件布局；
+ * - Warm 系统页只验证 1440×900 下的本地表面、表格与无页面级横向滚动。
  */
 
 const FIXTURE_SECRET = BLF611_FIXTURE_SECRET
@@ -292,25 +290,29 @@ test.beforeEach(async ({ page, context }) => {
   ])
 })
 
-test.describe('@mobile-blf620 系统·账号 手机端（BLF-620）', () => {
-  test('账号管理：手机端卡片列表 + 无溢出', async ({ page }) => {
+test.describe('@mobile-blf620 系统·账号 Warm 桌面（C7-System-A）', () => {
+  test('账号管理：Warm 表格 + 无页面级溢出', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
     await mockBase(page)
     await page.route('**/api/admin/users', (route) => route.fulfill({ json: USERS }))
     await page.goto('/dashboard/system/account-management')
 
-    // 手机端卡片列表（md:hidden 分支）渲染姓名/操作按钮
-    const mobileCards = page.locator('[class*="md:hidden"]')
-    await expect(mobileCards.getByText('Yawei', { exact: true })).toBeVisible({ timeout: 30000 })
-    await expect(mobileCards.getByText('张三')).toBeVisible({ timeout: 30000 })
+    const pageRoot = page.locator('[data-warm-account-management="true"]:visible')
+    await expect(pageRoot).toBeVisible({ timeout: 30000 })
+    await expect(pageRoot.getByRole('heading', { name: '账号管理' })).toBeVisible()
+    await expect(pageRoot.getByText('Yawei', { exact: true })).toBeVisible()
+    await expect(pageRoot.getByText('张三')).toBeVisible()
     // BLF-1441：fullName 为空显示「未命名」，不回落登录名 / 运营名
-    await expect(mobileCards.getByText('未命名')).toBeVisible({ timeout: 30000 })
-    await expect(mobileCards.getByRole('button', { name: '停用' }).first()).toBeVisible()
+    await expect(pageRoot.getByText('未命名')).toBeVisible()
+    await expect(pageRoot.getByRole('button', { name: '停用' }).first()).toBeVisible()
+    await expect(pageRoot.locator('[class*="term-"]')).toHaveCount(0)
     await expectNoPageHorizontalOverflow(page)
   })
 })
 
-test.describe('@mobile-blf620 系统·告警中心 手机端（BLF-620）', () => {
-  test('告警规则表横滑 + 新建规则 Dialog 手机端 2 列', async ({ page }) => {
+test.describe('@mobile-blf620 系统·告警中心 Warm 桌面（C7-System-A）', () => {
+  test('告警规则 Warm 表格 + 新建规则 Dialog', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
     await mockBase(page)
     await page.route('**/api/v1/alerts/stats**', (route) => route.fulfill({ json: ALERT_STATS }))
     await page.route('**/api/v1/alerts/rules**', (route) => route.fulfill({ json: ALERT_RULES }))
@@ -330,41 +332,29 @@ test.describe('@mobile-blf620 系统·告警中心 手机端（BLF-620）', () =
     )
     await page.goto('/dashboard/system/alerts')
 
-    await expect(page.getByRole('heading', { name: '告警中心' })).toBeVisible({ timeout: 30000 })
+    const pageRoot = page.locator('[data-warm-alerts="true"]:visible')
+    await expect(pageRoot).toBeVisible({ timeout: 30000 })
+    await expect(pageRoot.locator('[class*="term-"]')).toHaveCount(0)
     // 切到告警规则 Tab
     await page.getByRole('tab', { name: '告警规则' }).click()
     await expect(page.getByText('US 销售额骤降告警', { exact: false })).toBeVisible({
       timeout: 15000,
     })
 
-    // 规则 10：表格容器内横滑，页面无整体横向溢出
-    const table = page.locator('#main-content table').first()
-    const tableBox = (await table.boundingBox())!
-    const viewport = page.viewportSize()!
-    expect(tableBox.width, '规则表应超出手机视口宽度（容器内横滑）').toBeGreaterThan(
-      viewport.width * 0.9
-    )
+    const rules = page.locator('[data-warm-alert-rules="true"]')
+    await expect(rules.getByRole('table', { name: '告警规则' })).toBeVisible()
+    await expect(rules.locator('[class*="term-"]')).toHaveCount(0)
     await expectNoPageHorizontalOverflow(page)
 
-    // 规则 3：打开新建规则 Dialog —— 阈值/窗口同一行（2 列网格），级别换行全宽
+    // 保留新建规则 Dialog 的字段与保存入口
     await page.getByRole('button', { name: '新建规则' }).click()
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible({ timeout: 15000 })
+    await expect(dialog.locator('[class*="term-"]')).toHaveCount(0)
     await expect(dialog.getByText('阈值 (%)')).toBeVisible()
-    // 等待 Dialog 入场动画结束再测位置（动画进行中两次测量会有数 px 漂移）
-    await page.waitForTimeout(600)
-    await expectSameRow(
-      page,
-      dialog.getByText('阈值 (%)'),
-      dialog.getByText('窗口 (天)'),
-      '阈值/窗口应同一行（2 列网格）'
-    )
-    const thresholdBox = (await dialog.getByText('阈值 (%)').boundingBox())!
-    const severityBox = (await dialog.getByText('级别').boundingBox())!
-    expect(severityBox.y, '级别应换行到第二行且全宽').toBeGreaterThan(thresholdBox.y + 4)
-    expect(severityBox.width, '级别 Select 手机端全宽').toBeGreaterThan(
-      (await dialog.boundingBox())!.width * 0.8
-    )
+    await expect(dialog.getByText('窗口 (天)')).toBeVisible()
+    await expect(dialog.getByText('级别')).toBeVisible()
+    await expect(dialog.getByRole('button', { name: '保存' })).toBeVisible()
   })
 })
 
@@ -400,37 +390,30 @@ test.describe('@mobile-blf620 系统·日志 手机端（BLF-620）', () => {
   })
 })
 
-test.describe('@mobile-blf620 系统·Agent 接入 手机端（BLF-620）', () => {
-  test('Agent 接入：TabList 2×2 网格 + 凭据表横滑 + 无溢出', async ({ page }) => {
+test.describe('@mobile-blf620 系统·Agent 接入 Warm 桌面（C7-System-A）', () => {
+  test('Agent 接入：Warm Tab + 凭据表 + 无页面级溢出', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
     await mockBase(page)
     await page.route('**/api/v1/internal/api-keys**', (route) =>
       route.fulfill({ json: AGENT_KEYS })
     )
     await page.goto('/dashboard/system/agent-management')
 
-    // 总则 5：4 个 Tab 手机端 2×2 网格 —— 业务域概览/凭据管理 第一行，调用指南换行
+    const pageRoot = page.locator('[data-warm-agent-management="true"]:visible')
+    await expect(pageRoot).toBeVisible({ timeout: 30000 })
+    await expect(pageRoot.locator('[class*="term-"]')).toHaveCount(0)
     const tab1 = page.getByRole('tab', { name: '业务域概览' })
     const tab2 = page.getByRole('tab', { name: '凭据管理' })
     const tab3 = page.getByRole('tab', { name: '调用指南' })
-    await expect(tab1).toBeVisible({ timeout: 30000 })
-    await expectSameRow(page, tab1, tab2, '业务域概览/凭据管理 应同一行（2 列网格）')
-    const tab1Box = (await tab1.boundingBox())!
-    const tab3Box = (await tab3.boundingBox())!
-    expect(tab3Box.y, '调用指南 Tab 应换行到第二行').toBeGreaterThan(tab1Box.y + 4)
+    await expectSameRow(page, tab1, tab2, '业务域概览/凭据管理应同一行')
+    await expectSameRow(page, tab2, tab3, '凭据管理/调用指南应同一行')
 
-    // 业务域概览卡片 1 列网格（mobile）→ 无溢出
     await expect(page.getByText('业务域接入一览')).toBeVisible({ timeout: 15000 })
     await expectNoPageHorizontalOverflow(page)
 
-    // 凭据管理：表格容器内横滑 + 无溢出
     await tab2.click()
     await expect(page.getByText('货件助理 (生产)')).toBeVisible({ timeout: 15000 })
-    const table = page.locator('#main-content table').first()
-    const tableBox = (await table.boundingBox())!
-    const viewport = page.viewportSize()!
-    expect(tableBox.width, '凭据表应超出手机视口宽度（容器内横滑）').toBeGreaterThan(
-      viewport.width * 0.9
-    )
+    await expect(page.getByRole('table', { name: '凭据列表' })).toBeVisible()
     await expectNoPageHorizontalOverflow(page)
   })
 })
@@ -475,19 +458,9 @@ test.describe('@mobile-blf620 系统·数字大屏 手机端（BLF-620）', () =
 })
 
 test.describe('@mobile-blf620 系统·小屏 360×800 与桌面零回归（BLF-620）', () => {
-  test('360×800：账号页卡片 + 日志页 Tab 2 列 + 无整体横向滚动', async ({ page }) => {
+  test('360×800：日志页 Tab 2 列 + 无整体横向滚动', async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 800 })
     await mockBase(page)
-    await page.route('**/api/admin/users', (route) => route.fulfill({ json: USERS }))
-    await page.goto('/dashboard/system/account-management')
-    await expect(page.locator('[class*="md:hidden"]').getByText('Yawei', { exact: true })).toBeVisible({
-      timeout: 30000,
-    })
-    await expect(page.locator('[class*="md:hidden"]').getByText('张三')).toBeVisible({
-      timeout: 30000,
-    })
-    await expectNoPageHorizontalOverflow(page)
-
     await page.route('**/api/v1/system-management/audit-logs?**', (route) =>
       route.fulfill({ json: AUDIT_LOGS })
     )
@@ -507,7 +480,9 @@ test.describe('@mobile-blf620 系统·小屏 360×800 与桌面零回归（BLF-6
     await mockBase(page)
     await page.route('**/api/admin/users', (route) => route.fulfill({ json: USERS }))
     await page.goto('/dashboard/system/account-management')
-    // 桌面端恢复完整表格（md:block 分支）
+    await expect(page.locator('[data-warm-account-management="true"]')).toBeVisible({
+      timeout: 30000,
+    })
     await expect(page.getByRole('columnheader', { name: '邮箱' })).toBeVisible({
       timeout: 30000,
     })

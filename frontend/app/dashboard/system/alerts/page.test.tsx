@@ -23,10 +23,6 @@ vi.mock('@/components/notifications', () => ({
   useNotifications: () => ({ notify: NOTIFY }),
 }))
 
-vi.mock('@/components/terminal/term-controls', () => ({
-  TermPageShell: ({ children }: { children: import('react').ReactNode }) => <>{children}</>,
-}))
-
 vi.mock('@/lib/alerts-api', () => ({
   fetchAlertStats: vi.fn().mockResolvedValue(null),
   fetchAlertEvents: vi.fn().mockResolvedValue({ items: [], total: 0 }),
@@ -97,9 +93,15 @@ describe('AlertCenterPage mount 请求行为（BEL-424）', () => {
   it('项目列表走 2min 客户端缓存，mount 不裸 fetch projects/manage', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}'))
 
-    render(<AlertCenterPage />)
+    const { container } = render(<AlertCenterPage />)
     await waitFor(() => expect(fetchManagedProjectsCached).toHaveBeenCalledTimes(1))
 
+    expect(container.querySelector('[data-warm-alerts="true"]')).toBeTruthy()
+    expect(container.querySelector('[class*="term-"]')).toBeNull()
+    expect(container.querySelector('.rounded-none')).toBeNull()
+    expect(screen.getByRole('tab', { name: '告警事件' }).className).not.toContain(
+      'text-term-muted'
+    )
     expect(
       fetchMock.mock.calls.filter((call) => String(call[0]).includes('/api/v1/projects/manage'))
     ).toHaveLength(0)

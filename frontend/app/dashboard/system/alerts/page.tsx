@@ -10,8 +10,8 @@ import { AlertStatsBar } from './components/alert-stats-bar'
 import { AlertEventsTab } from './components/alert-events-tab'
 import { AlertRulesTab } from './components/alert-rules-tab'
 import { AlertPreferencesTab } from './components/alert-preferences-tab'
-import { TermPageShell } from '@/components/terminal/term-controls'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
+import styles from './alerts-warm.module.css'
 
 interface ProjectOption {
   id: number
@@ -81,8 +81,7 @@ export default function AlertCenterPage() {
   const stableProjects = useMemo(() => projects, [projectsKey])
 
   return (
-    // BLF-838：页面标题由 Top Header 面包屑承载；Tab 列表终端规格
-    <TermPageShell>
+    <div className={styles.page} data-warm-alerts="true">
       <AlertStatsBar stats={stats} />
 
       <Tabs
@@ -91,32 +90,32 @@ export default function AlertCenterPage() {
           setActiveTab(value)
           setRefreshTabOwner(null)
         }}
+        className={styles.tabs}
       >
-        {/* BLF-883 全局统一：variant="term" + 前置 icon */}
-        <TabsList variant="term" className="w-fit justify-start">
-          <TabsTrigger value="events" variant="term">
-            <BellRing aria-hidden />
+        <TabsList className={styles.tabList}>
+          <TabsTrigger value="events" className={styles.tab}>
+            <BellRing className={styles.tabIcon} aria-hidden />
             告警事件
           </TabsTrigger>
-          <TabsTrigger value="rules" variant="term">
-            <ListChecks aria-hidden />
+          <TabsTrigger value="rules" className={styles.tab}>
+            <ListChecks className={styles.tabIcon} aria-hidden />
             告警规则
           </TabsTrigger>
-          <TabsTrigger value="preferences" variant="term">
-            <Settings2 aria-hidden />
+          <TabsTrigger value="preferences" className={styles.tab}>
+            <Settings2 className={styles.tabIcon} aria-hidden />
             通知偏好
           </TabsTrigger>
         </TabsList>
-        <TabsContent value="events" className="mt-2">
+        <TabsContent value="events" className={styles.tabContent}>
           <AlertEventsTab onRefreshReady={registerTabRefreshOwner} />
         </TabsContent>
-        <TabsContent value="rules" className="mt-2">
+        <TabsContent value="rules" className={styles.tabContent}>
           <AlertRulesTab projects={stableProjects} onRefreshReady={registerTabRefreshOwner} />
         </TabsContent>
-        <TabsContent value="preferences" className="mt-2">
+        <TabsContent value="preferences" className={styles.tabContent}>
           <AlertPreferencesTab onRefreshReady={registerTabRefreshOwner} />
         </TabsContent>
       </Tabs>
-    </TermPageShell>
+    </div>
   )
 }
