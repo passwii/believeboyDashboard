@@ -64,10 +64,11 @@ describe('CrmOverviewDrawer', () => {
 
     expect(css).toContain("[class*='hover:bg-term-hover']:hover")
     expect(css).toMatch(/\[class\*='before:bg-term-border'\]\)::before/)
-    expect(css).toContain("[class*='border-term-bg']")
-    expect(css).toContain("[class*='bg-term-pos']")
-    expect(css).toContain("[class*='bg-term-neg']")
-    expect(css).toContain("[class*='bg-term-faint']")
+    expect(css).toContain("[class~='border-term-bg']")
+    expect(css).toContain("[class~='bg-term-hover']")
+    expect(css).toContain("[class~='bg-term-pos']")
+    expect(css).toContain("[class~='bg-term-neg']")
+    expect(css).toContain("[class~='bg-term-faint']")
   })
 
   it('详情 tab 渲染字段', () => {

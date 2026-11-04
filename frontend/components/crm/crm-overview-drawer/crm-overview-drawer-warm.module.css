@@ -165,26 +165,26 @@
   background: var(--warm-ledger-color-hairline-strong);
 }
 
-.legacySurface :global([class*='border-term-bg']) {
+.legacySurface :global([class~='border-term-bg']) {
   border-color: var(--warm-ledger-color-panel);
 }
 
-.legacySurface :global([class*='bg-term-hover']) {
+.legacySurface :global([class~='bg-term-hover']) {
   background: var(--warm-ledger-color-raised-hover);
 }
 
-.legacySurface :global([class*='bg-term-pos']) {
+.legacySurface :global([class~='bg-term-pos']) {
   background: var(--warm-ledger-color-positive);
 }
 
-.legacySurface :global([class*='bg-term-neg']) {
+.legacySurface :global([class~='bg-term-neg']) {
   background: var(--warm-ledger-color-negative);
 }
 
-.legacySurface :global([class*='bg-term-faint']) {
+.legacySurface :global([class~='bg-term-faint']) {
   background: var(--warm-ledger-color-text-muted);
 }
 
-.legacySurface :global([class*='bg-term-accent']) {
+.legacySurface :global([class~='bg-term-accent']) {
   background: var(--warm-ledger-color-accent);
 }
