@@ -42,7 +42,7 @@ const DOMAIN_BRANCH_TOKENS: Record<string, RegExp> = {
   '域专用 Warm 别名模块':
     /@\/components\/dashboard-v2\/warm-ledger\/(?!controls(?:[\/"'`]|\s|$))/,
   '域专用 Warm 相对模块':
-    /(?:^|["'`])\.{1,2}\/(?:[^"'`]+\/)*components\/dashboard-v2\/warm-ledger\/(?!controls(?:[\/"'`]|\s|$))/m,
+    /(?:^|["'`])\.{1,2}\/[^"'`]*dashboard-v2\/warm-ledger\/(?!controls(?:[\/"'`]|\s|$))/m,
 }
 
 function readSharedFile(relativePath: string): string {
@@ -74,6 +74,14 @@ describe('共享 Insight 层的域纯度', () => {
         "import('../../components/dashboard-v2/warm-ledger/crm/warm-crm-page')"
       )
     ).toBe(true)
+    expect(
+      warmRelativePattern.test(
+        "import('../dashboard-v2/warm-ledger/crm/warm-crm-page')"
+      )
+    ).toBe(true)
+    expect(
+      warmRelativePattern.test("import('../dashboard-v2/warm-ledger/controls')")
+    ).toBe(false)
   })
 
   it('渲染器只做展示：不持有传输层（EventSource / fetch）', () => {
