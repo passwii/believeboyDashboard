@@ -181,7 +181,7 @@ Damon 已确认生产直接使用新设计，不设 feature flag：
 | D0 | Dashboard 基准 | `/dashboard` | **已完成（2026-11-01）**：数据层拆分、Warm shell、真实 API 与交互门禁通过；2026-11-04 起按 V4 desktop geometry 维护 |
 | C1 | 运营分析 | `daily-analysis`、`portfolio-overview`、`inventory-analysis` | 已完成（2026-11-02；最终 Luna max review PASS） |
 | C2 | 运营执行 / 库存 | `inventory-ledger`、`shipping-plan`、`shipment-management`、`sku-info` | **已完成（2026-11-04）**：27 Vitest files / 199 tests、build、focused ESLint、78/78 Playwright、最终独立 review PASS；授权/技术 follow-ups 保留 |
-| C3 | 报表 / 订单 | `order-info`、`product-analysis`、`monthly-report/display` | **实现完成，最终门禁确认中（2026-11-04）**：前三次 Luna review 的 P2 均已修复；第四次 review 未发现代码缺陷，只要求同步 Task 5 验收复选框，现已完成；等待最终 Luna gate confirmation |
+| C3 | 报表 / 订单 | `order-info`、`product-analysis`、`monthly-report/display` | **已完成（2026-11-04）**：三条精确路由、1440×900 desktop acceptance、全量 Vitest 基线对账、lint/build 完成；前三次 Luna review 的 P2 均已修复，第六轮 Luna/max 最终门禁 PASS；无组件晋升 |
 | C4 | 广告 | `ad-analysis/overview`、`ad-data` | 图表 / 筛选契约已验证 |
 | C5 | 财务 | `platform-revenue`、`exchange-rate`、`commission-management` | 账期、币种、汇总口径明确 |
 | C6 | CRM | `crm/dashboard`、`customers`、`follow-ups`、`tasks` | 页面壳稳定；CRM 状态不并入订单状态 |
@@ -315,7 +315,7 @@ A1 owns Warm controls wrapper and Dashboard token consumption. A2–A5 may work 
 - **Next stage after this C2 closeout:** C3 orders and reports (`order-info`, `product-analysis`, `monthly-report/display`). Run/extend the documented contract audits, confirm product/security scope, then implement only after a separate kickoff.
 - Stage handoff and detailed Task 6 closeout are recorded in [`2026-11-03-warm-ledger-c2-stage-checkpoint.md`](../../../superpowers/plans/2026-11-02-warm-ledger-c2/2026-11-03-warm-ledger-c2-stage-checkpoint.md).
 
-## 14. C3 Task 5 desktop acceptance checkpoint (2026-11-04; final review remediation in progress)
+## 14. C3 Task 5 desktop acceptance closeout (2026-11-04; final review PASS)
 
 - C3 uses the exact routes `/dashboard/reports/order-info`, `/dashboard/reports/product-analysis`, and `/dashboard/reports/monthly-report/display`. All other report routes remain on `TerminalShell`.
 - Desktop shell geometry is uncapped at `1440×900`: the rounded window measures `1424×884`, with equal 8px gutters on top/right/bottom/left and the existing 22px radius. The mobile rules remain unchanged.
@@ -331,5 +331,6 @@ A1 owns Warm controls wrapper and Dashboard token consumption. A2–A5 may work 
 - The C3 browser matrix now mocks two business-report candidates and asserts the opened Product Analysis menu's computed Warm surfaces, 10px content radius, 6px option radius, Warm hover colors, and non-mono typography. Targeted Product Analysis Vitest passed 5 files / 16 tests; the desktop C3 Playwright matrix passed 3/3 on `PLAYWRIGHT_PORT=4315`; changed-file ESLint and `git diff --check` passed.
 - The third Luna/max C3 re-review confirmed one remaining P2 in Order Info: `OrderInfoMultiSelect` exposed a focusable `role="combobox"` trigger, but Enter, Space, and ArrowDown did not open its popover. The local trigger-only key handler now opens the popover and focuses the search input; nested chip-remove Enter/Space still remove their chip without opening the menu. Direct component tests cover all required keys and observed RED before implementation.
 - The requested Order Info Vitest suite passed 3 files / 42 tests. Changed-file ESLint, `git diff --check`, and the Order Info production residue scan (no `--term-*`, `term-*`, or `rounded-none`) passed. The C3 desktop Playwright matrix passed 3/3 on `PLAYWRIGHT_PORT=4315`, with the 3 mobile-project cases skipped as out of scope.
-- The fourth Luna/max re-review found no remaining code defect and reported only stale Task 5 checklist state. The technical checklist is reconciled with the recorded acceptance evidence; the independent-review gate remains open until the final Luna/max confirmation.
-- C3 completion and the existing behavioral/security follow-ups remain open.
+- The fourth Luna/max re-review found no remaining code defect and reported only stale Task 5 checklist state. The technical checklist was reconciled.
+- Luna/max round six then completed the final gate with **PASS and no findings**. C3 is complete.
+- Existing behavioral/security follow-ups remain separate and are not represented as fixed by this UI migration.

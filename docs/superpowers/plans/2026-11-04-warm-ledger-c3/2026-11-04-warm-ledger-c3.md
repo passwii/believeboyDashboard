@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js App Router, React, TypeScript, CSS Modules, existing Warm Ledger shell/controls, Vitest, Testing Library, Playwright.
 
-> **Final review status (2026-11-04):** C3 implementation and desktop acceptance are complete. The first Luna/max review found two P2 issues; both were remediated. A second review found and verified the fix for a Product Analysis portal-style P2. A third review found and verified the fix for an Order Info multi-select keyboard P2. The fourth review found no remaining code defect and only required reconciling stale Task 5 checklist state; that documentation is now reconciled. The final Luna/max gate confirmation is pending. C3 remains implementation complete + final review remediation in progress; do not mark C3 complete or check the independent-review gate until the final gate passes.
+> **Final review status (2026-11-04):** **PASS.** C3 implementation and desktop acceptance are complete. The first Luna/max review found two P2 issues; both were remediated. A second review found and verified the Product Analysis portal-style fix, and a third review found and verified the Order Info multi-select keyboard fix. The fourth review found no remaining code defect and only required reconciling stale Task 5 checklist state. Final Luna/max gate review round six returned PASS with no findings. C3 is complete.
 
 ## Global Constraints
 
@@ -153,7 +153,7 @@ Completed by DeepSeek/max in `e80506e8`; integrated as `f577490e`. Targeted Vite
 
 ## Task 5: C3 Browser Matrix and Integration
 
-Technical implementation and acceptance are integrated in `8d5f685a`; review remediations through `073b5f3a`. The checklist below mirrors the recorded audit results. The independent-review item remains open until the final Luna/max gate passes.
+Technical implementation and acceptance are integrated in `8d5f685a`; review remediations through `073b5f3a`. The checklist below mirrors the recorded audit results. The independent Luna/max review gate passed on round six.
 
 **Files:**
 
@@ -167,9 +167,11 @@ Technical implementation and acceptance are integrated in `8d5f685a`; review rem
 - [x] Run `cd frontend && pnpm test:ui -- tests/dashboard/warm-ledger-c3-matrix.spec.ts` at the single desktop acceptance viewport; intercept all backend requests and perform no real writes or exports.
 - [x] Run full `cd frontend && pnpm test` once because the route frame is a shared component, record the complete result, and reconcile the known five main-baseline failures without hiding them.
 - [x] Run `cd frontend && pnpm lint`, `cd frontend && pnpm build`, and `git diff --check`.
-- [ ] Run one independent Luna/max whole-C3 review after all three page implementations, their targeted tests, and the browser matrix are complete.
+- [x] Run one independent Luna/max whole-C3 review after all three page implementations, their targeted tests, and the browser matrix are complete.
 
 ## Stage Exit Gate
+
+**Status: Complete.** The Luna/max round-six final gate returned PASS with no findings. The known five full-Vitest failures remain documented `origin/main` baselines, not C3 regressions.
 
 - Only the three exact C3 routes use Warm Ledger; other report pages continue using `TerminalShell`.
 - Product Analysis has one direct navigation link; the monthly report primary entry and Order Info QuickLink remain unique.

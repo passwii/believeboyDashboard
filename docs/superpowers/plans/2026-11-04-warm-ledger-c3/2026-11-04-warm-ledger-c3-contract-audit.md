@@ -72,16 +72,16 @@ Task 5 completed the integration and browser matrix on 2026-11-04:
 - `pnpm lint` passed with 0 errors / 15 existing warnings; `pnpm build` and `git diff --check` passed. Build retained its existing workspace-root, Turbopack NFT trace, and stale Browserslist warnings. Browser runs retained existing Radix Select and duplicate upload-card key warnings.
 - Task 5 itself did not start an independent reviewer, per its instruction. A later final Luna review was run and is recorded below. The behavioral/security findings in “Existing risks outside visual migration” remain open and were not represented as fixed.
 
-## Final Luna review remediation (in progress)
+## First Luna review remediation (completed)
 
 The final independent Luna/max C3 review confirmed two P2 findings:
 
 1. **Order Info retained V3 Terminal visuals inside the V4 route.** The local CSS aliased `--term-*` to Warm values, `--term-*` alias blocks also existed in dialog and portal scopes, and the page still used zero-radius rules, Terminal table/control styling, and Terminal status classes. This contradicted the V4 boundary even though the token values were Warm.
 2. **C3 was documented as complete before the review gate closed.** The rollout marked C3 complete while the independent-review step remained unsatisfied and remediation findings were still open.
 
-Remediation replaces the Order Info route-local aliases and markup with Warm Ledger surfaces and `--warm-ledger-*` radii, adds page-local Warm filters/table/status/summary/dialog styling, preserves the 13-column table and 1560px internal scroller, and adds source-level regression coverage for the known residue. C3 documentation records implementation complete + final review remediation in progress; the independent-review checkbox remains unchecked until a fresh Luna/max re-review passes.
+Remediation replaced the Order Info route-local aliases and markup with Warm Ledger surfaces and `--warm-ledger-*` radii, added page-local Warm filters/table/status/summary/dialog styling, preserved the 13-column table and 1560px internal scroller, and added source-level regression coverage for the known residue. The next Luna re-review confirmed this fix.
 
-## Second Luna re-review remediation (in progress)
+## Second Luna re-review remediation (completed)
 
 The second independent Luna/max C3 re-review confirmed one remaining P2:
 
@@ -89,9 +89,9 @@ The second independent Luna/max C3 re-review confirmed one remaining P2:
 
 Remediation remains page-local and backward-compatible. `ReportStatusCard` exposes an optional `selectContentClassName` hook and applies it to both select portals; the Manual Calculation and Monthly SKU panels pass the Product Analysis Warm Ledger scope plus a page-local `statusSelectContent` class. The menu content and options now use Warm panel/raised surfaces, Warm 10px/6px radii, Warm text/hover treatment, and sans typography. Omitting the hook preserves every shared Select default for non-Warm consumers.
 
-The C3 browser matrix now mocks two business-report candidates for Manual Calculation and asserts the opened menu's computed Warm panel background, warm token scope, content/option radii, hover colors, and non-mono typography. Verification passed locally: targeted Product Analysis Vitest 5 files / 16 tests, desktop C3 Playwright 3/3 on `PLAYWRIGHT_PORT=4315`, changed-file ESLint, and `git diff --check`. This remediation has not yet received a new Luna/max review, so C3 remains implementation complete + final review remediation in progress and the independent-review gate stays open.
+The C3 browser matrix now mocks two business-report candidates for Manual Calculation and asserts the opened menu's computed Warm panel background, warm token scope, content/option radii, hover colors, and non-mono typography. Verification passed locally: targeted Product Analysis Vitest 5 files / 16 tests, desktop C3 Playwright 3/3 on `PLAYWRIGHT_PORT=4315`, changed-file ESLint, and `git diff --check`. The next Luna re-review confirmed this fix.
 
-## Third Luna re-review remediation (in progress)
+## Third Luna re-review remediation (completed)
 
 The third independent Luna/max C3 re-review confirmed one remaining P2:
 
@@ -108,10 +108,16 @@ Regression coverage observed three RED failures before implementation, then pass
 - The C3 desktop Playwright matrix passed 3/3 on `PLAYWRIGHT_PORT=4315`; the 3 mobile-project cases remained skipped as out of scope.
 - The Order Info production source scan returned no `--term-*`, `term-*`, or `rounded-none` matches.
 
-This remediation has not yet received a new Luna/max review. C3 remains implementation complete + final review remediation in progress, and the independent-review gate stays open.
+The next Luna re-review confirmed the keyboard remediation, with no further code defect.
 
 ## Fourth Luna re-review documentation reconciliation
 
 The fourth independent Luna/max re-review found no remaining code defect in the keyboard fix or the earlier remediations. It reported one P3: the Task 5 checklist had not been reconciled with the already-recorded Playwright, full Vitest, lint, build, and diff results.
 
-The Task 5 technical checkboxes are now marked complete. The independent-review checkbox remains open until the final Luna/max gate passes. C3 remains implementation complete + final review remediation in progress.
+The Task 5 technical checkboxes are complete. The final Luna/max gate then passed and the independent-review checkbox was closed.
+
+## Final Luna gate (PASS)
+
+Luna/max round six reviewed the complete C3 branch after checklist reconciliation and returned **PASS with no findings**. It confirmed that the prior remediations remain present, Task 5 technical checks are complete, the independent-review item can now be checked, and C3 can be marked complete.
+
+Residual validation limits remain documented: the full Vitest run retained 2 files / 5 failures reproduced on the `origin/main` baseline, while the C3 desktop Playwright matrix passed 3/3 with mobile cases intentionally skipped under the desktop-only scope. Recorded lint and build passed with pre-existing warnings.
