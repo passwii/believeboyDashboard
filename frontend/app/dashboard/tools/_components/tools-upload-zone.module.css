@@ -95,7 +95,17 @@
   font-weight: inherit;
 }
 
-.uploadZone :global(div:has(> input[type='file']) > div:has(> svg):not(:first-child)) {
+.uploadZone :global(div:has(> input[type='file']) > div:first-child > div > div) {
+  color: inherit;
+  font-family: var(--warm-ledger-font-sans);
+  font-size: var(--warm-ledger-font-size-control);
+  font-weight: var(--warm-ledger-font-weight-regular);
+  letter-spacing: 0;
+  line-height: var(--warm-ledger-line-height-body);
+  text-transform: none;
+}
+
+.uploadZone :global(div:has(> input[type='file']) > div[class*='border-term-neg']) {
   color: var(--warm-ledger-color-negative);
   font-family: var(--warm-ledger-font-sans);
   background: var(--warm-ledger-color-panel);

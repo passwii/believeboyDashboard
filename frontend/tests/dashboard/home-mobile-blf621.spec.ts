@@ -335,7 +335,9 @@ test.describe('@mobile-blf621 主页/个人中心/杂项页手机端（BLF-621�
     await page.goto('/dashboard/tools/page-render')
     await expect(page.getByText('我的历史').first()).toBeVisible({ timeout: 30000 })
     // 历史表格横滑容器存在
-    await expect(page.locator('[class*="overflow-x-auto"] table').first()).toBeAttached()
+    await expect(
+      page.getByRole('region', { name: '页面历史表格' }).locator('table')
+    ).toBeAttached()
     await expectNoPageHorizontalOverflow(page)
   })
 

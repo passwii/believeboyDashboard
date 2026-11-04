@@ -46,6 +46,8 @@ describe('ToolsUploadZone', () => {
     expect(css).toContain('var(--warm-ledger-color-panel)')
     expect(css).toContain('var(--warm-ledger-color-accent-soft)')
     expect(css).toContain('var(--warm-ledger-radius-control)')
+    expect(css).toContain("[class*='border-term-neg']")
+    expect(css).toContain('> div:first-child > div > div')
     expect(css).not.toContain('--term-')
     expect(css).not.toContain('@media')
   })
