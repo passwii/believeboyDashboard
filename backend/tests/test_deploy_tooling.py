@@ -168,6 +168,42 @@ def test_deploy_commands_have_no_nested_single_quotes():
         assert "'" not in cmd, f"存在嵌套单引号: {cmd[:120]}"
 
 
+def test_playwright_headless_shell_is_installed_and_verified():
+    """定时报告截图依赖 Playwright Headless Shell，部署链必须幂等补齐并校验。
+
+    2026-11-03 线上事故：`playwright==1.52.0` 已装，但
+    `/root/.cache/ms-playwright` 被清空，截图在 `BrowserType.launch` 阶段失败。
+    截图异常被业务层吞掉后报告仍标记 `sent`，页面只剩一条“成功但无截图”的记录。
+
+    这里锁两件事：
+    1. 每次后端部署在 `pip install` 之后执行
+       `playwright install --only-shell chromium`，只补截图所需的 headless shell。
+    2. 部署后机械校验对应 executable 确实落盘且可执行，不能只看命令退出码。
+    """
+    install_commands = [
+        cmd
+        for cmd in deploy_vps.DEPLOY_COMMANDS
+        if "playwright install --only-shell chromium" in cmd
+    ]
+    assert len(install_commands) == 1, "部署链必须且只能有一条 Headless Shell 安装命令"
+    install_cmd = install_commands[0]
+    assert deploy_vps.VENV_ACTIVATE in install_cmd
+    assert "--only-shell" in install_cmd, "不得再次下载完整的 Chromium"
+
+    pip_index = next(
+        i
+        for i, cmd in enumerate(deploy_vps.DEPLOY_COMMANDS)
+        if "pip install -r requirements.txt" in cmd
+    )
+    assert deploy_vps.DEPLOY_COMMANDS.index(install_cmd) > pip_index, (
+        "Playwright 浏览器必须在 Python 依赖安装之后补齐"
+    )
+
+    checks = "\n".join(deploy_vps.CHECK_COMMANDS)
+    assert "chromium_headless_shell-*/chrome-linux/headless_shell" in checks
+    assert "-perm -u+x" in checks, "校验必须确认 headless_shell 可执行"
+
+
 def test_runtime_max_sec_on_long_running_units():
     """长跑膨胀防护：beat + 两个 worker 都要有 RuntimeMaxSec=7d。"""
     for unit in [

@@ -45,6 +45,19 @@ VPS_USER = "root"
 PROJECT_DIR = "/root/believeboyDashboard/"
 BACKEND_DIR = f"{PROJECT_DIR}backend/"
 VENV_ACTIVATE = "source /root/believeboyDashboard/backend/.venv/bin/activate"
+# 定时报告截图只使用 Playwright 的 Headless Shell；不要装完整 Chromium。
+# 该命令幂等：浏览器已存在时只做版本检查，不会重复下载。
+PLAYWRIGHT_INSTALL_CMD = (
+    f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && "
+    "playwright install --only-shell chromium"
+)
+# 2026-11-03 线上事故：Python 包在、浏览器缓存目录被清空，截图静默失败。
+# 部署后必须确认实际 executable 落盘且可执行，不能只看安装命令退出码。
+PLAYWRIGHT_HEADLESS_SHELL_CHECK_CMD = (
+    "find /root/.cache/ms-playwright "
+    '-path "*/chromium_headless_shell-*/chrome-linux/headless_shell" '
+    "-type f -perm -u+x -print -quit | grep -q ."
+)
 
 # 迁移图前置检查（BLF-492）：多 head / 命名违规 / 重复 id 在跑迁移前拦截，
 # 避免 `alembic upgrade head` 因 "Multiple head revisions" 在改库前暴雷
@@ -66,6 +79,7 @@ START_WORKERS_CMD = f"systemctl start {WORKER_UNITS}"
 DEPLOY_COMMANDS = [
     f"cd {PROJECT_DIR} && git pull --ff-only",
     f"cd {BACKEND_DIR} && {VENV_ACTIVATE} && pip install -r requirements.txt",
+    PLAYWRIGHT_INSTALL_CMD,
     # --- BLF-1111：改数据的迁移必须先停后台单元，迁完再起 ---
     # 为什么不能「先迁移、后重启」：重启发生在这段命令链的末尾，在那之前
     # **旧 worker 仍在跑旧代码**。窗口内被旧 worker 落终态的 run 会把 naive
@@ -140,6 +154,7 @@ CHECK_COMMANDS = [
     # 单引号破坏，因此 grep 模式一律不加引号。
     "systemctl is-active believeboy-beat.service",
     f'cd {BACKEND_DIR} && {VENV_ACTIVATE} && python -c "import app.main"',
+    PLAYWRIGHT_HEADLESS_SHELL_CHECK_CMD,
     "grep -q ^SystemMaxUse=200M$ /etc/systemd/journald.conf.d/00-believeboy-cap.conf"
     " && grep -q ^SystemKeepFree=1G$ /etc/systemd/journald.conf.d/00-believeboy-cap.conf",
     "test -x /root/believeboyDashboard/backend/deploy/scripts/swap_reclaim.sh"
