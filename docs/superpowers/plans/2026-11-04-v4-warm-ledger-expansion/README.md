@@ -73,9 +73,9 @@ Wave 4: integrated matrix + final Luna/max review
 - [x] C5-A migrates Platform Revenue and Exchange Rate, preserving admin/read behavior, filters, writes, pagination, and XLSX semantics.
 - [x] C5-B migrates both VAT tabs and four Commission tabs, preserving invoice issue/void/export, payment/recompute, and financial units.
 - [x] C5-I integrates the four exact routes and Warm-compatible finance loading state.
-- [ ] R-C5 independently reviews all C5 routes, formulas, permissions, writes, exports, and desktop states using Luna/max.
+- [x] R-C5 independently reviews all C5 routes, formulas, permissions, writes, exports, and desktop states using Luna/max.
 
-**Known follow-ups, not visual fixes:** unauthenticated Commission endpoints, unfiltered VAT history scope, mixed-currency export total, exchange single-field filtering, and request duplication.
+**Known follow-ups, not visual fixes:** Commission project-scope authorization, unfiltered VAT history scope, and Exchange Rate single-field filtering.
 
 ## C6 CRM Team
 
@@ -159,7 +159,7 @@ Wave 4: integrated matrix + final Luna/max review
 - [x] One combined desktop Playwright matrix covers every Warm route at `1440x900`, while exception routes retain their existing behavior.
 - [x] Full Vitest has no new failures beyond the reconciled `main` baseline; CI-unblock work is tracked separately.
 - [x] `pnpm lint`, `pnpm build`, and `git diff --check` pass.
-- [ ] All five domain reviewers pass.
+- [x] All five domain reviewers pass.
 - [ ] Final Luna/max review passes before the expansion batch is marked complete.
 
 Review evidence: [`2026-11-05-expansion-review-audit.md`](./2026-11-05-expansion-review-audit.md).
