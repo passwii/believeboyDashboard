@@ -1,53 +1,25 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Coins, Loader2, PlusCircle, Save, TrendingUp, Users } from 'lucide-react'
+import { Coins, PlusCircle, Save, TrendingUp, Users } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
-import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
-import { HeaderSlotSelect, TERM_HEADER_W_MD } from '@/components/terminal/header-filter-suite'
-import { useHeaderRefresh, useHeaderSlot, useMobileFilterStrip } from '@/components/terminal/terminal-header-slot'
-import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
-
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { EmptyTableState } from '@/components/ui/empty-state'
+import {
+  WarmBadge,
+  WarmButton,
+  WarmSelect,
+  type WarmSelectOption,
+} from '@/components/dashboard-v2/warm-ledger/controls'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
-  DirectionalTabTransition,
-  SlidingTabsTrigger,
-  TabsMotionGroup,
-} from '@/components/ui/tab-motion'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { buildBackendClientHeaders } from '@/lib/backend-auth'
 import {
   fetchManagedProjectsCached,
   fetchProjectOperatorOptionsCached,
 } from '@/lib/project-client-cache'
-import { cn } from '@/lib/utils'
 import { useNotifications } from '@/components/notifications'
-import { DataCard, DataCardContent, DataCardHeader } from '@/components/ui/data-card'
-import {
-  DataTableCard,
-  DataTableCardBody,
-  DataTableCardHeader,
-  DataTableCardStatBar,
-} from '@/components/ui/data-card'
+import styles from './operator-management-warm.module.css'
 
 type ManageProject = {
   id: number
@@ -167,7 +139,10 @@ type PerformanceSummary = {
 
 const API_BASE = '/api/backend'
 const COMMON_ROLE_OPTIONS = ['operator', 'assistant', 'trainee', 'manager']
-const TAB_ORDER: readonly OperatorPageTab[] = ['role-info', 'performance', 'commission'] as const
+const WEEK_OPTIONS: WarmSelectOption[] = [1, 2, 3, 4, 5].map((week) => ({
+  value: String(week),
+  label: `第 ${week} 周`,
+}))
 
 function lastMonthString(): string {
   const now = new Date()
@@ -502,7 +477,7 @@ export default function OperatorManagementPage() {
   useHeaderRefresh(() => refreshRef.current(), { loading: isLoading })
 
   const monthOptions = useMemo(() => {
-    const options: Array<{ value: string; label: string }> = []
+    const options: WarmSelectOption[] = []
     const now = new Date()
     for (let i = 0; i < 24; i++) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
@@ -512,42 +487,6 @@ export default function OperatorManagementPage() {
     }
     return options
   }, [])
-
-  const filterControls = (
-    <>
-      <HeaderSlotSelect
-        value={month}
-        onChange={(value) => setMonth(value)}
-        options={monthOptions}
-        widthClass={TERM_HEADER_W_MD}
-        placeholder="核算月份"
-      />
-    </>
-  )
-
-  const headerSlotPortal = useHeaderSlot(
-    <HeaderFilterControls isMobileView={false} controls={filterControls} />
-  )
-
-  const mobileFilterSummary = month
-  const mobileFilterStrip = useMobileFilterStrip(
-    <MobileFilterStrip
-      summary={mobileFilterSummary}
-      controls={
-        <>
-          <MobileFilterWide>
-            <HeaderSlotSelect
-              value={month}
-              onChange={(value) => setMonth(value)}
-              options={monthOptions}
-              widthClass={TERM_HEADER_W_MD}
-              placeholder="核算月份"
-            />
-          </MobileFilterWide>
-        </>
-      }
-    />
-  )
 
   // 首次 mount / 月份变化：只拉基础选项 + 当前激活的 role-info；
   // performance / commission 推迟到各自 tab 首次激活（见下方门控 effect）。
@@ -788,766 +727,605 @@ export default function OperatorManagementPage() {
     }
   }
 
-  return (
-    <div className="mx-auto flex w-full max-w-[1560px] flex-col gap-4 md:h-[calc(100dvh-8rem)] md:overflow-y-auto lg:h-[calc(100dvh-9rem)]">
-      {/* BLF-997: head 插槽 + 移动端筛选条 */}
-      {headerSlotPortal}
-      {mobileFilterStrip}
-      <div className="flex flex-col gap-4">
-        <DataCard>
-          <DataCardHeader
-            badge={
-              <Badge
-                variant="outline"
-                className="w-fit rounded-none border border-term-border bg-term-bg font-mono text-[11px] uppercase tracking-wider text-term-muted"
-              >
-                系统管理
-              </Badge>
-            }
-            description="统一维护项目岗位、周度绩效和运营佣金分配。岗位按月份生效，佣金与绩效都围绕当前月份核算。"
-          />
-        </DataCard>
 
+  return (
+    <div className={styles.page} data-warm-operator-management="true">
+      <div className={styles.toolbar}>
         <Tabs
           value={activeTab}
           onValueChange={(value) => handleTabChange(value as OperatorPageTab)}
-          className="w-full"
+          className={styles.tabs}
         >
-          {/* w-fit 基座贴合内容：w-full 全宽会在 tab 右侧留大片空白面板 */}
-          <TabsList variant="term" className="w-fit max-w-full justify-start">
-            <TabsMotionGroup id="operator-management-tabs">
-              <SlidingTabsTrigger
-                value="role-info"
-                activeValue={activeTab}
-                layoutId="operator-management-tabs"
-                variant="term"
-              >
-                <Users aria-hidden />
-                运营信息
-              </SlidingTabsTrigger>
-              <SlidingTabsTrigger
-                value="performance"
-                activeValue={activeTab}
-                layoutId="operator-management-tabs"
-                variant="term"
-              >
-                <TrendingUp aria-hidden />
-                运营绩效
-              </SlidingTabsTrigger>
-              <SlidingTabsTrigger
-                value="commission"
-                activeValue={activeTab}
-                layoutId="operator-management-tabs"
-                variant="term"
-              >
-                <Coins aria-hidden />
-                运营佣金
-              </SlidingTabsTrigger>
-            </TabsMotionGroup>
+          <TabsList className={styles.tabList} aria-label="运营管理">
+            <TabsTrigger className={styles.tabTrigger} value="role-info">
+              <Users aria-hidden="true" />
+              运营信息
+            </TabsTrigger>
+            <TabsTrigger className={styles.tabTrigger} value="performance">
+              <TrendingUp aria-hidden="true" />
+              运营绩效
+            </TabsTrigger>
+            <TabsTrigger className={styles.tabTrigger} value="commission">
+              <Coins aria-hidden="true" />
+              运营佣金
+            </TabsTrigger>
           </TabsList>
         </Tabs>
+
+        <WarmSelect
+          id="operator-report-month"
+          label="核算月份"
+          value={month}
+          options={monthOptions}
+          onChange={setMonth}
+          className={styles.monthSelect}
+        />
       </div>
 
-      {activeTab === 'role-info' && (
-        <DataCard>
-          <DataCardContent className="flex flex-col gap-4">
-            <DataTableCard className="flex flex-1 flex-col overflow-hidden">
-              <DataTableCardHeader className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex flex-wrap gap-2">
-                  {COMMON_ROLE_OPTIONS.map((item) => (
-                    <Badge key={item} variant="secondary" className="rounded-none border-term-border bg-term-bg font-mono text-[11px] text-term-muted">
-                      {toRoleLabel(item)}
-                    </Badge>
-                  ))}
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button type="button" variant="outline" onClick={addRoleRow}>
-                    <PlusCircle className="h-4 w-4" />
-                    新增岗位
-                  </Button>
-                  <Button type="button" onClick={() => void saveRoleInfo()} disabled={savingRoles}>
-                    {savingRoles ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Save className="h-4 w-4" />
-                    )}
-                    保存运营信息
-                  </Button>
-                </div>
-              </DataTableCardHeader>
-              <DataTableCardBody className="flex-1 min-h-0 overflow-auto">
-                <Table>
-                  <TableHeader className="bg-[hsl(var(--surface-subtle))]">
-                    <TableRow>
-                      <TableHead>人员</TableHead>
-                      <TableHead>项目</TableHead>
-                      <TableHead>岗位</TableHead>
-                      <TableHead>生效月份</TableHead>
-                      <TableHead>截止月份</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {roleLoading ? (
-                      <TableRow>
-                        <TableCell colSpan={5} className="text-center text-muted-foreground">
-                          加载中...
-                        </TableCell>
-                      </TableRow>
-                    ) : roleDraftRows.length === 0 ? (
-                      <EmptyTableState
-                        colSpan={5}
-                        message="当前月份还没有岗位记录，点击右上角新增岗位即可开始维护。"
-                      />
-                    ) : (
-                      roleDraftRows.map((row, index) => (
-                        <TableRow key={row.localId}>
-                          <TableCell>
-                            <Input
-                              value={row.person_name}
-                              list="operator-name-options"
-                              onChange={(event) => {
-                                const value = event.target.value
-                                setRoleDraftRows((prev) =>
-                                  prev.map((item, itemIndex) =>
-                                    itemIndex === index ? { ...item, person_name: value } : item
-                                  )
-                                )
-                              }}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Select
-                              value={row.project_id ? String(row.project_id) : ''}
-                              onValueChange={(value) => {
-                                setRoleDraftRows((prev) =>
-                                  prev.map((item, itemIndex) =>
-                                    itemIndex === index
-                                      ? { ...item, project_id: Number(value) }
-                                      : item
-                                  )
-                                )
-                              }}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="选择项目" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {projects.map((project) => (
-                                  <SelectItem key={project.id} value={String(project.id)}>
-                                    {project.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              value={row.role_type}
-                              list="operator-role-options"
-                              onChange={(event) => {
-                                const value = event.target.value
-                                setRoleDraftRows((prev) =>
-                                  prev.map((item, itemIndex) =>
-                                    itemIndex === index ? { ...item, role_type: value } : item
-                                  )
-                                )
-                              }}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              value={row.effective_from_month}
-                              placeholder="YYYY-MM"
-                              onChange={(event) => {
-                                const value = event.target.value
-                                setRoleDraftRows((prev) =>
-                                  prev.map((item, itemIndex) =>
-                                    itemIndex === index
-                                      ? { ...item, effective_from_month: value }
-                                      : item
-                                  )
-                                )
-                              }}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              value={row.effective_to_month}
-                              placeholder="空代表持续有效"
-                              onChange={(event) => {
-                                const value = event.target.value
-                                setRoleDraftRows((prev) =>
-                                  prev.map((item, itemIndex) =>
-                                    itemIndex === index
-                                      ? { ...item, effective_to_month: value }
-                                      : item
-                                  )
-                                )
-                              }}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </DataTableCardBody>
-            </DataTableCard>
+      <datalist id="operator-name-options">
+        {operatorOptions.map((item) => (
+          <option key={item} value={item} />
+        ))}
+      </datalist>
+      <datalist id="operator-role-options">
+        {COMMON_ROLE_OPTIONS.map((item) => (
+          <option key={item} value={item} />
+        ))}
+      </datalist>
 
-            <datalist id="operator-name-options">
-              {operatorOptions.map((item) => (
-                <option key={item} value={item} />
-              ))}
-            </datalist>
-            <datalist id="operator-role-options">
+      {activeTab === 'role-info' && (
+        <section className={styles.panel} aria-label="运营信息">
+          <header className={styles.panelHeader}>
+            <div className={styles.panelLead}>
+              <h2 className={styles.panelTitle}>运营信息</h2>
               {COMMON_ROLE_OPTIONS.map((item) => (
-                <option key={item} value={item} />
+                <WarmBadge key={item} className={styles.roleChip}>
+                  {toRoleLabel(item)}
+                </WarmBadge>
               ))}
-            </datalist>
-          </DataCardContent>
-        </DataCard>
+            </div>
+            <div className={styles.actions}>
+              <WarmButton
+                type="button"
+                variant="secondary"
+                className={styles.actionButton}
+                onClick={addRoleRow}
+              >
+                <PlusCircle aria-hidden="true" />
+                新增岗位
+              </WarmButton>
+              <WarmButton
+                type="button"
+                variant="primary"
+                className={styles.actionButton}
+                onClick={() => void saveRoleInfo()}
+                loading={savingRoles}
+                loadingLabel="正在保存运营信息"
+              >
+                <Save aria-hidden="true" />
+                保存运营信息
+              </WarmButton>
+            </div>
+          </header>
+
+          <div className={styles.tableWrap}>
+            <table className={`${styles.dataTable} ${styles.roleTable}`} aria-label="运营岗位列表">
+              <thead>
+                <tr>
+                  <th scope="col">人员</th>
+                  <th scope="col">项目</th>
+                  <th scope="col">岗位</th>
+                  <th scope="col">生效月份</th>
+                  <th scope="col">截止月份</th>
+                </tr>
+              </thead>
+              <tbody>
+                {roleLoading ? (
+                  <tr>
+                    <td className={styles.stateCell} colSpan={5} role="status">
+                      加载中...
+                    </td>
+                  </tr>
+                ) : roleDraftRows.length === 0 ? (
+                  <tr>
+                    <td className={styles.stateCell} colSpan={5}>
+                      当前月份还没有岗位记录，点击右上角新增岗位即可开始维护。
+                    </td>
+                  </tr>
+                ) : (
+                  roleDraftRows.map((row, index) => (
+                    <tr key={row.localId}>
+                      <td>
+                        <Input
+                          aria-label={`第 ${index + 1} 行人员`}
+                          value={row.person_name}
+                          list="operator-name-options"
+                          className={styles.rowInput}
+                          onChange={(event) => {
+                            const value = event.target.value
+                            setRoleDraftRows((prev) =>
+                              prev.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, person_name: value } : item
+                              )
+                            )
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <WarmSelect
+                          id={`operator-role-project-${row.localId}`}
+                          label="项目"
+                          value={row.project_id ? String(row.project_id) : ''}
+                          options={projects.map((project) => ({
+                            value: String(project.id),
+                            label: project.name,
+                          }))}
+                          placeholder="选择项目"
+                          className={styles.rowSelect}
+                          onChange={(value) => {
+                            setRoleDraftRows((prev) =>
+                              prev.map((item, itemIndex) =>
+                                itemIndex === index
+                                  ? { ...item, project_id: Number(value) }
+                                  : item
+                              )
+                            )
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <Input
+                          aria-label={`第 ${index + 1} 行岗位`}
+                          value={row.role_type}
+                          list="operator-role-options"
+                          className={styles.rowInput}
+                          onChange={(event) => {
+                            const value = event.target.value
+                            setRoleDraftRows((prev) =>
+                              prev.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, role_type: value } : item
+                              )
+                            )
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <Input
+                          aria-label={`第 ${index + 1} 行生效月份`}
+                          value={row.effective_from_month}
+                          placeholder="YYYY-MM"
+                          className={styles.rowInput}
+                          onChange={(event) => {
+                            const value = event.target.value
+                            setRoleDraftRows((prev) =>
+                              prev.map((item, itemIndex) =>
+                                itemIndex === index
+                                  ? { ...item, effective_from_month: value }
+                                  : item
+                              )
+                            )
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <Input
+                          aria-label={`第 ${index + 1} 行截止月份`}
+                          value={row.effective_to_month}
+                          placeholder="空代表持续有效"
+                          className={styles.rowInput}
+                          onChange={(event) => {
+                            const value = event.target.value
+                            setRoleDraftRows((prev) =>
+                              prev.map((item, itemIndex) =>
+                                itemIndex === index
+                                  ? { ...item, effective_to_month: value }
+                                  : item
+                              )
+                            )
+                          }}
+                        />
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
       )}
 
       {activeTab === 'performance' && (
-        <DataCard>
-          <DataCardContent className="flex flex-col gap-4">
-            <DataTableCard>
-              <DataTableCardStatBar
-                items={[
-                  { label: '本月绩效记录', value: performanceStats.recordCount },
-                  { label: '覆盖人员', value: performanceStats.peopleCount },
-                  { label: '平均分', value: performanceStats.averageScore.toFixed(1) },
-                ]}
-                className={performanceLoading ? 'opacity-60' : ''}
-              />
-            </DataTableCard>
+        <section className={styles.panel} aria-label="运营绩效">
+          <header className={styles.panelHeader}>
+            <h2 className={styles.panelTitle}>运营绩效</h2>
+            <div className={styles.actions}>
+              <WarmButton
+                type="button"
+                variant="secondary"
+                className={styles.actionButton}
+                onClick={addPerformanceRow}
+              >
+                <PlusCircle aria-hidden="true" />
+                新增绩效
+              </WarmButton>
+              <WarmButton
+                type="button"
+                variant="primary"
+                className={styles.actionButton}
+                onClick={() => void savePerformance()}
+                loading={savingPerformance}
+                loadingLabel="正在保存运营绩效"
+              >
+                <Save aria-hidden="true" />
+                保存绩效
+              </WarmButton>
+            </div>
+          </header>
 
-            <DataTableCard className="flex flex-1 flex-col overflow-hidden">
-              <DataTableCardHeader className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <Button type="button" variant="outline" onClick={addPerformanceRow}>
-                    <PlusCircle className="h-4 w-4" />
-                    新增绩效
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={() => void savePerformance()}
-                    disabled={savingPerformance}
-                  >
-                    {savingPerformance ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Save className="h-4 w-4" />
-                    )}
-                    保存绩效
-                  </Button>
-                </div>
-              </DataTableCardHeader>
-              <DataTableCardBody className="flex-1 min-h-0 overflow-auto">
-                <Table>
-                  <TableHeader className="bg-[hsl(var(--surface-subtle))]">
-                    <TableRow>
-                      <TableHead>人员</TableHead>
-                      <TableHead>项目</TableHead>
-                      <TableHead>岗位</TableHead>
-                      <TableHead>周次</TableHead>
-                      <TableHead className="text-right">绩效分</TableHead>
-                      <TableHead>备注</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {performanceLoading ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center text-muted-foreground">
-                          加载中...
-                        </TableCell>
-                      </TableRow>
-                    ) : performanceDraftRows.length === 0 ? (
-                      <EmptyTableState
-                        colSpan={6}
-                        message="当前月份还没有绩效记录，新增后即可按周打分。"
-                      />
-                    ) : (
-                      performanceDraftRows.map((row, index) => (
-                        <TableRow key={row.localId}>
-                          <TableCell>
-                            <Input
-                              value={row.person_name}
-                              list="operator-name-options"
-                              onChange={(event) => {
-                                const value = event.target.value
-                                setPerformanceDraftRows((prev) =>
-                                  prev.map((item, itemIndex) =>
-                                    itemIndex === index ? { ...item, person_name: value } : item
-                                  )
-                                )
-                              }}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Select
-                              value={row.project_id ? String(row.project_id) : ''}
-                              onValueChange={(value) => {
-                                setPerformanceDraftRows((prev) =>
-                                  prev.map((item, itemIndex) =>
-                                    itemIndex === index
-                                      ? { ...item, project_id: Number(value) }
-                                      : item
-                                  )
-                                )
-                              }}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="选择项目" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {projects.map((project) => (
-                                  <SelectItem key={project.id} value={String(project.id)}>
-                                    {project.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              value={row.role_type}
-                              list="operator-role-options"
-                              onChange={(event) => {
-                                const value = event.target.value
-                                setPerformanceDraftRows((prev) =>
-                                  prev.map((item, itemIndex) =>
-                                    itemIndex === index ? { ...item, role_type: value } : item
-                                  )
-                                )
-                              }}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Select
-                              value={String(row.week_index)}
-                              onValueChange={(value) => {
-                                setPerformanceDraftRows((prev) =>
-                                  prev.map((item, itemIndex) =>
-                                    itemIndex === index
-                                      ? { ...item, week_index: Number(value) }
-                                      : item
-                                  )
-                                )
-                              }}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="周次" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {[1, 2, 3, 4, 5].map((week) => (
-                                  <SelectItem key={week} value={String(week)}>
-                                    第 {week} 周
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Input
-                              type="number"
-                              min="0"
-                              max="100"
-                              value={row.score}
-                              className="text-right"
-                              onChange={(event) => {
-                                const value = event.target.value
-                                setPerformanceDraftRows((prev) =>
-                                  prev.map((item, itemIndex) =>
-                                    itemIndex === index ? { ...item, score: value } : item
-                                  )
-                                )
-                              }}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              value={row.note}
-                              placeholder="补充说明"
-                              onChange={(event) => {
-                                const value = event.target.value
-                                setPerformanceDraftRows((prev) =>
-                                  prev.map((item, itemIndex) =>
-                                    itemIndex === index ? { ...item, note: value } : item
-                                  )
-                                )
-                              }}
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </DataTableCardBody>
-            </DataTableCard>
+          <div className={styles.metricStrip} aria-busy={performanceLoading || undefined}>
+            <div className={styles.metric}>
+              <span className={styles.metricLabel}>本月绩效记录</span>
+              <strong className={styles.metricValue}>{performanceStats.recordCount}</strong>
+            </div>
+            <div className={styles.metric}>
+              <span className={styles.metricLabel}>覆盖人员</span>
+              <strong className={styles.metricValue}>{performanceStats.peopleCount}</strong>
+            </div>
+            <div className={styles.metric}>
+              <span className={styles.metricLabel}>平均分</span>
+              <strong className={styles.metricValue}>
+                {performanceStats.averageScore.toFixed(1)}
+              </strong>
+            </div>
+          </div>
 
-            <datalist id="operator-name-options">
-              {operatorOptions.map((item) => (
-                <option key={item} value={item} />
-              ))}
-            </datalist>
-            <datalist id="operator-role-options">
-              {COMMON_ROLE_OPTIONS.map((item) => (
-                <option key={item} value={item} />
-              ))}
-            </datalist>
-          </DataCardContent>
-        </DataCard>
+          <div className={styles.tableWrap}>
+            <table
+              className={`${styles.dataTable} ${styles.performanceTable}`}
+              aria-label="运营绩效列表"
+            >
+              <thead>
+                <tr>
+                  <th scope="col">人员</th>
+                  <th scope="col">项目</th>
+                  <th scope="col">岗位</th>
+                  <th scope="col">周次</th>
+                  <th scope="col" className={styles.numericCell}>
+                    绩效分
+                  </th>
+                  <th scope="col">备注</th>
+                </tr>
+              </thead>
+              <tbody>
+                {performanceLoading ? (
+                  <tr>
+                    <td className={styles.stateCell} colSpan={6} role="status">
+                      加载中...
+                    </td>
+                  </tr>
+                ) : performanceDraftRows.length === 0 ? (
+                  <tr>
+                    <td className={styles.stateCell} colSpan={6}>
+                      当前月份还没有绩效记录，新增后即可按周打分。
+                    </td>
+                  </tr>
+                ) : (
+                  performanceDraftRows.map((row, index) => (
+                    <tr key={row.localId}>
+                      <td>
+                        <Input
+                          aria-label={`第 ${index + 1} 行绩效人员`}
+                          value={row.person_name}
+                          list="operator-name-options"
+                          className={styles.rowInput}
+                          onChange={(event) => {
+                            const value = event.target.value
+                            setPerformanceDraftRows((prev) =>
+                              prev.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, person_name: value } : item
+                              )
+                            )
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <WarmSelect
+                          id={`operator-performance-project-${row.localId}`}
+                          label="项目"
+                          value={row.project_id ? String(row.project_id) : ''}
+                          options={projects.map((project) => ({
+                            value: String(project.id),
+                            label: project.name,
+                          }))}
+                          placeholder="选择项目"
+                          className={styles.rowSelect}
+                          onChange={(value) => {
+                            setPerformanceDraftRows((prev) =>
+                              prev.map((item, itemIndex) =>
+                                itemIndex === index
+                                  ? { ...item, project_id: Number(value) }
+                                  : item
+                              )
+                            )
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <Input
+                          aria-label={`第 ${index + 1} 行绩效岗位`}
+                          value={row.role_type}
+                          list="operator-role-options"
+                          className={styles.rowInput}
+                          onChange={(event) => {
+                            const value = event.target.value
+                            setPerformanceDraftRows((prev) =>
+                              prev.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, role_type: value } : item
+                              )
+                            )
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <WarmSelect
+                          id={`operator-performance-week-${row.localId}`}
+                          label="周次"
+                          value={String(row.week_index)}
+                          options={WEEK_OPTIONS}
+                          className={`${styles.rowSelect} ${styles.rowSelectWide}`}
+                          onChange={(value) => {
+                            setPerformanceDraftRows((prev) =>
+                              prev.map((item, itemIndex) =>
+                                itemIndex === index
+                                  ? { ...item, week_index: Number(value) }
+                                  : item
+                              )
+                            )
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <Input
+                          aria-label={`第 ${index + 1} 行绩效分`}
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={row.score}
+                          className={`${styles.rowInput} ${styles.numericInput}`}
+                          onChange={(event) => {
+                            const value = event.target.value
+                            setPerformanceDraftRows((prev) =>
+                              prev.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, score: value } : item
+                              )
+                            )
+                          }}
+                        />
+                      </td>
+                      <td>
+                        <Input
+                          aria-label={`第 ${index + 1} 行绩效备注`}
+                          value={row.note}
+                          placeholder="补充说明"
+                          className={styles.rowInput}
+                          onChange={(event) => {
+                            const value = event.target.value
+                            setPerformanceDraftRows((prev) =>
+                              prev.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, note: value } : item
+                              )
+                            )
+                          }}
+                        />
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
       )}
 
       {activeTab === 'commission' && (
-        <DataCard>
-          <DataCardContent className="flex flex-col gap-4">
-            <DataTableCard>
-              <DataTableCardStatBar
-                items={[
-                  {
-                    label: '已关联绩效人员',
-                    value: commissionTableRows.filter((row) => row.performanceSummary.weekCount > 0)
-                      .length,
-                  },
-                  {
-                    label: '平均绩效点',
-                    value:
-                      commissionTableRows.length > 0
-                        ? (
-                            commissionTableRows.reduce(
-                              (sum, row) => sum + row.performanceSummary.averageScore,
-                              0
-                            ) / commissionTableRows.length
-                          ).toFixed(1)
-                        : '0.0',
-                  },
-                  {
-                    label: '总绩效点',
-                    value: commissionTableRows.reduce(
-                      (sum, row) => sum + row.performanceSummary.totalScore,
-                      0
-                    ),
-                  },
-                ]}
-                className={commissionLoading ? 'opacity-60' : ''}
-              />
-            </DataTableCard>
+        <section className={styles.panel} aria-label="运营佣金">
+          <header className={styles.panelHeader}>
+            <h2 className={styles.panelTitle}>运营佣金</h2>
+            <div className={styles.actions}>
+              <WarmButton
+                type="button"
+                variant="primary"
+                className={styles.actionButton}
+                onClick={() => void saveCommissionOverrides()}
+                loading={savingCommission}
+                loadingLabel="正在保存佣金调整"
+              >
+                <Save aria-hidden="true" />
+                保存佣金调整
+              </WarmButton>
+            </div>
+          </header>
 
-            <DataTableCard className="flex flex-1 flex-col overflow-hidden">
-              <DataTableCardHeader className="flex flex-wrap items-center justify-between gap-3">
-                <Button
-                  type="button"
-                  onClick={() => void saveCommissionOverrides()}
-                  disabled={savingCommission}
-                >
-                  {savingCommission ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  保存佣金调整
-                </Button>
-              </DataTableCardHeader>
-              <DataTableCardBody className="flex-1 min-h-0 overflow-auto">
-                {/* 桌面端：完整表格 */}
-                <div className="hidden lg:block">
-                  <Table>
-                    <TableHeader className="bg-[hsl(var(--surface-subtle))]">
-                      <TableRow>
-                        <TableHead>人员</TableHead>
-                        <TableHead>项目</TableHead>
-                        <TableHead>岗位</TableHead>
-                        <TableHead>佣金类别</TableHead>
-                        <TableHead className="text-right">绩效总分</TableHead>
-                        <TableHead className="text-right">绩效均分</TableHead>
-                        <TableHead className="text-right">绩效周数</TableHead>
-                        <TableHead className="text-right">销售收入(USD)</TableHead>
-                        <TableHead className="text-right">项目佣金率</TableHead>
-                        <TableHead className="text-right">提成比例</TableHead>
-                        <TableHead className="text-right">提成金额(RMB)</TableHead>
-                        <TableHead>比例来源</TableHead>
-                        <TableHead>备注</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {commissionLoading ? (
-                        <TableRow>
-                          <TableCell colSpan={13} className="text-center text-muted-foreground">
-                            加载中...
-                          </TableCell>
-                        </TableRow>
-                      ) : commissionTableRows.length === 0 ? (
-                        <EmptyTableState
-                          colSpan={13}
-                          message="当前月份暂无佣金记录，请先完成佣金核算。"
-                        />
-                      ) : (
-                        commissionTableRows.map((row) => {
-                          const key = `${row.project_id}::${row.person_name}::${row.income_category}`
-                          const draft = commissionDrafts[key] ?? {
-                            ratio: (row.operator_bonus_ratio * 100).toFixed(2),
-                            reason: '',
-                          }
-                          return (
-                            <TableRow key={row.id}>
-                              <TableCell>{row.person_name}</TableCell>
-                              <TableCell>{row.project_name}</TableCell>
-                              <TableCell>{toRoleLabel(row.role_type)}</TableCell>
-                              <TableCell>{toIncomeCategoryLabel(row.income_category)}</TableCell>
-                              <TableCell className="text-right tabular-nums font-medium">
-                                {row.performanceSummary.weekCount > 0
-                                  ? row.performanceSummary.totalScore
-                                  : '-'}
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums">
-                                {row.performanceSummary.weekCount > 0
-                                  ? row.performanceSummary.averageScore.toFixed(1)
-                                  : '-'}
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums">
-                                {row.performanceSummary.weekCount > 0
-                                  ? row.performanceSummary.weekCount
-                                  : '-'}
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums">
-                                {formatUsd(row.income_total_usd)}
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums">
-                                {formatPercent(row.factory_commission_rate)}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  max="100"
-                                  step="0.01"
-                                  value={draft.ratio}
-                                  className="min-w-[110px] text-right"
-                                  onChange={(event) => {
-                                    const value = event.target.value
-                                    setCommissionDrafts((prev) => ({
-                                      ...prev,
-                                      [key]: { ...draft, ratio: value },
-                                    }))
-                                  }}
-                                />
-                              </TableCell>
-                              <TableCell className="text-right tabular-nums font-medium">
-                                {formatRmb(row.bonus_amount_rmb)}
-                              </TableCell>
-                              <TableCell>{row.override ? '手动' : '规则'}</TableCell>
-                              <TableCell>
-                                <Input
-                                  value={draft.reason}
-                                  placeholder="填写说明"
-                                  onChange={(event) => {
-                                    const value = event.target.value
-                                    setCommissionDrafts((prev) => ({
-                                      ...prev,
-                                      [key]: { ...draft, reason: value },
-                                    }))
-                                  }}
-                                />
-                              </TableCell>
-                            </TableRow>
-                          )
-                        })
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
+          <div className={styles.metricStrip} aria-busy={commissionLoading || undefined}>
+            <div className={styles.metric}>
+              <span className={styles.metricLabel}>已关联绩效人员</span>
+              <strong className={styles.metricValue}>
+                {commissionTableRows.filter((row) => row.performanceSummary.weekCount > 0).length}
+              </strong>
+            </div>
+            <div className={styles.metric}>
+              <span className={styles.metricLabel}>平均绩效点</span>
+              <strong className={styles.metricValue}>
+                {commissionTableRows.length > 0
+                  ? (
+                      commissionTableRows.reduce(
+                        (sum, row) => sum + row.performanceSummary.averageScore,
+                        0
+                      ) / commissionTableRows.length
+                    ).toFixed(1)
+                  : '0.0'}
+              </strong>
+            </div>
+            <div className={styles.metric}>
+              <span className={styles.metricLabel}>总绩效点</span>
+              <strong className={styles.metricValue}>
+                {commissionTableRows.reduce(
+                  (sum, row) => sum + row.performanceSummary.totalScore,
+                  0
+                )}
+              </strong>
+            </div>
+          </div>
 
-                {/* 手机端：卡片列表 */}
-                <div className="lg:hidden space-y-3">
-                  {commissionLoading ? (
-                    <div className="text-center text-sm text-muted-foreground py-8">加载中...</div>
-                  ) : commissionTableRows.length === 0 ? (
-                    <div className="text-center text-sm text-muted-foreground py-8">
-                      当前月份暂无佣金记录
-                    </div>
-                  ) : (
-                    commissionTableRows.map((row) => {
-                      const key = `${row.project_id}::${row.person_name}::${row.income_category}`
-                      const draft = commissionDrafts[key] ?? {
-                        ratio: (row.operator_bonus_ratio * 100).toFixed(2),
-                        reason: '',
-                      }
-                      return (
-                        <div key={row.id} className="rounded-none border border-term-border bg-term-panel p-4 space-y-3">
-                          {/* 头部：人员 + 项目 + 岗位 */}
-                          <div className="flex items-start justify-between gap-2 border-b border-border/70 pb-3">
-                            <div className="min-w-0">
-                              <div className="font-semibold text-sm">{row.person_name}</div>
-                              <div className="text-xs text-muted-foreground truncate">
-                                {row.project_name}
-                              </div>
-                            </div>
-                            <div className="flex flex-col items-end gap-1">
-                              <Badge variant="secondary" className="text-xs">
-                                {toRoleLabel(row.role_type)}
-                              </Badge>
-                              <Badge variant="outline" className="text-xs">
-                                {toIncomeCategoryLabel(row.income_category)}
-                              </Badge>
-                            </div>
-                          </div>
+          <div className={`${styles.tableWrap} ${styles.tableWrapCommission}`}>
+            <table
+              className={`${styles.dataTable} ${styles.commissionTable}`}
+              aria-label="运营佣金列表"
+            >
+              <thead>
+                <tr>
+                  <th scope="col">人员</th>
+                  <th scope="col">项目</th>
+                  <th scope="col">岗位</th>
+                  <th scope="col">佣金类别</th>
+                  <th scope="col" className={styles.numericCell}>
+                    绩效总分
+                  </th>
+                  <th scope="col" className={styles.numericCell}>
+                    绩效均分
+                  </th>
+                  <th scope="col" className={styles.numericCell}>
+                    绩效周数
+                  </th>
+                  <th scope="col" className={styles.numericCell}>
+                    销售收入(USD)
+                  </th>
+                  <th scope="col" className={styles.numericCell}>
+                    项目佣金率
+                  </th>
+                  <th scope="col" className={styles.numericCell}>
+                    提成比例
+                  </th>
+                  <th scope="col" className={styles.numericCell}>
+                    提成金额(RMB)
+                  </th>
+                  <th scope="col">比例来源</th>
+                  <th scope="col">备注</th>
+                </tr>
+              </thead>
+              <tbody>
+                {commissionLoading ? (
+                  <tr>
+                    <td className={styles.stateCell} colSpan={13} role="status">
+                      加载中...
+                    </td>
+                  </tr>
+                ) : commissionTableRows.length === 0 ? (
+                  <tr>
+                    <td className={styles.stateCell} colSpan={13}>
+                      当前月份暂无佣金记录，请先完成佣金核算。
+                    </td>
+                  </tr>
+                ) : (
+                  commissionTableRows.map((row) => {
+                    const key = `${row.project_id}::${row.person_name}::${row.income_category}`
+                    const draft = commissionDrafts[key] ?? {
+                      ratio: (row.operator_bonus_ratio * 100).toFixed(2),
+                      reason: '',
+                    }
+                    return (
+                      <tr key={row.id}>
+                        <td>{row.person_name}</td>
+                        <td>{row.project_name}</td>
+                        <td>{toRoleLabel(row.role_type)}</td>
+                        <td>{toIncomeCategoryLabel(row.income_category)}</td>
+                        <td className={styles.numericCell}>
+                          {row.performanceSummary.weekCount > 0
+                            ? row.performanceSummary.totalScore
+                            : '-'}
+                        </td>
+                        <td className={styles.numericCell}>
+                          {row.performanceSummary.weekCount > 0
+                            ? row.performanceSummary.averageScore.toFixed(1)
+                            : '-'}
+                        </td>
+                        <td className={styles.numericCell}>
+                          {row.performanceSummary.weekCount > 0
+                            ? row.performanceSummary.weekCount
+                            : '-'}
+                        </td>
+                        <td className={styles.numericCell}>
+                          {formatUsd(row.income_total_usd)}
+                        </td>
+                        <td className={styles.numericCell}>
+                          {formatPercent(row.factory_commission_rate)}
+                        </td>
+                        <td>
+                          <Input
+                            aria-label={`${row.person_name} ${toIncomeCategoryLabel(row.income_category)}提成比例`}
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            value={draft.ratio}
+                            className={`${styles.rowInput} ${styles.numericInput}`}
+                            onChange={(event) => {
+                              const value = event.target.value
+                              setCommissionDrafts((prev) => ({
+                                ...prev,
+                                [key]: { ...draft, ratio: value },
+                              }))
+                            }}
+                          />
+                        </td>
+                        <td className={styles.numericCell}>{formatRmb(row.bonus_amount_rmb)}</td>
+                        <td>
+                          <span
+                            className={`${styles.sourcePill} ${
+                              row.override ? styles.sourcePillManual : ''
+                            }`}
+                          >
+                            {row.override ? '手动' : '规则'}
+                          </span>
+                        </td>
+                        <td>
+                          <Input
+                            aria-label={`${row.person_name} ${toIncomeCategoryLabel(row.income_category)}备注`}
+                            value={draft.reason}
+                            placeholder="填写说明"
+                            className={styles.rowInput}
+                            onChange={(event) => {
+                              const value = event.target.value
+                              setCommissionDrafts((prev) => ({
+                                ...prev,
+                                [key]: { ...draft, reason: value },
+                              }))
+                            }}
+                          />
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
 
-                          {/* 核心数据 2x3 网格 */}
-                          <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                            <div>
-                              <span className="text-xs text-muted-foreground">绩效总分</span>
-                              <div
-                                className={cn(
-                                  'font-medium',
-                                  row.performanceSummary.weekCount > 0
-                                    ? ''
-                                    : 'text-muted-foreground'
-                                )}
-                              >
-                                {row.performanceSummary.weekCount > 0
-                                  ? row.performanceSummary.totalScore
-                                  : '-'}
-                              </div>
-                            </div>
-                            <div>
-                              <span className="text-xs text-muted-foreground">绩效均分</span>
-                              <div
-                                className={cn(
-                                  'font-medium',
-                                  row.performanceSummary.weekCount > 0
-                                    ? ''
-                                    : 'text-muted-foreground'
-                                )}
-                              >
-                                {row.performanceSummary.weekCount > 0
-                                  ? row.performanceSummary.averageScore.toFixed(1)
-                                  : '-'}
-                              </div>
-                            </div>
-                            <div>
-                              <span className="text-xs text-muted-foreground">销售收入</span>
-                              <div className="font-medium">{formatUsd(row.income_total_usd)}</div>
-                            </div>
-                            <div>
-                              <span className="text-xs text-muted-foreground">项目佣金率</span>
-                              <div className="font-medium">
-                                {formatPercent(row.factory_commission_rate)}
-                              </div>
-                            </div>
-                            <div>
-                              <span className="text-xs text-muted-foreground">提成比例</span>
-                              <div className="font-medium">
-                                {formatPercent(row.operator_bonus_ratio)}
-                              </div>
-                            </div>
-                            <div>
-                              <span className="text-xs text-muted-foreground">提成金额</span>
-                              <div className="font-medium text-primary">
-                                {formatRmb(row.bonus_amount_rmb)}
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* 绩效周数 */}
-                          <div className="text-xs text-muted-foreground">
-                            绩效周数:{' '}
-                            {row.performanceSummary.weekCount > 0
-                              ? `${row.performanceSummary.weekCount} 周`
-                              : '无'}
-                          </div>
-
-                          {/* 可编辑字段 */}
-                          <div className="border-t border-border/70 pt-3 space-y-3">
-                            <div className="space-y-1">
-                              <div className="text-xs text-muted-foreground">调整提成比例 (%)</div>
-                              <Input
-                                type="number"
-                                min="0"
-                                max="100"
-                                step="0.01"
-                                value={draft.ratio}
-                                className="h-9 min-h-[44px] text-sm"
-                                onChange={(event) => {
-                                  const value = event.target.value
-                                  setCommissionDrafts((prev) => ({
-                                    ...prev,
-                                    [key]: { ...draft, ratio: value },
-                                  }))
-                                }}
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <div className="text-xs text-muted-foreground">备注</div>
-                              <Input
-                                value={draft.reason}
-                                placeholder="填写说明"
-                                className="h-9 min-h-[44px] text-sm"
-                                onChange={(event) => {
-                                  const value = event.target.value
-                                  setCommissionDrafts((prev) => ({
-                                    ...prev,
-                                    [key]: { ...draft, reason: value },
-                                  }))
-                                }}
-                              />
-                            </div>
-                          </div>
-
-                          {/* 比例来源 */}
-                          <div className="flex items-center gap-2 text-xs">
-                            <span className="text-muted-foreground">比例来源:</span>
-                            <Badge
-                              variant={row.override ? 'default' : 'secondary'}
-                              className="text-xs"
-                            >
-                              {row.override ? '手动' : '规则'}
-                            </Badge>
-                          </div>
-                        </div>
-                      )
-                    })
-                  )}
-                </div>
-              </DataTableCardBody>
-            </DataTableCard>
-
-            <DataCard>
-              <DataCardHeader
-                title="运营佣金备注"
-                description='这里承接原"运营提成"页签的规则说明。当前仍沿用原有运营与助理的基础分配逻辑，后续可以在这个页面继续叠加绩效点、岗位差异和更多岗位类型。'
-              />
-              <DataCardContent className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                {OPERATOR_PUBLIC_COMMISSION_TIERS.map((item, index) => (
-                  <article
-                    key={item.range}
-                    className="rounded-none border border-term-border bg-term-panel p-4"
-                  >
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400 dark:text-muted-foreground/70">
-                      Tier {index + 1}
-                    </p>
-                    <p className="mt-3 text-sm font-medium text-slate-500 dark:text-muted-foreground/80">
-                      月销售额
-                    </p>
-                    <p className="mt-1 text-base font-semibold text-slate-900 dark:text-foreground">
-                      {item.range}
-                    </p>
-                    <div className="mt-4 inline-flex items-center rounded-none border border-term-pos/40 px-1.5 py-0.5 font-mono text-xs text-term-pos">
-                      运营提成比例 {item.ratio}
-                    </div>
-                    {item.note ? (
-                      <p className="mt-3 rounded-none border border-term-warn/40 bg-term-warn/5 px-3 py-2 font-sans text-xs leading-5 text-term-warn">
-                        备注：{item.note}
-                      </p>
-                    ) : null}
-                  </article>
-                ))}
-              </DataCardContent>
-            </DataCard>
-          </DataCardContent>
-        </DataCard>
+          <div className={styles.notePanel}>
+            <h2 className={styles.noteTitle}>运营佣金备注</h2>
+            <div className={styles.tierGrid}>
+              {OPERATOR_PUBLIC_COMMISSION_TIERS.map((item, index) => (
+                <article key={item.range} className={styles.tier}>
+                  <span className={styles.tierIndex}>Tier {index + 1}</span>
+                  <span className={styles.tierLabel}>月销售额</span>
+                  <span className={styles.tierRange}>{item.range}</span>
+                  <span className={styles.tierRatio}>运营提成比例 {item.ratio}</span>
+                  {item.note ? <p className={styles.tierNote}>备注：{item.note}</p> : null}
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
       )}
     </div>
   )

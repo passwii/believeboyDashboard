@@ -8,9 +8,11 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  WarmBadge,
+  WarmButton,
+} from '@/components/dashboard-v2/warm-ledger/controls'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
 import { useGlobalLoading } from '@/components/global-loading-provider'
@@ -21,7 +23,8 @@ import {
 } from '@/lib/project-context'
 import { AiParseContextSheet } from './ai-parse-context-sheet'
 import { DynamicContextCard } from './dynamic-context-card'
-import { Loader2, Check } from 'lucide-react'
+import { Check } from 'lucide-react'
+import styles from './project-context-warm.module.css'
 
 type ProjectContextDrawerProps = {
   projectId: number
@@ -150,31 +153,25 @@ export function ProjectContextDrawer({
   return (
     <>
       <Sheet open={open} onOpenChange={handleOpenChange}>
-        <SheetContent className="w-[90vw] max-w-[640px] lg:max-w-[720px] flex flex-col">
+        <SheetContent className={`${styles.surface} ${styles.sheetSurface} flex flex-col`}>
           <SheetHeader>
-            <div className="flex items-center justify-between pr-8">
-              <div className="flex items-center gap-3">
-                <SheetTitle>项目背景配置</SheetTitle>
+            <div className={styles.dialogHeader}>
+              <div className={styles.headerActions}>
+                <SheetTitle className={styles.surfaceTitle}>项目背景配置</SheetTitle>
                 {hasChanges && (
-                  <Badge variant="secondary" className="text-[10px]">
-                    有未保存更改
-                  </Badge>
+                  <WarmBadge className={styles.unsavedBadge}>有未保存更改</WarmBadge>
                 )}
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setAiSheetOpen(true)}
-                className="text-xs gap-1"
-              >
-                <span>🤖</span>
+              <WarmButton variant="secondary" onClick={() => setAiSheetOpen(true)}>
                 AI 辅助
-              </Button>
+              </WarmButton>
             </div>
-            <SheetDescription>项目：{projectName}</SheetDescription>
+            <SheetDescription className={styles.surfaceDescription}>
+              项目：{projectName}
+            </SheetDescription>
           </SheetHeader>
 
-          <div className="flex-1 overflow-y-auto px-1 py-4">
+          <div className={styles.surfaceBody}>
             {loading ? (
               <LoadingSkeleton />
             ) : (
@@ -186,29 +183,32 @@ export function ProjectContextDrawer({
             )}
           </div>
 
-          <div className="flex justify-end gap-2 pt-4 border-t">
-            <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={submitting}>
+          <div className={`${styles.surfaceFooter} ${styles.footerEnd}`}>
+            <WarmButton
+              variant="secondary"
+              onClick={() => handleOpenChange(false)}
+              disabled={submitting}
+            >
               取消
-            </Button>
-            <Button
+            </WarmButton>
+            <WarmButton
+              variant="primary"
               onClick={() => void handleSave()}
               disabled={submitting || !hasChanges}
-              className="min-w-[100px]"
+              loading={saveState === 'saving'}
+              loadingLabel="正在保存项目背景"
             >
               {saveState === 'saving' ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  保存中...
-                </>
+                '保存中...'
               ) : saveState === 'success' ? (
                 <>
-                  <Check className="mr-2 h-4 w-4" />
+                  <Check className="h-4 w-4" aria-hidden="true" />
                   已保存
                 </>
               ) : (
                 '保存配置'
               )}
-            </Button>
+            </WarmButton>
           </div>
         </SheetContent>
       </Sheet>
@@ -226,11 +226,11 @@ export function ProjectContextDrawer({
 
 function LoadingSkeleton() {
   return (
-    <div className="space-y-4">
+    <div className={styles.loadingStack}>
       {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="space-y-2">
-          <Skeleton className="h-8 w-full" />
-          <Skeleton className="h-24 w-full" />
+        <div key={i} className={styles.loadingRow}>
+          <Skeleton className={`${styles.skeleton} h-8 w-full`} />
+          <Skeleton className={`${styles.skeleton} h-24 w-full`} />
         </div>
       ))}
     </div>

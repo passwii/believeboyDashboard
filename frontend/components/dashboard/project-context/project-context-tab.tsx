@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react'
 
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { EmptyState } from '@/components/ui/empty-state'
 import { useNotifications } from '@/components/notifications'
 import { useGlobalLoading } from '@/components/global-loading-provider'
+import { WarmBadge } from '@/components/dashboard-v2/warm-ledger/controls'
 import { ProjectContextDialog } from './project-context-dialog'
 import { fetchProjectContext } from '@/lib/project-context'
+import styles from './project-context-warm.module.css'
 
 type ProjectWithContext = {
   id: number
@@ -26,38 +26,6 @@ const TIER_LABEL: Record<string, string> = {
   T2: 'T2',
   T3: 'T3',
   T4: 'T4',
-}
-
-// BLF-893：Tier 色板统一走 term 令牌；T1=neg / T2=accent / T3=warn / T4=muted / UNTIERED=faint。
-const TIER_SECTION_STYLE: Record<
-  string,
-  { headerBg: string; headerText: string; cardAccent: string }
-> = {
-  T1: {
-    headerBg: 'bg-term-neg/5',
-    headerText: 'text-term-neg',
-    cardAccent: 'border-l-4 border-l-term-neg/60',
-  },
-  T2: {
-    headerBg: 'bg-term-accent/5',
-    headerText: 'text-term-accent',
-    cardAccent: 'border-l-4 border-l-term-accent/60',
-  },
-  T3: {
-    headerBg: 'bg-term-warn/5',
-    headerText: 'text-term-warn',
-    cardAccent: 'border-l-4 border-l-term-warn/60',
-  },
-  T4: {
-    headerBg: 'bg-term-hover',
-    headerText: 'text-term-muted',
-    cardAccent: 'border-l-4 border-l-term-border-strong',
-  },
-  UNTIERED: {
-    headerBg: 'bg-term-panel',
-    headerText: 'text-term-faint',
-    cardAccent: 'border-l-4 border-l-term-border',
-  },
 }
 
 type TierGroup = {
@@ -136,86 +104,66 @@ function cn(...classes: (string | undefined | false)[]): string {
 
 function ContextPreview({ context }: { context: Record<string, string> | null }) {
   if (!context || Object.keys(context).length === 0) {
-    return <span className="font-mono text-xs leading-5 text-term-muted">暂无背景信息</span>
+    return <span className={styles.previewEmpty}>暂无背景信息</span>
   }
 
   const entries = Object.entries(context)
 
   return (
-    <div className="space-y-2">
+    <span className={styles.previewList}>
       {entries.slice(0, 5).map(([key, value]) => (
-        <div key={key} className="flex items-baseline gap-2 font-mono text-xs leading-5">
-          <span className="w-24 shrink-0 truncate text-left text-term-muted">{key}</span>
-          <span className="line-clamp-1 flex-1 break-words text-term-text">{value || '-'}</span>
-        </div>
+        <span key={key} className={styles.previewRow}>
+          <span className={styles.previewKey}>{key}</span>
+          <span className={styles.previewValue}>{value || '-'}</span>
+        </span>
       ))}
-    </div>
+    </span>
   )
 }
 
 function ProjectContextCard({
   project,
-  tierAccent,
   onOpen,
 }: {
   project: ProjectWithContext
-  tierAccent?: string
   onOpen: (project: ProjectWithContext) => void
 }) {
   const hasContext = project.project_context && Object.keys(project.project_context).length > 0
   const dimensionCount = hasContext ? Object.keys(project.project_context!).length : 0
 
   return (
-    <Card
-      className={cn(
-        // BLF-893：项目卡终端化——零圆角、term 令牌、零阴影；hover 走 term-accent 弱边。
-        'group flex min-h-[220px] cursor-pointer flex-col rounded-none border border-term-border bg-term-bg shadow-none transition-colors hover:border-term-accent',
-        tierAccent
-      )}
+    <button
+      type="button"
+      className={styles.projectCard}
       onClick={() => onOpen(project)}
     >
-      <CardHeader className="flex-shrink-0 pb-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <span
-              className={cn(
-                'h-3 w-3 shrink-0 rounded-full ring-2 ring-offset-2 ring-offset-term-bg',
-                hasContext
-                  ? 'bg-term-pos ring-term-pos/30'
-                  : 'bg-term-warn ring-term-warn/30'
-              )}
-            />
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="truncate font-mono text-sm leading-5 text-term-text">
-                  {project.name}
-                </h3>
-                {project.brand_name && (
-                  <span className="inline-flex h-5 shrink-0 items-center rounded-none border border-term-border bg-term-panel px-1.5 font-mono text-[10px] leading-4 text-term-muted">
-                    {project.brand_name}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="flex-1 pt-0">
-        <div className="flex-1">
-          <ContextPreview context={project.project_context} />
-        </div>
-        {hasContext && (
-          <div className="mt-3 flex items-center justify-between border-t border-term-border pt-2">
-            <span className="font-mono text-[11px] leading-4 text-term-muted">
-              {dimensionCount > 5 && `+${dimensionCount - 5} 更多...`}
+      <span className={styles.projectCardHeader}>
+        <span className={styles.projectIdentity}>
+          <span
+            className={cn(
+              styles.contextDot,
+              hasContext ? styles.contextDotReady : styles.contextDotMissing
+            )}
+            aria-hidden="true"
+          />
+          <span className={styles.projectTitle}>{project.name}</span>
+        </span>
+        {project.brand_name ? (
+          <WarmBadge className={styles.brandBadge}>{project.brand_name}</WarmBadge>
+        ) : null}
+      </span>
+      <span className={styles.projectCardBody}>
+        <ContextPreview context={project.project_context} />
+        {hasContext ? (
+          <span className={styles.projectCardFooter}>
+            <span className={styles.moreCount}>
+              {dimensionCount > 5 ? `+${dimensionCount - 5} 更多...` : ''}
             </span>
-            <span className="inline-flex h-5 items-center rounded-none border border-term-border bg-term-panel px-1.5 font-mono text-[10px] leading-4 text-term-muted">
-              {dimensionCount} 维度
-            </span>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+            <span>{dimensionCount} 维度</span>
+          </span>
+        ) : null}
+      </span>
+    </button>
   )
 }
 
@@ -275,59 +223,44 @@ export function ProjectContextTab() {
   })
 
   return (
-    <div className="w-full">
-      {/* 内容区 */}
+    <div className={styles.contextTab} data-warm-project-context="true">
       <div>
         {loading ? (
-          <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+          <div className={styles.loadingGrid}>
             {Array.from({ length: 8 }).map((_, i) => (
-              <Card key={i} className="min-h-[180px]">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center gap-3">
-                    <Skeleton className="h-3 w-3 rounded-full" />
-                    <div className="space-y-2 flex-1">
-                      <Skeleton className="h-5 w-32" />
-                      <Skeleton className="h-4 w-20" />
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <Skeleton className="h-4 w-full mb-2" />
-                  <Skeleton className="h-4 w-3/4" />
-                </CardContent>
-              </Card>
+              <div key={i} className={styles.loadingCard}>
+                <div className={styles.loadingStack}>
+                  <Skeleton className={`${styles.skeleton} h-5 w-32`} />
+                  <Skeleton className={`${styles.skeleton} h-4 w-20`} />
+                  <Skeleton className={`${styles.skeleton} h-4 w-full`} />
+                  <Skeleton className={`${styles.skeleton} h-4 w-3/4`} />
+                </div>
+              </div>
             ))}
           </div>
         ) : filteredProjects.length === 0 ? (
-          <EmptyState
-            message={searchQuery || filterHasContext !== 'all' ? '没有匹配的项目' : '暂无项目数据'}
-            className="py-12"
-          />
+          <div className={styles.emptyState}>
+            {searchQuery || filterHasContext !== 'all' ? '没有匹配的项目' : '暂无项目数据'}
+          </div>
         ) : (
-          <div className="space-y-8">
+          <div className={styles.tierGroups}>
             {groupProjectsByTier(filteredProjects).map((group) => {
-              const style = TIER_SECTION_STYLE[group.tier] || TIER_SECTION_STYLE.UNTIERED
               return (
-                <div key={group.tier} className="space-y-3">
-                  <div
-                    className={cn('flex items-center gap-3 rounded-lg px-4 py-2.5', style.headerBg)}
-                  >
-                    <span className={cn('text-sm font-bold', style.headerText)}>{group.label}</span>
-                    <span className="text-sm text-muted-foreground">
-                      {group.projects.length} 个项目
-                    </span>
+                <section key={group.tier} className={styles.tierSection} data-tier={group.tier}>
+                  <div className={styles.tierHeader}>
+                    <span className={styles.tierLabel}>{group.label}</span>
+                    <span className={styles.tierCount}>{group.projects.length} 个项目</span>
                   </div>
-                  <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+                  <div className={styles.projectGrid}>
                     {group.projects.map((project) => (
                       <ProjectContextCard
                         key={project.id}
                         project={project}
-                        tierAccent={style.cardAccent}
                         onOpen={handleOpenDialog}
                       />
                     ))}
                   </div>
-                </div>
+                </section>
               )
             })}
           </div>
