@@ -29,7 +29,7 @@ afterEach(() => {
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-/** 取「首单核查材料清单」所在的 TermPanel 区域。 */
+/** 取「首单核查材料清单」所在的 Warm Tools 面板区域。 */
 function materialsRegion() {
   const progress = screen.getByTestId('material-progress')
   const panel = progress.closest('section')
@@ -39,8 +39,11 @@ function materialsRegion() {
 
 describe('CrossBorderComplianceClient', () => {
   it('区块 1：标题、副标题、来源提示与限制性提示均可见', () => {
-    render(<CrossBorderComplianceClient />)
+    const { container } = render(<CrossBorderComplianceClient />)
 
+    expect(container.querySelector('[data-tools-page-frame="true"]')).toBeInTheDocument()
+    expect(container.querySelectorAll('[data-tools-panel="true"]')).toHaveLength(5)
+    expect(container.querySelector('[class*="term-"]')).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '跨境电商合规' })).toBeInTheDocument()
     expect(screen.getByText('出口业务资料整理与自查参考')).toBeInTheDocument()
     // 来源标识（硬性验收项）

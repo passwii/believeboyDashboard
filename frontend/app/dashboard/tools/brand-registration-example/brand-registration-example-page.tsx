@@ -1,8 +1,8 @@
 import Image from 'next/image'
 import type { ReactNode } from 'react'
 
+import { ToolsPageFrame, ToolsPanel } from '../_components'
 import styles from './brand-registration-example-page.module.css'
-import { TermPanel } from '@/components/terminal/term-panel'
 
 const BOX_IMAGES = [
   { src: 'box-01.jpg', alt: '包装拍摄示例 01，盒面 Logo 清晰可见' },
@@ -36,27 +36,26 @@ function PhotoGrid({
   return (
     <div
       aria-label={label}
-      className={
-        columns === 'box'
-          ? 'grid grid-cols-2 gap-2 md:grid-cols-3'
-          : 'grid grid-cols-2 gap-2'
-      }
+      className={`${styles.photoGrid} ${columns === 'box' ? styles.boxGrid : styles.productGrid}`}
+      data-photo-grid={columns}
       role="group"
     >
       {images.map((image, index) => (
-        <figure key={image.src} className="min-w-0 border border-term-border bg-term-panel p-1">
-          <div className="relative aspect-[4/3] w-full bg-term-raised">
+        <figure key={image.src} className={styles.photoCard}>
+          <div className={styles.imageFrame}>
             <Image
               src={`${ASSET_BASE}/${image.src}`}
               alt={image.alt}
               fill
-              sizes={columns === 'box' ? '(max-width: 768px) 45vw, 22vw' : '(max-width: 768px) 45vw, 30vw'}
-              className="object-contain"
+              sizes={columns === 'box' ? '(min-width: 1280px) 18vw, 30vw' : '(min-width: 1280px) 28vw, 42vw'}
+              className={styles.image}
             />
           </div>
-          <figcaption className="flex items-center justify-between gap-1 px-1 pt-1 text-xs leading-5 text-term-muted">
-            <span className="font-mono tabular-nums">{String(index + 1).padStart(2, '0')}</span>
-            <span className="truncate text-right">{image.alt.replace(/^.*?，/, '')}</span>
+          <figcaption className={styles.photoCaption}>
+            <span className={styles.photoIndex}>{String(index + 1).padStart(2, '0')}</span>
+            <span className={styles.photoCaptionText}>
+              {image.alt.replace(/^.*?，/, '')}
+            </span>
           </figcaption>
         </figure>
       ))}
@@ -66,11 +65,11 @@ function PhotoGrid({
 
 function Requirement({ number, title, children }: { number: string; title: string; children: ReactNode }) {
   return (
-    <li className="flex gap-2 border-t border-term-border py-2">
-      <span className="font-mono text-xs tabular-nums text-term-faint">{number}</span>
-      <div className="min-w-0 flex-1">
-        <h3 className="text-sm font-semibold text-term-text">{title}</h3>
-        <div className="mt-1 space-y-1 text-xs leading-5 text-term-muted">{children}</div>
+    <li className={styles.requirement}>
+      <span className={styles.requirementNumber}>{number}</span>
+      <div className={styles.requirementCopy}>
+        <h3 className={styles.requirementTitle}>{title}</h3>
+        <div className={styles.requirementBody}>{children}</div>
       </div>
     </li>
   )
@@ -78,57 +77,54 @@ function Requirement({ number, title, children }: { number: string; title: strin
 
 export default function BrandRegistrationExamplePage() {
   return (
-    <div className="flex min-w-0 flex-col gap-2 p-2 text-term-text md:p-3">
-      <header className="flex min-w-0 flex-wrap items-end justify-between gap-2 border-b border-term-border pb-2">
-        <div className="min-w-0">
-          <p className="font-mono text-xs uppercase tracking-wider text-term-faint">
-            BelieveBoy / Photo Checklist
-          </p>
-          <h1 className="mt-1 text-lg font-semibold tracking-tight text-term-text">
-            品牌备案拍摄示例
-          </h1>
-          <p className="mt-1 text-xs text-term-muted">
-            包装与产品拍摄参考，用于品牌备案和 UPC 条码豁免申请。
-          </p>
-        </div>
-        <span className="font-mono text-xs text-term-muted">TOOLBOX / 01</span>
+    <ToolsPageFrame className={styles.page}>
+      <header className={styles.header}>
+        <h1 className={styles.title}>品牌备案拍摄示例</h1>
+        <p className={styles.subtitle}>
+          包装与产品拍摄参考，用于品牌备案和 UPC 条码豁免申请。
+        </p>
       </header>
 
-      <div className="flex items-start gap-2 border border-term-border bg-term-raised px-2 py-2 text-xs leading-5 text-term-text">
-        <span className="shrink-0 font-semibold">背景要求</span>
-        <p className="min-w-0 text-term-muted">
+      <div className={styles.backgroundNote}>
+        <span className={styles.backgroundLabel}>背景要求</span>
+        <p className={styles.backgroundCopy}>
           所有照片请在完整、干净、颜色单一的背景下拍摄，例如一整张白色桌面。
         </p>
       </div>
 
-      <div className={styles.layoutContainer}>
-        <div className={styles.layoutGrid}>
-          <div className="flex min-w-0 flex-col gap-2">
-            <TermPanel title="01 / 包装 · BOX" actions={<span className="font-mono text-xs text-term-faint">6 PHOTOS</span>} bodyClassName="p-2">
+      <div className={styles.layoutGrid}>
+        <div className={styles.galleryColumn}>
+          <ToolsPanel
+            title="01 / 包装 · BOX"
+            actions={<span className={styles.photoCount}>6 张</span>}
+          >
             <PhotoGrid
               images={BOX_IMAGES}
               columns="box"
               label="包装 / BOX 拍摄示例"
             />
-          </TermPanel>
+          </ToolsPanel>
 
-          <TermPanel title="02 / 产品 · PRODUCT" actions={<span className="font-mono text-xs text-term-faint">4 PHOTOS</span>} bodyClassName="p-2">
+          <ToolsPanel
+            title="02 / 产品 · PRODUCT"
+            actions={<span className={styles.photoCount}>4 张</span>}
+          >
             <PhotoGrid
               images={PRODUCT_IMAGES}
               columns="product"
               label="产品 / PRODUCT 拍摄示例"
             />
-          </TermPanel>
-          <p className="text-xs leading-5 text-term-muted">
+          </ToolsPanel>
+          <p className={styles.galleryNote}>
             图片仅供拍摄角度参考；示例中的木纹桌面不是背景要求，正式拍摄请使用干净的单色背景。
           </p>
         </div>
 
-          <TermPanel title="拍摄要点" bodyClassName="px-2">
-            <p className="py-2 text-xs leading-5 text-term-muted">
-              每个面尽量拍完整、仔细，确保品牌标识清晰可辨。
-            </p>
-            <ol className="list-none">
+        <ToolsPanel title="拍摄要点">
+          <p className={styles.requirementsIntro}>
+            每个面尽量拍完整、仔细，确保品牌标识清晰可辨。
+          </p>
+          <ol className={styles.requirementList}>
             <Requirement number="01" title="包装需要 Logo">
               <p>包装上须有品牌 Logo；尽量拍全包装各面，确保包装和 Logo 完整清楚。</p>
               <p>可手扶盒子侧边拍摄，这是亚马逊建议的真实拍摄方式。</p>
@@ -143,13 +139,14 @@ export default function BrandRegistrationExamplePage() {
               <p>可用于品牌备案及 UPC 条码豁免申请。</p>
             </Requirement>
           </ol>
-          <div className="border-t border-term-border bg-term-raised px-2 py-2 text-xs leading-5 text-term-muted">
-            <span className="font-semibold text-term-text">拍摄检查：</span>
+          <div className={styles.checkSummary}>
+            <span className={styles.checkLabel}>拍摄检查</span>
+            <p>
             单色干净背景 · 品牌 Logo 清晰 · 包装和产品完整入镜
+            </p>
           </div>
-          </TermPanel>
-        </div>
+        </ToolsPanel>
       </div>
-    </div>
+    </ToolsPageFrame>
   )
 }

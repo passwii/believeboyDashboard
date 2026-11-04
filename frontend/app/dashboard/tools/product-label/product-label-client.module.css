@@ -1,0 +1,265 @@
+.header {
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding-bottom: var(--warm-ledger-space-4);
+  border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+}
+
+.title {
+  margin: 0;
+  color: var(--warm-ledger-color-text);
+  font-size: var(--warm-ledger-font-size-page-title);
+  font-weight: var(--warm-ledger-font-weight-regular);
+  letter-spacing: var(--warm-ledger-letter-spacing-page-title);
+  line-height: 1.05;
+}
+
+.panel {
+  min-height: 480px;
+}
+
+.panelContent {
+  display: flex;
+  min-width: 0;
+  min-height: 100%;
+  flex-direction: column;
+  gap: var(--warm-ledger-space-4);
+}
+
+.formatBadge {
+  color: var(--warm-ledger-color-text-muted);
+  font-family: var(--warm-ledger-font-mono);
+  font-size: var(--warm-ledger-font-size-label);
+}
+
+.intro,
+.help,
+.localNote,
+.exportFormat {
+  margin: 0;
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-control);
+  line-height: var(--warm-ledger-line-height-body);
+}
+
+.fileMeta {
+  display: grid;
+  gap: var(--warm-ledger-space-2);
+  margin: 0;
+  padding-top: var(--warm-ledger-space-4);
+  border-top: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+}
+
+.metaRow {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--warm-ledger-space-3);
+}
+
+.metaLabel {
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-control);
+}
+
+.fileValue {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-mono);
+  font-size: var(--warm-ledger-font-size-control);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.emptyValue {
+  color: var(--warm-ledger-color-text-muted);
+  font-family: var(--warm-ledger-font-sans);
+}
+
+.processingNote {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: var(--warm-ledger-space-2);
+  margin-top: auto;
+  padding-top: var(--warm-ledger-space-4);
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-control);
+  line-height: var(--warm-ledger-line-height-body);
+  border-top: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+}
+
+.noteIcon,
+.buttonIcon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  margin-top: 2px;
+}
+
+.actionGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--warm-ledger-space-2);
+}
+
+.editorContent {
+  min-height: 100%;
+}
+
+.editorField {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--warm-ledger-space-2);
+}
+
+.fieldHeading {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--warm-ledger-space-3);
+}
+
+.fieldLabel {
+  color: var(--warm-ledger-color-text);
+  font-size: var(--warm-ledger-font-size-body);
+  font-weight: var(--warm-ledger-font-weight-medium);
+}
+
+.counter {
+  color: var(--warm-ledger-color-text-muted);
+  font-family: var(--warm-ledger-font-mono);
+  font-size: var(--warm-ledger-font-size-label);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+  white-space: nowrap;
+}
+
+.textarea {
+  width: 100%;
+  min-height: 224px;
+  flex: 1;
+  resize: vertical;
+  padding: var(--warm-ledger-space-3);
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-sans);
+  font-size: var(--warm-ledger-font-size-body);
+  line-height: 1.7;
+  background: var(--warm-ledger-color-panel-strong);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline-strong);
+  border-radius: var(--warm-ledger-radius-control);
+  box-shadow: var(--warm-ledger-highlight-rest);
+}
+
+.textarea::placeholder {
+  color: var(--warm-ledger-color-text-muted);
+}
+
+.textarea:focus-visible {
+  outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color);
+  outline-offset: var(--warm-ledger-focus-offset);
+}
+
+.checkRow {
+  display: flex;
+  min-height: var(--warm-ledger-control-target-touch);
+  align-items: center;
+  gap: var(--warm-ledger-space-3);
+  color: var(--warm-ledger-color-text);
+  font-size: var(--warm-ledger-font-size-control);
+  border-top: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  cursor: pointer;
+}
+
+.checkbox {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  margin: 0;
+  appearance: none;
+  background: var(--warm-ledger-color-panel-strong);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline-strong);
+  border-radius: calc(var(--warm-ledger-radius-inner) / 2);
+  box-shadow: var(--warm-ledger-highlight-rest);
+  cursor: pointer;
+}
+
+.checkbox::after {
+  position: absolute;
+  top: 3px;
+  left: 5px;
+  width: 6px;
+  height: 3px;
+  border-bottom: 2px solid var(--warm-ledger-color-window);
+  border-left: 2px solid var(--warm-ledger-color-window);
+  content: '';
+  opacity: 0;
+  transform: rotate(-45deg) scale(0.8);
+  transition:
+    opacity var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease),
+    transform var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease);
+}
+
+.checkbox:checked {
+  background: var(--warm-ledger-color-accent);
+  border-color: var(--warm-ledger-color-accent-strong);
+}
+
+.checkbox:checked::after {
+  opacity: 1;
+  transform: rotate(-45deg) scale(1);
+}
+
+.checkbox:focus-visible {
+  outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color);
+  outline-offset: var(--warm-ledger-focus-offset);
+}
+
+.exportRow {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--warm-ledger-space-3);
+  margin-top: auto;
+  padding-top: var(--warm-ledger-space-4);
+  border-top: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+}
+
+.localNote {
+  display: inline-flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: var(--warm-ledger-space-2);
+}
+
+.localNote .noteIcon {
+  margin-top: 1px;
+}
+
+.redownload {
+  max-width: 58%;
+  justify-content: flex-end;
+  color: var(--warm-ledger-color-text-soft);
+}
+
+.redownloadName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.exportFormat {
+  flex: 0 0 auto;
+  font-family: var(--warm-ledger-font-mono);
+  white-space: nowrap;
+}
