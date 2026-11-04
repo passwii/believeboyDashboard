@@ -124,6 +124,8 @@ Completed by DeepSeek/max in `dfb71319`; integrated as `c3ffb46c`. Targeted Vite
 
 ## Task 4: Monthly Report Display
 
+Completed by DeepSeek/max in `e80506e8`; integrated as `f577490e`. Targeted Vitest passed on integration (3 files / 34 tests), changed-file ESLint / mock-stability / motion guard / `git diff --check` passed. One pre-existing hook-dependency warning remains at `display-client.tsx:884`.
+
 **Files:**
 
 - Modify `frontend/app/dashboard/reports/monthly-report/display/display-client.tsx` and `display-client.test.tsx`.
@@ -138,11 +140,11 @@ Completed by DeepSeek/max in `dfb71319`; integrated as `c3ffb46c`. Targeted Vite
 - Keep admin-only visible columns and backend project authorization as-is. Do not infer permissions from hidden UI.
 - Keep both wide tables horizontally scrollable inside their own containers, preserving every required column.
 
-- [ ] Extend `display-client.test.tsx` for Warm route-slot controls, tab switching, rolling URL filters, loading/error/empty separation, existing project memory, and both export request scopes.
-- [ ] Run `cd frontend && pnpm exec vitest run app/dashboard/reports/monthly-report/display/display-client.test.tsx app/dashboard/reports/monthly-report/display/excel-num-fmt.test.ts app/dashboard/reports/monthly-report/shared-project.test.tsx`.
-- [ ] Apply a route-local Warm style to the display filters, KPIs, trend, two tabs/tables, and separate export actions; render loading, request failure, and true empty data distinctly while keeping the report's existing calculations and semantic order.
-- [ ] Keep page styles desktop-only; do not add mobile or multi-breakpoint adaptations.
-- [ ] Re-run the same targeted Vitest command, changed-file ESLint, and `git diff --check`; commit only the Task 4 files and report the result for the consolidated C3 review.
+- [x] Extend `display-client.test.tsx` for Warm route-slot controls, tab switching, rolling URL filters, loading/error/empty separation, existing project memory, and both export request scopes.
+- [x] Run `cd frontend && pnpm exec vitest run app/dashboard/reports/monthly-report/display/display-client.test.tsx app/dashboard/reports/monthly-report/display/excel-num-fmt.test.ts app/dashboard/reports/monthly-report/shared-project.test.tsx`.
+- [x] Apply a route-local Warm style to the display filters, KPIs, trend, two tabs/tables, and separate export actions; render loading, request failure, and true empty data distinctly while keeping the report's existing calculations and semantic order.
+- [x] Keep page styles desktop-only; do not add mobile or multi-breakpoint adaptations.
+- [x] Re-run the same targeted Vitest command, changed-file ESLint, and `git diff --check`; commit only the Task 4 files and report the result for the consolidated C3 review.
 
 ## Task 5: C3 Browser Matrix and Integration
 
