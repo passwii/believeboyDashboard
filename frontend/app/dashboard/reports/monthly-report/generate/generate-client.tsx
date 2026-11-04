@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
 import {
   AlertCircle,
+  ChevronLeft,
+  ChevronRight,
   DatabaseZap,
   Download,
   FileSearch,
@@ -12,7 +14,10 @@ import {
   Upload,
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
-import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
+import {
+  WarmButton,
+  WarmIconButton,
+} from '@/components/dashboard-v2/warm-ledger/controls'
 
 type RecognizedFileType =
   | 'sales_report'
@@ -21,10 +26,6 @@ type RecognizedFileType =
   | 'payment_report'
   | 'monthly_summary_pdf'
   | 'unknown'
-import {
-  formatMonthInputValue,
-  parseMonthInputValue,
-} from '@/components/ui/date-picker'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -43,14 +44,6 @@ import {
   DEFAULT_REPORT_UPLOAD_COUNTRY,
   type ReportUploadCountry,
 } from '@/components/report-upload/types'
-import { MonthNavigation } from '@/components/dashboard/console'
-import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
-import {
-  HeaderSlotSelect,
-  TERM_HEADER_TRIGGER,
-  TERM_HEADER_W_MD,
-  TERM_HEADER_W_SM,
-} from '@/components/terminal/header-filter-suite'
 import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
 import {
   useHeaderSlot,
@@ -162,6 +155,36 @@ function shiftMonth(value: string, delta: number) {
   const next = new Date(year, month - 1, 1)
   next.setMonth(next.getMonth() + delta)
   return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`
+}
+
+function HeaderMonthControl({
+  value,
+  onChange,
+  onPrev,
+  onNext,
+}: {
+  value: string
+  onChange: (value: string) => void
+  onPrev: () => void
+  onNext: () => void
+}) {
+  return (
+    <div className={styles.headerMonth}>
+      <WarmIconButton type="button" aria-label="上一个月" onClick={onPrev}>
+        <ChevronLeft aria-hidden="true" />
+      </WarmIconButton>
+      <input
+        type="month"
+        aria-label="账期月份"
+        className={styles.headerMonthInput}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      <WarmIconButton type="button" aria-label="下一个月" onClick={onNext}>
+        <ChevronRight aria-hidden="true" />
+      </WarmIconButton>
+    </div>
+  )
 }
 
 function extractFilenameFromHeader(contentDisposition: string | null) {
@@ -859,48 +882,48 @@ export default function GenerateTab() {
   // 桌面端：项目 / 国家 / 账期月份三个控件 portal 进 Top Header 中段。
   // 项目沿用页面原生选项集（按名称 value）；国家沿用 US/DE/UK 三站集合
   //（与旧 CountrySelect 默认 options 一致）；账期月份保留前后月切换语义
-  //（handleShiftReportMonth），在插槽内用紧凑 MonthNavigation 变体呈现。
+  //（handleShiftReportMonth），在插槽内用页面本地 Warm 月份控件呈现。
   const projectSlotOptions = projects.map((project) => ({
     value: project.name,
     label: project.name,
   }))
-  const reportMonthDate = parseMonthInputValue(reportMonth)
   const headerFilterControls = (
-    <>
-      <HeaderSlotSelect
+    <div className={styles.headerFilters} data-warm-header-filters="true">
+      <select
+        aria-label="项目筛选"
+        className={styles.headerSelect}
         value={projectName}
-        onChange={setProjectName}
-        options={projectSlotOptions}
-        placeholder={projectsLoading ? '项目加载中…' : '请选择项目名称'}
+        onChange={(event) => setProjectName(event.target.value)}
         disabled={projectsLoading || projects.length === 0}
-        widthClass={TERM_HEADER_W_MD}
-        title="项目筛选"
-      />
-      <HeaderSlotSelect
+      >
+        <option value="">{projectsLoading ? '项目加载中…' : '请选择项目名称'}</option>
+        {projectSlotOptions.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <select
+        aria-label="国家站点筛选"
+        className={styles.headerSelect}
         value={country}
-        onChange={(value) => setCountry(value as CountryOption)}
-        options={[...GENERATE_COUNTRY_SLOT_OPTIONS]}
-        widthClass={TERM_HEADER_W_SM}
-        title="国家站点筛选"
-      />
-      <MonthNavigation
-        value={reportMonthDate}
-        onChange={(date) => setReportMonth(formatMonthInputValue(date))}
+        onChange={(event) => setCountry(event.target.value as CountryOption)}
+      >
+        {GENERATE_COUNTRY_SLOT_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <HeaderMonthControl
+        value={reportMonth}
+        onChange={setReportMonth}
         onPrev={() => handleShiftReportMonth(-1)}
         onNext={() => handleShiftReportMonth(1)}
-        showCurrentMonth={false}
-        monthLabel=""
-        className={cn(
-          TERM_HEADER_TRIGGER,
-          TERM_HEADER_W_MD,
-          '[&>button]:h-8 [&>button]:w-8 [&_span]:text-xs'
-        )}
       />
-    </>
+    </div>
   )
-  const headerSlotPortal = useHeaderSlot(
-    <HeaderFilterControls isMobileView={false} controls={headerFilterControls} />
-  )
+  const headerSlotPortal = useHeaderSlot(headerFilterControls)
 
   // 移动端：筛选控件下迁为正文顶部可折叠筛选条（短控件 1/2，月份占整行）。
   const mobileProjectLabel = projectName || '选择项目'
@@ -912,31 +935,38 @@ export default function GenerateTab() {
       summary={mobileFilterSummary}
       controls={
         <>
-          <HeaderSlotSelect
+          <select
+            aria-label="项目筛选"
+            className={styles.mobileHeaderSelect}
             value={projectName}
-            onChange={setProjectName}
-            options={projectSlotOptions}
-            placeholder={projectsLoading ? '项目加载中…' : '请选择项目名称'}
+            onChange={(event) => setProjectName(event.target.value)}
             disabled={projectsLoading || projects.length === 0}
-            widthClass={TERM_HEADER_W_MD}
-            title="项目筛选"
-          />
-          <HeaderSlotSelect
+          >
+            <option value="">{projectsLoading ? '项目加载中…' : '请选择项目名称'}</option>
+            {projectSlotOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="国家站点筛选"
+            className={styles.mobileHeaderSelect}
             value={country}
-            onChange={(value) => setCountry(value as CountryOption)}
-            options={[...GENERATE_COUNTRY_SLOT_OPTIONS]}
-            widthClass={TERM_HEADER_W_SM}
-            title="国家站点筛选"
-          />
+            onChange={(event) => setCountry(event.target.value as CountryOption)}
+          >
+            {GENERATE_COUNTRY_SLOT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
           <MobileFilterWide>
-            <MonthNavigation
-              value={reportMonthDate}
-              onChange={(date) => setReportMonth(formatMonthInputValue(date))}
+            <HeaderMonthControl
+              value={reportMonth}
+              onChange={setReportMonth}
               onPrev={() => handleShiftReportMonth(-1)}
               onNext={() => handleShiftReportMonth(1)}
-              showCurrentMonth={false}
-              monthLabel=""
-              className="h-10 w-full"
             />
           </MobileFilterWide>
         </>
@@ -1261,10 +1291,10 @@ export default function GenerateTab() {
               className={styles.fullWidth}
               onClick={() => void generateReport()}
               disabled={!canGenerate}
+              loading={submitState.status === 'submitting'}
+              loadingLabel="正在生成财务月报"
             >
-              {submitState.status === 'submitting' ? (
-                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-              ) : (
+              {submitState.status !== 'submitting' && (
                 <Sparkles className="mr-1 h-4 w-4" />
               )}
               生成财务月报

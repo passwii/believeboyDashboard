@@ -76,14 +76,7 @@ import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
 import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
-import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
 import { MobileFilterStrip } from '@/components/terminal/mobile-filter-strip'
-import {
-  HeaderSlotInput,
-  HeaderSlotBadge,
-  TERM_HEADER_W_LG,
-  TERM_HEADER_W_MD,
-} from '@/components/terminal/header-filter-suite'
 import { useHeaderSlot, useMobileFilterStrip } from '@/components/terminal/terminal-header-slot'
 import styles from '../pricing-calculation-warm.module.css'
 
@@ -1689,23 +1682,18 @@ export default function PricingCalculationPage() {
 
   // BLF-997 · 头部插槽：产品搜索 + 结果选择指示器
   const headerSlotPortal = useHeaderSlot(
-    <HeaderFilterControls
-      isMobileView={false}
-      controls={
-        <>
-          <HeaderSlotInput
-            widthClass={TERM_HEADER_W_LG}
-            value={productKeyword}
-            onChange={(e) => setProductKeyword(e.target.value)}
-            placeholder="搜索产品"
-            title="产品搜索"
-          />
-          <HeaderSlotBadge title="已选测算结果">
-            {selectedRunIds.length > 0 ? `${selectedRunIds.length} 个已选` : '下拉选择'}
-          </HeaderSlotBadge>
-        </>
-      }
-    />
+    <div className={styles.headerFilters} data-warm-header-filters="true">
+      <input
+        className={styles.headerInput}
+        value={productKeyword}
+        onChange={(event) => setProductKeyword(event.target.value)}
+        placeholder="搜索产品"
+        aria-label="产品搜索"
+      />
+      <WarmBadge className={styles.headerBadge} aria-label="已选测算结果">
+        {selectedRunIds.length > 0 ? `${selectedRunIds.length} 个已选` : '下拉选择'}
+      </WarmBadge>
+    </div>
   )
 
   const mobileFilterSummary = `${productKeyword ? `搜索: ${productKeyword}` : '产品搜索'} · ${selectedRunIds.length > 0 ? `${selectedRunIds.length} 个已选` : '未选择'}`
@@ -1714,16 +1702,16 @@ export default function PricingCalculationPage() {
       summary={mobileFilterSummary}
       controls={
         <>
-          <HeaderSlotInput
-            widthClass={TERM_HEADER_W_LG}
+          <input
+            className={styles.mobileHeaderInput}
             value={productKeyword}
-            onChange={(e) => setProductKeyword(e.target.value)}
+            onChange={(event) => setProductKeyword(event.target.value)}
             placeholder="搜索产品"
-            title="产品搜索"
+            aria-label="产品搜索"
           />
-          <HeaderSlotBadge title="已选测算结果">
+          <WarmBadge className={styles.headerBadge} aria-label="已选测算结果">
             {selectedRunIds.length > 0 ? `${selectedRunIds.length} 个已选` : '下拉选择'}
-          </HeaderSlotBadge>
+          </WarmBadge>
         </>
       }
     />
@@ -2677,10 +2665,10 @@ export default function PricingCalculationPage() {
                       variant="primary"
                       disabled={loading}
                       className={styles.fullWidth}
+                      loading={loading}
+                      loadingLabel="正在测算"
                     >
-                      {loading ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
+                      {!loading && (
                         <Calculator className="mr-2 h-4 w-4" />
                       )}
                       {calculationMode === 'profit-reverse'
@@ -3025,10 +3013,10 @@ export default function PricingCalculationPage() {
                 variant="secondary"
                 onClick={() => void handleExportComparisonMatrix()}
                 disabled={selectedRuns.length === 0 || exporting}
+                loading={exporting}
+                loadingLabel="正在导出测算对比矩阵"
               >
-                {exporting ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
+                {!exporting && (
                   <Download className="mr-2 h-4 w-4" />
                 )}
                 导出 Excel

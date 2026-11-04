@@ -57,23 +57,6 @@ vi.mock('@/lib/project-client-cache', () => ({
   fetchManagedProjectsCached: vi.fn(() => Promise.resolve(managedProjects.rows)),
 }))
 
-// Mock HeaderProjectSelect and HeaderCountrySelect to avoid async issues
-vi.mock('@/components/terminal/header-filter-suite', () => ({
-  HeaderProjectSelect: ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
-    <select data-testid="header-project-select" value={value} onChange={(e) => onChange(e.target.value)}>
-      <option value="">选择项目</option>
-      <option value="1">项目A</option>
-      <option value="2">项目B</option>
-    </select>
-  ),
-  HeaderCountrySelect: ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
-    <select data-testid="header-country-select" value={value} onChange={(e) => onChange(e.target.value)}>
-      <option value="US">美国站</option>
-      <option value="DE">德国站</option>
-    </select>
-  ),
-}))
-
 // Mock auto/manual tabs to isolate page-level behavior；auto tab 记录每次收到的 projectId
 //（它就是用这个 id 去请求 available-reports 的）
 const autoTabRenders = vi.hoisted(() => ({ projectIds: [] as string[] }))
@@ -132,9 +115,17 @@ describe('reconcile 页 header 化契约（BLF-964）', () => {
     // BLF-1344：筛选控件等共享记忆读出 + 可见项目校验完成后才挂载
     await waitFor(() => expect(capturedSlotNode).not.toBeNull())
 
-    // slot 内含 HeaderProjectSelect / HeaderCountrySelect
-    expect(screen.getByTestId('header-project-select')).toBeInTheDocument()
-    expect(screen.getByTestId('header-country-select')).toBeInTheDocument()
+    // slot 内使用页面本地 Warm 控件
+    expect(screen.getByLabelText('项目筛选')).toBeInTheDocument()
+    expect(screen.getByLabelText('站点筛选')).toBeInTheDocument()
+    const header = document.querySelector('[data-warm-header-filters="true"]')
+    expect(header).toBeInTheDocument()
+    for (const element of [header!, ...Array.from(header!.querySelectorAll('*'))]) {
+      const className = typeof element.className === 'string' ? element.className : ''
+      expect(className).not.toContain('rounded-none')
+      expect(className).not.toContain('term-')
+      expect(className).not.toContain('font-mono')
+    }
   })
 
   it('切到 manual tab 后 slot 清空', async () => {
@@ -143,14 +134,14 @@ describe('reconcile 页 header 化契约（BLF-964）', () => {
 
     // auto tab 默认激活，slot 有内容（等共享记忆读出 + 可见项目校验完成）
     await waitFor(() => expect(capturedSlotNode).not.toBeNull())
-    expect(screen.getByTestId('header-project-select')).toBeInTheDocument()
+    expect(screen.getByLabelText('项目筛选')).toBeInTheDocument()
 
     // 切到 manual tab
     await user.click(screen.getByText('手动核对'))
 
     // slot 清空（useHeaderSlot(null) 返回 null）
     expect(capturedSlotNode).toBeNull()
-    expect(screen.queryByTestId('header-project-select')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('项目筛选')).not.toBeInTheDocument()
   })
 
   it('切回 auto tab 后 slot 恢复', async () => {
@@ -166,7 +157,7 @@ describe('reconcile 页 header 化契约（BLF-964）', () => {
     // 切回 auto
     await user.click(screen.getByText('自动核对'))
     expect(capturedSlotNode).not.toBeNull()
-    expect(screen.getByTestId('header-project-select')).toBeInTheDocument()
+    expect(screen.getByLabelText('项目筛选')).toBeInTheDocument()
   })
 
   it('旧正文筛选控件（ProjectSelect / CountrySelect）已移除', () => {
@@ -191,7 +182,7 @@ describe('BLF-1344 项目选择跨 tab 共享', () => {
 
     render(<ReconcilePage />)
 
-    await waitFor(() => expect(screen.getByTestId('header-project-select')).toHaveValue('2'))
+    await waitFor(() => expect(screen.getByLabelText('项目筛选')).toHaveValue('2'))
     await waitFor(() => expect(screen.getByTestId('auto-tab')).toHaveTextContent('2'))
   })
 
@@ -199,10 +190,10 @@ describe('BLF-1344 项目选择跨 tab 共享', () => {
     render(<ReconcilePage />)
     await waitFor(() => expect(capturedSlotNode).not.toBeNull())
 
-    fireEvent.change(screen.getByTestId('header-project-select'), { target: { value: '2' } })
+    fireEvent.change(screen.getByLabelText('项目筛选'), { target: { value: '2' } })
 
     await waitFor(() => expect(readMemo()).toBe('2'))
-    expect(screen.getByTestId('header-project-select')).toHaveValue('2')
+    expect(screen.getByLabelText('项目筛选')).toHaveValue('2')
   })
 })
 
@@ -229,8 +220,9 @@ describe('BLF-1344 共享记忆的权限边界（评审阻塞项）', () => {
     render(<ReconcilePage />)
     await waitFor(() => expect(capturedSlotNode).not.toBeNull())
 
-    // 新账号拿不到上一个账号的项目，也不会拿它发请求（李四没选项目 → 空值）
-    expect(screen.getByTestId('auto-tab')).toHaveTextContent('')
+    // 新账号不会拿旧项目发请求；完成可见性校验后按既有行为落到第一个可见项目
+    expect(screen.getByTestId('auto-tab')).toHaveTextContent('3')
+    expect(screen.getByLabelText('项目筛选')).toHaveValue('3')
     expect(autoTabRenders.projectIds).not.toContain('2')
     // 隔离不是清除：张三的记忆原封不动
     expect(readMemo(OWNER_A)).toBe('2')

@@ -97,11 +97,12 @@ describe('BLF-963 头部插槽契约', () => {
     expect(screen.getByText('表格生成')).toBeInTheDocument()
 
     // 单独渲染插槽节点：项目 / 国家 / 账期月份 3 个控件确实都在插槽内容里
-    //（已选中具体值时渲染选中文本而非 placeholder：项目=铨富、国家=美国站、月份=2026年7月）
+    //（已选中具体值时读取原生 select / month input 的 value）
     render(<>{headerCapture.slotNode}</>)
-    expect(await screen.findByText('铨富')).toBeInTheDocument()
-    expect(screen.getByText('美国站 (US)')).toBeInTheDocument()
-    expect(screen.getByText('2026年7月')).toBeInTheDocument()
+    expect(await screen.findByLabelText('项目筛选')).toHaveValue('铨富')
+    expect(screen.getByLabelText('国家站点筛选')).toHaveValue('US')
+    expect(screen.getByLabelText('账期月份')).toHaveValue('2026-07')
+    expectWarmHeaderSurface(document.querySelector('[data-warm-header-filters="true"]'))
   })
 
   it('移动端筛选条注册成功且摘要包含当前筛选', async () => {
@@ -184,6 +185,27 @@ describe('Warm Ledger 制作报表表面', () => {
     expect(css).toContain('var(--warm-ledger-color-panel)')
     expect(css).toContain('var(--warm-ledger-radius-panel)')
     expect(css).not.toContain('--term-')
-    expect(css).not.toContain('@media')
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)/)
+    expectNonReducedMotionMediaQueries(css)
+    expect(source).toContain('loading={submitState.status === \'submitting\'}')
+    expect(source).toContain('loadingLabel="正在生成财务月报"')
   })
 })
+
+function expectWarmHeaderSurface(node: HTMLElement | null) {
+  expect(node).not.toBeNull()
+  expect(node).toHaveAttribute('data-warm-header-filters', 'true')
+  for (const element of [node!, ...Array.from(node!.querySelectorAll('*'))]) {
+    const className = typeof element.className === 'string' ? element.className : ''
+    expect(className).not.toContain('rounded-none')
+    expect(className).not.toContain('term-')
+    expect(className).not.toContain('font-mono')
+  }
+}
+
+function expectNonReducedMotionMediaQueries(css: string) {
+  const queries = Array.from(css.matchAll(/@media\s*([^{]+)/g)).map((match) =>
+    match[1].trim()
+  )
+  expect(queries.every((query) => query === '(prefers-reduced-motion: reduce)')).toBe(true)
+}

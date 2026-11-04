@@ -6,8 +6,8 @@
  * 前端守住：记忆 / URL 里的项目要先在当前操作者的 `/projects/manage` 可见列表里，
  * 否则清理并回退，且**不得用旧 id 发请求**。
  *
- * 这里用真实 AutoReconcileTab + 真实 HeaderProjectSelect（只把 /projects/manage 与
- * fetch 换成可控桩），断言请求参数级别的行为，而不是只看渲染结果。
+ * 这里用真实 AutoReconcileTab + 真实页面 header 控件（只把 /projects/manage 与 fetch
+ * 换成可控桩），断言请求参数级别的行为，而不是只看渲染结果。
  */
 
 import { cleanup, render, screen, waitFor } from '@testing-library/react'

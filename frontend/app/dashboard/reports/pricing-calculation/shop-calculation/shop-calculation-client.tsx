@@ -40,15 +40,7 @@ import { useNotifications } from '@/components/notifications'
 import { getCountryLabel } from '@/lib/country'
 import { downloadBlob } from '@/lib/download-blob'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
-import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
 import { MobileFilterStrip } from '@/components/terminal/mobile-filter-strip'
-import {
-  HeaderSlotSelect,
-  HeaderSlotInput,
-  TERM_HEADER_W_LG,
-  TERM_HEADER_W_SM,
-  TERM_HEADER_W_MD,
-} from '@/components/terminal/header-filter-suite'
 import { useHeaderSlot, useMobileFilterStrip } from '@/components/terminal/terminal-header-slot'
 import styles from '../pricing-calculation-warm.module.css'
 
@@ -181,8 +173,8 @@ export default function ShopCalculationPage() {
 
   useEffect(() => {
     const project = projects.find((p) => p.name === selectedProjectName)
-    setSelectedProjectId(project?.id ?? null)
-  }, [selectedProjectName, projects])
+    setProjectIdRaw(project?.id == null ? '' : String(project.id))
+  }, [selectedProjectName, projects, setProjectIdRaw])
 
   // Load stats when project / country / snapshot changes
   useEffect(() => {
@@ -276,37 +268,41 @@ export default function ShopCalculationPage() {
   // BLF-997 · 头部插槽：项目 / SKU 搜索 / 站点
   const countryOptions = COUNTRY_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label }))
   const headerSlotPortal = useHeaderSlot(
-    <HeaderFilterControls
-      isMobileView={false}
-      controls={
-        <>
-          <HeaderSlotSelect
-            value={selectedProjectName}
-            onChange={setSelectedProjectName}
-            options={projects.map((p) => ({ value: p.name, label: p.name }))}
-            placeholder="选择项目"
-            widthClass={TERM_HEADER_W_MD}
-            title="项目筛选"
-            disabled={projectsLoading}
-          />
-          <HeaderSlotInput
-            widthClass={TERM_HEADER_W_LG}
-            value={skuKeyword}
-            onChange={(e) => setSkuKeyword(e.target.value)}
-            placeholder="SKU / ASIN"
-            title="SKU 搜索"
-          />
-          <HeaderSlotSelect
-            value={selectedCountry}
-            onChange={(v) => setSelectedCountry(v as StoreCountry)}
-            options={countryOptions}
-            placeholder="选择站点"
-            widthClass={TERM_HEADER_W_SM}
-            title="站点筛选"
-          />
-        </>
-      }
-    />
+    <div className={styles.headerFilters} data-warm-header-filters="true">
+      <select
+        aria-label="项目筛选"
+        className={styles.headerProject}
+        value={selectedProjectName}
+        onChange={(event) => setSelectedProjectName(event.target.value)}
+        disabled={projectsLoading}
+      >
+        <option value="">选择项目</option>
+        {projects.map((project) => (
+          <option key={project.id} value={project.name}>
+            {project.name}
+          </option>
+        ))}
+      </select>
+      <input
+        className={styles.headerSku}
+        value={skuKeyword}
+        onChange={(event) => setSkuKeyword(event.target.value)}
+        placeholder="SKU / ASIN"
+        aria-label="SKU 搜索"
+      />
+      <select
+        aria-label="站点筛选"
+        className={styles.headerCountry}
+        value={selectedCountry}
+        onChange={(event) => setSelectedCountry(event.target.value as StoreCountry)}
+      >
+        {countryOptions.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </div>
   )
 
   const mobileFilterSummary = `${selectedProjectName || '选择项目'} · ${selectedCountry}${skuKeyword ? ` · SKU: ${skuKeyword}` : ''}`
@@ -315,30 +311,39 @@ export default function ShopCalculationPage() {
       summary={mobileFilterSummary}
       controls={
         <>
-          <HeaderSlotSelect
+          <select
+            aria-label="项目筛选"
+            className={styles.mobileHeaderControl}
             value={selectedProjectName}
-            onChange={setSelectedProjectName}
-            options={projects.map((p) => ({ value: p.name, label: p.name }))}
-            placeholder="选择项目"
-            widthClass={TERM_HEADER_W_MD}
-            title="项目筛选"
+            onChange={(event) => setSelectedProjectName(event.target.value)}
             disabled={projectsLoading}
-          />
-          <HeaderSlotInput
-            widthClass={TERM_HEADER_W_LG}
+          >
+            <option value="">选择项目</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.name}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+          <input
+            className={styles.mobileHeaderControl}
             value={skuKeyword}
-            onChange={(e) => setSkuKeyword(e.target.value)}
+            onChange={(event) => setSkuKeyword(event.target.value)}
             placeholder="SKU / ASIN"
-            title="SKU 搜索"
+            aria-label="SKU 搜索"
           />
-          <HeaderSlotSelect
+          <select
+            aria-label="站点筛选"
+            className={styles.mobileHeaderControl}
             value={selectedCountry}
-            onChange={(v) => setSelectedCountry(v as StoreCountry)}
-            options={countryOptions}
-            placeholder="选择站点"
-            widthClass={TERM_HEADER_W_SM}
-            title="站点筛选"
-          />
+            onChange={(event) => setSelectedCountry(event.target.value as StoreCountry)}
+          >
+            {countryOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </>
       }
     />
@@ -746,10 +751,10 @@ export default function ShopCalculationPage() {
                     onClick={handleExport}
                     disabled={exporting || !hasCalculatedRows}
                     className={styles.exportButton}
+                    loading={exporting}
+                    loadingLabel="正在导出店铺测算"
                   >
-                    {exporting ? (
-                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                    ) : (
+                    {!exporting && (
                       <Download className="mr-1.5 h-3.5 w-3.5" />
                     )}
                     导出 Excel

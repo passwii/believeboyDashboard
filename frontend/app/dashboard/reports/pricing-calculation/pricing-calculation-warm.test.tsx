@@ -59,4 +59,30 @@ describe('定价核算 Warm Ledger contract', () => {
     expect(css).not.toContain('--term-')
     expect(css).not.toContain('@media')
   })
+
+  it('keeps financial values fully visible and error copy in the sans stack', () => {
+    const css = read('pricing-calculation-warm.module.css')
+    const block = (selector: string) =>
+      css.match(new RegExp(`\\.${selector}\\s*\\{([\\s\\S]*?)\\}`))?.[1] ?? ''
+    const metricValue = block('runMetricValue')
+    const runEmpty = block('runEmpty')
+    const errorBanner = block('errorBanner')
+
+    expect(metricValue).toContain('overflow-wrap: anywhere;')
+    expect(metricValue).toContain('white-space: normal;')
+    expect(runEmpty).toContain('font-family: var(--warm-ledger-font-sans);')
+    expect(errorBanner).toContain('font-family: var(--warm-ledger-font-sans);')
+  })
+
+  it('uses page-local Warm header controls instead of HeaderFilterSuite', () => {
+    for (const source of [
+      read('new-product/new-product-client.tsx'),
+      read('shop-calculation/shop-calculation-client.tsx'),
+    ]) {
+      expect(source).toContain('data-warm-header-filters="true"')
+      expect(source).not.toContain('HeaderFilterControls')
+      expect(source).not.toContain('HeaderSlotInput')
+      expect(source).not.toContain('HeaderSlotSelect')
+    }
+  })
 })

@@ -1111,7 +1111,7 @@ export default function AutoReconcileTab({
 
   // Perform reconciliation when row is clicked
   // Always opens the panel, regardless of whether reconciliation can proceed
-  const handleRowClick = async (report: AvailableReport) => {
+  const handleRowClick = useCallback(async (report: AvailableReport) => {
     // Check if can reconcile
     const canReconcile = report.has_summary_pdf && report.pt3_calculation_complete
 
@@ -1210,7 +1210,7 @@ export default function AutoReconcileTab({
         setReconciling(null)
       }
     }
-  }
+  }, [notify, reconcileError, reconcileResults])
 
   // Trigger reconcile (called from DetailPanel)
   const handleReconcile = useCallback(
@@ -1233,7 +1233,7 @@ export default function AutoReconcileTab({
       // Trigger the row click to re-open panel and reconcile
       await handleRowClick(report)
     },
-    [reconcileError]
+    [reconcileError, handleRowClick]
   )
 
   // Handle upload success - refresh reports and trigger reconcile

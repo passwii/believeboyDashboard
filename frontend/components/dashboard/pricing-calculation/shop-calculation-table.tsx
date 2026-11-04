@@ -1,23 +1,11 @@
 'use client'
 
-import { Calculator, Loader2 } from 'lucide-react'
+import { Calculator } from 'lucide-react'
 
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import {
-  STICKY_LEFT_HEAD_CELL,
-  STICKY_TOP_GROUP_ROW,
-  STICKY_TOP_SUB_ROW,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
 import { cn } from '@/lib/utils'
 import type { PricingCalculationRunItem, ProductCostItem } from '@/lib/pricing-calculation-types'
+import styles from './shop-calculation-table-warm.module.css'
 
 type StoreSkuDraft = {
   package_length_cm: string
@@ -86,44 +74,24 @@ function toNumber(value: string) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-/**
- * Semantic color system for table group headers.
- * Mirrors the EU table for visual consistency.
- */
-const GROUP_COLORS = {
-  店铺产品: {
-    header: 'bg-[#e0e7ff] text-[#1e1b4b] dark:bg-[#312e81] dark:text-[#e0e7ff]',
-    sub: 'bg-[#eef2ff] dark:bg-[#1e1b4b]/80',
-  },
-  货品数据: {
-    header: 'bg-[#e0f2fe] text-[#0c4a6e] dark:bg-[#0c4a6e] dark:text-[#e0f2fe]',
-    sub: 'bg-[#f0f9ff] dark:bg-[#082f49]/80',
-  },
-  'DDP 成本': {
-    header: 'bg-[#fef3c7] text-[#78350f] dark:bg-[#78350f] dark:text-[#fef3c7]',
-    sub: 'bg-[#fffbeb] dark:bg-[#451a03]/80',
-  },
-  费用支出: {
-    header: 'bg-[#ffe4e6] text-[#881337] dark:bg-[#881337] dark:text-[#ffe4e6]',
-    sub: 'bg-[#fff1f2] dark:bg-[#4c0519]/80',
-  },
-  利润核算: {
-    header: 'bg-[#d1fae5] text-[#064e3b] dark:bg-[#064e3b] dark:text-[#d1fae5]',
-    sub: 'bg-[#ecfdf5] dark:bg-[#022c22]/80',
-  },
-  产品核定: {
-    header: 'bg-[#ede9fe] text-[#4c1d95] dark:bg-[#4c1d95] dark:text-[#ede9fe]',
-    sub: 'bg-[#f5f3ff] dark:bg-[#2e1065]/80',
-  },
-  操作: {
-    header:
-      'bg-term-panel text-[hsl(var(--foreground))] dark:bg-term-bg',
-    sub: 'bg-term-panel dark:bg-term-bg',
-  },
-} as const
+const GROUP_CLASSES: Record<
+  '店铺产品' | '货品数据' | 'DDP 成本' | '费用支出' | '利润核算' | '产品核定' | '操作',
+  { header: string; sub: string }
+> = {
+  店铺产品: { header: styles.groupHeader, sub: styles.groupShop },
+  货品数据: { header: styles.groupHeader, sub: styles.groupProduct },
+  'DDP 成本': { header: styles.groupHeader, sub: styles.groupDdp },
+  费用支出: { header: styles.groupHeader, sub: styles.groupFees },
+  利润核算: { header: styles.groupHeader, sub: styles.groupProfit },
+  产品核定: { header: styles.groupHeader, sub: styles.groupCheck },
+  操作: { header: styles.groupHeader, sub: styles.groupAction },
+}
 
-function getGroupStyle(group: keyof typeof GROUP_COLORS, variant: 'header' | 'sub') {
-  return GROUP_COLORS[group]?.[variant] ?? ''
+function getGroupStyle(
+  group: keyof typeof GROUP_CLASSES,
+  variant: 'header' | 'sub'
+) {
+  return GROUP_CLASSES[group][variant]
 }
 
 export function ShopCalculationTable({
@@ -134,323 +102,313 @@ export function ShopCalculationTable({
   systemExchangeRate,
   isSnapshotMode = false,
 }: ShopCalculationTableProps) {
-  const compactInputClassName =
-    'h-8 w-[52px] min-w-[52px] rounded-none border border-input bg-background px-1.5 text-center text-xs tabular-nums [-moz-appearance:textfield] appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none focus-visible:border-[hsl(var(--ring))] focus-visible:ring-1 focus-visible:ring-[hsl(var(--ring)/0.25)] sm:w-[60px] sm:min-w-[60px]'
-  const compactSelectClassName =
-    'flex h-8 w-[84px] min-w-[84px] rounded-none border border-input bg-background px-1.5 py-1 text-xs ring-offset-term-bg focus-visible:border-[hsl(var(--ring))] focus-visible:ring-1 focus-visible:ring-[hsl(var(--ring)/0.25)] sm:w-[96px] sm:min-w-[96px]'
-
   return (
-    <Table className="w-max min-w-full text-xs" containerClassName="max-h-[72vh] overflow-auto">
+    <div
+      className={styles.tableScroll}
+      data-warm-shop-calculation-table="true"
+    >
+      <table className={styles.table}>
       {/* Group-level header row */}
-      <TableHeader>
-        <TableRow className={STICKY_TOP_GROUP_ROW}>
-          <TableHead
+      <thead>
+        <tr className={styles.groupRow}>
+          <th
             colSpan={1}
-            className={cn(
-              'sticky left-0 z-[60] border-r px-3 py-2.5 text-center font-semibold shadow-[1px_0_0_0_hsl(var(--border))]',
-              getGroupStyle('店铺产品', 'header')
-            )}
+            className={styles.stickyHeader}
+            data-group="shop"
+            data-sticky-column="true"
           >
             店铺产品
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             colSpan={6}
-            className={cn(
-              'border-r px-3 py-2.5 text-center font-semibold shadow-[1px_0_0_0_hsl(var(--border))]',
-              getGroupStyle('货品数据', 'header')
-            )}
+            className={styles.groupHeader}
+            data-group="product"
           >
             货品数据
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             colSpan={4}
-            className={cn(
-              'border-r px-3 py-2.5 text-center font-semibold shadow-[1px_0_0_0_hsl(var(--border))]',
-              getGroupStyle('DDP 成本', 'header')
-            )}
+            className={styles.groupHeader}
+            data-group="ddp"
           >
             DDP 成本
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             colSpan={10}
-            className={cn(
-              'border-r px-3 py-2.5 text-center font-semibold shadow-[1px_0_0_0_hsl(var(--border))]',
-              getGroupStyle('费用支出', 'header')
-            )}
+            className={styles.groupHeader}
+            data-group="fees"
           >
             费用支出
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             colSpan={4}
-            className={cn(
-              'border-r px-3 py-2.5 text-center font-semibold shadow-[1px_0_0_0_hsl(var(--border))]',
-              getGroupStyle('利润核算', 'header')
-            )}
+            className={styles.groupHeader}
+            data-group="profit"
           >
             利润核算
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             colSpan={3}
-            className={cn(
-              'border-r px-3 py-2.5 text-center font-semibold shadow-[1px_0_0_0_hsl(var(--border))]',
-              getGroupStyle('产品核定', 'header')
-            )}
+            className={styles.groupHeader}
+            data-group="check"
           >
             产品核定
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             colSpan={2}
-            className={cn('px-3 py-2.5 text-center font-semibold', getGroupStyle('操作', 'header'))}
+            className={styles.groupHeader}
+            data-group="action"
           >
             操作
-          </TableHead>
-        </TableRow>
+          </th>
+        </tr>
         {/* Column-level sub-header row */}
-        <TableRow className={STICKY_TOP_SUB_ROW}>
-          <TableHead
+        <tr className={styles.subGroupRow}>
+          <th
             className={cn(
               'sticky left-0 z-[55] min-w-[160px] whitespace-nowrap border-r px-3 py-2 shadow-[1px_0_0_0_hsl(var(--border))]',
               getGroupStyle('店铺产品', 'sub')
             )}
+            data-sticky-column="true"
           >
             SKU / 项目
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             className={cn(
               'min-w-[86px] whitespace-nowrap border-r px-3 py-2 text-right shadow-[1px_0_0_0_hsl(var(--border))]',
               getGroupStyle('货品数据', 'sub')
             )}
           >
             FOB(RMB)
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             className={cn(
               'min-w-[84px] whitespace-nowrap border-r px-3 py-2 shadow-[1px_0_0_0_hsl(var(--border))]',
               getGroupStyle('货品数据', 'sub')
             )}
           >
             长(cm)
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             className={cn(
               'min-w-[84px] whitespace-nowrap border-r px-3 py-2 shadow-[1px_0_0_0_hsl(var(--border))]',
               getGroupStyle('货品数据', 'sub')
             )}
           >
             宽(cm)
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             className={cn(
               'min-w-[84px] whitespace-nowrap border-r px-3 py-2 shadow-[1px_0_0_0_hsl(var(--border))]',
               getGroupStyle('货品数据', 'sub')
             )}
           >
             高(cm)
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             className={cn(
               'min-w-[84px] whitespace-nowrap border-r px-3 py-2 shadow-[1px_0_0_0_hsl(var(--border))]',
               getGroupStyle('货品数据', 'sub')
             )}
           >
             重量(kg)
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             className={cn(
               'min-w-[96px] whitespace-nowrap border-r px-3 py-2 text-right shadow-[1px_0_0_0_hsl(var(--border))]',
               getGroupStyle('货品数据', 'sub')
             )}
           >
             计费重
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             className={cn(
               'min-w-[96px] whitespace-nowrap border-r px-3 py-2 text-right shadow-[1px_0_0_0_hsl(var(--border))]',
               getGroupStyle('DDP 成本', 'sub')
             )}
           >
             头程(RMB)
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             className={cn(
               'min-w-[92px] whitespace-nowrap border-r px-3 py-2 text-right shadow-[1px_0_0_0_hsl(var(--border))]',
               getGroupStyle('DDP 成本', 'sub')
             )}
           >
             DDP(RMB)
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             className={cn(
               'min-w-[92px] whitespace-nowrap border-r px-3 py-2 text-right shadow-[1px_0_0_0_hsl(var(--border))]',
               getGroupStyle('DDP 成本', 'sub')
             )}
           >
             DDP(USD)
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             className={cn(
               'min-w-[88px] whitespace-nowrap border-r px-3 py-2 shadow-[1px_0_0_0_hsl(var(--border))]',
               getGroupStyle('DDP 成本', 'sub')
             )}
           >
             汇率
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             className={cn(
               'min-w-[88px] whitespace-nowrap border-r px-3 py-2 shadow-[1px_0_0_0_hsl(var(--border))]',
               getGroupStyle('费用支出', 'sub')
             )}
           >
             售价(USD)
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             className={cn(
               'min-w-[88px] whitespace-nowrap border-r px-3 py-2 shadow-[1px_0_0_0_hsl(var(--border))]',
               getGroupStyle('费用支出', 'sub')
             )}
           >
             广告费率%
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             className={cn(
               'min-w-[88px] whitespace-nowrap border-r px-3 py-2 text-right shadow-[1px_0_0_0_hsl(var(--border))]',
               getGroupStyle('费用支出', 'sub')
             )}
           >
             广告费
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             className={cn(
               'min-w-[96px] whitespace-nowrap border-r px-3 py-2 shadow-[1px_0_0_0_hsl(var(--border))]',
               getGroupStyle('费用支出', 'sub')
             )}
           >
             退货折损率%
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             className={cn(
               'min-w-[96px] whitespace-nowrap border-r px-3 py-2 text-right shadow-[1px_0_0_0_hsl(var(--border))]',
               getGroupStyle('费用支出', 'sub')
             )}
           >
             退货损耗
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             className={cn(
               'min-w-[88px] whitespace-nowrap border-r px-3 py-2 text-right shadow-[1px_0_0_0_hsl(var(--border))]',
               getGroupStyle('费用支出', 'sub')
             )}
           >
             佣金
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             className={cn(
               'min-w-[88px] whitespace-nowrap border-r px-3 py-2 text-right shadow-[1px_0_0_0_hsl(var(--border))]',
               getGroupStyle('费用支出', 'sub')
             )}
           >
             派送费
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             className={cn(
               'min-w-[88px] whitespace-nowrap border-r px-3 py-2 text-right shadow-[1px_0_0_0_hsl(var(--border))]',
               getGroupStyle('费用支出', 'sub')
             )}
           >
             配置费
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             className={cn(
               'min-w-[84px] whitespace-nowrap border-r px-3 py-2 shadow-[1px_0_0_0_hsl(var(--border))]',
               getGroupStyle('费用支出', 'sub')
             )}
           >
             仓储月数
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             className={cn(
               'min-w-[88px] whitespace-nowrap border-r px-3 py-2 text-right shadow-[1px_0_0_0_hsl(var(--border))]',
               getGroupStyle('费用支出', 'sub')
             )}
           >
             仓储费
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             className={cn(
               'min-w-[92px] whitespace-nowrap border-r px-3 py-2 text-right shadow-[1px_0_0_0_hsl(var(--border))]',
               getGroupStyle('利润核算', 'sub')
             )}
           >
             费用合计
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             className={cn(
               'min-w-[92px] whitespace-nowrap border-r px-3 py-2 text-right shadow-[1px_0_0_0_hsl(var(--border))]',
               getGroupStyle('利润核算', 'sub')
             )}
           >
             回款
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             className={cn(
               'min-w-[88px] whitespace-nowrap border-r px-3 py-2 text-right shadow-[1px_0_0_0_hsl(var(--border))]',
               getGroupStyle('利润核算', 'sub')
             )}
           >
             利润
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             className={cn(
               'min-w-[92px] whitespace-nowrap border-r px-3 py-2 text-right shadow-[1px_0_0_0_hsl(var(--border))]',
               getGroupStyle('利润核算', 'sub')
             )}
           >
             利润率
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             className={cn(
               'min-w-[112px] whitespace-nowrap border-r px-3 py-2 shadow-[1px_0_0_0_hsl(var(--border))]',
               getGroupStyle('产品核定', 'sub')
             )}
           >
             尺寸等级
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             className={cn(
               'min-w-[112px] whitespace-nowrap border-r px-3 py-2 shadow-[1px_0_0_0_hsl(var(--border))]',
               getGroupStyle('产品核定', 'sub')
             )}
           >
             售价带
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             className={cn(
               'min-w-[208px] whitespace-nowrap border-r px-3 py-2 shadow-[1px_0_0_0_hsl(var(--border))]',
               getGroupStyle('产品核定', 'sub')
             )}
           >
             规则
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             className={cn(
               'min-w-[100px] whitespace-nowrap px-3 py-2 text-center',
               getGroupStyle('操作', 'sub')
             )}
           >
             状态
-          </TableHead>
-          <TableHead
+          </th>
+          <th
             className={cn(
               'min-w-[108px] whitespace-nowrap px-3 py-2 text-center',
               getGroupStyle('操作', 'sub')
             )}
           >
             测算
-          </TableHead>
-        </TableRow>
-      </TableHeader>
+          </th>
+        </tr>
+      </thead>
 
-      <TableBody>
+      <tbody>
         {items.map((item, idx) => {
           const rowState = rowStates[item.id]
           const draft = rowState?.draft ?? buildInitialStoreDraft(item)
@@ -472,369 +430,381 @@ export function ShopCalculationTable({
           const ddpUsd = ddpRmb && exchangeRate > 0 ? ddpRmb / exchangeRate : null
 
           return (
-            <TableRow
+            <tr
               key={item.id}
-              className={cn(
-                'align-middle transition-colors duration-[var(--duration-quick)] hover:bg-term-hover',
-                idx % 2 === 1 && 'bg-term-bg'
-              )}
+              className={styles.dataRow}
+              data-alt={idx % 2 === 1 ? 'true' : 'false'}
             >
               {/* SKU / 项目 */}
-              <TableCell
-                className={cn(
-                  'sticky left-0 z-20 whitespace-nowrap border-r bg-term-bg px-3 py-2 shadow-[1px_0_0_0_hsl(var(--border))] dark:bg-term-bg',
-                  getGroupStyle('店铺产品', 'sub')
-                )}
+              <td
+                className={styles.stickyCell}
+                data-sticky-column="true"
               >
-                <div className="min-w-[136px]">
-                  <p className="truncate font-semibold text-term-text">{item.sku}</p>
-                  <p className="truncate text-[11px] text-term-muted">{item.project_name}</p>
+                <div className={styles.skuCell}>
+                  <p className={styles.sku}>{item.sku}</p>
+                  <p className={styles.projectName}>{item.project_name}</p>
                 </div>
-              </TableCell>
+              </td>
 
               {/* FOB */}
-              <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right font-medium tabular-nums">
+              <td className="whitespace-nowrap border-r px-3 py-2 text-right font-medium tabular-nums">
                 {item.fob_unit_cost > 0 ? (
                   item.fob_unit_cost.toFixed(2)
                 ) : (
-                  <span className="text-term-muted">—</span>
+                  <span className={styles.mutedText}>—</span>
                 )}
-              </TableCell>
+              </td>
 
               {/* L / W / H / Weight */}
-              <TableCell className="whitespace-nowrap border-r px-2 py-2">
-                <Input
+              <td className="whitespace-nowrap border-r px-2 py-2">
+                <input
                   type="number"
                   step="0.01"
-                  className={compactInputClassName}
+                  aria-label="长(cm)"
+                  className={styles.compactInput}
                   value={draft.package_length_cm}
                   onChange={(e) => onDraftChange(item.id, 'package_length_cm', e.target.value)}
                 />
-              </TableCell>
-              <TableCell className="whitespace-nowrap border-r px-2 py-2">
-                <Input
+              </td>
+              <td className="whitespace-nowrap border-r px-2 py-2">
+                <input
                   type="number"
                   step="0.01"
-                  className={compactInputClassName}
+                  aria-label="宽(cm)"
+                  className={styles.compactInput}
                   value={draft.package_width_cm}
                   onChange={(e) => onDraftChange(item.id, 'package_width_cm', e.target.value)}
                 />
-              </TableCell>
-              <TableCell className="whitespace-nowrap border-r px-2 py-2">
-                <Input
+              </td>
+              <td className="whitespace-nowrap border-r px-2 py-2">
+                <input
                   type="number"
                   step="0.01"
-                  className={compactInputClassName}
+                  aria-label="高(cm)"
+                  className={styles.compactInput}
                   value={draft.package_height_cm}
                   onChange={(e) => onDraftChange(item.id, 'package_height_cm', e.target.value)}
                 />
-              </TableCell>
-              <TableCell className="whitespace-nowrap border-r px-2 py-2">
-                <Input
+              </td>
+              <td className="whitespace-nowrap border-r px-2 py-2">
+                <input
                   type="number"
                   step="0.001"
-                  className={compactInputClassName}
+                  aria-label="重量(kg)"
+                  className={styles.compactInput}
                   value={draft.weight_kg}
                   onChange={(e) => onDraftChange(item.id, 'weight_kg', e.target.value)}
                 />
-              </TableCell>
+              </td>
 
               {/* 计费重 */}
-              <TableCell
+              <td
                 className={cn(
                   'whitespace-nowrap border-r px-3 py-2 text-right tabular-nums',
                   chargeableKg > toNumber(draft.weight_kg)
-                    ? 'text-term-warn'
-                    : ''
+                    ? styles.warningText
+                    : undefined
                 )}
               >
                 {formatMetric(chargeableKg, 2)} kg
-              </TableCell>
+              </td>
 
               {/* DDP */}
-              <TableCell
+              <td
                 className={cn(
                   'whitespace-nowrap border-r px-3 py-2 text-right tabular-nums',
-                  firstLegCost <= 0 ? 'text-term-warn' : ''
+                  firstLegCost <= 0 ? styles.warningText : undefined
                 )}
               >
                 {firstLegCost > 0 ? (
                   firstLegCost.toFixed(2)
                 ) : (
-                  <span className="text-[11px] text-term-warn">待补</span>
+                  <span className={styles.warningText}>待补</span>
                 )}
-              </TableCell>
-              <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">
+              </td>
+              <td className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">
                 {ddpRmb !== null ? (
                   ddpRmb.toFixed(2)
                 ) : (
-                  <span className="text-term-muted">—</span>
+                  <span className={styles.mutedText}>—</span>
                 )}
-              </TableCell>
-              <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">
+              </td>
+              <td className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">
                 {ddpUsd !== null ? (
                   formatCurrency(ddpUsd)
                 ) : (
-                  <span className="text-term-muted">—</span>
+                  <span className={styles.mutedText}>—</span>
                 )}
-              </TableCell>
-              <TableCell className="whitespace-nowrap border-r px-2 py-2">
-                <Input
+              </td>
+              <td className="whitespace-nowrap border-r px-2 py-2">
+                <input
                   type="number"
                   step="0.0001"
-                  className={compactInputClassName}
+                  aria-label="汇率"
+                  className={styles.compactInput}
                   value={draft.usd_to_rmb_rate}
                   onChange={(e) => onDraftChange(item.id, 'usd_to_rmb_rate', e.target.value)}
                   placeholder={
                     result ? formatMetric(result.usd_to_rmb_rate, 4) : systemExchangeRate || '自动'
                   }
                 />
-              </TableCell>
+              </td>
 
               {/* 费用支出 */}
-              <TableCell className="whitespace-nowrap border-r px-2 py-2">
-                <Input
+              <td className="whitespace-nowrap border-r px-2 py-2">
+                <input
                   type="number"
                   step="0.01"
-                  className={compactInputClassName}
+                  aria-label="售价(USD)"
+                  className={styles.compactInput}
                   value={draft.sale_price_usd}
                   onChange={(e) => onDraftChange(item.id, 'sale_price_usd', e.target.value)}
                 />
-              </TableCell>
-              <TableCell className="whitespace-nowrap border-r px-2 py-2">
-                <Input
+              </td>
+              <td className="whitespace-nowrap border-r px-2 py-2">
+                <input
                   type="number"
                   step="0.01"
-                  className={compactInputClassName}
+                  aria-label="广告费率%"
+                  className={styles.compactInput}
                   value={draft.advertising_rate}
                   onChange={(e) => onDraftChange(item.id, 'advertising_rate', e.target.value)}
                 />
-              </TableCell>
-              <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">
+              </td>
+              <td className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">
                 {result ? (
                   formatCurrency(result.fees.advertising_fee_usd)
                 ) : (
-                  <span className="text-term-muted">—</span>
+                  <span className={styles.mutedText}>—</span>
                 )}
-              </TableCell>
-              <TableCell className="whitespace-nowrap border-r px-2 py-2">
-                <Input
+              </td>
+              <td className="whitespace-nowrap border-r px-2 py-2">
+                <input
                   type="number"
                   step="0.01"
-                  className={compactInputClassName}
+                  aria-label="退货折损率%"
+                  className={styles.compactInput}
                   value={draft.return_loss_rate}
                   onChange={(e) => onDraftChange(item.id, 'return_loss_rate', e.target.value)}
                 />
-              </TableCell>
-              <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">
+              </td>
+              <td className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">
                 {result ? (
                   formatCurrency(result.fees.return_loss_usd)
                 ) : (
-                  <span className="text-term-muted">—</span>
+                  <span className={styles.mutedText}>—</span>
                 )}
-              </TableCell>
-              <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">
+              </td>
+              <td className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">
                 {result ? (
                   formatCurrency(result.fees.referral_fee_usd)
                 ) : (
-                  <span className="text-term-muted">—</span>
+                  <span className={styles.mutedText}>—</span>
                 )}
-              </TableCell>
-              <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">
+              </td>
+              <td className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">
                 {result ? (
                   formatCurrency(result.fees.fba_fulfillment_fee_usd)
                 ) : (
-                  <span className="text-term-muted">—</span>
+                  <span className={styles.mutedText}>—</span>
                 )}
-              </TableCell>
-              <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">
+              </td>
+              <td className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">
                 {result ? (
                   formatCurrency(result.fees.inbound_config_fee_usd)
                 ) : (
-                  <span className="text-term-muted">—</span>
+                  <span className={styles.mutedText}>—</span>
                 )}
-              </TableCell>
-              <TableCell className="whitespace-nowrap border-r px-2 py-2">
-                <Input
+              </td>
+              <td className="whitespace-nowrap border-r px-2 py-2">
+                <input
                   type="number"
                   step="0.01"
-                  className={compactInputClassName}
+                  aria-label="仓储月数"
+                  className={styles.compactInput}
                   value={draft.storage_months}
                   onChange={(e) => onDraftChange(item.id, 'storage_months', e.target.value)}
                 />
-              </TableCell>
-              <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">
+              </td>
+              <td className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">
                 {result ? (
                   formatCurrency(result.fees.storage_fee_usd)
                 ) : (
-                  <span className="text-term-muted">—</span>
+                  <span className={styles.mutedText}>—</span>
                 )}
-              </TableCell>
+              </td>
 
               {/* 利润核算 */}
-              <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">
+              <td className="whitespace-nowrap border-r px-3 py-2 text-right tabular-nums">
                 {result ? (
                   formatCurrency(result.fees.total_fee_usd)
                 ) : (
-                  <span className="text-term-muted">—</span>
+                  <span className={styles.mutedText}>—</span>
                 )}
-              </TableCell>
-              <TableCell className="whitespace-nowrap border-r px-3 py-2 text-right font-medium tabular-nums">
+              </td>
+              <td className="whitespace-nowrap border-r px-3 py-2 text-right font-medium tabular-nums">
                 {result ? (
                   formatCurrency(result.profit.payout_usd)
                 ) : (
-                  <span className="text-term-muted">—</span>
+                  <span className={styles.mutedText}>—</span>
                 )}
-              </TableCell>
-              <TableCell
+              </td>
+              <td
                 className={cn(
                   'whitespace-nowrap border-r px-3 py-2 text-right font-semibold tabular-nums',
                   !result
-                    ? 'text-term-muted'
+                    ? styles.mutedText
                     : result.profit.profit_usd >= 0
-                      ? 'text-emerald-600 dark:text-emerald-400'
-                      : 'text-term-neg'
+                      ? styles.positiveText
+                      : styles.negativeText
                 )}
               >
                 {result ? (
                   formatCurrency(result.profit.profit_usd)
                 ) : (
-                  <span className="text-term-muted">—</span>
+                  <span className={styles.mutedText}>—</span>
                 )}
-              </TableCell>
-              <TableCell
+              </td>
+              <td
                 className={cn(
                   'whitespace-nowrap border-r px-3 py-2 text-right font-semibold tabular-nums',
                   !result
-                    ? 'text-term-muted'
+                    ? styles.mutedText
                     : result.profit.profit_rate >= 0
-                      ? 'text-emerald-600 dark:text-emerald-400'
-                      : 'text-term-neg'
+                      ? styles.positiveText
+                      : styles.negativeText
                 )}
               >
                 {result ? (
                   formatPercent(result.profit.profit_rate)
                 ) : (
-                  <span className="text-term-muted">—</span>
+                  <span className={styles.mutedText}>—</span>
                 )}
-              </TableCell>
+              </td>
 
               {/* 产品核定 */}
-              <TableCell
+              <td
                 className={cn(
                   'whitespace-nowrap border-r px-3 py-2',
                   getGroupStyle('产品核定', 'sub')
                 )}
               >
                 {result ? (
-                  <div className="leading-5">
-                    <div className="inline-block rounded-[4px] bg-term-accent/10 px-1.5 py-0.5 text-[11px] font-medium text-term-accent">
+                  <div className={styles.tierLine}>
+                    <div className={styles.tierBadge}>
                       {result.size_tier_label}
                     </div>
                   </div>
                 ) : (
-                  <span className="text-term-muted">—</span>
+                  <span className={styles.mutedText}>—</span>
                 )}
-              </TableCell>
-              <TableCell
+              </td>
+              <td
                 className={cn(
                   'whitespace-nowrap border-r px-3 py-2',
                   getGroupStyle('产品核定', 'sub')
                 )}
               >
                 {result ? (
-                  <div className="text-[11px] text-term-muted">{result.price_band_label}</div>
+                  <div className={styles.lookupText}>{result.price_band_label}</div>
                 ) : (
-                  <span className="text-term-muted">—</span>
+                  <span className={styles.mutedText}>—</span>
                 )}
-              </TableCell>
-              <TableCell
+              </td>
+              <td
                 className={cn(
                   'whitespace-nowrap border-r px-3 py-2',
                   getGroupStyle('产品核定', 'sub')
                 )}
               >
                 {result ? (
-                  <div className="space-y-0.5 text-[11px] text-term-muted">
-                    <p className="truncate">派送: {result.fulfillment_fee_rule_label}</p>
-                    <p className="truncate">配置: {result.inbound_config_fee_rule_label}</p>
-                    <p className="truncate">仓储: {result.storage_fee_rule_label}</p>
+                  <div className={styles.ruleLines}>
+                    <p>派送: {result.fulfillment_fee_rule_label}</p>
+                    <p>配置: {result.inbound_config_fee_rule_label}</p>
+                    <p>仓储: {result.storage_fee_rule_label}</p>
                   </div>
                 ) : (
-                  <span className="text-term-muted">—</span>
+                  <span className={styles.mutedText}>—</span>
                 )}
-              </TableCell>
+              </td>
 
               {/* 状态 */}
-              <TableCell className="px-3 py-2 text-center">
+              <td className={styles.statusCell}>
                 {rowState?.error ? (
-                  <div className="mx-auto max-w-[88px] truncate rounded-none bg-term-neg/5 px-1.5 py-1 text-[11px] leading-4 text-term-neg">
+                  <div
+                    className={styles.statusBlock}
+                    data-status-block="error"
+                    title={rowState.error}
+                  >
                     {rowState.error}
                   </div>
                 ) : result?.warnings?.length ? (
                   <div
-                    className="mx-auto max-w-[88px] truncate rounded-none bg-term-warn/5 px-1.5 py-1 text-[11px] leading-4 text-term-warn"
+                    className={styles.statusBlock}
+                    data-status-block="warning"
                     title={result.warnings.join('；')}
                   >
                     {result.warnings[0]}
                   </div>
                 ) : result ? (
-                  <span className="inline-flex items-center gap-1">
-                    <span className="h-1.5 w-1.5 rounded-full bg-term-pos" />
-                    <span className="text-[11px] text-emerald-600 dark:text-emerald-400">
-                      已测算
-                    </span>
+                  <span
+                    className={styles.statusBlock}
+                    data-status-block="success"
+                  >
+                    <span className={styles.statusDot} />
+                    已测算
                   </span>
                 ) : (
-                  <span className="text-[11px] text-term-muted/60">待测算</span>
+                  <span
+                    className={styles.statusBlock}
+                    data-status-block="pending"
+                  >
+                    待测算
+                  </span>
                 )}
-              </TableCell>
+              </td>
 
               {/* 测算按钮 */}
-              <TableCell className="px-3 py-2 text-center">
+              <td className="px-3 py-2 text-center">
                 <div className="flex flex-col items-center gap-1.5">
                   {isSnapshotMode ? (
                     // 历史快照只读视图
-                    <span className="text-xs text-term-muted">只读</span>
+                    <span className={styles.readOnly}>只读</span>
                   ) : (
                     <>
                       <select
+                        aria-label="派送模式"
                         value={draft.inbound_placement_mode}
                         onChange={(e) =>
                           onDraftChange(item.id, 'inbound_placement_mode', e.target.value)
                         }
-                        className={compactSelectClassName}
+                        className={styles.compactSelect}
                       >
                         <option value="single_destination">单仓</option>
                         <option value="amazon_optimized_split">优化拆仓</option>
                       </select>
-                      <Button
+                      <WarmButton
                         type="button"
-                        size="sm"
                         onClick={() => onCalculate(item)}
-                        disabled={rowState?.loading}
-                        className={cn(
-                          'h-8 min-w-[92px] text-xs transition-all',
-                          rowState?.result
-                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 dark:hover:bg-emerald-900'
-                            : ''
-                        )}
+                        loading={rowState?.loading}
+                        loadingLabel="正在测算"
+                        className={styles.calculateButton}
+                        data-complete={rowState?.result ? 'true' : 'false'}
                       >
-                        {rowState?.loading ? (
-                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                        ) : (
+                        {!rowState?.loading && (
                           <Calculator className="mr-1.5 h-3.5 w-3.5" />
                         )}
                         测算
-                      </Button>
+                      </WarmButton>
                     </>
                   )}
                 </div>
-              </TableCell>
-            </TableRow>
+              </td>
+            </tr>
           )
         })}
-      </TableBody>
-    </Table>
+      </tbody>
+    </table>
+    </div>
   )
 }

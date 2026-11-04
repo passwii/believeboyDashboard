@@ -1,7 +1,10 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ReactNode } from 'react'
 
 import { stableNotifications, stableSession } from '@/test-utils/stable-mocks'
+
+const headerCapture = vi.hoisted(() => ({ slot: null as ReactNode }))
 
 vi.mock('next-auth/react', () => ({
   useSession: () => stableSession({ user: { isAdmin: false } }),
@@ -22,7 +25,10 @@ vi.mock('@/lib/project-client-cache', () => ({
 }))
 
 vi.mock('@/components/terminal/terminal-header-slot', () => ({
-  useHeaderSlot: () => null,
+  useHeaderSlot: (node: ReactNode) => {
+    headerCapture.slot = node
+    return null
+  },
   useMobileFilterStrip: () => null,
 }))
 
@@ -74,6 +80,7 @@ function jsonResponse(payload: unknown) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  headerCapture.slot = null
   vi.stubGlobal('fetch', fetchMock)
 })
 
@@ -100,5 +107,24 @@ describe('店铺测算 Warm Ledger 页面', () => {
     render(<ShopCalculationClient />)
 
     expect(screen.getByRole('button', { name: '导出 Excel' })).toBeDisabled()
+  })
+
+  it('renders only Warm controls inside the header portal', () => {
+    render(<ShopCalculationClient />)
+
+    expect(headerCapture.slot).not.toBeNull()
+    const { container } = render(<>{headerCapture.slot}</>)
+    const header = container.querySelector('[data-warm-header-filters="true"]')
+
+    expect(header).toBeInTheDocument()
+    expect(screen.getByLabelText('项目筛选')).toBeInTheDocument()
+    expect(screen.getByLabelText('SKU 搜索')).toBeInTheDocument()
+    expect(screen.getByLabelText('站点筛选')).toBeInTheDocument()
+    for (const element of [header!, ...Array.from(header!.querySelectorAll('*'))]) {
+      const className = typeof element.className === 'string' ? element.className : ''
+      expect(className).not.toContain('rounded-none')
+      expect(className).not.toContain('term-')
+      expect(className).not.toContain('font-mono')
+    }
   })
 })
