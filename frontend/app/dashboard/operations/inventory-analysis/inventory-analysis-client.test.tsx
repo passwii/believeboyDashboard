@@ -160,12 +160,16 @@ describe('InventoryAnalysisClient 终端化渲染契约（BLF-834）', () => {
   it('状态语义着色：缺货/超龄 neg、有货 pos', async () => {
     const { container } = render(<InventoryAnalysisClient />)
     await screen.findByText('SKU-001')
-    const negCells = container.querySelectorAll('.text-term-neg')
-    const texts = Array.from(negCells).map((el) => el.textContent)
-    expect(texts).toContain('缺货')
-    expect(texts).toContain('超龄')
-    const posCells = container.querySelectorAll('.text-term-pos')
-    expect(Array.from(posCells).map((el) => el.textContent)).toContain('有货')
+    const table = screen.getByRole('table', { name: '库存明细' })
+    const negStatuses = Array.from(table.querySelectorAll('[data-tone="neg"]')).map(
+      (el) => el.textContent
+    )
+    expect(negStatuses).toEqual(expect.arrayContaining(['缺货', '超龄']))
+    const posStatuses = Array.from(table.querySelectorAll('[data-tone="pos"]')).map(
+      (el) => el.textContent
+    )
+    expect(posStatuses).toContain('有货')
+    expect(container.querySelector('.text-term-neg')).not.toBeNull()
   })
 
   it('统计条磁贴齐全且缺货>0 时着 neg 色', async () => {
