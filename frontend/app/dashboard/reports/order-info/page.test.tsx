@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from 'node:fs'
+import { extname, join } from 'node:path'
 import type { ReactNode } from 'react'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -257,7 +259,26 @@ import {
 import { WarmLedgerRouteFrame } from '@/components/dashboard-v2/warm-ledger/shell/warm-ledger-route-frame'
 import OrderInfoPage from './page'
 
-describe('订单信息页终端化（BLF-817）', () => {
+const ORDER_INFO_SOURCE_ROOT = join(
+  process.cwd(),
+  'app/dashboard/reports/order-info'
+)
+const TERMINAL_VISUAL_RESIDUE = [
+  { label: 'Terminal token', pattern: /--term-/g },
+  { label: 'Terminal utility', pattern: /\bterm-[a-z0-9-]+/g },
+  { label: 'Terminal zero-radius utility', pattern: /\brounded-none\b/g },
+]
+
+function collectOrderInfoSourceFiles(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name)
+    if (entry.isDirectory()) return collectOrderInfoSourceFiles(path)
+    if (entry.name.includes('.test.') || entry.name.includes('.spec.')) return []
+    return ['.css', '.ts', '.tsx'].includes(extname(entry.name)) ? [path] : []
+  })
+}
+
+describe('订单信息页 Warm Ledger 迁移', () => {
   beforeEach(() => {
     globalFilterTestMode.useRealProvider = false
     window.localStorage.clear()
@@ -290,7 +311,22 @@ describe('订单信息页终端化（BLF-817）', () => {
     window.history.replaceState({}, '', '/dashboard/reports/order-info')
   })
 
-  it('订单表使用实体 term 表头、规范数值列与选中态语义', async () => {
+  it('V4 Order Info 源文件不重新引入 Terminal 视觉残留', () => {
+    const violations = collectOrderInfoSourceFiles(ORDER_INFO_SOURCE_ROOT).flatMap((path) => {
+      const source = readFileSync(path, 'utf8')
+      return TERMINAL_VISUAL_RESIDUE.flatMap(({ label, pattern }) =>
+        Array.from(source.matchAll(pattern), (match) => ({
+          path,
+          label,
+          match: match[0],
+        }))
+      )
+    })
+
+    expect(violations).toEqual([])
+  })
+
+  it('订单表保留 13 列、规范数值列与选中态语义', async () => {
     render(
       <TerminalGlobalFilterProvider>
         <OrderInfoPage />
@@ -308,16 +344,14 @@ describe('订单信息页终端化（BLF-817）', () => {
 
     expect(orderPanel).toHaveAttribute('data-warm-order-info', 'true')
     expect(tableScroll).toHaveAttribute('data-order-info-table-scroll', 'true')
-    expect(table).toHaveClass('min-w-[1560px]')
+    expect(table).toHaveAttribute('data-order-info-table-min-width', '1560')
     expect(table.querySelectorAll('thead th')).toHaveLength(13)
-    expect(firstHeader?.className).toContain('bg-term-raised')
-    expect(quantityHeader.className).toContain('text-right')
-    expect(quantityHeader.className).toContain('tabular-nums')
-    expect(quantityCell?.className).toContain('text-right')
-    expect(quantityCell?.className).toContain('tabular-nums')
-    expect(amountCell?.className).toContain('text-right')
-    expect(amountCell?.className).toContain('tabular-nums')
-    expect(table).toHaveClass('tabular-nums')
+    expect(firstHeader).toHaveAttribute('scope', 'col')
+    expect(firstHeader?.className).not.toMatch(/term-|rounded-none/)
+    expect(quantityHeader).toHaveAttribute('data-numeric', 'true')
+    expect(quantityCell).toHaveAttribute('data-numeric', 'true')
+    expect(amountCell).toHaveAttribute('data-numeric', 'true')
+    expect(table).toHaveAttribute('data-order-info-numeric', 'true')
   })
 
   it('订单专属筛选集中在订单信息面板内，不占用全局 Header 插槽', async () => {
@@ -373,7 +407,7 @@ describe('订单信息页终端化（BLF-817）', () => {
         expect(lastUrl).toContain('fulfillment_channels=Amazon')
         expect(lastUrl).toContain('fulfillment_channels=Merchant')
       })
-      expect(within(filters).getAllByRole('combobox')).toHaveLength(3)
+      expect(filters.querySelectorAll('[data-warm-order-multiselect="true"]')).toHaveLength(3)
     } finally {
       restore()
     }
@@ -387,7 +421,7 @@ describe('订单信息页终端化（BLF-817）', () => {
       return jsonResponse(FILTER_OPTIONS_OK)
     })
 
-    const { container } = render(
+    render(
       <TerminalGlobalFilterProvider>
         <OrderInfoPage />
       </TerminalGlobalFilterProvider>
@@ -399,7 +433,7 @@ describe('订单信息页终端化（BLF-817）', () => {
     })
 
     expect(table.querySelectorAll('tbody tr')).toHaveLength(12)
-    expect(container.querySelectorAll('.u-skeleton-shimmer')).toHaveLength(12)
+    expect(table.querySelectorAll('[data-warm-order-skeleton="true"]')).toHaveLength(12)
     expect(screen.queryByText('暂无订单数据')).not.toBeInTheDocument()
   })
 
@@ -435,7 +469,7 @@ describe('订单信息页终端化（BLF-817）', () => {
     expect(screen.queryByText('111-1111111-0000001')).not.toBeInTheDocument()
   })
 
-  it('渲染订单行与终端状态 pill 语义色（Pending warn / Shipped pos / Cancelled neg）', async () => {
+  it('渲染订单行与 Warm 状态 pill 语义（Pending warn / Shipped pos / Cancelled neg）', async () => {
     render(
       <TerminalGlobalFilterProvider>
         <OrderInfoPage />
@@ -447,10 +481,18 @@ describe('订单信息页终端化（BLF-817）', () => {
     expect(screen.getByText('111-1111111-0000002')).toBeInTheDocument()
     expect(screen.getByText('111-1111111-0000003')).toBeInTheDocument()
 
-    const pendingPill = screen.getByText('处理中').closest('span')!
-    expect(pendingPill.className).toContain('text-term-warn')
-    expect(screen.getByText('已发货').closest('span')!.className).toContain('text-term-pos')
-    expect(screen.getByText('已取消').closest('span')!.className).toContain('text-term-neg')
+    expect(screen.getByText('处理中').closest('[data-order-status-tone]')).toHaveAttribute(
+      'data-order-status-tone',
+      'warn'
+    )
+    expect(screen.getByText('已发货').closest('[data-order-status-tone]')).toHaveAttribute(
+      'data-order-status-tone',
+      'pos'
+    )
+    expect(screen.getByText('已取消').closest('[data-order-status-tone]')).toHaveAttribute(
+      'data-order-status-tone',
+      'neg'
+    )
   })
 
   it('底部 pinned 聚合条展示总单量 / 总金额 / FBA·FBM 行数与翻页信息', async () => {
@@ -577,7 +619,7 @@ describe('订单信息页终端化（BLF-817）', () => {
     await screen.findByText('111-1111111-0000001')
     const callsAfterLoad = fetchMock.mock.calls.length
 
-    await user.click(screen.getByRole('columnheader', { name: /数量/ }))
+    await user.click(screen.getByRole('button', { name: /数量/ }))
 
     await waitFor(() => {
       expect(fetchMock.mock.calls.length).toBeGreaterThan(callsAfterLoad)
@@ -1249,14 +1291,14 @@ describe('订单信息页终端化（BLF-817）', () => {
         headerRefreshState.handler?.()
       })
 
-      expect(await screen.findByText(/ERR · timeout/)).toBeInTheDocument()
+      expect(await screen.findByText(/数据加载失败.*timeout/)).toBeInTheDocument()
       expect(screen.getByText('111-1111111-0000001')).toBeInTheDocument()
 
       act(() => {
         headerRefreshState.handler?.()
       })
       await waitFor(() => {
-        expect(screen.queryByText(/ERR · timeout/)).not.toBeInTheDocument()
+        expect(screen.queryByText(/数据加载失败.*timeout/)).not.toBeInTheDocument()
       })
       expect(screen.getByText('111-1111111-0000001')).toBeInTheDocument()
     } finally {

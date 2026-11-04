@@ -509,6 +509,8 @@ async function openC3Route(page: Page, context: Parameters<typeof addBLF611Fixtu
 }
 
 async function expectDesktopWindowGeometry(page: Page) {
+  // 聚焦筛选控件后 Chromium 可能保留 2px 的陈旧 scroll offset；宽度检查仍会拦截真实页面溢出。
+  await page.evaluate(() => window.scrollTo(0, 0))
   await expect
     .poll(async () =>
       page.evaluate(() => {
@@ -640,6 +642,26 @@ test.describe('Warm Ledger C3 desktop acceptance', () => {
 
     await expect(page.getByRole('table', { name: '订单列表' })).toBeVisible()
     await expectDesktopWindowGeometry(page)
+    const orderPanel = page.getByRole('region', { name: '订单信息' })
+    const orderFilters = page.getByRole('group', { name: '订单筛选' })
+    await expect(
+      orderPanel.locator('[class*="term-"], .rounded-none')
+    ).toHaveCount(0)
+    const warmRadii = await Promise.all([
+      orderPanel.evaluate((element) => Number.parseFloat(getComputedStyle(element).borderRadius)),
+      orderFilters
+        .getByRole('combobox')
+        .first()
+        .evaluate((element) => Number.parseFloat(getComputedStyle(element).borderRadius)),
+      page
+        .locator('[data-warm-order-summary="true"]')
+        .evaluate((element) => Number.parseFloat(getComputedStyle(element).borderRadius)),
+      page
+        .locator('[data-order-status-tone]')
+        .first()
+        .evaluate((element) => Number.parseFloat(getComputedStyle(element).borderRadius)),
+    ])
+    expect(warmRadii).toEqual([16, 10, 10, 8])
 
     await selectWarmOption(page, '项目筛选', 'C3 Second Store')
     await expect
@@ -660,7 +682,6 @@ test.describe('Warm Ledger C3 desktop acceptance', () => {
       })
       .toBe(true)
 
-    const orderFilters = page.getByRole('group', { name: '订单筛选' })
     const multiSelects = orderFilters.getByRole('combobox')
     await multiSelects.nth(0).click()
     await page.getByRole('option', { name: 'FBA', exact: true }).click()
@@ -721,6 +742,9 @@ test.describe('Warm Ledger C3 desktop acceptance', () => {
       .click()
     const dialog = page.getByRole('dialog', { name: /编辑 FBM 订单/ })
     await expect(dialog).toBeVisible()
+    expect(
+      await dialog.evaluate((element) => Number.parseFloat(getComputedStyle(element).borderRadius))
+    ).toBe(16)
     await dialog.getByRole('textbox', { name: '物流商（Carrier）' }).fill('UPS')
     await dialog.getByRole('textbox', { name: '物流单号（Tracking No.）' }).fill('1Z-C3-FIXTURE')
     await dialog.getByRole('button', { name: '保存', exact: true }).click()

@@ -70,4 +70,13 @@ Task 5 completed the integration and browser matrix on 2026-11-04:
 - The self-contained Playwright matrix passed all 3 desktop cases and skipped the 3 mobile-project cases as out of scope. It covered Order Info scope/local filters/pagination/CSV/FBM edit, all Product Analysis tabs and mocked upload/run/export requests, and Monthly Display URL changes/both tabs/both exports/recalculation. The API dispatcher handled every `/api/**` request and reported no unhandled URL or real backend write/export.
 - The single full Vitest run completed at 299 files / 2339 tests: 297 files / 2334 tests passed, and the documented 5 failures remained in `inventory-analysis-client.test.tsx` and `portfolio-overview-client.test.tsx`. The same 2 files / 5 tests failed identically on detached `origin/main` at `7e78063d2ff106da12182f6ecb094cf9a24c58e8`.
 - `pnpm lint` passed with 0 errors / 15 existing warnings; `pnpm build` and `git diff --check` passed. Build retained its existing workspace-root, Turbopack NFT trace, and stale Browserslist warnings. Browser runs retained existing Radix Select and duplicate upload-card key warnings.
-- No independent reviewer was started in this run, per the Task 5 instruction. The behavioral/security findings in “Existing risks outside visual migration” remain open and were not represented as fixed.
+- Task 5 itself did not start an independent reviewer, per its instruction. A later final Luna review was run and is recorded below. The behavioral/security findings in “Existing risks outside visual migration” remain open and were not represented as fixed.
+
+## Final Luna review remediation (in progress)
+
+The final independent Luna/max C3 review confirmed two P2 findings:
+
+1. **Order Info retained V3 Terminal visuals inside the V4 route.** The local CSS aliased `--term-*` to Warm values, `--term-*` alias blocks also existed in dialog and portal scopes, and the page still used zero-radius rules, Terminal table/control styling, and Terminal status classes. This contradicted the V4 boundary even though the token values were Warm.
+2. **C3 was documented as complete before the review gate closed.** The rollout marked C3 complete while the independent-review step remained unsatisfied and remediation findings were still open.
+
+Remediation replaces the Order Info route-local aliases and markup with Warm Ledger surfaces and `--warm-ledger-*` radii, adds page-local Warm filters/table/status/summary/dialog styling, preserves the 13-column table and 1560px internal scroller, and adds source-level regression coverage for the known residue. C3 documentation now records implementation complete + final review remediation in progress; the independent-review checkbox remains unchecked until a fresh Luna/max re-review passes.

@@ -8,6 +8,8 @@
 
 **Tech Stack:** Next.js App Router, React, TypeScript, CSS Modules, existing Warm Ledger shell/controls, Vitest, Testing Library, Playwright.
 
+> **Final review status (2026-11-04):** C3 implementation and desktop acceptance are complete, but the final Luna/max review found two P2 issues. Order Info V3 visual residue is being remediated and C3 documentation is reset to implementation complete + final review remediation in progress. Do not mark C3 complete or check the independent-review gate until a fresh Luna/max re-review passes.
+
 ## Global Constraints
 
 - C3 routes are exactly `/dashboard/reports/order-info`, `/dashboard/reports/product-analysis`, and `/dashboard/reports/monthly-report/display`; all other report routes remain on `TerminalShell`.
