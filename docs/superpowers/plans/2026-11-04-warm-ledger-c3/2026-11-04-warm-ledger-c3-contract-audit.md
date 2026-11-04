@@ -109,3 +109,9 @@ Regression coverage observed three RED failures before implementation, then pass
 - The Order Info production source scan returned no `--term-*`, `term-*`, or `rounded-none` matches.
 
 This remediation has not yet received a new Luna/max review. C3 remains implementation complete + final review remediation in progress, and the independent-review gate stays open.
+
+## Fourth Luna re-review documentation reconciliation
+
+The fourth independent Luna/max re-review found no remaining code defect in the keyboard fix or the earlier remediations. It reported one P3: the Task 5 checklist had not been reconciled with the already-recorded Playwright, full Vitest, lint, build, and diff results.
+
+The Task 5 technical checkboxes are now marked complete. The independent-review checkbox remains open until the final Luna/max gate passes. C3 remains implementation complete + final review remediation in progress.

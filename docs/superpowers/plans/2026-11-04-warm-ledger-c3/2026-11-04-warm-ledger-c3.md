@@ -153,6 +153,8 @@ Completed by DeepSeek/max in `e80506e8`; integrated as `f577490e`. Targeted Vite
 
 ## Task 5: C3 Browser Matrix and Integration
 
+Technical implementation and acceptance are integrated in `8d5f685a`; review remediations through `073b5f3a`. The checklist below mirrors the recorded audit results. The independent-review item remains open until the final Luna/max gate passes.
+
 **Files:**
 
 - Create `frontend/tests/dashboard/warm-ledger-c3-matrix.spec.ts`.
@@ -160,11 +162,11 @@ Completed by DeepSeek/max in `e80506e8`; integrated as `f577490e`. Targeted Vite
 - Modify `docs/design-drafts/2026-11-01-operations-dashboard/components/foundations/freeze.md`, `spec.md`, and `tokens.css` to record the approved desktop canvas geometry and exact C3 route extension.
 - Modify `docs/design-drafts/2026-11-01-operations-dashboard/components/rollout.md` and update `2026-11-04-warm-ledger-c3-contract-audit.md` with implementation and verification outcomes after the consolidated C3 review passes.
 
-- [ ] Add a desktop-only Playwright acceptance for the three exact routes at 1440x900. Assert 8px equal outer gutters, no page-level overflow, and contained table scrolling.
-- [ ] Exercise Order Info global scope, local filters, pagination, CSV request and edit dialog; exercise all Product Analysis tabs and intercept upload/run/export requests; exercise Monthly Report Display project/country/month URL changes, both tabs, both exports, and recalculation. Intercept every backend request; no real writes or exports reach a backend.
-- [ ] Run `cd frontend && pnpm test:ui -- tests/dashboard/warm-ledger-c3-matrix.spec.ts` at the single desktop acceptance viewport; intercept all backend requests and perform no real writes or exports.
-- [ ] Run full `cd frontend && pnpm test` once because the route frame is a shared component, record the complete result, and reconcile the known five main-baseline failures without hiding them.
-- [ ] Run `cd frontend && pnpm lint`, `cd frontend && pnpm build`, and `git diff --check`.
+- [x] Add a desktop-only Playwright acceptance for the three exact routes at 1440x900. Assert 8px equal outer gutters, no page-level overflow, and contained table scrolling.
+- [x] Exercise Order Info global scope, local filters, pagination, CSV request and edit dialog; exercise all Product Analysis tabs and intercept upload/run/export requests; exercise Monthly Report Display project/country/month URL changes, both tabs, both exports, and recalculation. Intercept every backend request; no real writes or exports reach a backend.
+- [x] Run `cd frontend && pnpm test:ui -- tests/dashboard/warm-ledger-c3-matrix.spec.ts` at the single desktop acceptance viewport; intercept all backend requests and perform no real writes or exports.
+- [x] Run full `cd frontend && pnpm test` once because the route frame is a shared component, record the complete result, and reconcile the known five main-baseline failures without hiding them.
+- [x] Run `cd frontend && pnpm lint`, `cd frontend && pnpm build`, and `git diff --check`.
 - [ ] Run one independent Luna/max whole-C3 review after all three page implementations, their targeted tests, and the browser matrix are complete.
 
 ## Stage Exit Gate
