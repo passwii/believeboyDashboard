@@ -1,3 +1,6 @@
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 
@@ -53,6 +56,17 @@ afterEach(() => {
 })
 
 describe('AgentOverviewClient 数据流总览', () => {
+  it('以 Warm 桌面表格面板呈现,保留只读数据入口', () => {
+    const { container } = render(<AgentOverviewClient />)
+
+    expect(container.querySelector('[data-warm-agent-overview="true"]')).toBeInTheDocument()
+    expect(container.querySelector('[data-agent-overview-table-scroll] table')).toBeInTheDocument()
+    expect(container.querySelector('[class*="term-"]')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    expect(useAgentDomainSummaryMock).toHaveBeenCalled()
+    expect(useAgentProductionMock).toHaveBeenCalled()
+  })
+
   it('页面标题由 TerminalHeader 承载,不渲染重复 PageHeader', () => {
     render(<AgentOverviewClient />)
 
@@ -151,7 +165,7 @@ describe('AgentOverviewClient 数据流总览', () => {
     expect(cells[6]).toHaveTextContent(String(calls30d))
     expect(cells[6]).toHaveAttribute('title', '写 30d:3')
     expect(cells[7]).toHaveAttribute('title', `${errors30d} 次错误 / ${calls30d} 次调用`)
-    expect(within(cells[7]).getByText(rate)).toHaveClass('text-term-neg')
+    expect(within(cells[7]).getByText(rate)).toHaveAttribute('data-tone', 'negative')
     expect(cells[8]).toHaveTextContent(/^—$/)
     expect(cells[9]).toHaveTextContent('已接入')
     expect(within(row).getByRole('link', { name: '打开财务月报' })).toHaveAttribute(
@@ -227,7 +241,23 @@ describe('AgentOverviewClient 数据流总览', () => {
     // 零错误 → 常规色;有错 → 告警色
     expect(screen.getByText('0%')).toBeInTheDocument()
     const errCell = screen.getByText('13%')
-    expect(errCell.className).toContain('text-term-neg')
+    expect(errCell).toHaveAttribute('data-tone', 'negative')
+  })
+})
+
+describe('Agent Overview Warm styling contract', () => {
+  it('uses Warm tokens and a contained sticky table without Terminal aliases or breakpoints', () => {
+    const cssPath = join(__dirname, 'agent-overview-warm.module.css')
+    const css = existsSync(cssPath) ? readFileSync(cssPath, 'utf8') : ''
+
+    expect(css).toContain('var(--warm-ledger-color-panel)')
+    expect(css).toContain('var(--warm-ledger-radius-panel)')
+    expect(css).toContain('var(--warm-ledger-font-variant-numeric)')
+    expect(css).toContain('position: sticky')
+    expect(css).toContain('overflow: auto')
+    expect(css).not.toContain('--term-')
+    expect(css).not.toContain('rounded-none')
+    expect(css).not.toContain('@media')
   })
 })
 

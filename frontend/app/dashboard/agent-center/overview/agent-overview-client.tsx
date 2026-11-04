@@ -4,22 +4,6 @@ import { useCallback } from 'react'
 import Link from 'next/link'
 import { ArrowUpRight } from 'lucide-react'
 
-import { Badge } from '@/components/ui/badge'
-import {
-  ColGroup,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import {
-  numericCell,
-  numericHead,
-  StatusPill,
-} from '@/components/ui/table-presets'
-import { DataTableCard, DataTableCardHeader, DataTableCardBody } from '@/components/ui/data-card'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import {
   formatRelativeTime,
@@ -29,6 +13,7 @@ import {
 } from '@/lib/hooks/use-agent-domain-summary'
 import { useAgentProduction } from '@/lib/hooks/use-agent-production'
 import { AGENT_DOMAINS } from '@/lib/agent-domains'
+import styles from './agent-overview-warm.module.css'
 
 /**
  * Agent 中心 · 数据流总览。
@@ -59,9 +44,9 @@ const sortedDomains = [...AGENT_DOMAINS].sort(
 )
 
 const FRESHNESS_STYLE: Record<Freshness, string> = {
-  green: 'text-term-pos',
-  yellow: 'text-term-warn',
-  gray: 'text-term-faint',
+  green: styles.freshnessPositive,
+  yellow: styles.freshnessAccent,
+  gray: styles.freshnessMuted,
 }
 
 export type ProductionCell = { text: string; mono: boolean } | null
@@ -109,109 +94,116 @@ export default function AgentOverviewClient() {
     loading: summaryStatus === 'loading' || production.loading,
   })
   return (
-    <div className="w-full">
-      <DataTableCard>
-        <DataTableCardHeader
-          title="业务域活动矩阵"
-          description={`共 ${AGENT_DOMAINS.length} 个业务域、${liveCount} 个已接入,产出域置顶。 「今日产出」为实时业务数据,运行时活动与 30d 错误率由 domain-summary 提供;已接入域在 30 天内无调用时显示 0 和「无调用」,接口不可用时显示「—」。`}
-        />
-        <DataTableCardBody>
-          {/* 11 列定宽 + 「说明」吸收余量：窄屏由 Table 原语容器承接横滑（table-spec §1.7） */}
-          <Table tableLayout="fixed" className="min-w-[1040px]">
-            <ColGroup
-              columns={[
-                { width: 140 }, // 业务域
-                { width: 'auto' }, // 说明（弹性列，吸收剩余宽度）
-                { width: 88 }, // 能力
-                { width: 56 }, // 路由
-                { width: 96 }, // 最近活动
-                { width: 80 }, // 调用 24h
-                { width: 80 }, // 调用 30d
-                { width: 80 }, // 30d 错误
-                { width: 100 }, // 今日产出
-                { width: 80 }, // 状态
-                { width: 56 }, // 入口
-              ]}
-            />
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="whitespace-nowrap">业务域</TableHead>
-                <TableHead>说明</TableHead>
-                <TableHead className="whitespace-nowrap">能力</TableHead>
-                <TableHead className={numericHead}>路由</TableHead>
-                <TableHead className="whitespace-nowrap">最近活动</TableHead>
-                <TableHead className={numericHead}>调用 24h</TableHead>
-                <TableHead className={numericHead}>调用 30d</TableHead>
-                <TableHead className={numericHead}>30d 错误</TableHead>
-                <TableHead className="whitespace-nowrap">今日产出</TableHead>
-                <TableHead className="whitespace-nowrap">状态</TableHead>
-                <TableHead className="!text-center">入口</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+    <div className={styles.page} data-warm-agent-overview="true">
+      <section className={styles.panel} aria-labelledby="agent-overview-title">
+        <header className={styles.panelHeader}>
+          <h2 id="agent-overview-title" className={styles.panelTitle}>
+            业务域活动矩阵
+          </h2>
+          <p className={styles.panelDescription}>
+            {`共 ${AGENT_DOMAINS.length} 个业务域、${liveCount} 个已接入,产出域置顶。 「今日产出」为实时业务数据,运行时活动与 30d 错误率由 domain-summary 提供;已接入域在 30 天内无调用时显示 0 和「无调用」,接口不可用时显示「—」。`}
+          </p>
+        </header>
+        <div
+          className={styles.tableScroll}
+          data-agent-overview-table-scroll
+          role="region"
+          aria-labelledby="agent-overview-title"
+          tabIndex={0}
+        >
+          <table className={styles.table}>
+            <colgroup>
+              <col className={styles.colDomain} />
+              <col className={styles.colDescription} />
+              <col className={styles.colCapability} />
+              <col className={styles.colRoute} />
+              <col className={styles.colActivity} />
+              <col className={styles.colCalls} />
+              <col className={styles.colCalls} />
+              <col className={styles.colErrors} />
+              <col className={styles.colProduction} />
+              <col className={styles.colStatus} />
+              <col className={styles.colEntry} />
+            </colgroup>
+            <thead>
+              <tr>
+                <th scope="col">业务域</th>
+                <th scope="col">说明</th>
+                <th scope="col">能力</th>
+                <th scope="col" className={styles.numeric}>
+                  路由
+                </th>
+                <th scope="col">最近活动</th>
+                <th scope="col" className={styles.numeric}>
+                  调用 24h
+                </th>
+                <th scope="col" className={styles.numeric}>
+                  调用 30d
+                </th>
+                <th scope="col" className={styles.numeric}>
+                  30d 错误
+                </th>
+                <th scope="col">今日产出</th>
+                <th scope="col">状态</th>
+                <th scope="col" className={styles.center}>
+                  入口
+                </th>
+              </tr>
+            </thead>
+            <tbody>
               {sortedDomains.map((domain) => {
                 const live = domain.status === 'live'
                 const row = summary?.[domain.code]
                 const hasSummary = live && summary !== null
+                const productionValue = productionCell(domain.code, production)
                 return (
-                  <TableRow key={domain.code} className={live ? undefined : 'text-term-faint'}>
-                    <TableCell className="font-medium">
-                      <span className="block truncate">{domain.label}</span>
-                    </TableCell>
-                    <TableCell className="text-xs text-term-muted" title={domain.description}>
-                      {/* 定高两行盒：line-clamp 直接落在 <td> 上会把 display 改成 -webkit-box，
-                          单元格不再是 table-cell（border-separate 下不撑满行高）→ 该列比同行其他列矮一截；
-                          且说明占 1 行/2 行时行高会抖动。故内层定高 2 行、外层居中。 */}
-                      <span className="flex min-h-8 items-center">
-                        <span className="line-clamp-2 leading-4">{domain.description}</span>
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-nowrap items-center gap-1">
+                  <tr key={domain.code} className={live ? undefined : styles.plannedRow}>
+                    <td>
+                      <span className={styles.domainName}>{domain.label}</span>
+                    </td>
+                    <td className={styles.descriptionCell} title={domain.description}>
+                      <span className={styles.descriptionText}>{domain.description}</span>
+                    </td>
+                    <td>
+                      <div className={styles.capabilityList}>
                         {domain.capabilities.read && (
-                          <Badge variant="outline" className="px-1.5 font-normal text-term-muted">
-                            读
-                          </Badge>
+                          <span className={styles.capabilityBadge}>读</span>
                         )}
                         {domain.capabilities.write && (
-                          <Badge variant="outline" className="px-1.5 font-normal text-term-muted">
-                            写
-                          </Badge>
+                          <span className={styles.capabilityBadge}>写</span>
                         )}
                       </div>
-                    </TableCell>
-                    <TableCell className={`${numericCell} text-term-muted`}>
-                      {live ? domain.routeCount : <span className="text-term-faint">—</span>}
-                    </TableCell>
-                    <TableCell>
+                    </td>
+                    <td className={`${styles.numeric} ${styles.mutedValue}`}>
+                      {live ? domain.routeCount : <span className={styles.placeholder}>—</span>}
+                    </td>
+                    <td>
                       {row || hasSummary ? (
-                        <span className="inline-flex items-center gap-1.5 whitespace-nowrap font-mono text-xs">
+                        <span className={styles.freshness}>
                           <span
                             aria-hidden
-                            className={`h-1.5 w-1.5 rounded-full bg-current ${FRESHNESS_STYLE[freshnessFor(row?.last_active_at)]}`}
+                            className={`${styles.freshnessDot} ${FRESHNESS_STYLE[freshnessFor(row?.last_active_at)]}`}
                           />
-                          <span className="text-term-muted">
-                            {row ? formatRelativeTime(row.last_active_at) : '30 天内无调用'}
-                          </span>
+                          <span>{row ? formatRelativeTime(row.last_active_at) : '30 天内无调用'}</span>
                         </span>
                       ) : (
-                        <span className="text-term-faint">—</span>
+                        <span className={styles.placeholder}>—</span>
                       )}
-                    </TableCell>
-                    <TableCell
-                      className={`${numericCell} text-term-muted`}
+                    </td>
+                    <td
+                      className={`${styles.numeric} ${styles.mutedValue}`}
                       title={hasSummary ? `写 24h:${row?.writes_24h ?? 0}` : undefined}
                     >
-                      {row?.calls_24h ?? (hasSummary ? 0 : <span className="text-term-faint">—</span>)}
-                    </TableCell>
-                    <TableCell
-                      className={`${numericCell} text-term-muted`}
+                      {row?.calls_24h ?? (hasSummary ? 0 : <span className={styles.placeholder}>—</span>)}
+                    </td>
+                    <td
+                      className={`${styles.numeric} ${styles.mutedValue}`}
                       title={hasSummary ? `写 30d:${row?.writes_30d ?? 0}` : undefined}
                     >
-                      {row?.calls_30d ?? (hasSummary ? 0 : <span className="text-term-faint">—</span>)}
-                    </TableCell>
-                    <TableCell
-                      className={numericCell}
+                      {row?.calls_30d ?? (hasSummary ? 0 : <span className={styles.placeholder}>—</span>)}
+                    </td>
+                    <td
+                      className={styles.numeric}
                       title={
                         row
                           ? `${row.errors_30d} 次错误 / ${row.calls_30d} 次调用`
@@ -222,62 +214,62 @@ export default function AgentOverviewClient() {
                     >
                       {row ? (
                         <span
-                          className={`font-mono tabular-nums ${
-                            row.errors_30d > 0 ? 'text-term-neg' : 'text-term-muted'
-                          }`}
+                          className={row.errors_30d > 0 ? styles.negativeValue : styles.mutedValue}
+                          data-tone={row.errors_30d > 0 ? 'negative' : 'muted'}
                         >
                           {errorRateText(row.errors_30d, row.calls_30d)}
                         </span>
                       ) : hasSummary ? (
-                        <span className="text-term-faint" title="30 天内无调用，错误率不可计算">
+                        <span
+                          className={styles.placeholder}
+                          title="30 天内无调用，错误率不可计算"
+                        >
                           无调用
                         </span>
                       ) : (
-                        <span className="text-term-faint">—</span>
+                        <span className={styles.placeholder}>—</span>
                       )}
-                    </TableCell>
-                    <TableCell>
-                      {(() => {
-                        const cell = productionCell(domain.code, production)
-                        if (!cell) return <span className="text-term-faint">—</span>
-                        return (
-                          <span
-                            className={`whitespace-nowrap text-xs text-term-muted ${cell.mono ? 'font-mono tabular-nums' : ''}`}
-                            title="今日产出(Agent 写入 / 提交 / 上传)"
-                          >
-                            {cell.text}
-                          </span>
-                        )
-                      })()}
-                    </TableCell>
-                    <TableCell>
-                      {live ? (
-                        <StatusPill status="success" dot={false} label="已接入" />
+                    </td>
+                    <td>
+                      {productionValue ? (
+                        <span
+                          className={`${styles.productionText} ${productionValue.mono ? styles.productionNumeric : ''}`}
+                          title="今日产出(Agent 写入 / 提交 / 上传)"
+                        >
+                          {productionValue.text}
+                        </span>
                       ) : (
-                        <StatusPill status="neutral" dot={false} label="规划中" />
+                        <span className={styles.placeholder}>—</span>
                       )}
-                    </TableCell>
-                    <TableCell className="text-center">
+                    </td>
+                    <td>
+                      <span
+                        className={`${styles.statusBadge} ${live ? styles.statusLive : styles.statusPlanned}`}
+                      >
+                        {live ? '已接入' : '规划中'}
+                      </span>
+                    </td>
+                    <td className={styles.center}>
                       {domain.dashboardPath ? (
                         <Link
                           href={domain.dashboardPath}
                           aria-label={`打开${domain.label}`}
                           title={`前往${domain.label}工作台`}
-                          className="u-focus inline-flex h-8 w-8 items-center justify-center rounded-none text-term-muted transition-colors hover:bg-term-hover hover:text-term-accent"
+                          className={styles.entryLink}
                         >
-                          <ArrowUpRight className="h-4 w-4" aria-hidden />
+                          <ArrowUpRight size={16} aria-hidden />
                         </Link>
                       ) : (
-                        <span className="text-term-faint">—</span>
+                        <span className={styles.placeholder}>—</span>
                       )}
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 )
               })}
-            </TableBody>
-          </Table>
-        </DataTableCardBody>
-      </DataTableCard>
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   )
 }

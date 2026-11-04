@@ -1,5 +1,5 @@
-import { SimplePageLoading } from '@/components/dashboard/page-skeletons'
+import AgentOverviewLoading from './overview/loading'
 
 export default function AgentCenterLoading() {
-  return <SimplePageLoading />
+  return <AgentOverviewLoading />
 }
