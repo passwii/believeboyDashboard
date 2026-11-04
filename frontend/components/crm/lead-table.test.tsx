@@ -170,6 +170,22 @@ describe('CrmLeadTable Warm presentation', () => {
     expect(mocks.refresh).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps pagination available when an outdated page has no rows', () => {
+    mocks.table.data = []
+    mocks.table.total = 45
+    mocks.table.page = 4
+    mocks.table.pageSize = 20
+
+    render(<CrmLeadTable />)
+
+    expect(screen.getByText('暂无线索')).toBeInTheDocument()
+    expect(screen.getByText('第 4 / 3 页')).toBeInTheDocument()
+    const firstPage = screen.getByRole('button', { name: '首页' })
+    expect(firstPage).toBeEnabled()
+    fireEvent.click(firstPage)
+    expect(mocks.setPage).toHaveBeenCalledWith(1)
+  })
+
   it('wires search, filters, sorting, and pagination through the shared table state', async () => {
     mocks.table.data = [lead]
     mocks.table.total = 100

@@ -1,0 +1,64 @@
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--warm-ledger-space-2);
+  margin-bottom: var(--warm-ledger-space-3);
+}
+
+.search,
+.filter,
+.action {
+  height: var(--warm-ledger-control-height-compact);
+  background: var(--warm-ledger-color-raised);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-control);
+}
+
+.search {
+  width: min(360px, 32vw);
+}
+
+.filter {
+  width: 132px;
+}
+
+.action {
+  width: 96px;
+  margin-left: auto;
+}
+
+.rows {
+  display: grid;
+  gap: 1px;
+  padding: 0 var(--warm-ledger-space-3);
+}
+
+.row {
+  height: 44px;
+  background:
+    linear-gradient(
+      90deg,
+      var(--warm-ledger-color-raised) 0 18%,
+      transparent 18% 22%,
+      var(--warm-ledger-color-raised) 22% 42%,
+      transparent 42% 46%,
+      var(--warm-ledger-color-raised) 46% 68%,
+      transparent 68% 72%,
+      var(--warm-ledger-color-raised) 72% 88%,
+      transparent 88%
+    );
+  border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  opacity: 0.72;
+}

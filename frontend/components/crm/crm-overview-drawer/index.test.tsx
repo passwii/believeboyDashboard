@@ -1,4 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { CrmOverviewDrawer } from './index'
 import { NotificationsProvider } from '@/components/notifications'
@@ -57,6 +59,17 @@ function renderDrawer(extra?: { actions?: React.ReactNode }) {
 }
 
 describe('CrmOverviewDrawer', () => {
+  it('maps audit timeline Terminal surfaces into the Warm drawer', () => {
+    const css = readFileSync(join(__dirname, 'crm-overview-drawer-warm.module.css'), 'utf8')
+
+    expect(css).toContain("[class*='hover:bg-term-hover']:hover")
+    expect(css).toMatch(/\[class\*='before:bg-term-border'\]\)::before/)
+    expect(css).toContain("[class*='border-term-bg']")
+    expect(css).toContain("[class*='bg-term-pos']")
+    expect(css).toContain("[class*='bg-term-neg']")
+    expect(css).toContain("[class*='bg-term-faint']")
+  })
+
   it('详情 tab 渲染字段', () => {
     renderDrawer()
     expect(screen.getByRole('dialog', { name: '测试客户' })).toHaveAttribute(

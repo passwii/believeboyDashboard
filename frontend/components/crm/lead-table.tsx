@@ -375,6 +375,67 @@ export function CrmLeadTable() {
   const initialLoading = table.loading && table.data === undefined
   const initialError = table.error && table.data === undefined
   const totalPages = Math.max(1, Math.ceil(table.total / table.pageSize))
+  const pagination =
+    table.total > 0 ? (
+      <div className={styles.pagination}>
+        <div className={styles.paginationMeta}>
+          <span>共 {table.total} 条</span>
+          <label className={styles.pageSize}>
+            每页
+            <select
+              aria-label="每页条数"
+              className={styles.pageSizeSelect}
+              onChange={(event) => table.setPageSize(Number(event.target.value))}
+              value={table.pageSize}
+            >
+              {[20, 50, 100].map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className={styles.pager}>
+          <WarmButton
+            aria-label="首页"
+            className={styles.pagerButton}
+            disabled={table.page <= 1}
+            onClick={() => table.setPage(1)}
+          >
+            <ChevronsLeft aria-hidden="true" />
+          </WarmButton>
+          <WarmButton
+            aria-label="上一页"
+            className={styles.pagerButton}
+            disabled={table.page <= 1}
+            onClick={() => table.setPage(table.page - 1)}
+          >
+            <ChevronLeft aria-hidden="true" />
+          </WarmButton>
+          <span className={styles.pageStatus}>
+            第 {table.page} / {totalPages} 页
+          </span>
+          <WarmButton
+            aria-label="下一页"
+            className={styles.pagerButton}
+            disabled={table.page >= totalPages}
+            onClick={() => table.setPage(table.page + 1)}
+          >
+            <ChevronRight aria-hidden="true" />
+          </WarmButton>
+          <WarmButton
+            aria-label="末页"
+            className={styles.pagerButton}
+            disabled={table.page >= totalPages}
+            onClick={() => table.setPage(totalPages)}
+          >
+            <ChevronsRight aria-hidden="true" />
+          </WarmButton>
+          {totalPages > 1 ? <PageJump onJump={table.setPage} totalPages={totalPages} /> : null}
+        </div>
+      </div>
+    ) : undefined
 
   return (
     <div className={styles.tableRoot} data-warm-leads-table>
@@ -433,74 +494,11 @@ export function CrmLeadTable() {
           title="加载失败"
         />
       ) : (table.data ?? []).length === 0 ? (
-        <WarmCrmState kind="empty" title="暂无线索" />
+        <WarmCrmTableFrame footer={pagination}>
+          <WarmCrmState kind="empty" title="暂无线索" />
+        </WarmCrmTableFrame>
       ) : (
-        <WarmCrmTableFrame
-          footer={
-            table.total > 0 ? (
-              <div className={styles.pagination}>
-                <div className={styles.paginationMeta}>
-                  <span>共 {table.total} 条</span>
-                  <label className={styles.pageSize}>
-                    每页
-                    <select
-                      aria-label="每页条数"
-                      className={styles.pageSizeSelect}
-                      onChange={(event) => table.setPageSize(Number(event.target.value))}
-                      value={table.pageSize}
-                    >
-                      {[20, 50, 100].map((size) => (
-                        <option key={size} value={size}>
-                          {size}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-                <div className={styles.pager}>
-                  <WarmButton
-                    aria-label="首页"
-                    className={styles.pagerButton}
-                    disabled={table.page <= 1}
-                    onClick={() => table.setPage(1)}
-                  >
-                    <ChevronsLeft aria-hidden="true" />
-                  </WarmButton>
-                  <WarmButton
-                    aria-label="上一页"
-                    className={styles.pagerButton}
-                    disabled={table.page <= 1}
-                    onClick={() => table.setPage(table.page - 1)}
-                  >
-                    <ChevronLeft aria-hidden="true" />
-                  </WarmButton>
-                  <span className={styles.pageStatus}>
-                    第 {table.page} / {totalPages} 页
-                  </span>
-                  <WarmButton
-                    aria-label="下一页"
-                    className={styles.pagerButton}
-                    disabled={table.page >= totalPages}
-                    onClick={() => table.setPage(table.page + 1)}
-                  >
-                    <ChevronRight aria-hidden="true" />
-                  </WarmButton>
-                  <WarmButton
-                    aria-label="末页"
-                    className={styles.pagerButton}
-                    disabled={table.page >= totalPages}
-                    onClick={() => table.setPage(totalPages)}
-                  >
-                    <ChevronsRight aria-hidden="true" />
-                  </WarmButton>
-                  {totalPages > 1 ? (
-                    <PageJump onJump={table.setPage} totalPages={totalPages} />
-                  ) : null}
-                </div>
-              </div>
-            ) : undefined
-          }
-        >
+        <WarmCrmTableFrame footer={pagination}>
           <WarmCrmTableScroller ariaLabel="线索表格" interactiveRows>
             <table className={styles.table}>
               <thead>
