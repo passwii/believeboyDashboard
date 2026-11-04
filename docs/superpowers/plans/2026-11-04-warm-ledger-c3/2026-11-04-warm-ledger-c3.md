@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js App Router, React, TypeScript, CSS Modules, existing Warm Ledger shell/controls, Vitest, Testing Library, Playwright.
 
-> **Final review status (2026-11-04):** C3 implementation and desktop acceptance are complete. The first Luna/max review found two P2 issues; both were remediated. A second Luna/max C3 re-review then found one remaining P2 in Product Analysis's multi-candidate select portal; its page-local Warm fix and regression coverage are complete. A third Luna/max C3 re-review then confirmed one remaining P2 in Order Info: the focusable multi-select trigger did not open from Enter, Space, or ArrowDown. The local trigger-key handling and direct component coverage are complete, but a fresh Luna/max review has not run. C3 remains implementation complete + final review remediation in progress; do not mark C3 complete or check the independent-review gate until that review passes.
+> **Final review status (2026-11-04):** C3 implementation and desktop acceptance are complete. The first Luna/max review found two P2 issues; both were remediated. A second review found and verified the fix for a Product Analysis portal-style P2. A third review found and verified the fix for an Order Info multi-select keyboard P2. The fourth review found no remaining code defect and only required reconciling stale Task 5 checklist state; that documentation is now reconciled. The final Luna/max gate confirmation is pending. C3 remains implementation complete + final review remediation in progress; do not mark C3 complete or check the independent-review gate until the final gate passes.
 
 ## Global Constraints
 
