@@ -204,7 +204,7 @@ export default function CommissionManagementPage() {
     } finally {
       setLoading(false)
     }
-  }, [month, session, countryFilter])
+  }, [month, session, countryFilter, notify])
 
   const loadProjectMeta = useCallback(async () => {
     try {
