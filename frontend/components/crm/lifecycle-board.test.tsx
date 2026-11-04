@@ -41,8 +41,8 @@ const board: LifecycleBoard = {
 
 describe('LifecycleBoardSection（生命周期看板，BLF-520）', () => {
   it('渲染三种分布卡片 + 摘要 chips + 公海快照', () => {
-    render(<LifecycleBoardSection board={board} />)
-    expect(screen.getByText('生命周期')).toBeTruthy()
+    const { container } = render(<LifecycleBoardSection board={board} />)
+    expect(screen.getByRole('region', { name: '生命周期' })).toBeTruthy()
     expect(screen.getByText('首次跟进')).toBeTruthy()
     expect(screen.getByText('转化')).toBeTruthy()
     expect(screen.getByText('流失')).toBeTruthy()
@@ -53,6 +53,7 @@ describe('LifecycleBoardSection（生命周期看板，BLF-520）', () => {
     expect(screen.getAllByText('3.2 天').length).toBe(3)
     // 桶标签缩写
     expect(screen.getAllByText('30 天+').length).toBeGreaterThan(0)
+    expect(container.querySelector('[class*="term-"]')).not.toBeInTheDocument()
   })
 
   it('转化卡片叠加「转化时间漏斗」', () => {

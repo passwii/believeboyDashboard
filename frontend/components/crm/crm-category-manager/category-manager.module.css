@@ -1,0 +1,85 @@
+.createRow {
+  display: flex;
+  align-items: center;
+  gap: var(--warm-ledger-space-2);
+  margin-bottom: var(--warm-ledger-space-4);
+}
+
+.input {
+  width: min(320px, 100%);
+  height: var(--warm-ledger-control-height);
+  padding: 0 var(--warm-ledger-space-3);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-control);
+  background: var(--warm-ledger-color-panel-strong);
+  color: var(--warm-ledger-color-text);
+  font: inherit;
+}
+
+.input:focus-visible {
+  outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-color-accent-strong);
+  outline-offset: var(--warm-ledger-focus-offset);
+}
+
+.categoryList {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-inner);
+  list-style: none;
+}
+
+.categoryRow {
+  display: flex;
+  min-width: 0;
+  min-height: 48px;
+  align-items: center;
+  gap: var(--warm-ledger-space-2);
+  padding: var(--warm-ledger-space-2) var(--warm-ledger-space-3);
+  border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  background: var(--warm-ledger-color-panel-strong);
+}
+
+.categoryRow:last-child {
+  border-bottom: 0;
+}
+
+.categoryName {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--warm-ledger-color-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deleteHint {
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-label);
+}
+
+.deleteButton {
+  color: var(--warm-ledger-color-negative);
+}
+
+.dangerAction {
+  color: var(--warm-ledger-color-negative);
+}
+
+.error {
+  margin: 0 0 var(--warm-ledger-space-3);
+  padding: var(--warm-ledger-space-2) var(--warm-ledger-space-3);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-negative);
+  border-radius: var(--warm-ledger-radius-inner);
+  color: var(--warm-ledger-color-negative);
+  font-size: var(--warm-ledger-font-size-control);
+}
+
+.embeddedState {
+  border-style: dashed;
+  background: transparent;
+  box-shadow: none;
+}

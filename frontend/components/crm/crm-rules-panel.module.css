@@ -1,0 +1,99 @@
+.description {
+  margin: 0 0 var(--warm-ledger-space-4);
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-control);
+}
+
+.ruleList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--warm-ledger-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ruleItem {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--warm-ledger-space-4);
+  padding: var(--warm-ledger-space-4);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-inner);
+  background: var(--warm-ledger-color-panel-strong);
+}
+
+.ruleCopy {
+  min-width: 0;
+}
+
+.ruleHeading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--warm-ledger-space-2);
+}
+
+.ruleHeading h3 {
+  margin: 0;
+  color: var(--warm-ledger-color-text);
+  font-size: var(--warm-ledger-font-size-body);
+  font-weight: var(--warm-ledger-font-weight-medium);
+}
+
+.ruleSummary,
+.ruleDescription {
+  margin: var(--warm-ledger-space-1) 0 0;
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-control);
+}
+
+.ruleSummary {
+  color: var(--warm-ledger-color-text-soft);
+  font-family: var(--warm-ledger-font-mono);
+}
+
+.ruleActions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--warm-ledger-space-1);
+}
+
+.switch {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  padding: 0;
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline-strong);
+  border-radius: 999px;
+  background: var(--warm-ledger-color-raised);
+  transition: background-color var(--warm-ledger-motion-duration-control)
+    var(--warm-ledger-motion-ease);
+}
+
+.switch[data-state='checked'] {
+  border-color: var(--warm-ledger-color-accent);
+  background: var(--warm-ledger-color-accent);
+}
+
+.switchThumb {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--warm-ledger-color-window);
+  transform: translateX(0);
+  transition: transform var(--warm-ledger-motion-duration-control)
+    var(--warm-ledger-motion-ease);
+}
+
+.switch[data-state='checked'] .switchThumb {
+  transform: translateX(16px);
+}
+
+.dangerAction {
+  color: var(--warm-ledger-color-negative);
+}

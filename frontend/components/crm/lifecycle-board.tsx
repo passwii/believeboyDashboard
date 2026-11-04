@@ -2,112 +2,100 @@
 
 /**
  * 生命周期看板区块（P8，BLF-520）：客户从创建到 首次跟进/转化/流失 的时间分布。
- *
- * - 每个指标一张直方图（轻量 div 实现，不引入 recharts）+ 摘要 chips
- *   （样本 / 总体 / 均值 / 中位 / P90）。
- * - 转化指标额外叠加「转化时间漏斗」（FunnelChart 复用，BLF-518 之后同源）：
- *   已转化 → 30 天内 → 14 天内 → 7 天内 → 3 天内 → 1 天内。
- * - 右上角显示当前公海客户数快照。
  */
 import { Users } from 'lucide-react'
 import type { LifecycleBoard, LifecycleDistribution } from '@/lib/crm/types'
 import { buildTimeFunnelStages } from '@/lib/crm/method/lifecycle'
+import { WarmBadge } from '@/components/dashboard-v2/warm-ledger/controls'
+import {
+  WarmCrmSection,
+  WarmCrmState,
+} from '@/components/dashboard-v2/warm-ledger/crm'
 import { FunnelChart } from '@/components/ui/funnel-chart'
-import { TermPanel } from '@/components/terminal/term-panel'
+
+import styles from './lifecycle-board.module.css'
 
 /** 桶名缩写（横轴空间有限）："30 天以上" → "30 天+"。 */
 const shortLabel = (label: string) => label.replace('天以上', '天+')
 
-const fmt1 = (v: number | undefined) => (v === undefined ? '—' : `${v.toFixed(1)} 天`)
+const fmt1 = (value: number | undefined) =>
+  value === undefined ? '—' : `${value.toFixed(1)} 天`
 
-/** 摘要 chips：样本 / 总体 / 均值 / 中位 / P90（BLF-837 终端规格）。 */
 function SummaryChips({ dist }: { dist: LifecycleDistribution }) {
-  const s = dist.summary
+  const summary = dist.summary
   const chips = [
-    { label: '样本', value: String(s.sampleCount) },
-    { label: '总体', value: String(s.totalCount) },
-    { label: '均值', value: fmt1(s.avgDays) },
-    { label: '中位', value: fmt1(s.medianDays) },
-    { label: 'P90', value: fmt1(s.p90Days) },
+    { label: '样本', value: String(summary.sampleCount) },
+    { label: '总体', value: String(summary.totalCount) },
+    { label: '均值', value: fmt1(summary.avgDays) },
+    { label: '中位', value: fmt1(summary.medianDays) },
+    { label: 'P90', value: fmt1(summary.p90Days) },
   ]
+
   return (
-    <div className="flex flex-wrap gap-1">
-      {chips.map((c) => (
-        <span
-          key={c.label}
-          className="inline-flex items-center gap-1 border border-term-border bg-term-panel px-1.5 py-0.5 font-mono text-[11px] text-term-muted"
-        >
-          <span>{c.label}</span>
-          <span className="tabular-nums text-term-text">{c.value}</span>
+    <div className={styles.summaryChips}>
+      {chips.map((chip) => (
+        <span key={chip.label} className={styles.summaryChip}>
+          <span>{chip.label}</span>
+          <span className={styles.summaryValue}>{chip.value}</span>
         </span>
       ))}
     </div>
   )
 }
 
-/** 直方图：按桶计数画柱，柱顶显示数量（>0 时），hover 显示明细。 */
+/** 直方图按桶计数画柱，柱顶显示数量，hover 显示明细。 */
 function Histogram({ dist }: { dist: LifecycleDistribution }) {
-  const max = Math.max(...dist.buckets.map((b) => b.count), 1)
+  const max = Math.max(...dist.buckets.map((bucket) => bucket.count), 1)
+
   return (
-    <div>
-      <div className="flex h-28 items-end gap-1.5">
-        {dist.buckets.map((b) => {
-          const h = b.count === 0 ? 0 : Math.max((b.count / max) * 100, 6)
+    <div className={styles.histogram}>
+      <div className={styles.bars}>
+        {dist.buckets.map((bucket) => {
+          const height =
+            bucket.count === 0 ? 0 : Math.max((bucket.count / max) * 100, 6)
           return (
             <div
-              key={b.label}
-              className="group relative flex-1"
-              title={`${b.label}：${b.count} 个（${(b.pct * 100).toFixed(1)}%）`}
+              key={bucket.label}
+              className={styles.barSlot}
+              title={`${bucket.label}：${bucket.count} 个（${(bucket.pct * 100).toFixed(1)}%）`}
             >
-              {b.count > 0 && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 font-mono text-[10px] tabular-nums text-term-muted">
-                  {b.count}
-                </div>
-              )}
-              <div
-                className="w-full bg-term-accent/70 transition-colors group-hover:bg-term-accent"
-                style={{ height: `${h}%` }}
-              />
+              {bucket.count > 0 ? (
+                <span className={styles.barCount}>{bucket.count}</span>
+              ) : null}
+              <span className={styles.bar} style={{ height: `${height}%` }} />
             </div>
           )
         })}
       </div>
-      <div className="mt-1 flex gap-1.5 border-t border-term-border pt-1">
-        {dist.buckets.map((b) => (
-          <span
-            key={b.label}
-            className="flex-1 text-center font-mono text-[10px] leading-tight text-term-faint"
-          >
-            {shortLabel(b.label)}
-          </span>
+      <div className={styles.axis}>
+        {dist.buckets.map((bucket) => (
+          <span key={bucket.label}>{shortLabel(bucket.label)}</span>
         ))}
       </div>
     </div>
   )
 }
 
-/** 转化时间漏斗叠加（漏斗叠加，BLF-520）。 */
 function ConversionFunnel({ dist }: { dist: LifecycleDistribution }) {
   const stages = buildTimeFunnelStages(dist)
   if (stages.length === 0) return null
+
   return (
-    <div className="mt-3">
-      <p className="mb-1 font-mono text-xs uppercase tracking-wider text-term-muted">
-        转化时间漏斗（漏斗叠加）
-      </p>
+    <div className={styles.conversionFunnel}>
+      <p className={styles.funnelLabel}>转化时间漏斗（漏斗叠加）</p>
       <FunnelChart
-        data={stages.map((s) => ({
-          label: s.label,
-          value: s.value,
-          displayValue: s.displayValue,
+        data={stages.map((stage) => ({
+          label: stage.label,
+          value: stage.value,
+          displayValue: stage.displayValue,
         }))}
-        className="mx-auto w-full max-w-md"
-        color="var(--chart-2)"
+        className={styles.funnelChart}
+        color="var(--warm-ledger-color-accent)"
         edges="curved"
         layers={2}
         orientation="horizontal"
         showPercentage={false}
-        formatValue={(v) => `${v} 个`}
+        formatValue={(value) => `${value} 个`}
       />
     </div>
   )
@@ -115,38 +103,29 @@ function ConversionFunnel({ dist }: { dist: LifecycleDistribution }) {
 
 function DistributionCard({
   dist,
-  color,
-  funnel,
+  funnel = false,
 }: {
   dist: LifecycleDistribution
-  color: string
   funnel?: boolean
 }) {
   return (
-    <div className="flex flex-col border border-term-border p-3">
-      <div className="mb-1 flex items-center justify-between gap-2">
-        <h3 className="font-mono text-xs uppercase tracking-wider text-term-muted">{dist.label}</h3>
-        <span
-          className="h-2 w-2 shrink-0 rounded-full"
-          style={{ backgroundColor: color }}
-          aria-hidden
-        />
-      </div>
-      <p className="mb-2 text-xs text-term-faint">{dist.description}</p>
+    <article className={styles.distributionCard}>
+      <h3>{dist.label}</h3>
+      <p className={styles.distributionDescription}>{dist.description}</p>
       {dist.summary.sampleCount > 0 ? (
         <>
           <Histogram dist={dist} />
-          <div className="mt-3">
-            <SummaryChips dist={dist} />
-          </div>
-          {funnel && <ConversionFunnel dist={dist} />}
+          <SummaryChips dist={dist} />
+          {funnel ? <ConversionFunnel dist={dist} /> : null}
         </>
       ) : (
-        <div className="flex h-32 items-center justify-center font-mono text-xs text-term-faint">
-          暂无数据
-        </div>
+        <WarmCrmState
+          className={styles.embeddedState}
+          kind="empty"
+          title="暂无数据"
+        />
       )}
-    </div>
+    </article>
   )
 }
 
@@ -155,32 +134,36 @@ export interface LifecycleBoardSectionProps {
   loading?: boolean
 }
 
-export function LifecycleBoardSection({ board, loading = false }: LifecycleBoardSectionProps) {
-  const hasBoard = board !== null
+export function LifecycleBoardSection({
+  board,
+  loading = false,
+}: LifecycleBoardSectionProps) {
   return (
-    // BLF-837：区块容器走 TermPanel（dashboard 页其余面板同规格）
-    <TermPanel title="生命周期" actions={
-      hasBoard && board!.nowInSea > 0 ? (
-        <span className="mr-1 inline-flex items-center gap-1 font-mono text-xs tabular-nums text-term-muted">
-          <Users className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
-          当前公海 {board!.nowInSea} 家
-        </span>
-      ) : undefined
-    }>
-      <div className="p-3">
-        {hasBoard ? (
-          <div className="grid grid-cols-1 gap-2 lg:grid-cols-3">
-            <DistributionCard dist={board!.firstFollow} color="var(--chart-1)" />
-            <DistributionCard dist={board!.conversion} color="var(--chart-2)" funnel />
-            <DistributionCard dist={board!.churn} color="var(--chart-3)" />
-          </div>
-        ) : (
-          <div className="flex h-[240px] items-center justify-center font-mono text-xs text-term-faint">
-            {loading ? '加载中…' : '暂无生命周期数据'}
-          </div>
-        )}
-      </div>
-    </TermPanel>
+    <WarmCrmSection
+      title="生命周期"
+      actions={
+        board && board.nowInSea > 0 ? (
+          <WarmBadge tone="neutral">
+            <Users aria-hidden="true" />
+            当前公海 {board.nowInSea} 家
+          </WarmBadge>
+        ) : undefined
+      }
+    >
+      {board ? (
+        <div className={styles.distributionGrid}>
+          <DistributionCard dist={board.firstFollow} />
+          <DistributionCard dist={board.conversion} funnel />
+          <DistributionCard dist={board.churn} />
+        </div>
+      ) : (
+        <WarmCrmState
+          className={styles.embeddedState}
+          kind={loading ? 'loading' : 'empty'}
+          title={loading ? '加载中…' : '暂无生命周期数据'}
+        />
+      )}
+    </WarmCrmSection>
   )
 }
 

@@ -1,0 +1,143 @@
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--warm-ledger-space-2);
+  color: var(--warm-ledger-color-text-muted);
+  font-family: var(--warm-ledger-font-mono);
+  font-size: var(--warm-ledger-font-size-label);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+}
+
+.summary > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--warm-ledger-space-1);
+  padding: 3px var(--warm-ledger-space-2);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-inner);
+  background: var(--warm-ledger-color-panel-strong);
+}
+
+.summary svg,
+.owner svg,
+.dwell > svg,
+.actionTime svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+}
+
+.leadIdentity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--warm-ledger-space-2);
+}
+
+.rank {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  place-items: center;
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-accent);
+  border-radius: var(--warm-ledger-radius-inner);
+  color: var(--warm-ledger-color-accent-strong);
+  font-family: var(--warm-ledger-font-mono);
+  font-size: var(--warm-ledger-font-size-label);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+}
+
+.leadCopy,
+.actionCell {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.leadName {
+  overflow: hidden;
+  color: var(--warm-ledger-color-text);
+  font-weight: var(--warm-ledger-font-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leadCompany {
+  overflow: hidden;
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.owner,
+.dwell,
+.actionTime {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--warm-ledger-space-1);
+}
+
+.owner {
+  color: var(--warm-ledger-color-text-soft);
+}
+
+.dwell {
+  gap: var(--warm-ledger-space-2);
+}
+
+.dwell > span[data-stuck='true'] {
+  color: var(--warm-ledger-color-accent-strong);
+  font-family: var(--warm-ledger-font-mono);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+}
+
+.dwell > span:not([data-stuck]) {
+  color: var(--warm-ledger-color-text-soft);
+  font-family: var(--warm-ledger-font-mono);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+}
+
+.actionTime {
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-label);
+}
+
+.actionContent {
+  max-width: 240px;
+  overflow: hidden;
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.numeric {
+  color: var(--warm-ledger-color-text-muted);
+  font-family: var(--warm-ledger-font-mono);
+  font-size: var(--warm-ledger-font-size-label);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+}
+
+.muted {
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-label);
+}
+
+.footer,
+.footerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--warm-ledger-space-2);
+}
+
+.footer {
+  justify-content: space-between;
+}
+
+.footerActions {
+  flex: 0 0 auto;
+}

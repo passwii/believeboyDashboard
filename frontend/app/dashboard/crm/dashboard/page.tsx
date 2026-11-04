@@ -5,21 +5,19 @@ import { TrendingUp } from 'lucide-react'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import type { DashboardStats, LifecycleBoard } from '@/lib/crm/types'
 import {
-  TermBody,
-  TermCell,
-  TermHead,
-  TermRow,
-  TermTHead,
-  TermTable,
-} from '@/components/terminal/term-table'
-import { TermPanel } from '@/components/terminal/term-panel'
+  WarmCrmPage,
+  WarmCrmSection,
+  WarmCrmState,
+  WarmCrmTableScroller,
+} from '@/components/dashboard-v2/warm-ledger/crm'
+import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
-import { ErrorState } from '@/components/ui/error-state'
 import { FunnelChart } from '@/components/ui/funnel-chart'
 import { SkeletonReveal } from '@/components/ui/skeleton-reveal'
 import { buildLeadStageFunnel, leadConversionRate, leadFunnelStepRates } from '@/lib/crm/method/lead-funnel'
 import { FunnelStageDrawer } from '@/components/crm/funnel-stage-drawer'
 import { LifecycleBoardSection } from '@/components/crm/lifecycle-board'
+import styles from './dashboard-warm.module.css'
 
 /** 数字紧凑显示：12400 → "1.2万"，小数字原样。 */
 const compact = (v: number) => new Intl.NumberFormat('zh-CN', { notation: 'compact' }).format(v)
@@ -54,33 +52,20 @@ function areDashboardStatsEqual(current: DashboardStats, next: DashboardStats): 
   )
 }
 
-/** BLF-837：KPI 终端磁贴（mono 数值 + 大写标签，portfolio-overview 同规格）。 */
 function KpiTile({
   label,
   value,
-  tone,
+  accent = false,
 }: {
   label: string
   value: string
-  tone?: 'pos' | 'warn' | 'neg' | 'accent'
+  accent?: boolean
 }) {
-  const toneClass =
-    tone === 'pos'
-      ? 'text-term-pos'
-      : tone === 'warn'
-        ? 'text-term-warn'
-        : tone === 'neg'
-          ? 'text-term-neg'
-          : tone === 'accent'
-            ? 'text-term-accent'
-            : 'text-term-text'
   return (
-    <div className="flex min-w-0 flex-col gap-0.5 border border-term-border bg-term-panel px-2 py-1.5">
-      <span className="truncate font-mono text-xs uppercase tracking-wider text-term-muted">
-        {label}
-      </span>
+    <div className={styles.kpiTile}>
+      <span className={styles.kpiLabel}>{label}</span>
       <span
-        className={`truncate font-mono text-base leading-6 tabular-nums ${toneClass}`}
+        className={accent ? `${styles.kpiValue} ${styles.kpiValueAccent}` : styles.kpiValue}
         title={value}
       >
         {value}
@@ -91,11 +76,11 @@ function KpiTile({
 
 function DashboardKpiSkeleton() {
   return (
-    <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4" aria-hidden="true">
+    <div className={styles.kpiGrid} aria-hidden="true">
       {Array.from({ length: 4 }, (_, index) => (
-        <div key={index} className="flex min-w-0 flex-col gap-1.5 border border-term-border bg-term-panel px-2 py-1.5">
-          <div className="h-3 w-3/4 bg-term-raised" />
-          <div className="h-6 w-1/2 bg-term-raised" />
+        <div key={index} className={styles.kpiTile}>
+          <span className={styles.skeletonLabel} />
+          <span className={styles.skeletonValue} />
         </div>
       ))}
     </div>
@@ -104,17 +89,12 @@ function DashboardKpiSkeleton() {
 
 function LeadFunnelSkeleton() {
   return (
-    <div className="min-w-0 space-y-2 px-3 pb-3 pt-2" aria-hidden="true">
-      <div className="flex h-5 items-center justify-end gap-3">
-        <div className="h-3 w-28 bg-term-raised" />
-        <div className="h-3 w-20 bg-term-raised" />
-      </div>
-      <div className="h-[280px] w-full bg-term-raised" />
-      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-3">
+    <div className={styles.funnelSkeleton} aria-hidden="true">
+      <span className={styles.skeletonSummary} />
+      <span className={styles.skeletonChart} />
+      <div className={styles.stepGrid}>
         {Array.from({ length: 3 }, (_, index) => (
-          <div key={index} className="h-11 border border-term-border bg-term-panel px-2 py-1.5">
-            <div className="h-full bg-term-raised" />
-          </div>
+          <span key={index} className={styles.skeletonStep} />
         ))}
       </div>
     </div>
@@ -152,57 +132,47 @@ export default function CrmDashboardPage() {
     void load()
   }, [load])
 
-  // —— BLF-837：全局刷新接入 Top Header（原页内刷新按钮移除，语义一致）——
+  // 全局刷新继续接入 Top Header，页面内不再重复刷新按钮。
   const refreshRef = useRef(load)
   refreshRef.current = load
   useHeaderRefresh(() => refreshRef.current(), { loading })
 
-  // 漏斗：阶段漏斗（raw counts，不累计）——BLF-516 决策 4：raw 宽度直接看出
-  // 「哪一级堆了人、哪一级掉得快」，4 级粗粒度下不会忽宽忽窄。
+  // 漏斗阶段为各状态当前线索数，不累计；点击阶段打开复盘抽屉。
   const funnelStages = buildLeadStageFunnel(stats?.leadFunnel ?? {})
-  const funnelTotal = funnelStages.reduce((s, st) => s + st.value, 0)
+  const funnelTotal = funnelStages.reduce((sum, stage) => sum + stage.value, 0)
   const discarded = stats?.leadFunnel.discarded ?? 0
   const convRate = leadConversionRate(stats?.leadFunnel ?? {})
 
   return (
-    // BLF-837：页面标题已由 Top Header 面包屑承载；刷新按钮上移 Header 右段
-    <div className="flex min-w-0 flex-col gap-2">
-      {error && (
-        <ErrorState title="加载失败" message={error} onRetry={() => void load()} />
-      )}
+    <WarmCrmPage>
+      {error ? (
+        <WarmCrmState
+          kind="error"
+          title="加载失败"
+          detail={error}
+          action={<WarmButton onClick={() => void load()}>重试</WarmButton>}
+        />
+      ) : null}
 
-      {/* 本月新增 + 跟进活跃度：终端磁贴行 */}
       <SkeletonReveal
         loading={loading}
         skeleton={<DashboardKpiSkeleton />}
         data-testid="crm-dashboard-kpis"
       >
-        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+        <div className={styles.kpiGrid} aria-label="本月指标">
           <KpiTile
             label="本月新增客户"
             value={String(stats?.newThisMonth.newCustomers ?? 0)}
-            tone="accent"
+            accent
           />
-          <KpiTile
-            label="本月新增线索"
-            value={String(stats?.newThisMonth.newLeads ?? 0)}
-            tone="warn"
-          />
-          <KpiTile
-            label="本月转化"
-            value={String(stats?.newThisMonth.convertedCount ?? 0)}
-            tone="pos"
-          />
-          <KpiTile
-            label="近7天跟进"
-            value={String(stats?.followActivity.followCount7d ?? 0)}
-          />
+          <KpiTile label="本月新增线索" value={String(stats?.newThisMonth.newLeads ?? 0)} />
+          <KpiTile label="本月转化" value={String(stats?.newThisMonth.convertedCount ?? 0)} />
+          <KpiTile label="近7天跟进" value={String(stats?.followActivity.followCount7d ?? 0)} />
         </div>
       </SkeletonReveal>
 
-      {/* 线索漏斗（阶段口径：各状态当前计数） */}
-      <TermPanel title="线索漏斗">
-        <p className="px-3 pt-3 font-mono text-xs leading-5 text-term-muted">
+      <WarmCrmSection title="线索漏斗">
+        <p className={styles.funnelDescription}>
           阶段口径为各阶段当前线索数；点击某级查看停留时长 / 卡点复盘明细。
         </p>
         <SkeletonReveal
@@ -210,61 +180,58 @@ export default function CrmDashboardPage() {
           skeleton={<LeadFunnelSkeleton />}
           data-testid="crm-dashboard-funnel"
         >
-          <div className="min-w-0 space-y-2 px-3 pb-3 pt-2">
-            <div className="flex h-5 items-center justify-end gap-3 font-mono text-xs tabular-nums">
-              {convRate !== null && (
-                <span className="inline-flex items-center gap-1 text-term-pos">
-                  <TrendingUp className="h-3.5 w-3.5" aria-hidden />
+          <div className={styles.funnelBody}>
+            <div className={styles.funnelSummary}>
+              {convRate !== null ? (
+                <span className={styles.conversionRate}>
+                  <TrendingUp aria-hidden="true" />
                   整体转化率 {(convRate * 100).toFixed(1)}%
                 </span>
-              )}
-              {discarded > 0 && (
-                <span className="inline-flex items-center gap-1 text-term-muted">
-                  <span className="h-1 w-1 bg-term-faint" aria-hidden />
-                  本期弃置 {discarded}
-                </span>
-              )}
+              ) : null}
+              {discarded > 0 ? (
+                <span className={styles.discarded}>本期弃置 {discarded}</span>
+              ) : null}
             </div>
+
             {funnelTotal > 0 ? (
               <FunnelChart
                 data={funnelStages}
-                className="mx-auto h-[280px] w-full max-w-3xl"
-                color="var(--chart-1)"
+                className={styles.funnelChart}
+                color="var(--warm-ledger-color-accent)"
                 edges="curved"
                 layers={2}
-                onStageClick={(i) => {
-                  const stageKey = funnelStages[i]?.stage
+                onStageClick={(index) => {
+                  const stageKey = funnelStages[index]?.stage
                   if (stageKey) setSelectedStage(stageKey)
                 }}
                 orientation="horizontal"
                 formatValue={compact}
               />
             ) : (
-              <div className="flex h-[280px] items-center justify-center font-mono text-xs text-term-faint">
-                暂无漏斗数据
-              </div>
+              <WarmCrmState
+                className={styles.embeddedState}
+                kind="empty"
+                title="暂无漏斗数据"
+              />
             )}
-            {/* 固定四阶段结构与图表高度，加载完成后不因空数据或阶段值改变而跳高。 */}
-            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-3">
-              {leadFunnelStepRates(funnelStages).map((rate, i) => {
-                const from = funnelStages[i]?.label ?? ''
-                const to = funnelStages[i + 1]?.label ?? ''
+
+            <div className={styles.stepGrid}>
+              {leadFunnelStepRates(funnelStages).map((rate, index) => {
+                const from = funnelStages[index]?.label ?? ''
+                const to = funnelStages[index + 1]?.label ?? ''
                 const pct = rate === null ? 0 : Math.round(rate * 100)
                 return (
-                  <div key={`${from}-${to}`} className="border border-term-border px-2 py-1.5">
-                    <div className="flex items-center justify-between gap-2 text-xs">
-                      <span className="truncate text-term-muted">
+                  <div key={`${from}-${to}`} className={styles.stepCard}>
+                    <div className={styles.stepMeta}>
+                      <span>
                         {from} → {to}
                       </span>
-                      <span className="font-mono tabular-nums text-term-text">
+                      <span className={styles.stepValue}>
                         {rate === null ? '—' : `${(rate * 100).toFixed(1)}%`}
                       </span>
                     </div>
-                    <div className="mt-1 h-1 overflow-hidden bg-term-raised">
-                      <div
-                        className={`h-full transition-[width] duration-500 ${rate !== null && rate < 0.5 ? 'bg-term-neg' : 'bg-term-pos'}`}
-                        style={{ width: `${pct}%` }}
-                      />
+                    <div className={styles.stepTrack} aria-hidden="true">
+                      <span style={{ width: `${pct}%` }} />
                     </div>
                   </div>
                 )
@@ -272,50 +239,49 @@ export default function CrmDashboardPage() {
             </div>
           </div>
         </SkeletonReveal>
-      </TermPanel>
+      </WarmCrmSection>
 
-      {/* 每销售业绩：终端高密度表 */}
-      <TermPanel title="每销售业绩" bodyClassName="overflow-auto">
+      <WarmCrmSection title="每销售业绩">
         {stats && stats.perOwner.length > 0 ? (
-          <TermTable>
-            <TermTHead>
-              <TermRow>
-                <TermHead>负责人</TermHead>
-                <TermHead numeric>名下客户数</TermHead>
-                <TermHead numeric>本月转化</TermHead>
-              </TermRow>
-            </TermTHead>
-            <TermBody>
-              {stats.perOwner.map((p) => (
-                <TermRow key={p.ownerId}>
-                  <TermCell>{p.ownerName ?? p.ownerId}</TermCell>
-                  <TermCell numeric>{p.customerCount}</TermCell>
-                  <TermCell numeric tone="pos">
-                    {p.convertedThisMonth}
-                  </TermCell>
-                </TermRow>
-              ))}
-            </TermBody>
-          </TermTable>
+          <WarmCrmTableScroller ariaLabel="每销售业绩表格">
+            <table>
+              <thead>
+                <tr>
+                  <th>负责人</th>
+                  <th data-numeric>名下客户数</th>
+                  <th data-numeric>本月转化</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.perOwner.map((owner) => (
+                  <tr key={owner.ownerId}>
+                    <td>{owner.ownerName ?? owner.ownerId}</td>
+                    <td data-numeric>{owner.customerCount}</td>
+                    <td data-numeric>{owner.convertedThisMonth}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </WarmCrmTableScroller>
         ) : (
-          <p className="py-6 text-center font-mono text-xs text-term-faint">
-            {loading ? '加载中…' : '暂无业绩数据'}
-          </p>
+          <WarmCrmState
+            className={styles.embeddedState}
+            kind={loading ? 'loading' : 'empty'}
+            title={loading ? '加载中' : '暂无业绩数据'}
+          />
         )}
-      </TermPanel>
+      </WarmCrmSection>
 
-      {/* 生命周期（P8，BLF-520）：创建 → 首次跟进/转化/流失 时间分布 */}
       <LifecycleBoardSection board={lifecycle} loading={loading} />
 
-      {/* 漏斗二层复盘面板（BLF-518）：点击漏斗某级展开 */}
       <FunnelStageDrawer
         open={selectedStage !== null}
-        onOpenChange={(o) => {
-          if (!o) setSelectedStage(null)
+        onOpenChange={(open) => {
+          if (!open) setSelectedStage(null)
         }}
         stage={selectedStage ?? ''}
         stageLabel={selectedStage ? (STAGE_LABELS[selectedStage] ?? selectedStage) : ''}
       />
-    </div>
+    </WarmCrmPage>
   )
 }

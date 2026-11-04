@@ -53,7 +53,7 @@ beforeEach(() => {
 })
 
 describe('CRM Dashboard SkeletonReveal 接入', () => {
-  it('统计尚在请求时隐藏真实内容并保留与内容相同的响应式栅格，完成后揭示内容', async () => {
+  it('统计尚在请求时隐藏真实内容，完成后在 Warm 页面内揭示内容', async () => {
     const stats = deferred<DashboardStats>()
     const lifecycle = deferred<LifecycleBoard>()
     client.getDashboardStats.mockReturnValue(stats.promise)
@@ -70,8 +70,6 @@ describe('CRM Dashboard SkeletonReveal 接入', () => {
     expect(kpis.querySelector('.ui-skel-content')).toHaveAttribute('inert')
     expect(funnel.querySelector('.ui-skel-content')).toHaveAttribute('aria-hidden', 'true')
     expect(funnel.querySelector('.ui-skel-content')).toHaveAttribute('inert')
-    expect(kpis.querySelector('.ui-skel-skeleton .grid-cols-2')).toBeInTheDocument()
-    expect(kpis.querySelector('.ui-skel-skeleton .sm\\:grid-cols-4')).toBeInTheDocument()
     expect(screen.queryByTestId('lead-funnel-chart')).not.toBeInTheDocument()
     expect(screen.queryByText(/整体转化率/)).not.toBeInTheDocument()
 
@@ -86,8 +84,31 @@ describe('CRM Dashboard SkeletonReveal 接入', () => {
     expect(screen.getByTestId('crm-dashboard-funnel')).toHaveAttribute('data-state', 'revealed')
     expect(kpis.querySelector('.ui-skel-content')).not.toHaveAttribute('aria-hidden')
     expect(kpis.querySelector('.ui-skel-content')).not.toHaveAttribute('inert')
-    expect(screen.getByRole('heading', { name: /线索漏斗/ })).toBeVisible()
+    expect(screen.getByRole('region', { name: /线索漏斗/ })).toBeVisible()
     expect(within(screen.getByTestId('crm-dashboard-funnel')).getByTestId('lead-funnel-chart')).toBeInTheDocument()
+  })
+
+  it('页面主体使用 Warm CRM 框架与可键盘滚动表格，不混用 Terminal class', async () => {
+    client.getDashboardStats.mockResolvedValue({
+      ...STATS,
+      perOwner: [
+        {
+          ownerId: 'owner-1',
+          ownerName: '张三',
+          customerCount: 8,
+          convertedThisMonth: 2,
+        },
+      ],
+    })
+    client.getLifecycleBoard.mockResolvedValue({} as LifecycleBoard)
+
+    const { container } = render(<CrmDashboardPage />)
+
+    expect(await screen.findByText('张三')).toBeVisible()
+    expect(container.querySelector('[data-warm-crm-page]')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: '每销售业绩' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: '每销售业绩表格' })).toHaveAttribute('tabindex', '0')
+    expect(container.querySelector('[class*="term-"]')).not.toBeInTheDocument()
   })
 
   it('成功返回空数据时揭示漏斗空态', async () => {
