@@ -189,7 +189,7 @@ export function formatCurrencyTotalsForExcel(totals: Record<string, number>) {
   return {
     amount: entries.map(([currency, amount]) => `${currency} ${amount.toFixed(2)}`).join(' / '),
     // Keep adjacent cells empty so Excel can overflow the full multi-currency total.
-    currency: '',
+    currency: null,
   }
 }
 
