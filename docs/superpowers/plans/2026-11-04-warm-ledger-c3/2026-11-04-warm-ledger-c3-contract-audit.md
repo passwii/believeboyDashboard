@@ -59,4 +59,3 @@ Keep these findings visible for a separate behavior/security decision. Do not ch
 ## Implementation handoff
 
 Use `2026-11-04-warm-ledger-c3.md` for the staged tasks, file ownership, tests, browser matrix, and exit criteria. After Task 2, use separate DeepSeek/max implementers for the disjoint Task 3 and Task 4 page scopes, then one independent DeepSeek/max review of the integrated C3 stage after the browser matrix is complete.
-

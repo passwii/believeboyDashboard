@@ -165,4 +165,3 @@ Task 3 and Task 4 have disjoint write scopes and may run in parallel after Task 
 - All existing endpoint, URL, permission, formula, write, table, and export contracts listed above remain intact.
 - C3-specific Vitest and Playwright coverage passes; the single full Vitest run is reconciled against the documented main baseline; lint/build/diff checks pass.
 - No known C3 behavioral/security risk discovered in audit is represented as fixed unless it received a separate focused implementation, approval, and verification.
-
