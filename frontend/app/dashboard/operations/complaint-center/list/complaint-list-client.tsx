@@ -15,15 +15,8 @@ import {
 } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 
-import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
-import { SingleDatePicker, parseDateInputValue } from '@/components/ui/date-picker'
-import {
-  HeaderSlotInput,
-  HeaderSlotSelect,
-  TERM_HEADER_W_MD,
-  TERM_HEADER_W_SM,
-} from '@/components/terminal/header-filter-suite'
-import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import { WarmButton, WarmSelect } from '@/components/dashboard-v2/warm-ledger/controls'
+import { parseDateInputValue } from '@/components/ui/date-picker'
 import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
 import {
   useHeaderRefresh,
@@ -204,7 +197,7 @@ export default function ComplaintListClient() {
     setSelectedId(id)
   }, [])
 
-  const handleInspectionDateChange = useCallback((next?: Date) => {
+  const handleInspectionDateChange = useCallback((next?: Date | null) => {
     setPage(1)
     setDate(next ? getDayStart(next) : null)
   }, [])
@@ -227,32 +220,45 @@ export default function ComplaintListClient() {
     spamCountScope.country === filters.country
 
   const headerControls = (
-    <>
-      <div className="flex items-center gap-1">
-        <SingleDatePicker
-          value={date ?? undefined}
-          onChange={handleInspectionDateChange}
-          className="h-10 w-[130px]"
+    <div
+      className={styles.headerFilters}
+      data-testid="complaint-list-header-filters"
+      data-warm-header-filters="true"
+    >
+      <div className={styles.headerField}>
+        <input
+          type="date"
+          value={date ? toYmdLocal(date) : ''}
+          onChange={(event) => {
+            const parsed = parseDateInputValue(event.target.value)
+            handleInspectionDateChange(parsed)
+          }}
+          className={styles.headerDateInput}
+          aria-label="巡检日期"
         />
         <WarmButton
           variant={date ? 'quiet' : 'secondary'}
-          className="h-10 px-2"
+          className={styles.headerButton}
           aria-pressed={!date}
           onClick={handleAllInspectionDates}
         >
           全部日期
         </WarmButton>
       </div>
-      <SingleDatePicker
-        value={firstMessageDate ?? undefined}
-        onChange={(next) => {
+      <input
+        type="date"
+        value={firstMessageDate ? toYmdLocal(firstMessageDate) : ''}
+        onChange={(event) => {
+          const parsed = parseDateInputValue(event.target.value)
           setPage(1)
-          setFirstMessageDate(next ? getDayStart(next) : null)
+          setFirstMessageDate(parsed ? getDayStart(parsed) : null)
         }}
-        placeholder="首次咨询日期"
-        className="h-10 w-[130px]"
+        className={styles.headerDateInput}
+        aria-label="首次咨询日期"
       />
-      <HeaderSlotSelect
+      <WarmSelect
+        id="complaint-list-status-filter"
+        label="状态"
         value={status || ALL_FILTER}
         onChange={(value) => {
           setPage(1)
@@ -266,10 +272,12 @@ export default function ComplaintListClient() {
           { value: 'resolved', label: '已解决' },
           { value: 'closed_no_response', label: '关闭无回复' },
         ]}
-        widthClass={TERM_HEADER_W_MD}
         placeholder="状态"
+        className={styles.headerSelect}
       />
-      <HeaderSlotSelect
+      <WarmSelect
+        id="complaint-list-category-filter"
+        label="分类"
         value={category || ALL_FILTER}
         onChange={(value) => {
           setPage(1)
@@ -281,55 +289,64 @@ export default function ComplaintListClient() {
           { value: 'no_order_info', label: '无订单' },
           { value: 'spam', label: '垃圾' },
         ]}
-        widthClass={TERM_HEADER_W_MD}
         placeholder="分类"
+        className={styles.headerSelect}
       />
-      <HeaderSlotInput
+      <input
+        type="search"
         value={keyword}
         onChange={(event) => {
           setPage(1)
           setKeyword(event.target.value)
         }}
         placeholder="搜索买家/主题"
-        widthClass={TERM_HEADER_W_MD}
+        className={styles.headerInput}
+        aria-label="搜索买家或主题"
       />
-    </>
+    </div>
   )
 
-  const desktopSlot = useHeaderSlot(
-    <HeaderFilterControls isMobileView={false} controls={headerControls} />
-  )
+  const desktopSlot = useHeaderSlot(headerControls)
 
   const mobileSummary = `${country} · ${status ? STATUS_LABEL[status] : '全部'} · ${
     CATEGORY_LABEL[category] ?? '全部'
   }`
   const mobileControls = (
     <>
-      <div className="flex w-full min-w-0 items-center gap-2">
-        <SingleDatePicker
-          value={date ?? undefined}
-          onChange={handleInspectionDateChange}
-          className="h-10 w-0 flex-1"
+      <div className={styles.mobileDateRow}>
+        <input
+          type="date"
+          value={date ? toYmdLocal(date) : ''}
+          onChange={(event) => {
+            const parsed = parseDateInputValue(event.target.value)
+            handleInspectionDateChange(parsed)
+          }}
+          className={`${styles.headerDateInput} ${styles.mobileDateInput}`}
+          aria-label="巡检日期"
         />
         <WarmButton
           variant={date ? 'quiet' : 'secondary'}
-          className="h-10 shrink-0 px-2"
+          className={styles.headerButton}
           aria-pressed={!date}
           onClick={handleAllInspectionDates}
         >
           全部日期
         </WarmButton>
       </div>
-      <SingleDatePicker
-        value={firstMessageDate ?? undefined}
-        onChange={(next) => {
+      <input
+        type="date"
+        value={firstMessageDate ? toYmdLocal(firstMessageDate) : ''}
+        onChange={(event) => {
+          const parsed = parseDateInputValue(event.target.value)
           setPage(1)
-          setFirstMessageDate(next ? getDayStart(next) : null)
+          setFirstMessageDate(parsed ? getDayStart(parsed) : null)
         }}
-        placeholder="首次咨询日期"
-        className="h-10 w-full"
+        className={`${styles.headerDateInput} ${styles.mobileDateInput}`}
+        aria-label="首次咨询日期"
       />
-      <HeaderSlotSelect
+      <WarmSelect
+        id="complaint-list-mobile-status-filter"
+        label="状态"
         value={status || ALL_FILTER}
         onChange={(value) => {
           setPage(1)
@@ -343,18 +360,20 @@ export default function ComplaintListClient() {
           { value: 'resolved', label: '已解决' },
           { value: 'closed_no_response', label: '关闭无回复' },
         ]}
-        widthClass={TERM_HEADER_W_SM}
         placeholder="状态"
+        className={styles.mobileSelect}
       />
       <MobileFilterWide>
-        <HeaderSlotInput
+        <input
+          type="search"
           value={keyword}
           onChange={(event) => {
             setPage(1)
             setKeyword(event.target.value)
           }}
-          placeholder="搜索"
-          widthClass="w-full"
+          placeholder="搜索买家/主题"
+          className={`${styles.headerInput} ${styles.mobileInput}`}
+          aria-label="搜索买家或主题"
         />
       </MobileFilterWide>
     </>

@@ -3,15 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useSession } from 'next-auth/react'
 
-import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
+import { WarmButton, WarmSelect } from '@/components/dashboard-v2/warm-ledger/controls'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
 import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
-import {
-  HeaderProjectSelect,
-  HeaderSlotSelect,
-  TERM_HEADER_W_SM,
-} from '@/components/terminal/header-filter-suite'
 import {
   useHeaderRefresh,
   useHeaderSlot,
@@ -429,36 +423,61 @@ export default function ReviewTrackingClient() {
   )
 
   // ── Header 插槽（桌面 / 移动） ──
+  const projectFilterOptions = useMemo(
+    () => [
+      { value: 'all', label: '全部项目' },
+      ...projects
+        .filter((project): project is { id: number; name: string } => typeof project.id === 'number')
+        .map((project) => ({ value: String(project.id), label: project.name })),
+    ],
+    [projects]
+  )
+
   const filters = (
-    <>
-      <HeaderProjectSelect value={projectId} onChange={setProjectId} />
-      <HeaderSlotSelect
+    <div
+      className={styles.headerFilters}
+      data-testid="review-tracking-header-filters"
+      data-warm-header-filters="true"
+    >
+      <WarmSelect
+        id="review-tracking-project-filter"
+        label="项目"
+        value={projectId}
+        onChange={setProjectId}
+        options={projectFilterOptions}
+        placeholder={sessionStatus === 'loading' ? '项目加载中…' : '项目'}
+        disabled={sessionStatus === 'loading'}
+        className={styles.projectFilter}
+      />
+      <WarmSelect
+        id="review-tracking-marketplace-filter"
+        label="站点"
         value={marketplace}
         onChange={setMarketplace}
-        widthClass={TERM_HEADER_W_SM}
-        title="站点筛选"
         options={[
           { value: 'ALL', label: '全部站点' },
           { value: 'US', label: '美国站 (US)' },
           { value: 'DE', label: '德国站 (DE)' },
           { value: 'UK', label: '英国站 (UK)' },
         ]}
+        className={styles.marketplaceFilter}
       />
-      <HeaderSlotSelect
+      <WarmSelect
+        id="review-tracking-status-filter"
+        label="目标状态"
         value={targetStatus}
         onChange={setTargetStatus}
-        widthClass={TERM_HEADER_W_SM}
-        title="目标状态"
         options={[
           { value: 'active', label: '仅启用' },
           { value: 'inactive', label: '仅停用' },
           { value: 'all', label: '全部状态' },
         ]}
+        className={styles.statusFilter}
       />
-    </>
+    </div>
   )
 
-  const desktopSlot = useHeaderSlot(<HeaderFilterControls isMobileView={false} controls={filters} />)
+  const desktopSlot = useHeaderSlot(filters)
   const mobileStrip = useMobileFilterStrip(
     <MobileFilterStrip
       summary={`${projectId === 'all' ? '全部项目' : (projectNameById.get(Number(projectId)) ?? projectId)} · ${

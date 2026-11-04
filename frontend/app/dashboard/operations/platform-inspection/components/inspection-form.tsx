@@ -94,6 +94,8 @@ function ScreenshotUploadZone({
       setUploading(true)
       try {
         await onUpload(file)
+      } catch {
+        setError('上传失败，请重试')
       } finally {
         setUploading(false)
       }
@@ -144,6 +146,7 @@ function ScreenshotUploadZone({
       </WarmButton>
       <div
         className={styles.dropZone}
+        data-testid="inspection-upload-dropzone"
         data-active={dragActive || pasteActive}
         role="button"
         tabIndex={0}
@@ -178,6 +181,7 @@ function ScreenshotUploadZone({
         disabled={uploading}
         onChange={handleInputChange}
         className={styles.fileInput}
+        data-testid="inspection-upload-input"
       />
       {error ? (
         <p className={styles.uploadError} role="alert">
@@ -496,7 +500,7 @@ export default function InspectionForm({
             title: '保存失败',
             message: normalizeErrorMessage(error, '保存报告失败'),
           })
-          return
+          throw error
         }
       }
 
@@ -529,6 +533,7 @@ export default function InspectionForm({
           title: '上传失败',
           message: normalizeErrorMessage(error, '上传截图失败'),
         })
+        throw error
       }
     },
     [reportId, projectId, periodId, formData, notify]
@@ -568,7 +573,7 @@ export default function InspectionForm({
   if (loading) {
     return (
       <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-        <DialogContent className={styles.dialog}>
+        <DialogContent className={styles.dialog} data-warm-dialog="true">
           <div className={styles.formBody} role="status" aria-busy="true">
             <span>正在加载巡检报告</span>
             <div className={styles.metricsGrid}>
@@ -587,9 +592,15 @@ export default function InspectionForm({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent className={styles.dialog}>
+      <DialogContent className={styles.dialog} data-warm-dialog="true">
         <DialogHeader className={styles.dialogHeader}>
-          <DialogTitle className={styles.dialogTitle}>巡检报告</DialogTitle>
+          <DialogTitle
+            className={styles.dialogTitle}
+            data-testid="inspection-dialog-title"
+            data-warm-dialog-title="true"
+          >
+            巡检报告
+          </DialogTitle>
         </DialogHeader>
 
         <div

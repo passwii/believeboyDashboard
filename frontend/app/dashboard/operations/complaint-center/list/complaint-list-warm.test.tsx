@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { stableNotifications } from '@/test-utils/stable-mocks'
@@ -19,7 +20,7 @@ vi.mock('@/components/notifications', () => ({
 
 vi.mock('@/components/terminal/terminal-header-slot', () => ({
   useHeaderRefresh: vi.fn(),
-  useHeaderSlot: () => null,
+  useHeaderSlot: (node: ReactNode) => node,
   useMobileFilterStrip: () => null,
 }))
 
@@ -76,7 +77,14 @@ describe('Complaint List Warm Ledger contract', () => {
     const { container } = render(<ComplaintListClient />)
 
     const page = await screen.findByTestId('complaint-list-page')
+    const header = await screen.findByTestId('complaint-list-header-filters')
     expect(page).toHaveAttribute('data-warm-complaint-list', 'true')
+    expect(header).toHaveAttribute('data-warm-header-filters', 'true')
+    expect(header.querySelector('[class*="term-"]')).toBeNull()
+    expect(header.querySelector('.rounded-none')).toBeNull()
+    expect(screen.getByLabelText('状态')).toBeInTheDocument()
+    expect(screen.getByLabelText('分类')).toBeInTheDocument()
+    expect(screen.getByLabelText('搜索买家或主题')).toBeInTheDocument()
 
     const table = await screen.findByRole('table')
     expect(table.parentElement).toHaveAttribute('data-warm-table-scroll', 'true')

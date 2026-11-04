@@ -10,6 +10,42 @@
   line-height: var(--warm-ledger-line-height-body);
 }
 
+.headerFilters {
+  display: flex;
+  min-width: max-content;
+  align-items: center;
+  gap: var(--warm-ledger-space-2);
+}
+
+.headerDateInput {
+  width: 142px;
+  height: var(--warm-ledger-control-height-select);
+  padding: 0 var(--warm-ledger-space-2);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-control);
+  background: var(--warm-ledger-color-panel);
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-mono);
+  font-size: var(--warm-ledger-font-size-control);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+  box-shadow: var(--warm-ledger-highlight-rest);
+  color-scheme: dark;
+}
+
+.headerDateInput:focus-visible {
+  outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color);
+  outline-offset: var(--warm-ledger-focus-offset);
+}
+
+.dateBadge {
+  min-height: var(--warm-ledger-control-height-select);
+  padding-inline: var(--warm-ledger-space-3);
+}
+
+.mobileDateInput {
+  width: 100%;
+}
+
 .loading,
 .loadingPanel {
   display: flex;
@@ -186,6 +222,15 @@
   place-items: center;
   color: var(--warm-ledger-color-text-muted);
   font-size: var(--warm-ledger-font-size-control);
+}
+
+.trendSummary {
+  margin: 0;
+  padding: var(--warm-ledger-space-3) var(--warm-ledger-space-4);
+  border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  color: var(--warm-ledger-color-text-soft);
+  font-size: var(--warm-ledger-font-size-control);
+  line-height: var(--warm-ledger-line-height-body);
 }
 
 .chart {

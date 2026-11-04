@@ -166,7 +166,14 @@ describe('评论追踪页：空态', () => {
     render(<ReviewTrackingClient />)
 
     const page = await screen.findByTestId('review-tracking-page')
+    const header = await screen.findByTestId('review-tracking-header-filters')
     expect(page).toHaveAttribute('data-warm-review-tracking', 'true')
+    expect(header).toHaveAttribute('data-warm-header-filters', 'true')
+    expect(header.querySelector('[class*="term-"]')).toBeNull()
+    expect(header.querySelector('.rounded-none')).toBeNull()
+    expect(screen.getByLabelText('项目')).toBeInTheDocument()
+    expect(screen.getByLabelText('站点')).toBeInTheDocument()
+    expect(screen.getByLabelText('目标状态')).toBeInTheDocument()
     expect(screen.getByTestId('target-selector')).toBeInTheDocument()
     expect(screen.getByTestId('review-tracking-panel')).toHaveAttribute('data-warm-panel', 'true')
 

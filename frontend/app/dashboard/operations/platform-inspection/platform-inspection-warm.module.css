@@ -680,11 +680,44 @@
   border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
 }
 
-.drawerTitle,
-.dialogTitle {
+.drawerTitle[class],
+.dialogTitle[class] {
   color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-sans);
   font-size: var(--warm-ledger-font-size-section);
   font-weight: var(--warm-ledger-font-weight-medium);
+  letter-spacing: 0;
+  line-height: var(--warm-ledger-line-height-body);
+  text-transform: none;
+}
+
+.dialog[class] > button:last-child,
+.drawer[class] > button:last-child {
+  position: absolute;
+  top: var(--warm-ledger-space-4);
+  right: var(--warm-ledger-space-4);
+  display: grid;
+  width: var(--warm-ledger-control-size-icon);
+  height: var(--warm-ledger-control-size-icon);
+  place-items: center;
+  padding: 0;
+  border: var(--warm-ledger-border-width) solid transparent;
+  border-radius: var(--warm-ledger-radius-inner);
+  background: transparent;
+  color: var(--warm-ledger-color-text-muted);
+  opacity: 1;
+}
+
+.dialog[class] > button:last-child:hover,
+.drawer[class] > button:last-child:hover {
+  background: var(--warm-ledger-color-raised);
+  color: var(--warm-ledger-color-text);
+}
+
+.dialog[class] > button:last-child:focus-visible,
+.drawer[class] > button:last-child:focus-visible {
+  outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color);
+  outline-offset: var(--warm-ledger-focus-offset);
 }
 
 .drawerBody,

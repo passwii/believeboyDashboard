@@ -76,9 +76,17 @@ function DetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <SheetContent className={styles.drawer} data-warm-inspection-drawer="true">
+      <SheetContent
+        className={styles.drawer}
+        data-warm-inspection-drawer="true"
+        data-warm-sheet="true"
+      >
         <SheetHeader className={styles.drawerHeader}>
-          <SheetTitle className={styles.drawerTitle}>
+          <SheetTitle
+            className={styles.drawerTitle}
+            data-testid="inspection-sheet-title"
+            data-warm-sheet-title="true"
+          >
             {item?.project_name || '报告详情'}
           </SheetTitle>
         </SheetHeader>

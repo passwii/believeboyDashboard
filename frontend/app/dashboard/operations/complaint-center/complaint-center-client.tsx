@@ -18,15 +18,13 @@ import {
   TrendingUp,
 } from 'lucide-react'
 
-import { SingleDatePicker } from '@/components/ui/date-picker'
-import { HeaderSlotBadge } from '@/components/terminal/header-filter-suite'
-import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
 import { MobileFilterStrip } from '@/components/terminal/mobile-filter-strip'
 import {
   useHeaderRefresh,
   useHeaderSlot,
   useMobileFilterStrip,
 } from '@/components/terminal/terminal-header-slot'
+import { WarmBadge } from '@/components/dashboard-v2/warm-ledger/controls'
 import { useNotifications } from '@/components/notifications'
 import {
   type CheckStatus,
@@ -74,6 +72,12 @@ function getDayStart(d: Date | undefined): Date {
   return r
 }
 
+function parseDateInput(value: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
+  const parsed = new Date(`${value}T00:00:00`)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
 export default function ComplaintCenterClient() {
   const { notify } = useNotifications()
   const [date, setDate] = useState<Date>(new Date())
@@ -116,35 +120,73 @@ export default function ComplaintCenterClient() {
 
   const allFailed = overview?.projects.every((shop) => shop.check_status !== 'ok') ?? false
   const isEmpty = !loading && overview && overview.metrics.total_needs_reply === 0
+  const trendSummary = useMemo(() => {
+    const points = overview?.trend ?? []
+    if (points.length === 0) return null
+
+    const total = points.reduce((sum, point) => sum + point.needs_reply, 0)
+    const highest = points.reduce((current, point) =>
+      point.needs_reply > current.needs_reply ? point : current
+    )
+    const lowest = points.reduce((current, point) =>
+      point.needs_reply < current.needs_reply ? point : current
+    )
+    const first = points[0]
+    const last = points[points.length - 1]
+
+    return `${first.date} 至 ${last.date}，待回复合计 ${total} 条；最高 ${highest.needs_reply} 条（${highest.date}），最低 ${lowest.needs_reply} 条（${lowest.date}）。`
+  }, [overview?.trend])
 
   const headerControls = (
-    <>
-      <SingleDatePicker
-        value={date}
-        onChange={(next) => next && setDate(getDayStart(next))}
-        className="h-10 w-[130px]"
+    <div
+      className={styles.headerFilters}
+      data-testid="complaint-center-header-filters"
+      data-warm-header-filters="true"
+    >
+      <input
+        type="date"
+        value={dateLabel}
+        onChange={(event) => {
+          const parsed = parseDateInput(event.target.value)
+          if (parsed) setDate(getDayStart(parsed))
+        }}
+        className={styles.headerDateInput}
+        aria-label="巡检日期"
       />
-      <HeaderSlotBadge title={`${dateLabel}${isToday ? ' 今天' : ''}`}>
+      <WarmBadge
+        tone="accent"
+        className={styles.dateBadge}
+        title={`${dateLabel}${isToday ? ' 今天' : ''}`}
+        data-testid="complaint-date-badge"
+        data-warm-date-badge="true"
+      >
         {isToday ? '今天' : dateLabel}
-      </HeaderSlotBadge>
-    </>
+      </WarmBadge>
+    </div>
   )
 
-  const desktopSlot = useHeaderSlot(
-    <HeaderFilterControls isMobileView={false} controls={headerControls} />
-  )
+  const desktopSlot = useHeaderSlot(headerControls)
 
   const mobileSummary = isToday ? '今天' : dateLabel
   const mobileControls = (
     <>
-      <SingleDatePicker
-        value={date}
-        onChange={(next) => next && setDate(getDayStart(next))}
-        className="h-10 w-full"
+      <input
+        type="date"
+        value={dateLabel}
+        onChange={(event) => {
+          const parsed = parseDateInput(event.target.value)
+          if (parsed) setDate(getDayStart(parsed))
+        }}
+        className={`${styles.headerDateInput} ${styles.mobileDateInput}`}
+        aria-label="巡检日期"
       />
-      <HeaderSlotBadge title={`${dateLabel}${isToday ? ' 今天' : ''}`}>
+      <WarmBadge
+        tone="accent"
+        className={styles.dateBadge}
+        title={`${dateLabel}${isToday ? ' 今天' : ''}`}
+      >
         {isToday ? '今天' : dateLabel}
-      </HeaderSlotBadge>
+      </WarmBadge>
     </>
   )
   const mobileStrip = useMobileFilterStrip(
@@ -211,6 +253,11 @@ export default function ComplaintCenterClient() {
                 <TrendingUp className={styles.panelIcon} size={16} aria-hidden="true" />
               </header>
               <div className={styles.panelBody}>
+                {trendSummary ? (
+                  <p className={styles.trendSummary} data-testid="complaint-trend-summary">
+                    {trendSummary}
+                  </p>
+                ) : null}
                 {overview.trend.length > 0 ? (
                   <LazyTrendChart data={overview.trend} />
                 ) : (

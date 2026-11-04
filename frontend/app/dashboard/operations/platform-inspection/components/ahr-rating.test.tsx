@@ -19,9 +19,13 @@ vi.mock('@/lib/inspection-api', () => apiMocks)
 vi.mock('@/components/ui/sheet', () => ({
   Sheet: ({ open, children }: { open: boolean; children: ReactNode }) =>
     open ? <div>{children}</div> : null,
-  SheetContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  SheetContent: ({ children, ...props }: { children: ReactNode } & Record<string, unknown>) => (
+    <div {...props}>{children}</div>
+  ),
   SheetHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  SheetTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
+  SheetTitle: ({ children, ...props }: { children: ReactNode } & Record<string, unknown>) => (
+    <h2 {...props}>{children}</h2>
+  ),
 }))
 
 vi.mock('@/components/ui/image-preview-dialog', () => ({
@@ -105,6 +109,10 @@ describe('inspection history AHR', () => {
     fireEvent.click(screen.getByRole('button', { name: /查看/ }))
 
     await waitFor(() => expect(screen.getAllByLabelText('AHR 预警')).toHaveLength(2))
+    expect(screen.getByTestId('inspection-sheet-title')).toHaveAttribute(
+      'data-warm-sheet-title',
+      'true'
+    )
     const ratings = screen.getAllByLabelText('AHR 预警')
     expect(ratings[1]).toHaveAttribute('data-tone', 'warning')
     expect(screen.queryByText('At Risk')).not.toBeInTheDocument()

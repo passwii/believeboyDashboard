@@ -48,9 +48,17 @@ vi.mock('@/lib/inspection-api', () => ({
 
 vi.mock('@/components/ui/sheet', () => ({
   Sheet: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SheetContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  SheetContent: ({
+    children,
+    ...props
+  }: { children: React.ReactNode } & Record<string, unknown>) => (
+    <div {...props}>{children}</div>
+  ),
   SheetHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SheetTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  SheetTitle: ({
+    children,
+    ...props
+  }: { children: React.ReactNode } & Record<string, unknown>) => <h2 {...props}>{children}</h2>,
 }))
 
 vi.mock('@/components/ui/image-preview-dialog', () => ({

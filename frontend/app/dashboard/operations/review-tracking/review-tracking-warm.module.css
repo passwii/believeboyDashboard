@@ -10,6 +10,46 @@
   line-height: var(--warm-ledger-line-height-body);
 }
 
+.headerFilters {
+  display: flex;
+  min-width: max-content;
+  align-items: center;
+  gap: var(--warm-ledger-space-2);
+}
+
+.headerFilters :global(.warm-ledger__control-label) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.projectFilter,
+.marketplaceFilter,
+.statusFilter {
+  flex-direction: row;
+  align-items: center;
+}
+
+.projectFilter {
+  width: 176px;
+  flex: 0 0 176px;
+}
+
+.marketplaceFilter {
+  width: 148px;
+  flex: 0 0 148px;
+}
+
+.statusFilter {
+  width: 138px;
+  flex: 0 0 138px;
+}
+
 .permission {
   display: grid;
   min-height: 320px;

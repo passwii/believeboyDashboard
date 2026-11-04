@@ -12,7 +12,6 @@ import {
   Pencil,
   ShieldCheck,
   ShoppingBag,
-  X,
   XCircle,
 } from 'lucide-react'
 
@@ -30,7 +29,6 @@ import {
 } from '@/components/ui/alert-dialog'
 import {
   Sheet,
-  SheetClose,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -205,12 +203,9 @@ export function ComplaintDetailDrawer({
         side="right"
         className={`${styles.drawer} w-full max-w-xl overflow-y-auto`}
         data-warm-complaint-drawer="true"
+        data-warm-sheet="true"
       >
         <SheetHeader className={styles.drawerHeader}>
-          <SheetClose className={styles.drawerClose}>
-            <X size={16} aria-hidden="true" />
-            <span className="sr-only">关闭</span>
-          </SheetClose>
           <SheetTitle className={styles.drawerTitle}>
             <ShieldCheck size={18} aria-hidden="true" />
             客诉详情
