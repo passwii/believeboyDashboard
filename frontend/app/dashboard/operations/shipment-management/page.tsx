@@ -859,6 +859,7 @@ export default function ShipmentManagementPage() {
   })
   const [loading, setLoading] = useState(false)
   const [listError, setListError] = useState<string | null>(null)
+  const listRequestIdRef = useRef(0)
   const [skuSummaryLoading, setSkuSummaryLoading] = useState(false)
   const [skuSummaryError, setSkuSummaryError] = useState<string | null>(null)
   const [costSummaryLoading, setCostSummaryLoading] = useState(false)
@@ -1252,6 +1253,7 @@ export default function ShipmentManagementPage() {
 
   const loadList = useCallback(
     async (targetPage: number) => {
+      const requestId = ++listRequestIdRef.current
       if (statusFilter === 'cancelled' && activeTab !== 'overview') {
         setItems([])
         setPage(1)
@@ -1285,6 +1287,8 @@ export default function ShipmentManagementPage() {
         if (!response.ok) throw new Error(await parseError(response))
 
         const payload = (await response.json()) as ShipmentScheduleListResponse
+        if (requestId !== listRequestIdRef.current) return
+
         // 默认及其他状态视图都不展示取消记录；只有总览明确筛选「已取消」时才显示。
         const visibleItems = payload.items.filter((item) =>
           statusFilter === 'cancelled'
@@ -1301,12 +1305,13 @@ export default function ShipmentManagementPage() {
           return visibleItems[0].id
         })
       } catch (loadError) {
+        if (requestId !== listRequestIdRef.current) return
         const message = normalizeErrorMessage(loadError, '船期列表加载失败')
         setListError(message)
         notify({ type: 'error', title: message })
         setItems([])
       } finally {
-        setLoading(false)
+        if (requestId === listRequestIdRef.current) setLoading(false)
       }
     },
     [

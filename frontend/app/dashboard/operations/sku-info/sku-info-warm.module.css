@@ -1,5 +1,6 @@
 .page {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   width: 100%;
   min-width: 0;
   gap: 16px;
@@ -9,6 +10,7 @@
 
 .tabs {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   gap: 16px;
 }
@@ -176,7 +178,10 @@
 
 .tabHeader {
   display: flex;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
+  box-sizing: border-box;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
@@ -244,7 +249,10 @@
 }
 
 .tableCard {
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
+  box-sizing: border-box;
   color: var(--warm-ledger-color-text);
   background: var(--warm-ledger-color-panel) !important;
   border: 1px solid var(--warm-ledger-color-hairline) !important;
@@ -295,8 +303,10 @@
 }
 
 .tableViewport {
+  width: 100%;
   min-width: 0;
   max-width: 100%;
+  box-sizing: border-box;
   overflow-x: auto;
   overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
@@ -971,6 +981,7 @@
 
 .loading {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   gap: 16px;
   color: var(--warm-ledger-color-text);

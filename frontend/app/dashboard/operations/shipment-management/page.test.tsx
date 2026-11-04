@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, cleanup } from '@testing-library/react'
+import { act, fireEvent, render, screen, cleanup } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -172,6 +172,11 @@ vi.mock('@/components/terminal/terminal-header-slot', () => ({
     return node
   },
   useMobileFilterStrip: () => null,
+  usePrimaryFilterSlot: (node: unknown) => {
+    capturedSlotNode = node
+    return node
+  },
+  useSecondaryHeaderSlot: (node: unknown) => node,
 }))
 
 // ── 数据工厂 ──────────────────────────────────────────────────────────────────
@@ -409,7 +414,7 @@ describe('ShipmentManagementPage header 化渲染契约（operations header migr
     expect(await screen.findByText('FBA12345678')).toBeInTheDocument()
     expect(screen.queryByText('FBA-CANCELLED')).not.toBeInTheDocument()
 
-    const statusFilter = screen.getByTitle('状态筛选')
+    const statusFilter = screen.getByRole('combobox', { name: '状态' })
     fireEvent.pointerDown(statusFilter, { pointerType: 'mouse', ctrlKey: false })
     fireEvent.click(statusFilter)
     fireEvent.click(await screen.findByRole('option', { name: '已取消' }))
@@ -433,7 +438,7 @@ describe('ShipmentManagementPage header 化渲染契约（operations header migr
     expect(await screen.findByText('FBA12345678')).toBeInTheDocument()
     fetchMock.mockClear()
 
-    const statusFilter = screen.getByTitle('状态筛选')
+    const statusFilter = screen.getByRole('combobox', { name: '状态' })
     fireEvent.pointerDown(statusFilter, { pointerType: 'mouse', ctrlKey: false })
     fireEvent.click(statusFilter)
     fireEvent.click(await screen.findByRole('option', { name: '已取消' }))
@@ -450,7 +455,7 @@ describe('ShipmentManagementPage header 化渲染契约（operations header migr
     // 4 动效 tabs 保留
     expect(screen.getByText('总览')).toBeInTheDocument()
     expect(screen.getByText('发货费用')).toBeInTheDocument()
-    expect(screen.getByText('SKU汇总')).toBeInTheDocument()
+    expect(screen.getByText('SKU 汇总')).toBeInTheDocument()
     expect(screen.getByText('FBA 箱单明细')).toBeInTheDocument()
     // 写操作留正文：新建批次 / 下载模板 / 批量导入（批量导入为 asChild label + 隐藏 file input）
     expect(screen.getByRole('button', { name: /新建批次/ })).toBeInTheDocument()
@@ -458,7 +463,7 @@ describe('ShipmentManagementPage header 化渲染契约（operations header migr
     expect(screen.getByText('批量导入')).toBeInTheDocument()
   })
 
-  it('将页签与写操作收进同一工具行，窄屏时上下排列', async () => {
+  it('将页签与写操作收进同一工具行', async () => {
     render(<ShipmentManagementPage />)
     await screen.findByText('FBA12345678')
 
@@ -466,7 +471,7 @@ describe('ShipmentManagementPage header 化渲染契约（operations header migr
     expect(toolbar).toContainElement(screen.getByRole('tablist'))
     expect(toolbar).toContainElement(screen.getByRole('button', { name: /新建批次/ }))
     expect(toolbar).toContainElement(screen.getByRole('button', { name: /下载模板/ }))
-    expect(toolbar).toHaveClass('flex-col', 'lg:flex-row')
+    expect(toolbar.className).toContain('toolbar')
   })
 
   it('筛选控件上移 header 插槽：项目 / 状态 / 国家 / 货件编号 combobox 注册进插槽', async () => {
@@ -475,9 +480,9 @@ describe('ShipmentManagementPage header 化渲染契约（operations header migr
     // 插槽节点已注册
     expect(capturedSlotNode).not.toBeNull()
     // 3 个 HeaderSlotSelect + term combobox 触发器
-    expect(screen.getByTitle('项目筛选')).toBeInTheDocument()
-    expect(screen.getByTitle('状态筛选')).toBeInTheDocument()
-    expect(screen.getByTitle('国家筛选')).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: '项目' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: '状态' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: '国家' })).toBeInTheDocument()
     expect(screen.getByTitle('货件编号筛选')).toBeInTheDocument()
     // combobox 空选时显示「全部货件」
     expect(screen.getByText('全部货件')).toBeInTheDocument()
@@ -516,6 +521,86 @@ describe('ShipmentManagementPage header 化渲染契约（operations header migr
     // 放行请求后 loading 回落
     resolveListFetch(jsonResponse(listPayload()))
     await vi.waitFor(() => expect(capturedRefreshLoading).toBe(false))
+  })
+
+  it('旧列表请求晚于新项目筛选返回时不覆盖当前列表状态', async () => {
+    const pendingListRequests: Array<{
+      projectId: string | null
+      resolve: (response: Response) => void
+      reject: (error: Error) => void
+    }> = []
+    fetchMock.mockImplementation((url: string) => {
+      const requestUrl = String(url)
+      if (!requestUrl.includes('/shipment-schedules?')) return defaultFetchImpl(requestUrl)
+
+      const params = new URL(requestUrl, 'http://localhost').searchParams
+      return new Promise<Response>((resolve, reject) => {
+        pendingListRequests.push({
+          projectId: params.get('project_id'),
+          resolve,
+          reject,
+        })
+      })
+    })
+
+    render(<ShipmentManagementPage />)
+    await vi.waitFor(() => expect(pendingListRequests).toHaveLength(1))
+    expect(pendingListRequests[0]?.projectId).toBeNull()
+
+    const projectFilter = screen.getByRole('combobox', { name: '项目' })
+    await vi.waitFor(() => expect(projectFilter).toBeEnabled())
+    fireEvent.pointerDown(projectFilter, { pointerType: 'mouse', ctrlKey: false })
+    fireEvent.click(projectFilter)
+    fireEvent.click(await screen.findByRole('option', { name: '项目B' }))
+
+    await vi.waitFor(() => expect(pendingListRequests).toHaveLength(2))
+    expect(pendingListRequests[1]?.projectId).toBe('2')
+
+    capturedRefreshHandler?.()
+    await vi.waitFor(() => expect(pendingListRequests).toHaveLength(3))
+    expect(pendingListRequests[2]?.projectId).toBe('2')
+    await vi.waitFor(() => expect(capturedRefreshLoading).toBe(true))
+
+    await act(async () => {
+      pendingListRequests[1]!.reject(new Error('旧项目筛选请求失败'))
+      await Promise.resolve()
+    })
+    expect(capturedRefreshLoading).toBe(true)
+    expect(mockNotify).not.toHaveBeenCalled()
+
+    await act(async () => {
+      pendingListRequests[2]!.resolve(
+        jsonResponse({
+          items: [listItem({ id: 202, project_id: 2, project_name: '项目B', shipment_no: 'FBA-CURRENT-PROJECT-B' })],
+          page: 1,
+          page_size: 20,
+          total: 5,
+          has_next: false,
+        })
+      )
+    })
+    expect(await screen.findByText('FBA-CURRENT-PROJECT-B')).toBeInTheDocument()
+    expect(await screen.findByText('共 5 条记录，当前第 1 / 1 页')).toBeInTheDocument()
+    await vi.waitFor(() => expect(capturedRefreshLoading).toBe(false))
+
+    await act(async () => {
+      pendingListRequests[0]!.resolve(
+        jsonResponse({
+          items: [listItem({ id: 101, project_id: 1, project_name: '项目A', shipment_no: 'FBA-STALE-ALL-PROJECTS' })],
+          page: 4,
+          page_size: 20,
+          total: 65,
+          has_next: true,
+        })
+      )
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(screen.getByText('FBA-CURRENT-PROJECT-B')).toBeInTheDocument()
+    expect(screen.queryByText('FBA-STALE-ALL-PROJECTS')).not.toBeInTheDocument()
+    expect(screen.getByText('共 5 条记录，当前第 1 / 1 页')).toBeInTheDocument()
+    expect(capturedRefreshLoading).toBe(false)
   })
 
   it('头部刷新（发货费用 tab）：重拉成本汇总 + 批次表格数据集', async () => {

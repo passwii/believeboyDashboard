@@ -86,7 +86,8 @@ vi.mock('@/components/terminal/terminal-header-slot', () => ({
     capturedRefreshLoading = opts?.loading
     return { setLoading: vi.fn() }
   },
-  useHeaderSlot: (node: React.ReactNode) => node,
+  usePrimaryFilterSlot: (node: React.ReactNode) => node,
+  useSecondaryHeaderSlot: (node: React.ReactNode) => node,
   useMobileFilterStrip: () => null,
 }))
 
@@ -424,7 +425,7 @@ describe('库存分类账页面（header 化迁移版）', () => {
 
     // 放行请求：allSettled 落定后 loading 回落
     for (const resolve of pendingResolvers) {
-      resolve(okJson({}))
+      resolve(okJson(PAYLOADS['/inventory-ledger/month-analysis']))
     }
     await waitFor(() => expect(capturedRefreshLoading).toBe(false))
   })

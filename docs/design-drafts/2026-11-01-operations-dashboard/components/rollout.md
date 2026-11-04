@@ -173,8 +173,8 @@ Damon 已确认生产直接使用新设计，不设 feature flag：
 | --- | --- | --- | --- |
 | D0 | Dashboard 基准 | `/dashboard` | **已完成（2026-11-01）**：数据层拆分、Warm shell、真实 API、响应式与交互门禁通过 |
 | C1 | 运营分析 | `daily-analysis`、`portfolio-overview`、`inventory-analysis` | 已完成（2026-11-02；最终 Luna max review PASS） |
-| C2 | 运营执行 / 库存 | `inventory-ledger`、`shipping-plan`、`shipment-management`、`sku-info` | Tasks 1–5 页面实现与独立 Luna max R1 均已完成；Task 6 整批集成、测试、构建与视口/交互验收尚未开始 |
-| C3 | 报表 / 订单 | `order-info`、`product-analysis`、`monthly-report` | 表格与导出契约稳定 |
+| C2 | 运营执行 / 库存 | `inventory-ledger`、`shipping-plan`、`shipment-management`、`sku-info` | **已完成（2026-11-04）**：27 Vitest files / 199 tests、build、focused ESLint、78/78 Playwright、最终独立 review PASS；授权/技术 follow-ups 保留 |
+| C3 | 报表 / 订单 | `order-info`、`product-analysis`、`monthly-report/display` | 表格与导出契约稳定后开始；本 C2 closeout 不进入 C3 |
 | C4 | 广告 | `ad-analysis/overview`、`ad-data` | 图表 / 筛选契约已验证 |
 | C5 | 财务 | `platform-revenue`、`exchange-rate`、`commission-management` | 账期、币种、汇总口径明确 |
 | C6 | CRM | `crm/dashboard`、`customers`、`follow-ups`、`tasks` | 页面壳稳定；CRM 状态不并入订单状态 |
@@ -287,7 +287,7 @@ A1 owns Warm controls wrapper and Dashboard token consumption. A2–A5 may work 
 
 ## 12. C2 kickoff (2026-11-02)
 
-- The C2 page contracts are recorded in `components/c2-page-contracts.md`, and the task sequence is in `docs/superpowers/plans/2026-11-02-warm-ledger-c2.md`.
+- The C2 page contracts are recorded in `components/c2-page-contracts.md`, and the task sequence is in `docs/superpowers/plans/2026-11-02-warm-ledger-c2/2026-11-02-warm-ledger-c2.md`.
 - C2 exact routes are `inventory-ledger`, `shipping-plan`, `shipment-management`, and `sku-info`. The shell/sidebar work must expose those pages without a feature flag and keep all other routes on `TerminalShell`.
 - Task 1 exact-route/title/sidebar integration is complete and passed an independent Luna max review; focused ESLint and `git diff --check` passed.
 - Task 2 Inventory Ledger is implemented and passed the final Luna max R1 review. It preserves full-month export semantics, URL keys, formulas, filter scopes, and 50-row paging. It also keeps scope-matched data visible after same-scope refresh failures, hides prior-scope rows/options during project/month changes, and maps supported month aliases to the canonical response month for display.
@@ -298,9 +298,11 @@ A1 owns Warm controls wrapper and Dashboard token consumption. A2–A5 may work 
 
 ## 13. C2 stage checkpoint (2026-11-03)
 
-- C2 Tasks 1–5 have completed their implementation and independent Luna max source-review gates: exact route/navigation frame, Inventory Ledger, Shipping Plan, Shipment Management, and SKU Info. Task 5's final focused Luna max re-review passed after fixing the member-search focus ring and preserving selected review-group IDs that are absent from the current candidate results.
-- Page-level validation remains deliberately scoped: focused ESLint, `git diff --check`, and relevant whitespace checks passed as recorded in each task report. The C2-wide tests, production build, and six-viewport interaction matrix have not run; those belong to Task 6.
-- Task 6 is the next stage and has not started. It owns the stale Shipping Plan test fixture/assertions, focused C2 regression tests, integration lint/build, browser checks at 1440/1024/820/767/390/320px, route-specific state/action coverage, rollout evidence, and a final independent Luna max integration review.
-- The SKU Info and Shipment Management project-scope authorization findings remain open in the security follow-up. C2 UI work does not establish backend project isolation.
-- Promote a page-local component only after a second real route demonstrates the same behavior and accessibility contract. Keep unproven controls and layouts local during C2 integration and the next category audits.
-- Stage handoff and Task 6 exit criteria are recorded in [`2026-11-03-warm-ledger-c2-stage-checkpoint.md`](../../../superpowers/plans/2026-11-03-warm-ledger-c2-stage-checkpoint.md).
+- C2 Tasks 1–5 completed their implementation and independent Luna max source-review gates: exact route/navigation frame, Inventory Ledger, Shipping Plan, Shipment Management, and SKU Info. Task 5's final focused re-review passed after fixing the member-search focus ring and preserving selected review-group IDs absent from current candidate results.
+- **Task 6 complete.** Focused Vitest coverage for the four C2 routes and affected helpers: 27 files / 199 tests passed (`--maxWorkers=4`). Changed-file ESLint, `pnpm.cmd build`, `git diff --check`, mock-stability check, and CodeGraph sync passed. The final independent Luna max integration review returned PASS with no remaining P2 findings. Build emitted Next workspace-root/NFT and stale Browserslist warnings but exited successfully.
+- The self-contained Playwright matrix passed 78/78 across Chromium and mobile projects for the four exact C2 routes at 1440, 1024, 820, 767, 390, and 320px. Page-level horizontal overflow was absent, wide tables scrolled inside their own containers, and the 44px touch targets passed. Browser workflows covered inventory dimension filtering/full-month Excel export/month retry, Shipping Plan growth-factor PUT plus one scoped forecast refresh, Shipment Management cost writeback/export/dialog focus, SKU query/export/record-ID PATCH, and FactoryInfo/ImageLightbox keyboard focus return. Backend traffic and declared writes were intercepted by `page.route`; no request reached a real backend. The Inventory Ledger Batches tab is read-only history in this route (no file input/upload handler); its browser check confirms the archived record, and the existing page unit test covers the tab content.
+- Task 6 also repaired two confirmed behavior gaps: saving a Shipping Plan growth factor now triggers a fresh forecast request for the same scope/SKU, and stale Shipment Management list responses can no longer overwrite the latest filter's rows, paging, error, or loading state. Both have regression coverage.
+- SKU Info and Shipment Management project-scope authorization findings remain open in the security follow-up. C2 UI work does not establish backend project isolation. SKU pagination/10,000-row behavior, label ZIP response headers, and R2 image replacement order remain separate technical follow-ups.
+- Promote a page-local component only after a second real route demonstrates the same behavior and accessibility contract. Keep unproven controls and layouts local during the next category audits.
+- **Next stage after this C2 closeout:** C3 orders and reports (`order-info`, `product-analysis`, `monthly-report/display`). Run/extend the documented contract audits, confirm product/security scope, then implement only after a separate kickoff.
+- Stage handoff and detailed Task 6 closeout are recorded in [`2026-11-03-warm-ledger-c2-stage-checkpoint.md`](../../../superpowers/plans/2026-11-02-warm-ledger-c2/2026-11-03-warm-ledger-c2-stage-checkpoint.md).
