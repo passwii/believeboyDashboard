@@ -6,6 +6,7 @@ import { render, screen, within } from '@testing-library/react'
 
 import AgentOverviewClient from './agent-overview-client'
 import { productionCell } from './agent-overview-client'
+import AgentOverviewLoading from './loading'
 import { formatRelativeTime } from '@/lib/hooks/use-agent-domain-summary'
 import { AGENT_DOMAINS } from '@/lib/agent-domains'
 import type { AgentProduction } from '@/lib/hooks/use-agent-production'
@@ -246,6 +247,23 @@ describe('AgentOverviewClient 数据流总览', () => {
 })
 
 describe('Agent Overview Warm styling contract', () => {
+  it('keeps the 11-column table geometry during the Warm loading state', () => {
+    const { container } = render(<AgentOverviewLoading />)
+    const table = container.querySelector('table')
+
+    expect(container.querySelector('[data-warm-agent-overview-loading="true"]')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('正在加载 Agent 数据流总览')
+    expect(table).toBeInTheDocument()
+    expect(table?.querySelectorAll('col')).toHaveLength(11)
+    expect(table?.querySelectorAll('thead th')).toHaveLength(11)
+
+    const rows = table?.querySelectorAll('tbody tr') ?? []
+    expect(rows).toHaveLength(7)
+    for (const row of rows) {
+      expect(row.querySelectorAll('td')).toHaveLength(11)
+    }
+  })
+
   it('uses Warm tokens and a contained sticky table without Terminal aliases or breakpoints', () => {
     const cssPath = join(__dirname, 'agent-overview-warm.module.css')
     const css = existsSync(cssPath) ? readFileSync(cssPath, 'utf8') : ''
@@ -255,6 +273,8 @@ describe('Agent Overview Warm styling contract', () => {
     expect(css).toContain('var(--warm-ledger-font-variant-numeric)')
     expect(css).toContain('position: sticky')
     expect(css).toContain('overflow: auto')
+    expect(css).toMatch(/\.table th\.numeric\s*\{[^}]*text-align:\s*right/)
+    expect(css).toMatch(/\.table th\.center\s*\{[^}]*text-align:\s*center/)
     expect(css).not.toContain('--term-')
     expect(css).not.toContain('rounded-none')
     expect(css).not.toContain('@media')

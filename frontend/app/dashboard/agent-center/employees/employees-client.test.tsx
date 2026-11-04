@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
 import AgentEmployeesClient, { projectScopeText } from './employees-client'
+import AgentEmployeesLoading from './loading'
 import type { AgentApiKeyItem } from '@/lib/api/agent-key-admin'
 import type { EmployeeSummaryMap } from '@/lib/hooks/use-agent-employee-summary'
 
@@ -155,6 +156,23 @@ describe('AgentEmployeesClient 员工花名册(P3)', () => {
 })
 
 describe('Agent Employees Warm styling contract', () => {
+  it('keeps the 8-column table geometry during the Warm loading state', () => {
+    const { container } = render(<AgentEmployeesLoading />)
+    const table = container.querySelector('table')
+
+    expect(container.querySelector('[data-warm-agent-employees-loading="true"]')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('正在加载 Agent 员工')
+    expect(table).toBeInTheDocument()
+    expect(table?.querySelectorAll('col')).toHaveLength(8)
+    expect(table?.querySelectorAll('thead th')).toHaveLength(8)
+
+    const rows = table?.querySelectorAll('tbody tr') ?? []
+    expect(rows).toHaveLength(7)
+    for (const row of rows) {
+      expect(row.querySelectorAll('td')).toHaveLength(8)
+    }
+  })
+
   it('uses Warm tokens and a contained sticky table without Terminal aliases or breakpoints', () => {
     const cssPath = join(__dirname, 'employees-warm.module.css')
     const css = existsSync(cssPath) ? readFileSync(cssPath, 'utf8') : ''

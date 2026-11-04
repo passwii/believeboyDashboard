@@ -275,17 +275,19 @@
   background: var(--warm-ledger-color-panel-strong);
 }
 
-.loadingBody {
-  display: grid;
-  gap: var(--warm-ledger-space-3);
-  padding: var(--warm-ledger-space-5);
-}
-
 .skeletonTitle {
   width: 120px;
   height: 16px;
 }
 
-.skeletonRow {
-  height: 44px;
+.skeletonHeaderBar {
+  display: block;
+  width: 100%;
+  height: 10px;
+}
+
+.skeletonCellBar {
+  display: block;
+  width: 76%;
+  height: 10px;
 }
