@@ -49,7 +49,8 @@ const runsSelfContainedSpec = process.argv.some(
     // 跨境电商合规页（BLF-1393）：非 mobile-only，但同样用 fixture 伪造 session + mock 后端
     arg.includes('cross-border-compliance') ||
     arg.includes('warm-ledger-c2-matrix') ||
-    arg.includes('warm-ledger-c3-matrix')
+    arg.includes('warm-ledger-c3-matrix') ||
+    arg.includes('warm-ledger-expansion-desktop')
 )
 let envFileBackup: string | null = null
 let envFileExisted = false
