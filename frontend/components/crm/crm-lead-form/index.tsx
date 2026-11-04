@@ -1,17 +1,8 @@
 'use client'
 
-import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { useForm, type Resolver } from 'react-hook-form'
+
 import {
   Form,
   FormControl,
@@ -20,14 +11,13 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { CrmUserSelect } from '@/components/crm/crm-user-select'
-import {
-  LEAD_INTENT_LABELS,
-  LEAD_STATUS_LABELS,
-} from '@/lib/crm/enums/lead.enum'
+import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
 import { CUSTOMER_SOURCE_LABELS } from '@/lib/crm/enums/customer.enum'
-import type { User } from '@/lib/crm/types/user'
+import { LEAD_INTENT_LABELS, LEAD_STATUS_LABELS } from '@/lib/crm/enums/lead.enum'
 import type { LeadInput } from '@/lib/crm/types/lead'
+import type { User } from '@/lib/crm/types/user'
+
+import styles from '@/app/dashboard/crm/leads/leads-warm.module.css'
 import { leadSchema, type LeadFormValues } from './schemas/lead.schema'
 
 export interface CrmLeadFormProps {
@@ -84,32 +74,36 @@ export function CrmLeadForm({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+      <form
+        className={styles.form}
+        data-warm-lead-form
+        onSubmit={form.handleSubmit(handleSubmit)}
+      >
         <FormField
           control={form.control}
           name="name"
           render={({ field }) => (
-            <FormItem>
-              <FormLabel>联系人 *</FormLabel>
+            <FormItem className={styles.field}>
+              <FormLabel className={styles.label}>联系人 *</FormLabel>
               <FormControl>
-                <Input {...field} value={field.value ?? ''} />
+                <input className={styles.input} {...field} value={field.value ?? ''} />
               </FormControl>
-              <FormMessage />
+              <FormMessage className={styles.message} />
             </FormItem>
           )}
         />
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className={styles.formGrid}>
           <FormField
             control={form.control}
             name="company"
             render={({ field }) => (
-              <FormItem>
-                <FormLabel>公司</FormLabel>
+              <FormItem className={styles.field}>
+                <FormLabel className={styles.label}>公司</FormLabel>
                 <FormControl>
-                  <Input {...field} value={field.value ?? ''} />
+                  <input className={styles.input} {...field} value={field.value ?? ''} />
                 </FormControl>
-                <FormMessage />
+                <FormMessage className={styles.message} />
               </FormItem>
             )}
           />
@@ -117,28 +111,28 @@ export function CrmLeadForm({
             control={form.control}
             name="phone"
             render={({ field }) => (
-              <FormItem>
-                <FormLabel>电话</FormLabel>
+              <FormItem className={styles.field}>
+                <FormLabel className={styles.label}>电话</FormLabel>
                 <FormControl>
-                  <Input {...field} value={field.value ?? ''} />
+                  <input className={styles.input} {...field} value={field.value ?? ''} />
                 </FormControl>
-                <FormMessage />
+                <FormMessage className={styles.message} />
               </FormItem>
             )}
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className={styles.formGrid}>
           <FormField
             control={form.control}
             name="email"
             render={({ field }) => (
-              <FormItem>
-                <FormLabel>邮箱</FormLabel>
+              <FormItem className={styles.field}>
+                <FormLabel className={styles.label}>邮箱</FormLabel>
                 <FormControl>
-                  <Input {...field} value={field.value ?? ''} />
+                  <input className={styles.input} {...field} value={field.value ?? ''} />
                 </FormControl>
-                <FormMessage />
+                <FormMessage className={styles.message} />
               </FormItem>
             )}
           />
@@ -146,12 +140,12 @@ export function CrmLeadForm({
             control={form.control}
             name="wechat"
             render={({ field }) => (
-              <FormItem>
-                <FormLabel>微信</FormLabel>
+              <FormItem className={styles.field}>
+                <FormLabel className={styles.label}>微信</FormLabel>
                 <FormControl>
-                  <Input {...field} value={field.value ?? ''} />
+                  <input className={styles.input} {...field} value={field.value ?? ''} />
                 </FormControl>
-                <FormMessage />
+                <FormMessage className={styles.message} />
               </FormItem>
             )}
           />
@@ -161,49 +155,47 @@ export function CrmLeadForm({
           control={form.control}
           name="source"
           render={({ field }) => (
-            <FormItem>
-              <FormLabel>来源</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {Object.entries(CUSTOMER_SOURCE_LABELS).map(([v, l]) => (
-                    <SelectItem key={v} value={v}>
-                      {l}
-                    </SelectItem>
+            <FormItem className={styles.field}>
+              <FormLabel className={styles.label}>来源</FormLabel>
+              <FormControl>
+                <select
+                  className={styles.select}
+                  onChange={field.onChange}
+                  value={field.value}
+                >
+                  {Object.entries(CUSTOMER_SOURCE_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
                   ))}
-                </SelectContent>
-              </Select>
-              <FormMessage />
+                </select>
+              </FormControl>
+              <FormMessage className={styles.message} />
             </FormItem>
           )}
         />
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className={styles.formGrid}>
           <FormField
             control={form.control}
             name="status"
             render={({ field }) => (
-              <FormItem>
-                <FormLabel>状态</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {Object.entries(LEAD_STATUS_LABELS).map(([v, l]) => (
-                      <SelectItem key={v} value={v}>
-                        {l}
-                      </SelectItem>
+              <FormItem className={styles.field}>
+                <FormLabel className={styles.label}>状态</FormLabel>
+                <FormControl>
+                  <select
+                    className={styles.select}
+                    onChange={field.onChange}
+                    value={field.value}
+                  >
+                    {Object.entries(LEAD_STATUS_LABELS).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
                     ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
+                  </select>
+                </FormControl>
+                <FormMessage className={styles.message} />
               </FormItem>
             )}
           />
@@ -211,23 +203,22 @@ export function CrmLeadForm({
             control={form.control}
             name="intent"
             render={({ field }) => (
-              <FormItem>
-                <FormLabel>意向</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {Object.entries(LEAD_INTENT_LABELS).map(([v, l]) => (
-                      <SelectItem key={v} value={v}>
-                        {l}
-                      </SelectItem>
+              <FormItem className={styles.field}>
+                <FormLabel className={styles.label}>意向</FormLabel>
+                <FormControl>
+                  <select
+                    className={styles.select}
+                    onChange={field.onChange}
+                    value={field.value}
+                  >
+                    {Object.entries(LEAD_INTENT_LABELS).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
                     ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
+                  </select>
+                </FormControl>
+                <FormMessage className={styles.message} />
               </FormItem>
             )}
           />
@@ -237,32 +228,46 @@ export function CrmLeadForm({
           control={form.control}
           name="ownerId"
           render={({ field }) => (
-            <FormItem>
-              <FormLabel>负责人</FormLabel>
+            <FormItem className={styles.field}>
+              <FormLabel className={styles.label}>负责人</FormLabel>
               <FormControl>
-                <CrmUserSelect users={users} value={field.value} onChange={field.onChange} />
+                <select
+                  className={styles.select}
+                  onChange={(event) => field.onChange(event.target.value || null)}
+                  value={field.value ?? ''}
+                >
+                  <option value="">选择负责人</option>
+                  {users.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.name}
+                    </option>
+                  ))}
+                </select>
               </FormControl>
-              <FormMessage />
+              <FormMessage className={styles.message} />
             </FormItem>
           )}
         />
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className={styles.formGrid}>
           <FormField
             control={form.control}
             name="expectedAmount"
             render={({ field }) => (
-              <FormItem>
-                <FormLabel>预计金额</FormLabel>
+              <FormItem className={styles.field}>
+                <FormLabel className={styles.label}>预计金额</FormLabel>
                 <FormControl>
-                  <Input
+                  <input
+                    className={styles.input}
                     type="number"
                     {...field}
                     value={field.value ?? ''}
-                    onChange={(e) => field.onChange(e.target.valueAsNumber || undefined)}
+                    onChange={(event) =>
+                      field.onChange(event.target.valueAsNumber || undefined)
+                    }
                   />
                 </FormControl>
-                <FormMessage />
+                <FormMessage className={styles.message} />
               </FormItem>
             )}
           />
@@ -270,12 +275,17 @@ export function CrmLeadForm({
             control={form.control}
             name="expectedCloseDate"
             render={({ field }) => (
-              <FormItem>
-                <FormLabel>预计成交日</FormLabel>
+              <FormItem className={styles.field}>
+                <FormLabel className={styles.label}>预计成交日</FormLabel>
                 <FormControl>
-                  <Input type="date" {...field} value={field.value ?? ''} />
+                  <input
+                    className={styles.input}
+                    type="date"
+                    {...field}
+                    value={field.value ?? ''}
+                  />
                 </FormControl>
-                <FormMessage />
+                <FormMessage className={styles.message} />
               </FormItem>
             )}
           />
@@ -285,19 +295,24 @@ export function CrmLeadForm({
           control={form.control}
           name="remark"
           render={({ field }) => (
-            <FormItem>
-              <FormLabel>备注</FormLabel>
+            <FormItem className={styles.field}>
+              <FormLabel className={styles.label}>备注</FormLabel>
               <FormControl>
-                <Textarea {...field} value={field.value ?? ''} rows={3} />
+                <textarea
+                  className={styles.textarea}
+                  {...field}
+                  rows={3}
+                  value={field.value ?? ''}
+                />
               </FormControl>
-              <FormMessage />
+              <FormMessage className={styles.message} />
             </FormItem>
           )}
         />
 
-        <Button type="submit" className="w-full">
+        <WarmButton className={styles.submitButton} type="submit" variant="primary">
           {submitText}
-        </Button>
+        </WarmButton>
       </form>
     </Form>
   )
