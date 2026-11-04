@@ -1,7 +1,24 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ChangeEvent, ReactNode } from 'react'
+import {
+  Children,
+  isValidElement,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import type {
+  ButtonHTMLAttributes,
+  ChangeEvent,
+  ComponentProps,
+  HTMLAttributes,
+  InputHTMLAttributes,
+  ReactNode,
+  TdHTMLAttributes,
+  ThHTMLAttributes,
+} from 'react'
 import {
   Area,
   AreaChart,
@@ -45,45 +62,24 @@ import {
 import { useSession } from 'next-auth/react'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
-import { DataCard, DataCardHeader, DataCardContent } from '@/components/ui/data-card'
 import {
   ChartContainer,
   ChartLegend,
   ChartLegendContent,
   ChartTooltip,
-  ChartTooltipContent,
   type ChartConfig,
 } from '@/components/ui/chart'
-import { EmptyChartState, EmptyTableState } from '@/components/ui/empty-state'
-import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
+import type { ChartTooltipContent as SharedChartTooltipContent } from '@/components/ui/chart'
 import {
   DirectionalTabTransition,
-  SlidingTabsTrigger,
   TabsMotionGroup,
 } from '@/components/ui/tab-motion'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { pickSessionDisplayName } from '@/lib/auth/display-name'
 import { useNotifications } from '@/components/notifications'
+
+import styles from './research-analysis-warm.module.css'
 
 const API_BASE = '/api/backend'
 const DASHBOARD_PALETTE = {
@@ -374,11 +370,209 @@ type ContextBadge = {
   value: string
 }
 
+type LocalButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: 'default' | 'outline' | 'secondary' | 'ghost'
+  size?: 'sm'
+}
+
+function Button({ className, variant = 'default', size: _size, ...props }: LocalButtonProps) {
+  return (
+    <button
+      {...props}
+      type={props.type ?? 'button'}
+      data-variant={variant}
+      className={[styles.button, className].filter(Boolean).join(' ')}
+    />
+  )
+}
+
+function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
+  return <input {...props} className={[styles.input, className].filter(Boolean).join(' ')} />
+}
+
+function Badge({
+  className,
+  variant: _variant,
+  children,
+  ...props
+}: HTMLAttributes<HTMLSpanElement> & { variant?: string }) {
+  return (
+    <span {...props} className={[styles.badge, className].filter(Boolean).join(' ')}>
+      {children}
+    </span>
+  )
+}
+
+function Table({ className, children }: HTMLAttributes<HTMLTableElement>) {
+  return (
+    <div className={styles.tableScroll}>
+      <table className={[styles.table, className].filter(Boolean).join(' ')}>{children}</table>
+    </div>
+  )
+}
+
+function TableHeader({ className, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
+  return <thead {...props} className={className} />
+}
+
+function TableBody({ className, ...props }: HTMLAttributes<HTMLTableSectionElement>) {
+  return <tbody {...props} className={className} />
+}
+
+function TableRow({ className, ...props }: HTMLAttributes<HTMLTableRowElement>) {
+  return <tr {...props} className={[styles.tableRow, className].filter(Boolean).join(' ')} />
+}
+
+function TableHead({ className, ...props }: ThHTMLAttributes<HTMLTableCellElement>) {
+  return <th {...props} className={[styles.tableHead, className].filter(Boolean).join(' ')} />
+}
+
+function TableCell({ className, ...props }: TdHTMLAttributes<HTMLTableCellElement>) {
+  return <td {...props} className={[styles.tableCell, className].filter(Boolean).join(' ')} />
+}
+
+function SelectItem(_props: { value: string; children: ReactNode }) {
+  return null
+}
+
+function SelectTrigger(_props: { className?: string; children?: ReactNode }) {
+  return null
+}
+
+function SelectValue(_props: { placeholder?: string }) {
+  return null
+}
+
+function SelectContent(_props: { children?: ReactNode }) {
+  return null
+}
+
+function collectSelectOptions(
+  children: ReactNode
+): Array<{ value: string; label: ReactNode }> {
+  const options: Array<{ value: string; label: ReactNode }> = []
+  Children.forEach(children, (child) => {
+    if (!isValidElement(child)) return
+    const props = child.props as { value?: string; children?: ReactNode }
+    if (child.type === SelectItem && props.value !== undefined) {
+      options.push({ value: props.value, label: props.children })
+      return
+    }
+    if (props.children) options.push(...collectSelectOptions(props.children))
+  })
+  return options
+}
+
+function Select({
+  value,
+  onValueChange,
+  children,
+  className,
+  disabled,
+}: {
+  value: string
+  onValueChange: (value: string) => void
+  children: ReactNode
+  className?: string
+  disabled?: boolean
+}) {
+  const options = collectSelectOptions(children)
+  return (
+    <select
+      className={[styles.select, className].filter(Boolean).join(' ')}
+      value={value}
+      disabled={disabled}
+      onChange={(event) => onValueChange(event.target.value)}
+    >
+      {options.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+function EmptyChartState({
+  message,
+  height,
+}: {
+  message: string
+  height?: string
+  icon?: ReactNode
+}) {
+  return (
+    <div className={styles.emptyChart} data-height={height}>
+      {message}
+    </div>
+  )
+}
+
+function EmptyTableState({ colSpan }: { colSpan: number }) {
+  return (
+    <tr>
+      <td colSpan={colSpan} className={styles.emptyTableCell}>
+        暂无数据
+      </td>
+    </tr>
+  )
+}
+
+type LocalChartTooltipProps = ComponentProps<typeof SharedChartTooltipContent>
+
+function ChartTooltipContent({
+  active,
+  payload,
+  label,
+  formatter,
+  labelFormatter,
+  nameKey,
+  className,
+}: LocalChartTooltipProps) {
+  if (!active || !payload?.length) return null
+
+  const labelText = labelFormatter ? labelFormatter(label, payload) : label
+
+  return (
+    <div className={cn(styles.chartTooltip, className)}>
+      {labelText != null ? <div className={styles.chartTooltipLabel}>{labelText}</div> : null}
+      <div className={styles.chartTooltipRows}>
+        {payload
+          .filter((item) => item.type !== 'none')
+          .map((item, index) => {
+            const name = String(item.name ?? nameKey ?? item.dataKey ?? 'value')
+            return (
+              <div
+                key={`${item.dataKey ?? item.name ?? 'value'}-${index}`}
+                className={styles.chartTooltipRow}
+              >
+                {formatter && item.value !== undefined && item.name ? (
+                  formatter(item.value, item.name, item, index, item.payload)
+                ) : (
+                  <>
+                    <span className={styles.chartTooltipName}>{name}</span>
+                    <span className={styles.chartTooltipValue}>
+                      {item.value == null
+                        ? '—'
+                        : typeof item.value === 'number'
+                          ? item.value.toLocaleString()
+                          : String(item.value)}
+                    </span>
+                  </>
+                )}
+              </div>
+            )
+          })}
+      </div>
+    </div>
+  )
+}
+
 function ResearchControlSkeleton({ widthClass = '' }: { widthClass?: string }) {
   return (
     <div className={cn('space-y-2', widthClass)}>
-      <Skeleton className="h-3 w-20" />
-      <Skeleton className="h-10 w-full" />
+      <div className={cn(styles.skeletonBlock, 'h-3 w-20')} />
+      <div className={cn(styles.skeletonBlock, 'h-10 w-full')} />
     </div>
   )
 }
@@ -598,9 +792,9 @@ function normalizeRiskLevel(level: string | undefined): AlertLevel {
 }
 
 function alertBadgeClass(level: AlertLevel) {
-  if (level === 'high') return 'border-term-neg/30 bg-term-neg/10 text-term-neg'
-  if (level === 'medium') return 'border-term-warn/30 bg-term-warn/10 text-term-warn'
-  return 'border-term-pos/30 bg-term-pos/10 text-term-pos'
+  if (level === 'high') return 'border-[var(--warm-ledger-color-negative)] bg-[var(--warm-ledger-color-accent-soft)] text-[var(--warm-ledger-color-negative)]'
+  if (level === 'medium') return 'border-[var(--warm-ledger-color-accent)] bg-[var(--warm-ledger-color-accent-soft)] text-[var(--warm-ledger-color-accent)]'
+  return 'border-[var(--warm-ledger-color-positive)] bg-[var(--warm-ledger-color-accent-soft)] text-[var(--warm-ledger-color-positive)]'
 }
 
 function growthLevelText(level: string | undefined): string {
@@ -679,10 +873,10 @@ function formatNumber(value: number | null | undefined) {
 
 function trendValueClass(value: number | null | undefined) {
   if (value === null || value === undefined || !Number.isFinite(value))
-    return 'text-term-muted'
-  if (value > 0) return 'text-term-pos'
-  if (value < 0) return 'text-term-neg'
-  return 'text-term-muted'
+    return 'text-[var(--warm-ledger-color-text-muted)]'
+  if (value > 0) return 'text-[var(--warm-ledger-color-positive)]'
+  if (value < 0) return 'text-[var(--warm-ledger-color-negative)]'
+  return 'text-[var(--warm-ledger-color-text-muted)]'
 }
 
 function formatMonthTick(value: string) {
@@ -1604,29 +1798,29 @@ function MetricGridCard({
   items: MetricItem[]
 }) {
   return (
-    <div className="bg-term-panel border-term-border">
-      <div className="border-b border-term-border bg-term-panel px-4 py-3">
-        <h3 className="text-base font-semibold text-term-text">{title}</h3>
-        {description ? <p className="mt-1 text-sm text-term-muted">{description}</p> : null}
+    <div className="bg-[var(--warm-ledger-color-panel)] border-[var(--warm-ledger-color-hairline)]">
+      <div className="border-b border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] px-4 py-3">
+        <h3 className="text-base font-semibold text-[var(--warm-ledger-color-text)]">{title}</h3>
+        {description ? <p className="mt-1 text-sm text-[var(--warm-ledger-color-text-muted)]">{description}</p> : null}
       </div>
       <div className="p-4">
         <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
           {items.map((item) => (
             <div
               key={item.label}
-              className="rounded-none border border-term-border bg-term-raised p-3 transition-colors duration-[var(--duration-quick)] hover:border-term-accent/30 hover:bg-term-hover"
+              className="rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] p-3 transition-colors duration-[var(--duration-quick)] hover:border-[var(--warm-ledger-color-accent)] hover:bg-[var(--warm-ledger-color-raised-hover)]"
             >
-              <p className="text-xs text-term-muted">{item.label}</p>
+              <p className="text-xs text-[var(--warm-ledger-color-text-muted)]">{item.label}</p>
               <p
                 className={cn(
                   'mt-1 text-lg font-semibold',
-                  item.tone === 'positive' && 'text-term-pos',
-                  item.tone === 'negative' && 'text-term-neg'
+                  item.tone === 'positive' && 'text-[var(--warm-ledger-color-positive)]',
+                  item.tone === 'negative' && 'text-[var(--warm-ledger-color-negative)]'
                 )}
               >
                 {item.value}
               </p>
-              {item.hint ? <p className="mt-1 text-xs text-term-muted">{item.hint}</p> : null}
+              {item.hint ? <p className="mt-1 text-xs text-[var(--warm-ledger-color-text-muted)]">{item.hint}</p> : null}
             </div>
           ))}
         </div>
@@ -1651,15 +1845,15 @@ function InsightChartCard({
   contentClassName?: string
 }) {
   return (
-    <div className={cn('bg-term-panel border-term-border', className)}>
-      <div className="border-b border-term-border bg-term-panel px-4 py-3">
-        <h3 className="text-base font-semibold text-term-text">{title}</h3>
-        {description ? <p className="mt-1 text-sm text-term-muted">{description}</p> : null}
+    <div className={cn('bg-[var(--warm-ledger-color-panel)] border-[var(--warm-ledger-color-hairline)]', className)}>
+      <div className="border-b border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] px-4 py-3">
+        <h3 className="text-base font-semibold text-[var(--warm-ledger-color-text)]">{title}</h3>
+        {description ? <p className="mt-1 text-sm text-[var(--warm-ledger-color-text-muted)]">{description}</p> : null}
       </div>
       <div className={cn('space-y-4 p-4', contentClassName)}>
         {children}
         {footer ? (
-          <div className="border-t border-term-border pt-3 text-xs text-term-muted">
+          <div className="border-t border-[var(--warm-ledger-color-hairline)] pt-3 text-xs text-[var(--warm-ledger-color-text-muted)]">
             {footer}
           </div>
         ) : null}
@@ -1674,21 +1868,21 @@ function PieLegendNotes({ items, className }: { items: PieDatum[]; className?: s
   return (
     <div className={cn('grid gap-2 sm:grid-cols-2', className)}>
       {items.map((item) => (
-        <div key={item.name} className="rounded-none border border-term-border bg-term-raised px-3 py-2">
+        <div key={item.name} className="rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] px-3 py-2">
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
               <span
                 className="h-2.5 w-2.5 shrink-0 rounded-full"
                 style={{ backgroundColor: item.fill }}
               />
-              <span className="truncate text-sm text-term-text">{item.name}</span>
+              <span className="truncate text-sm text-[var(--warm-ledger-color-text)]">{item.name}</span>
             </div>
-            <span className="shrink-0 text-sm font-medium text-term-text">
+            <span className="shrink-0 text-sm font-medium text-[var(--warm-ledger-color-text)]">
               {compactPercentLabel(item.value)}
             </span>
           </div>
           {item.description ? (
-            <p className="mt-1 text-xs text-term-muted">{item.description}</p>
+            <p className="mt-1 text-xs text-[var(--warm-ledger-color-text-muted)]">{item.description}</p>
           ) : null}
         </div>
       ))}
@@ -1708,8 +1902,8 @@ function SingleRadialGauge({
   color: string
 }) {
   return (
-    <div className="rounded-none border border-term-border bg-term-raised p-3">
-      <p className="text-xs text-term-muted">{title}</p>
+    <div className="rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] p-3">
+      <p className="text-xs text-[var(--warm-ledger-color-text-muted)]">{title}</p>
       <div className="mt-2 h-[180px]">
         <ChartContainer config={{ value: { label: title, color } }} className="h-full w-full">
           <RadialBarChart
@@ -1761,24 +1955,24 @@ function ContextSummaryStrip({
   priceBandLabel: string
 }) {
   return (
-    <div className="rounded-none border border-term-border bg-term-panel p-3 shadow-none backdrop-blur supports-[backdrop-filter]:bg-term-panel/65">
+    <div className="rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] p-3 shadow-none backdrop-blur supports-[backdrop-filter]:bg-[var(--warm-ledger-color-panel)]">
       <div className="grid gap-2 grid-cols-2 lg:grid-cols-[repeat(6,minmax(0,1fr))_220px]">
         {items.map((item) => (
           <div
             key={item.key}
-            className="rounded-none border border-term-border bg-term-raised px-3 py-2"
+            className="rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] px-3 py-2"
           >
-            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-term-muted">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--warm-ledger-color-text-muted)]">
               {item.label}
             </p>
-            <p className="mt-1 truncate text-sm font-semibold text-term-text">{item.value}</p>
+            <p className="mt-1 truncate text-sm font-semibold text-[var(--warm-ledger-color-text)]">{item.value}</p>
           </div>
         ))}
-        <div className="rounded-none border border-term-accent/20 bg-term-accent/10 px-3 py-2">
+        <div className="rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-accent)] bg-[var(--warm-ledger-color-accent-soft)] px-3 py-2">
           <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-primary/80">
             价格带配置
           </p>
-          <p className="mt-1 text-sm font-semibold text-term-text">{priceBandLabel}</p>
+          <p className="mt-1 text-sm font-semibold text-[var(--warm-ledger-color-text)]">{priceBandLabel}</p>
         </div>
       </div>
     </div>
@@ -1787,22 +1981,22 @@ function ContextSummaryStrip({
 
 function DecisionSummaryCard({ item }: { item: SummaryCard }) {
   return (
-    <div className="rounded-none border border-term-border bg-term-panel p-4 shadow-none transition-colors duration-[var(--duration-quick)] hover:border-term-accent/25">
+    <div className="rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] p-4 shadow-none transition-colors duration-[var(--duration-quick)] hover:border-[var(--warm-ledger-color-accent)]">
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm font-medium text-term-text">
-            <span className="rounded-none border border-term-border bg-term-raised p-2 text-term-muted">
+          <div className="flex items-center gap-2 text-sm font-medium text-[var(--warm-ledger-color-text)]">
+            <span className="rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] p-2 text-[var(--warm-ledger-color-text-muted)]">
               {item.icon}
             </span>
             <span>{item.label}</span>
           </div>
-          <p className="text-xl font-semibold tracking-tight text-term-text">{item.value}</p>
+          <p className="text-xl font-semibold tracking-tight text-[var(--warm-ledger-color-text)]">{item.value}</p>
         </div>
         <Badge variant="outline" className={alertBadgeClass(item.level)}>
           {item.level === 'high' ? '高关注' : item.level === 'medium' ? '需验证' : '较友好'}
         </Badge>
       </div>
-      <p className="mt-3 text-sm leading-6 text-term-muted">{item.detail}</p>
+      <p className="mt-3 text-sm leading-6 text-[var(--warm-ledger-color-text-muted)]">{item.detail}</p>
     </div>
   )
 }
@@ -1815,7 +2009,7 @@ function AnalysisSectionNav({
   onSelect: (section: ViewTab) => void
 }) {
   return (
-    <div className="sticky top-[5.25rem] z-[19] -mx-1 rounded-none border border-term-border bg-term-raised px-1 py-1 shadow-none backdrop-blur supports-[backdrop-filter]:bg-term-panel/82 md:top-[6rem]">
+    <div className="sticky top-[5.25rem] z-[19] -mx-1 rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] px-1 py-1 shadow-none backdrop-blur supports-[backdrop-filter]:bg-[var(--warm-ledger-color-panel)] md:top-[6rem]">
       <div className="overflow-x-auto">
         <div className="flex min-w-max gap-1 md:grid md:min-w-0 md:grid-cols-6">
           {ANALYSIS_SECTIONS.map((section) => (
@@ -1824,10 +2018,10 @@ function AnalysisSectionNav({
               type="button"
               onClick={() => onSelect(section.key)}
               className={cn(
-                'cursor-pointer whitespace-nowrap rounded-none px-4 py-2 text-sm font-medium transition-all duration-[var(--duration-quick)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:w-full',
+                'cursor-pointer whitespace-nowrap rounded-[var(--warm-ledger-radius-inner)] px-4 py-2 text-sm font-medium transition-all duration-[var(--duration-quick)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:w-full',
                 activeSection === section.key
                   ? 'bg-primary text-primary-foreground shadow-none'
-                  : 'text-term-muted hover:bg-term-hover hover:text-term-text'
+                  : 'text-[var(--warm-ledger-color-text-muted)] hover:bg-[var(--warm-ledger-color-raised-hover)] hover:text-[var(--warm-ledger-color-text)]'
               )}
               aria-current={activeSection === section.key ? 'page' : undefined}
             >
@@ -1844,14 +2038,14 @@ function AnalysisSectionHeader({ section }: { section: AnalysisSection }) {
   return (
     <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
       <div className="md:pl-3 lg:pl-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-term-muted">
+        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--warm-ledger-color-text-muted)]">
           Deep Dive
         </p>
-        <h2 className="mt-1 text-2xl font-semibold tracking-tight text-term-text">
+        <h2 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--warm-ledger-color-text)]">
           {section.label}
         </h2>
       </div>
-      <p className="max-w-2xl text-sm leading-6 text-term-muted">{section.prompt}</p>
+      <p className="max-w-2xl text-sm leading-6 text-[var(--warm-ledger-color-text-muted)]">{section.prompt}</p>
     </div>
   )
 }
@@ -2474,32 +2668,33 @@ export default function CategoryResearchPage() {
   )
 
   return (
+    <main
+      className={styles.page}
+      data-testid="research-analysis-warm-page"
+      data-warm-surface="warm-ledger"
+    >
     <Tabs
       value={workspaceTab}
       onValueChange={(value) => setWorkspaceTab(value as WorkspaceTab)}
-      className="w-full space-y-6"
+      className={styles.pageTabs}
     >
-      <div className="flex items-center justify-between">
+      <div className={styles.tabsHeader}>
         <TabsMotionGroup id="research-analysis-tabs">
-          <TabsList variant="term" className="grid w-full max-w-[320px] grid-cols-2">
-            <SlidingTabsTrigger
+          <TabsList className={styles.tabsList}>
+            <TabsTrigger
               value="research"
-              activeValue={workspaceTab}
-              layoutId="research-analysis-tab-indicator"
-              variant="term"
+              className={styles.tabTrigger}
             >
               <Search aria-hidden />
               调研
-            </SlidingTabsTrigger>
-            <SlidingTabsTrigger
+            </TabsTrigger>
+            <TabsTrigger
               value="analysis"
-              activeValue={workspaceTab}
-              layoutId="research-analysis-tab-indicator"
-              variant="term"
+              className={styles.tabTrigger}
             >
               <TrendingUp aria-hidden />
               分析
-            </SlidingTabsTrigger>
+            </TabsTrigger>
           </TabsList>
         </TabsMotionGroup>
       </div>
@@ -2508,24 +2703,24 @@ export default function CategoryResearchPage() {
         <TabsContent forceMount value={workspaceTab} className="space-y-6">
           {workspaceTab === 'research' ? (
             <>
-              <div className="bg-term-panel overflow-hidden border-term-border">
-                <div className="border-b border-term-border bg-term-panel px-4 py-3">
-                  <div className="flex items-center gap-2 text-xl font-semibold text-term-text">
+              <div className="bg-[var(--warm-ledger-color-panel)] overflow-hidden border-[var(--warm-ledger-color-hairline)]">
+                <div className="border-b border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] px-4 py-3">
+                  <div className="flex items-center gap-2 text-xl font-semibold text-[var(--warm-ledger-color-text)]">
                     <Upload className="h-5 w-5" />
                     调研工作台
                   </div>
-                  <p className="mt-1 text-sm text-term-muted">
+                  <p className="mt-1 text-sm text-[var(--warm-ledger-color-text-muted)]">
                     上传 BestSeller 类目表并完成核算，生成可复用的调研版本。
                   </p>
                 </div>
                 <div className="space-y-5 p-4">
                   <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
                     <div className="space-y-2 col-span-2 lg:col-span-1">
-                      <p className="text-xs font-semibold uppercase tracking-[0.06em] text-term-muted">
+                      <p className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--warm-ledger-color-text-muted)]">
                         站点
                       </p>
                       <Select value={marketplace} onValueChange={setMarketplace}>
-                        <SelectTrigger className="h-9 w-full rounded-none border-term-border bg-term-raised shadow-none dark:border-term-border dark:bg-term-raised">
+                        <SelectTrigger className="h-9 w-full rounded-[var(--warm-ledger-radius-inner)] border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] shadow-none dark:border-[var(--warm-ledger-color-hairline)] dark:bg-[var(--warm-ledger-color-raised)]">
                           <SelectValue placeholder="选择站点" />
                         </SelectTrigger>
                         <SelectContent>
@@ -2537,7 +2732,7 @@ export default function CategoryResearchPage() {
                       </Select>
                     </div>
                     <div className="space-y-2 col-span-2 lg:col-span-2">
-                      <p className="text-xs font-semibold uppercase tracking-[0.06em] text-term-muted">
+                      <p className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--warm-ledger-color-text-muted)]">
                         品类关键词（英文）
                       </p>
                       <Input
@@ -2547,7 +2742,7 @@ export default function CategoryResearchPage() {
                       />
                     </div>
                     <div className="space-y-2 col-span-2 lg:col-span-2">
-                      <p className="text-xs font-semibold uppercase tracking-[0.06em] text-term-muted">
+                      <p className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--warm-ledger-color-text-muted)]">
                         品类名称（中文）
                       </p>
                       <Input
@@ -2560,7 +2755,7 @@ export default function CategoryResearchPage() {
 
                   <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
                     <div className="space-y-2">
-                      <p className="text-xs font-semibold uppercase tracking-[0.06em] text-term-muted">
+                      <p className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--warm-ledger-color-text-muted)]">
                         上传文件（xlsx）
                       </p>
                       <Input
@@ -2579,15 +2774,15 @@ export default function CategoryResearchPage() {
                     </Button>
                   </div>
 
-                  {formError ? <p className="text-sm text-term-neg">{formError}</p> : null}
-                  {formSuccess ? <p className="text-sm text-term-pos">{formSuccess}</p> : null}
+                  {formError ? <p className="text-sm text-[var(--warm-ledger-color-negative)]">{formError}</p> : null}
+                  {formSuccess ? <p className="text-sm text-[var(--warm-ledger-color-positive)]">{formSuccess}</p> : null}
                 </div>
               </div>
 
-              <div className="bg-term-panel border-term-border">
-                <div className="border-b border-term-border bg-term-panel px-4 py-3">
-                  <h3 className="text-base font-semibold text-term-text">核心过程</h3>
-                  <p className="mt-1 text-sm text-term-muted">
+              <div className="bg-[var(--warm-ledger-color-panel)] border-[var(--warm-ledger-color-hairline)]">
+                <div className="border-b border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] px-4 py-3">
+                  <h3 className="text-base font-semibold text-[var(--warm-ledger-color-text)]">核心过程</h3>
+                  <p className="mt-1 text-sm text-[var(--warm-ledger-color-text-muted)]">
                     保持上传与版本流转逻辑不变，分析端升级为图表工作台。
                   </p>
                 </div>
@@ -2599,8 +2794,8 @@ export default function CategoryResearchPage() {
                       '执行核算/重算生成版本',
                       '切换到分析查看结果',
                     ].map((item, index) => (
-                      <div key={item} className="rounded-none border bg-term-raised p-3">
-                        <p className="text-xs text-term-muted">Step {index + 1}</p>
+                      <div key={item} className="rounded-[var(--warm-ledger-radius-inner)] border bg-[var(--warm-ledger-color-raised)] p-3">
+                        <p className="text-xs text-[var(--warm-ledger-color-text-muted)]">Step {index + 1}</p>
                         <p className="text-sm font-medium">{item}</p>
                       </div>
                     ))}
@@ -2610,24 +2805,24 @@ export default function CategoryResearchPage() {
             </>
           ) : (
             <>
-              <div className="bg-term-panel overflow-hidden border-term-border">
-                <div className="border-b border-term-border bg-term-panel px-4 py-3">
-                  <div className="flex items-center gap-2 text-xl font-semibold text-term-text">
+              <div className="bg-[var(--warm-ledger-color-panel)] overflow-hidden border-[var(--warm-ledger-color-hairline)]">
+                <div className="border-b border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] px-4 py-3">
+                  <div className="flex items-center gap-2 text-xl font-semibold text-[var(--warm-ledger-color-text)]">
                     <Database className="h-5 w-5" />
                     分析工作台
                   </div>
-                  <p className="mt-1 text-sm text-term-muted">
+                  <p className="mt-1 text-sm text-[var(--warm-ledger-color-text-muted)]">
                     按官方 shadcn 图表体系重构的高密度分析界面，聚焦机会、风险与结构判断。
                   </p>
                 </div>
                 <div className="space-y-5 p-4">
                   <div className="grid gap-4 grid-cols-2 lg:grid-cols-[1fr_1.35fr_220px]">
                     <div className="space-y-2">
-                      <p className="text-xs font-semibold uppercase tracking-[0.06em] text-term-muted">
+                      <p className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--warm-ledger-color-text-muted)]">
                         站点
                       </p>
                       <Select value={marketplace} onValueChange={setMarketplace}>
-                        <SelectTrigger className="h-9 w-full rounded-none border-term-border bg-term-raised shadow-none dark:border-term-border dark:bg-term-raised">
+                        <SelectTrigger className="h-9 w-full rounded-[var(--warm-ledger-radius-inner)] border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] shadow-none dark:border-[var(--warm-ledger-color-hairline)] dark:bg-[var(--warm-ledger-color-raised)]">
                           <SelectValue placeholder="选择站点" />
                         </SelectTrigger>
                         <SelectContent>
@@ -2642,11 +2837,11 @@ export default function CategoryResearchPage() {
                       <ResearchControlSkeleton />
                     ) : (
                       <div className="space-y-2">
-                        <p className="text-xs font-semibold uppercase tracking-[0.06em] text-term-muted">
+                        <p className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--warm-ledger-color-text-muted)]">
                           调研关键词
                         </p>
                         <Select value={analysisKeyword || ''} onValueChange={setAnalysisKeyword}>
-                          <SelectTrigger className="h-9 w-full rounded-none border-term-border bg-term-raised shadow-none dark:border-term-border dark:bg-term-raised">
+                          <SelectTrigger className="h-9 w-full rounded-[var(--warm-ledger-radius-inner)] border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] shadow-none dark:border-[var(--warm-ledger-color-hairline)] dark:bg-[var(--warm-ledger-color-raised)]">
                             <SelectValue placeholder="选择已有调研关键词" />
                           </SelectTrigger>
                           <SelectContent>
@@ -2681,7 +2876,7 @@ export default function CategoryResearchPage() {
                       <ResearchControlSkeleton widthClass="xl:col-span-1" />
                     ) : (
                       <div className="space-y-2">
-                        <p className="text-xs font-semibold uppercase tracking-[0.06em] text-term-muted">
+                        <p className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--warm-ledger-color-text-muted)]">
                           版本选择
                         </p>
                         <Select
@@ -2744,7 +2939,7 @@ export default function CategoryResearchPage() {
 
                   <div className="grid gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
                     <div className="space-y-2">
-                      <p className="text-xs font-semibold uppercase tracking-[0.06em] text-term-muted">
+                      <p className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--warm-ledger-color-text-muted)]">
                         价格带预设
                       </p>
                       <Select value={priceBandStandard} onValueChange={setPriceBandStandard}>
@@ -2760,7 +2955,7 @@ export default function CategoryResearchPage() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <p className="text-xs font-semibold uppercase tracking-[0.06em] text-term-muted">
+                      <p className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--warm-ledger-color-text-muted)]">
                         自定义断点（可选）
                       </p>
                       <Input
@@ -2768,21 +2963,21 @@ export default function CategoryResearchPage() {
                         value={priceBandBreaksText}
                         onChange={(event) => setPriceBandBreaksText(event.target.value)}
                       />
-                      <p className="text-xs text-term-muted">
+                      <p className="text-xs text-[var(--warm-ledger-color-text-muted)]">
                         overview
                         与价格相关明细请求统一透传同一组价格带参数，避免图表和明细表口径漂移。
                       </p>
                     </div>
                   </div>
 
-                  {formError ? <p className="text-sm text-term-neg">{formError}</p> : null}
-                  {formSuccess ? <p className="text-sm text-term-pos">{formSuccess}</p> : null}
+                  {formError ? <p className="text-sm text-[var(--warm-ledger-color-negative)]">{formError}</p> : null}
+                  {formSuccess ? <p className="text-sm text-[var(--warm-ledger-color-positive)]">{formSuccess}</p> : null}
 
                   {(keywordLoading && availableKeywords.length > 0) ||
                   (datasetLoading && datasets.length > 0) ||
                   (overviewLoading && overview) ||
                   (marketTrendLoading && marketTrendPoints.length > 0) ? (
-                    <div className="inline-flex rounded-full border border-term-border bg-term-raised px-3 py-1 text-xs text-term-muted shadow-none">
+                    <div className="inline-flex rounded-full border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] px-3 py-1 text-xs text-[var(--warm-ledger-color-text-muted)] shadow-none">
                       分析数据更新中...
                     </div>
                   ) : null}
@@ -2794,11 +2989,11 @@ export default function CategoryResearchPage() {
                     />
                   ) : null}
 
-                  <div className="space-y-4 rounded-none border border-term-border bg-term-panel p-4 shadow-none">
+                  <div className="space-y-4 rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] p-4 shadow-none">
                     <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
                       <div>
-                        <p className="text-sm font-semibold text-term-text">导出区域</p>
-                        <p className="text-xs text-term-muted">
+                        <p className="text-sm font-semibold text-[var(--warm-ledger-color-text)]">导出区域</p>
+                        <p className="text-xs text-[var(--warm-ledger-color-text-muted)]">
                           统一保留 3 个导出结果：分析结果 Excel、摘要 PDF、分析总览长图。
                         </p>
                       </div>
@@ -2855,7 +3050,7 @@ export default function CategoryResearchPage() {
               {overviewLoading ? (
                 <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
                   {Array.from({ length: 8 }).map((_, index) => (
-                    <Skeleton key={index} className="h-48 rounded-none" />
+                    <div key={index} className={cn(styles.skeletonBlock, 'h-48')} />
                   ))}
                 </div>
               ) : overview ? (
@@ -2885,14 +3080,14 @@ export default function CategoryResearchPage() {
                           {overviewModels.radialRisks.map((item, index) => (
                             <div
                               key={item.label}
-                              className="rounded-none border border-term-border bg-term-raised p-4"
+                              className="rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] p-4"
                             >
                               <div className="flex items-center justify-between gap-3">
                                 <div>
-                                  <p className="text-sm font-semibold text-term-text">
+                                  <p className="text-sm font-semibold text-[var(--warm-ledger-color-text)]">
                                     {item.label}
                                   </p>
-                                  <p className="mt-1 text-sm text-term-muted">
+                                  <p className="mt-1 text-sm text-[var(--warm-ledger-color-text-muted)]">
                                     {item.detail}
                                   </p>
                                 </div>
@@ -2926,10 +3121,10 @@ export default function CategoryResearchPage() {
                               overviewModels.actions.map((item) => (
                                 <div
                                   key={`${item.priority}-${item.action}`}
-                                  className="rounded-none border border-term-border bg-term-raised p-4"
+                                  className="rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] p-4"
                                 >
                                   <div className="flex items-center justify-between gap-3">
-                                    <p className="font-medium text-term-text">{item.action}</p>
+                                    <p className="font-medium text-[var(--warm-ledger-color-text)]">{item.action}</p>
                                     <Badge
                                       variant="outline"
                                       className={alertBadgeClass(normalizeRiskLevel(item.priority))}
@@ -2937,14 +3132,14 @@ export default function CategoryResearchPage() {
                                       {item.priority.toUpperCase()}
                                     </Badge>
                                   </div>
-                                  <p className="mt-2 text-sm text-term-muted">{item.why}</p>
+                                  <p className="mt-2 text-sm text-[var(--warm-ledger-color-text-muted)]">{item.why}</p>
                                   {item.rule_basis && item.rule_basis.length > 0 ? (
                                     <div className="mt-3 flex flex-wrap gap-2">
                                       {item.rule_basis.map((rule) => (
                                         <Badge
                                           key={rule}
                                           variant="secondary"
-                                          className="bg-term-hover text-term-muted"
+                                          className="bg-[var(--warm-ledger-color-raised-hover)] text-[var(--warm-ledger-color-text-muted)]"
                                         >
                                           {rule}
                                         </Badge>
@@ -3031,7 +3226,7 @@ export default function CategoryResearchPage() {
                                 text={item.text}
                                 color={PIE_COLORS[index % PIE_COLORS.length]}
                               />
-                              <p className="text-xs leading-5 text-term-muted">
+                              <p className="text-xs leading-5 text-[var(--warm-ledger-color-text-muted)]">
                                 {item.detail}
                               </p>
                             </div>
@@ -3071,13 +3266,13 @@ export default function CategoryResearchPage() {
                           {overviewModels.warningItems.map((item) => (
                             <div
                               key={item.label}
-                              className="rounded-none border border-term-border bg-term-raised p-4"
+                              className="rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] p-4"
                             >
-                              <p className="text-xs text-term-muted">{item.label}</p>
+                              <p className="text-xs text-[var(--warm-ledger-color-text-muted)]">{item.label}</p>
                               <p
                                 className={cn(
                                   'mt-1 text-2xl font-semibold',
-                                  item.value > 0 ? 'text-term-warn' : 'text-term-pos'
+                                  item.value > 0 ? 'text-[var(--warm-ledger-color-accent)]' : 'text-[var(--warm-ledger-color-positive)]'
                                 )}
                               >
                                 {formatNumber(item.value)}
@@ -3116,10 +3311,10 @@ export default function CategoryResearchPage() {
                         ).map((item) => (
                           <div
                             key={item.title}
-                            className="rounded-none border border-term-border bg-term-raised p-4"
+                            className="rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] p-4"
                           >
-                            <p className="font-medium text-term-text">{item.title}</p>
-                            <p className="mt-2 text-xs text-term-muted">{item.formula}</p>
+                            <p className="font-medium text-[var(--warm-ledger-color-text)]">{item.title}</p>
+                            <p className="mt-2 text-xs text-[var(--warm-ledger-color-text-muted)]">{item.formula}</p>
                             <div className="mt-3 flex flex-wrap gap-2">
                               {item.thresholds.map((threshold) => (
                                 <Badge key={threshold} variant="outline">
@@ -3127,10 +3322,10 @@ export default function CategoryResearchPage() {
                                 </Badge>
                               ))}
                             </div>
-                            <p className="mt-3 text-sm text-term-muted">
+                            <p className="mt-3 text-sm text-[var(--warm-ledger-color-text-muted)]">
                               {item.interpretation}
                             </p>
-                            <p className="mt-2 text-xs text-term-muted">{item.actionHint}</p>
+                            <p className="mt-2 text-xs text-[var(--warm-ledger-color-text-muted)]">{item.actionHint}</p>
                           </div>
                         ))}
                       </InsightChartCard>
@@ -3221,7 +3416,7 @@ export default function CategoryResearchPage() {
                                       }}
                                       formatter={(value, name) => (
                                         <div className="flex w-full items-center justify-between gap-4">
-                                          <span className="text-term-muted">
+                                          <span className="text-[var(--warm-ledger-color-text-muted)]">
                                             {name === 'recent12' ? '过去一年' : '过去两年'}
                                           </span>
                                           <span className="font-medium">
@@ -3261,7 +3456,7 @@ export default function CategoryResearchPage() {
                             {marketModels.seasonalityPanels.map((item) => (
                               <div
                                 key={item.title}
-                                className="rounded-none border border-term-border bg-term-raised p-3"
+                                className="rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] p-3"
                               >
                                 <div className="grid gap-3 md:grid-cols-[180px_1fr] md:items-center">
                                   <ChartContainer
@@ -3275,7 +3470,7 @@ export default function CategoryResearchPage() {
                                             nameKey="name"
                                             formatter={(value, name) => (
                                               <div className="flex w-full items-center justify-between gap-4">
-                                                <span className="text-term-muted">
+                                                <span className="text-[var(--warm-ledger-color-text-muted)]">
                                                   {name}
                                                 </span>
                                                 <span className="font-medium">
@@ -3302,13 +3497,13 @@ export default function CategoryResearchPage() {
                                   </ChartContainer>
                                   <div className="space-y-3">
                                     <div>
-                                      <p className="text-sm font-medium text-term-text">
+                                      <p className="text-sm font-medium text-[var(--warm-ledger-color-text)]">
                                         {item.title}
                                       </p>
-                                      <p className="mt-1 text-sm text-term-muted">
+                                      <p className="mt-1 text-sm text-[var(--warm-ledger-color-text-muted)]">
                                         {item.primaryText}
                                       </p>
-                                      <p className="mt-1 text-xs text-term-muted">
+                                      <p className="mt-1 text-xs text-[var(--warm-ledger-color-text-muted)]">
                                         {item.secondaryText}
                                       </p>
                                     </div>
@@ -3396,7 +3591,7 @@ export default function CategoryResearchPage() {
                                     <ChartTooltipContent
                                       formatter={(value, name) => (
                                         <div className="flex w-full items-center justify-between gap-4">
-                                          <span className="text-term-muted">
+                                          <span className="text-[var(--warm-ledger-color-text-muted)]">
                                             {name === 'count' ? '上架产品数' : '当前月销量'}
                                           </span>
                                           <span className="font-medium">
@@ -3484,10 +3679,10 @@ export default function CategoryResearchPage() {
                           {brandModels.explanationCards.map((item) => (
                             <div
                               key={item.title}
-                              className="rounded-none border border-term-border bg-term-raised p-4"
+                              className="rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] p-4"
                             >
-                              <p className="font-medium text-term-text">{item.title}</p>
-                              <p className="mt-2 text-xs text-term-muted">{item.formula}</p>
+                              <p className="font-medium text-[var(--warm-ledger-color-text)]">{item.title}</p>
+                              <p className="mt-2 text-xs text-[var(--warm-ledger-color-text-muted)]">{item.formula}</p>
                               <div className="mt-3 flex flex-wrap gap-2">
                                 {item.thresholds.map((threshold) => (
                                   <Badge key={threshold} variant="outline">
@@ -3495,7 +3690,7 @@ export default function CategoryResearchPage() {
                                   </Badge>
                                 ))}
                               </div>
-                              <p className="mt-3 text-sm text-term-muted">
+                              <p className="mt-3 text-sm text-[var(--warm-ledger-color-text-muted)]">
                                 {item.interpretation}
                               </p>
                             </div>
@@ -3533,7 +3728,7 @@ export default function CategoryResearchPage() {
                                     <ChartTooltipContent
                                       formatter={(value, _name, item) => (
                                         <div className="flex w-full items-center justify-between gap-4">
-                                          <span className="text-term-muted">
+                                          <span className="text-[var(--warm-ledger-color-text-muted)]">
                                             {item.payload.brand}
                                           </span>
                                           <span className="font-medium">
@@ -3572,7 +3767,7 @@ export default function CategoryResearchPage() {
                                       <ChartTooltipContent
                                         formatter={(value, name) => (
                                           <div className="flex w-full items-center justify-between gap-4">
-                                            <span className="text-term-muted">{name}</span>
+                                            <span className="text-[var(--warm-ledger-color-text-muted)]">{name}</span>
                                             <span className="font-medium">
                                               {compactPercentLabel(Number(value))}
                                             </span>
@@ -3630,7 +3825,7 @@ export default function CategoryResearchPage() {
                                       labelFormatter={(value) => `指标 ${String(value)}`}
                                       formatter={(value, name) => (
                                         <div className="flex w-full items-center justify-between gap-4">
-                                          <span className="text-term-muted">
+                                          <span className="text-[var(--warm-ledger-color-text-muted)]">
                                             {String(name)}
                                           </span>
                                           <span className="font-medium">
@@ -3709,7 +3904,7 @@ export default function CategoryResearchPage() {
                         title="Top5 品牌价格段表"
                         description="用一张明细表确认头部品牌的产品数、销量和价格覆盖是否一致。"
                       >
-                        <div className="overflow-x-auto rounded-none border">
+                        <div className="overflow-x-auto rounded-[var(--warm-ledger-radius-inner)] border">
                           <Table>
                             <TableHeader>
                               <TableRow>
@@ -3763,10 +3958,10 @@ export default function CategoryResearchPage() {
                           {sellerModels.explanationCards.map((item) => (
                             <div
                               key={item.title}
-                              className="rounded-none border border-term-border bg-term-raised p-4"
+                              className="rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] p-4"
                             >
-                              <p className="font-medium text-term-text">{item.title}</p>
-                              <p className="mt-2 text-xs text-term-muted">{item.formula}</p>
+                              <p className="font-medium text-[var(--warm-ledger-color-text)]">{item.title}</p>
+                              <p className="mt-2 text-xs text-[var(--warm-ledger-color-text-muted)]">{item.formula}</p>
                               <div className="mt-3 flex flex-wrap gap-2">
                                 {item.thresholds.map((threshold) => (
                                   <Badge key={threshold} variant="outline">
@@ -3774,7 +3969,7 @@ export default function CategoryResearchPage() {
                                   </Badge>
                                 ))}
                               </div>
-                              <p className="mt-3 text-sm text-term-muted">
+                              <p className="mt-3 text-sm text-[var(--warm-ledger-color-text-muted)]">
                                 {item.interpretation}
                               </p>
                             </div>
@@ -3799,7 +3994,7 @@ export default function CategoryResearchPage() {
                                       <ChartTooltipContent
                                         formatter={(value, name) => (
                                           <div className="flex w-full items-center justify-between gap-4">
-                                            <span className="text-term-muted">{name}</span>
+                                            <span className="text-[var(--warm-ledger-color-text-muted)]">{name}</span>
                                             <span className="font-medium">
                                               {compactPercentLabel(Number(value))}
                                             </span>
@@ -3991,7 +4186,7 @@ export default function CategoryResearchPage() {
                                       <ChartTooltipContent
                                         formatter={(value, name) => (
                                           <div className="flex w-full items-center justify-between gap-4">
-                                            <span className="text-term-muted">{name}</span>
+                                            <span className="text-[var(--warm-ledger-color-text-muted)]">{name}</span>
                                             <span className="font-medium">
                                               {compactPercentLabel(Number(value))}
                                             </span>
@@ -4057,14 +4252,14 @@ export default function CategoryResearchPage() {
                                       formatter={(value, name, item) => (
                                         <div className="space-y-1">
                                           <div className="flex items-center justify-between gap-4">
-                                            <span className="text-term-muted">
+                                            <span className="text-[var(--warm-ledger-color-text-muted)]">
                                               {String(name)}
                                             </span>
                                             <span className="font-medium">
                                               {compactPercentLabel(Number(value))}
                                             </span>
                                           </div>
-                                          <div className="text-xs text-term-muted">
+                                          <div className="text-xs text-[var(--warm-ledger-color-text-muted)]">
                                             销量 {formatNumber(item.payload.monthly_sales)}
                                           </div>
                                         </div>
@@ -4116,7 +4311,7 @@ export default function CategoryResearchPage() {
                               </Badge>
                             ))}
                           </div>
-                          <div className="overflow-x-auto rounded-none border">
+                          <div className="overflow-x-auto rounded-[var(--warm-ledger-radius-inner)] border">
                             <Table>
                               <TableHeader>
                                 <TableRow>
@@ -4215,7 +4410,7 @@ export default function CategoryResearchPage() {
                                       <ChartTooltipContent
                                         formatter={(value, name) => (
                                           <div className="flex w-full items-center justify-between gap-4">
-                                            <span className="text-term-muted">{name}</span>
+                                            <span className="text-[var(--warm-ledger-color-text-muted)]">{name}</span>
                                             <span className="font-medium">
                                               {compactPercentLabel(Number(value))}
                                             </span>
@@ -4337,13 +4532,13 @@ export default function CategoryResearchPage() {
                                       <div className="space-y-1">
                                         <div className="font-medium">{item.payload.asin}</div>
                                         <div className="flex items-center justify-between gap-4">
-                                          <span className="text-term-muted">价格</span>
+                                          <span className="text-[var(--warm-ledger-color-text-muted)]">价格</span>
                                           <span className="font-medium">
                                             {formatCurrency(item.payload.price_usd)}
                                           </span>
                                         </div>
                                         <div className="flex items-center justify-between gap-4">
-                                          <span className="text-term-muted">月销量</span>
+                                          <span className="text-[var(--warm-ledger-color-text-muted)]">月销量</span>
                                           <span className="font-medium">
                                             {formatNumber(item.payload.monthly_sales)}
                                           </span>
@@ -4368,7 +4563,7 @@ export default function CategoryResearchPage() {
                         title="价格带明细"
                         description="把精细价格带的样本数和销量放在一张表里，方便做落点验证。"
                       >
-                        <div className="overflow-x-auto rounded-none border">
+                        <div className="overflow-x-auto rounded-[var(--warm-ledger-radius-inner)] border">
                           <Table>
                             <TableHeader>
                               <TableRow>
@@ -4403,9 +4598,9 @@ export default function CategoryResearchPage() {
                   </div>
                 </div>
               ) : (
-                <div className="flex h-48 flex-col items-center justify-center gap-2 rounded-none border border-dashed border-term-border bg-term-raised text-center">
-                  <Lightbulb className="h-6 w-6 text-term-muted" />
-                  <p className="text-sm text-term-muted">
+                <div className="flex h-48 flex-col items-center justify-center gap-2 rounded-[var(--warm-ledger-radius-inner)] border border-dashed border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] text-center">
+                  <Lightbulb className="h-6 w-6 text-[var(--warm-ledger-color-text-muted)]" />
+                  <p className="text-sm text-[var(--warm-ledger-color-text-muted)]">
                     请先在上方分析工作台选择关键词和版本，或在&quot;调研&quot;标签页先上传生成调研版本。
                   </p>
                 </div>
@@ -4415,5 +4610,6 @@ export default function CategoryResearchPage() {
         </TabsContent>
       </DirectionalTabTransition>
     </Tabs>
+    </main>
   )
 }

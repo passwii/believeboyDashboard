@@ -170,6 +170,16 @@ describe('ProjectGoalsPage 按 tab 懒加载（BEL-423）', () => {
     expect(calls.filter((u) => u.includes('/project-goals?'))).toHaveLength(0)
   })
 
+  it('使用 Warm Ledger 页面壳，表格在页内滚动容器中', async () => {
+    mountWithFetch()
+    const { container } = render(<ProjectGoalsPage />)
+
+    const page = await screen.findByTestId('project-goals-warm-page')
+    expect(page).toHaveAttribute('data-warm-surface', 'warm-ledger')
+    expect(screen.getByTestId('project-goals-table-scroll')).toBeInTheDocument()
+    expect(container.querySelector('[class*="term-"]')).toBeNull()
+  })
+
   it('首次进入"目标管理" tab 才请求 goals 列表；来回切 tab 不重复请求', async () => {
     const user = userEvent.setup()
     const calls = mountWithFetch()

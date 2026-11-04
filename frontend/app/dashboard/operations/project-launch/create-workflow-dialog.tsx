@@ -8,29 +8,75 @@
  * 提交失败在对话框内展示服务端错误，不静默关闭。
  */
 
-import { useEffect, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { forwardRef, useEffect, useState, type ComponentPropsWithoutRef, type HTMLAttributes } from 'react'
+import * as DialogPrimitive from '@radix-ui/react-dialog'
+import { Loader2, X } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { ErrorState } from '@/components/ui/error-state'
-import { Skeleton } from '@/components/ui/skeleton'
-import { TERM_SELECT_NATIVE } from '@/components/terminal/term-controls'
 import {
   DEFAULT_PRODUCT_WORKFLOW_TITLE,
   WORKFLOW_KIND_LABELS,
   type ProjectWorkflowCreateInput,
   type ProjectWorkflowTemplateOption,
 } from '@/lib/project-workflows-api'
+
+import styles from './project-launch-warm.module.css'
+
+const Dialog = DialogPrimitive.Root
+
+const DialogContent = forwardRef<
+  HTMLDivElement,
+  ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
+>(function DialogContent({ className, children, ...props }, ref) {
+  return (
+    <DialogPrimitive.Portal>
+      <DialogPrimitive.Overlay className={styles.dialogOverlay} />
+      <DialogPrimitive.Content
+        {...props}
+        ref={ref}
+        className={[styles.createDialog, className].filter(Boolean).join(' ')}
+      >
+        {children}
+        <DialogPrimitive.Close className={styles.dialogClose} aria-label="关闭">
+          <X aria-hidden />
+        </DialogPrimitive.Close>
+      </DialogPrimitive.Content>
+    </DialogPrimitive.Portal>
+  )
+})
+
+function DialogHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div {...props} className={[styles.dialogHeader, className].filter(Boolean).join(' ')} />
+}
+
+function DialogFooter({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div {...props} className={[styles.dialogFooter, className].filter(Boolean).join(' ')} />
+}
+
+const DialogTitle = forwardRef<
+  HTMLHeadingElement,
+  ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
+>(function DialogTitle({ className, ...props }, ref) {
+  return (
+    <DialogPrimitive.Title
+      {...props}
+      ref={ref}
+      className={[styles.dialogTitle, className].filter(Boolean).join(' ')}
+    />
+  )
+})
+
+const DialogDescription = forwardRef<
+  HTMLParagraphElement,
+  ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
+>(function DialogDescription({ className, ...props }, ref) {
+  return (
+    <DialogPrimitive.Description
+      {...props}
+      ref={ref}
+      className={[styles.dialogDescription, className].filter(Boolean).join(' ')}
+    />
+  )
+})
 
 export function CreateWorkflowDialog({
   open,
@@ -62,7 +108,6 @@ export function CreateWorkflowDialog({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // 每次打开时按模板目录重置表单（优先选中默认模板 + 其标题）。
   useEffect(() => {
     if (!open) return
     setError(null)
@@ -113,36 +158,44 @@ export function CreateWorkflowDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md" data-testid="create-workflow-dialog">
+      <DialogContent
+        className={styles.createDialog}
+        data-testid="create-workflow-dialog"
+        aria-describedby="create-workflow-description"
+      >
         <DialogHeader>
-          <DialogTitle className="font-mono text-sm uppercase tracking-wider">
-            新增产品开发流程
-          </DialogTitle>
-          <DialogDescription className="font-mono text-xs text-term-muted">
+          <DialogTitle className={styles.dialogTitle}>新增产品开发流程</DialogTitle>
+          <DialogDescription id="create-workflow-description" className={styles.dialogDescription}>
             为「{projectName}」选择一个产品模板，创建后任务清单会复制到本项目，
             之后模板文案调整不会覆盖已有进度。
           </DialogDescription>
         </DialogHeader>
 
         {templatesLoading ? (
-          <div className="space-y-2">
-            <Skeleton className="h-9 w-full" />
-            <Skeleton className="h-9 w-full" />
+          <div className={styles.dialogLoading}>
+            <div className={styles.skeletonRow} />
+            <div className={styles.skeletonRow} />
           </div>
         ) : templatesError ? (
-          <ErrorState
-            title="模板目录加载失败"
-            message={templatesError}
-            onRetry={onRetryTemplates}
-          />
+          <div className={styles.dialogError} role="alert">
+            <div>
+              <strong>模板目录加载失败</strong>
+              <p>{templatesError}</p>
+            </div>
+            <button type="button" onClick={onRetryTemplates}>
+              重试
+            </button>
+          </div>
         ) : (
-          <form className="space-y-3" onSubmit={handleSubmit}>
-            <div className="space-y-1.5">
-              <Label htmlFor="workflow-template">流程模板</Label>
+          <form className={styles.dialogForm} onSubmit={handleSubmit}>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="workflow-template">
+                流程模板
+              </label>
               <select
                 id="workflow-template"
                 data-testid="workflow-template-select"
-                className={`${TERM_SELECT_NATIVE} w-full`}
+                className={styles.select}
                 value={templateKey}
                 onChange={(event) => handleTemplateChange(event.target.value)}
                 disabled={submitting || templates.length === 0}
@@ -156,26 +209,32 @@ export function CreateWorkflowDialog({
               </select>
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="workflow-start-date">计划开始日期</Label>
-              <Input
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="workflow-start-date">
+                计划开始日期
+              </label>
+              <input
                 id="workflow-start-date"
                 data-testid="workflow-start-date-input"
+                className={styles.input}
                 type="date"
                 value={startDate}
                 onChange={(event) => setStartDate(event.target.value)}
                 disabled={submitting}
               />
-              <p className="font-mono text-[11px] leading-4 text-term-muted">
+              <p className={styles.formHelp}>
                 创建时即按模板工期推算阶段日期；可稍后在流程设置中调整。
               </p>
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="workflow-title">流程标题</Label>
-              <Input
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="workflow-title">
+                流程标题
+              </label>
+              <input
                 id="workflow-title"
                 data-testid="workflow-title-input"
+                className={styles.input}
                 value={title}
                 maxLength={160}
                 placeholder={DEFAULT_PRODUCT_WORKFLOW_TITLE}
@@ -185,28 +244,28 @@ export function CreateWorkflowDialog({
             </div>
 
             {error ? (
-              <p
-                role="alert"
-                data-testid="create-workflow-error"
-                className="font-mono text-[11px] leading-4 text-term-neg"
-              >
+              <p role="alert" data-testid="create-workflow-error" className={styles.formError}>
                 {error}
               </p>
             ) : null}
 
-            <DialogFooter className="gap-1.5">
-              <Button
+            <DialogFooter className={styles.dialogFooter}>
+              <button
                 type="button"
-                variant="term"
+                className={styles.buttonQuiet}
                 disabled={submitting}
                 onClick={() => onOpenChange(false)}
               >
                 取消
-              </Button>
-              <Button type="submit" disabled={submitting || templates.length === 0}>
-                {submitting ? <Loader2 aria-hidden className="animate-spin" /> : null}
+              </button>
+              <button
+                type="submit"
+                className={styles.button}
+                disabled={submitting || templates.length === 0}
+              >
+                {submitting ? <Loader2 aria-hidden className={styles.spinner} /> : null}
                 创建流程
-              </Button>
+              </button>
             </DialogFooter>
           </form>
         )}

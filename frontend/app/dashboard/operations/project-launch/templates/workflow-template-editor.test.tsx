@@ -100,6 +100,14 @@ afterEach(() => {
 })
 
 describe('项目启动台模板编辑器', () => {
+  it('使用 Warm Ledger 编辑器壳且不混用 Terminal 表面', async () => {
+    const { container } = render(<WorkflowTemplateEditor />)
+
+    const page = await screen.findByTestId('workflow-template-editor-warm-page')
+    expect(page).toHaveAttribute('data-warm-surface', 'warm-ledger')
+    await waitFor(() => expect(container.querySelector('[class*="term-"]')).toBeNull())
+  })
+
   it('非管理员显示无权限态且不请求模板数据', () => {
     sessionState.data = { user: { roleType: 'operator' } }
     render(<WorkflowTemplateEditor />)

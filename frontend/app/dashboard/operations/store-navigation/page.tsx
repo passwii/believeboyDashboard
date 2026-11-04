@@ -3,12 +3,11 @@
 import { ArrowUpRight, Building2, ExternalLink, Store } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { TermPanel } from '@/components/terminal/term-panel'
-import { TermKpiTile } from '@/components/terminal/term-controls'
+
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
-import { ErrorState } from '@/components/ui/error-state'
-import { CardListSkeleton } from '@/components/dashboard/page-skeletons'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+
+import styles from './store-navigation-warm.module.css'
 
 type StoreItem = {
   id: number
@@ -17,62 +16,54 @@ type StoreItem = {
   store_address: string | null
 }
 
-type StoreGridProps = {
-  items: StoreItem[]
-}
-
-function StoreGrid({ items }: StoreGridProps) {
+function StoreGrid({ items }: { items: StoreItem[] }) {
   if (items.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center border border-dashed border-term-border bg-term-panel px-6 py-12 text-center">
-        <Store className="mb-3 h-8 w-8 text-term-faint" />
-        <p className="font-mono text-xs text-term-muted">暂无店铺数据</p>
+      <div className={styles.empty}>
+        <Store aria-hidden />
+        <p>暂无店铺数据</p>
       </div>
     )
   }
 
   return (
-    <div className="grid grid-cols-2 gap-px bg-term-border p-px sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6">
+    <div className={styles.grid}>
       {items.map((store) => (
         <a
           key={store.id}
           href={store.store_address || '#'}
           target="_blank"
           rel="noreferrer"
-          className="group flex h-full min-h-[132px] flex-col gap-2 border-0 bg-term-panel p-3 transition-colors hover:bg-term-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-border-strong"
-          onClick={(e) => {
-            if (!store.store_address) {
-              e.preventDefault()
-            }
+          className={styles.card}
+          onClick={(event) => {
+            if (!store.store_address) event.preventDefault()
           }}
         >
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <h3 className="truncate text-sm font-semibold text-term-text">{store.name}</h3>
-              {store.brand_name && (
-                <p className="mt-1 inline-flex items-center gap-1 border border-term-border bg-term-raised px-1.5 py-0.5 font-mono text-[11px] leading-4 text-term-muted">
-                  <Building2 className="h-3 w-3 shrink-0" />
+          <div className={styles.cardTop}>
+            <div className={styles.cardCopy}>
+              <h3 className={styles.cardTitle}>{store.name}</h3>
+              {store.brand_name ? (
+                <p className={styles.meta}>
+                  <Building2 aria-hidden />
                   {store.brand_name}
                 </p>
-              )}
+              ) : null}
             </div>
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center border border-term-border bg-term-bg text-term-muted transition-colors group-hover:border-term-border-strong group-hover:text-term-text">
-              <ArrowUpRight className="h-3.5 w-3.5" />
+            <span className={styles.openMark}>
+              <ArrowUpRight aria-hidden />
             </span>
           </div>
 
-          <p className="flex-1 font-mono text-[11px] leading-4 text-term-muted">
+          <p className={styles.address}>
             {store.store_address ? '点击访问店铺页面' : '暂无店铺链接'}
           </p>
 
-          <div className="flex items-center justify-between border-t border-term-border pt-2">
-            <span className="inline-flex items-center gap-1 border border-term-border bg-term-raised px-1.5 py-0.5 font-mono text-[11px] leading-4 text-term-muted">
-              <ExternalLink className="h-3 w-3" />
+          <div className={styles.cardFooter}>
+            <span className={styles.linkLabel}>
+              <ExternalLink aria-hidden />
               店铺链接
             </span>
-            <span className="font-mono text-[11px] leading-4 text-term-faint group-hover:text-term-muted">
-              点击直达
-            </span>
+            <span>点击直达</span>
           </div>
         </a>
       ))}
@@ -91,7 +82,6 @@ export default function StoreNavigationPage() {
       try {
         setLoading(true)
         setError(null)
-
         const data = await fetchManagedProjectsCached<StoreItem[]>(session, undefined, { force })
         setStores(data)
       } catch (err) {
@@ -105,61 +95,71 @@ export default function StoreNavigationPage() {
 
   useEffect(() => {
     if (status === 'loading') return
-
     void fetchStores()
   }, [status, fetchStores])
 
-  // —— Header 化：全局刷新 = force 跳缓存重拉店铺列表（operations header 迁移 Batch C）——
-  // 本页无筛选控件可上移，仅注册刷新回调；ref 桥接防过期闭包，loading 上报头部按钮。
   const fetchStoresRef = useRef(fetchStores)
   fetchStoresRef.current = fetchStores
   useHeaderRefresh(() => void fetchStoresRef.current(true), { loading })
 
   const stats = [
     { label: '店铺总数', value: `${stores.length}` },
-    {
-      label: '有链接店铺',
-      value: `${stores.filter((s) => s.store_address).length}`,
-    },
+    { label: '有链接店铺', value: `${stores.filter((store) => store.store_address).length}` },
     {
       label: '品牌数量',
-      value: `${new Set(stores.map((s) => s.brand_name).filter(Boolean)).size}`,
+      value: `${new Set(stores.map((store) => store.brand_name).filter(Boolean)).size}`,
     },
   ]
 
   return (
-    <div className="flex min-w-0 flex-col gap-3">
-      <TermPanel title="店铺导航" bodyClassName="p-3">
-        <div className="flex flex-col gap-3">
-          <p className="text-xs leading-5 text-term-muted">
+    <main
+      className={styles.page}
+      data-testid="store-navigation-warm-page"
+      data-warm-surface="warm-ledger"
+    >
+      <section className={styles.hero}>
+        <div>
+          <h2 className={styles.heroTitle}>店铺导航</h2>
+          <p className={styles.heroCopy}>
             聚合团队所有店铺入口，可视化书签卡片，方便一键直达各店铺后台与前台页面。
           </p>
-          <div className="grid w-full max-w-sm grid-cols-3 gap-2">
-            {stats.map((item) => (
-              <TermKpiTile key={item.label} label={item.label} value={item.value} />
-            ))}
-          </div>
         </div>
-      </TermPanel>
+        <div className={styles.stats}>
+          {stats.map((item) => (
+            <div key={item.label} className={styles.stat}>
+              <span className={styles.statLabel}>{item.label}</span>
+              <span className={styles.statValue}>{item.value}</span>
+            </div>
+          ))}
+        </div>
+      </section>
 
-      <section className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <h2 className="font-mono text-xs font-semibold uppercase tracking-wider text-term-muted">
-            全部店铺
-          </h2>
-          <span className="font-mono text-[11px] text-term-faint">
-            点击卡片直达店铺 · {stores.length} 项
-          </span>
+      <section className={styles.section}>
+        <div className={styles.sectionHeader}>
+          <h2>全部店铺</h2>
+          <span>点击卡片直达店铺 · {stores.length} 项</span>
         </div>
 
         {loading ? (
-          <CardListSkeleton count={6} />
+          <div className={styles.loadingGrid} aria-busy="true" aria-label="正在加载店铺">
+            {Array.from({ length: 6 }, (_, index) => (
+              <div key={index} className={styles.skeleton} />
+            ))}
+          </div>
         ) : error ? (
-          <ErrorState title="加载失败" message={error} onRetry={() => void fetchStores()} />
+          <div className={styles.error} role="alert">
+            <div>
+              <strong>加载失败</strong>
+              <p>{error}</p>
+            </div>
+            <button type="button" onClick={() => void fetchStores()}>
+              重试
+            </button>
+          </div>
         ) : (
           <StoreGrid items={stores} />
         )}
       </section>
-    </div>
+    </main>
   )
 }

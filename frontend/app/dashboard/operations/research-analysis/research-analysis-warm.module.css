@@ -1,0 +1,282 @@
+.page {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-sans);
+}
+
+.pageTabs {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--warm-ledger-space-6);
+}
+
+.tabsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tabsList {
+  display: grid !important;
+  width: min(100%, 320px);
+  min-height: 42px !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--warm-ledger-space-1) !important;
+  padding: var(--warm-ledger-space-1) !important;
+  background: var(--warm-ledger-color-panel) !important;
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline) !important;
+  border-radius: var(--warm-ledger-radius-control) !important;
+  box-shadow: var(--warm-ledger-highlight-rest) !important;
+}
+
+.tabsList [role='tab'] {
+  min-height: var(--warm-ledger-control-height-compact) !important;
+  gap: var(--warm-ledger-space-2) !important;
+  padding: 0 var(--warm-ledger-space-3) !important;
+  color: var(--warm-ledger-color-text-muted) !important;
+  font-family: var(--warm-ledger-font-sans) !important;
+  font-size: var(--warm-ledger-font-size-control) !important;
+  font-weight: var(--warm-ledger-font-weight-regular) !important;
+  background: transparent !important;
+  border: var(--warm-ledger-border-width) solid transparent !important;
+  border-radius: var(--warm-ledger-radius-inner) !important;
+  box-shadow: none !important;
+}
+
+.tabsList [role='tab'][data-state='active'] {
+  color: var(--warm-ledger-color-text) !important;
+  background: var(--warm-ledger-color-raised) !important;
+  border-color: var(--warm-ledger-color-hairline-strong) !important;
+}
+
+.tabsList [role='tab'][data-state='active']::after {
+  display: none !important;
+}
+
+.tabsList [role='tab']:focus-visible {
+  outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color) !important;
+  outline-offset: var(--warm-ledger-focus-offset) !important;
+}
+
+.tabTrigger {
+  background: transparent !important;
+}
+
+.button {
+  display: inline-flex;
+  min-height: var(--warm-ledger-control-height);
+  align-items: center;
+  justify-content: center;
+  gap: var(--warm-ledger-space-2);
+  padding: 0 var(--warm-ledger-space-3);
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-sans);
+  font-size: var(--warm-ledger-font-size-control);
+  line-height: var(--warm-ledger-line-height-body);
+  background: var(--warm-ledger-color-raised);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline-strong);
+  border-radius: var(--warm-ledger-radius-control);
+  box-shadow: var(--warm-ledger-highlight-rest);
+  cursor: pointer;
+  transition:
+    color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease),
+    background-color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease),
+    border-color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease),
+    transform var(--warm-ledger-motion-duration-press) var(--warm-ledger-motion-ease);
+}
+
+.button[data-variant='outline'],
+.button[data-variant='ghost'],
+.button[data-variant='secondary'] {
+  color: var(--warm-ledger-color-text-soft);
+  background: var(--warm-ledger-color-panel);
+  border-color: var(--warm-ledger-color-hairline);
+}
+
+.button:hover {
+  color: var(--warm-ledger-color-text);
+  background: var(--warm-ledger-color-raised-hover);
+  border-color: var(--warm-ledger-color-hairline-strong);
+  box-shadow: var(--warm-ledger-highlight-hover);
+}
+
+.button:active {
+  transform: translateY(var(--warm-ledger-motion-distance-press));
+  box-shadow: var(--warm-ledger-highlight-pressed);
+}
+
+.button:focus-visible,
+.input:focus-visible,
+.select:focus-visible {
+  outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color);
+  outline-offset: var(--warm-ledger-focus-offset);
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.input,
+.select {
+  width: 100%;
+  min-height: var(--warm-ledger-control-height-select);
+  padding: 0 var(--warm-ledger-space-3);
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-sans);
+  font-size: var(--warm-ledger-font-size-control);
+  line-height: var(--warm-ledger-line-height-body);
+  background: var(--warm-ledger-color-window);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-control);
+  box-shadow: var(--warm-ledger-highlight-rest);
+}
+
+.input::placeholder {
+  color: var(--warm-ledger-color-text-muted);
+}
+
+.badge {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  padding: 2px 8px;
+  color: var(--warm-ledger-color-text-soft);
+  font-family: var(--warm-ledger-font-sans);
+  font-size: var(--warm-ledger-font-size-label);
+  line-height: 1.4;
+  background: var(--warm-ledger-color-raised);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-inner);
+}
+
+.tableScroll {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-inner);
+}
+
+.table {
+  width: 100%;
+  min-width: 760px;
+  border-spacing: 0;
+  border-collapse: separate;
+  color: var(--warm-ledger-color-text-soft);
+  font-family: var(--warm-ledger-font-sans);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+}
+
+.tableHead,
+.tableCell {
+  padding: var(--warm-ledger-space-3);
+  font-family: var(--warm-ledger-font-sans);
+  font-size: var(--warm-ledger-font-size-control);
+  line-height: var(--warm-ledger-line-height-body);
+  text-align: left;
+  border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+}
+
+.tableHead {
+  color: var(--warm-ledger-color-text-muted);
+  font-weight: var(--warm-ledger-font-weight-medium);
+  background: var(--warm-ledger-color-panel-strong);
+  border-bottom-color: var(--warm-ledger-color-hairline-strong);
+}
+
+.tableCell {
+  color: var(--warm-ledger-color-text-soft);
+  background: var(--warm-ledger-color-panel);
+}
+
+.tableRow:hover .tableCell {
+  background: var(--warm-ledger-color-raised);
+}
+
+.tableRow:last-child .tableCell {
+  border-bottom: 0;
+}
+
+.emptyChart {
+  display: flex;
+  min-height: 280px;
+  align-items: center;
+  justify-content: center;
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-control);
+  background: var(--warm-ledger-color-panel);
+  border: var(--warm-ledger-border-width) dashed var(--warm-ledger-color-hairline-strong);
+  border-radius: var(--warm-ledger-radius-inner);
+}
+
+.emptyTableCell {
+  height: 96px;
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-control);
+  text-align: center;
+  border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+}
+
+.skeletonBlock {
+  background: var(--warm-ledger-color-raised);
+  border-radius: var(--warm-ledger-radius-inner);
+}
+
+.chartTooltip {
+  display: grid;
+  min-width: 144px;
+  gap: var(--warm-ledger-space-2);
+  padding: var(--warm-ledger-space-2) var(--warm-ledger-space-3);
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-sans);
+  font-size: var(--warm-ledger-font-size-label);
+  line-height: var(--warm-ledger-line-height-body);
+  background: var(--warm-ledger-color-panel-strong);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline-strong);
+  border-radius: var(--warm-ledger-radius-inner);
+  box-shadow: var(--warm-ledger-shadow-window);
+}
+
+.chartTooltipLabel {
+  color: var(--warm-ledger-color-text);
+  font-weight: var(--warm-ledger-font-weight-medium);
+}
+
+.chartTooltipRows {
+  display: grid;
+  gap: var(--warm-ledger-space-1);
+}
+
+.chartTooltipRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--warm-ledger-space-4);
+}
+
+.chartTooltipName {
+  color: var(--warm-ledger-color-text-muted);
+}
+
+.chartTooltipValue {
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-mono);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button {
+    transition: none;
+  }
+}

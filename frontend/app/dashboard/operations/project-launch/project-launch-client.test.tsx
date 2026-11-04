@@ -244,6 +244,14 @@ async function renderPage() {
 // ── 测试 ─────────────────────────────────────────────────────────────────────
 
 describe('项目启动台 · 列表与分栏', () => {
+  it('使用 Warm Ledger 页面壳且不混用 Terminal 表面', async () => {
+    const { container } = render(<ProjectLaunchClient />)
+
+    const page = await screen.findByTestId('project-launch-warm-page')
+    expect(page).toHaveAttribute('data-warm-surface', 'warm-ledger')
+    expect(container.querySelector('[class*="term-"]')).toBeNull()
+  })
+
   it('左侧列表渲染概要进度，且不对未选中项目拉详情', async () => {
     await renderPage()
 
