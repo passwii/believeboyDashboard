@@ -18,43 +18,6 @@ vi.mock('@/components/notifications', () => ({
   useNotifications: () => ({ notify }),
 }))
 
-// Radix Select 无仓库内交互先例（jsdom 下 portal 交互不稳），
-// 桩成本地 select 以测组件接线（onValueChange → query param）
-vi.mock('@/components/ui/select', () => {
-  const NativeSelect = ({
-    value,
-    onValueChange,
-    children,
-  }: {
-    value?: string
-    onValueChange?: (v: string) => void
-    children?: React.ReactNode
-  }) => {
-    return (
-      <select
-        data-testid="native-select"
-        value={value === 'all' ? '' : value}
-        onChange={(e) => onValueChange?.(e.target.value)}
-      >
-        {children}
-      </select>
-    )
-  }
-  return {
-    Select: NativeSelect,
-    SelectContent: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
-    SelectItem: ({
-      value,
-      children,
-    }: {
-      value?: string
-      children?: React.ReactNode
-    }) => <option value={value}>{children}</option>,
-    SelectTrigger: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
-    SelectValue: () => null,
-  }
-})
-
 import { AgentAccessLogsPanel } from './agent-access-logs-panel'
 
 const readRow = {
@@ -205,13 +168,10 @@ describe('AgentAccessLogsPanel（BLF-460 读操作明细补列）', () => {
     render(<AgentAccessLogsPanel />)
     await screen.findByText('项目')
 
-    fireEvent.change(screen.getByPlaceholderText('项目 ID（数字）'), {
+    fireEvent.change(screen.getByLabelText('项目 ID'), {
       target: { value: '12' },
     })
-    // 操作类型下拉（Select 桩成本地 select）：选「货件管理」（AGENT_DOMAINS 的 shipments）
-    const selects = screen.getAllByTestId('native-select')
-    const operationTypeSelect = selects[selects.length - 1]
-    fireEvent.change(operationTypeSelect, { target: { value: 'shipments' } })
+    fireEvent.change(screen.getByLabelText('操作类型'), { target: { value: 'shipments' } })
     fireEvent.click(screen.getByRole('button', { name: /查询/ }))
 
     await waitFor(() => {
@@ -231,8 +191,7 @@ describe('AgentAccessLogsPanel（BLF-460 读操作明细补列）', () => {
     const row = await screen.findByRole('row', { name: /财务月报/ })
     expect(within(row).getByText('财务月报')).toBeInTheDocument()
     expect(screen.getByRole('option', { name: '财务月报' })).toHaveValue('monthly_reports')
-    const selects = screen.getAllByTestId('native-select')
-    fireEvent.change(selects[selects.length - 1], { target: { value: 'monthly_reports' } })
+    fireEvent.change(screen.getByLabelText('操作类型'), { target: { value: 'monthly_reports' } })
     fireEvent.click(screen.getByRole('button', { name: /查询/ }))
 
     await waitFor(() => {
@@ -251,5 +210,18 @@ describe('AgentAccessLogsPanel（BLF-460 读操作明细补列）', () => {
     expect(screen.getByText('查询货件审计')).toBeTruthy()
     expect(screen.getByText('提交平台巡检')).toBeTruthy()
     expect(screen.getByTitle(/POST \/api\/v1\/agent\/platform-inspection/)).toBeTruthy()
+  })
+
+  it('V4 兼容：共享访问日志面板保持无 props 契约并使用 Warm Ledger 表面', async () => {
+    const { container } = render(<AgentAccessLogsPanel />)
+
+    expect(await screen.findByText('访问记录')).toBeTruthy()
+    expect(container.querySelector('[data-warm-panel-scope="agent-access-logs"]')).toBeTruthy()
+    expect(container.querySelectorAll('[data-warm-panel]')).toHaveLength(3)
+    expect(container.querySelector('[class*="term-"]')).toBeNull()
+    expect(screen.getByRole('button', { name: /刷新/ })).toBeEnabled()
+    expect(screen.getByLabelText('请求方法')).toBeInTheDocument()
+    expect(screen.getByLabelText('请求结果')).toBeInTheDocument()
+    expect(screen.getByLabelText('操作类型')).toBeInTheDocument()
   })
 })

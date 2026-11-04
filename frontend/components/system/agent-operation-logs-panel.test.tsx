@@ -169,10 +169,10 @@ describe('AgentOperationLogsPanel（BLF-460 写操作明细面板）', () => {
 
     // 沿用仓库既有约定用 fireEvent 驱动表单控件（表格/表单控件在 jsdom 下
     // 与 userEvent 组合偶发挂起，fireEvent 更稳）
-    fireEvent.change(screen.getByPlaceholderText('项目 ID（数字）'), {
+    fireEvent.change(screen.getByLabelText('项目 ID'), {
       target: { value: '12' },
     })
-    fireEvent.change(screen.getByPlaceholderText('操作（如 shipment.status.transition）'), {
+    fireEvent.change(screen.getByLabelText('操作'), {
       target: { value: 'shipment.status.transition' },
     })
     fireEvent.click(screen.getByRole('button', { name: /查询/ }))
@@ -213,5 +213,16 @@ describe('AgentOperationLogsPanel（BLF-460 写操作明细面板）', () => {
 
     expect(screen.getByText('错误信息')).toBeTruthy()
     expect(screen.getByText('店铺不存在')).toBeTruthy()
+  })
+
+  it('V4 兼容：共享写操作面板保持无 props 契约并使用 Warm Ledger 表面', async () => {
+    const { container } = render(<AgentOperationLogsPanel />)
+
+    expect(await screen.findByText('写操作记录')).toBeTruthy()
+    expect(container.querySelector('[data-warm-panel-scope="agent-operation-logs"]')).toBeTruthy()
+    expect(container.querySelectorAll('[data-warm-panel]')).toHaveLength(3)
+    expect(container.querySelector('[class*="term-"]')).toBeNull()
+    expect(screen.getByRole('button', { name: /刷新/ })).toBeEnabled()
+    expect(screen.getByLabelText('操作结果')).toBeInTheDocument()
   })
 })
