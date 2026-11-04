@@ -75,11 +75,13 @@ function renderTab() {
 
 describe('CrmTaskTab（抽屉任务 tab，BLF-514）', () => {
   it('加载实体关联任务并按 customerId 拉取', async () => {
-    renderTab()
+    const { container } = renderTab()
     expect(await screen.findByText('确认报价单')).toBeTruthy()
     expect(listTasks).toHaveBeenCalledWith(
       expect.objectContaining({ scope: 'all', customerId: 'c1', pageSize: 50 })
     )
+    expect(container.querySelector('[data-warm-task-tab]')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: '关联任务工具栏' })).toBeInTheDocument()
   })
 
   it('完成按钮调用 completeTask', async () => {

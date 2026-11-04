@@ -3,7 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Task, TaskListParams, TaskStatus, TaskType } from '@/lib/crm/types'
 import TasksPage from './page'
 
-const { listTasks, setTaskStatus, notify, client, getRefreshHandler, setRefreshHandler } = vi.hoisted(() => {
+const {
+  listTasks,
+  setTaskStatus,
+  notify,
+  client,
+  getRefreshHandler,
+  setRefreshHandler,
+  setScope,
+} = vi.hoisted(() => {
   let tasks: Task[] = []
   const setState = (next: Task[]) => {
     tasks = next
@@ -35,6 +43,7 @@ const { listTasks, setTaskStatus, notify, client, getRefreshHandler, setRefreshH
     client,
     getRefreshHandler,
     setRefreshHandler,
+    setScope: vi.fn(),
     __setTasks: setState,
     __getTasks: () => tasks,
   }
@@ -49,9 +58,22 @@ vi.mock('@/components/terminal/terminal-header-slot', () => ({
 vi.mock('@/lib/crm/api/crm-client-provider', () => ({
   useCrmClient: () => client,
 }))
-vi.mock('@/hooks/use-crm-data-scope', () => ({
-  useCrmDataScope: () => ({ scope: 'all', setScope: vi.fn(), currentUserId: 'u-001' }),
-}))
+vi.mock('@/hooks/use-crm-data-scope', async () => {
+  const { useState } = await import('react')
+  return {
+    useCrmDataScope: () => {
+      const [scope, setScopeState] = useState<'mine' | 'all'>('all')
+      return {
+        scope,
+        setScope: (next: 'mine' | 'all') => {
+          setScope(next)
+          setScopeState(next)
+        },
+        currentUserId: 'u-001',
+      }
+    },
+  }
+})
 vi.mock('@/components/notifications', () => ({
   useNotifications: () => ({ notify }),
 }))
@@ -93,7 +115,7 @@ afterEach(() => {
 
 describe('TasksPage', () => {
   it('看板渲染三列 + 卡片（cancelled 不入看板）', async () => {
-    render(<TasksPage />)
+    const { container } = render(<TasksPage />)
     expect(await screen.findByText('待办')).toBeTruthy()
     expect(screen.getByText('进行中')).toBeTruthy()
     expect(screen.getByText('已完成')).toBeTruthy()
@@ -104,6 +126,10 @@ describe('TasksPage', () => {
     expect(screen.queryByText('已取消的任务')).toBeNull()
     // all 视图显示负责人名
     expect(screen.getByTestId('task-owner-t-1').textContent).toContain('张三')
+
+    expect(container.querySelector('[data-warm-crm-page]')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: '任务工具栏' })).toBeInTheDocument()
+    expect(container.querySelectorAll('[data-warm-crm-section]')).toHaveLength(3)
   })
 
   it('列头 type 筛选：选择后按 type 拉数并过滤卡片', async () => {
@@ -127,7 +153,7 @@ describe('TasksPage', () => {
     await screen.findByText('确认报价单')
     fireEvent.change(screen.getByTestId('task-type-filter'), { target: { value: 'call' } })
     await screen.findByText('电话回访客户')
-    fireEvent.click(screen.getByTestId('view-list'))
+    fireEvent.click(screen.getByRole('button', { name: '列表' }))
 
     const callsBeforeRefresh = listTasks.mock.calls.length
     const refresh = getRefreshHandler()
@@ -139,7 +165,10 @@ describe('TasksPage', () => {
       expect.objectContaining({ scope: 'all', type: 'call', pageSize: 100 })
     )
     expect(screen.getByTestId('task-type-filter')).toHaveValue('call')
-    expect(screen.getByTestId('view-list')).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('button', { name: '列表' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
     expect(await screen.findByText('电话回访客户')).toBeTruthy()
   })
 
@@ -159,10 +188,50 @@ describe('TasksPage', () => {
     render(<TasksPage />)
     await screen.findByText('确认报价单')
 
-    fireEvent.click(screen.getByTestId('view-list'))
+    fireEvent.click(screen.getByRole('button', { name: '列表' }))
 
     expect(await screen.findByText('已取消的任务')).toBeTruthy()
     // 列表含看板任务
     expect(screen.getByText('确认报价单')).toBeTruthy()
+  })
+
+  it('看板/列表切换使用可访问的按压状态', async () => {
+    render(<TasksPage />)
+    await screen.findByText('确认报价单')
+
+    expect(screen.getByRole('group', { name: '视图切换' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '看板' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '列表' }))
+
+    expect(screen.getByRole('button', { name: '看板' })).toHaveAttribute(
+      'aria-pressed',
+      'false'
+    )
+    expect(screen.getByRole('button', { name: '列表' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+  })
+
+  it('数据范围切换保留 CRM scope 并重新请求对应范围', async () => {
+    render(<TasksPage />)
+    await screen.findByText('确认报价单')
+
+    fireEvent.click(screen.getByRole('button', { name: '我的' }))
+
+    expect(setScope).toHaveBeenCalledWith('mine')
+    await waitFor(() =>
+      expect(listTasks).toHaveBeenLastCalledWith(
+        expect.objectContaining({ scope: 'mine', pageSize: 100 })
+      )
+    )
+    expect(screen.getByRole('button', { name: '我的' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
   })
 })
