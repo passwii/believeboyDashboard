@@ -1,6 +1,6 @@
 # Warm Ledger C2 归档索引
 
-> **状态：** C2 Task 6 完成；PR 准备中。
+> **状态：** C2 Task 6 完成；PR #798 已合并。
 >
 > **分支：** `feat/warm-ledger-c2-closeout`
 >
@@ -40,7 +40,7 @@
 ## PR / Git 记录
 
 - Git tag：无。
-- PR：[#798](https://github.com/passwii/believeboyDashboard/pull/798)（head SHA 与 merge 状态以 GitHub PR 元数据为准）。
-- GitHub CI：frontend full Vitest 当前 5 例失败，集中在 `inventory-analysis-client.test.tsx` 与 `portfolio-overview-client.test.tsx`；这两文件的失败也出现在基线 `main` run `41735587296`。本 PR 的 C2 focused suite 27/199 通过，且修正了基线 main 的 Warm topbar stale assertion。Vercel check 因 “Account is blocked” 失败，基线 main 同样失败。
+- PR：[#798](https://github.com/passwii/believeboyDashboard/pull/798)，于 2026-11-04 合并，merge commit `11c60b25`。
+- GitHub CI：基线 main `435c9cc7` 的全量 Vitest run `41735587296` 有 57 例失败、分布在 8 个文件；C2 PR 最新 run `41753856697` 与合并后 main run `41754509447` 均为 5 例失败 / 2304 例通过，失败只在未改动的 `inventory-analysis-client.test.tsx` 与 `portfolio-overview-client.test.tsx`，与基线重合。C2 改动涉及的 Vitest 文件均通过；C2 focused suite 27/199 通过，并修正了基线 main 的 Warm topbar stale assertion。Vercel check 因 “Account is blocked” 失败，基线 main 同样失败。
 - 本批没有 backend 改动；不手动部署。
 - 预先存在的未跟踪 `gui/` 不属于本 PR，保持原样。

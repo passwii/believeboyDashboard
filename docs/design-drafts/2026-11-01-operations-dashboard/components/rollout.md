@@ -4,7 +4,14 @@
 >
 > 范围：先 `/dashboard`，再按业务类目逐页推广。
 >
-> 原则：页面先行，组件后置晋升；V3 Terminal 继续服务其他路由。
+> 原则：页面先行，组件后置晋升；V4 Warm Ledger 是现行设计，V3 Terminal 仅继续服务未迁移路由。
+
+## V4 current baseline (2026-11-04)
+
+- V4 Warm Ledger replaces V3 Terminal as the current design authority. New migration work must follow `frontend/docs/design-spec.md` §0.4 and `components/foundations/spec.md`.
+- V4 operations and business page migration is desktop-only. Do not add phone/tablet or multi-breakpoint page adaptation, and do not validate phone viewports in migration acceptance.
+- The floating window uses equal 8px outer gutters on all four sides, fills the remaining desktop viewport, and retains its rounded shape.
+- Page-specific UI remains local. Promote a Warm component only after a second real page has the same visual, state, and interaction contract.
 
 ## C1 Warm scope extension (2026-11-01)
 
@@ -171,7 +178,7 @@ Damon 已确认生产直接使用新设计，不设 feature flag：
 
 | 批次 | 类目 | 代表页面 | 进入条件 |
 | --- | --- | --- | --- |
-| D0 | Dashboard 基准 | `/dashboard` | **已完成（2026-11-01）**：数据层拆分、Warm shell、真实 API、响应式与交互门禁通过 |
+| D0 | Dashboard 基准 | `/dashboard` | **已完成（2026-11-01）**：数据层拆分、Warm shell、真实 API 与交互门禁通过；2026-11-04 起按 V4 desktop geometry 维护 |
 | C1 | 运营分析 | `daily-analysis`、`portfolio-overview`、`inventory-analysis` | 已完成（2026-11-02；最终 Luna max review PASS） |
 | C2 | 运营执行 / 库存 | `inventory-ledger`、`shipping-plan`、`shipment-management`、`sku-info` | **已完成（2026-11-04）**：27 Vitest files / 199 tests、build、focused ESLint、78/78 Playwright、最终独立 review PASS；授权/技术 follow-ups 保留 |
 | C3 | 报表 / 订单 | `order-info`、`product-analysis`、`monthly-report/display` | 表格与导出契约稳定后开始；本 C2 closeout 不进入 C3 |
@@ -191,23 +198,23 @@ Damon 已确认生产直接使用新设计，不设 feature flag：
 7. `/dashboard/reports/product-analysis`
 8. `/dashboard/reports/monthly-report/display`
 
-## 7. GPT Luna Agent Team
+## 7. DeepSeek Max Agent Team
 
-所有实现与审阅 Agent 统一使用 `believeboy/GPT-6-Luna` + `max` reasoning。
+自 2026-11-04 起，新任务的实现 Agent 与最终审阅 Agent 统一使用 `believeboy/DeepSeek-V4.1-Flash` + `max` reasoning。Luna 不再用于后续 V4 任务；历史批次记录中的 Luna review 保留原事实。
 
-不按任务难度降档，A0–A7 与 R1 全部采用 max think。
+不按任务难度降档，A0–A7 与 R1 全部采用 max think。R1 必须是独立只读审阅，不能复用实现 Agent 的会话判断。
 
-| Agent | 推理档 | 写作用域 | 交付 |
+| Agent | 模型 / 推理档 | 写作用域 | 交付 |
 | --- | --- | --- | --- |
-| A0 设计系统 | max | `components/` 设计文档、Warm token 契约 | foundations、状态矩阵、目录冻结 |
-| A1 Shell | max | 新增 Warm shell/sidebar/topbar 与 Warm controls wrapper 文件 | 外壳、导航、focus trap、共享控件、token 使用 |
-| A2 指标 | max | 新增 metric/diagnostic 文件 | MetricStrip、DiagnosticStrip；只消费 A1 controls |
-| A3 图表 | max | 新增 sales-trend 文件 | 曲线、图例、轴、摘要；只消费 A1 controls |
-| A4 表格 | max | 新增 rank/daily-ledger 文件 | 排行、日明细；只消费 A1 controls |
-| A5 订单流 | max | 新增 order-flow wrapper | 订单展开、移动 Sheet；默认收起，只消费 A1 controls |
-| A6 集成 | max | `app/dashboard/page.tsx`、必要 layout 与 integration contracts | 共享 props types、数据接线、整页 QA |
-| A7 类目试点 | max | 仅分配的单页面目录 | C1 页面试点 |
-| R1 审阅 | max | 只读 | 规范、代码、视觉、a11y review |
+| A0 设计系统 | DeepSeek / max | `components/` 设计文档、Warm token 契约 | foundations、状态矩阵、目录冻结 |
+| A1 Shell | DeepSeek / max | 新增 Warm shell/sidebar/topbar 与 Warm controls wrapper 文件 | 外壳、导航、focus trap、共享控件、token 使用 |
+| A2 指标 | DeepSeek / max | 新增 metric/diagnostic 文件 | MetricStrip、DiagnosticStrip；只消费 A1 controls |
+| A3 图表 | DeepSeek / max | 新增 sales-trend 文件 | 曲线、图例、轴、摘要；只消费 A1 controls |
+| A4 表格 | DeepSeek / max | 新增 rank/daily-ledger 文件 | 排行、日明细；只消费 A1 controls |
+| A5 订单流 | DeepSeek / max | 新增 order-flow wrapper | 订单展开、移动 Sheet；默认收起，只消费 A1 controls |
+| A6 集成 | DeepSeek / max | `app/dashboard/page.tsx`、必要 layout 与 integration contracts | 共享 props types、数据接线、整页 QA |
+| A7 类目试点 | DeepSeek / max | 仅分配的单页面目录 | C1 页面试点 |
+| R1 审阅 | DeepSeek / max | 只读 | 规范、代码、视觉、a11y review |
 
 ### 并行边界
 

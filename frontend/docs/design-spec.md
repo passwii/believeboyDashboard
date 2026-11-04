@@ -1,8 +1,8 @@
 # 设计规范（Design Spec）
 
-> **适用版本：** v3（三阶段归拢版，2026-08-29）
-> **适用对象：** 在 `frontend/` 下新增 / 修改 UI 的工程师
-> **目标：** 归拢设计语言三个阶段（V1 / V2 / V3）的完整沿革，明确**现行权威 = V3 Terminal**；登记"刻意为之"的例外，避免后来者误判为 bug、误改、或写出跨时代混搭。
+> **适用版本：** V4 Warm Ledger（2026-11-04 起）
+> **适用对象：** 在 `frontend/` 下新增或修改 UI 的工程师与 Agent Team
+> **目标：** 明确 **V4 Warm Ledger 是现行权威**；V3 Terminal 降为历史与未迁移路由的维护规范。V4 不是 Terminal 的换肤，也不再以零圆角、全平铺和 `--term-*` 为设计前提。
 
 ---
 
@@ -10,144 +10,126 @@
 
 ### 0.0 一张表看懂
 
-| 阶段 | 时间窗 | 设计语言 | 令牌体系 | 分水岭 | 状态 |
-|---|---|---|---|---|---|
-| **V1** 早期默认 | 2026-02 ~ 2026-07 中 | shadcn 开箱样式 + 各页自配色 | 无统一令牌（`hsl(var(--background))` 系默认 + 局部硬编码） | `a16ce290` Geist 计划立项（2026-07-16） | 存档，无在线独占资产 |
-| **V2** Geist Surface | 2026-07-16 ~ 2026-08-22 | 玻璃拟态：surface 阶梯 + 圆角 + 阴影 + 微交互 | `--surface-*` + `dashboard-surface` 构件类 | `9e47d99a` 终端外壳合入（2026-08-23，BLF-809） | 存量维护（约 32 文件 `dashboard-surface` / 68 文件 `--surface-*`） |
-| **V3** Terminal 终端化 | 2026-08-23 起 | 高密度交易终端：零圆角 / 零阴影 / 1px 边界 / mono 数值 | `--term-*` 明暗双套 + Tailwind `term` 色组 | 进行中（最新 BLF-887，`1d9f461d`，2026-08-29） | **现行权威** |
+| 阶段 | 时间窗 | 设计语言 | 令牌 / 组件体系 | 状态 |
+|---|---|---|---|---|
+| **V1** 早期默认 | 2026-02 ~ 2026-07 中 | shadcn 开箱样式 + 各页自配色 | 默认 token + 局部硬编码 | 存档 |
+| **V2** Geist Surface | 2026-07-16 ~ 2026-08-22 | 玻璃拟态、surface 阶梯、圆角与阴影 | `--surface-*` / `dashboard-surface` | 历史存量维护 |
+| **V3** Terminal | 2026-08-23 ~ 2026-11-03 | 高密度终端：零圆角、零阴影、1px 平铺、双层导航 | `--term-*` / `components/terminal/*` | 历史规范；仅维护未迁移路由 |
+| **V4** Warm Ledger | 2026-11-04 起 | 暖石墨浮窗、圆角、克制阴影、琥珀数据强调、账本式排版 | `--warm-ledger-*` / `components/dashboard-v2/warm-ledger/*` | **现行权威** |
 
-**新人一句话**：新页面 / 新组件一律按 §0.3 V3 写；看到旧页面的圆角 / 阴影 / `surface` 类不是 bug，是 V2 存量（迁移口径见 §0.3.6）。
+**新人一句话：** Warm Ledger 路由的新页面、新组件和新迁移一律按 V4 写。看到尚未迁移的 Terminal 页面不是 V4 参照；不要为了“统一”把 V4 改回零圆角或混用 `--term-*`。
 
 ### 0.1 V1 —— 早期默认时代（存档）
 
-- 2026-02 首批页面起（销售日报 `56b52a65`、项目 / 系统管理 `106304c2`），直接使用 shadcn/ui 开箱令牌（`--background / --primary / --muted` 系）+ 各页面局部硬编码配色。
-- 2026-03 起 `dashboard-surface` 构件类在仪表盘 / 广告分析出现雏形（`cb360f6e` / `2cf5b715`），但未令牌化、未成文。
-- 该阶段**无设计规范文档、无红线**，样式决策分散在各 page.tsx；已全部被 V2 / V3 重构覆盖，无需遵循。
+- 2026-02 首批页面直接使用 shadcn/ui 默认令牌和页面级硬编码配色。
+- 该阶段没有统一设计系统，已被 V2 / V3 重构覆盖，不再作为实现依据。
 
-### 0.2 V2 —— Geist Surface 玻璃时代（存量维护）
+### 0.2 V2 —— Geist Surface（历史存量）
 
-- 2026-07-16 Geist 阶段 A（设计令牌层）立项（`docs/superpowers/plans/2026-07-16-geist-phase-a-design-tokens/`），2026-08 上旬集中定稿：
-  - **令牌**：`--surface-high / soft / subtle / low / outline / overlay` 表面阶梯 + `--shadow-soft / raised / overlay` + `--radius-*` 阶梯；
-  - **构件**：`globals.css` `.dashboard-surface`（玻璃面板）+ `hover-lift` / `animate-enter` 微交互；
-  - **规范**：BLF-494（暗黑硬编码清理）、BLF-496（`table-spec.md` v1）、BLF-497（`docs/FRONTEND-DESIGN-SPEC.md` 总纲）、BLF-501（页面收口）、BLF-503（PageHeader / FilterToolbar 模式库）。
-- **仍在线的 V2 资产**（不是 bug；例外登记见 §1.5，迁移口径见 §0.3.6）：
-  - 主页 `app/dashboard/page.tsx` + `components/dashboard-v2/`（V2Card 蓝色单色独立体系）；
-  - 未迁完的存量页面（约 32 文件仍用 `dashboard-surface`）；
-  - **微交互基建跨版本共用**：`u-btn / u-press / u-focus / u-interactive / u-focus-glow` 工具类与 transitions.dev motion 令牌（`--duration-*` / `--ease-*`，见 `motion-system.md`）——V3 组件同样引用，只替换视觉表面层。
+- 使用 `--surface-*`、`.dashboard-surface`、圆角、阴影和微交互。
+- 仍可能出现在旧页面与共享基础组件中，但不是 V4 页面应模仿的视觉基准。
 
-### 0.3 V3 —— Terminal 终端化（现行权威）★
+### 0.3 V3 —— Terminal 终端化（历史维护）
 
-> 规格细则：`docs/terminal-design/master-prompt.md`（总纲 / 打磨 SOP / 批次进度）；表格细则：`frontend/docs/table-spec.md` v2（BLF-872，已 term 化）。
+- 2026-08-23 至 2026-11-03 的现行体系，核心是零圆角、零阴影、1px 全平铺、双层 rail/subnav 和 `--term-*`。
+- 自 2026-11-04 起，V3 不再是设计权威。`TerminalShell`、`components/terminal/*`、`term-controls`、`TERM_PANEL_SURFACE` 和 Terminal 表格规范仅保留用于未迁移路由的维护。
+- 新 V4 页面不得使用 `--term-*` 作为新视觉的别名，也不得把 Terminal 控件默认样式直接当作 Warm Ledger 基底。
+- `docs/terminal-design/master-prompt.md`、`frontend/docs/table-spec.md` 等 V3 文档保留为历史与存量维护资料；与 V4 冲突时，以本文档和 Warm Ledger foundations 为准。
 
-#### 0.3.1 视觉纪律五条（不可违反）
+### 0.4 V4 —— Warm Ledger（现行权威）★
 
-1. **零圆角**：一律 `rounded-none`；
-2. **零阴影**：禁 Box-Shadow；面板分割一律 `border border-term-border`（1px solid）；
-3. **数值 mono**：金额 / 订单号 / 时间戳 `font-mono` + `tabular-nums`，语义着色 `text-term-pos / neg / warn`；
-4. **明暗双套**：新增颜色必须同时补 light / dark 两套 `--term-*`；
-5. **同排同档**：同一水平带上并排的可点击控件必须同高度档（档位表见 0.3.3）。
+V4 是 BelieveBoy 运营与业务页面的全新设计语言：暖石墨表面、浮在工作画布上的圆角工作窗、琥珀色数据强调、账本式信息层级、可读优先的高密度桌面布局。它有意区别于 V3 Terminal 的冷黑、零圆角和硬件终端气质。
 
-#### 0.3.2 令牌体系
+**权威文档：**
 
-`globals.css` `--term-*` 明暗两套（13 色 × 2 主题：bg / panel / raised / hover / border / border-strong / text / muted / faint / pos / warn / neg / accent），经 `tailwind.config.ts` `term` 色组消费（`bg-term-panel` 等）。浅色基调 `#f5f5f7` 系、深色基调 `#0c0c0e` 系，自动随主题翻转，无需 `dark:` 前缀。
+- 本文档：全局版本、红线、例外与文档地图。
+- `docs/design-drafts/2026-11-01-operations-dashboard/components/foundations/spec.md`：V4 视觉、尺寸、状态与无障碍契约。
+- `docs/design-drafts/2026-11-01-operations-dashboard/components/foundations/freeze.md`：已批准的路由范围、桌面画布和冻结决定。
+- `docs/design-drafts/2026-11-01-operations-dashboard/design.md`：Warm Ledger 的设计方向与页面基准。
+- `docs/design-drafts/2026-11-01-operations-dashboard/components/rollout.md`：V4 类目迁移、Agent Team 与验收顺序。
 
-#### 0.3.3 控件高度阶梯（BLF-887 终态，2026-08-29）
+#### 0.4.1 视觉纪律
 
-| 档位 | 用途 |
-|---|---|
-| `h-4`（16px） | 徽标本体、状态点 |
-| `h-8`（32px） | 紧凑档：Tab 钮、MultiSelect 内嵌搜索、Button sm/xs、Input sm |
-| `h-9`（36px） | 标准工具行：`TERM_BUTTON / TERM_INPUT / TERM_TRIGGER / TERM_SELECT_NATIVE`、Button default、Input default、Select / Combobox / Command 触发器、Pagination、TableHead、图标按钮（Header / Inspector / SubNav 折叠钮）、SubNav 列表项 |
-| `h-10`（40px） | 页头级：`TERM_HEADER_TRIGGER`、term Tabs 栏、TermTabBar、TermPanel 标题条、TermTable 表头与行、Button / Input lg、工作区导出 / 查询钮 |
-| `h-11`+ | 保留给 default Tabs（非 term）等旧基线，term 体系不取 |
+1. **暖石墨层次**：Stage / Window / Sidebar / Panel / Raised 使用 `--warm-ledger-*` 表面阶梯，不用近黑冷色堆叠。
+2. **圆角与浮窗**：桌面工作窗保留 22px 圆角；面板 16px、主控件 10px、嵌套行 8px。浮窗使用克制的 exterior shadow 和顶部 inset highlight。
+3. **等宽且有意义的留白**：桌面浮窗四边统一使用 8px stage inset，尽可能铺满视口；圆角、边界和阴影负责表达“悬浮画布”，不靠大面积空白。
+4. **唯一数据强调色**：琥珀色用于当前周期、选中态、Pending 和少量关键数值；状态色必须同时带文字、符号或明确状态。
+5. **数字可核对**：金额、数量、比例、日期和时间戳使用 DM Mono / numeric stack + `tabular-nums`；不使用 Terminal 的 `text-term-*` 类。
+6. **文案克制**：每个可见元素必须可追溯到需求、真实字段 / 状态、导航或无障碍需要。避免无必要的次级标签和描述，让布局关系本身解释信息（“Avoid unnecessary secondary labels and descriptions. Let the layout do the explaining”）。
+7. **不做通用 SaaS 模板**：禁止紫色渐变、三张同形功能卡、营销副标题、假数据、装饰性 badge、客户 logo、无依据的统计数字和满屏 hover。
 
-规则：Header 插槽内控件统一 `h-10`；触控命中区最小 24px 不因档位放宽。完整沿革与对照见 `master-prompt.md` §1b-3（BLF-887 上档表）。
+#### 0.4.2 桌面范围
 
-#### 0.3.4 外壳尺寸常量（BLF-887 终态）
+- 2026-11-04 起的 Warm Ledger 运营及业务页面迁移**只做 desktop**。
+- 不新增手机端、平板端或多断点页面适配，也不把手机视口纳入迁移验收。
+- 共享壳已有的手机逻辑保持原样，但不得为了 V4 页面迁移扩大其范围或新增第二套移动布局。
+- C3 的浏览器验收使用 `1440x900`；后续阶段如无新的用户决定，继续以桌面视口为门槛。
+- 桌面浮窗使用等宽 8px 外沿；移除 1840px 宽 / 960px 高的窗口上限，让工作窗填满扣除外沿后的可用视口。
 
-单源 `components/terminal/terminal-constants.ts`：Rail **64px**（L1 图标 24px，常量 `TERMINAL_RAIL_ICON_SIZE`，改尺寸只动此处）/ SubNav **224px**（折叠 0，动效收缩）/ Header **56px** / Footer **36px** / Inspector **360px** / 顶部基准带 = Header 高度（表达式联动）。**禁止页面内手写像素值**，一律引用常量。
+#### 0.4.3 组件与迁移边界
 
-#### 0.3.5 原子组件收口清单（BLF-867 ~ 887，2026-08-27 ~ 08-29）
+1. **页面先行，组件后置**：页面专用表格、筛选、上传流程、对话框和导出 UI 先留在页面目录，用 route-local CSS Module 实现。
+2. **真实第二消费者才晋升**：只有一个页面使用时，不建立全局 Warm Button/Table/Chart 抽象；第二阶段集中排查后，若两个真实页面契约一致，再提交组件晋升。
+3. **不混用体系**：V4 页面不得同时套 `--term-*`、Terminal 控件默认样式和 Warm token；共享业务 hook 可以复用，视觉表面必须保持 V4。
+4. **业务契约不变**：视觉迁移不得静默改变 endpoint、URL、筛选语义、排序、分页、权限、写操作、公式、导出列或文件名。
+5. **状态必须真实**：loading / error / empty / zero-data 分离；没有真实数据时不用装饰性样例填充。
 
-| 组件域 | 收口内容 | 出处 |
-|---|---|---|
-| Button | 基座零圆角 + term 令牌；新增显式 `term` variant（高密度工具行）；档位 h-8 / 9 / 10 | #455（BLF-868） |
-| 表单输入 | Input / Textarea / Switch：零圆角 + term 令牌 + `u-focus-glow` 焦点 | #456（BLF-869） |
-| 选择类 | Select / Combobox / Command / Popover / DatePicker | #457（BLF-870） |
-| 浮层类 | Sheet / Dialog / Tooltip | #458（BLF-871） |
-| 数据展示 | Card / DataCard / StatCard / Table / Badge / Empty / Skeleton / Pagination 统一外壳 `TERM_PANEL_SURFACE`（`card.tsx` 导出：零圆角 / 零阴影 / 零渐变） | #464（BLF-872） |
-| 导航布局 | FilterToolbar / ScrollArea / Separator；面包屑与页面标题由 `TerminalHeader` 承载（原 `Breadcrumb` / `PageHeader` 原语已下线）；**删除** `ui/sidebar.tsx`（731 行）+ `sidebar-mobile-sheet` + `sidebar-constants`（被 `terminal-shell` 六区外壳取代） | #465（BLF-873） |
-| Tabs | `variant="term"`：term 基座 + 激活态 accent 发光指示条 + 前置 icon + h-10 | #451 / #461 / #466（BLF-867 / 883）+ BLF-887 |
-| FieldLabel | **组件下线**，统一终端样式 | #450（BLF-876） |
-| 操作区 / Header | 4 档固定宽度原子控件；Head 三区骨架与常量抽取（BLF-877）；刷新按钮全页面常驻（BLF-881） | #449 / #454 / #460 |
-| 共享原语 | `components/terminal/term-controls.tsx`（`TERM_TRIGGER / INPUT / BUTTON / SELECT_NATIVE` + `TermPill / TermTabBar / TermToolRow`，约 30 处引用）——后续新页面一律从这里取控件基类 | #423（BLF-838） |
-| Header 范式 | `header-filter-suite.tsx`（全局筛选四件套，h-10）+ `header-filter-controls.tsx`（BLF-826 范式收口；Operations 11 页上移 Top Header 插槽） | #467 |
+#### 0.4.4 AI 协作
 
-#### 0.3.6 V2 存量迁移口径
+新增或重做 V4 UI 时，AI 必须先说明：
 
-1. **新页面 / 新组件一律 V3**：按 `master-prompt.md` §任务 2 SOP + `term-controls` 原语写；**不要**再加页面级标题胶囊 / 筛选条（改接 `header-filter-suite` 组件族）；
-2. **存量 V2 页面**按批次迁（master-prompt 批次表 A–F 已收官，全站 52 模块终端化完成；后续增量以 issue 驱动），迁完删除旧类；
-3. **motion 基建不动**：`u-*` 工具类、`--duration-*` / `--ease-*` 令牌跨版本共用，只换视觉表面层；
-4. `variant="term"` / `TERM_PANEL_SURFACE` / `term-controls` 是唯一入口，**不要**再新造各域 term-shared 副本（`order-info` / `scheduled-reports` 存有历史本地副本，仅存量维护，勿模仿）。
+1. 用户任务、真实数据与文案来源；
+2. 对齐的 Warm Ledger 页面 / 组件，而不是笼统的“modern”；
+3. 唯一视觉与操作主角；
+4. desktop 布局与受影响的 shell 区域；
+5. 复用的 `--warm-ledger-*` token、Warm controls 与页面本地样式；
+6. loading / empty / error / permission / long-content 状态；
+7. 是否需要动效；没有明确收益就不加。
 
-#### 0.3.7 AI 协作：先做设计决定，后写 UI（反 AI Slop）
-
-新增 / 重做 UI 时，AI 必须先给出设计计划再写代码；完整提示词与禁止清单见 `docs/terminal-design/master-prompt.md` §0.1。最低要求：
-
-1. **先定方向**：说明用户任务、参照页面、唯一视觉主角、布局 / 移动端降级、复用的 term token 与状态处理；不接受“modern / 高级 / 干净”这类没有决策的描述。
-2. **元素可追溯**：每个可见元素必须来自需求、真实字段 / 状态、导航或无障碍需要。**禁止自创 description、副标题、eyebrow、badge、统计数字、客户 logo、评价、假数据和装饰性卡片**。
-3. **文案克制**：控件名已表达动作时不加 helper text；标题已表达内容时不加复述式说明。空状态、错误、按钮等文案必须帮助用户判断或行动，而不是填充版面。
-4. **风格服从现有系统**：V3 Terminal 的零圆角、1px 边框、mono 数值和既有 token 优先；不要套用通用 SaaS 模板，也不要为了“反 slop”引入另一套杂志风、玻璃拟态或主题色。
-5. **完成前做减法**：至少删除一个不影响需求、状态或可用性的元素；没有明确收益的动画、图标、分隔线、编号和卡片一律不加。
+完整反 AI Slop 规则继续适用于 V4；但 V3 的零圆角、`--term-*`、1px 全平铺和 Terminal 组件清单不再是 V4 的设计要求。
 
 ---
 
 ## 1. 刻意例外清单（Deliberate Exceptions）
 
-以下区域**刻意**使用硬编码色值 / 非标准 token，**不是 bug**。修改前请先阅读对应条目；若需要改动视觉，请先与本条目对齐或更新本文件。
+以下区域使用独立视觉或保留历史体系，不是漏改。修改前先读对应条目。
 
 ### 1.1 AI Chat 双主题独立设计区（`components/chat/*`）
 
-- **范围**：`components/chat/ai-chat-window.tsx`、`conversation-sidebar.tsx`、`model-selector.tsx`、`token-footer.tsx` 等；`app/dashboard/ai/page.tsx`（聊天入口）与 `app/dashboard/ai/chat/*` 一并归入本例外。
-- **现状（BLF-859 起，2026-08-27）**：已移除 mount 时强制注入 `dark`，**跟随系统主题** light / dark 自动切换；内部仍用 `bg-white/[0.06]`、`border-white/[0.08]`、`text-[#8a8a8f]` 等独立配色（浅色纸感 / 深色玻璃，Raycast 风语言），**不走 term 令牌**。
-- **决策**：聊天区是**独立设计语言**，与全站 term 体系解耦，**不迁移**；若未来统一需先做整页级设计决策再收口色值。
-- **沿革**：V2 时代（BLF-501）曾登记为"恒暗玻璃岛"；BLF-859 废除恒暗、保留独立配色，本条即改写后的现状。
+- `components/chat/*`、`app/dashboard/ai/page.tsx` 与 `app/dashboard/ai/chat/*` 是独立设计语言，不走 Warm Ledger token。
+- 现状跟随系统 light / dark，保留 Raycast 风玻璃与纸感；若统一，需先做整页设计决策。
 
 ### 1.2 文档渲染白底（`page-render` / `page-renderer`）
 
-- **范围**：`app/dashboard/tools/page-render/page-render-client.tsx`（HTML 预览 iframe）、`app/p/[id]/page-renderer.tsx`（公开页 HTML 渲染 iframe）。
-- **现状**：HTML 预览 iframe 使用 `bg-white`；公开页 Markdown 分支使用 `bg-background` + `dark:prose-invert`。
-- **决策依据**：
-  - HTML 分支渲染的是**用户上传的独立 HTML 文档**（`srcDoc` + `sandbox`），文档自带背景；iframe 的 `bg-white` 只是"纸张画布"底色，跟随主题会让文档观感失真。
-  - Markdown 分支走 token（`bg-background` + `dark:prose-invert`），已适配暗黑。
-- **结论**：**保持现状**。全仓 grep `bg-white` 时此两处为白底渲染页例外。
+- HTML 预览 iframe 的 `bg-white` 是“纸张画布”底色；Markdown 分支继续走主题 token。
+- 保持现状，避免用户上传文档的观感被主题污染。
 
-### 1.3 数字大屏恒暗（`app/dashboard/system/digital-display/page.tsx`）
+### 1.3 数字大屏与投屏模式
 
-- **现状**：页面在 mount 时强制 `document.documentElement.classList.add('dark')` 并请求全屏，**恒为暗色展示页**（无 light 态）。
-- **注意**：自 BLF-494 起，大屏卡片已迁移到标准 surface token；"恒暗"本身保留为刻意例外（展示类页面）。
+- `system/digital-display` 与 `ai/digital-employees/office?mode=presentation` 是恒暗展示页，保留强制 dark 和全屏行为。
 
-### 1.4 数字员工办公室投屏模式（`app/dashboard/ai/digital-employees/office/page.tsx`）
+### 1.4 未迁移的 V3 Terminal 路由
 
-- **范围**：`?mode=presentation` 分支（全屏投屏视图）。普通模式走 `dashboard-page-shell` + token，与全站一致。
-- **现状**：投屏分支在 mount 时强制 `dark` 并请求全屏，**恒为暗色展示页**（无 light 态），与 §1.3 数字大屏并列。
+- 未进入 Warm Ledger allowlist 的页面继续使用 `TerminalShell` 和既有 `--term-*`，这是迁移期间的刻意存量，不是 V4 示例。
+- 修改这类页面时，除非任务明确要求迁移，否则只维护其现有 V3 行为，不要顺手混入 Warm Ledger 表面。
 
-### 1.5 主页 dashboard-v2 蓝色单色体系（V2 定稿产物）
+### 1.5 `dashboard-v2` 目录命名
 
-- **范围**：`app/dashboard/page.tsx` + `components/dashboard-v2/`（`V2Card` 等）。
-- **现状**：BLF-497 §6.2 定稿的**蓝色单色独立体系**，仅主页使用；V3 终端化覆盖了外壳 / 导航 / 表格，但主页卡片体系仍为 V2 形态。
-- **结论**：属 V2 时代刻意保留的独立体系，**不是漏改**；重构前先读 BLF-497 的决策记录，不要顺手"term 化"。
+- `components/dashboard-v2/` 是历史目录名；其下的 `warm-ledger/*` 已属于 V4。
+- 目录名不代表设计版本，也不构成把 Warm Ledger 保持在“实验性”状态的理由。
 
 ---
 
-## 2. Token 使用红线（V3 口径）
+## 2. Token 使用红线（V4 口径）
 
-1. **业务页禁止裸用硬编码色**（`bg-white` / `bg-slate-100` / `bg-gray-50` / `text-gray-700` 等无 `dark:` 变体的浅色硬编码）：新代码一律 term 令牌（`bg-term-panel / text-term-muted` 等）；例外仅限 §1 登记。
-2. **表格粘性表头**：单元格背景必须用**实体不透明 term 令牌**（推荐 `bg-term-raised`，首列数据格 `bg-term-panel`），否则滚动时暗黑模式会出现浅色带（细则见 `table-spec.md` §1.5）。
-3. **状态色**：表格用 `StatusPill`（`table-presets.tsx`，映射 `--data-*` 自动适配 dark）或 `Badge` 内置 variant；终端工具行用 `term-controls.tsx` 的 `TermPill`（tone 语义色）；**禁止**业务页手写状态色类（如 `bg-slate-100 text-slate-800`）。
-4. **新颜色双主题双写**：`--term-*` 必须 light / dark 两套同步新增，Tailwind `term` 色组同步 `tailwind.config.ts`；漏写暗色即在暗黑模式出浅色块。
-5. **圆角 / 阴影零回归**：term 体系内禁新增 `rounded-*`（`rounded-none` 除外，`switch` 滑轨等物理隐喻除外）与任何 Box-Shadow；浮层与面板分割一律 `border-term-border`。
-6. **动效令牌双侧同步**：修改 `--duration-*` / `--ease-*` 需同步 `lib/motion/tokens.ts`（见 `motion-system.md` §2.3）。
+1. **新 V4 UI 只用 `--warm-ledger-*`**：不得新写 `--term-*`、`term` Tailwind 色组或 Terminal 默认组件样式来替代 Warm token。
+2. **不裸用硬编码色**：页面 CSS Module 使用 Warm token；确有图表或第三方样式无法接入 token 时，必须在局部注释说明来源与作用域。
+3. **不覆盖全局默认**：不得为了单页效果改 `components/ui/*`、`--term-*`、全局 `--background*` 或其他路由的默认样式。
+4. **浮窗几何**：四边 8px stage inset、可用视口铺满、22px 窗口圆角；禁止重新引入 1840px / 960px 的桌面上限。
+5. **表格粘性表头**：使用 Warm 的不透明 Panel / Raised 表面，避免滚动时透出下层；禁止用 `bg-term-*` 修补 V4 表格。
+6. **状态与数值色**：琥珀、Positive、Negative 等只按语义使用；颜色不能单独承载意义。
+7. **圆角 / 阴影**：新代码使用明确的 Warm radius / shadow token；不新增随机像素值，不把全站改回 V3 零圆角。
+8. **桌面优先**：新增 V4 页面样式不写手机端 media query；必须先解决桌面信息层级，再谈未来是否单独立项适配。
 
 ---
 
@@ -155,10 +137,12 @@
 
 | 主题 | 文档 | 说明 |
 |---|---|---|
-| V3 终端化总纲 / SOP / 批次进度 | `docs/terminal-design/master-prompt.md` | V3 权威细则（BLF-887 已同步） |
-| BLF-809 交付复盘 | `docs/terminal-design/design-review.md` | 历史决策与问题清单 |
-| 表格唯一配方 | `frontend/docs/table-spec.md` | v2（BLF-872，已 term 化） |
-| V2 总纲（存档） | `docs/FRONTEND-DESIGN-SPEC.md` | V2 定稿总纲；**与 V3 冲突处以本文档为准** |
-| 动效体系 | `frontend/docs/motion-system.md` | 跨版本共用（`u-*` / `--duration-*` / `--ease-*`） |
-| 暗黑层次决策 | `docs/dark-mode-depth-design-decisions.md` | V2 定稿（BLF-573） |
-| 图表统一 / 移动端适配 | `docs/chart-unification-spec.md` / `MOBILE_ADAPTATION_RULES.md` | 主题性规范，沿 V2 定稿 |
+| V4 全局设计规范 | `frontend/docs/design-spec.md` | 版本权威、红线、例外 |
+| V4 Warm Ledger foundations | `docs/design-drafts/2026-11-01-operations-dashboard/components/foundations/spec.md` | token、布局、字体、状态、桌面契约 |
+| V4 冻结与批准记录 | `docs/design-drafts/2026-11-01-operations-dashboard/components/foundations/freeze.md` | exact routes、desktop canvas、用户决策 |
+| V4 页面基准 | `docs/design-drafts/2026-11-01-operations-dashboard/design.md` | Warm Ledger 方向与页面结构 |
+| V4 推广 / Agent Team | `docs/design-drafts/2026-11-01-operations-dashboard/components/rollout.md` | 类目批次、并行边界、DeepSeek Max |
+| V3 Terminal 历史 | `docs/terminal-design/master-prompt.md` | 历史与未迁移路由维护，不再是 V4 设计权威 |
+| V3 表格历史 | `frontend/docs/table-spec.md` | V3 存量表格契约；V4 页面不直接沿用 |
+| 动效基础 | `frontend/docs/motion-system.md` | `u-*` / duration / ease 可复用；视觉表面按 V4 重写 |
+| V2 总纲（存档） | `docs/FRONTEND-DESIGN-SPEC.md` | 历史记录；与 V4 冲突时以本文档为准 |

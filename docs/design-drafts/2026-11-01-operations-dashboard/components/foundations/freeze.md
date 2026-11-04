@@ -1,6 +1,6 @@
 # Warm Ledger G0 Freeze
 
-> Foundations contract: Damon has confirmed the whole-page Warm Ledger direction and all four G0 decisions. Production uses the new design directly without a feature flag.
+> V4 foundations contract: Damon has confirmed the whole-page Warm Ledger direction and all four G0 decisions. As of 2026-11-04, Warm Ledger is V4 and the current design authority; V3 Terminal is legacy maintenance only. Production uses the new design directly without a feature flag.
 
 ## Freeze checklist
 
@@ -55,6 +55,13 @@ On 2026-11-02 Damon approved extending the unchanged Warm Ledger route frame to 
 
 This adds only an exact route allowlist and navigation scope. C2 pages provide their own filters through the existing slots; do not add a global-filter bar or change tokens, `--term-*`, shared defaults, or `sidebar-config.ts`. All other dashboard routes continue to use `TerminalShell`.
 
+On 2026-11-04 Damon approved a desktop-only migration scope and compact canvas refinement for Warm Ledger operations and business pages:
+
+- Do not add mobile or multi-breakpoint adaptations, or include phone viewports in migration acceptance. Leave existing shared-shell mobile behavior untouched.
+- Keep the floating app window's existing rounded shape and make its desktop outer gutters equal and compact: 8px on every side.
+- Remove the desktop app-window maximum width of 1840px and height of 960px so it fills the available viewport inside those equal gutters.
+- This is a layout geometry change. It does not change color, typography, component, route, or business contracts.
+
 ## Allowed and frozen files
 
 This A0F delivery may add or update only:
@@ -83,18 +90,20 @@ Do not modify read-only files to make a demo pass. If an interface decision need
 
 All Warm Ledger implementations remain under `frontend/components/dashboard-v2/` until the promotion rule is met. Existing shared components can be referenced for behavior, but their default styling is not part of this migration.
 
+> V4 desktop note: the mobile drawer, mobile Sheet, and narrow-screen rules listed below are pre-existing shared-shell implementation details. They are not V4 page-migration scope, design targets, or acceptance viewports.
+
 | Agent | Owns | Inputs and outputs |
 | --- | --- | --- |
-| A1 Shell + Warm controls | `WarmLedgerShell`, Dashboard sidebar/topbar, workspace scope, mobile navigation drawer, `WarmControls` wrapper (Button, IconButton, ProjectSelect, FilterControl, SortControl, Badge, Input) | Owns shell, navigation, wrapper and Dashboard token consumption. Provides shared controls for A2–A5; does not own page data or route policy. |
+| A1 Shell + Warm controls | `WarmLedgerShell`, Dashboard sidebar/topbar, workspace scope, legacy shared mobile drawer, `WarmControls` wrapper (Button, IconButton, ProjectSelect, FilterControl, SortControl, Badge, Input) | Owns shell, navigation, wrapper and Dashboard token consumption. Provides shared controls for A2–A5; does not own page data or route policy. |
 | A2 Metrics | `MetricStrip`, `MetricCard`, `Delta`, `DiagnosticStrip` | Retains the confirmed DiagnosticStrip; receives scoped / aggregated values and loading/error/empty state; consumes A1 controls; does not fetch or redefine formulas. |
 | A3 Chart | `SalesTrendPanel`, legend, axis, chart summary/tooltip | Receives current and comparison rows plus PT date labels; provides a nonvisual chart summary; does not own page fetching. |
-| A4 Tables | `ProjectRankTable`, `DailyLedgerTable`, numeric/delta cells | Receives typed rows and sort state/callback; keeps columns intact on mobile via container scrolling; daily Pending is labeled “日快照”. |
-| A5 Order flow | `OrderFlowCard`, `ProjectOrderGroup`, pending order row, live event row, mobile Sheet | Receives count and paginated list as separate data contracts; defaults groups collapsed; exposes retry/load-more/toggle/navigation callbacks; owns no route, API request, polling, or page-level aggregation. |
+| A4 Tables | `ProjectRankTable`, `DailyLedgerTable`, numeric/delta cells | Receives typed rows and sort state/callback; keeps columns intact via desktop container scrolling; daily Pending is labeled “日快照”. |
+| A5 Order flow | `OrderFlowCard`, `ProjectOrderGroup`, pending order row, live event row, legacy mobile Sheet | Receives count and paginated list as separate data contracts; defaults groups collapsed; exposes retry/load-more/toggle/navigation callbacks; owns no route, API request, polling, or page-level aggregation. |
 | A6 Integration | Shared cross-component props types, dashboard data layer, and page wiring | Owns shared props type definitions and connects A1–A5 contracts to data; owns API orchestration and route integration. |
 
 Shared interface principles:
 
-- A1 owns layout, navigation presentation, responsive drawer, shell landmarks, the Warm controls wrapper, and implementation use of the `--warm-ledger-*` tokens. It does not own page data or route policy. It reads navigation from the existing source; it does not rewrite sidebar configuration.
+- A1 owns layout, desktop navigation presentation, shell landmarks, the Warm controls wrapper, and implementation use of the `--warm-ledger-*` tokens. Legacy responsive drawer behavior is outside V4 migration scope. It does not own page data or route policy. It reads navigation from the existing source; it does not rewrite sidebar configuration.
 - A2–A5 are presentational and accept props typed by A6. They may own local sorting, disclosure, and visual state, but not API fetching, dashboard aggregation formulas, or duplicate controls.
 - A6 owns shared cross-component props types. Component-specific private props remain local to each owner; do not create parallel shared types in A1–A5.
 - A1–A5 consume the frozen token values; they do not edit `components/foundations/tokens.css` or any other foundations file. A token value change returns to an explicit B0 / Damon decision.
@@ -103,7 +112,7 @@ Shared interface principles:
 - A5 receives `pendingCount` / `countLoading` and `items` / `listLoading` / `listError` / `hasMore` separately. KPI and OrderFlow headline share the same count/list API filters and total. The headline never comes from the currently loaded page length. Expanded list pages do not redefine the total.
 - Per-project order-flow counts require a confirmed complete count API per project or a complete unpaginated result. The daily snapshot is not a substitute. Until Damon confirms that contract, omit project count / share values rather than inventing them.
 - The parent owns route construction and PT date/project scope. An order row or group receives a callback; it does not import the router or create query parameters itself.
-- Mobile Sheet behavior follows the existing focus trap, Escape close, focus restoration, and body/workspace inert contract.
+- Legacy mobile Sheet behavior stays as-is for shared-shell compatibility but is not a V4 design target or acceptance case.
 
 ## Pending and date semantics
 
@@ -134,7 +143,7 @@ These stay Dashboard-local while there is one real consumer, even where the regi
 
 - WarmLedgerShell, DashboardSidebar, DashboardTopbar, WorkspaceScope, MobileNavDrawer, and all Warm-specific Button/IconButton/Select wrappers.
 - MetricStrip, MetricCard, Delta presentation, DiagnosticStrip/DiagnosticItem, SalesTrendPanel, chart legend/axis/tooltip, ProjectRankTable, DailyLedgerTable, NumericCell, and DeltaCell.
-- OrderFlowCard, ProjectOrderGroup, PendingOrderItem, LiveEventRow, mobile order Sheet, dashboard request/polling orchestration, and the Dashboard's project/date aggregations.
+- OrderFlowCard, ProjectOrderGroup, PendingOrderItem, LiveEventRow, legacy mobile order Sheet, dashboard request/polling orchestration, and the Dashboard's project/date aggregations.
 - Page-specific labels, panel notes, separators, and field-formatting choices.
 
 Do not move these to a global `warm-ledger` package or `components/ui/` before a second real page ships with matching visual, state, and interface contracts. A second page merely planned does not qualify. Promotion must name both consumers and remove route/API/business-specific dependencies first.

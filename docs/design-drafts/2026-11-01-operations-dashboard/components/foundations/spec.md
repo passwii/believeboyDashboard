@@ -1,12 +1,13 @@
-# Warm Ledger Foundations Contract
+# Warm Ledger V4 Foundations Contract
 
-> B0 design contract with user-approved post-launch refinements for `/dashboard` and the C1 route allowlist. The current values below supersede the initial B0 surface ramp while keeping the route boundary, amber accent, and component promotion rules.
+> B0 design contract with user-approved post-launch refinements. As of 2026-11-04 this is the **V4 current design authority** for Warm Ledger routes. V3 Terminal is legacy maintenance only and is not a visual reference for new V4 UI.
 
 ## Scope and source of truth
 
 - Warm Ledger is a dark, route-scoped visual system for the BelieveBoy operations dashboard. Its character is warm, operational, and exact; real operating data carries the visual emphasis.
-- The app root uses `.warm-ledger`. All tokens use the `--warm-ledger-*` namespace. Do not change, alias, or override `--term-*`, global shadcn tokens, or the V3 Terminal defaults.
+- The app root uses `.warm-ledger`. All V4 tokens use the `--warm-ledger-*` namespace. Do not use `--term-*` as a V4 styling alias, and do not change global shadcn defaults or legacy Terminal contracts.
 - Light theme is outside B0. Do not infer a light palette from the dark values.
+- The 2026-11-04 Warm Ledger page-migration scope is desktop-only: do not add mobile or multi-breakpoint adaptations or validate phone viewports. Keep existing shared-shell mobile behavior unchanged. On desktop, the floating rounded app window fills the available viewport with equal 8px outer gutters on all four sides.
 - The user's 2026-11-02 post-launch refinement supersedes the earlier surface ramp below: it lifts the warm graphite surfaces, makes hairlines and highlights clearer, expands the desktop canvas, and aligns the sidebar on a 20px icon column. `tokens.css` is the source for current values.
 - The dashboard draft demonstrates values and layout. Its sample business numbers, timestamps, order IDs, and percentages are not product data and must not be carried into production or this state gallery.
 
@@ -46,7 +47,7 @@ Color rules:
 
 | Role | Size / line height | Weight | Font |
 | --- | --- | --- | --- |
-| Page title | `44px / 1.0` at `>=1241px`; `38px / 1.0` at `821–1240px`; `40px / 1.0` at `<=820px`; `36px / 1.05` at `<=460px` | 400 | Interface sans |
+| Page title | `44px / 1.0` desktop | 400 | Interface sans |
 | Primary metric | `50px / 1.0` | 400 | DM Mono |
 | Secondary metric | `34px / 1.0` | 400 | DM Mono |
 | Section heading | `16px / 1.4` | 500 | Interface sans |
@@ -56,16 +57,16 @@ Color rules:
 
 - Interface stack: `Instrument Sans`, `PingFang SC`, `Microsoft YaHei`, `Noto Sans SC`, then `sans-serif`.
 - Numeric stack: `DM Mono`, `SFMono-Regular`, `PingFang SC`, then `monospace`; apply `font-variant-numeric: tabular-nums` to money, dates, counts, percentages, and IDs.
-- Keep the body copy floor at 11px. Avoid weights 700–900. Page titles use zero letter spacing at 44px, 40px, 38px, and 36px; do not apply negative letter spacing at any responsive title size.
+- Keep the body copy floor at 11px. Avoid weights 700–900. Page titles use zero letter spacing at 44px; do not apply negative letter spacing.
 - Keep unit and comparison labels legible beside values; do not shrink them to make a metric fit.
 
 ## Spacing and shape
 
 - Base spacing unit is 4px. Use 4px increments for component internals and group gaps.
-- Desktop stage inset: 8px. Main content inset: 20px. Panel inset: 20px. At narrow widths, page inset becomes 16px and then 12px at `<=460px`.
-- Desktop work window maximum width: 1840px. The dashboard home can use up to 1600px of its available workspace. The full sidebar remains 280px.
+- Desktop stage inset: 8px on all four sides. Main content inset: 20px. Panel inset: 20px.
+- Desktop work window fills the available viewport after the equal stage insets; it has no maximum width or height. The dashboard home content can use up to 1600px of its available workspace. The full sidebar remains 280px.
 - Related control/icon gaps: 8px. Sidebar icon/title columns use a shared 20px icon track and the same 8px gap; section labels align with title text. Dense item gaps: 8–12px. Between sections: 16–24px. Dashboard metric cards: 12px gap.
-- Window radius: 22px. Panel radius: 16px. Primary control radius: 10px. Nested rows, nav items, and order groups: 8px maximum. Mobile app window: square edges, no desktop shadow.
+- Window radius: 22px. Panel radius: 16px. Primary control radius: 10px. Nested rows, nav items, and order groups: 8px maximum.
 - Borders are 1px. The active navigation rail is 2px amber. Avoid thick colored outlines.
 
 ## Surface highlight and elevation
@@ -78,9 +79,9 @@ Color rules:
 ## Focus and keyboard
 
 - Every interactive control has a persistent `:focus-visible` ring: 2px solid Accent strong, 3px offset. Do not remove the outline without an equivalent visible indicator.
-- Focus is distinct from hover and selected state. It must remain visible on Raised surfaces and in the mobile drawer.
+- Focus is distinct from hover and selected state and must remain visible on Raised surfaces.
 - Native button, link, select, and disclosure semantics are preferred. A custom sort control uses `aria-pressed`; current navigation uses `aria-current="page"`; order groups expose `aria-expanded`.
-- The mobile navigation drawer traps Tab while open, closes on Escape and scrim activation, marks the obscured workspace inert, and restores focus to its opener. Crossing to desktop while open moves focus to a visible workspace target. Crossing from desktop to mobile while focus is inside the sidebar moves focus to the visible menu button before the sidebar becomes inert; focus elsewhere is left in place.
+- Existing shared-shell mobile focus behavior may remain in the implementation but is outside V4 page-migration acceptance and must not be extended by page work.
 
 ## Motion
 
@@ -91,32 +92,28 @@ Color rules:
 
 ## Control dimensions
 
-| Control | Desktop | Touch layout |
-| --- | --- | --- |
-| Standard button | 36–38px high | Minimum 44px target |
-| Compact button / sort segment | 34px high | Minimum 44px target |
-| IconButton | 36px square | Minimum 44px square target |
-| Project Select | 40px high | Minimum 44px high |
-| Navigation item | 36px minimum | 44px minimum |
-| QuickLink | 40px minimum in compact rail | 48px minimum in drawer |
-| Order group summary | 32px minimum | 44px minimum |
-
-Expand hit areas on touch layouts without shrinking visible labels or focus rings. Icon-only controls require a programmatic accessible name.
-
-## Responsive contract
-
-| Viewport | Layout contract |
+| Control | Desktop |
 | --- | --- |
-| `>=1241px` | 280px full sidebar; three metric columns; chart and order flow side by side; project rank and daily ledger side by side. |
-| `1051–1240px` | 88px icon rail; featured metric takes a full row; chart and narrower order flow remain side by side. |
-| `821–1050px` | 88px icon rail; two metric columns with featured metric spanning both; chart/order flow and rank/daily ledger stack; diagnostics use two columns. |
-| `<=820px` | Full-width work surface; no outer radius or shadow; full navigation moves to a left drawer; sticky topbar retains menu, project filter, and notification; content stacks in reading order; tables may scroll horizontally. |
-| `<=460px` | One metric column; 36px page title; hide secondary topbar actions while keeping essential navigation, project scope, and notifications; allow metric footnotes to wrap. |
+| Standard button | 36–38px high |
+| Compact button / sort segment | 34px high |
+| IconButton | 36px square |
+| Project Select | 40px high |
+| Navigation item | 36px minimum |
+| QuickLink | 40px minimum |
+| Order group summary | 32px minimum |
 
-- The `<=1050px` layout stacks chart/order flow and rank/daily ledger. No page-level horizontal overflow at 1440, 1280, 1240, 1051, 1050, 1024, 821, 820, 460, 390, and 320px widths.
-- Preserve table column meaning; scroll a table container horizontally instead of compressing or hiding required columns.
-- Long project labels wrap in full navigation and drawer. In constrained single-line controls, truncate visually only when the full accessible name remains available. Never silently truncate order IDs or SKUs.
-- At `<=820px`, IconButton, ProjectSelect, SortControl, NavItem, and OrderGroup summary targets are at least 44px high / wide as applicable.
+Icon-only controls require a programmatic accessible name.
+
+## Desktop contract
+
+- V4 page migration and acceptance are desktop-only. Do not add phone/tablet layouts or multi-breakpoint page adaptations.
+- The browser acceptance viewport is `1440x900` unless a later user decision explicitly expands it.
+- The floating app window uses equal 8px stage insets on top, right, bottom, and left. It fills the remaining viewport and retains the 22px window radius, 1px edge, restrained exterior shadow, and top inset highlight.
+- The full desktop sidebar remains 280px. Main content inset is 20px and panel inset is 20px.
+- There is no desktop app-window maximum width or height. Do not reintroduce 1840px or 960px caps.
+- Preserve table column meaning. Wide tables scroll inside their own container; do not compress or hide required columns or create page-level horizontal overflow.
+- Long labels may wrap in navigation. In constrained single-line controls, truncate visually only when the full accessible name remains available. Never silently truncate order IDs or SKUs.
+- Existing shared-shell narrow/mobile behavior is legacy implementation detail outside V4 page scope; page migrations must neither depend on it nor add a second responsive system.
 
 ## Accessibility and state contract
 
@@ -159,7 +156,7 @@ Expand hit areas on touch layouts without shrinking visible labels or focus ring
 
 - Body text contrast is at least 4.5:1 against its surface; large text may use WCAG 3:1. Check each token pairing used in production.
 - Provide a text summary for charts. Keep PT operational-day scope visible wherever dates are interpreted.
-- Do not rely on color alone for trends or selected states. Respect reduced motion and preserve keyboard access at all breakpoints.
+- Do not rely on color alone for trends or selected states. Respect reduced motion and preserve keyboard access in the desktop layout.
 
 ## Component ownership
 
