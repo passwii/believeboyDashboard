@@ -40,7 +40,7 @@ This is a route allowlist extension, not a token or global-theme change. The War
 On 2026-11-02 Damon approved another post-launch refinement after using the live dashboard:
 
 - Lift and neutralize the graphite ramp; strengthen hairlines and top highlights so the window, sidebar, panels, and raised controls read as separate surfaces.
-- Expand the desktop work window maximum to 1840px, reduce the stage inset to 8px and the main content inset to 20px, and allow the dashboard home to use up to 1600px.
+- The 2026-11-02 geometry originally expanded the desktop work window maximum to 1840px and reduced the stage inset to 8px. The 2026-11-04 C3 refinement below supersedes the width/height caps; only the 8px stage inset remains current.
 - Align sidebar navigation and QuickLinks on a shared 20px icon track with an 8px text gap and consistent 36px rows. Align section labels with the title column.
 - Keep the homepage project filter on the Radix-based WarmSelect. During category migration, replace native selects with Warm controls when their existing API and interaction contracts fit; leave unmigrated pages unchanged.
 
@@ -61,6 +61,14 @@ On 2026-11-04 Damon approved a desktop-only migration scope and compact canvas r
 - Keep the floating app window's existing rounded shape and make its desktop outer gutters equal and compact: 8px on every side.
 - Remove the desktop app-window maximum width of 1840px and height of 960px so it fills the available viewport inside those equal gutters.
 - This is a layout geometry change. It does not change color, typography, component, route, or business contracts.
+
+On 2026-11-04 Damon approved the exact C3 route extension under the same Warm Ledger contract:
+
+- `/dashboard/reports/order-info`
+- `/dashboard/reports/product-analysis`
+- `/dashboard/reports/monthly-report/display`
+
+This is an exact route allowlist extension. The reports primary entry and Order Info QuickLink remain unique, Product Analysis adds one direct navigation link, and all other report routes continue to use `TerminalShell`. C3 keeps page-owned report filters, table scrolling, writes, formulas, and export contracts; no component promotion or shared terminal-default change is included.
 
 ## Allowed and frozen files
 

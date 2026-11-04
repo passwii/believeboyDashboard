@@ -59,3 +59,15 @@ Keep these findings visible for a separate behavior/security decision. Do not ch
 ## Implementation handoff
 
 Use `2026-11-04-warm-ledger-c3.md` for the staged tasks, file ownership, tests, browser matrix, and exit criteria. After Task 2, use separate DeepSeek/max implementers for the disjoint Task 3 and Task 4 page scopes, then one independent Luna/max review of the integrated C3 stage after the browser matrix is complete.
+
+## Implementation and verification outcome
+
+Task 5 completed the integration and browser matrix on 2026-11-04:
+
+- The exact C3 route allowlist remains limited to Order Info, Product Analysis, and Monthly Report Display. Other report routes retain `TerminalShell`.
+- Desktop shell geometry now fills the `1440×900` acceptance viewport with equal 8px outer gutters; the 1840px width and 960px height caps were removed. At acceptance size the window is `1424×884` with the existing 22px radius and shadow. Shared-shell mobile CSS was not changed.
+- The focused shell test passed 14/14 after a confirmed RED assertion against the former caps.
+- The self-contained Playwright matrix passed all 3 desktop cases and skipped the 3 mobile-project cases as out of scope. It covered Order Info scope/local filters/pagination/CSV/FBM edit, all Product Analysis tabs and mocked upload/run/export requests, and Monthly Display URL changes/both tabs/both exports/recalculation. The API dispatcher handled every `/api/**` request and reported no unhandled URL or real backend write/export.
+- The single full Vitest run completed at 299 files / 2339 tests: 297 files / 2334 tests passed, and the documented 5 failures remained in `inventory-analysis-client.test.tsx` and `portfolio-overview-client.test.tsx`. The same 2 files / 5 tests failed identically on detached `origin/main` at `7e78063d2ff106da12182f6ecb094cf9a24c58e8`.
+- `pnpm lint` passed with 0 errors / 15 existing warnings; `pnpm build` and `git diff --check` passed. Build retained its existing workspace-root, Turbopack NFT trace, and stale Browserslist warnings. Browser runs retained existing Radix Select and duplicate upload-card key warnings.
+- No independent reviewer was started in this run, per the Task 5 instruction. The behavioral/security findings in “Existing risks outside visual migration” remain open and were not represented as fixed.

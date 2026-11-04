@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -7,6 +9,11 @@ import { WarmLedgerShell } from './warm-ledger-shell'
 import { WarmLedgerTopbar } from './warm-ledger-topbar'
 import { WarmLedgerRouteFrame } from './warm-ledger-route-frame'
 import { useTerminalGlobalFilter } from '@/components/terminal/global-filter-context'
+
+const shellThemeCss = readFileSync(
+  join(process.cwd(), 'components/dashboard-v2/warm-ledger/shell/theme.css'),
+  'utf8'
+)
 
 const shellMocks = vi.hoisted(() => ({
   pathname: '/dashboard',
@@ -120,6 +127,21 @@ afterEach(() => {
 })
 
 describe('WarmLedgerShell', () => {
+  it('fills the desktop viewport inside equal 8px stage insets without window caps', () => {
+    const appWindowRule =
+      shellThemeCss.match(/\.warm-ledger__app-window\s*\{([^}]*)\}/)?.[1] ?? ''
+
+    expect(shellThemeCss).toContain('--warm-ledger-inset-stage: 8px')
+    expect(appWindowRule).toContain(
+      'width: calc(100vw - 2 * var(--warm-ledger-inset-stage))'
+    )
+    expect(appWindowRule).toContain(
+      'height: calc(100dvh - 2 * var(--warm-ledger-inset-stage))'
+    )
+    expect(appWindowRule).not.toContain('960px')
+    expect(shellThemeCss).not.toContain('--warm-ledger-layout-window-max-width')
+  })
+
   it('keeps the dashboard navigation and main content landmarks', () => {
     installMatchMedia(false)
 

@@ -181,7 +181,7 @@ Damon 已确认生产直接使用新设计，不设 feature flag：
 | D0 | Dashboard 基准 | `/dashboard` | **已完成（2026-11-01）**：数据层拆分、Warm shell、真实 API 与交互门禁通过；2026-11-04 起按 V4 desktop geometry 维护 |
 | C1 | 运营分析 | `daily-analysis`、`portfolio-overview`、`inventory-analysis` | 已完成（2026-11-02；最终 Luna max review PASS） |
 | C2 | 运营执行 / 库存 | `inventory-ledger`、`shipping-plan`、`shipment-management`、`sku-info` | **已完成（2026-11-04）**：27 Vitest files / 199 tests、build、focused ESLint、78/78 Playwright、最终独立 review PASS；授权/技术 follow-ups 保留 |
-| C3 | 报表 / 订单 | `order-info`、`product-analysis`、`monthly-report/display` | 表格与导出契约稳定后开始；本 C2 closeout 不进入 C3 |
+| C3 | 报表 / 订单 | `order-info`、`product-analysis`、`monthly-report/display` | **已完成（2026-11-04）**：三条精确路由、1440×900 desktop acceptance、全量 Vitest 基线对账、lint/build 完成；无组件晋升 |
 | C4 | 广告 | `ad-analysis/overview`、`ad-data` | 图表 / 筛选契约已验证 |
 | C5 | 财务 | `platform-revenue`、`exchange-rate`、`commission-management` | 账期、币种、汇总口径明确 |
 | C6 | CRM | `crm/dashboard`、`customers`、`follow-ups`、`tasks` | 页面壳稳定；CRM 状态不并入订单状态 |
@@ -259,8 +259,9 @@ A1 owns Warm controls wrapper and Dashboard token consumption. A2–A5 may work 
 - 真实数据，无硬编码业务值。
 - 项目 / 日期 / 站点筛选口径与旧页一致。
 - Loading / Empty / Error 可区分。
-- 1440、1280×600、1024、821、820、460、390、320。
+- V4 页面迁移仅验收 `1440×900` desktop；共享外壳既有的移动逻辑保持原样，不纳入 V4 页面验收，也不新增手机 / 多断点适配。
 - 无页面级横向溢出。
+- 桌面浮窗四边为等宽 8px 外沿，窗口填满扣除外沿后的可用视口。
 - 键盘 focus、Esc、焦点恢复。
 - 颜色不是唯一语义。
 - reduced motion 生效。
@@ -313,3 +314,15 @@ A1 owns Warm controls wrapper and Dashboard token consumption. A2–A5 may work 
 - Promote a page-local component only after a second real route demonstrates the same behavior and accessibility contract. Keep unproven controls and layouts local during the next category audits.
 - **Next stage after this C2 closeout:** C3 orders and reports (`order-info`, `product-analysis`, `monthly-report/display`). Run/extend the documented contract audits, confirm product/security scope, then implement only after a separate kickoff.
 - Stage handoff and detailed Task 6 closeout are recorded in [`2026-11-03-warm-ledger-c2-stage-checkpoint.md`](../../../superpowers/plans/2026-11-02-warm-ledger-c2/2026-11-03-warm-ledger-c2-stage-checkpoint.md).
+
+## 14. C3 Task 5 desktop acceptance closeout (2026-11-04)
+
+- C3 uses the exact routes `/dashboard/reports/order-info`, `/dashboard/reports/product-analysis`, and `/dashboard/reports/monthly-report/display`. All other report routes remain on `TerminalShell`.
+- Desktop shell geometry is uncapped at `1440×900`: the rounded window measures `1424×884`, with equal 8px gutters on top/right/bottom/left and the existing 22px radius. The mobile rules remain unchanged.
+- Focused shell Vitest passed: 1 file / 14 tests. The new geometry assertion was observed RED against the `1840px` / `960px` caps before the CSS change, then passed.
+- Focused Playwright passed: 3 desktop cases passed at `1440×900`; the 3 mobile-project cases were explicitly skipped as out of C3 scope. Order Info covered global scope, local filters, pagination, CSV payload, and the FBM edit dialog. Product Analysis covered all three tabs, mocked recognition/commit/run/preview requests, and all three downloads. Monthly Display covered project/country/month URL changes, both tabs, financial and accounting-detail exports, and recalculation. Every `/api/**` request was intercepted; the audit reported no unhandled request.
+- The first local Playwright attempt found port `3200` occupied. The accepted run used `PLAYWRIGHT_PORT=4315` with the same self-contained fixture configuration.
+- Full `pnpm test` ran once: 299 files / 2339 tests, with 297 files / 2334 tests passing and 5 tests failing across `inventory-analysis-client.test.tsx` and `portfolio-overview-client.test.tsx`. A detached `origin/main` run at `7e78063d2ff106da12182f6ecb094cf9a24c58e8` reproduced the same 2 files / 5 tests and messages, so these are documented baseline failures, not C3 regressions.
+- `pnpm lint` passed with 0 errors and 15 existing warnings, including the known `display-client.tsx:884` hook-dependency warning. `pnpm build` passed. Build emitted the existing workspace-root, Turbopack NFT trace, and stale Browserslist warnings. `git diff --check` passed.
+- Browser acceptance emitted existing page warnings for Radix Select controlled/uncontrolled transitions and duplicate upload-card keys during recognition; they did not fail any assertion and were not changed in this visual/integration task.
+- No independent C3 reviewer was started in this Task 5 run, per the explicit task instruction. Existing contract-audit risks remain follow-ups; this UI migration does not claim they are fixed.

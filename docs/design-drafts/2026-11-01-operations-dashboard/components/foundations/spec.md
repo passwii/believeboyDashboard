@@ -160,7 +160,7 @@ Icon-only controls require a programmatic accessible name.
 
 ## Component ownership
 
-- B0 introduced its tokens and visual rules on `/dashboard` through `.warm-ledger`. The user-approved C1 extension reuses the unchanged values on the exact routes recorded in `foundations/freeze.md`; do not extend these tokens globally.
+- B0 introduced its tokens and visual rules on `/dashboard` through `.warm-ledger`. The user-approved C1, C2, and C3 extensions reuse the unchanged values on the exact routes recorded in `foundations/freeze.md`; do not extend these tokens globally.
 - The four `components/foundations/` files are frozen B0 inputs and read-only for A1–A5.
 - A1 owns the Warm controls wrapper and token consumption in the Dashboard implementation: Button, IconButton, ProjectSelect, FilterControl, SortControl, Badge, and Input. A2–A5 consume A1's controls and do not implement parallel versions.
 - A1 owns the implementation use of `--warm-ledger-*` tokens; token values in the frozen B0 files change only through an explicit B0/Damon decision.
