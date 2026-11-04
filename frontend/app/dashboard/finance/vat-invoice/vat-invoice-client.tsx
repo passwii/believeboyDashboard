@@ -3,7 +3,7 @@
 // 欧洲 VAT 发票生成器 — 主客户端协调器
 // 流程：选店铺 → 加载 Seller 列表 → 选国家 → 录入订单/明细/运费 → 实时汇总 → 预览 → 下载 PDF
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { FilePlus2, FileText, History, Save } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 import { useNotifications } from '@/components/notifications'
@@ -65,14 +65,18 @@ function toInvoiceSellerEntry(e: VatEntity): InvoiceSellerEntry {
 
 export default function VatInvoiceClient() {
   const searchParams = useSearchParams()
+  const defaultTab = searchParams.get('tab') === 'history' ? 'history' : 'create'
   const [form, setForm] = useState<InvoiceForm>(initialForm)
+  const [activeTab, setActiveTab] = useState(defaultTab)
   const [sellers, setSellers] = useState<VatEntity[]>([])
   const [selectedCountry, setSelectedCountry] = useState<string>('')
   const [previewOpen, setPreviewOpen] = useState(false)
   const [savingDraft, setSavingDraft] = useState(false)
   const { notify } = useNotifications()
 
-  const defaultTab = searchParams.get('tab') === 'history' ? 'history' : 'create'
+  useEffect(() => {
+    setActiveTab(defaultTab)
+  }, [defaultTab])
 
   const symbol = getSymbol(form.currency)
 
@@ -128,7 +132,7 @@ export default function VatInvoiceClient() {
 
   return (
     <div className={styles.page} data-warm-vat-invoice="true">
-      <Tabs defaultValue={defaultTab} className={styles.tabs}>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className={styles.tabs}>
         <TabsList className={styles.tabList} data-warm-tablist="true">
           <TabsTrigger value="create">
             <FilePlus2 aria-hidden />

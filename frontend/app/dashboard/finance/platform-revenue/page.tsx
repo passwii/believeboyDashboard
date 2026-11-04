@@ -176,6 +176,22 @@ const calculateTotals = (revenues: PlatformRevenue[]) => {
   return totals
 }
 
+export function formatCurrencyTotalsForExcel(totals: Record<string, number>) {
+  const entries = Object.entries(totals).sort(([left], [right]) =>
+    left.localeCompare(right)
+  )
+  if (entries.length <= 1) {
+    return {
+      amount: entries[0]?.[1] ?? 0,
+      currency: entries[0]?.[0] ?? '',
+    }
+  }
+  return {
+    amount: entries.map(([currency, amount]) => `${currency} ${amount.toFixed(2)}`).join(' / '),
+    currency: '多币种',
+  }
+}
+
 // 格式化合计行显示
 const formatTotals = (totals: Record<string, number>) => {
   return Object.entries(totals)
@@ -743,21 +759,24 @@ export default function PlatformRevenuePage() {
 
       // 添加合计行
       const totals = calculateTotals(allRevenues)
+      const totalSummary = formatCurrencyTotalsForExcel(totals)
       const totalRowIndex = dataStartRow + allRevenues.length
       const totalRow = worksheet.getRow(totalRowIndex)
       totalRow.values = [
         '合计',
         '',
         '',
-        Object.values(totals).reduce((sum, v) => sum + v, 0),
-        Object.keys(totals).join('/'),
+        totalSummary.amount,
+        totalSummary.currency,
         '',
         '',
       ]
       for (let col = 1; col <= 7; col++) {
         totalRow.getCell(col).font = { name: 'Microsoft YaHei', bold: true }
       }
-      totalRow.getCell(4).numFmt = '#,##0.00'
+      if (typeof totalSummary.amount === 'number') {
+        totalRow.getCell(4).numFmt = '#,##0.00'
+      }
 
       // 为合计行添加浅色背景
       for (let col = 1; col <= 7; col++) {

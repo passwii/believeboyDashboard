@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -14,7 +14,7 @@ vi.mock('@/components/notifications', () => ({
 
 vi.mock('@/components/terminal/terminal-header-slot', () => ({
   useHeaderRefresh: () => undefined,
-  useHeaderSlot: () => null,
+  useHeaderSlot: (node: React.ReactNode) => node,
   useMobileFilterStrip: () => null,
 }))
 
@@ -76,5 +76,55 @@ describe('Commission Management Warm Ledger page contract', () => {
     expect(screen.getByTestId('project-summary-tab')).toBeInTheDocument()
     await user.click(screen.getByRole('tab', { name: '月度回款' }))
     expect(screen.getByTestId('monthly-collection-tab')).toBeInTheDocument()
+  })
+
+  it('shows a retryable error instead of an empty detail state when loading fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.includes('/project-months')) {
+          return {
+            ok: false,
+            status: 503,
+            text: async () => 'service unavailable',
+            json: async () => ({}),
+          }
+        }
+        return {
+          ok: true,
+          status: 200,
+          text: async () => '',
+          json: async () => ({ items: [] }),
+        }
+      })
+    )
+
+    render(<CommissionManagementPage />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('佣金数据加载失败')
+    expect(screen.queryByTestId('detail-tab')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '重试' })).toBeInTheDocument()
+  })
+
+  it('country changes request project-month detail only once', async () => {
+    const user = userEvent.setup()
+    render(<CommissionManagementPage />)
+    await waitFor(() => {
+      const calls = vi
+        .mocked(fetch)
+        .mock.calls.filter(([url]) => String(url).includes('/project-months?'))
+      expect(calls).toHaveLength(1)
+    })
+
+    await user.click(screen.getByRole('combobox', { name: '站点' }))
+    await user.click(await screen.findByRole('option', { name: 'US' }))
+
+    await waitFor(() => {
+      const calls = vi
+        .mocked(fetch)
+        .mock.calls.filter(([url]) => String(url).includes('/project-months?'))
+      expect(calls).toHaveLength(2)
+    })
   })
 })

@@ -91,6 +91,21 @@ export async function listInvoices(params: ListParams = {}): Promise<VatInvoiceL
   return (await jsonOrThrow(res)) as VatInvoiceListItem[]
 }
 
+export async function listAllInvoices(
+  params: Omit<ListParams, 'limit' | 'offset'> = {}
+): Promise<VatInvoiceListItem[]> {
+  const pageSize = 500
+  const rows: VatInvoiceListItem[] = []
+  let offset = 0
+
+  while (true) {
+    const page = await listInvoices({ ...params, limit: pageSize, offset })
+    rows.push(...page)
+    if (page.length < pageSize) return rows
+    offset += pageSize
+  }
+}
+
 export async function getInvoiceDetail(id: number): Promise<VatInvoiceDetail> {
   const res = await fetch(`${BASE}/vat-invoices/${id}`, {
     headers: { 'Content-Type': 'application/json' },

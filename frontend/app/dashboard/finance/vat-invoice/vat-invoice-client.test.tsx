@@ -79,4 +79,15 @@ describe('VatInvoiceClient Warm Ledger 渲染契约', () => {
     expect(screen.getByTestId('history-panel')).toBeInTheDocument()
     expect(screen.queryByTestId('seller-card')).toBeNull()
   })
+
+  it('query-only navigation to ?tab=history activates the history tab', () => {
+    const view = render(<VatInvoiceClient />)
+    expect(screen.getByTestId('seller-card')).toBeInTheDocument()
+
+    navigationMock.search = 'tab=history'
+    view.rerender(<VatInvoiceClient />)
+
+    expect(screen.getByTestId('history-panel')).toBeInTheDocument()
+    expect(screen.queryByTestId('seller-card')).toBeNull()
+  })
 })

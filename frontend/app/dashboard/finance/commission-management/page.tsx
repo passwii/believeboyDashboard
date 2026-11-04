@@ -134,7 +134,9 @@ export default function CommissionManagementPage() {
   const [countryFilter, setCountryFilter] = useState<SiteCode | 'all'>('all') // 'all', 'US', 'DE', 'UK'
 
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
+  const [summaryError, setSummaryError] = useState<string | null>(null)
   const [recomputing, setRecomputing] = useState(false)
 
   const [rows, setRows] = useState<CommissionProjectMonth[]>([])
@@ -163,6 +165,7 @@ export default function CommissionManagementPage() {
 
   const loadData = useCallback(async () => {
     setLoading(true)
+    setLoadError(null)
     try {
       const params = new URLSearchParams({ report_month: month })
       if (countryFilter !== 'all') {
@@ -188,11 +191,14 @@ export default function CommissionManagementPage() {
         }, {})
       )
     } catch (loadError) {
+      const message =
+        loadError instanceof Error ? loadError.message : '佣金数据加载失败'
       notify({
         type: 'error',
         title: '佣金数据加载失败',
-        message: loadError instanceof Error ? loadError.message : '佣金数据加载失败',
+        message,
       })
+      setLoadError(message)
       setRows([])
       setReceivedDraftById({})
     } finally {
@@ -226,6 +232,7 @@ export default function CommissionManagementPage() {
 
   const loadYearlySummary = useCallback(async () => {
     setSummaryLoading(true)
+    setSummaryError(null)
     try {
       const monthlyParams = new URLSearchParams({ year: summaryYear })
       const projectParams = new URLSearchParams({ year: summaryYear })
@@ -262,11 +269,14 @@ export default function CommissionManagementPage() {
       setMonthlySummary(Array.isArray(monthlyPayload.items) ? monthlyPayload.items : [])
       setProjectSummary(Array.isArray(projectPayload.items) ? projectPayload.items : [])
     } catch (loadError) {
+      const message =
+        loadError instanceof Error ? loadError.message : '佣金数据加载失败'
       notify({
         type: 'error',
         title: '汇总数据加载失败',
-        message: loadError instanceof Error ? loadError.message : '佣金数据加载失败',
+        message,
       })
+      setSummaryError(message)
       setMonthlySummary([])
       setProjectSummary([])
     } finally {
@@ -285,13 +295,6 @@ export default function CommissionManagementPage() {
   useEffect(() => {
     void loadExchangeRates()
   }, [loadExchangeRates])
-
-  // Reload when country filter changes (but not for 'all' since we already have all data)
-  useEffect(() => {
-    if (countryFilter !== 'all') {
-      void loadData()
-    }
-  }, [countryFilter, loadData])
 
   const sortedRows = useMemo(() => {
     return [...rows].sort((a, b) => a.project_id - b.project_id)
@@ -556,6 +559,15 @@ export default function CommissionManagementPage() {
     <HeaderFilterControls isMobileView={false} controls={filterControls} />
   )
 
+  const activeError = activeTab === 'detail' ? loadError : summaryError
+  const retryActiveTab = () => {
+    if (activeTab === 'detail') {
+      void loadData()
+      return
+    }
+    void loadYearlySummary()
+  }
+
   // BLF-931 · 移动端：筛选控件下迁为正文顶部可折叠筛选条
   const mobileMonthLabel = activeTab === 'detail' ? month : `${summaryYear} 年`
   const mobileCountryLabel = countryFilter === 'all' ? '全部站点' : (SITE_INFO[countryFilter]?.label ?? countryFilter)
@@ -639,7 +651,17 @@ export default function CommissionManagementPage() {
         </TabsList>
 
         <section className={styles.dataPanel} data-warm-panel="true">
-          {activeTab === 'detail' ? (
+          {activeError ? (
+            <div className={styles.loadError} role="alert">
+              <span>
+                {activeTab === 'detail' ? '佣金数据加载失败' : '汇总数据加载失败'}：
+                {activeError}
+              </span>
+              <WarmButton variant="quiet" onClick={retryActiveTab}>
+                重试
+              </WarmButton>
+            </div>
+          ) : activeTab === 'detail' ? (
             <DetailTab
               projectRows={projectRows}
               exchangeRates={exchangeRates}

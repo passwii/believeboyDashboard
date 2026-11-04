@@ -75,7 +75,7 @@ function makeFetch(ok = true, body?: unknown): FetchStub {
   })
 }
 
-import PlatformRevenuePage from './page'
+import PlatformRevenuePage, { formatCurrencyTotalsForExcel } from './page'
 
 // ── tests ────────────────────────────────────────────────────────────────────
 
@@ -90,6 +90,17 @@ afterEach(() => {
 })
 
 describe('PlatformRevenuePage Warm Ledger 渲染契约', () => {
+  it('does not add different currencies into one numeric Excel total', () => {
+    expect(formatCurrencyTotalsForExcel({ USD: 120.5, EUR: 80 })).toEqual({
+      amount: 'EUR 80.00 / USD 120.50',
+      currency: '多币种',
+    })
+    expect(formatCurrencyTotalsForExcel({ USD: 120.5 })).toEqual({
+      amount: 120.5,
+      currency: 'USD',
+    })
+  })
+
   it('渲染 Warm 路由标记、数据行与当前页合计', async () => {
     const { container } = render(<PlatformRevenuePage />)
     await screen.findByText('项目A')

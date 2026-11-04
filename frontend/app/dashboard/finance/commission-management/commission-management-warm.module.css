@@ -496,6 +496,21 @@
   border-radius: var(--warm-ledger-radius-inner);
 }
 
+.loadError {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--warm-ledger-space-3);
+  padding: var(--warm-ledger-space-4);
+  color: var(--warm-ledger-color-negative);
+  font-size: 13px;
+  line-height: 20px;
+  background: var(--warm-ledger-color-panel-strong);
+  border: 1px solid var(--warm-ledger-color-negative);
+  border-radius: var(--warm-ledger-radius-inner);
+}
+
 .rulesGrid {
   display: grid;
   min-width: 0;

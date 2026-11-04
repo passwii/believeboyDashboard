@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils'
 import { fetchProjectsManage } from '../lib/invoice-api'
 import {
   listInvoices,
+  listAllInvoices,
   voidInvoice,
   downloadInvoicePdf,
   exportInvoicesCsv,
@@ -37,6 +38,8 @@ export function VatInvoiceHistoryPanel() {
   const [q, setQ] = useState<string>('')
   const [rows, setRows] = useState<VatInvoiceListItem[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
 
@@ -63,6 +66,7 @@ export function VatInvoiceHistoryPanel() {
 
   const fetchList = useCallback(async () => {
     setLoading(true)
+    setLoadError(null)
     try {
       const data = await listInvoices({
         project_id: projectId ? Number(projectId) : undefined,
@@ -71,7 +75,9 @@ export function VatInvoiceHistoryPanel() {
       })
       setRows(data)
     } catch (err) {
-      notify({ type: 'error', title: '加载发票失败', message: normalizeErrorMessage(err) })
+      const message = normalizeErrorMessage(err)
+      setLoadError(message)
+      notify({ type: 'error', title: '加载发票失败', message })
       setRows([])
     } finally {
       setLoading(false)
@@ -83,7 +89,8 @@ export function VatInvoiceHistoryPanel() {
   }, [fetchList])
 
   const onVoid = async (id: number) => {
-    const reason = typeof window !== 'undefined' ? window.prompt('作废原因（可选）：') ?? '' : ''
+    const reason = typeof window !== 'undefined' ? window.prompt('作废原因（可选）：') : ''
+    if (reason === null) return
     try {
       await voidInvoice(id, reason)
       notify({ type: 'success', title: '已作废' })
@@ -100,19 +107,31 @@ export function VatInvoiceHistoryPanel() {
     setDetailOpen(true)
   }
 
-  const onExportCsv = () => {
-    if (rows.length === 0) {
-      notify({ type: 'info', title: '没有可导出的数据' })
-      return
+  const onExportCsv = async () => {
+    setExporting(true)
+    try {
+      const exportRows = await listAllInvoices({
+        project_id: projectId ? Number(projectId) : undefined,
+        status: status || undefined,
+        q: q || undefined,
+      })
+      if (exportRows.length === 0) {
+        notify({ type: 'info', title: '没有可导出的数据' })
+        return
+      }
+      const csv = exportInvoicesCsv(exportRows)
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `vat-invoices-${new Date().toISOString().slice(0, 10)}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      notify({ type: 'error', title: '导出失败', message: normalizeErrorMessage(err) })
+    } finally {
+      setExporting(false)
     }
-    const csv = exportInvoicesCsv(rows)
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `vat-invoices-${new Date().toISOString().slice(0, 10)}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
   }
 
   return (
@@ -178,8 +197,10 @@ export function VatInvoiceHistoryPanel() {
             </div>
             <div>
               <WarmButton
-                onClick={onExportCsv}
+                onClick={() => void onExportCsv()}
                 variant="secondary"
+                loading={exporting}
+                loadingLabel="正在导出 CSV"
                 className={styles.historyToolbarAction}
               >
                 <Download aria-hidden />
@@ -196,7 +217,14 @@ export function VatInvoiceHistoryPanel() {
           </h2>
         </header>
         <div className={styles.panelBody}>
-          {loading ? (
+          {loadError ? (
+            <div className={styles.loadError} role="alert">
+              <span>加载发票列表失败：{loadError}</span>
+              <WarmButton variant="quiet" onClick={() => void fetchList()}>
+                重试
+              </WarmButton>
+            </div>
+          ) : loading ? (
             <div className={styles.loadingState} role="status">
               <Loader2 className="mr-2 inline h-3.5 w-3.5 animate-spin" aria-hidden />
               加载发票列表…
