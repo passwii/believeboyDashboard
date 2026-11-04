@@ -1,0 +1,237 @@
+.page {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-sans);
+}
+
+.document {
+  min-width: 0;
+  overflow: hidden;
+  background: var(--warm-ledger-color-panel);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-panel);
+  box-shadow: var(--warm-ledger-highlight-rest);
+}
+
+.metaBar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--warm-ledger-space-4);
+  padding: var(--warm-ledger-space-3) var(--warm-ledger-inset-panel);
+  background: var(--warm-ledger-color-panel-strong);
+  border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+}
+
+.metaList {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: var(--warm-ledger-space-2) var(--warm-ledger-space-4);
+}
+
+.metaItem {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: var(--warm-ledger-space-2);
+}
+
+.metaLabel {
+  flex: 0 0 auto;
+  color: var(--warm-ledger-color-text-muted);
+  font-family: var(--warm-ledger-font-mono);
+  font-size: var(--warm-ledger-font-size-label);
+}
+
+.metaValue {
+  min-width: 0;
+  color: var(--warm-ledger-color-text-soft);
+  font-family: var(--warm-ledger-font-mono);
+  font-size: var(--warm-ledger-font-size-control);
+  overflow-wrap: anywhere;
+}
+
+.rawLink {
+  display: inline-flex;
+  min-height: var(--warm-ledger-control-height-compact);
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--warm-ledger-space-2);
+  padding: 0 var(--warm-ledger-space-3);
+  color: var(--warm-ledger-color-text-soft);
+  font-size: var(--warm-ledger-font-size-control);
+  font-weight: var(--warm-ledger-font-weight-medium);
+  text-decoration: none;
+  background: var(--warm-ledger-color-panel);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-control);
+  box-shadow: var(--warm-ledger-highlight-rest);
+  transition:
+    color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease),
+    background-color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease),
+    border-color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease);
+}
+
+.rawLink svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  stroke-width: 1.6;
+}
+
+.rawLink:hover {
+  color: var(--warm-ledger-color-text);
+  background: var(--warm-ledger-color-raised-hover);
+  border-color: var(--warm-ledger-color-hairline-strong);
+}
+
+.prose {
+  min-width: 0;
+  padding: var(--warm-ledger-inset-panel);
+  color: var(--warm-ledger-color-text-soft);
+  font-size: var(--warm-ledger-font-size-body);
+  line-height: 1.85;
+}
+
+.prose h1 {
+  display: none;
+}
+
+.prose h2 {
+  margin: var(--warm-ledger-space-8) 0 var(--warm-ledger-space-3);
+  padding-bottom: var(--warm-ledger-space-2);
+  color: var(--warm-ledger-color-text);
+  font-size: 20px;
+  font-weight: var(--warm-ledger-font-weight-medium);
+  line-height: 1.4;
+  border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+}
+
+.prose h2:first-child {
+  margin-top: 0;
+}
+
+.prose h3 {
+  margin: var(--warm-ledger-space-6) 0 var(--warm-ledger-space-2);
+  color: var(--warm-ledger-color-text);
+  font-size: var(--warm-ledger-font-size-section);
+  font-weight: var(--warm-ledger-font-weight-medium);
+  line-height: 1.4;
+}
+
+.prose p {
+  margin: var(--warm-ledger-space-3) 0;
+  color: var(--warm-ledger-color-text-soft);
+  line-height: 1.85;
+}
+
+.prose strong {
+  color: var(--warm-ledger-color-text);
+  font-weight: var(--warm-ledger-font-weight-medium);
+}
+
+.prose a {
+  color: var(--warm-ledger-color-accent-strong);
+  text-decoration-color: var(--warm-ledger-color-accent);
+  text-underline-offset: 3px;
+}
+
+.prose a:hover {
+  color: var(--warm-ledger-color-text);
+}
+
+.prose blockquote {
+  margin: var(--warm-ledger-space-4) 0;
+  padding: var(--warm-ledger-space-3) var(--warm-ledger-space-4);
+  color: var(--warm-ledger-color-text-soft);
+  background: var(--warm-ledger-color-panel-strong);
+  border-left: 2px solid var(--warm-ledger-color-accent);
+  border-radius: var(--warm-ledger-radius-inner);
+}
+
+.prose blockquote p {
+  margin: var(--warm-ledger-space-1) 0;
+}
+
+.prose ul,
+.prose ol {
+  margin: var(--warm-ledger-space-3) 0;
+  padding-left: var(--warm-ledger-space-6);
+}
+
+.prose li {
+  margin: var(--warm-ledger-space-1) 0;
+  line-height: 1.8;
+}
+
+.prose li ul {
+  margin: var(--warm-ledger-space-1) 0;
+}
+
+.prose :not(pre) > code {
+  padding: 2px var(--warm-ledger-space-1);
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-mono);
+  font-size: 0.88em;
+  background: var(--warm-ledger-color-raised);
+  border-radius: var(--warm-ledger-radius-inner);
+}
+
+.prose input[type='checkbox'] {
+  margin-right: var(--warm-ledger-space-2);
+  accent-color: var(--warm-ledger-color-accent);
+}
+
+.tableScroll {
+  width: 100%;
+  min-width: 0;
+  margin: var(--warm-ledger-space-4) 0;
+  overflow-x: auto;
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-inner);
+}
+
+.prose table {
+  width: 100%;
+  min-width: 720px;
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-mono);
+  font-size: var(--warm-ledger-font-size-control);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+  text-align: left;
+  border-collapse: collapse;
+}
+
+.prose th {
+  padding: var(--warm-ledger-space-2) var(--warm-ledger-space-3);
+  color: var(--warm-ledger-color-text-muted);
+  font-weight: var(--warm-ledger-font-weight-medium);
+  background: var(--warm-ledger-color-panel-strong);
+  border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline-strong);
+}
+
+.prose td {
+  padding: var(--warm-ledger-space-2) var(--warm-ledger-space-3);
+  color: var(--warm-ledger-color-text-soft);
+  vertical-align: top;
+  border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+}
+
+.prose tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.prose tbody tr:hover {
+  background: var(--warm-ledger-color-raised);
+}
+
+.prose hr {
+  margin: var(--warm-ledger-space-6) 0;
+  border: 0;
+  border-top: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+}

@@ -1,5 +1,6 @@
 'use client'
 import type { ScenarioSummary } from '@/lib/server/ai-chat'
+import styles from './customer-service-warm.module.css'
 
 export function ScenarioTabs({
   scenarios,
@@ -10,30 +11,34 @@ export function ScenarioTabs({
   selectedId: string
   onSelect: (id: string) => void
 }) {
+  const activeScenario = scenarios.find((scenario) => scenario.id === selectedId)
+
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {scenarios.map((s) => {
-        const active = s.id === selectedId
-        return (
-          <button
-            key={s.id}
-            type="button"
-            disabled={s.disabled}
-            onClick={() => !s.disabled && onSelect(s.id)}
-            className={[
-              'rounded-none border px-3 py-1.5 font-mono text-xs leading-5 transition-colors',
-              active
-                ? 'border-term-border-strong bg-term-raised text-term-text'
-                : 'border-term-border bg-term-bg text-term-muted',
-              s.disabled ? 'cursor-not-allowed opacity-50' : 'hover:border-term-border-strong hover:text-term-text',
-            ].join(' ')}
-            title={s.disabled ? '即将上线' : s.description}
-          >
-            {s.label}
-            {s.disabled ? '（即将上线）' : ''}
-          </button>
-        )
-      })}
+    <div className={styles.scenarioBar}>
+      <div className={styles.scenarioTabs} role="group" aria-label="客服场景">
+        {scenarios.map((s) => {
+          const active = s.id === selectedId
+          return (
+            <button
+              key={s.id}
+              type="button"
+              disabled={s.disabled}
+              onClick={() => !s.disabled && onSelect(s.id)}
+              aria-pressed={active}
+              className={styles.scenarioTab}
+              title={s.disabled ? '即将上线' : s.description}
+            >
+              {s.label}
+              {s.disabled ? '（即将上线）' : ''}
+            </button>
+          )
+        })}
+      </div>
+      {activeScenario ? (
+        <p className={styles.scenarioDescription}>
+          {activeScenario.description}
+        </p>
+      ) : null}
     </div>
   )
 }
