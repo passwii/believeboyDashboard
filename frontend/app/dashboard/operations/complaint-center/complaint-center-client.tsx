@@ -1,48 +1,47 @@
 'use client'
 
-import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
-import Link from 'next/link'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import dynamic from 'next/dynamic'
+import Link from 'next/link'
 import {
   AlertTriangle,
   CheckCircle2,
   Clock,
-  Loader2,
   MessageSquare,
   TrendingUp,
 } from 'lucide-react'
 
-import { EmptyState, EmptyChartState } from '@/components/ui/empty-state'
-import { Skeleton } from '@/components/ui/skeleton'
-import { StatCard, StatCardRow } from '@/components/ui/stat-card'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { DataTableCard, DataTableCardHeader, DataTableCardBody } from '@/components/ui/data-card'
 import { SingleDatePicker } from '@/components/ui/date-picker'
-import { HeaderSlotBadge, TERM_HEADER_W_SM } from '@/components/terminal/header-filter-suite'
+import { HeaderSlotBadge } from '@/components/terminal/header-filter-suite'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
-import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
-import { useHeaderRefresh, useHeaderSlot, useMobileFilterStrip } from '@/components/terminal/terminal-header-slot'
+import { MobileFilterStrip } from '@/components/terminal/mobile-filter-strip'
+import {
+  useHeaderRefresh,
+  useHeaderSlot,
+  useMobileFilterStrip,
+} from '@/components/terminal/terminal-header-slot'
 import { useNotifications } from '@/components/notifications'
 import {
-  type ComplaintOverview,
   type CheckStatus,
+  type ComplaintOverview,
   fetchComplaintOverview,
 } from '@/lib/complaint-api'
+import styles from './complaint-center-warm.module.css'
 
 const LazyTrendChart = dynamic(
   () => import('./components/trend-chart').then((m) => m.ComplaintTrendChart),
   {
     ssr: false,
     loading: () => (
-      <div className="border border-term-border bg-term-panel p-2">
-        <Skeleton className="h-[260px] w-full rounded-none" />
+      <div className={styles.chartEmpty} role="status" aria-busy="true">
+        正在加载趋势
       </div>
     ),
   }
@@ -55,11 +54,11 @@ const CHECK_STATUS_LABEL: Record<CheckStatus, string> = {
   identity_mismatch: '身份不符',
 }
 
-const CHECK_STATUS_STYLE: Record<CheckStatus, string> = {
-  ok: 'text-term-pos',
-  launch_fail: 'text-term-neg',
-  identity_mismatch: 'text-term-warn',
-  login_page: 'text-term-warn',
+const CHECK_STATUS_TONE: Record<CheckStatus, 'positive' | 'negative' | 'accent' | 'muted'> = {
+  ok: 'positive',
+  launch_fail: 'negative',
+  identity_mismatch: 'accent',
+  login_page: 'accent',
 }
 
 function formatLocalDate(date: Date): string {
@@ -87,7 +86,11 @@ export default function ComplaintCenterClient() {
       const data = await fetchComplaintOverview({ date: formatLocalDate(date), country: 'US' })
       setOverview(data)
     } catch (err) {
-      notify({ type: 'error', title: '加载失败', message: `加载概览失败: ${(err as Error).message}` })
+      notify({
+        type: 'error',
+        title: '加载失败',
+        message: `加载概览失败: ${(err as Error).message}`,
+      })
     } finally {
       setLoading(false)
     }
@@ -111,16 +114,14 @@ export default function ComplaintCenterClient() {
     )
   }, [date])
 
-  const hasPending = (overview?.metrics.total_needs_reply ?? 0) > 0
-  const allFailed = overview?.projects.every((s) => s.check_status !== 'ok') ?? false
+  const allFailed = overview?.projects.every((shop) => shop.check_status !== 'ok') ?? false
   const isEmpty = !loading && overview && overview.metrics.total_needs_reply === 0
 
-  // Desktop header-slot controls
   const headerControls = (
     <>
       <SingleDatePicker
         value={date}
-        onChange={(d) => d && setDate(getDayStart(d))}
+        onChange={(next) => next && setDate(getDayStart(next))}
         className="h-10 w-[130px]"
       />
       <HeaderSlotBadge title={`${dateLabel}${isToday ? ' 今天' : ''}`}>
@@ -133,13 +134,12 @@ export default function ComplaintCenterClient() {
     <HeaderFilterControls isMobileView={false} controls={headerControls} />
   )
 
-  // Mobile filter strip
-  const mobileSummary = `${isToday ? '今天' : dateLabel}`
+  const mobileSummary = isToday ? '今天' : dateLabel
   const mobileControls = (
     <>
       <SingleDatePicker
         value={date}
-        onChange={(d) => d && setDate(getDayStart(d))}
+        onChange={(next) => next && setDate(getDayStart(next))}
         className="h-10 w-full"
       />
       <HeaderSlotBadge title={`${dateLabel}${isToday ? ' 今天' : ''}`}>
@@ -155,128 +155,165 @@ export default function ComplaintCenterClient() {
     <>
       {desktopSlot}
       {mobileStrip}
-      <div className="w-full space-y-6">
+      <div
+        className={styles.page}
+        data-testid="complaint-center-page"
+        data-warm-complaint-center="true"
+      >
         {loading ? (
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {Array.from({ length: 4 }, (_, i) => (
-                <Skeleton key={i} className="h-[88px] rounded-none" />
+          <div className={styles.loading} role="status" aria-busy="true">
+            <span className={styles.loadingLabel}>正在加载客户消息概览</span>
+            <div className={styles.skeletonGrid} aria-hidden="true">
+              {Array.from({ length: 4 }, (_, index) => (
+                <div className={styles.skeletonMetric} key={index} />
               ))}
             </div>
-            <Skeleton className="h-[260px] w-full rounded-none" />
-            <Skeleton className="h-[320px] w-full rounded-none" />
+            <div className={styles.skeletonPanel} aria-hidden="true" />
+            <div className={styles.skeletonPanel} aria-hidden="true" />
           </div>
         ) : overview ? (
           <>
-            <StatCardRow>
-              <StatCard
-                title="待回复"
-                value={String(overview.metrics.total_needs_reply)}
+            <section className={styles.metricGrid} aria-label="客户消息指标">
+              <Metric
+                label="待回复"
+                value={overview.metrics.total_needs_reply}
                 icon={<MessageSquare size={16} />}
-                color="sky"
+                tone="accent"
               />
-              <StatCard
-                title="已解决"
-                value={String(overview.metrics.total_resolved)}
+              <Metric
+                label="已解决"
+                value={overview.metrics.total_resolved}
                 icon={<CheckCircle2 size={16} />}
-                color="emerald"
               />
-              <StatCard
-                title="SLA 临期"
-                value={String(overview.metrics.sla_due_soon)}
+              <Metric
+                label="SLA 临期"
+                value={overview.metrics.sla_due_soon}
                 icon={<Clock size={16} />}
-                color="amber"
+                tone={overview.metrics.sla_due_soon > 0 ? 'accent' : undefined}
               />
-              <StatCard
-                title="已过期"
-                value={String(overview.metrics.sla_overdue)}
+              <Metric
+                label="已过期"
+                value={overview.metrics.sla_overdue}
                 icon={<AlertTriangle size={16} />}
-                color="rose"
               />
-            </StatCardRow>
+            </section>
 
-            <DataTableCard>
-              <DataTableCardHeader
-                title="近 30 天趋势"
-                description="每日待回复客诉数"
-                action={<TrendingUp size={14} className="text-term-muted" />}
-              />
-              <DataTableCardBody>
+            <section
+              className={styles.panel}
+              data-testid="complaint-trend-panel"
+              data-warm-panel="true"
+            >
+              <header className={styles.panelHeader}>
+                <div className={styles.panelHeading}>
+                  <h2 className={styles.panelTitle}>近 30 天趋势</h2>
+                  <p className={styles.panelDescription}>每日待回复客诉数</p>
+                </div>
+                <TrendingUp className={styles.panelIcon} size={16} aria-hidden="true" />
+              </header>
+              <div className={styles.panelBody}>
                 {overview.trend.length > 0 ? (
                   <LazyTrendChart data={overview.trend} />
                 ) : (
-                  <EmptyChartState message="暂无趋势数据" height="h-[260px]" />
+                  <div className={styles.chartEmpty}>暂无趋势数据</div>
                 )}
-              </DataTableCardBody>
-            </DataTableCard>
+              </div>
+            </section>
 
-            <DataTableCard>
-              <DataTableCardHeader
-                title="店铺健康"
-                description={`15 店铺巡检状态 · ${dateLabel}${isToday ? ' 今天' : ''}`}
-                action={
-                  <Link
-                    href="/dashboard/operations/complaint-center/list"
-                    className="text-xs text-term-muted underline-offset-2 transition-colors hover:text-term-text hover:underline"
-                  >
-                    查看全部客诉
-                  </Link>
-                }
-              />
-              <DataTableCardBody>
+            <section className={styles.panel} data-warm-panel="true">
+              <header className={styles.panelHeader}>
+                <div className={styles.panelHeading}>
+                  <h2 className={styles.panelTitle}>店铺健康</h2>
+                  <p className={styles.panelDescription}>
+                    15 店铺巡检状态 · {dateLabel}
+                    {isToday ? ' 今天' : ''}
+                  </p>
+                </div>
+                <Link
+                  href="/dashboard/operations/complaint-center/list"
+                  className={styles.panelAction}
+                >
+                  查看全部客诉
+                </Link>
+              </header>
+              <div className={styles.panelBody}>
                 {isEmpty ? (
-                  <EmptyState
-                    icon="database"
-                    message={
-                      allFailed && overview.projects.length > 0
-                        ? '今日巡检启动失败，请检查 Agent 配置'
-                        : isToday
-                          ? '今日无待回复消息'
-                          : `${dateLabel} 无待回复消息`
-                    }
-                    className="py-16"
-                  />
+                  <div className={styles.emptyProject} role="status">
+                    {allFailed && overview.projects.length > 0
+                      ? '今日巡检启动失败，请检查 Agent 配置'
+                      : isToday
+                        ? '今日无待回复消息'
+                        : `${dateLabel} 无待回复消息`}
+                  </div>
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[180px]">店铺</TableHead>
-                        <TableHead>站点</TableHead>
-                        <TableHead>巡检状态</TableHead>
-                        <TableHead className="text-right">待回复</TableHead>
-                        <TableHead className="text-right">已解决</TableHead>
-                        <TableHead className="text-right">SLA 临期</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {overview.projects.map((p) => (
-                        <TableRow key={`${p.project_id}-${p.country}`}>
-                          <TableCell className="font-medium text-term-text">{p.project_name}</TableCell>
-                          <TableCell className="text-term-muted">{p.country}</TableCell>
-                          <TableCell>
-                            <span className={CHECK_STATUS_STYLE[p.check_status]}>
-                              {CHECK_STATUS_LABEL[p.check_status]}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">{p.needs_reply}</TableCell>
-                          <TableCell className="text-right tabular-nums">{p.resolved}</TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {p.sla_due_soon > 0 ? (
-                              <span className="text-term-warn">{p.sla_due_soon}</span>
-                            ) : (
-                              0
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                  <div className={styles.tableScroll} data-warm-table-scroll="true">
+                    <table className={styles.table}>
+                      <thead>
+                        <tr>
+                          <th>店铺</th>
+                          <th>站点</th>
+                          <th>巡检状态</th>
+                          <th className={styles.numeric}>待回复</th>
+                          <th className={styles.numeric}>已解决</th>
+                          <th className={styles.numeric}>SLA 临期</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {overview.projects.map((project) => (
+                          <tr key={`${project.project_id}-${project.country}`}>
+                            <td className={styles.projectName}>{project.project_name}</td>
+                            <td>{project.country}</td>
+                            <td>
+                              <span
+                                className={styles.statusText}
+                                data-tone={CHECK_STATUS_TONE[project.check_status]}
+                              >
+                                {CHECK_STATUS_LABEL[project.check_status]}
+                              </span>
+                            </td>
+                            <td className={styles.numeric}>{project.needs_reply}</td>
+                            <td className={styles.numeric}>{project.resolved}</td>
+                            <td className={styles.numeric}>
+                              <span
+                                className={project.sla_due_soon > 0 ? styles.dueSoon : undefined}
+                              >
+                                {project.sla_due_soon}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
-              </DataTableCardBody>
-            </DataTableCard>
+              </div>
+            </section>
           </>
         ) : null}
       </div>
     </>
+  )
+}
+
+function Metric({
+  label,
+  value,
+  icon,
+  tone,
+}: {
+  label: string
+  value: number
+  icon: ReactNode
+  tone?: 'accent'
+}) {
+  return (
+    <div className={styles.metric} data-testid="complaint-metric" data-tone={tone}>
+      <div className={styles.metricCopy}>
+        <span className={styles.metricLabel}>{label}</span>
+        <span className={styles.metricValue}>{value}</span>
+      </div>
+      <span className={styles.metricIcon} aria-hidden="true">
+        {icon}
+      </span>
+    </div>
   )
 }

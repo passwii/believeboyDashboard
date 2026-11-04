@@ -2,20 +2,14 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { History, LayoutDashboard } from 'lucide-react'
-import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
-import {
-  DirectionalTabTransition,
-  SlidingTabsTrigger,
-  TabsMotionGroup,
-} from '@/components/ui/tab-motion'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useNotifications } from '@/components/notifications'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { fetchCurrentPeriod } from '@/lib/inspection-api'
 import InspectionOverview from './components/inspection-overview'
 import InspectionForm from './components/inspection-form'
 import InspectionHistory from './components/inspection-history'
-
-const INSPECTION_TAB_ORDER = ['overview', 'history'] as const
+import styles from './platform-inspection-warm.module.css'
 
 export default function InspectionClient() {
   const { notify } = useNotifications()
@@ -81,46 +75,36 @@ export default function InspectionClient() {
   }, [])
 
   return (
-    <div className="w-full space-y-6">
+    <div
+      className={styles.page}
+      data-testid="platform-inspection-page"
+      data-warm-platform-inspection="true"
+    >
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsMotionGroup id="inspection-tabs">
-          <TabsList variant="term" className="w-fit justify-start">
-            <SlidingTabsTrigger
-              value="overview"
-              activeValue={activeTab}
-              layoutId="inspection-tab-indicator"
-              variant="term"
-            >
-              <LayoutDashboard aria-hidden />
-              概览
-            </SlidingTabsTrigger>
-            <SlidingTabsTrigger
-              value="history"
-              activeValue={activeTab}
-              layoutId="inspection-tab-indicator"
-              variant="term"
-            >
-              <History aria-hidden />
-              历史记录
-            </SlidingTabsTrigger>
-          </TabsList>
-        </TabsMotionGroup>
+        <TabsList className={styles.tabsList}>
+          <TabsTrigger value="overview">
+            <LayoutDashboard aria-hidden />
+            概览
+          </TabsTrigger>
+          <TabsTrigger value="history">
+            <History aria-hidden />
+            历史记录
+          </TabsTrigger>
+        </TabsList>
 
-        <DirectionalTabTransition value={activeTab} order={INSPECTION_TAB_ORDER}>
-          <TabsContent forceMount value={activeTab} className="mt-0">
-            {activeTab === 'overview'
-              ? currentPeriodId && (
-                  <InspectionOverview
-                    periodId={currentPeriodId}
-                    refreshKey={refreshKey}
-                    onSelectProject={handleSelectProject}
-                  />
-                )
-              : currentPeriodId && (
-                  <InspectionHistory periodId={currentPeriodId} refreshKey={refreshKey} />
-                )}
-          </TabsContent>
-        </DirectionalTabTransition>
+        <TabsContent forceMount value={activeTab} className={styles.tabPanel}>
+          {activeTab === 'overview'
+            ? currentPeriodId && (
+                <InspectionOverview
+                  periodId={currentPeriodId}
+                  refreshKey={refreshKey}
+                  onSelectProject={handleSelectProject}
+                />
+              )
+            : currentPeriodId && (
+                <InspectionHistory periodId={currentPeriodId} refreshKey={refreshKey} />
+              )}
+        </TabsContent>
       </Tabs>
 
       {/* Edit Dialog */}

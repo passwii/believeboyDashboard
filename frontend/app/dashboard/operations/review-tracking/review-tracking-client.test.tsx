@@ -162,6 +162,22 @@ function review(title: string) {
 }
 
 describe('评论追踪页：空态', () => {
+  it('renders Warm page, target selector, panel, and table scroll containment', async () => {
+    render(<ReviewTrackingClient />)
+
+    const page = await screen.findByTestId('review-tracking-page')
+    expect(page).toHaveAttribute('data-warm-review-tracking', 'true')
+    expect(screen.getByTestId('target-selector')).toBeInTheDocument()
+    expect(screen.getByTestId('review-tracking-panel')).toHaveAttribute('data-warm-panel', 'true')
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: '评论明细' }))
+    fireEvent.click(screen.getByRole('tab', { name: '评论明细' }))
+
+    const table = await screen.findByRole('table')
+    expect(table.parentElement).toHaveAttribute('data-warm-table-scroll', 'true')
+    expect(page.querySelector('[class*="term-"]')).toBeNull()
+  })
+
   it('没有目标时提示等待采集端接入，并列出空态', async () => {
     fetchTargets.mockResolvedValue([])
     render(<ReviewTrackingClient />)

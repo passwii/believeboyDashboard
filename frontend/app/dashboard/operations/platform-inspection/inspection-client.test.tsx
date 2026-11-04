@@ -57,6 +57,14 @@ afterEach(() => {
 })
 
 describe('InspectionClient header 化契约（operations header migration Batch C）', () => {
+  it('renders the route inside a Warm Ledger page surface', async () => {
+    const { container } = render(<InspectionClient />)
+
+    const page = await screen.findByTestId('platform-inspection-page')
+    expect(page).toHaveAttribute('data-warm-platform-inspection', 'true')
+    expect(container.querySelector('[class*="term-"]')).toBeNull()
+  })
+
   it('渲染不崩溃：概览 tab 拿到当前周期', async () => {
     render(<InspectionClient />)
     const overview = await screen.findByTestId('inspection-overview')
@@ -71,10 +79,12 @@ describe('InspectionClient header 化契约（operations header migration Batch 
     expect(capturedRefreshHandler).not.toBeNull()
 
     // 受控 Promise 挂起周期重取，确定性断言 loading 上报
-    let resolvePeriod: ((value: unknown) => void) | undefined
+    let resolvePeriod:
+      | ((value: Awaited<ReturnType<typeof fetchCurrentPeriod>>) => void)
+      | undefined
     vi.mocked(fetchCurrentPeriod).mockImplementationOnce(() => {
       periodFetchCount += 1
-      return new Promise((resolve) => {
+      return new Promise<Awaited<ReturnType<typeof fetchCurrentPeriod>>>((resolve) => {
         resolvePeriod = resolve
       })
     })
@@ -89,7 +99,7 @@ describe('InspectionClient header 化契约（operations header migration Batch 
     await vi.waitFor(() => expect(capturedRefreshLoading).toBe(true))
 
     // 放行后 loading 回落
-    resolvePeriod?.({ id: 7 })
+    resolvePeriod?.({ id: 7 } as Awaited<ReturnType<typeof fetchCurrentPeriod>>)
     await vi.waitFor(() => expect(capturedRefreshLoading).toBe(false))
   })
 

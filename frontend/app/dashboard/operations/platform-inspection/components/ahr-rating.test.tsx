@@ -54,18 +54,16 @@ afterEach(() => {
 
 describe('AHR rating presentation', () => {
   it.each([
-    ['Healthy', '健康', 'normal', 'text-emerald-700'],
-    ['Good', '良好', 'normal', 'text-blue-700'],
-    ['At Risk', '预警', 'warning', 'text-term-warn'],
-    ['Critical', '危险', 'critical', 'text-term-neg'],
-  ] as const)('maps backend rating %s to %s and its semantic color', (rating, label, severity, textClass) => {
+    ['Healthy', '健康', 'normal', 'healthy'],
+    ['Good', '良好', 'normal', 'good'],
+    ['At Risk', '预警', 'warning', 'at-risk'],
+    ['Critical', '危险', 'critical', 'critical'],
+  ] as const)('maps backend rating %s to %s and its semantic tone', (rating, label, severity, ratingKey) => {
     const presentation = getAhrRatingPresentation(rating)
 
     expect(presentation.label).toBe(label)
     expect(presentation.severity).toBe(severity)
-    expect(presentation.text).toContain(textClass)
-    expect(presentation.background).toBeTruthy()
-    expect(presentation.border).toBeTruthy()
+    expect(presentation.ratingKey).toBe(ratingKey)
   })
 
   it('normalizes case and preserves unknown values without assigning a known severity', () => {
@@ -74,7 +72,7 @@ describe('AHR rating presentation', () => {
     const unknown = getAhrRatingPresentation('Review Needed')
     expect(unknown.label).toBe('Review Needed')
     expect(unknown.severity).toBe('normal')
-    expect(unknown.text).toBe('text-term-muted')
+    expect(unknown.ratingKey).toBe('unknown')
   })
 
   it('renders the mapped label rather than the backend enum', () => {
@@ -100,15 +98,16 @@ describe('inspection history AHR', () => {
     const { container } = render(<InspectionHistory periodId={7} />)
 
     const rowRating = await screen.findByLabelText('AHR 预警')
-    expect(rowRating.querySelector('.font-semibold')).toHaveClass('text-term-warn')
+    expect(rowRating).toHaveAttribute('data-tone', 'warning')
+    expect(rowRating).toHaveAttribute('data-rating', 'at-risk')
     expect(screen.queryByText('At Risk')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /查看/ }))
 
     await waitFor(() => expect(screen.getAllByLabelText('AHR 预警')).toHaveLength(2))
     const ratings = screen.getAllByLabelText('AHR 预警')
-    expect(ratings[1].querySelector('.font-semibold')).toHaveClass('text-term-warn')
+    expect(ratings[1]).toHaveAttribute('data-tone', 'warning')
     expect(screen.queryByText('At Risk')).not.toBeInTheDocument()
-    expect(container.querySelectorAll('.text-term-warn')).toHaveLength(2)
+    expect(container.querySelectorAll('[data-tone="warning"]')).toHaveLength(2)
   })
 })
