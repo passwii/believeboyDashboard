@@ -1,0 +1,327 @@
+.page {
+  --term-bg: var(--warm-ledger-color-window);
+  --term-panel: var(--warm-ledger-color-panel);
+  --term-raised: var(--warm-ledger-color-raised);
+  --term-hover: var(--warm-ledger-color-raised-hover);
+  --term-border: var(--warm-ledger-color-hairline);
+  --term-border-strong: var(--warm-ledger-color-hairline-strong);
+  --term-text: var(--warm-ledger-color-text);
+  --term-muted: var(--warm-ledger-color-text-muted);
+  --term-placeholder: var(--warm-ledger-color-text-faint);
+  --term-faint: var(--warm-ledger-color-text-faint);
+  --term-pos: var(--warm-ledger-color-positive);
+  --term-action: var(--warm-ledger-color-accent);
+  --term-action-text: var(--warm-ledger-color-window);
+  --term-warn: var(--warm-ledger-color-accent-strong);
+  --term-neg: var(--warm-ledger-color-negative);
+  --term-accent: var(--warm-ledger-color-accent-strong);
+
+  min-width: 0;
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-sans);
+}
+
+.panel {
+  border-color: var(--warm-ledger-color-hairline);
+  border-radius: 0;
+  background: var(--warm-ledger-color-panel);
+}
+
+.panelHeader {
+  min-width: 0;
+  border-color: var(--warm-ledger-color-hairline);
+  background: var(--warm-ledger-color-panel-strong);
+}
+
+.panelTitle {
+  color: var(--warm-ledger-color-text-soft);
+}
+
+.filters {
+  border-color: var(--warm-ledger-color-hairline);
+  background: var(--warm-ledger-color-panel);
+}
+
+.filterRow {
+  border-color: var(--warm-ledger-color-hairline);
+}
+
+.filterLabel {
+  color: var(--warm-ledger-color-text-muted);
+}
+
+.filterControls {
+  min-width: 0;
+}
+
+.exportButton,
+.resetButton,
+.pagerButton {
+  border-radius: 0;
+  border-color: var(--warm-ledger-color-hairline);
+  background: var(--warm-ledger-color-panel-strong);
+  color: var(--warm-ledger-color-text-soft);
+}
+
+.page .multiSelectTrigger,
+.page .exportButton,
+.page .resetButton,
+.page .pagerButton {
+  font-family: var(--warm-ledger-font-mono);
+}
+
+.exportButton:hover:not(:disabled),
+.resetButton:hover:not(:disabled),
+.pagerButton:hover:not(:disabled) {
+  border-color: var(--warm-ledger-color-hairline-strong);
+  background: var(--warm-ledger-color-raised-hover);
+  color: var(--warm-ledger-color-text);
+}
+
+.exportButton:focus-visible,
+.resetButton:focus-visible,
+.pagerButton:focus-visible {
+  outline: 2px solid var(--warm-ledger-color-accent-strong);
+  outline-offset: 2px;
+}
+
+.filters > div {
+  border-color: var(--warm-ledger-color-hairline);
+}
+
+.multiSelectTrigger,
+.searchInput {
+  min-width: 0;
+  border-radius: 0;
+  border-color: var(--warm-ledger-color-hairline);
+  background: var(--warm-ledger-color-window);
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-mono);
+}
+
+.multiSelectTrigger:hover,
+.searchInput:hover {
+  border-color: var(--warm-ledger-color-hairline-strong);
+}
+
+.multiSelectTrigger:focus-visible,
+.searchInput:focus-visible {
+  border-color: var(--warm-ledger-color-accent-strong);
+  outline: 2px solid var(--warm-ledger-color-accent-strong);
+  outline-offset: 2px;
+}
+
+.dateTrigger {
+  border-radius: 0;
+  border-color: var(--warm-ledger-color-hairline);
+  background: var(--warm-ledger-color-window);
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-mono);
+}
+
+.dateTrigger:focus-visible {
+  border-color: var(--warm-ledger-color-accent-strong);
+  outline: 2px solid var(--warm-ledger-color-accent-strong);
+  outline-offset: 2px;
+}
+
+.tableScroller {
+  min-width: 0;
+  background: var(--warm-ledger-color-window);
+  scrollbar-color: var(--warm-ledger-color-raised-hover) transparent;
+  scrollbar-width: thin;
+}
+
+.tableScroller :global(th),
+.tableScroller :global(td) {
+  height: var(--warm-ledger-order-row-height);
+  border-color: var(--warm-ledger-color-hairline);
+  font-family: var(--warm-ledger-font-mono);
+}
+
+.tableScroller :global(th) {
+  background: var(--warm-ledger-color-raised);
+  color: var(--warm-ledger-color-text-muted);
+}
+
+.tableScroller :global(.u-skeleton-shimmer) {
+  background-color: var(--warm-ledger-color-raised-hover);
+}
+
+.tableState {
+  height: 96px;
+  border-color: var(--warm-ledger-color-hairline);
+  background: var(--warm-ledger-color-panel);
+  font-family: var(--warm-ledger-font-mono);
+}
+
+.stateWarning {
+  color: var(--warm-ledger-color-accent-strong);
+}
+
+.stateError {
+  color: var(--warm-ledger-color-negative);
+}
+
+.stateEmpty {
+  color: var(--warm-ledger-color-text-muted);
+}
+
+.table {
+  font-family: var(--warm-ledger-font-mono);
+}
+
+.tableScroller :global(tbody tr:hover) {
+  background: var(--warm-ledger-color-raised-hover);
+}
+
+.fulfillmentLabel {
+  font-family: var(--warm-ledger-font-mono);
+}
+
+.statusPill {
+  border-radius: 0;
+  background: transparent;
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+}
+
+.errorAlert {
+  border-radius: 0;
+  font-family: var(--warm-ledger-font-mono);
+}
+
+.summary {
+  min-width: 0;
+  border-color: var(--warm-ledger-color-hairline);
+  border-radius: 0;
+  background: var(--warm-ledger-color-raised);
+  font-family: var(--warm-ledger-font-mono);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+}
+
+.summary .selectedSummary {
+  border-color: color-mix(in srgb, var(--warm-ledger-color-accent) 40%, transparent);
+  border-radius: 0;
+  background: var(--warm-ledger-color-accent-soft);
+  color: var(--warm-ledger-color-accent-strong);
+}
+
+.pager {
+  min-width: 0;
+  color: var(--warm-ledger-color-text-muted);
+}
+
+.dialog {
+  --term-bg: var(--warm-ledger-color-window);
+  --term-panel: var(--warm-ledger-color-panel);
+  --term-raised: var(--warm-ledger-color-raised);
+  --term-hover: var(--warm-ledger-color-raised-hover);
+  --term-border: var(--warm-ledger-color-hairline);
+  --term-border-strong: var(--warm-ledger-color-hairline-strong);
+  --term-text: var(--warm-ledger-color-text);
+  --term-muted: var(--warm-ledger-color-text-muted);
+  --term-placeholder: var(--warm-ledger-color-text-faint);
+  --term-faint: var(--warm-ledger-color-text-faint);
+  --term-pos: var(--warm-ledger-color-positive);
+  --term-action: var(--warm-ledger-color-accent);
+  --term-action-text: var(--warm-ledger-color-window);
+  --term-warn: var(--warm-ledger-color-accent-strong);
+  --term-neg: var(--warm-ledger-color-negative);
+  --term-accent: var(--warm-ledger-color-accent-strong);
+
+  border-color: var(--warm-ledger-color-hairline-strong);
+  border-radius: 0;
+  background: var(--warm-ledger-color-panel);
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-sans);
+  box-shadow: none;
+  pointer-events: auto;
+}
+
+.dialogFields {
+  gap: var(--warm-ledger-space-4);
+}
+
+.dialogFooter {
+  gap: var(--warm-ledger-space-2);
+}
+
+.dialogSaveButton {
+  border-color: var(--warm-ledger-color-accent-strong);
+  background: var(--warm-ledger-color-accent);
+  color: var(--warm-ledger-color-window);
+}
+
+.dialogSaveButton:hover:not(:disabled) {
+  border-color: var(--warm-ledger-color-accent-strong);
+  background: var(--warm-ledger-color-accent-strong);
+  color: var(--warm-ledger-color-window);
+}
+
+.dialogSaveButton:focus-visible {
+  outline: 2px solid var(--warm-ledger-color-accent-strong);
+  outline-offset: 2px;
+}
+
+.fieldLabel,
+.dateFieldLabel {
+  color: var(--warm-ledger-color-text-muted);
+  font-family: var(--warm-ledger-font-sans);
+  font-size: var(--warm-ledger-font-size-control);
+  font-weight: var(--warm-ledger-font-weight-medium);
+}
+
+.fieldLabel {
+  display: block;
+}
+
+.dateFieldLabel {
+  display: grid;
+  gap: var(--warm-ledger-space-2);
+}
+
+.datePopover {
+  border-color: var(--warm-ledger-color-hairline-strong);
+  border-radius: 0;
+  background: var(--warm-ledger-color-panel);
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-mono);
+  box-shadow: none;
+  pointer-events: auto;
+}
+
+:global(.warm-ledger:has([data-warm-order-info='true']) #warm-ledger-portal-root) {
+  --term-bg: var(--warm-ledger-color-window);
+  --term-panel: var(--warm-ledger-color-panel);
+  --term-raised: var(--warm-ledger-color-raised);
+  --term-hover: var(--warm-ledger-color-raised-hover);
+  --term-border: var(--warm-ledger-color-hairline);
+  --term-border-strong: var(--warm-ledger-color-hairline-strong);
+  --term-text: var(--warm-ledger-color-text);
+  --term-muted: var(--warm-ledger-color-text-muted);
+  --term-placeholder: var(--warm-ledger-color-text-faint);
+  --term-faint: var(--warm-ledger-color-text-faint);
+  --term-pos: var(--warm-ledger-color-positive);
+  --term-action: var(--warm-ledger-color-accent);
+  --term-action-text: var(--warm-ledger-color-window);
+  --term-warn: var(--warm-ledger-color-accent-strong);
+  --term-neg: var(--warm-ledger-color-negative);
+  --term-accent: var(--warm-ledger-color-accent-strong);
+}
+
+:global(body:has([data-warm-order-info='true']) [data-radix-popper-content-wrapper]:has([cmdk-root])) {
+  /* MultiSelect portals to body, outside the Warm token scope. */
+  --term-bg: #242525;
+  --term-panel: #2b2c2b;
+  --term-raised: #3b3c3b;
+  --term-hover: #454644;
+  --term-border: rgba(246, 238, 226, 0.12);
+  --term-border-strong: rgba(246, 238, 226, 0.2);
+  --term-text: #f1ede5;
+  --term-muted: #a9a297;
+  --term-placeholder: #837d74;
+  --term-faint: #837d74;
+  --term-accent: #f3c875;
+  color: var(--term-text);
+  font-family: var(--font-mono), 'SFMono-Regular', 'PingFang SC', monospace;
+}

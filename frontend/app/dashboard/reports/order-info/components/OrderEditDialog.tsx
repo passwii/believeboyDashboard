@@ -16,6 +16,8 @@ import {
 import { Input } from '@/components/ui/input'
 import { useNotifications } from '@/components/notifications'
 import { normalizeErrorMessage } from '@/lib/error-utils'
+import { cn } from '@/lib/utils'
+import styles from '../order-info-warm.module.css'
 
 /**
  * FBM 订单补录/编辑 Dialog
@@ -80,6 +82,11 @@ export function OrderEditDialog(props: OrderEditDialogProps) {
   const [form, setForm] = useState<FormState>(() => buildEmptyForm())
   const [submitting, setSubmitting] = useState(false)
   const [initialCarrier, setInitialCarrier] = useState('')
+  const [warmPortalContainer, setWarmPortalContainer] = useState<HTMLElement | null>(null)
+
+  useEffect(() => {
+    setWarmPortalContainer(document.getElementById('warm-ledger-portal-root'))
+  }, [])
 
   // 打开 / 切换订单 → 初始化表单
   useEffect(() => {
@@ -161,7 +168,9 @@ export function OrderEditDialog(props: OrderEditDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => !submitting && onOpenChange(v)}>
-      <DialogContent className="max-w-xl">
+      <DialogContent
+        className={cn(styles.dialog, 'max-w-xl')}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Truck className="h-4 w-4" />
@@ -175,10 +184,11 @@ export function OrderEditDialog(props: OrderEditDialogProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 py-2">
+        <div className={cn(styles.dialogFields, 'grid gap-4 py-2')}>
           <div className="grid gap-2">
-            <label className="text-xs font-medium text-muted-foreground">物流商（Carrier）</label>
+            <label htmlFor="order-info-carrier" className={styles.fieldLabel}>物流商（Carrier）</label>
             <Input
+              id="order-info-carrier"
               value={form.carrier}
               onChange={(e) => handleFieldChange('carrier', e.target.value)}
               placeholder="例如 UPS / USPS / FedEx / DHL / 顺丰"
@@ -189,10 +199,11 @@ export function OrderEditDialog(props: OrderEditDialogProps) {
           </div>
 
           <div className="grid gap-2">
-            <label className="text-xs font-medium text-muted-foreground">
+            <label htmlFor="order-info-tracking-no" className={styles.fieldLabel}>
               物流单号（Tracking No.）
             </label>
             <Input
+              id="order-info-tracking-no"
               value={form.tracking_no}
               onChange={(e) => handleFieldChange('tracking_no', e.target.value)}
               placeholder="例如 1Z999AA10123456784"
@@ -203,22 +214,26 @@ export function OrderEditDialog(props: OrderEditDialogProps) {
           </div>
 
           <div className="grid gap-2">
-            <label className="text-xs font-medium text-muted-foreground">
+            <label className={styles.dateFieldLabel}>
               发货时间（Shipped At · 北京时间）
+              <DatePicker
+                mode="single"
+                value={parseDateInputValue(form.shipped_at)}
+                onChange={(date) => handleFieldChange('shipped_at', formatDateInputValue(date))}
+                placeholder="选择发货日期"
+                className={styles.dateTrigger}
+                portalContainer={warmPortalContainer}
+                popoverClassName={styles.datePopover}
+              />
             </label>
-            <DatePicker
-              mode="single"
-              value={parseDateInputValue(form.shipped_at)}
-              onChange={(date) => handleFieldChange('shipped_at', formatDateInputValue(date))}
-              placeholder="选择发货日期"
-            />
           </div>
 
           <div className="grid gap-2">
-            <label className="text-xs font-medium text-muted-foreground">
+            <label htmlFor="order-info-updated-by" className={styles.fieldLabel}>
               操作人（Updated By）
             </label>
             <Input
+              id="order-info-updated-by"
               value={form.updated_by}
               onChange={(e) => handleFieldChange('updated_by', e.target.value)}
               placeholder={defaultUpdatedBy ?? '填写操作人姓名'}
@@ -229,11 +244,16 @@ export function OrderEditDialog(props: OrderEditDialogProps) {
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className={styles.dialogFooter}>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
             取消
           </Button>
-          <Button onClick={() => void handleSubmit()} disabled={submitting} className="gap-1">
+          <Button
+            variant="term"
+            onClick={() => void handleSubmit()}
+            disabled={submitting}
+            className={cn(styles.dialogSaveButton, 'gap-1')}
+          >
             {submitting ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (

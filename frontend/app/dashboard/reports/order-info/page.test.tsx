@@ -299,11 +299,17 @@ describe('订单信息页终端化（BLF-817）', () => {
 
     await screen.findByText('111-1111111-0000001')
     const table = screen.getByRole('table', { name: '订单列表' })
+    const orderPanel = screen.getByRole('region', { name: '订单信息' })
+    const tableScroll = table.parentElement
     const firstHeader = table.querySelector('thead th')
     const quantityHeader = screen.getByRole('columnheader', { name: /数量/ })
     const quantityCell = table.querySelector('tbody tr:first-child td:nth-child(6)')
     const amountCell = table.querySelector('tbody tr:first-child td:nth-child(7)')
 
+    expect(orderPanel).toHaveAttribute('data-warm-order-info', 'true')
+    expect(tableScroll).toHaveAttribute('data-order-info-table-scroll', 'true')
+    expect(table).toHaveClass('min-w-[1560px]')
+    expect(table.querySelectorAll('thead th')).toHaveLength(13)
     expect(firstHeader?.className).toContain('bg-term-raised')
     expect(quantityHeader.className).toContain('text-right')
     expect(quantityHeader.className).toContain('tabular-nums')
@@ -333,6 +339,100 @@ describe('订单信息页终端化（BLF-817）', () => {
     expect(screen.getAllByRole('textbox')).toHaveLength(3)
     expect(within(filters).getByText('订单属性')).toBeInTheDocument()
     expect(within(filters).getByText('订单查找')).toBeInTheDocument()
+  })
+
+  it('订单类型筛选保留多选，可同时提交 FBA 与 FBM', async () => {
+    const restore = routeFetch(() =>
+      jsonResponse({
+        ...FILTER_OPTIONS_OK,
+        fulfillment_channels: [
+          { value: 'Amazon', label: 'FBA-UT' },
+          { value: 'Merchant', label: 'FBM-UT' },
+        ],
+      })
+    )
+
+    try {
+      resetGfAndParams()
+      const user = userEvent.setup()
+      render(
+        <TerminalGlobalFilterProvider>
+          <OrderInfoPage />
+        </TerminalGlobalFilterProvider>
+      )
+
+      await screen.findByText('111-1111111-0000001')
+      const orderPanel = screen.getByRole('region', { name: '订单信息' })
+      const filters = within(orderPanel).getByRole('group', { name: '订单筛选' })
+      await user.click(screen.getAllByRole('combobox')[0]!)
+      await user.click(await screen.findByRole('option', { name: 'FBA-UT' }))
+      await user.click(screen.getByRole('option', { name: 'FBM-UT' }))
+
+      await waitFor(() => {
+        const lastUrl = String(fetchMock.mock.calls.at(-1)![0])
+        expect(lastUrl).toContain('fulfillment_channels=Amazon')
+        expect(lastUrl).toContain('fulfillment_channels=Merchant')
+      })
+      expect(within(filters).getAllByRole('combobox')).toHaveLength(3)
+    } finally {
+      restore()
+    }
+  })
+
+  it('首次加载时保留表格骨架状态', async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/order-info/overview')) {
+        return new Promise<Response>(() => {})
+      }
+      return jsonResponse(FILTER_OPTIONS_OK)
+    })
+
+    const { container } = render(
+      <TerminalGlobalFilterProvider>
+        <OrderInfoPage />
+      </TerminalGlobalFilterProvider>
+    )
+
+    const table = await screen.findByRole('table', { name: '订单列表' })
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/order-info/overview'))).toBe(true)
+    })
+
+    expect(table.querySelectorAll('tbody tr')).toHaveLength(12)
+    expect(container.querySelectorAll('.u-skeleton-shimmer')).toHaveLength(12)
+    expect(screen.queryByText('暂无订单数据')).not.toBeInTheDocument()
+  })
+
+  it('无匹配订单时显示筛选空态，底部汇总仍显示真实零值', async () => {
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({
+        items: [],
+        total: 0,
+        page: 1,
+        page_size: 50,
+        stats: {
+          total_orders: 0,
+          total_quantity: 0,
+          total_amount: 0,
+          currency: 'USD',
+          fba_count: 0,
+          fbm_count: 0,
+        },
+      })
+    )
+
+    render(
+      <TerminalGlobalFilterProvider>
+        <OrderInfoPage />
+      </TerminalGlobalFilterProvider>
+    )
+
+    expect(await screen.findByText(/当前筛选条件下无订单/)).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText('Σ 单量').closest('span')).toHaveTextContent('0')
+      expect(screen.getByText('Σ 金额').closest('span')).toHaveTextContent('0.00 USD')
+    })
+    expect(screen.queryByText('111-1111111-0000001')).not.toBeInTheDocument()
   })
 
   it('渲染订单行与终端状态 pill 语义色（Pending warn / Shipped pos / Cancelled neg）', async () => {
@@ -383,6 +483,87 @@ describe('订单信息页终端化（BLF-817）', () => {
       expect(screen.getByText(/已选 1 行/)).toHaveTextContent('Σ 金额 15.00')
       expect(screen.getByText(/已选 1 行/)).toHaveTextContent('Σ 数量 2')
     })
+  })
+
+  it('CSV 导出沿用当前筛选载荷，不携带分页、排序或所选行范围', async () => {
+    const previousGf = { ...gfState }
+    resetGfAndParams()
+    setGf({ projectId: '1' })
+    const originalImplementation = fetchMock.getMockImplementation()!
+    const createObjectUrlDescriptor = Object.getOwnPropertyDescriptor(URL, 'createObjectURL')
+    const revokeObjectUrlDescriptor = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL')
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: vi.fn(() => 'blob:order-info-test'),
+    })
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: vi.fn(),
+    })
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/order-info/export')) {
+        return jsonResponse({ filename: 'orders_20260825.csv', content_base64: '' })
+      }
+      return jsonResponse(OVERVIEW_OK)
+    })
+
+    try {
+      const user = userEvent.setup()
+      render(
+        <TerminalGlobalFilterProvider>
+          <OrderInfoPage />
+        </TerminalGlobalFilterProvider>
+      )
+      await screen.findByText('111-1111111-0000001')
+      await user.click(screen.getByLabelText('选中订单 111-1111111-0000001'))
+      await user.click(screen.getByRole('button', { name: '导出 CSV' }))
+
+      await waitFor(() => {
+        expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/order-info/export'))).toBe(true)
+      })
+      const exportCall = fetchMock.mock.calls.find(([url]) =>
+        String(url).includes('/order-info/export')
+      )!
+      const payload = JSON.parse(exportCall[1]?.body as string) as Record<string, unknown>
+      const overviewCall = fetchMock.mock.calls.find(([url]) =>
+        String(url).includes('/order-info/overview')
+      )!
+      const overviewUrl = new URL(String(overviewCall[0]), window.location.origin)
+
+      expect(payload).toMatchObject({
+        project_ids: [1],
+        fulfillment_channels: [],
+        order_statuses: [],
+        countries: ['US'],
+        currencies: [],
+        sku_keyword: null,
+        order_id_keyword: null,
+        asin_keyword: null,
+      })
+      expect(payload.date_from).toBe(overviewUrl.searchParams.get('date_from'))
+      expect(payload.date_to).toBe(overviewUrl.searchParams.get('date_to'))
+      expect(payload).not.toHaveProperty('page')
+      expect(payload).not.toHaveProperty('page_size')
+      expect(payload).not.toHaveProperty('sort_by')
+      expect(payload).not.toHaveProperty('sort_dir')
+      expect(payload).not.toHaveProperty('selected_ids')
+      expect(click).toHaveBeenCalledOnce()
+    } finally {
+      click.mockRestore()
+      fetchMock.mockImplementation(originalImplementation)
+      if (createObjectUrlDescriptor) {
+        Object.defineProperty(URL, 'createObjectURL', createObjectUrlDescriptor)
+      } else {
+        Reflect.deleteProperty(URL, 'createObjectURL')
+      }
+      if (revokeObjectUrlDescriptor) {
+        Object.defineProperty(URL, 'revokeObjectURL', revokeObjectUrlDescriptor)
+      } else {
+        Reflect.deleteProperty(URL, 'revokeObjectURL')
+      }
+      setGf(previousGf)
+    }
   })
 
   it('表头排序按钮可点击触发带 sort 参数的刷新请求', async () => {

@@ -49,6 +49,7 @@ import { TERM_BUTTON, TERM_INPUT, TERM_TRIGGER } from '@/components/terminal/ter
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { OrderEditDialog, type OrderEditResponsePayload } from './components/OrderEditDialog'
+import styles from './order-info-warm.module.css'
 
 // ======================== 类型 ========================
 
@@ -178,6 +179,7 @@ function StatusPill({ label, tone }: { label: string; tone: OrderStatusTone }) {
   return (
     <span
       className={cn(
+        styles.statusPill,
         'inline-flex h-[18px] items-center whitespace-nowrap border px-1 font-mono text-[10px] leading-none',
         ORDER_STATUS_TONE_PILL_CLASS[tone]
       )}
@@ -854,7 +856,7 @@ function OrderInfoPageInner() {
   const pageFilterSelects = (
     <>
       <MultiSelect
-        className={cn(TERM_TRIGGER, 'w-full min-w-0')}
+        className={cn(TERM_TRIGGER, styles.multiSelectTrigger, 'w-full min-w-0')}
         options={filterOptions?.fulfillment_channels ?? []}
         selected={fulfillmentChannels}
         onChange={setFulfillmentChannels}
@@ -862,7 +864,7 @@ function OrderInfoPageInner() {
         placeholder={filterOptionsLoading ? '类型 · 加载中…' : filterOptionsError ? '类型 · 加载失败，点开重试' : '类型 · FBA/FBM'}
       />
       <MultiSelect
-        className={cn(TERM_TRIGGER, 'w-full min-w-0')}
+        className={cn(TERM_TRIGGER, styles.multiSelectTrigger, 'w-full min-w-0')}
         options={filterOptions?.order_statuses ?? []}
         selected={orderStatuses}
         onChange={setOrderStatuses}
@@ -870,7 +872,7 @@ function OrderInfoPageInner() {
         placeholder={filterOptionsLoading ? '状态 · 加载中…' : filterOptionsError ? '状态 · 加载失败，点开重试' : '状态 · 全部'}
       />
       <MultiSelect
-        className={cn(TERM_TRIGGER, 'w-full min-w-0')}
+        className={cn(TERM_TRIGGER, styles.multiSelectTrigger, 'w-full min-w-0')}
         options={filterOptions?.currencies ?? []}
         selected={currencies}
         onChange={setCurrencies}
@@ -894,7 +896,7 @@ function OrderInfoPageInner() {
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           title={label}
-          className={cn(TERM_INPUT, 'w-full min-w-0 pl-7 pr-2 text-xs')}
+          className={cn(TERM_INPUT, styles.searchInput, 'w-full min-w-0 pl-7 pr-2 text-xs')}
         />
       </label>
     </div>
@@ -907,12 +909,12 @@ function OrderInfoPageInner() {
      * 文档（main 滚动容器）不出现滚动条，工具栏 + 底部聚合条 pinned，
      * 只有表格区独立滚动（sticky 表头 + 内部 overflow-auto）。
      */
-    <div className="flex h-full min-h-0 flex-col gap-2">
+    <div className={cn(styles.page, 'flex h-full min-h-0 flex-col gap-2')}>
       {/* 全局错误条（终端 warn/neg 样式） */}
       {errorMessage && (
         <div
           role="alert"
-          className="flex shrink-0 items-center gap-2 border border-term-neg/50 bg-term-neg/10 px-2 py-1 font-mono text-xs text-term-neg"
+          className={cn(styles.errorAlert, 'flex shrink-0 items-center gap-2 border border-term-neg/50 bg-term-neg/10 px-2 py-1 font-mono text-xs text-term-neg')}
         >
           <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
           <span className="truncate" title={errorMessage}>
@@ -925,7 +927,7 @@ function OrderInfoPageInner() {
         <div
           role="alert"
           aria-live="polite"
-          className="flex shrink-0 items-center gap-2 border border-term-warn/50 bg-term-warn/10 px-2 py-1 font-mono text-xs text-term-warn"
+          className={cn(styles.errorAlert, 'flex shrink-0 items-center gap-2 border border-term-warn/50 bg-term-warn/10 px-2 py-1 font-mono text-xs text-term-warn')}
         >
           <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
           <span className="min-w-0 flex-1">
@@ -950,7 +952,7 @@ function OrderInfoPageInner() {
         <div
           role="alert"
           aria-live="polite"
-          className="flex shrink-0 items-start gap-2 border border-term-warn/50 bg-term-warn/10 px-2 py-1 font-mono text-xs text-term-warn"
+          className={cn(styles.errorAlert, 'flex shrink-0 items-start gap-2 border border-term-warn/50 bg-term-warn/10 px-2 py-1 font-mono text-xs text-term-warn')}
         >
           <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
           <div className="space-y-0.5 leading-relaxed">
@@ -964,22 +966,20 @@ function OrderInfoPageInner() {
 
       {/* ====== 高密度订单大表面板：筛选区常驻，表格区独立滚动 ====== */}
       <section
-        className="flex min-h-0 flex-1 flex-col border border-term-border bg-term-panel"
+        className={cn(styles.panel, 'flex min-h-0 flex-1 flex-col border border-term-border bg-term-panel')}
         aria-label="订单信息"
+        data-warm-order-info="true"
       >
         {/* 面板标题条 */}
-        <header className="flex h-9 shrink-0 items-center gap-2 border-b border-term-border pl-2 pr-1.5">
-          <h2 className="font-mono text-xs font-semibold uppercase tracking-wider text-term-muted">
-            订单信息 <span className="text-term-faint">ORDER INFO</span>
+        <header className={cn(styles.panelHeader, 'flex h-9 shrink-0 items-center gap-2 border-b border-term-border pl-2 pr-1.5')}>
+          <h2 className={cn(styles.panelTitle, 'font-mono text-xs font-semibold uppercase tracking-wider text-term-muted')}>
+            订单信息
           </h2>
-          <span className="font-mono text-[11px] tabular-nums text-term-faint">
-            {total.toLocaleString('zh-CN')} rows
-          </span>
           <button
             type="button"
             onClick={() => void handleExport()}
             disabled={exporting || loading || ((projectListLoading || projectListError) && !projectSelectionExplicit)}
-            className={cn(TERM_BODY_BUTTON, 'ml-auto')}
+            className={cn(styles.exportButton, TERM_BODY_BUTTON, 'ml-auto')}
             title="按当前筛选条件导出 CSV"
           >
             {exporting ? (
@@ -994,17 +994,17 @@ function OrderInfoPageInner() {
         <div
           role="group"
           aria-label="订单筛选"
-          className="shrink-0 border-b border-term-border bg-term-panel px-2 py-2"
+          className={cn(styles.filters, 'shrink-0 border-b border-term-border bg-term-panel px-2 py-2')}
         >
-          <div className="grid gap-2 border-b border-term-border pb-2 lg:grid-cols-[5.5rem_minmax(0,1fr)] lg:items-center">
-            <span className="font-mono text-[10px] leading-4 text-term-muted">订单属性</span>
-            <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className={cn(styles.filterRow, 'grid gap-2 border-b border-term-border pb-2 lg:grid-cols-[5.5rem_minmax(0,1fr)] lg:items-center')}>
+            <span className={cn(styles.filterLabel, 'font-mono text-[10px] leading-4 text-term-muted')}>订单属性</span>
+            <div className={cn(styles.filterControls, 'grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4')}>
               {pageFilterSelects}
               <button
                 type="button"
                 onClick={handleResetFilters}
                 disabled={loading}
-                className={cn(TERM_BUTTON, 'w-full justify-center px-2')}
+                className={cn(styles.resetButton, TERM_BUTTON, 'w-full justify-center px-2')}
                 title="清空订单筛选条件"
               >
                 <X className="h-3 w-3" aria-hidden />
@@ -1012,15 +1012,19 @@ function OrderInfoPageInner() {
               </button>
             </div>
           </div>
-          <div className="grid gap-2 pt-2 lg:grid-cols-[5.5rem_minmax(0,1fr)] lg:items-center">
-            <span className="font-mono text-[10px] leading-4 text-term-muted">订单查找</span>
-            <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3">{pageFilterSearches}</div>
+          <div className={cn(styles.filterRow, 'grid gap-2 pt-2 lg:grid-cols-[5.5rem_minmax(0,1fr)] lg:items-center')}>
+            <span className={cn(styles.filterLabel, 'font-mono text-[10px] leading-4 text-term-muted')}>订单查找</span>
+            <div className={cn(styles.filterControls, 'grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3')}>{pageFilterSearches}</div>
           </div>
         </div>
 
         {/* 表格独立滚动区（sticky 表头依赖此滚动容器） */}
-        <div className="min-h-0 flex-1 overflow-auto overscroll-contain term-scroll">
-          <TermTable className="min-w-[1560px]" aria-label="订单列表">
+        <div
+          className={cn(styles.tableScroller, 'min-h-0 flex-1 overflow-auto overscroll-contain term-scroll')}
+          data-order-info-table-scroll="true"
+          aria-busy={loading && !hasCurrentData}
+        >
+          <TermTable className={cn('min-w-[1560px]', styles.table)} aria-label="订单列表">
             <TermTHead>
               <TermRow>
                 <TermHead className="w-8 px-2">
@@ -1057,13 +1061,13 @@ function OrderInfoPageInner() {
                 <EmptyTableState
                   colSpan={COLUMN_COUNT}
                   message="店铺列表加载失败 — 已暂停订单查询，请重试"
-                  className="bg-term-panel font-mono text-xs text-term-warn"
+                  className={cn(styles.tableState, styles.stateWarning, 'bg-term-panel font-mono text-xs text-term-warn')}
                 />
               ) : errorMessage && !hasCurrentData ? (
                 <EmptyTableState
                   colSpan={COLUMN_COUNT}
                   message={`加载失败：${errorMessage} — 可点击工具栏「刷新」重试`}
-                  className="bg-term-panel font-mono text-xs text-term-neg"
+                  className={cn(styles.tableState, styles.stateError, 'bg-term-panel font-mono text-xs text-term-neg')}
                 />
               ) : items.length === 0 ? (
                 <EmptyTableState
@@ -1088,7 +1092,7 @@ function OrderInfoPageInner() {
                         ? '当前筛选条件下无订单 — 可调整条件或点击「清空订单筛选」重置订单条件'
                         : '暂无订单数据 — 等待新的销售报告上传后重试'
                   }
-                  className="bg-term-panel font-mono text-xs"
+                  className={cn(styles.tableState, styles.stateEmpty, 'bg-term-panel font-mono text-xs')}
                 />
               ) : (
                 items.map((item, index) => {
@@ -1215,6 +1219,7 @@ function OrderInfoPageInner() {
                       <TermCell>
                         <span
                           className={cn(
+                            styles.fulfillmentLabel,
                             'font-medium',
                             fulfillmentTone(item.fulfillment_label) === 'accent'
                               ? 'text-term-accent'
@@ -1279,7 +1284,7 @@ function OrderInfoPageInner() {
       </section>
 
       {/* ====== 底部 pinned 聚合分页条：总单量 / 总金额 / 选中态合计 + 翻页 ====== */}
-      <footer className="flex h-8 shrink-0 items-center gap-3 border border-term-border bg-term-raised px-2 font-mono text-sm tabular-nums text-term-muted">
+      <footer className={cn(styles.summary, 'flex h-8 shrink-0 items-center gap-3 border border-term-border bg-term-raised px-2 font-mono text-sm tabular-nums text-term-muted')}>
         <span>
           Σ 单量 <span className="text-term-text">{currentStats ? currentStats.total_orders.toLocaleString('zh-CN') : '—'}</span>
         </span>
@@ -1295,12 +1300,12 @@ function OrderInfoPageInner() {
           FBM <span className="text-term-text">{currentStats ? currentStats.fbm_count.toLocaleString('zh-CN') : '—'}</span>
         </span>
         {selectedAgg.count > 0 && (
-          <span className="border border-term-accent/40 bg-term-accent/10 px-1.5 py-0.5 text-term-accent">
+          <span className={cn(styles.selectedSummary, 'border border-term-accent/40 bg-term-accent/10 px-1.5 py-0.5 text-term-accent')}>
             已选 {selectedAgg.count} 行 · Σ 金额 {fmtAmount(selectedAgg.amount)} · Σ 数量{' '}
             {selectedAgg.quantity.toLocaleString('zh-CN')}
           </span>
         )}
-        <span className="ml-auto flex items-center gap-2">
+        <span className={cn(styles.pager, 'ml-auto flex items-center gap-2')}>
           <span>
             共 <span className="text-term-text">{total.toLocaleString('zh-CN')}</span> 行 · 第{' '}
             <span className="text-term-text">{page}</span>/{totalPages} 页 · 每页 {PAGE_SIZE}
@@ -1309,7 +1314,7 @@ function OrderInfoPageInner() {
             type="button"
             disabled={page <= 1 || loading}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
-            className="flex h-5 items-center border border-term-border bg-term-panel px-1.5 text-[11px] transition-colors hover:border-term-border-strong hover:text-term-text disabled:cursor-not-allowed disabled:opacity-40"
+            className={cn(styles.pagerButton, 'flex h-5 items-center border border-term-border bg-term-panel px-1.5 text-[11px] transition-colors hover:border-term-border-strong hover:text-term-text disabled:cursor-not-allowed disabled:opacity-40')}
             aria-label="上一页"
           >
             ◀ 上一页
@@ -1318,7 +1323,7 @@ function OrderInfoPageInner() {
             type="button"
             disabled={page >= totalPages || loading}
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            className="flex h-5 items-center border border-term-border bg-term-panel px-1.5 text-[11px] transition-colors hover:border-term-border-strong hover:text-term-text disabled:cursor-not-allowed disabled:opacity-40"
+            className={cn(styles.pagerButton, 'flex h-5 items-center border border-term-border bg-term-panel px-1.5 text-[11px] transition-colors hover:border-term-border-strong hover:text-term-text disabled:cursor-not-allowed disabled:opacity-40')}
             aria-label="下一页"
           >
             下一页 ▶
