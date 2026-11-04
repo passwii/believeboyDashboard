@@ -1,0 +1,62 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
+import { describe, expect, it, vi } from 'vitest'
+
+const redirectMock = vi.hoisted(() => vi.fn())
+
+vi.mock('next/navigation', () => ({
+  redirect: redirectMock,
+}))
+
+import PricingCalculationPage from './page'
+
+function read(name: string) {
+  return readFileSync(join(__dirname, name), 'utf8')
+}
+
+describe('定价核算 Warm Ledger contract', () => {
+  it('keeps the pricing-calculation parent route redirecting to new-product', () => {
+    PricingCalculationPage()
+
+    expect(redirectMock).toHaveBeenCalledWith('/dashboard/reports/pricing-calculation/new-product')
+  })
+
+  it('marks the new-product and shop-calculation surfaces', () => {
+    expect(read('new-product/new-product-client.tsx')).toContain(
+      'data-warm-pricing-new-product="true"'
+    )
+    expect(read('shop-calculation/shop-calculation-client.tsx')).toContain(
+      'data-warm-pricing-shop-calculation="true"'
+    )
+  })
+
+  it('keeps export, tab, calculation, and snapshot workflows in place', () => {
+    const newProduct = read('new-product/new-product-client.tsx')
+    const shop = read('shop-calculation/shop-calculation-client.tsx')
+
+    expect(newProduct).toContain('测算对比矩阵')
+    expect(newProduct).toContain('导出 Excel')
+    expect(newProduct).toContain('requestPricingCalculation')
+    expect(shop).toContain('PricingSnapshotSelector')
+    expect(shop).toContain('handleExport')
+    expect(shop).toContain('ShopCalculationUsSection')
+  })
+
+  it('uses Warm tokens without Terminal aliases or new page breakpoints', () => {
+    for (const source of [
+      read('new-product/new-product-client.tsx'),
+      read('shop-calculation/shop-calculation-client.tsx'),
+    ]) {
+      expect(source).not.toContain('rounded-none')
+      expect(source).not.toMatch(/\b(?:bg|border|text|divide)-term-/)
+    }
+
+    const css = read('pricing-calculation-warm.module.css')
+    expect(css).toContain('var(--warm-ledger-color-panel)')
+    expect(css).toContain('var(--warm-ledger-radius-panel)')
+    expect(css).toContain('overflow-x: auto')
+    expect(css).not.toContain('--term-')
+    expect(css).not.toContain('@media')
+  })
+})

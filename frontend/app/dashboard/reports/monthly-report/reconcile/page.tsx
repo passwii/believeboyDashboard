@@ -16,6 +16,7 @@ import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import AutoReconcileTab from './auto-reconcile-tab'
 import ManualReconcileTab from './manual-reconcile-tab'
 import { useSharedReportProject } from '../shared-project'
+import styles from './reconcile-warm.module.css'
 
 /**
  * BLF-964 · reconcile 页外层承载：
@@ -121,22 +122,22 @@ export default function ReconcilePage() {
   )
 
   return (
-    <div className="w-full space-y-6">
+    <div className={styles.page} data-warm-monthly-reconcile="true">
       {headerSlotPortal}
       {mobileFilterStrip}
       <Tabs
         defaultValue="auto"
         value={activeTab}
         onValueChange={(v) => setActiveTab(v as 'auto' | 'manual')}
-        className="w-full"
+        className={styles.tabs}
       >
-        {/* BLF-883 全局统一：variant="term" + 前置 icon（与外层月报 Tab 同规格） */}
-        <TabsList variant="term" className="mb-6 w-fit justify-start">
-          <TabsTrigger value="auto" variant="term">
+        {/* 与月报外层 Tab 保持同一 Warm 分段控件规格。 */}
+        <TabsList className={styles.tabList} data-warm-tablist="true">
+          <TabsTrigger value="auto" className={styles.tab}>
             <Zap aria-hidden />
             自动核对
           </TabsTrigger>
-          <TabsTrigger value="manual" variant="term">
+          <TabsTrigger value="manual" className={styles.tab}>
             <PenLine aria-hidden />
             手动核对
           </TabsTrigger>

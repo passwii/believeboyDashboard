@@ -18,12 +18,12 @@ import {
   Download,
 } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
+import { WarmButton, WarmBadge } from '@/components/dashboard-v2/warm-ledger/controls'
 import { UploadZone } from '@/components/ui/upload-zone'
 import { useNotifications } from '@/components/notifications'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { DataCard, DataCardContent } from '@/components/ui/data-card'
 import { cn } from '@/lib/utils'
+import styles from './reconcile-warm.module.css'
 
 interface AutoReconcileTabProps {
   projectId: string
@@ -192,15 +192,15 @@ function getReconcileStatus(
 function ReconcileStatusIcon({ status }: { status: ReconcileStatus }) {
   switch (status) {
     case 'pending':
-      return <Minus className="h-5 w-5 text-muted-foreground/40" />
+      return <Minus className={styles.iconMuted} />
     case 'reconciling':
-      return <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      return <Loader2 className={cn(styles.iconLoading, styles.spin)} />
     case 'success':
-      return <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+      return <CheckCircle2 className={styles.iconPositive} />
     case 'warning':
-      return <AlertCircle className="h-5 w-5 text-term-warn" />
+      return <AlertCircle className={styles.iconWarning} />
     case 'error':
-      return <XCircle className="h-5 w-5 text-term-neg" />
+      return <XCircle className={styles.iconNegative} />
   }
 }
 
@@ -282,13 +282,13 @@ function PDFUploadPanel({
   }
 
   return (
-    <div className="flex flex-col items-center justify-center py-12 px-4">
+    <div className={styles.uploadPanel}>
       {/* Header Info */}
-      <div className="mb-6 text-center">
-        <h3 className="text-lg font-semibold mb-1">
+      <div className={styles.uploadHeader}>
+        <h3>
           {isReplacing ? '更新 PDF 文件' : '上传 PDF 文件'}
         </h3>
-        <p className="text-sm text-muted-foreground">
+        <p>
           {isPdfMissing
             ? '原文件已丢失，请重新上传'
             : isReplacing
@@ -298,7 +298,7 @@ function PDFUploadPanel({
       </div>
 
       {/* Upload Zone */}
-      <div className="w-full max-w-md">
+      <div className={styles.uploadZoneWrap}>
         <UploadZone
           accept=".pdf,application/pdf"
           maxSize={50}
@@ -311,57 +311,57 @@ function PDFUploadPanel({
 
       {/* Selected File Info */}
       {selectedFile && uploadState === 'idle' && (
-        <div className="mt-4 flex flex-col items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-none border border-term-pos/40 bg-term-pos/10 text-term-pos">
-            <File className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
+        <div className={styles.selectedFile}>
+          <div className={styles.fileBadge}>
+            <File className={styles.fileIcon} />
           </div>
-          <div className="text-center">
-            <p className="text-sm font-medium truncate max-w-[280px]">{selectedFile.name}</p>
-            <p className="text-xs text-muted-foreground">
+          <div className={styles.selectedFileCopy}>
+            <p className={styles.fileName}>{selectedFile.name}</p>
+            <p className={styles.fileMeta}>
               {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={handleRemoveFile}>
+          <WarmButton variant="secondary" className={styles.compactButton} onClick={handleRemoveFile}>
             移除
-          </Button>
+          </WarmButton>
         </div>
       )}
 
       {/* Error Message */}
       {displayError && (
-        <div className="mt-4 flex items-center gap-2 text-sm text-term-neg">
-          <XCircle className="h-4 w-4" />
+        <div className={styles.errorRow}>
+          <XCircle className={styles.inlineIcon} />
           {displayError}
         </div>
       )}
 
       {/* Success State */}
       {uploadState === 'success' && (
-        <div className="mt-6 flex flex-col items-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-none border border-term-pos/40 bg-term-pos/10 text-term-pos">
-            <Check className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+        <div className={styles.uploadSuccess}>
+          <div className={styles.successBadge}>
+            <Check className={styles.successIcon} />
           </div>
-          <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">上传成功</p>
+          <p>上传成功</p>
         </div>
       )}
 
       {/* Action Buttons */}
-      <div className="mt-6 flex items-center gap-3">
+      <div className={styles.actionRow}>
         {uploadState !== 'success' && (
-          <Button variant="outline" onClick={onClose}>
+          <WarmButton variant="secondary" onClick={onClose}>
             取消
-          </Button>
+          </WarmButton>
         )}
         {uploadState === 'success' && (
-          <Button variant="outline" onClick={onClose}>
+          <WarmButton variant="secondary" onClick={onClose}>
             关闭
-          </Button>
+          </WarmButton>
         )}
       </div>
 
       {/* Warning for replacement */}
       {isReplacing && !isPdfMissing && (
-        <p className="mt-4 text-xs text-term-warn">
+        <p className={styles.warningText}>
           注意：上传新文件将覆盖原有的 PDF 文件
         </p>
       )}
@@ -465,12 +465,12 @@ function CSVUploadPanel({
   }
 
   return (
-    <div className="flex flex-col items-center justify-center py-12 px-4">
-      <div className="mb-6 text-center">
-        <h3 className="text-lg font-semibold mb-1">
+    <div className={styles.uploadPanel}>
+      <div className={styles.uploadHeader}>
+        <h3>
           {isReplacing ? '更新 CSV 文件' : '上传 CSV 文件'}
         </h3>
-        <p className="text-sm text-muted-foreground">
+        <p>
           {isCsvMissing
             ? '原文件已丢失，请重新上传'
             : isReplacing
@@ -479,7 +479,7 @@ function CSVUploadPanel({
         </p>
       </div>
 
-      <div className="w-full max-w-md">
+      <div className={styles.uploadZoneWrap}>
         <UploadZone
           accept=".csv,text/csv"
           maxSize={50}
@@ -491,53 +491,53 @@ function CSVUploadPanel({
       </div>
 
       {selectedFile && uploadState === 'idle' && (
-        <div className="mt-4 flex flex-col items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-none border border-term-pos/40 bg-term-pos/10 text-term-pos">
-            <File className="h-7 w-7 text-emerald-600 dark:text-emerald-400" />
+        <div className={styles.selectedFile}>
+          <div className={styles.fileBadge}>
+            <File className={styles.fileIcon} />
           </div>
-          <div className="text-center">
-            <p className="text-sm font-medium truncate max-w-[280px]">{selectedFile.name}</p>
-            <p className="text-xs text-muted-foreground">
+          <div className={styles.selectedFileCopy}>
+            <p className={styles.fileName}>{selectedFile.name}</p>
+            <p className={styles.fileMeta}>
               {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={handleRemoveFile}>
+          <WarmButton variant="secondary" className={styles.compactButton} onClick={handleRemoveFile}>
             移除
-          </Button>
+          </WarmButton>
         </div>
       )}
 
       {displayError && (
-        <div className="mt-4 flex items-center gap-2 text-sm text-term-neg">
-          <XCircle className="h-4 w-4" />
+        <div className={styles.errorRow}>
+          <XCircle className={styles.inlineIcon} />
           {displayError}
         </div>
       )}
 
       {uploadState === 'success' && (
-        <div className="mt-6 flex flex-col items-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-none border border-term-pos/40 bg-term-pos/10 text-term-pos">
-            <Check className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+        <div className={styles.uploadSuccess}>
+          <div className={styles.successBadge}>
+            <Check className={styles.successIcon} />
           </div>
-          <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">上传成功</p>
+          <p>上传成功</p>
         </div>
       )}
 
-      <div className="mt-6 flex items-center gap-3">
+      <div className={styles.actionRow}>
         {uploadState !== 'success' && (
-          <Button variant="outline" onClick={onClose}>
+          <WarmButton variant="secondary" onClick={onClose}>
             取消
-          </Button>
+          </WarmButton>
         )}
         {uploadState === 'success' && (
-          <Button variant="outline" onClick={onClose}>
+          <WarmButton variant="secondary" onClick={onClose}>
             关闭
-          </Button>
+          </WarmButton>
         )}
       </div>
 
       {isReplacing && !isCsvMissing && (
-        <p className="mt-4 text-xs text-term-warn">
+        <p className={styles.warningText}>
           注意：上传新文件将覆盖原有的 CSV 文件
         </p>
       )}
@@ -562,43 +562,45 @@ function RawFilesGroup({
   const csvAvailable = report.has_transaction_csv && !report.transaction_csv_missing
 
   return (
-    <div className="mt-6 rounded-none border-term-border">
-      <div className="border-b px-4 py-3">
-        <span className="text-sm font-medium text-muted-foreground">原始文件 / 数据</span>
+    <section className={styles.rawFiles} aria-label="原始文件 / 数据">
+      <div className={styles.rawFilesHeader}>
+        <span>原始文件 / 数据</span>
       </div>
-      <div className="divide-y">
+      <div className={styles.rawFilesList}>
         {/* PT3 Excel Download */}
         <button
-          className="flex w-full items-center gap-3 px-4 py-3 transition-colors hover:bg-term-hover"
+          type="button"
+          className={styles.rawFileRow}
           onClick={() => handleDownloadPT3Excel(report.report_id, notify)}
         >
-          <Table className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-          <div className="text-left">
-            <div className="text-sm font-medium">数据库数据</div>
-            <div className="text-xs text-muted-foreground">PT3 核算数据 (.xlsx)</div>
+          <Table className={cn(styles.rawFileIcon, styles.iconPositive)} />
+          <div className={styles.rawFileCopy}>
+            <div>数据库数据</div>
+            <span>PT3 核算数据 (.xlsx)</span>
           </div>
-          <Download className="ml-auto h-4 w-4 text-muted-foreground" />
+          <Download className={styles.rawFileDownload} />
         </button>
 
         {/* PDF Download */}
         {pdfAvailable ? (
           <button
-            className="flex w-full items-center gap-3 px-4 py-3 transition-colors hover:bg-term-hover"
+            type="button"
+            className={styles.rawFileRow}
             onClick={() => handleDownloadPDF(report.report_id, notify)}
           >
-            <FileText className="h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400" />
-            <div className="text-left">
-              <div className="text-sm font-medium">PDF 原文</div>
-              <div className="text-xs text-muted-foreground">结算汇总 PDF</div>
+            <FileText className={cn(styles.rawFileIcon, styles.iconAccent)} />
+            <div className={styles.rawFileCopy}>
+              <div>PDF 原文</div>
+              <span>结算汇总 PDF</span>
             </div>
-            <Download className="ml-auto h-4 w-4 text-muted-foreground" />
+            <Download className={styles.rawFileDownload} />
           </button>
         ) : (
-          <div className="flex w-full items-center gap-3 px-4 py-3 opacity-50">
-            <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
-            <div className="text-left">
-              <div className="text-sm font-medium">PDF 原文</div>
-              <div className="text-xs text-muted-foreground">PDF 文件不可用</div>
+          <div className={cn(styles.rawFileRow, styles.rawFileDisabled)}>
+            <FileText className={cn(styles.rawFileIcon, styles.iconMuted)} />
+            <div className={styles.rawFileCopy}>
+              <div>PDF 原文</div>
+              <span>PDF 文件不可用</span>
             </div>
           </div>
         )}
@@ -606,44 +608,45 @@ function RawFilesGroup({
         {/* CSV Download */}
         {csvAvailable ? (
           <button
-            className="flex w-full items-center gap-3 px-4 py-3 transition-colors hover:bg-term-hover"
+            type="button"
+            className={styles.rawFileRow}
             onClick={() => handleDownloadCSV(report.report_id, notify)}
           >
-            <Table className="h-5 w-5 shrink-0 text-term-warn" />
-            <div className="text-left">
-              <div className="text-sm font-medium">源 CSV</div>
-              <div className="text-xs text-muted-foreground">结算交易 CSV</div>
+            <Table className={cn(styles.rawFileIcon, styles.iconWarning)} />
+            <div className={styles.rawFileCopy}>
+              <div>源 CSV</div>
+              <span>结算交易 CSV</span>
             </div>
-            <Download className="ml-auto h-4 w-4 text-muted-foreground" />
+            <Download className={styles.rawFileDownload} />
           </button>
         ) : (
-          <div className="flex w-full items-center gap-3 px-4 py-3 opacity-50">
-            <Table className="h-5 w-5 shrink-0 text-muted-foreground" />
-            <div className="text-left">
-              <div className="text-sm font-medium">源 CSV</div>
-              <div className="text-xs text-muted-foreground">
+          <div className={cn(styles.rawFileRow, styles.rawFileDisabled)}>
+            <Table className={cn(styles.rawFileIcon, styles.iconMuted)} />
+            <div className={styles.rawFileCopy}>
+              <div>源 CSV</div>
+              <span>
                 {report.transaction_csv_missing ? '源文件已丢失' : '暂无源文件'}
-              </div>
+              </span>
             </div>
           </div>
         )}
       </div>
 
       {/* Re-upload buttons */}
-      <div className="flex flex-wrap justify-center gap-3 border-t px-4 py-3">
-        <Button variant="outline" onClick={() => onShowUpload('pdf')}>
+      <div className={styles.rawFilesActions}>
+        <WarmButton variant="secondary" onClick={() => onShowUpload('pdf')}>
           <Upload className="mr-2 h-4 w-4" />
           重新上传 PDF
-        </Button>
-        <Button variant="outline" onClick={() => onShowUpload('csv')}>
+        </WarmButton>
+        <WarmButton variant="secondary" onClick={() => onShowUpload('csv')}>
           <FileUp className="mr-2 h-4 w-4" />
           重新上传 CSV
-        </Button>
+        </WarmButton>
       </div>
 
       {/* Paste / drag / click upload area (common UploadZone design) */}
-      <div className="border-t px-4 py-3">
-        <p className="mb-2 text-xs font-medium text-muted-foreground">
+      <div className={styles.rawUploadZone}>
+        <p>
           粘贴 / 拖拽 / 选择文件上传（支持 PDF 与 CSV）
         </p>
         <UploadZone
@@ -683,7 +686,7 @@ function RawFilesGroup({
           }}
         />
       </div>
-    </div>
+    </section>
   )
 }
 
@@ -826,16 +829,16 @@ function DetailPanel({
         if (!open) onClose()
       }}
     >
-      <DialogContent className="w-[calc(100%-1.5rem)] sm:w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col p-0">
-        <DialogHeader className="border-b px-6 py-4">
+      <DialogContent className={styles.dialog} data-warm-auto-reconcile-dialog="true">
+        <DialogHeader className={styles.dialogHeader}>
           <DialogTitle>
             {formatMonth(report.report_month)} - {COUNTRY_LABELS[country] || country}
           </DialogTitle>
-          <p className="text-sm text-muted-foreground">{report.project_name}</p>
+          <p className={styles.dialogSubtitle}>{report.project_name}</p>
         </DialogHeader>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className={styles.dialogBody}>
           {/* Show upload panel if needs upload or file is missing or has error */}
           {showUploadPanel ? (
             uploadTargetResolved === 'csv' ? (
@@ -855,140 +858,131 @@ function DetailPanel({
             )
           ) : needsCalculation ? (
             /* Show message if calculation not done */
-            <div className="flex flex-col items-center justify-center py-20">
-              <AlertCircle className="h-10 w-10 text-term-warn" />
-              <p className="mt-4 text-center font-medium">报表核算未完成</p>
-              <p className="mt-2 text-center text-sm text-muted-foreground">
+            <div className={styles.dialogState}>
+              <AlertCircle className={styles.stateIconWarning} />
+              <p className={styles.stateTitle}>报表核算未完成</p>
+              <p className={styles.stateDescription}>
                 请先在月报核算页面完成 PT3 报表核算，再进行核对
               </p>
               {/* Always show re-upload button */}
-              <div className="mt-6 flex gap-3">
-                <Button variant="outline" onClick={() => onReconcile(report)}>
+              <div className={styles.actionRow}>
+                <WarmButton variant="secondary" onClick={() => onReconcile(report)}>
                   <RefreshCw className="mr-2 h-4 w-4" />
                   重新核对
-                </Button>
-                <Button variant="ghost" onClick={onClose}>
+                </WarmButton>
+                <WarmButton variant="quiet" onClick={onClose}>
                   关闭
-                </Button>
+                </WarmButton>
               </div>
             </div>
           ) : !result && reconciling ? (
             /* Loading state */
-            <div className="flex flex-col items-center justify-center py-20">
-              <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
-              <p className="mt-4 text-muted-foreground">正在核对...</p>
+            <div className={styles.dialogState} role="status">
+              <Loader2 className={cn(styles.stateIcon, styles.spin)} />
+              <p className={styles.stateDescription}>正在核对...</p>
             </div>
           ) : result ? (
             /* Show reconciliation result */
             <>
               {/* Summary Stats */}
-              <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-                <div className="rounded-none border border-term-border bg-term-raised p-3">
-                  <div className="text-sm text-muted-foreground">收入合计</div>
-                  <div className="mt-1 font-mono text-xl font-semibold">
+              <div className={styles.summaryGrid}>
+                <div className={styles.summaryCard}>
+                  <div className={styles.summaryLabel}>收入合计</div>
+                  <div className={styles.summaryValue}>
                     {formatCurrency(result.summary.db_total_income, country)}
                   </div>
                 </div>
-                <div className="rounded-none border border-term-border bg-term-raised p-3">
-                  <div className="text-sm text-muted-foreground">支出合计</div>
-                  <div className="mt-1 font-mono text-xl font-semibold">
+                <div className={styles.summaryCard}>
+                  <div className={styles.summaryLabel}>支出合计</div>
+                  <div className={styles.summaryValue}>
                     {formatCurrency(result.summary.db_total_expense, country)}
                   </div>
                 </div>
-                <div className="rounded-none border border-term-border bg-term-raised p-3">
-                  <div className="text-sm text-muted-foreground">净收款</div>
-                  <div className="mt-1 font-mono text-xl font-semibold text-emerald-600 dark:text-emerald-400">
+                <div className={styles.summaryCard}>
+                  <div className={styles.summaryLabel}>净收款</div>
+                  <div className={cn(styles.summaryValue, styles.positiveText)}>
                     {formatCurrency(result.summary.db_net_amount, country)}
                   </div>
                 </div>
               </div>
 
               {/* Match Rate Badge */}
-              <div className="mb-6 flex flex-wrap items-center gap-4">
-                <div
-                  className={cn(
-                    'flex items-center gap-2 rounded-none border px-3 py-1.5 font-mono text-xs',
+              <div className={styles.matchSummary}>
+                <WarmBadge
+                  tone={
                     result.match_rate === 100
-                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                      ? 'positive'
                       : result.match_rate >= 70
-                        ? 'bg-term-warn/10 text-term-warn'
-                        : 'bg-term-neg/10 text-term-neg'
-                  )}
+                        ? 'accent'
+                        : 'negative'
+                  }
+                  className={styles.matchBadge}
                 >
                   {result.match_rate === 100 ? (
-                    <CheckCircle2 className="h-4 w-4" />
+                    <CheckCircle2 className={styles.inlineIcon} />
                   ) : result.match_rate >= 70 ? (
-                    <AlertCircle className="h-4 w-4" />
+                    <AlertCircle className={styles.inlineIcon} />
                   ) : (
-                    <XCircle className="h-4 w-4" />
+                    <XCircle className={styles.inlineIcon} />
                   )}
                   匹配率 {result.match_rate}%
-                </div>
-                <span className="text-sm text-muted-foreground">
+                </WarmBadge>
+                <span className={styles.matchMeta}>
                   {result.matched_items}/{result.total_items} 匹配 · {result.mismatched_items} 差异
                   · {result.missing_items} 缺失
                 </span>
               </div>
 
               {/* Detail Table */}
-              <div className="rounded-none border border-term-border overflow-x-auto term-scroll">
-                <table className="w-full border-collapse">
+              <div className={styles.tableScroll} data-warm-table-scroll="true">
+                <table className={styles.table}>
                   <thead>
-                    <tr className="border-b bg-term-hover text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      <th className="border-r px-4 py-3 text-left">字段</th>
-                      <th className="border-r px-4 py-3 text-right">数据库</th>
-                      <th className="border-r px-4 py-3 text-right">PDF</th>
-                      <th className="px-4 py-3 text-right">差异</th>
+                    <tr>
+                      <th>字段</th>
+                      <th className={styles.numericCell}>数据库</th>
+                      <th className={styles.numericCell}>PDF</th>
+                      <th className={styles.numericCell}>差异</th>
                     </tr>
                   </thead>
                   <tbody>
                     {result.items.map((item, index) => {
                       const label = FIELD_NAME_LABELS[item.field_name] || item.field_name
                       const isMatch = item.match
-                      const rowBg = isMatch
-                        ? 'bg-emerald-50/50 dark:bg-emerald-900/10'
-                        : 'bg-term-neg/5'
 
                       return (
-                        <tr key={index} className={cn('border-b last:border-b-0', rowBg)}>
-                          <td className="border-r px-4 py-3">
-                            <div className="flex items-center gap-2">
+                        <tr key={index} data-match={isMatch ? 'true' : 'false'}>
+                          <td>
+                            <div className={styles.tableLabel}>
                               {isMatch ? (
-                                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+                                <CheckCircle2 className={cn(styles.inlineIcon, styles.iconPositive)} />
                               ) : (
-                                <XCircle className="h-4 w-4 shrink-0 text-term-neg" />
+                                <XCircle className={cn(styles.inlineIcon, styles.iconNegative)} />
                               )}
-                              <span className="font-medium text-sm">{label}</span>
+                              <span>{label}</span>
                             </div>
                           </td>
                           <td
-                            className={cn(
-                              'border-r px-4 py-3 text-right font-mono',
-                              isMatch ? 'text-foreground' : 'text-term-neg'
-                            )}
+                            className={cn(styles.numericCell, !isMatch && styles.negativeText)}
                           >
                             {formatCurrency(item.db_value, country)}
                           </td>
                           <td
-                            className={cn(
-                              'border-r px-4 py-3 text-right font-mono',
-                              isMatch ? 'text-foreground' : 'text-term-neg'
-                            )}
+                            className={cn(styles.numericCell, !isMatch && styles.negativeText)}
                           >
                             {formatCurrency(item.pdf_value, country)}
                           </td>
-                          <td className="px-4 py-3 text-right">
+                          <td className={styles.numericCell}>
                             {isMatch ? (
-                              <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                              <span className={styles.positiveText}>
                                 OK
                               </span>
                             ) : (
-                              <div className="flex flex-col items-end gap-0.5">
-                                <span className="text-xs font-medium text-term-neg">
+                              <div className={styles.difference}>
+                                <span className={styles.negativeText}>
                                   {formatCurrency(item.difference, country)}
                                 </span>
                                 {item.difference_percent !== null && (
-                                  <span className="text-xs text-muted-foreground">
+                                  <span className={styles.mutedText}>
                                     ({item.difference_percent}%)
                                   </span>
                                 )}
@@ -1004,17 +998,17 @@ function DetailPanel({
             </>
           ) : (
             /* Empty state - should not happen normally */
-            <div className="flex flex-col items-center justify-center py-20">
-              <FileText className="h-10 w-10 text-muted-foreground/50" />
-              <p className="mt-4 text-muted-foreground">暂无数据</p>
-              <div className="mt-6 flex gap-3">
-                <Button variant="outline" onClick={() => onReconcile(report)}>
+            <div className={styles.dialogState}>
+              <FileText className={styles.stateIcon} />
+              <p className={styles.stateDescription}>暂无数据</p>
+              <div className={styles.actionRow}>
+                <WarmButton variant="secondary" onClick={() => onReconcile(report)}>
                   <RefreshCw className="mr-2 h-4 w-4" />
                   重新核对
-                </Button>
-                <Button variant="ghost" onClick={onClose}>
+                </WarmButton>
+                <WarmButton variant="quiet" onClick={onClose}>
                   关闭
-                </Button>
+                </WarmButton>
               </div>
             </div>
           )}
@@ -1363,34 +1357,34 @@ export default function AutoReconcileTab({
   )
 
   return (
-    <div className="space-y-6">
+    <div className={styles.stack} data-warm-auto-reconcile="true">
       {/* Reports List */}
       {projectId && (
         <>
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">可核对月报</h2>
-            <span className="text-sm text-muted-foreground">
+          <div className={styles.sectionHeader}>
+            <h2>可核对月报</h2>
+            <span>
               共 {availableReports.length} 条记录
               {canReconcileReports.length > 0 && (
-                <span className="ml-2 text-emerald-600">
+                <span className={styles.positiveText}>
                   ({canReconcileReports.length} 条可核对)
                 </span>
               )}
             </span>
           </div>
 
-          <DataCard className="overflow-hidden rounded-none border-term-border shadow-none">
+          <section className={styles.panel} aria-label="可核对月报">
             {availableReports.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
+              <div className={styles.tableScroll} data-warm-table-scroll="true">
+                <table className={styles.table}>
                   <thead>
-                    <tr className="border-b bg-term-hover text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      <th className="px-4 py-3 text-left">月份</th>
-                      <th className="px-4 py-3 text-left">站点</th>
-                      <th className="px-4 py-3 text-center">PDF</th>
-                      <th className="px-4 py-3 text-center">核算</th>
-                      <th className="px-4 py-3 text-center">核对</th>
-                      <th className="px-4 py-3 text-center">操作</th>
+                    <tr>
+                      <th>月份</th>
+                      <th>站点</th>
+                      <th className={styles.centeredCell}>PDF</th>
+                      <th className={styles.centeredCell}>核算</th>
+                      <th className={styles.centeredCell}>核对</th>
+                      <th className={styles.centeredCell}>操作</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1409,56 +1403,54 @@ export default function AutoReconcileTab({
                       return (
                         <tr
                           key={report.report_id}
-                          className={cn(
-                            'cursor-pointer border-b transition-colors',
-                            isSelected ? 'bg-primary/5' : 'hover:bg-term-hover'
-                          )}
+                          className={styles.reportRow}
+                          data-selected={isSelected ? 'true' : 'false'}
                           onClick={() => handleRowClick(report)}
                         >
-                          <td className="px-4 py-3">
-                            <span className="font-medium">{formatMonth(report.report_month)}</span>
+                          <td>
+                            <span>{formatMonth(report.report_month)}</span>
                           </td>
-                          <td className="px-4 py-3 text-sm">
+                          <td>
                             {COUNTRY_LABELS[report.country] || report.country}
                           </td>
-                          <td className="px-4 py-3">
+                          <td className={styles.centeredCell}>
                             <div
-                              className="flex justify-center"
+                              className={styles.centeredContent}
                               title={report.pdf_file_missing ? 'PDF 文件缺失' : ''}
                             >
                               {report.pdf_file_missing ? (
-                                <FileX className="h-5 w-5 text-term-neg" />
+                                <FileX className={styles.iconNegative} />
                               ) : report.has_summary_pdf ? (
-                                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                                <CheckCircle2 className={styles.iconPositive} />
                               ) : (
-                                <XCircle className="h-5 w-5 text-term-neg" />
+                                <XCircle className={styles.iconNegative} />
                               )}
                             </div>
                           </td>
-                          <td className="px-4 py-3">
-                            <div className="flex justify-center">
+                          <td className={styles.centeredCell}>
+                            <div className={styles.centeredContent}>
                               {report.pt3_calculation_complete ? (
-                                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                                <CheckCircle2 className={styles.iconPositive} />
                               ) : (
-                                <XCircle className="h-5 w-5 text-term-neg" />
+                                <XCircle className={styles.iconNegative} />
                               )}
                             </div>
                           </td>
-                          <td className="px-4 py-3">
-                            <div className="flex justify-center">
+                          <td className={styles.centeredCell}>
+                            <div className={styles.centeredContent}>
                               {/* If can reconcile OR was previously reconciled, show status */}
                               {canReconcile || report.reconciled ? (
                                 <ReconcileStatusIcon status={status} />
                               ) : (
-                                <Minus className="h-5 w-5 text-muted-foreground/40" />
+                                <Minus className={styles.iconMuted} />
                               )}
                             </div>
                           </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center justify-center gap-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
+                          <td className={styles.centeredCell}>
+                            <div className={styles.rowActions}>
+                              <WarmButton
+                                variant="quiet"
+                                className={styles.rowAction}
                                 title="下载源 CSV"
                                 disabled={
                                   !report.has_transaction_csv || !!report.transaction_csv_missing
@@ -1467,25 +1459,23 @@ export default function AutoReconcileTab({
                                   e.stopPropagation()
                                   handleRowDownloadCSV(report)
                                 }}
-                                className="text-term-warn hover:text-term-warn hover:bg-term-warn/5"
                               >
                                 <Table className="mr-1 h-4 w-4" />
                                 CSV
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
+                              </WarmButton>
+                              <WarmButton
+                                variant="quiet"
+                                className={styles.rowAction}
                                 title="下载 PDF"
                                 disabled={!report.has_summary_pdf || !!report.pdf_file_missing}
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   handleDownloadPDF(report.report_id, notify)
                                 }}
-                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40"
                               >
                                 <FileText className="mr-1 h-4 w-4" />
                                 PDF
-                              </Button>
+                              </WarmButton>
                             </div>
                           </td>
                         </tr>
@@ -1495,29 +1485,29 @@ export default function AutoReconcileTab({
                 </table>
               </div>
             ) : (
-              <DataCardContent className="p-8 text-center text-muted-foreground">
-                <FileText className="mx-auto h-12 w-12 opacity-50" />
-                <p className="mt-4">暂无月报数据</p>
-              </DataCardContent>
+              <div className={styles.emptyState}>
+                <FileText className={styles.emptyIcon} />
+                <p>暂无月报数据</p>
+              </div>
             )}
-          </DataCard>
+          </section>
 
           {/* Legend */}
-          <div className="flex flex-wrap items-center gap-6 text-sm text-muted-foreground">
-            <span className="flex items-center gap-2">
-              <Minus className="h-4 w-4 text-muted-foreground/40" />
+          <div className={styles.legend}>
+            <span>
+              <Minus className={cn(styles.inlineIcon, styles.iconMuted)} />
               待核对
             </span>
-            <span className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+            <span>
+              <CheckCircle2 className={cn(styles.inlineIcon, styles.iconPositive)} />
               100% 匹配
             </span>
-            <span className="flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-term-warn" />
+            <span>
+              <AlertCircle className={cn(styles.inlineIcon, styles.iconWarning)} />
               70-99% 匹配
             </span>
-            <span className="flex items-center gap-2">
-              <XCircle className="h-4 w-4 text-term-neg" />
+            <span>
+              <XCircle className={cn(styles.inlineIcon, styles.iconNegative)} />
               &lt;70% 匹配
             </span>
           </div>
@@ -1526,9 +1516,9 @@ export default function AutoReconcileTab({
 
       {/* Empty state before project selection */}
       {!projectId && (
-        <div className="rounded-none border border-dashed border-term-border p-6 text-center font-mono text-xs text-term-faint">
-          <FileText className="mx-auto h-12 w-12 text-muted-foreground/50" />
-          <p className="mt-4 text-muted-foreground">请先选择项目和站点</p>
+        <div className={styles.emptyState}>
+          <FileText className={styles.emptyIcon} />
+          <p>请先选择项目和站点</p>
         </div>
       )}
 

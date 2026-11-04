@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 import GenerateTab from './generate-client'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
@@ -145,5 +147,43 @@ describe('BLF-1344 项目选择跨 tab 共享', () => {
     await waitFor(() => expect(headerCapture.slotNode).not.toBeNull())
     expect(new URLSearchParams(nav.toString()).get('project')).toBeNull()
     expect(readSharedReportProjectId(TEST_OWNER)).toBe('999')
+  })
+})
+
+describe('Warm Ledger 制作报表表面', () => {
+  it('使用 Warm 页面标记、面板与真实进度状态', async () => {
+    render(<GenerateTab />)
+
+    expect(await screen.findByText('文件识别与上传')).toBeInTheDocument()
+    expect(document.querySelector('[data-warm-monthly-generate="true"]')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: '控制台' })).toHaveAttribute(
+      'data-warm-surface',
+      'true'
+    )
+    expect(screen.getByRole('region', { name: '文件识别与上传' })).toHaveAttribute(
+      'data-warm-surface',
+      'true'
+    )
+    expect(screen.getByRole('region', { name: '处理状态' })).toHaveAttribute(
+      'data-warm-surface',
+      'true'
+    )
+    expect(screen.getByText('识别').closest('[data-warm-metric]')).toBeInTheDocument()
+    expect(
+      screen.getAllByText('上传').some((node) => node.closest('[data-warm-metric]'))
+    ).toBe(true)
+  })
+
+  it('页面源码不再保留 Terminal 视觉别名或零圆角类', () => {
+    const source = readFileSync(join(__dirname, 'generate-client.tsx'), 'utf8')
+    const css = readFileSync(join(__dirname, 'generate-warm.module.css'), 'utf8')
+
+    expect(source).not.toContain('rounded-none')
+    expect(source).not.toMatch(/\b(?:bg|border|text|divide)-term-/)
+    expect(source).not.toContain('variant="term"')
+    expect(css).toContain('var(--warm-ledger-color-panel)')
+    expect(css).toContain('var(--warm-ledger-radius-panel)')
+    expect(css).not.toContain('--term-')
+    expect(css).not.toContain('@media')
   })
 })

@@ -4,8 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { FileBarChart, LayoutDashboard, ShieldCheck } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-
-// BLF-867 Tabs 基座 Terminal 收口：由 variant="term" 统一承载 h-9/rounded-none/term 语义，消页面侧覆盖漂移。
+import styles from './monthly-report-warm.module.css'
 
 const TAB_ITEMS = [
   { value: 'display', label: '财务报表', icon: LayoutDashboard },
@@ -26,11 +25,11 @@ export default function MonthlyReportLayout({
       : 'display'
 
   return (
-    <div className="min-w-0 w-full space-y-3">
+    <div className={styles.shell}>
       <Tabs value={activeTab}>
-        <TabsList variant="term" className="grid w-full max-w-md grid-cols-3 justify-start">
+        <TabsList className={styles.tabList}>
           {TAB_ITEMS.map(({ value, label, icon: Icon }) => (
-            <TabsTrigger key={value} value={value} variant="term" asChild>
+            <TabsTrigger key={value} value={value} className={styles.tab} asChild>
               <Link href={`/dashboard/reports/monthly-report/${value}`}>
                 <Icon aria-hidden />
                 {label}
