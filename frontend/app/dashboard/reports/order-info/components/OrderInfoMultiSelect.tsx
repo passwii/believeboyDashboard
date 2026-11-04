@@ -32,6 +32,8 @@ export function OrderInfoMultiSelect({
 }: OrderInfoMultiSelectProps) {
   const [open, setOpen] = React.useState(false)
   const contentId = React.useId()
+  const searchInputRef = React.useRef<HTMLInputElement>(null)
+  const focusSearchOnOpenRef = React.useRef(false)
   const [portalContainer] = React.useState<HTMLElement | null>(() =>
     typeof document === 'undefined'
       ? null
@@ -39,8 +41,23 @@ export function OrderInfoMultiSelect({
   )
 
   const handleOpenChange = (next: boolean) => {
+    if (!next) focusSearchOnOpenRef.current = false
     setOpen(next)
     if (next) onOpen?.()
+  }
+
+  const handleTriggerKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget) return
+    if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'ArrowDown') return
+
+    event.preventDefault()
+    focusSearchOnOpenRef.current = true
+    if (open) {
+      searchInputRef.current?.focus()
+      focusSearchOnOpenRef.current = false
+      return
+    }
+    handleOpenChange(true)
   }
 
   const selectedOptions = options.filter((option) => selected.includes(option.value))
@@ -63,6 +80,7 @@ export function OrderInfoMultiSelect({
           aria-expanded={open}
           data-warm-order-multiselect="true"
           className={cn(styles.multiSelectTrigger, className)}
+          onKeyDown={handleTriggerKeyDown}
         >
           {selectedOptions.length > 0 ? (
             <span className={styles.multiSelectChips}>
@@ -100,11 +118,18 @@ export function OrderInfoMultiSelect({
           sideOffset={6}
           collisionPadding={12}
           className={cn('warm-ledger', styles.multiSelectContent)}
+          onOpenAutoFocus={(event) => {
+            if (!focusSearchOnOpenRef.current) return
+            event.preventDefault()
+            focusSearchOnOpenRef.current = false
+            searchInputRef.current?.focus()
+          }}
         >
           <CommandPrimitive className={styles.multiSelectCommand}>
             <div className={styles.multiSelectSearch}>
               <Search aria-hidden="true" />
               <CommandPrimitive.Input
+                ref={searchInputRef}
                 className={styles.multiSelectSearchInput}
                 placeholder="搜索..."
               />

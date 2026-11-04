@@ -90,3 +90,22 @@ The second independent Luna/max C3 re-review confirmed one remaining P2:
 Remediation remains page-local and backward-compatible. `ReportStatusCard` exposes an optional `selectContentClassName` hook and applies it to both select portals; the Manual Calculation and Monthly SKU panels pass the Product Analysis Warm Ledger scope plus a page-local `statusSelectContent` class. The menu content and options now use Warm panel/raised surfaces, Warm 10px/6px radii, Warm text/hover treatment, and sans typography. Omitting the hook preserves every shared Select default for non-Warm consumers.
 
 The C3 browser matrix now mocks two business-report candidates for Manual Calculation and asserts the opened menu's computed Warm panel background, warm token scope, content/option radii, hover colors, and non-mono typography. Verification passed locally: targeted Product Analysis Vitest 5 files / 16 tests, desktop C3 Playwright 3/3 on `PLAYWRIGHT_PORT=4315`, changed-file ESLint, and `git diff --check`. This remediation has not yet received a new Luna/max review, so C3 remains implementation complete + final review remediation in progress and the independent-review gate stays open.
+
+## Third Luna re-review remediation (in progress)
+
+The third independent Luna/max C3 re-review confirmed one remaining P2:
+
+1. **Order Info's focusable multi-select trigger was not keyboard-operable.** `OrderInfoMultiSelect` exposed a `div role="combobox"` with `tabIndex=0`, but Enter, Space, and ArrowDown did not open the popover. Keyboard users could reach the three filters but could not open their menus.
+
+Remediation remains local to `OrderInfoMultiSelect`. Trigger key handling opens the popover only when the keyboard event originates on the trigger itself, then moves focus into the search input through the content's open-autofocus hook. Events from nested chip-remove buttons are excluded, so those buttons retain their existing remove behavior. Pointer opening, selection toggling, clear-all, Escape behavior, ARIA wiring, selected chips, filters, and API/URL contracts are unchanged.
+
+Regression coverage observed three RED failures before implementation, then passed:
+
+- Enter, Space, and ArrowDown each open from the focused trigger and leave the search input focused and usable for filtering.
+- Enter and Space on a nested chip-remove button remove the chip without opening the popover.
+- The requested Order Info Vitest suite passed 3 files / 42 tests.
+- Changed-file ESLint and `git diff --check` passed.
+- The C3 desktop Playwright matrix passed 3/3 on `PLAYWRIGHT_PORT=4315`; the 3 mobile-project cases remained skipped as out of scope.
+- The Order Info production source scan returned no `--term-*`, `term-*`, or `rounded-none` matches.
+
+This remediation has not yet received a new Luna/max review. C3 remains implementation complete + final review remediation in progress, and the independent-review gate stays open.

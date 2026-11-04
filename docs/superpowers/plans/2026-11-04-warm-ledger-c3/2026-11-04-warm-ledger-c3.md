@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js App Router, React, TypeScript, CSS Modules, existing Warm Ledger shell/controls, Vitest, Testing Library, Playwright.
 
-> **Final review status (2026-11-04):** C3 implementation and desktop acceptance are complete. The first Luna/max review found two P2 issues; both were remediated. A second Luna/max C3 re-review then found one remaining P2 in Product Analysis's multi-candidate select portal. Its page-local Warm fix and regression coverage are in progress, so C3 remains implementation complete + final review remediation in progress. Do not mark C3 complete or check the independent-review gate until a new Luna/max re-review passes.
+> **Final review status (2026-11-04):** C3 implementation and desktop acceptance are complete. The first Luna/max review found two P2 issues; both were remediated. A second Luna/max C3 re-review then found one remaining P2 in Product Analysis's multi-candidate select portal; its page-local Warm fix and regression coverage are complete. A third Luna/max C3 re-review then confirmed one remaining P2 in Order Info: the focusable multi-select trigger did not open from Enter, Space, or ArrowDown. The local trigger-key handling and direct component coverage are complete, but a fresh Luna/max review has not run. C3 remains implementation complete + final review remediation in progress; do not mark C3 complete or check the independent-review gate until that review passes.
 
 ## Global Constraints
 
@@ -74,8 +74,9 @@ Completed in `f92b469e` before the 2026-11-04 DeepSeek model-policy switch. Targ
 
 **Files:**
 
-- Modify `frontend/app/dashboard/reports/order-info/page.tsx` and `frontend/app/dashboard/reports/order-info/page.test.tsx`.
+- Modify `frontend/app/dashboard/reports/order-info/page.tsx`, `frontend/app/dashboard/reports/order-info/page.test.tsx`, and `frontend/app/dashboard/reports/order-info/components/OrderInfoMultiSelect.tsx`.
 - Create `frontend/app/dashboard/reports/order-info/order-info-warm.module.css`.
+- Create `frontend/app/dashboard/reports/order-info/components/OrderInfoMultiSelect.test.tsx` for the third-review keyboard regression.
 - Modify `frontend/app/dashboard/reports/order-info/components/OrderEditDialog.tsx` only for Warm-scoped surface and accessibility changes; create `frontend/app/dashboard/reports/order-info/components/OrderEditDialog.test.tsx` for any changed dialog semantics.
 - Do not modify `backend/`, `frontend/lib/order-status.ts`, `frontend/components/terminal/term-table.tsx`, global `MultiSelect`, or the backend proxy.
 
@@ -93,6 +94,8 @@ Completed in `f92b469e` before the 2026-11-04 DeepSeek model-policy switch. Targ
 - [x] Apply page-local Warm CSS to the filter groups, table, statuses, pinned summary, pager, loading/empty/error states, and edit dialog; do not add secondary descriptions.
 - [x] Keep page styles desktop-only; do not add mobile or multi-breakpoint adaptations.
 - [x] Re-run targeted Vitest, changed-file ESLint, and `git diff --check`; commit only the Task 2 files and report the result for the consolidated C3 review.
+
+**Third-review keyboard remediation:** The focusable `OrderInfoMultiSelect` trigger now opens on Enter, Space, and ArrowDown only when the event target is the trigger itself, then moves focus into the search input. Chip-remove buttons retain their own Enter/Space removal behavior without opening the popover. Direct component tests cover all three open keys, search focus/filtering, and both nested remove-button keys. The requested Order Info suite passed 3 files / 42 tests; changed-file ESLint, `git diff --check`, the C3 desktop Playwright matrix (3 passed / 3 mobile skipped on `PLAYWRIGHT_PORT=4315`), and the Order Info Terminal-residue scan passed.
 
 ## Task 3: Product Analysis Page
 
