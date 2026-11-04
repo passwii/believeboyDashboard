@@ -49,9 +49,10 @@ const PROJECTS = [
 ]
 
 function genericApiPayload(pathname: string) {
-  if (pathname.endsWith('/projects/manage')) return PROJECTS
-  if (pathname.endsWith('/internal/api-keys')) return []
-  if (pathname.endsWith('/digital-employees/7')) {
+  const normalizedPath = pathname.replace(/\/+$/, '')
+  if (normalizedPath.endsWith('/projects/manage')) return PROJECTS
+  if (normalizedPath.endsWith('/internal/api-keys')) return []
+  if (normalizedPath.endsWith('/digital-employees/7')) {
     return {
       id: 7,
       name: 'Fixture Employee',
@@ -63,12 +64,12 @@ function genericApiPayload(pathname: string) {
     }
   }
   if (
-    pathname.endsWith('/digital-employees/7/tasks') ||
-    pathname.endsWith('/digital-employees/7/recent-logs')
+    normalizedPath.endsWith('/digital-employees/7/tasks') ||
+    normalizedPath.endsWith('/digital-employees/7/recent-logs')
   ) {
     return { items: [], total: 0 }
   }
-  if (pathname.includes('/ai-chat/config')) {
+  if (normalizedPath.includes('/ai-chat/config')) {
     return {
       providerConfigured: false,
       models: [],
@@ -77,15 +78,18 @@ function genericApiPayload(pathname: string) {
       basicModels: [],
     }
   }
-  if (pathname.includes('/exchange-rates') && pathname.startsWith('/api/exchange-rates')) {
+  if (
+    normalizedPath.includes('/exchange-rates') &&
+    normalizedPath.startsWith('/api/exchange-rates')
+  ) {
     return {
       success: true,
       data: [],
       pagination: { page: 1, pageSize: 12, total: 0, totalPages: 0 },
     }
   }
-  if (pathname.includes('/vat-invoices')) return []
-  if (pathname.includes('/notifications')) {
+  if (normalizedPath.includes('/vat-invoices')) return []
+  if (normalizedPath.includes('/notifications')) {
     return { items: [], unread_count: 0, unreadCount: 0 }
   }
   return {
