@@ -2,7 +2,7 @@
 
 import type { DigitalEmployee } from '@/types/digital-employee'
 import { DigitalEmployeeCard } from './digital-employee-card'
-import { cn } from '@/lib/utils'
+import styles from './digital-employee-warm.module.css'
 
 interface DigitalEmployeeGridProps {
   employees: DigitalEmployee[]
@@ -15,7 +15,7 @@ interface DigitalEmployeeGridProps {
 
 export function DigitalEmployeeGrid({ employees, onCardClick, taskMap }: DigitalEmployeeGridProps) {
   return (
-    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
+    <div className={styles.employeeList}>
       {employees.map((emp) => (
         <DigitalEmployeeCard
           key={emp.id}

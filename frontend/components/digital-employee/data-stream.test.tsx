@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { act, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -41,7 +44,7 @@ const FADE_MS = DURATION.medium * 1000
 
 function renderStream() {
   const { container } = render(<DataStream employee={EMPLOYEE} currentTask={RUNNING_TASK} />)
-  const panel = container.querySelector('.min-h-\\[72px\\]') as HTMLElement
+  const panel = container.querySelector('[data-testid="data-stream-panel"]') as HTMLElement
   expect(panel).not.toBeNull()
   return panel
 }
@@ -55,11 +58,10 @@ describe('DataStream：轮换 timer 与 transition 同源', () => {
     vi.useRealTimers()
   })
 
-  it('容器过渡使用 --duration-medium token，而不是字面量', () => {
+  it('轮换状态可被测试和辅助技术稳定识别', () => {
     const panel = renderStream()
     expect(screen.getByText('抓取中')).toBeTruthy()
-    expect(panel.className).toContain('duration-[var(--duration-medium)]')
-    expect(panel.className).not.toMatch(/duration-(?:300|200|500)(?![\w-])/)
+    expect(panel).toHaveAttribute('data-fade-state', 'in')
   })
 
   it('淡出走满 --duration-medium 后才换内容（timer 不得短于过渡）', () => {
@@ -70,14 +72,14 @@ describe('DataStream：轮换 timer 与 transition 同源', () => {
     act(() => {
       vi.advanceTimersByTime(4500)
     })
-    expect(panel.className).toContain('opacity-0')
+    expect(panel).toHaveAttribute('data-fade-state', 'out')
 
     // 过渡还没结束（差 1ms）：内容必须仍是旧的，否则就是 content pop
     act(() => {
       vi.advanceTimersByTime(FADE_MS - 1)
     })
     expect(screen.getByText('抓取中')).toBeTruthy()
-    expect(panel.className).toContain('opacity-0')
+    expect(panel).toHaveAttribute('data-fade-state', 'out')
 
     // 过渡结束 → 换内容并淡入
     act(() => {
@@ -85,10 +87,22 @@ describe('DataStream：轮换 timer 与 transition 同源', () => {
     })
     expect(screen.queryByText('抓取中')).toBeNull()
     expect(screen.getByText('描述文案')).toBeTruthy()
-    expect(panel.className).toContain('opacity-100')
+    expect(panel).toHaveAttribute('data-fade-state', 'in')
   })
 
   it('FADE_MS 与 CSS token 一致（350ms），不是历史遗留的 300ms', () => {
     expect(FADE_MS).toBe(350)
+  })
+})
+
+describe('Digital employee Warm styling contract', () => {
+  it('uses Warm tokens without Terminal aliases or desktop breakpoints', () => {
+    const css = readFileSync(join(__dirname, 'digital-employee-warm.module.css'), 'utf8')
+
+    expect(css).toContain('var(--warm-ledger-color-panel)')
+    expect(css).toContain('var(--warm-ledger-radius-panel)')
+    expect(css).toContain('var(--warm-ledger-inset-panel)')
+    expect(css).not.toContain('--term-')
+    expect(css).not.toContain('@media')
   })
 })

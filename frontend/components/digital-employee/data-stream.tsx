@@ -5,6 +5,8 @@ import type { DigitalEmployee } from '@/types/digital-employee'
 import { cn } from '@/lib/utils'
 import { DURATION } from '@/lib/motion/tokens'
 
+import styles from './digital-employee-warm.module.css'
+
 /**
  * 淡出 / 淡入时长（ms）。
  *
@@ -77,29 +79,6 @@ function buildMessages(
   return messages
 }
 
-const VARIANT_STYLES: Record<string, { border: string; bg: string; text: string }> = {
-  default: {
-    border: 'border-term-border',
-    bg: 'bg-term-bg',
-    text: 'text-term-text',
-  },
-  success: {
-    border: 'border-term-pos/40',
-    bg: 'bg-term-pos/5',
-    text: 'text-term-pos',
-  },
-  error: {
-    border: 'border-term-neg/40',
-    bg: 'bg-term-neg/5',
-    text: 'text-term-neg',
-  },
-  warning: {
-    border: 'border-term-warn/40',
-    bg: 'bg-term-warn/5',
-    text: 'text-term-warn',
-  },
-}
-
 export function DataStream({
   employee,
   currentTask,
@@ -134,44 +113,36 @@ export function DataStream({
   const current = messages[currentIndex] || messages[0]
   if (!current) return null
 
-  const variantStyle = VARIANT_STYLES[variant]
-
   return (
-    <div className={cn('space-y-2', className)}>
+    <div className={cn(styles.dataStream, className)}>
       <div
-        className={cn(
-          'rounded-none border px-3 py-2.5 min-h-[72px] transition-all duration-[var(--duration-medium)]',
-          variantStyle.border,
-          variantStyle.bg,
-          fadeState === 'in' ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'
-        )}
+        className={styles.streamPanel}
+        data-testid="data-stream-panel"
+        data-fade-state={fadeState}
+        data-variant={variant}
       >
-        <p className={cn('text-sm leading-relaxed', variantStyle.text)}>{current.text}</p>
+        <p className={styles.streamText}>{current.text}</p>
         {current.showProgress && current.progress !== undefined && (
-          <div className="mt-2">
-            <div className="h-1 w-full overflow-hidden rounded-none bg-term-border">
-              <div
-                className="h-full rounded-none bg-term-accent transition-all duration-[var(--duration-very-slow)]"
-                style={{ width: `${Math.min(100, Math.max(0, current.progress))}%` }}
-              />
-            </div>
+          <div className={styles.streamProgressTrack}>
+            <div
+              className={styles.streamProgressFill}
+              style={{ width: `${Math.min(100, Math.max(0, current.progress))}%` }}
+            />
           </div>
         )}
         {current.subtext && !current.showProgress && (
-          <p className="mt-1 font-mono text-xs text-term-muted">{current.subtext}</p>
+          <p className={styles.streamSubtext}>{current.subtext}</p>
         )}
       </div>
 
       {/* Dot indicators */}
       {messages.length > 1 && (
-        <div className="flex justify-center gap-1.5">
+        <div className={styles.streamDots}>
           {messages.map((msg, i) => (
             <span
               key={msg.id}
-              className={cn(
-                'h-1 w-1 rounded-full transition-colors duration-[var(--duration-quick)]',
-                i === currentIndex ? 'bg-foreground' : 'bg-muted-foreground/30'
-              )}
+              className={styles.streamDot}
+              data-active={i === currentIndex}
             />
           ))}
         </div>

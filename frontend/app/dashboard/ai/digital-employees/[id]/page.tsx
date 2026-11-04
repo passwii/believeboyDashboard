@@ -1,11 +1,13 @@
 'use client'
 
-import { useState, useEffect, useCallback, use, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { ArrowLeft, Pause, Play } from 'lucide-react'
-import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Badge } from '@/components/ui/badge'
+import { useParams, useRouter } from 'next/navigation'
+import {
+  WarmBadge,
+  WarmButton,
+  type WarmBadgeTone,
+} from '@/components/dashboard-v2/warm-ledger/controls'
 import {
   fetchDigitalEmployee,
   fetchEmployeeTasks,
@@ -16,37 +18,31 @@ import { EmployeeAvatar, getPersona } from '@/components/digital-employee/person
 import { StatusBadge } from '@/components/digital-employee/status-badge'
 import { HeartbeatDot } from '@/components/digital-employee/heartbeat-dot'
 import { LiveLog } from '@/components/digital-employee/live-log'
-import { cn } from '@/lib/utils'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
+import type {
+  DigitalEmployee,
+  DigitalEmployeeTask,
+  TaskStatus,
+} from '@/types/digital-employee'
+import styles from '@/components/digital-employee/digital-employee-warm.module.css'
 
-/** BLF-838：任务状态 → 终端单色语义（pill 底改 1px 边界） */
-const TASK_STATUS_STYLES: Record<string, string> = {
-  PENDING: 'border-term-border bg-term-bg text-term-faint',
-  RUNNING: 'border-term-accent/40 text-term-accent',
-  SUCCEEDED: 'border-term-pos/40 text-term-pos',
-  FAILED: 'border-term-neg/40 text-term-neg',
-  CANCELLED: 'border-term-warn/40 text-term-warn',
+const TASK_STATUS_TONES: Record<TaskStatus, WarmBadgeTone> = {
+  PENDING: 'neutral',
+  RUNNING: 'accent',
+  SUCCEEDED: 'positive',
+  FAILED: 'negative',
+  CANCELLED: 'neutral',
 }
 
-const TASK_STATUS_ICON: Record<string, string> = {
-  PENDING: '⏳',
-  RUNNING: '⚡',
-  SUCCEEDED: '✅',
-  FAILED: '❌',
-  CANCELLED: '⏸',
-}
-
-export default function EmployeeDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params)
+export default function EmployeeDetailPage() {
+  const routeParams = useParams<{ id: string }>()
   const router = useRouter()
-  const employeeId = parseInt(id, 10)
+  const employeeId = parseInt(routeParams.id, 10)
 
-  const [employee, setEmployee] = useState<
-    import('@/types/digital-employee').DigitalEmployee | null
-  >(null)
+  const [employee, setEmployee] = useState<DigitalEmployee | null>(null)
   const employeeRef = useRef(employee)
   employeeRef.current = employee
-  const [tasks, setTasks] = useState<import('@/types/digital-employee').DigitalEmployeeTask[]>([])
+  const [tasks, setTasks] = useState<DigitalEmployeeTask[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isActing, setIsActing] = useState(false)
@@ -55,11 +51,11 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
   const load = useCallback(async () => {
     if (!employeeRef.current) setIsLoading(true)
     try {
-      const [emp, taskData] = await Promise.all([
+      const [nextEmployee, taskData] = await Promise.all([
         fetchDigitalEmployee(employeeId),
         fetchEmployeeTasks(employeeId),
       ])
-      setEmployee(emp)
+      setEmployee(nextEmployee)
       setTasks(taskData.items)
     } catch {
       // Existing details remain visible during a transient refresh failure.
@@ -76,6 +72,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
       setIsRefreshing(false)
     }
   }, [load])
+
   useHeaderRefresh(refreshFromHeader, { loading: isLoading || isRefreshing })
 
   useEffect(() => {
@@ -88,7 +85,9 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
     setIsActing(true)
     try {
       await suspendEmployee(employeeId)
-      setEmployee((prev) => (prev ? { ...prev, status: 'SUSPENDED' } : null))
+      setEmployee((previous) =>
+        previous ? { ...previous, status: 'SUSPENDED' } : null
+      )
     } finally {
       setIsActing(false)
     }
@@ -98,7 +97,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
     setIsActing(true)
     try {
       await resumeEmployee(employeeId)
-      setEmployee((prev) => (prev ? { ...prev, status: 'IDLE' } : null))
+      setEmployee((previous) => (previous ? { ...previous, status: 'IDLE' } : null))
     } finally {
       setIsActing(false)
     }
@@ -106,17 +105,23 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
 
   if (isLoading) {
     return (
-      <div className="flex min-w-0 flex-col gap-3">
-        <Skeleton className="h-8 w-32" />
-        <Skeleton className="h-32 w-full rounded-none border border-term-border" />
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr,380px] gap-6">
-          <div className="space-y-4">
-            <Skeleton className="h-48 w-full rounded-none border border-term-border" />
-            <Skeleton className="h-64 w-full rounded-none border border-term-border" />
+      <div
+        className={styles.page}
+        data-warm-digital-employee-detail="true"
+        aria-busy="true"
+      >
+        <div className={`${styles.skeleton} ${styles.backRow}`} />
+        <div className={`${styles.skeleton} ${styles.skeletonRow}`} />
+        <div className={styles.skeletonLayout}>
+          <div className={styles.skeletonRoster}>
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className={`${styles.skeleton} ${styles.skeletonRow}`} />
+            ))}
           </div>
-          <div className="space-y-4">
-            <Skeleton className="h-64 w-full rounded-none border border-term-border" />
-            <Skeleton className="h-48 w-full rounded-none border border-term-border" />
+          <div className={styles.skeletonRail}>
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div key={index} className={`${styles.skeleton} ${styles.skeletonRow}`} />
+            ))}
           </div>
         </div>
       </div>
@@ -125,150 +130,177 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
 
   if (!employee) {
     return (
-      <div className="flex items-center justify-center p-8 text-muted-foreground">
-        数字员工不存在
+      <div
+        className={styles.page}
+        data-warm-digital-employee-detail="true"
+      >
+        <div className={styles.missingState}>数字员工不存在</div>
       </div>
     )
   }
 
   const persona = getPersona(employee.employee_type)
-  const runningTask = tasks.find((t) => t.status === 'RUNNING')
+  const runningTask = tasks.find((task) => task.status === 'RUNNING')
 
   return (
-    <div className="flex min-w-0 flex-col gap-3">
-      <Button variant="ghost" size="sm" onClick={() => router.back()} className="h-7 w-fit gap-1.5 rounded-none border border-transparent font-mono text-xs leading-5 text-term-muted hover:border-term-border hover:text-term-text">
-        <ArrowLeft className="h-3.5 w-3.5" strokeWidth={1.75} />
-        返回列表
-      </Button>
+    <div
+      className={styles.page}
+      data-warm-digital-employee-detail="true"
+      aria-busy={isRefreshing || undefined}
+    >
+      <div className={styles.backRow}>
+        <WarmButton
+          type="button"
+          variant="quiet"
+          onClick={() => router.back()}
+          aria-label="返回列表"
+        >
+          <ArrowLeft aria-hidden="true" />
+          返回列表
+        </WarmButton>
+      </div>
 
-      <div className="rounded-none border border-term-border bg-term-panel p-4 sm:p-6">
-        <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-5">
+      <section className={`${styles.panel} ${styles.profilePanel}`} aria-label={employee.name}>
+        <div className={styles.profileMain}>
           <EmployeeAvatar
             employeeType={employee.employee_type}
             size="xl"
             status={employee.status}
           />
-          <div className="flex-1 min-w-0">
-            <h1 className="truncate text-base font-semibold text-term-text">{employee.name}</h1>
-            <p className="mt-1 font-mono text-xs text-term-muted">
+          <div className={styles.profileCopy}>
+            <h1 className={styles.employeeNameTitle}>{employee.name}</h1>
+            <p className={styles.profileSubline}>
               {employee.employee_type.replace(/_/g, ' ').toLowerCase()} · {persona.tagline}
             </p>
-            <div className="flex items-center gap-3 mt-2">
+            <div className={styles.profileSignals}>
               <StatusBadge status={employee.status} />
               <HeartbeatDot lastSeen={employee.last_heartbeat_at} />
             </div>
           </div>
-          <div className="flex w-full gap-2 sm:w-auto">
-            {employee.status === 'SUSPENDED' ? (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => void handleResume()}
-                disabled={isActing}
-              >
-                <Play className="h-4 w-4 mr-1" /> 恢复
-              </Button>
-            ) : (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => void handleSuspend()}
-                disabled={isActing}
-              >
-                <Pause className="h-4 w-4 mr-1" /> 暂停
-              </Button>
-            )}
-          </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr,380px] gap-3">
-        <div className="space-y-3">
-          {runningTask && (
-            <div className="rounded-none border border-term-border bg-term-panel p-3">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-mono text-xs font-semibold uppercase tracking-wider text-term-muted">当前任务</h3>
-                <span className="font-mono text-xs text-term-faint">
+        <div className={styles.profileActions}>
+          {employee.status === 'SUSPENDED' ? (
+            <WarmButton
+              type="button"
+              variant="primary"
+              onClick={() => void handleResume()}
+              disabled={isActing}
+              loading={isActing}
+              loadingLabel="正在恢复数字员工"
+            >
+              <Play aria-hidden="true" />
+              恢复
+            </WarmButton>
+          ) : (
+            <WarmButton
+              type="button"
+              variant="secondary"
+              onClick={() => void handleSuspend()}
+              disabled={isActing}
+              loading={isActing}
+              loadingLabel="正在暂停数字员工"
+            >
+              <Pause aria-hidden="true" />
+              暂停
+            </WarmButton>
+          )}
+        </div>
+      </section>
+
+      <div className={styles.detailGrid}>
+        <div className={styles.detailMain}>
+          {runningTask ? (
+            <section className={styles.panel} aria-label="当前任务">
+              <div className={styles.panelHeader}>
+                <h2 className={styles.panelTitle}>当前任务</h2>
+                <span className={styles.panelMeta}>
                   进行中 {runningTask.started_at ? formatDuration(runningTask.started_at) : ''}
                 </span>
               </div>
-              <p className="mb-2 truncate text-sm font-medium text-term-text">{runningTask.task_name}</p>
-              <div className="mb-2 h-1.5 w-full overflow-hidden rounded-none border border-term-border bg-term-bg">
-                <div
-                  className="h-full bg-term-accent transition-all duration-[var(--duration-very-slow)]"
-                  style={{ width: `${runningTask.progress_percent}%` }}
-                />
+              <div className={styles.currentTaskBody}>
+                <p className={styles.currentTaskName}>{runningTask.task_name}</p>
+                <div className={styles.currentTaskProgress}>
+                  <span style={{ width: `${runningTask.progress_percent}%` }} />
+                </div>
+                <div className={styles.currentTaskFooter}>
+                  <span>{runningTask.current_step || '处理中…'}</span>
+                  <strong>{runningTask.progress_percent}%</strong>
+                </div>
               </div>
-              <div className="flex justify-between gap-2 font-mono text-xs text-term-muted">
-                <span className="truncate">{runningTask.current_step || '处理中…'}</span>
-                <span className="shrink-0 font-medium tabular-nums text-term-accent">{runningTask.progress_percent}%</span>
-              </div>
-            </div>
-          )}
+            </section>
+          ) : null}
 
-          <div className="rounded-none border border-term-border bg-term-panel p-3">
-            <h3 className="mb-3 font-mono text-xs font-semibold uppercase tracking-wider text-term-muted">任务历史</h3>
+          <section className={styles.panel} aria-label="任务历史">
+            <div className={styles.panelHeader}>
+              <h2 className={styles.panelTitle}>任务历史</h2>
+            </div>
             {tasks.length === 0 ? (
-              <p className="py-4 text-center font-mono text-xs text-term-faint">暂无任务记录</p>
-            ) : (
-              <div className="space-y-2">
-                {tasks.slice(0, taskPage * 10).map((task) => (
-                  <div
-                    key={task.id}
-                    className="flex items-center gap-3 rounded-none border border-term-border p-3 transition-colors hover:bg-term-hover"
-                  >
-                    <span className="text-base shrink-0">
-                      {TASK_STATUS_ICON[task.status] || '⏳'}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{task.task_name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {task.started_at ? new Date(task.started_at).toLocaleString('zh-CN') : '—'}
-                        {task.error_message && (
-                          <span className="ml-2 text-term-neg">{task.error_message}</span>
-                        )}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Badge variant="outline" className={cn('rounded-none font-mono text-[10px]', TASK_STATUS_STYLES[task.status])}>
-                        {task.status}
-                      </Badge>
-                      {task.status === 'RUNNING' && (
-                        <span className="text-xs tabular-nums text-muted-foreground">
-                          {task.progress_percent}%
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                {tasks.length > taskPage * 10 && (
-                  <button
-                    onClick={() => setTaskPage((p) => p + 1)}
-                    className="mt-2 w-full rounded-none border border-dashed border-term-border py-2 font-mono text-xs text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text"
-                  >
-                    加载更多
-                  </button>
-                )}
+              <div className={styles.panelEmpty}>
+                <p>暂无任务记录</p>
               </div>
+            ) : (
+              <>
+                <div className={styles.taskList}>
+                  {tasks.slice(0, taskPage * 10).map((task) => (
+                    <div key={task.id} className={styles.taskRow}>
+                      <div className={styles.taskCopy}>
+                        <p className={styles.taskName}>{task.task_name}</p>
+                        <p className={styles.taskMeta}>
+                          {task.started_at
+                            ? new Date(task.started_at).toLocaleString('zh-CN')
+                            : '—'}
+                          {task.error_message ? (
+                            <span className={styles.taskError}>{task.error_message}</span>
+                          ) : null}
+                        </p>
+                      </div>
+                      <div className={styles.taskStatusGroup}>
+                        <WarmBadge tone={TASK_STATUS_TONES[task.status]}>
+                          {task.status}
+                        </WarmBadge>
+                        {task.status === 'RUNNING' ? (
+                          <span>{task.progress_percent}%</span>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {tasks.length > taskPage * 10 ? (
+                  <div className={styles.loadMore}>
+                    <WarmButton
+                      type="button"
+                      variant="quiet"
+                      onClick={() => setTaskPage((page) => page + 1)}
+                    >
+                      加载更多
+                    </WarmButton>
+                  </div>
+                ) : null}
+              </>
             )}
-          </div>
+          </section>
         </div>
 
-        <div className="space-y-3">
-          <div className="rounded-none border border-term-border bg-term-panel p-3">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-term-pos opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-term-pos" />
-              </span>
-              <h3 className="font-mono text-xs font-semibold uppercase tracking-wider text-term-muted">实时日志</h3>
+        <div className={styles.detailRail}>
+          <section className={styles.panel} aria-label="实时日志">
+            <div className={styles.panelHeader}>
+              <h2 className={styles.panelTitle}>实时日志</h2>
             </div>
-            <LiveLog employeeId={employeeId} maxItems={20} className="max-h-[400px]" />
-          </div>
+            <div className={styles.panelBody}>
+              <LiveLog
+                employeeId={employeeId}
+                maxItems={20}
+                className={styles.railLog}
+              />
+            </div>
+          </section>
 
-          <div className="rounded-none border border-term-border bg-term-panel p-3">
-            <h3 className="mb-3 font-mono text-xs font-semibold uppercase tracking-wider text-term-muted">员工信息</h3>
-            <div className="space-y-2.5 text-sm">
+          <section className={styles.panel} aria-label="员工信息">
+            <div className={styles.panelHeader}>
+              <h2 className={styles.panelTitle}>员工信息</h2>
+            </div>
+            <div className={styles.infoList}>
               <InfoRow
                 label="类型"
                 value={employee.employee_type.replace(/_/g, ' ').toLowerCase()}
@@ -282,9 +314,11 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                 label="创建时间"
                 value={new Date(employee.created_at).toLocaleDateString('zh-CN')}
               />
-              {employee.description && <InfoRow label="描述" value={employee.description} />}
+              {employee.description ? (
+                <InfoRow label="描述" value={employee.description} />
+              ) : null}
             </div>
-          </div>
+          </section>
         </div>
       </div>
     </div>
@@ -293,9 +327,9 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between gap-4 border-b border-term-border py-1.5 last:border-0">
-      <span className="shrink-0 font-mono text-xs text-term-muted">{label}</span>
-      <span className="truncate text-right font-mono text-xs text-term-text">{value}</span>
+    <div className={styles.infoRow}>
+      <span className={styles.infoLabel}>{label}</span>
+      <span className={styles.infoValue}>{value}</span>
     </div>
   )
 }

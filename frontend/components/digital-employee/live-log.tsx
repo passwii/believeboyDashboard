@@ -1,30 +1,18 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { ClipboardList } from 'lucide-react'
 import type { DigitalEmployeeLog } from '@/types/digital-employee'
 import { fetchEmployeeRecentLogs } from '@/lib/digital-employee-api'
 import { cn } from '@/lib/utils'
+
+import styles from './digital-employee-warm.module.css'
 
 interface LiveLogProps {
   employeeId: number
   pollInterval?: number
   maxItems?: number
   className?: string
-}
-
-const LEVEL_STYLES: Record<string, { dot: string; border: string; text: string }> = {
-  info: { dot: 'bg-term-accent', border: 'border-l-term-accent', text: 'text-term-text' },
-  warn: {
-    dot: 'bg-term-warn',
-    border: 'border-l-term-warn',
-    text: 'text-term-warn',
-  },
-  error: { dot: 'bg-term-neg', border: 'border-l-term-neg', text: 'text-term-neg' },
-  debug: {
-    dot: 'bg-term-faint',
-    border: 'border-l-term-border',
-    text: 'text-term-faint',
-  },
 }
 
 function formatRelativeTime(dateStr: string): string {
@@ -66,9 +54,9 @@ export function LiveLog({
 
   if (isLoading) {
     return (
-      <div className={cn('space-y-2', className)}>
+      <div className={cn(styles.logList, className)} aria-busy="true">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-10 rounded-none border border-term-border bg-term-raised animate-pulse" />
+          <div key={i} className={cn(styles.skeleton, styles.logSkeleton)} />
         ))}
       </div>
     )
@@ -77,32 +65,27 @@ export function LiveLog({
   if (logs.length === 0) {
     return (
       <div
-        className={cn(
-          'flex flex-col items-center justify-center rounded-none border border-dashed border-term-border py-8 text-term-faint',
-          className
-        )}
+        className={cn(styles.logEmpty, className)}
       >
-        <span className="text-2xl mb-2">📋</span>
-        <p className="font-mono text-xs">暂无日志记录</p>
+        <ClipboardList aria-hidden="true" />
+        <p>暂无日志记录</p>
       </div>
     )
   }
 
   return (
-    <div className={cn('space-y-1.5 overflow-y-auto', className)}>
+    <div className={cn(styles.logList, className)} data-testid="digital-employee-live-log">
       {logs.map((log) => {
-        const style = LEVEL_STYLES[log.level.toLowerCase()] || LEVEL_STYLES.info
+        const level = log.level.toLowerCase()
         return (
           <div
             key={log.id}
-            className={cn(
-              'rounded-none border border-term-border border-l-2 bg-term-bg px-3 py-2 transition-colors hover:bg-term-hover',
-              style.border
-            )}
+            className={styles.logRow}
+            data-level={level}
           >
-            <div className="flex items-start justify-between gap-2">
-              <p className={cn('text-sm leading-relaxed flex-1', style.text)}>{log.message}</p>
-              <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
+            <div className={styles.logTop}>
+              <p className={styles.logMessage}>{log.message}</p>
+              <span className={styles.logTime}>
                 {formatRelativeTime(log.created_at)}
               </span>
             </div>

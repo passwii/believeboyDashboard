@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import styles from './digital-employee-warm.module.css'
 
 interface HeartbeatDotProps {
   lastSeen: string | null
@@ -22,19 +22,13 @@ function formatRelativeTime(minutes: number): string {
 export function HeartbeatDot({ lastSeen, showLabel = true }: HeartbeatDotProps) {
   const minutes = getMinutesAgo(lastSeen)
 
-  const color = useMemo(() => {
-    if (minutes === null) return 'bg-muted'
-    if (minutes < 1) return 'bg-emerald-500'
-    if (minutes < 5) return 'bg-blue-500'
-    if (minutes < 30) return 'bg-term-warn'
-    return 'bg-term-neg'
-  }, [minutes])
+  const age = minutes === null ? 'none' : minutes < 5 ? 'fresh' : minutes < 30 ? 'active' : 'stale'
 
   const label = minutes !== null ? formatRelativeTime(minutes) : '无数据'
 
   return (
-    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-      <span className={`h-2 w-2 rounded-full ${color}`} />
+    <div className={styles.heartbeat}>
+      <span className={styles.heartbeatDot} data-age={age} aria-hidden="true" />
       {showLabel && <span>最后活跃 {label}</span>}
     </div>
   )
