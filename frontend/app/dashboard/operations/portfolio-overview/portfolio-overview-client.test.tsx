@@ -3,6 +3,12 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { stableNotifications, stableSession } from '@/test-utils/stable-mocks'
+import { TerminalGlobalFilterProvider } from '@/components/terminal/global-filter-context'
+import {
+  COUNTRY_TIMEZONE_MAP,
+  formatDateInputValue,
+  getTodayInTimezone,
+} from '@/components/ui/date-picker'
 
 // ── mocks ────────────────────────────────────────────────────────────────────
 
@@ -100,6 +106,29 @@ import PortfolioOverviewClient from './portfolio-overview-client'
 
 // ── tests ────────────────────────────────────────────────────────────────────
 
+function renderPortfolioOverview() {
+  return render(
+    <TerminalGlobalFilterProvider>
+      <PortfolioOverviewClient />
+    </TerminalGlobalFilterProvider>
+  )
+}
+
+function portfolioDetailHref(projectId: number) {
+  const end = getTodayInTimezone(COUNTRY_TIMEZONE_MAP.US)
+  const start = new Date(end)
+  start.setDate(start.getDate() - 6)
+  const params = new URLSearchParams({
+    project: String(projectId),
+    country: 'US',
+    gProject: String(projectId),
+    gCountry: 'US',
+    gDateFrom: formatDateInputValue(start),
+    gDateTo: formatDateInputValue(end),
+  })
+  return `/dashboard/operations/daily-analysis?${params.toString()}`
+}
+
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
@@ -107,7 +136,7 @@ afterEach(() => {
 
 describe('PortfolioOverviewClient 终端化渲染契约（BLF-834）', () => {
   it('渲染 KPI 统计磁贴与项目对比表', async () => {
-    render(<PortfolioOverviewClient />)
+    renderPortfolioOverview()
     expect(screen.getByText('总销售额')).toBeInTheDocument()
     // 16000 >= 10000 → 万缩写格式
     expect(screen.getByText('$1.6万')).toBeInTheDocument()
@@ -120,7 +149,7 @@ describe('PortfolioOverviewClient 终端化渲染契约（BLF-834）', () => {
 
   it('点击列头切换排序方向', async () => {
     const user = userEvent.setup()
-    render(<PortfolioOverviewClient />)
+    renderPortfolioOverview()
     await screen.findByRole('table')
     // 点击「销售额」表头两次 → asc，项目B（6,000）排前
     await user.click(screen.getByText('销售额'))
@@ -131,16 +160,16 @@ describe('PortfolioOverviewClient 终端化渲染契约（BLF-834）', () => {
 
   it('点击详情跳转 daily-analysis 并带项目参数', async () => {
     const user = userEvent.setup()
-    render(<PortfolioOverviewClient />)
+    renderPortfolioOverview()
     await screen.findByRole('table')
     const detailButtons = screen.getAllByText('详情')
     await user.click(detailButtons[0])
-    expect(pushMock).toHaveBeenCalledWith('/dashboard/operations/daily-analysis?project=1')
+    expect(pushMock).toHaveBeenCalledWith(portfolioDetailHref(1))
   })
 
   it('Tab 切换到趋势 / 贡献占位不崩溃', async () => {
     const user = userEvent.setup()
-    render(<PortfolioOverviewClient />)
+    renderPortfolioOverview()
     await screen.findByRole('table')
     await user.click(screen.getByText('趋势对比'))
     await user.click(screen.getByText('贡献占比'))
