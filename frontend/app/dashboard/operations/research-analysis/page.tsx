@@ -13,6 +13,7 @@ import type {
   ButtonHTMLAttributes,
   ChangeEvent,
   ComponentProps,
+  CSSProperties,
   HTMLAttributes,
   InputHTMLAttributes,
   ReactNode,
@@ -82,24 +83,33 @@ import { useNotifications } from '@/components/notifications'
 import styles from './research-analysis-warm.module.css'
 
 const API_BASE = '/api/backend'
-const DASHBOARD_PALETTE = {
-  blue: 'hsl(var(--chart-1))',
-  blueDeep: 'hsl(var(--chart-1))',
-  blueSoft: 'hsl(var(--chart-1) / 0.35)',
-  blueLight: 'hsl(var(--chart-1) / 0.5)',
-  cyan: 'hsl(var(--chart-4))',
-  indigo: 'hsl(var(--chart-1))',
-  gold: 'hsl(var(--chart-3))',
-  rose: 'hsl(var(--chart-5))',
-  green: 'hsl(var(--chart-2))',
-  greenLight: 'hsl(var(--chart-2) / 0.5)',
+export const RESEARCH_WARM_PALETTE = {
+  accent: 'var(--research-chart-accent)',
+  accentStrong: 'var(--research-chart-accent-strong)',
+  accentSoft: 'var(--research-chart-accent-soft)',
+  positive: 'var(--research-chart-positive)',
+  textSoft: 'var(--research-chart-text-soft)',
+  textMuted: 'var(--research-chart-text-muted)',
+} as const
+
+const RESEARCH_CHART_PALETTE = {
+  blue: RESEARCH_WARM_PALETTE.accent,
+  blueDeep: RESEARCH_WARM_PALETTE.accentStrong,
+  blueSoft: RESEARCH_WARM_PALETTE.accentSoft,
+  blueLight: RESEARCH_WARM_PALETTE.accent,
+  cyan: RESEARCH_WARM_PALETTE.textSoft,
+  indigo: RESEARCH_WARM_PALETTE.accentStrong,
+  gold: RESEARCH_WARM_PALETTE.textMuted,
+  rose: RESEARCH_WARM_PALETTE.accentSoft,
+  green: RESEARCH_WARM_PALETTE.positive,
+  greenLight: RESEARCH_WARM_PALETTE.positive,
 }
 const PIE_COLORS = [
-  DASHBOARD_PALETTE.blue,
-  DASHBOARD_PALETTE.cyan,
-  DASHBOARD_PALETTE.indigo,
-  DASHBOARD_PALETTE.gold,
-  DASHBOARD_PALETTE.rose,
+  RESEARCH_WARM_PALETTE.accent,
+  RESEARCH_WARM_PALETTE.textSoft,
+  RESEARCH_WARM_PALETTE.accentStrong,
+  RESEARCH_WARM_PALETTE.textMuted,
+  RESEARCH_WARM_PALETTE.positive,
 ]
 const WORKSPACE_TAB_ORDER: WorkspaceTab[] = ['research', 'analysis']
 
@@ -463,6 +473,20 @@ function collectSelectOptions(
   return options
 }
 
+function findSelectPlaceholder(children: ReactNode): string | undefined {
+  let placeholder: string | undefined
+  Children.forEach(children, (child) => {
+    if (placeholder || !isValidElement(child)) return
+    const props = child.props as { placeholder?: string; children?: ReactNode }
+    if (child.type === SelectValue) {
+      placeholder = props.placeholder
+      return
+    }
+    if (props.children) placeholder = findSelectPlaceholder(props.children)
+  })
+  return placeholder
+}
+
 function Select({
   value,
   onValueChange,
@@ -477,13 +501,22 @@ function Select({
   disabled?: boolean
 }) {
   const options = collectSelectOptions(children)
+  const placeholder = findSelectPlaceholder(children)
+  const placeholderLabel = placeholder ?? (options.length === 0 ? '暂无选项' : undefined)
+  const needsPlaceholder = (options.length === 0 || value === '') && Boolean(placeholderLabel)
   return (
     <select
       className={[styles.select, className].filter(Boolean).join(' ')}
       value={value}
       disabled={disabled}
+      aria-label={placeholder}
       onChange={(event) => onValueChange(event.target.value)}
     >
+      {needsPlaceholder ? (
+        <option value="" disabled>
+          {placeholderLabel}
+        </option>
+      ) : null}
       {options.map((option) => (
         <option key={option.value} value={option.value}>
           {option.label}
@@ -493,16 +526,24 @@ function Select({
   )
 }
 
-function EmptyChartState({
+export function EmptyChartState({
   message,
   height,
 }: {
   message: string
-  height?: string
-  icon?: ReactNode
+  height?: number
 }) {
+  const resolvedHeight = height ?? 280
   return (
-    <div className={styles.emptyChart} data-height={height}>
+    <div
+      className={styles.emptyChart}
+      data-height={resolvedHeight}
+      style={
+        {
+          '--empty-chart-height': `${resolvedHeight}px`,
+        } as CSSProperties
+      }
+    >
       {message}
     </div>
   )
@@ -608,59 +649,59 @@ type PieDatum = {
 }
 
 const overviewRadarChartConfig = {
-  value: { label: '市场画像', color: DASHBOARD_PALETTE.blue },
+  value: { label: '市场画像', color: RESEARCH_CHART_PALETTE.blue },
 } satisfies ChartConfig
 
 const riskRadialChartConfig = {
-  value: { label: '风险值', color: DASHBOARD_PALETTE.blueDeep },
+  value: { label: '风险值', color: RESEARCH_CHART_PALETTE.blueDeep },
 } satisfies ChartConfig
 
 const signalPieChartConfig = {
-  value: { label: '信号数', color: DASHBOARD_PALETTE.blue },
+  value: { label: '信号数', color: RESEARCH_CHART_PALETTE.blue },
 } satisfies ChartConfig
 
 const actionBarChartConfig = {
-  count: { label: '建议数', color: DASHBOARD_PALETTE.cyan },
+  count: { label: '建议数', color: RESEARCH_CHART_PALETTE.cyan },
 } satisfies ChartConfig
 
 const marketTrendChartConfig = {
-  recent12: { label: '过去一年', color: DASHBOARD_PALETTE.blueLight },
-  prior12: { label: '过去两年', color: DASHBOARD_PALETTE.greenLight },
+  recent12: { label: '过去一年', color: RESEARCH_CHART_PALETTE.blueLight },
+  prior12: { label: '过去两年', color: RESEARCH_CHART_PALETTE.greenLight },
 } satisfies ChartConfig
 
 const marketStructureChartConfig = {
-  count: { label: '产品数', color: DASHBOARD_PALETTE.cyan },
+  count: { label: '产品数', color: RESEARCH_CHART_PALETTE.cyan },
 } satisfies ChartConfig
 
 const marketRadialChartConfig = {
-  value: { label: '得分', color: DASHBOARD_PALETTE.indigo },
+  value: { label: '得分', color: RESEARCH_CHART_PALETTE.indigo },
 } satisfies ChartConfig
 
 const brandBarChartConfig = {
-  monthly_sales: { label: '月销量', color: DASHBOARD_PALETTE.blue },
+  monthly_sales: { label: '月销量', color: RESEARCH_CHART_PALETTE.blue },
 } satisfies ChartConfig
 
 const brandBandChartConfig = {
-  value: { label: '覆盖率', color: DASHBOARD_PALETTE.gold },
+  value: { label: '覆盖率', color: RESEARCH_CHART_PALETTE.gold },
 } satisfies ChartConfig
 
 const sellerShareChartConfig = {
-  sales_share_pct: { label: '销量占比', color: DASHBOARD_PALETTE.blue },
-  count_share_pct: { label: '数量占比', color: DASHBOARD_PALETTE.cyan },
-  count: { label: '产品数', color: DASHBOARD_PALETTE.gold },
-  value: { label: '卖家结构', color: DASHBOARD_PALETTE.indigo },
+  sales_share_pct: { label: '销量占比', color: RESEARCH_CHART_PALETTE.blue },
+  count_share_pct: { label: '数量占比', color: RESEARCH_CHART_PALETTE.cyan },
+  count: { label: '产品数', color: RESEARCH_CHART_PALETTE.gold },
+  value: { label: '卖家结构', color: RESEARCH_CHART_PALETTE.indigo },
 } satisfies ChartConfig
 
 const reviewChartConfig = {
-  count: { label: '产品数', color: DASHBOARD_PALETTE.blue },
-  cumulative_share_pct: { label: '累计销量占比', color: DASHBOARD_PALETTE.cyan },
-  value: { label: '评论门槛', color: DASHBOARD_PALETTE.rose },
+  count: { label: '产品数', color: RESEARCH_CHART_PALETTE.blue },
+  cumulative_share_pct: { label: '累计销量占比', color: RESEARCH_CHART_PALETTE.cyan },
+  value: { label: '评论门槛', color: RESEARCH_CHART_PALETTE.rose },
 } satisfies ChartConfig
 
 const priceChartConfig = {
-  monthly_sales: { label: '月销量', color: DASHBOARD_PALETTE.blue },
-  count: { label: '样本数', color: DASHBOARD_PALETTE.gold },
-  value: { label: '价格画像', color: DASHBOARD_PALETTE.indigo },
+  monthly_sales: { label: '月销量', color: RESEARCH_CHART_PALETTE.blue },
+  count: { label: '样本数', color: RESEARCH_CHART_PALETTE.gold },
+  value: { label: '价格画像', color: RESEARCH_CHART_PALETTE.indigo },
 } satisfies ChartConfig
 
 const ANALYSIS_SECTIONS: AnalysisSection[] = [
@@ -1969,7 +2010,7 @@ function ContextSummaryStrip({
           </div>
         ))}
         <div className="rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-accent)] bg-[var(--warm-ledger-color-accent-soft)] px-3 py-2">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-primary/80">
+          <p className={cn('text-[11px] font-semibold uppercase tracking-[0.08em]', styles.accentLabel)}>
             价格带配置
           </p>
           <p className="mt-1 text-sm font-semibold text-[var(--warm-ledger-color-text)]">{priceBandLabel}</p>
@@ -2020,7 +2061,7 @@ function AnalysisSectionNav({
               className={cn(
                 'cursor-pointer whitespace-nowrap rounded-[var(--warm-ledger-radius-inner)] px-4 py-2 text-sm font-medium transition-all duration-[var(--duration-quick)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:w-full',
                 activeSection === section.key
-                  ? 'bg-primary text-primary-foreground shadow-none'
+                  ? styles.sectionNavActive
                   : 'text-[var(--warm-ledger-color-text-muted)] hover:bg-[var(--warm-ledger-color-raised-hover)] hover:text-[var(--warm-ledger-color-text)]'
               )}
               aria-current={activeSection === section.key ? 'page' : undefined}
@@ -3163,7 +3204,7 @@ export default function CategoryResearchPage() {
                                 </div>
                               ))
                             ) : (
-                              <EmptyChartState message="暂无行动建议" height="h-[300px]" />
+                              <EmptyChartState message="暂无行动建议" height={300} />
                             )}
                           </div>
                         </InsightChartCard>
@@ -3209,7 +3250,7 @@ export default function CategoryResearchPage() {
                               </RadarChart>
                             </ChartContainer>
                           ) : (
-                            <EmptyChartState message="暂无总览雷达数据" height="h-[340px]" />
+                            <EmptyChartState message="暂无总览雷达数据" height={340} />
                           )}
                         </InsightChartCard>
 
@@ -3242,7 +3283,7 @@ export default function CategoryResearchPage() {
                           {overviewModels.historyData.length > 0 ? (
                             <ChartContainer
                               config={{
-                                products: { label: '样本数', color: DASHBOARD_PALETTE.blue },
+                                products: { label: '样本数', color: RESEARCH_CHART_PALETTE.blue },
                               }}
                               className="h-[300px] w-full"
                             >
@@ -3255,7 +3296,7 @@ export default function CategoryResearchPage() {
                               </BarChart>
                             </ChartContainer>
                           ) : (
-                            <EmptyChartState message="暂无版本历史数据" height="h-[300px]" />
+                            <EmptyChartState message="暂无版本历史数据" height={300} />
                           )}
                         </InsightChartCard>
                         <InsightChartCard
@@ -3290,7 +3331,7 @@ export default function CategoryResearchPage() {
                             <Button
                               type="button"
                               variant="ghost"
-                              className="h-auto cursor-pointer px-0 text-xs font-medium text-primary hover:bg-transparent hover:text-primary/80 focus-visible:ring-2 focus-visible:ring-ring"
+                              className={cn('h-auto cursor-pointer px-0 text-xs font-medium hover:bg-transparent focus-visible:ring-2 focus-visible:ring-ring', styles.textAction)}
                               onClick={() => setShowAllDefinitions((value) => !value)}
                             >
                               {showAllDefinitions ? '收起完整口径' : '展开完整口径'}
@@ -3444,7 +3485,7 @@ export default function CategoryResearchPage() {
                               </AreaChart>
                             </ChartContainer>
                           ) : (
-                            <EmptyChartState message="暂无市场趋势数据" height="h-[360px]" />
+                            <EmptyChartState message="暂无市场趋势数据" height={360} />
                           )}
                         </InsightChartCard>
 
@@ -3553,10 +3594,10 @@ export default function CategoryResearchPage() {
                           {marketModels.listingYearMonthData.length > 0 ? (
                             <ChartContainer
                               config={{
-                                count: { label: '上架产品数', color: DASHBOARD_PALETTE.gold },
+                                count: { label: '上架产品数', color: RESEARCH_CHART_PALETTE.gold },
                                 monthly_sales: {
                                   label: '当前月销量',
-                                  color: DASHBOARD_PALETTE.blue,
+                                  color: RESEARCH_CHART_PALETTE.blue,
                                 },
                               }}
                               className="h-[280px] w-full"
@@ -3747,7 +3788,7 @@ export default function CategoryResearchPage() {
                               </BarChart>
                             </ChartContainer>
                           ) : (
-                            <EmptyChartState message="暂无品牌销量数据" height="h-[340px]" />
+                            <EmptyChartState message="暂无品牌销量数据" height={340} />
                           )}
                         </InsightChartCard>
 
@@ -3793,7 +3834,7 @@ export default function CategoryResearchPage() {
                               <PieLegendNotes items={brandModels.pieData} />
                             </div>
                           ) : (
-                            <EmptyChartState message="暂无品牌结构数据" height="h-[340px]" />
+                            <EmptyChartState message="暂无品牌结构数据" height={340} />
                           )}
                         </InsightChartCard>
                       </div>
@@ -3850,7 +3891,7 @@ export default function CategoryResearchPage() {
                               </RadarChart>
                             </ChartContainer>
                           ) : (
-                            <EmptyChartState message="暂无品牌雷达数据" height="h-[320px]" />
+                            <EmptyChartState message="暂无品牌雷达数据" height={320} />
                           )}
                         </InsightChartCard>
 
@@ -3895,7 +3936,7 @@ export default function CategoryResearchPage() {
                               </BarChart>
                             </ChartContainer>
                           ) : (
-                            <EmptyChartState message="暂无价格带覆盖数据" height="h-[320px]" />
+                            <EmptyChartState message="暂无价格带覆盖数据" height={320} />
                           )}
                         </InsightChartCard>
                       </div>
@@ -4020,7 +4061,7 @@ export default function CategoryResearchPage() {
                               <PieLegendNotes items={sellerModels.nationalityPieData} />
                             </div>
                           ) : (
-                            <EmptyChartState message="暂无卖家国籍数据" height="h-[300px]" />
+                            <EmptyChartState message="暂无卖家国籍数据" height={300} />
                           )}
                         </InsightChartCard>
 
@@ -4066,7 +4107,7 @@ export default function CategoryResearchPage() {
                               </BarChart>
                             </ChartContainer>
                           ) : (
-                            <EmptyChartState message="暂无卖家占比数据" height="h-[300px]" />
+                            <EmptyChartState message="暂无卖家占比数据" height={300} />
                           )}
                         </InsightChartCard>
                       </div>
@@ -4114,7 +4155,7 @@ export default function CategoryResearchPage() {
                               </RadarChart>
                             </ChartContainer>
                           ) : (
-                            <EmptyChartState message="暂无卖家结构雷达数据" height="h-[320px]" />
+                            <EmptyChartState message="暂无卖家结构雷达数据" height={320} />
                           )}
                         </InsightChartCard>
                       </div>
@@ -4166,7 +4207,7 @@ export default function CategoryResearchPage() {
                               </BarChart>
                             </ChartContainer>
                           ) : (
-                            <EmptyChartState message="暂无评分分布数据" height="h-[300px]" />
+                            <EmptyChartState message="暂无评分分布数据" height={300} />
                           )}
                         </InsightChartCard>
 
@@ -4212,7 +4253,7 @@ export default function CategoryResearchPage() {
                               <PieLegendNotes items={reviewModels.lowReviewPieData} />
                             </div>
                           ) : (
-                            <EmptyChartState message="暂无低评价占比数据" height="h-[300px]" />
+                            <EmptyChartState message="暂无低评价占比数据" height={300} />
                           )}
                         </InsightChartCard>
                       </div>
@@ -4277,7 +4318,7 @@ export default function CategoryResearchPage() {
                               </AreaChart>
                             </ChartContainer>
                           ) : (
-                            <EmptyChartState message="暂无评论段销量数据" height="h-[320px]" />
+                            <EmptyChartState message="暂无评论段销量数据" height={320} />
                           )}
                         </InsightChartCard>
 
@@ -4390,7 +4431,7 @@ export default function CategoryResearchPage() {
                               </BarChart>
                             </ChartContainer>
                           ) : (
-                            <EmptyChartState message="暂无大价格区间数据" height="h-[300px]" />
+                            <EmptyChartState message="暂无大价格区间数据" height={300} />
                           )}
                         </InsightChartCard>
 
@@ -4436,7 +4477,7 @@ export default function CategoryResearchPage() {
                               <PieLegendNotes items={priceModels.pieData} />
                             </div>
                           ) : (
-                            <EmptyChartState message="暂无价格带样本占比数据" height="h-[300px]" />
+                            <EmptyChartState message="暂无价格带样本占比数据" height={300} />
                           )}
                         </InsightChartCard>
                       </div>
@@ -4468,7 +4509,7 @@ export default function CategoryResearchPage() {
                               </LineChart>
                             </ChartContainer>
                           ) : (
-                            <EmptyChartState message="暂无小价格区间趋势" height="h-[320px]" />
+                            <EmptyChartState message="暂无小价格区间趋势" height={320} />
                           )}
                         </InsightChartCard>
 
@@ -4493,7 +4534,7 @@ export default function CategoryResearchPage() {
                               </RadarChart>
                             </ChartContainer>
                           ) : (
-                            <EmptyChartState message="暂无价格雷达数据" height="h-[320px]" />
+                            <EmptyChartState message="暂无价格雷达数据" height={320} />
                           )}
                         </InsightChartCard>
                       </div>
@@ -4555,7 +4596,7 @@ export default function CategoryResearchPage() {
                             </ScatterChart>
                           </ChartContainer>
                         ) : (
-                          <EmptyChartState message="暂无散点数据" height="h-[340px]" />
+                          <EmptyChartState message="暂无散点数据" height={340} />
                         )}
                       </InsightChartCard>
 

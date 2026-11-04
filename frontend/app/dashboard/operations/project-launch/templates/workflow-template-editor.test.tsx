@@ -133,6 +133,15 @@ describe('项目启动台模板编辑器', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('模板已保存')
   })
 
+  it('普通标题与说明不套数值等宽字体，Key 等标识保留数值样式', async () => {
+    render(<WorkflowTemplateEditor />)
+
+    const catalogHeading = await screen.findByRole('heading', { name: '模板目录' })
+    expect(catalogHeading).not.toHaveClass('tabular-nums')
+    expect(screen.getByText('模板信息')).not.toHaveClass('tabular-nums')
+    expect(screen.getByText(/Key: store-launch-v1/)).toHaveAttribute('data-numeric', 'true')
+  })
+
   it('切换阶段前自动保存阶段字段和已有内容', async () => {
     const user = userEvent.setup()
     const twoTaskDetail: WorkflowTemplateDetail = {

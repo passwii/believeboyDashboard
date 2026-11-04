@@ -8,7 +8,7 @@
   font-family: var(--warm-ledger-font-sans);
 }
 
-.page :global(.tabular-nums) {
+.numeric {
   font-family: var(--warm-ledger-font-mono);
   font-variant-numeric: var(--warm-ledger-font-variant-numeric);
 }

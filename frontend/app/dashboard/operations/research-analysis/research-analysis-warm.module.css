@@ -1,4 +1,10 @@
 .page {
+  --research-chart-accent: var(--warm-ledger-color-accent);
+  --research-chart-accent-strong: var(--warm-ledger-color-accent-strong);
+  --research-chart-accent-soft: var(--warm-ledger-color-accent-soft);
+  --research-chart-positive: var(--warm-ledger-color-positive);
+  --research-chart-text-soft: var(--warm-ledger-color-text-soft);
+  --research-chart-text-muted: var(--warm-ledger-color-text-muted);
   display: block;
   width: 100%;
   min-width: 0;
@@ -210,7 +216,7 @@
 
 .emptyChart {
   display: flex;
-  min-height: 280px;
+  min-height: var(--empty-chart-height, 280px);
   align-items: center;
   justify-content: center;
   color: var(--warm-ledger-color-text-muted);
@@ -218,6 +224,21 @@
   background: var(--warm-ledger-color-panel);
   border: var(--warm-ledger-border-width) dashed var(--warm-ledger-color-hairline-strong);
   border-radius: var(--warm-ledger-radius-inner);
+}
+
+.accentLabel,
+.textAction {
+  color: var(--warm-ledger-color-accent) !important;
+}
+
+.textAction:hover {
+  color: var(--warm-ledger-color-accent-strong) !important;
+}
+
+.sectionNavActive {
+  color: var(--warm-ledger-color-text) !important;
+  background: var(--warm-ledger-color-accent-soft) !important;
+  box-shadow: inset 2px 0 0 var(--warm-ledger-color-accent) !important;
 }
 
 .emptyTableCell {
