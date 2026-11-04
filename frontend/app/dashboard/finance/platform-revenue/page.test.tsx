@@ -75,7 +75,10 @@ function makeFetch(ok = true, body?: unknown): FetchStub {
   })
 }
 
-import PlatformRevenuePage, { formatCurrencyTotalsForExcel } from './page'
+import PlatformRevenuePage, {
+  buildCurrencyTotalRow,
+  formatCurrencyTotalsForExcel,
+} from './page'
 
 // ── tests ────────────────────────────────────────────────────────────────────
 
@@ -99,6 +102,9 @@ describe('PlatformRevenuePage Warm Ledger 渲染契约', () => {
       amount: 120.5,
       currency: 'USD',
     })
+    expect(
+      buildCurrencyTotalRow(formatCurrencyTotalsForExcel({ USD: 120.5, EUR: 80 }))
+    ).toEqual(['合计', null, null, 'EUR 80.00 / USD 120.50', null, null, null])
   })
 
   it('渲染 Warm 路由标记、数据行与当前页合计', async () => {

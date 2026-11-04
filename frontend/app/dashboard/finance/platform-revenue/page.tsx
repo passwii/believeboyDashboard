@@ -193,6 +193,12 @@ export function formatCurrencyTotalsForExcel(totals: Record<string, number>) {
   }
 }
 
+export function buildCurrencyTotalRow(
+  summary: ReturnType<typeof formatCurrencyTotalsForExcel>
+) {
+  return ['合计', null, null, summary.amount, summary.currency, null, null] as const
+}
+
 // 格式化合计行显示
 const formatTotals = (totals: Record<string, number>) => {
   return Object.entries(totals)
@@ -763,15 +769,7 @@ export default function PlatformRevenuePage() {
       const totalSummary = formatCurrencyTotalsForExcel(totals)
       const totalRowIndex = dataStartRow + allRevenues.length
       const totalRow = worksheet.getRow(totalRowIndex)
-      totalRow.values = [
-        '合计',
-        '',
-        '',
-        totalSummary.amount,
-        totalSummary.currency,
-        '',
-        '',
-      ]
+      totalRow.values = [...buildCurrencyTotalRow(totalSummary)]
       for (let col = 1; col <= 7; col++) {
         totalRow.getCell(col).font = { name: 'Microsoft YaHei', bold: true }
       }
