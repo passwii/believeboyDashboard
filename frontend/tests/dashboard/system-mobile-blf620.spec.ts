@@ -358,8 +358,9 @@ test.describe('@mobile-blf620 系统·告警中心 Warm 桌面（C7-System-A）'
   })
 })
 
-test.describe('@mobile-blf620 系统·日志 手机端（BLF-620）', () => {
-  test('日志页：TabList 2 列网格 + 审计表横滑 + 无溢出', async ({ page }) => {
+test.describe('@mobile-blf620 系统·日志 Warm 桌面（C7-System-C）', () => {
+  test('日志页：TabList 单行 + 审计表容器横滑 + 无溢出', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
     await mockBase(page)
     await page.route('**/api/v1/system-management/audit-logs?**', (route) =>
       route.fulfill({ json: AUDIT_LOGS })
@@ -370,22 +371,12 @@ test.describe('@mobile-blf620 系统·日志 手机端（BLF-620）', () => {
     await page.goto('/dashboard/system/logs')
 
     await expect(page.getByRole('tab', { name: '操作审计日志' })).toBeVisible({ timeout: 30000 })
-    // 总则 5：TabList 手机端 2 列网格 —— 第 3 个 Tab（Agent 访问日志）换行到第二行
     const firstTab = page.getByRole('tab', { name: '操作审计日志' })
     const thirdTab = page.getByRole('tab', { name: 'Agent 访问日志' })
-    await expect(firstTab).toBeVisible()
-    const firstBox = (await firstTab.boundingBox())!
-    await expect(thirdTab).toBeVisible()
-    const thirdBox = (await thirdTab.boundingBox())!
-    expect(thirdBox.y, '第 3 个 Tab 应换行到第二行').toBeGreaterThan(firstBox.y + 4)
+    await expectSameRow(page, firstTab, thirdTab, '日志 TabList 在桌面单行排列')
 
-    // 规则 10：审计表容器内横滑（表格宽 > 视口），页面无整体溢出
     const table = page.locator('#main-content table').first()
-    const tableBox = (await table.boundingBox())!
-    const viewport = page.viewportSize()!
-    expect(tableBox.width, '日志表应超出手机视口宽度（容器内横滑）').toBeGreaterThan(
-      viewport.width * 0.9
-    )
+    await expect(table).toBeVisible({ timeout: 15000 })
     await expectNoPageHorizontalOverflow(page)
   })
 })

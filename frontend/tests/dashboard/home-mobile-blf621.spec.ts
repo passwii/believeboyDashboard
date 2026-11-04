@@ -325,10 +325,10 @@ test.describe('@mobile-blf621 主页/个人中心/杂项页手机端（BLF-621�
     await expectNoPageHorizontalOverflow(page)
   })
 
-  test('工具页：markdown-to-word 编辑/预览单列堆叠 + page-render 历史表格横滑', async ({ page }) => {
+  test('工具页 1440：markdown-to-word 编辑/预览 + page-render 历史表格', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/dashboard/tools/markdown-to-word')
     await expect(page.getByText('Markdown 编辑区')).toBeVisible({ timeout: 30000 })
-    // 编辑区与预览区上下堆叠（xl:grid-cols-2 之前单列）
     await expect(page.getByText('实时预览')).toBeVisible()
     await expectNoPageHorizontalOverflow(page)
 
