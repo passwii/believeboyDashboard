@@ -296,6 +296,42 @@ describe('InsightStreamPanel', () => {
     expect(screen.getByText('原始流')).toBeVisible()
   })
 
+  it('forwards the Warm presentation and class boundaries to nested surfaces', () => {
+    const { container } = render(
+      <InsightStreamPanel
+        appearance="warm"
+        status="live"
+        statusLabel="正在生成第 2 节"
+        content={'## 结论\n增长稳健\n'}
+        onClose={() => {}}
+        statusClassName="page-status"
+        markdownClassName="page-markdown"
+        copyExportClassName="page-copy-export"
+      />
+    )
+
+    expect(container.querySelector('[data-insight-panel]')).toHaveAttribute(
+      'data-insight-appearance',
+      'warm'
+    )
+    expect(container.querySelector('[data-insight-status]')).toHaveAttribute(
+      'data-insight-appearance',
+      'warm'
+    )
+    expect(container.querySelector('[data-insight-status]')).toHaveClass('page-status')
+    expect(container.querySelector('[data-insight-markdown]')).toHaveAttribute(
+      'data-insight-appearance',
+      'warm'
+    )
+    expect(container.querySelector('[data-insight-markdown]')).toHaveClass('page-markdown')
+    expect(container.querySelector('[data-insight-raw-actions]')).toHaveClass(
+      'page-copy-export'
+    )
+    expect(screen.getByRole('button', { name: '关闭' })).toHaveClass(
+      'warm-ledger__icon-button'
+    )
+  })
+
   function stubGeometry(node: HTMLElement, state: { scrollTop: number; scrollHeight: number; clientHeight: number }) {
     Object.defineProperty(node, 'scrollHeight', { value: state.scrollHeight, configurable: true })
     Object.defineProperty(node, 'clientHeight', { value: state.clientHeight, configurable: true })

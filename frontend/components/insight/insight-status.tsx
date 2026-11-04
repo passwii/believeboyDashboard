@@ -3,11 +3,19 @@
 import * as React from 'react'
 import { AlertTriangle, CheckCircle2, CircleSlash, Loader2, RotateCcw, X } from 'lucide-react'
 
+import {
+  WarmBadge,
+  WarmButton,
+  type WarmBadgeTone,
+} from '@/components/dashboard-v2/warm-ledger/controls'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import type { InsightErrorPayload } from '@/lib/insight/protocol'
 import { usePrefersReducedMotion } from '@/lib/hooks/use-prefers-reduced-motion'
 import { cn } from '@/lib/utils'
+
+import type { InsightAppearance } from './insight-presentation'
+import styles from './insight-warm.module.css'
 
 /**
  * Insight 状态与操作区（BLF-1013）。
@@ -45,6 +53,14 @@ const TONE_BADGE_VARIANTS: Record<InsightStatusTone, 'secondary' | 'info' | 'suc
   danger: 'destructive',
 }
 
+const WARM_TONE_BADGES: Record<InsightStatusTone, WarmBadgeTone> = {
+  idle: 'neutral',
+  active: 'accent',
+  success: 'positive',
+  warning: 'accent',
+  danger: 'negative',
+}
+
 const TONE_ICONS: Record<InsightStatusTone, React.ComponentType<{ className?: string }>> = {
   idle: CircleSlash,
   active: Loader2,
@@ -74,6 +90,8 @@ export type InsightStatusProps = {
   onCancel?: () => void
   retryLabel?: string
   cancelLabel?: string
+  /** Legacy Terminal is the default; Warm opts into the V4 presentation boundary. */
+  appearance?: InsightAppearance
   className?: string
 }
 
@@ -88,6 +106,7 @@ export function InsightStatus({
   onCancel,
   retryLabel = '重试',
   cancelLabel = '取消',
+  appearance = 'legacy',
   className,
 }: InsightStatusProps) {
   const reducedMotion = usePrefersReducedMotion()
@@ -99,46 +118,109 @@ export function InsightStatus({
 
   return (
     <div
-      className={cn('flex flex-col gap-2 border border-term-border bg-term-panel p-2', className)}
+      className={cn(
+        'flex flex-col gap-2',
+        appearance === 'warm'
+          ? styles.status
+          : 'border border-term-border bg-term-panel p-2',
+        className
+      )}
       data-insight-status
+      data-insight-appearance={appearance}
       data-tone={tone}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant={TONE_BADGE_VARIANTS[tone]} data-insight-status-badge>
-          <Icon
-            className={cn('mr-1 inline size-3', isActive && !reducedMotion && 'animate-spin')}
-            aria-hidden
-          />
-          {status}
-        </Badge>
+        {appearance === 'warm' ? (
+          <WarmBadge
+            tone={WARM_TONE_BADGES[tone]}
+            className={styles.statusBadge}
+            data-insight-status-badge
+          >
+            <Icon
+              className={cn(
+                styles.statusIcon,
+                isActive && !reducedMotion && 'animate-spin'
+              )}
+              aria-hidden
+            />
+            {status}
+          </WarmBadge>
+        ) : (
+          <Badge variant={TONE_BADGE_VARIANTS[tone]} data-insight-status-badge>
+            <Icon
+              className={cn('mr-1 inline size-3', isActive && !reducedMotion && 'animate-spin')}
+              aria-hidden
+            />
+            {status}
+          </Badge>
+        )}
 
         <p
           role="status"
           aria-live="polite"
           aria-busy={isActive || undefined}
-          className="min-w-0 flex-1 break-words text-xs text-term-text"
+          className={cn(
+            'min-w-0 flex-1 break-words',
+            appearance === 'warm' ? styles.statusLabel : 'text-xs text-term-text'
+          )}
           data-insight-status-label
         >
           {error?.message ?? label}
           {detail && !error ? (
-            <span className="ml-2 text-term-muted" data-insight-status-detail>
+            <span
+              className={cn(
+                'ml-2',
+                appearance === 'warm' ? styles.statusDetail : 'text-term-muted'
+              )}
+              data-insight-status-detail
+            >
               {detail}
             </span>
           ) : null}
         </p>
 
-        <div className="flex items-center gap-1" data-insight-status-actions>
+        <div
+          className={cn(
+            'flex items-center',
+            appearance === 'warm' ? styles.statusActions : 'gap-1'
+          )}
+          data-insight-status-actions
+        >
           {onRetry && tone === 'danger' ? (
-            <Button type="button" variant="term" size="xs" onClick={onRetry}>
-              <RotateCcw />
-              <span>{retryLabel}</span>
-            </Button>
+            appearance === 'warm' ? (
+              <WarmButton
+                type="button"
+                variant="secondary"
+                className={styles.statusAction}
+                onClick={onRetry}
+              >
+                <RotateCcw />
+                <span>{retryLabel}</span>
+              </WarmButton>
+            ) : (
+              <Button type="button" variant="term" size="xs" onClick={onRetry}>
+                <RotateCcw />
+                <span>{retryLabel}</span>
+              </Button>
+            )
           ) : null}
           {onCancel && isActive ? (
-            <Button type="button" variant="term" size="xs" onClick={onCancel}>
-              <X />
-              <span>{cancelLabel}</span>
-            </Button>
+            appearance === 'warm' ? (
+              <WarmButton
+                type="button"
+                variant="quiet"
+                className={styles.statusAction}
+                onClick={onCancel}
+              >
+                <X />
+                <span>{cancelLabel}</span>
+              </WarmButton>
+            ) : (
+              <Button type="button" variant="term" size="xs" onClick={onCancel}>
+                <X />
+                <span>{cancelLabel}</span>
+              </Button>
+            )
           ) : null}
         </div>
       </div>
@@ -150,15 +232,35 @@ export function InsightStatus({
           aria-valuemax={100}
           aria-valuenow={clampedProgress}
           aria-label={label}
-          className="h-1 w-full bg-term-raised"
+          className={cn(
+            'w-full',
+            appearance === 'warm'
+              ? styles.progressTrack
+              : 'h-1 bg-term-raised'
+          )}
           data-insight-progress
         >
-          <div className="h-full bg-primary transition-[width]" style={{ width: `${clampedProgress}%` }} />
+          <div
+            className={cn(
+              'h-full',
+              appearance === 'warm'
+                ? styles.progressFill
+                : 'bg-primary transition-[width]'
+            )}
+            style={{ width: `${clampedProgress}%` }}
+          />
         </div>
       ) : null}
 
       {error && (error.code || error.retryable !== undefined) ? (
-        <p className="font-mono text-[0.6875rem] text-term-muted" data-insight-error-code>
+        <p
+          className={cn(
+            appearance === 'warm'
+              ? styles.errorCode
+              : 'font-mono text-[0.6875rem] text-term-muted'
+          )}
+          data-insight-error-code
+        >
           {error.code}
           {error.retryable === false ? ' · 不可重试' : error.retryable ? ' · 可重试' : ''}
           {typeof error.retry_after_seconds === 'number' ? ` · ${error.retry_after_seconds}s 后重试` : ''}
@@ -166,7 +268,15 @@ export function InsightStatus({
       ) : null}
 
       {backgroundMessage ? (
-        <p role="status" className="text-[0.6875rem] text-term-muted" data-insight-background-message>
+        <p
+          role="status"
+          className={cn(
+            appearance === 'warm'
+              ? styles.backgroundMessage
+              : 'text-[0.6875rem] text-term-muted'
+          )}
+          data-insight-background-message
+        >
           {backgroundMessage}
         </p>
       ) : null}

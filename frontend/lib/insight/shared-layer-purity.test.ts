@@ -21,6 +21,7 @@ const FRONTEND_ROOT = path.resolve(import.meta.dirname, '../..')
 const SHARED_MECHANISM_FILES = [
   'hooks/use-insight-stream.ts',
   'components/insight/insight-markdown.tsx',
+  'components/insight/insight-presentation.ts',
   'components/insight/insight-status.tsx',
   'components/insight/insight-stream-panel.tsx',
   'lib/insight/client.ts',
@@ -35,7 +36,9 @@ const DOMAIN_BRANCH_TOKENS: Record<string, RegExp> = {
   '广告分析域标识': /ad[-_]analysis/i,
   '库存健康域标识': /inventory[-_]health/i,
   '域输出槽常量': /\bAD_OUTPUT_SLOT\b|\bINVENTORY_OUTPUT_SLOT\b/,
-  '域页面依赖': /components\/dashboard|@\/app\//,
+  // `components/dashboard-v2/warm-ledger` is the shared A1 design system, not a
+  // domain page. Domain-prefixed imports still fail this guard.
+  '域页面依赖': /@\/components\/dashboard\/|(?:^|\/)components\/dashboard\/|@\/app\//m,
 }
 
 function readSharedFile(relativePath: string): string {
@@ -49,6 +52,14 @@ describe('共享 Insight 层的域纯度', () => {
       .filter(([, pattern]) => pattern.test(source))
       .map(([label]) => label)
     expect(found).toEqual([])
+  })
+
+  it('允许通用 Warm 设计系统，但仍然拦截域页面依赖', () => {
+    const pattern = DOMAIN_BRANCH_TOKENS['域页面依赖']
+
+    expect(pattern.test("@/components/dashboard-v2/warm-ledger/controls")).toBe(false)
+    expect(pattern.test("@/components/dashboard/ai-ad-analysis")).toBe(true)
+    expect(pattern.test("@/app/dashboard/ai/ad-analysis/page")).toBe(true)
   })
 
   it('渲染器只做展示：不持有传输层（EventSource / fetch）', () => {

@@ -99,4 +99,38 @@ describe('InsightMarkdown', () => {
     expect(clickSpy).toHaveBeenCalledTimes(1)
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:md')
   })
+
+  it('keeps legacy presentation by default and opts into the shared Warm boundary on demand', async () => {
+    const clipboard = stubClipboard()
+    const onCopyRaw = vi.fn()
+    const { container, rerender } = render(<InsightMarkdown content={'正文\n'} />)
+
+    expect(container.querySelector('[data-insight-markdown]')).toHaveAttribute(
+      'data-insight-appearance',
+      'legacy'
+    )
+
+    rerender(
+      <InsightMarkdown
+        content={'正文\n'}
+        appearance="warm"
+        copyExportClassName="page-copy-export"
+        onCopyRaw={onCopyRaw}
+      />
+    )
+
+    expect(container.querySelector('[data-insight-markdown]')).toHaveAttribute(
+      'data-insight-appearance',
+      'warm'
+    )
+    const actions = container.querySelector('[data-insight-raw-actions]')
+    expect(actions).toHaveClass('page-copy-export')
+
+    const copyButton = screen.getByRole('button', { name: /复制 Markdown/ })
+    expect(copyButton).toHaveClass('warm-ledger__button')
+    fireEvent.click(copyButton)
+
+    await vi.waitFor(() => expect(onCopyRaw).toHaveBeenCalledWith('正文\n'))
+    expect(clipboard.writeText).toHaveBeenCalledWith('正文\n')
+  })
 })
