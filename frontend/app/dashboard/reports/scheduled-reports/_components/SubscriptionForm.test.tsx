@@ -62,6 +62,18 @@ function renderForm(overrides: Partial<Parameters<typeof SubscriptionForm>[0]> =
 }
 
 describe('SubscriptionForm AI 模型区（BLF-1032）', () => {
+  it('表单表面使用 Warm Ledger 本地契约', () => {
+    renderForm()
+
+    expect(screen.getByTestId('subscription-form')).toHaveAttribute(
+      'data-warm-ledger-form',
+      'true'
+    )
+    expect(screen.getByTestId('subscription-form').className).not.toMatch(
+      /term-|rounded-none/
+    )
+  })
+
   it('默认展开：零点击即可看到模型下拉并选中模型', async () => {
     const props = renderForm()
 

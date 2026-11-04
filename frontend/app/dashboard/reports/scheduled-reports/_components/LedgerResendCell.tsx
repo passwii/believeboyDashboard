@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import type { AIModelConfig, LedgerItem, ResendStage } from './types'
+import styles from '../scheduled-reports-warm.module.css'
 
 const RESEND_STAGE_LABELS: Record<ResendStage, string> = {
   preparing: '准备中',
@@ -25,17 +26,6 @@ const RESEND_STAGE_LABELS: Record<ResendStage, string> = {
   sending: '发送邮件',
   done: '已完成',
   failed: '失败',
-}
-
-const RESEND_STAGE_COLORS: Record<ResendStage, string> = {
-  preparing: 'text-term-warn',
-  fetching_data: 'text-term-accent',
-  generating_summary: 'text-term-accent',
-  rendering_html: 'text-blue-600 dark:text-blue-400',
-  capturing_screenshot: 'text-orange-600 dark:text-orange-400',
-  sending: 'text-purple-600 dark:text-purple-400',
-  done: 'text-emerald-600 dark:text-emerald-400',
-  failed: 'text-destructive',
 }
 
 /**
@@ -90,9 +80,9 @@ export function LedgerResendCell({
 
   if (resendingStage) {
     return (
-      <div className="flex items-center gap-2">
-        <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-        <span className={cn('text-sm', RESEND_STAGE_COLORS[resendingStage])}>
+      <div className={styles.inlineLoading} role="status">
+        <Loader2 className={styles.spinner} aria-hidden />
+        <span data-stage={resendingStage}>
           {RESEND_STAGE_LABELS[resendingStage]}
         </span>
       </div>
@@ -102,12 +92,12 @@ export function LedgerResendCell({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button size="sm" variant="outline">
-          <RotateCcw className="mr-1 h-3 w-3" />
+        <Button size="sm" className={styles.button}>
+          <RotateCcw aria-hidden />
           {actionLabel}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[280px] p-3" align="end">
+      <PopoverContent className={cn(styles.popoverContent, 'w-[280px]')} align="end">
         <div className="space-y-2">
           <div className="text-sm font-medium">{actionLabel}报告</div>
           <p className="text-xs text-muted-foreground">
@@ -124,10 +114,10 @@ export function LedgerResendCell({
               }}
               disabled={isLoadingModelConfig || !modelConfig?.models.length}
             >
-              <SelectTrigger className="h-8 text-xs">
+              <SelectTrigger className={styles.control}>
                 <SelectValue placeholder={isLoadingModelConfig ? '加载模型中...' : '选择模型'} />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className={styles.selectContent}>
                 {defaultModel && (
                   <SelectItem value={defaultModel}>
                     <span className="flex items-center gap-1">
@@ -174,7 +164,7 @@ export function LedgerResendCell({
           <div className="flex gap-2 pt-1">
             <Button
               size="sm"
-              className="flex-1"
+              className={cn(styles.buttonPrimary, 'flex-1')}
               disabled={!selectedModel}
               onClick={() => {
                 onLoading()
@@ -184,7 +174,11 @@ export function LedgerResendCell({
             >
               确认{actionLabel}
             </Button>
-            <Button size="sm" variant="ghost" className="flex-1" onClick={() => setOpen(false)}>
+            <Button
+              size="sm"
+              className={cn(styles.button, 'flex-1')}
+              onClick={() => setOpen(false)}
+            >
               取消
             </Button>
           </div>

@@ -153,6 +153,13 @@ beforeEach(() => {
 })
 
 describe('LedgerDetailDialog AI 摘要状态机（BLF-822）', () => {
+  it('详情弹窗使用 Warm Ledger 本地表面', () => {
+    renderDialog({ item: makeItem() })
+
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveAttribute('data-warm-ledger-dialog', 'true')
+  })
+
   it('pending 记录显示「生成 AI 摘要」按钮，点击回调 regenerate（带订阅预设模型）', async () => {
     const item = makeItem()
     const { onRegenerateAiSummary } = renderDialog({ item })

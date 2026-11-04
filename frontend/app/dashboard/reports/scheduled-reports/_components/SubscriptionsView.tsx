@@ -8,8 +8,6 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { FilterToolbar } from '@/components/ui/filter-toolbar'
-import { TermBody, TermCell, TermHead, TermRow, TermTable, TermTHead } from '@/components/terminal/term-table'
-import { TermPanel } from '@/components/terminal/term-panel'
 import { useNotifications } from '@/components/notifications'
 import { cn } from '@/lib/utils'
 import { getCountryLabel, COUNTRY_OPTIONS } from '@/lib/country'
@@ -32,14 +30,8 @@ import {
 } from './api'
 import { CreateSubscriptionDialog } from './CreateSubscriptionDialog'
 import { EditSubscriptionDialog } from './EditSubscriptionDialog'
-import {
-  TERM_BUTTON,
-  TERM_INPUT,
-  TERM_SELECT_ITEM,
-  TERM_TRIGGER,
-  TermFrequencyTag,
-  TermStatusPill,
-} from './term-shared'
+import { WarmFrequencyTag, WarmStatusPill } from './warm-shared'
+import styles from '../scheduled-reports-warm.module.css'
 
 const FREQUENCY_LABELS: Record<Frequency, string> = {
   daily: '每日',
@@ -100,18 +92,21 @@ function BulkBar({
   return (
     <div
       data-testid="subscriptions-bulk-bar"
-      className="flex flex-wrap items-center gap-1.5"
+      className={styles.bulkBar}
       role="group"
       aria-label="批量操作"
     >
-      <span className="font-mono text-[11px] tabular-nums text-term-accent">已选 {count} 条</span>
-      <span aria-hidden className="mx-0.5 h-4 w-px bg-term-border" />
+      <span className={styles.bulkCount}>已选 {count} 条</span>
+      <span aria-hidden className={styles.bulkDivider} />
 
       <Select value={model} onValueChange={onModelChange}>
-        <SelectTrigger className={cn(TERM_TRIGGER, 'w-[180px]')} aria-label="批量修改 AI 模型">
+        <SelectTrigger
+          className={cn(styles.control, styles.bulkSelect)}
+          aria-label="批量修改 AI 模型"
+        >
           <SelectValue placeholder="选择 AI 模型" />
         </SelectTrigger>
-        <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
+        <SelectContent className={styles.selectContent}>
           <AiModelOptions config={modelConfig} />
         </SelectContent>
       </Select>
@@ -119,7 +114,7 @@ function BulkBar({
         type="button"
         onClick={onApplyModel}
         disabled={!model || !idle}
-        className={TERM_BUTTON}
+        className={styles.button}
         title="把所选订阅的 AI 模型统一改为上方模型"
       >
         {busy === 'model' ? (
@@ -134,7 +129,7 @@ function BulkBar({
         type="button"
         onClick={onPause}
         disabled={pauseDisabled || !idle}
-        className={TERM_BUTTON}
+        className={styles.button}
         title="暂停所选订阅，不再生成与发送报告"
       >
         {busy === 'pause' ? (
@@ -148,7 +143,7 @@ function BulkBar({
         type="button"
         onClick={onResume}
         disabled={resumeDisabled || !idle}
-        className={TERM_BUTTON}
+        className={styles.button}
         title="启用所选订阅，恢复定时生成与发送"
       >
         {busy === 'resume' ? (
@@ -162,7 +157,7 @@ function BulkBar({
         type="button"
         onClick={onDelete}
         disabled={!idle}
-        className={cn(TERM_BUTTON, 'text-term-neg hover:border-term-neg/60')}
+        className={styles.buttonDanger}
         title="删除所选订阅（不可撤销）"
       >
         {busy === 'delete' ? (
@@ -176,7 +171,7 @@ function BulkBar({
       <button
         type="button"
         onClick={onClear}
-        className={cn(TERM_BUTTON, 'ml-auto md:ml-2')}
+        className={cn(styles.button, styles.bulkClear)}
         title="清空选择"
         aria-label="清空选择"
       >
@@ -482,82 +477,92 @@ export default function SubscriptionsView({
 
   if (loading) {
     return (
-      <TermPanel title="订阅管理">
-        <div className="space-y-3 p-3">
-          <Skeleton className="h-10 w-full rounded-none bg-term-raised" />
-          <Skeleton className="h-10 w-full rounded-none bg-term-raised" />
-          <Skeleton className="h-10 w-full rounded-none bg-term-raised" />
-          <Skeleton className="h-10 w-3/4 rounded-none bg-term-raised" />
+      <section
+        className={styles.panel}
+        aria-label="订阅管理"
+        aria-busy="true"
+        data-warm-scheduled-subscriptions="true"
+      >
+        <header className={styles.panelHeader}>
+          <h2 className={styles.panelTitle}>订阅管理</h2>
+        </header>
+        <div className="grid gap-3 p-4">
+          <Skeleton className="h-10 w-full rounded-[var(--warm-ledger-radius-inner)] bg-[var(--warm-ledger-color-panel-strong)]" />
+          <Skeleton className="h-10 w-full rounded-[var(--warm-ledger-radius-inner)] bg-[var(--warm-ledger-color-panel-strong)]" />
+          <Skeleton className="h-10 w-full rounded-[var(--warm-ledger-radius-inner)] bg-[var(--warm-ledger-color-panel-strong)]" />
+          <Skeleton className="h-10 w-3/4 rounded-[var(--warm-ledger-radius-inner)] bg-[var(--warm-ledger-color-panel-strong)]" />
         </div>
-      </TermPanel>
+      </section>
     )
   }
 
   return (
-    <div className="flex min-w-0 flex-col gap-3">
+    <div
+      className={styles.stack}
+      data-warm-scheduled-subscriptions="true"
+    >
       {/* 移动端：选择态命令条吸附在面板上方（工具区在手机上已被筛选器占满，
           就地插入会把筛选器推下屏外）。 */}
       {canManage && selectedSubs.length > 0 && (
-        <div className="sticky top-0 z-20 border border-term-border bg-term-raised p-1.5 md:hidden">{bulkBar}</div>
+        <div className="sticky top-0 z-20 border border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] p-1.5 md:hidden">{bulkBar}</div>
       )}
 
-      <TermPanel
-        title="订阅管理"
-        actions={
-          <>
-            <span className="mr-1 font-mono text-[11px] tabular-nums text-term-faint">
+      <section className={styles.panel} aria-label="订阅管理">
+        <header className={styles.panelHeader}>
+          <h2 className={styles.panelTitle}>订阅管理</h2>
+          <div className={styles.panelActions}>
+            <span className={styles.count}>
               {filteredSubscriptions.length === subscriptions.length
                 ? `${subscriptions.length} 条`
                 : `${filteredSubscriptions.length} / ${subscriptions.length} 条`}
             </span>
-            {canManage && (
-              <button type="button" onClick={handleOpenCreateDialog} className={TERM_BUTTON}>
-                <Plus className="h-3.5 w-3.5" aria-hidden />
+            {canManage ? (
+              <button type="button" onClick={handleOpenCreateDialog} className={styles.button}>
+                <Plus aria-hidden />
                 新增订阅
               </button>
-            )}
-          </>
-        }
-      >
+            ) : null}
+          </div>
+        </header>
         {/* 筛选器（BLF-1032）：桌面 flex-wrap / 手机 2 列网格统一由 FilterToolbar 承担，
             不再维护桌面 + 手机两份重复的 Select 组合。 */}
-        <FilterToolbar className="border-x-0 border-t-0">
+        <FilterToolbar className={styles.filterToolbar}>
           <Select value={filterFrequency} onValueChange={setFilterFrequency}>
-            <SelectTrigger className={cn(TERM_TRIGGER, 'md:w-[110px]')}>
+            <SelectTrigger className={cn(styles.control, 'md:w-[110px]')}>
               <SelectValue placeholder="频率" />
             </SelectTrigger>
-            <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
+            <SelectContent className={styles.selectContent}>
               {/* 手机端短标签「全部」（BLF-617 移动契约）；桌面保持「全部频率」。
                   用 JS 断点而不是 md:hidden 双 span：SelectValue 会把选项内容克隆进
                   触发器，双 span 的 textContent 会拼成「全部全部频率」，破坏既有移动
                   smoke 对 /^全部$/ 的文本匹配（review 修复 1）。 */}
-              <SelectItem value="all" className={TERM_SELECT_ITEM}>
+              <SelectItem value="all" className={styles.selectItem}>
                 {isMobile ? '全部' : '全部频率'}
               </SelectItem>
-              <SelectItem value="daily" className={TERM_SELECT_ITEM}>
+              <SelectItem value="daily" className={styles.selectItem}>
                 每日
               </SelectItem>
-              <SelectItem value="weekly" className={TERM_SELECT_ITEM}>
+              <SelectItem value="weekly" className={styles.selectItem}>
                 每周
               </SelectItem>
-              <SelectItem value="monthly" className={TERM_SELECT_ITEM}>
+              <SelectItem value="monthly" className={styles.selectItem}>
                 每月
               </SelectItem>
             </SelectContent>
           </Select>
           <Select value={filterProject} onValueChange={setFilterProject}>
-            <SelectTrigger className={cn(TERM_TRIGGER, 'md:w-[150px]')}>
+            <SelectTrigger className={cn(styles.control, 'md:w-[150px]')}>
               <SelectValue placeholder="项目" />
             </SelectTrigger>
-            <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
-              <SelectItem value="all" className={TERM_SELECT_ITEM}>
+            <SelectContent className={styles.selectContent}>
+              <SelectItem value="all" className={styles.selectItem}>
                 全部项目
               </SelectItem>
               {projects.map((p) => (
                 <SelectItem
                   key={p.id?.toString() || p.name}
                   value={p.id?.toString() || ''}
-                  className={TERM_SELECT_ITEM}
+                  className={styles.selectItem}
                 >
                   {p.name}
                 </SelectItem>
@@ -565,32 +570,32 @@ export default function SubscriptionsView({
             </SelectContent>
           </Select>
           <Select value={filterCountry} onValueChange={setFilterCountry}>
-            <SelectTrigger className={cn(TERM_TRIGGER, 'md:w-[110px]')}>
+            <SelectTrigger className={cn(styles.control, 'md:w-[110px]')}>
               <SelectValue placeholder="国家" />
             </SelectTrigger>
-            <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
-              <SelectItem value="all" className={TERM_SELECT_ITEM}>
+            <SelectContent className={styles.selectContent}>
+              <SelectItem value="all" className={styles.selectItem}>
                 全部国家
               </SelectItem>
               {COUNTRY_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value} className={TERM_SELECT_ITEM}>
+                <SelectItem key={opt.value} value={opt.value} className={styles.selectItem}>
                   {opt.label}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
           <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className={cn(TERM_TRIGGER, 'md:w-[110px]')}>
+            <SelectTrigger className={cn(styles.control, 'md:w-[110px]')}>
               <SelectValue placeholder="状态" />
             </SelectTrigger>
-            <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
-              <SelectItem value="all" className={TERM_SELECT_ITEM}>
+            <SelectContent className={styles.selectContent}>
+              <SelectItem value="all" className={styles.selectItem}>
                 全部状态
               </SelectItem>
-              <SelectItem value="enabled" className={TERM_SELECT_ITEM}>
+              <SelectItem value="enabled" className={styles.selectItem}>
                 启用
               </SelectItem>
-              <SelectItem value="disabled" className={TERM_SELECT_ITEM}>
+              <SelectItem value="disabled" className={styles.selectItem}>
                 已暂停
               </SelectItem>
             </SelectContent>
@@ -599,163 +604,176 @@ export default function SubscriptionsView({
             placeholder="筛选邮箱"
             value={filterEmail}
             onChange={(e) => setFilterEmail(e.target.value)}
-            className={cn(TERM_INPUT, 'col-span-2 md:col-span-1 md:w-[180px]')}
+            className={cn(styles.input, 'col-span-2 md:col-span-1 md:w-[180px]')}
           />
         </FilterToolbar>
 
         {/* 选择态命令条（桌面端）：紧贴表格上方 —— 出现/消失不会推动筛选器位置 */}
         {canManage && selectedSubs.length > 0 && (
-          <div className="hidden border-b border-term-border p-1.5 md:block">{bulkBar}</div>
+          <div className="hidden border-b border-[color:var(--warm-ledger-color-hairline)] p-1.5 md:block">{bulkBar}</div>
         )}
 
         {/* 订阅列表 */}
         {subscriptions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <Inbox className="mb-3 h-10 w-10 text-term-faint" />
-            <p className="mb-1 font-mono text-sm text-term-muted">暂无订阅配置</p>
-            <p className="mb-4 text-xs text-term-faint">
+          <div className={styles.emptyState}>
+            <Inbox className={styles.emptyIcon} aria-hidden />
+            <p className={styles.emptyTitle}>暂无订阅配置</p>
+            <p className={styles.emptyText}>
               {canManage ? '点击右上角「新增订阅」创建第一个配置' : '暂无可用订阅配置'}
             </p>
           </div>
         ) : filteredSubscriptions.length === 0 ? (
-          /* 有订阅但被筛掉：给出「清空筛选」出口，避免看起来像没数据 */
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <FilterX className="mb-3 h-10 w-10 text-term-faint" />
-            <p className="mb-1 font-mono text-sm text-term-muted">没有符合筛选条件的订阅</p>
-            <p className="mb-4 text-xs text-term-faint">共 {subscriptions.length} 条订阅，当前筛选结果为空</p>
-            <button type="button" onClick={resetFilters} className={TERM_BUTTON}>
-              <X className="h-3.5 w-3.5" aria-hidden />
+          <div className={styles.emptyState}>
+            <FilterX className={styles.emptyIcon} aria-hidden />
+            <p className={styles.emptyTitle}>没有符合筛选条件的订阅</p>
+            <p className={styles.emptyText}>
+              共 {subscriptions.length} 条订阅，当前筛选结果为空
+            </p>
+            <button type="button" onClick={resetFilters} className={styles.button}>
+              <X aria-hidden />
               清空筛选条件
             </button>
           </div>
         ) : (
           <>
-            {/* 桌面端表格 */}
-            <div className="hidden overflow-x-auto md:block">
-              <TermTable aria-label="订阅列表">
-                <TermTHead>
-                  <TermRow>
-                    <TermHead className="w-8 px-2">
-                      {canManage && (
+            <div
+              className={cn('hidden md:block', styles.tableScroller)}
+              data-scheduled-subscriptions-table-scroll="true"
+            >
+              <table className={styles.table} aria-label="订阅列表">
+                <thead>
+                  <tr>
+                    <th scope="col" className="w-10">
+                      {canManage ? (
                         <Checkbox
-                          checked={allFilteredSelected ? true : selectedInFiltered > 0 ? 'indeterminate' : false}
+                          checked={
+                            allFilteredSelected
+                              ? true
+                              : selectedInFiltered > 0
+                                ? 'indeterminate'
+                                : false
+                          }
                           onCheckedChange={(checked) => toggleAllFiltered(checked === true)}
                           aria-label={
                             allFilteredSelected
                               ? '取消全选筛选结果'
                               : `全选筛选结果（${filteredSubscriptions.length} 条）`
                           }
-                          className="h-3.5 w-3.5 translate-y-px rounded-none border-term-border-strong data-[state=checked]:border-term-accent"
+                          className={styles.checkbox}
                         />
-                      )}
-                    </TermHead>
-                    <TermHead>项目</TermHead>
-                    <TermHead>国家</TermHead>
-                    <TermHead>频率</TermHead>
-                    <TermHead>发送时间</TermHead>
-                    <TermHead>邮箱</TermHead>
-                    <TermHead>状态</TermHead>
-                    <TermHead>AI 模型</TermHead>
-                    <TermHead numeric>操作</TermHead>
-                  </TermRow>
-                </TermTHead>
-                <TermBody>
+                      ) : null}
+                    </th>
+                    <th scope="col">项目</th>
+                    <th scope="col">国家</th>
+                    <th scope="col">频率</th>
+                    <th scope="col">发送时间</th>
+                    <th scope="col">邮箱</th>
+                    <th scope="col">状态</th>
+                    <th scope="col">AI 模型</th>
+                    <th scope="col" className={styles.actionsCell}>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
                   {filteredSubscriptions.map((sub) => {
                     const names = resolveProjectNames(sub.project_ids, projects)
                     const { display, full } = formatProjectNames(names)
                     const selected = selectedIds.has(sub.id)
-                    // 同一项目 + 同一调度时间可能有多条订阅，行/勾选框标签必须并入邮箱才唯一
                     const rowLabel = `${display} · ${sub.email || '未填写邮箱'}`
                     return (
-                      <TermRow
+                      <tr
                         key={sub.id}
-                        highlight={selected}
-                        className={cn(selected && '[&>td]:bg-term-raised [&>td]:font-semibold hover:bg-term-raised')}
+                        className={cn(selected && styles.selectedRow)}
                         aria-label={`订阅 ${rowLabel} · ${formatDispatchText(sub)}`}
                       >
-                        <TermCell className="px-2">
-                          {canManage && (
+                        <td>
+                          {canManage ? (
                             <Checkbox
                               checked={selected}
-                              onCheckedChange={(checked) => toggleRowSelected(sub.id, checked === true)}
+                              onCheckedChange={(checked) =>
+                                toggleRowSelected(sub.id, checked === true)
+                              }
                               aria-label={`选中订阅 ${rowLabel}`}
-                              className="h-3.5 w-3.5 translate-y-px rounded-none border-term-border-strong data-[state=checked]:border-term-accent"
+                              className={styles.checkbox}
                             />
-                          )}
-                        </TermCell>
-                        <TermCell title={full} className="max-w-[140px] truncate font-medium">
+                          ) : null}
+                        </td>
+                        <td title={full} className={styles.truncateCell}>
                           {display}
-                        </TermCell>
-                        <TermCell tone="muted" className="whitespace-nowrap">
+                        </td>
+                        <td className={styles.mutedCell}>
                           {sub.country
                             .split(',')
                             .map((c) => c.trim())
                             .filter(Boolean)
                             .map(getCountryLabel)
                             .join(' · ')}
-                        </TermCell>
-                        <TermCell>
-                          <TermFrequencyTag frequency={sub.frequency} labels={FREQUENCY_LABELS} />
-                        </TermCell>
-                        <TermCell tone="muted" numeric className="tabular-nums">
+                        </td>
+                        <td>
+                          <WarmFrequencyTag
+                            frequency={sub.frequency}
+                            labels={FREQUENCY_LABELS}
+                          />
+                        </td>
+                        <td className={cn(styles.mutedCell, styles.numeric)}>
                           {formatDispatchText(sub)}
-                        </TermCell>
-                        <TermCell tone="muted" title={sub.email || ''} className="max-w-[160px] truncate">
-                          {sub.email || <span className="italic text-term-faint">未填写</span>}
-                        </TermCell>
-                        <TermCell>
+                        </td>
+                        <td
+                          title={sub.email || ''}
+                          className={cn(styles.mutedCell, styles.truncateCell)}
+                        >
+                          {sub.email || '未填写'}
+                        </td>
+                        <td>
                           {sub.enabled ? (
-                            <TermStatusPill status="sent" label="启用" />
+                            <WarmStatusPill status="sent" label="启用" />
                           ) : (
-                            <span className="font-mono text-[11px] text-term-faint">已暂停</span>
+                            <span className={styles.mutedCell}>已暂停</span>
                           )}
-                        </TermCell>
-                        <TermCell tone="muted" className="max-w-[140px] truncate text-xs">
+                        </td>
+                        <td className={cn(styles.mutedCell, styles.truncateCell)}>
                           {sub.ai_model || '—'}
-                        </TermCell>
-                        <TermCell numeric>
-                          <div className="flex gap-1 justify-end">
-                            {canManage && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggle(sub)}
-                                  title={sub.enabled ? '暂停' : '启用'}
-                                  aria-label={sub.enabled ? '暂停' : '启用'}
-                                  className="flex h-7 w-7 items-center justify-center border border-transparent text-term-muted transition-colors hover:border-term-border hover:text-term-text disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                  <Power className="h-3.5 w-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleEdit(sub)}
-                                  title="编辑"
-                                  aria-label="编辑订阅"
-                                  className="flex h-7 w-7 items-center justify-center border border-transparent text-term-muted transition-colors hover:border-term-border hover:text-term-text"
-                                >
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDelete(sub.id)}
-                                  title="删除"
-                                  aria-label="删除订阅"
-                                  className="flex h-7 w-7 items-center justify-center border border-transparent text-term-muted transition-colors hover:border-term-neg/50 hover:text-term-neg"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </TermCell>
-                      </TermRow>
+                        </td>
+                        <td className={styles.actionsCell}>
+                          {canManage ? (
+                            <div className={styles.actionGroup}>
+                              <button
+                                type="button"
+                                onClick={() => handleToggle(sub)}
+                                title={sub.enabled ? '暂停' : '启用'}
+                                aria-label={sub.enabled ? '暂停' : '启用'}
+                                className={styles.iconButton}
+                              >
+                                <Power aria-hidden />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleEdit(sub)}
+                                title="编辑"
+                                aria-label="编辑订阅"
+                                className={styles.iconButton}
+                              >
+                                <Pencil aria-hidden />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDelete(sub.id)}
+                                title="删除"
+                                aria-label="删除订阅"
+                                className={cn(styles.iconButton, styles.buttonDanger)}
+                              >
+                                <Trash2 aria-hidden />
+                              </button>
+                            </div>
+                          ) : null}
+                        </td>
+                      </tr>
                     )
                   })}
-                </TermBody>
-              </TermTable>
+                </tbody>
+              </table>
             </div>
-            {/* 手机端卡片列表 */}
-            <div className="divide-y divide-term-border md:hidden">
+
+            <div className={cn('md:hidden', styles.mobileList)}>
               {filteredSubscriptions.map((sub) => {
                 const names = resolveProjectNames(sub.project_ids, projects)
                 const { display, full } = formatProjectNames(names)
@@ -765,39 +783,44 @@ export default function SubscriptionsView({
                   <div
                     key={sub.id}
                     className={cn(
-                      'border-l-2 border-l-transparent p-3',
-                      selected && 'border-l-term-accent bg-term-raised',
+                      styles.mobileCard,
+                      selected && styles.mobileCardSelected
                     )}
                   >
-                    <div className="mb-2 flex items-start justify-between gap-2">
-                      <div className="flex min-w-0 items-start gap-2">
-                        {canManage && (
+                    <div className={styles.mobileHeader}>
+                      <div className={styles.mobileIdentity}>
+                        {canManage ? (
                           <Checkbox
                             checked={selected}
-                            onCheckedChange={(checked) => toggleRowSelected(sub.id, checked === true)}
+                            onCheckedChange={(checked) =>
+                              toggleRowSelected(sub.id, checked === true)
+                            }
                             aria-label={`选中订阅 ${rowLabel}`}
-                            className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded-none border-term-border-strong data-[state=checked]:border-term-accent"
+                            className={styles.checkbox}
                           />
-                        )}
+                        ) : null}
                         <div className="min-w-0">
-                          <div className="truncate text-sm font-medium" title={full}>
+                          <div className={styles.mobileTitle} title={full}>
                             {display}
                           </div>
-                          <div className="mt-0.5 font-mono text-xs tabular-nums text-term-muted">
+                          <div className={styles.mobileMeta}>
                             {formatDispatchText(sub)}
                           </div>
                         </div>
                       </div>
-                      <div className="flex shrink-0 items-center gap-1.5">
-                        <TermFrequencyTag frequency={sub.frequency} labels={FREQUENCY_LABELS} />
+                      <div className={styles.mobileBadges}>
+                        <WarmFrequencyTag
+                          frequency={sub.frequency}
+                          labels={FREQUENCY_LABELS}
+                        />
                         {sub.enabled ? (
-                          <TermStatusPill status="sent" label="启用" />
+                          <WarmStatusPill status="sent" label="启用" />
                         ) : (
-                          <span className="font-mono text-[11px] text-term-faint">已暂停</span>
+                          <span className={styles.mutedCell}>已暂停</span>
                         )}
                       </div>
                     </div>
-                    <div className="mb-2 font-mono text-xs text-term-muted">
+                    <div className={styles.mobileMeta}>
                       {sub.country
                         .split(',')
                         .map((c) => c.trim())
@@ -805,45 +828,47 @@ export default function SubscriptionsView({
                         .map(getCountryLabel)
                         .join(' · ')}
                     </div>
-                    <div className="mb-2 truncate font-mono text-xs text-term-muted" title={sub.email || ''}>
+                    <div className={cn(styles.mobileMeta, 'truncate')} title={sub.email || ''}>
                       {sub.email || '未填写邮箱'}
                     </div>
-                    {sub.ai_model && <div className="mb-2 font-mono text-xs text-term-faint">AI: {sub.ai_model}</div>}
-                    {canManage && (
-                      <div className="grid grid-cols-3 gap-1.5">
+                    {sub.ai_model ? (
+                      <div className={styles.mobileMeta}>AI: {sub.ai_model}</div>
+                    ) : null}
+                    {canManage ? (
+                      <div className={styles.mobileActions}>
                         <button
                           type="button"
                           onClick={() => handleToggle(sub)}
-                          className={cn(TERM_BUTTON, 'justify-center px-1 text-xs')}
+                          className={styles.button}
                         >
-                          <Power className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                          <Power aria-hidden />
                           {sub.enabled ? '暂停' : '启用'}
                         </button>
                         <button
                           type="button"
                           onClick={() => handleEdit(sub)}
-                          className={cn(TERM_BUTTON, 'justify-center px-1 text-xs')}
+                          className={styles.button}
                         >
-                          <Pencil className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                          <Pencil aria-hidden />
                           编辑
                         </button>
                         <button
                           type="button"
                           onClick={() => handleDelete(sub.id)}
-                          className="flex h-8 items-center justify-center gap-1 rounded-none border border-term-border bg-term-panel font-mono text-xs leading-5 text-term-neg shadow-none transition-colors hover:border-term-neg/60 hover:bg-term-hover focus-visible:outline-none focus-visible:border-term-neg/60"
+                          className={styles.buttonDanger}
                         >
-                          <Trash2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                          <Trash2 aria-hidden />
                           删除
                         </button>
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 )
               })}
             </div>
           </>
         )}
-      </TermPanel>
+      </section>
 
       <CreateSubscriptionDialog
         open={showCreateDialog}

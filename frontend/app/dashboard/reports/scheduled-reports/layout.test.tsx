@@ -41,7 +41,12 @@ describe('ScheduledReportsLayout 懒挂载（BEL-422）', () => {
   })
 
   it('默认进入只挂载订阅视图，台账视图不挂载（不为其拉数）', () => {
-    render(<ScheduledReportsLayout />)
+    const { container } = render(<ScheduledReportsLayout />)
+    expect(container.querySelector('[data-warm-scheduled-reports="true"]')).toBeInTheDocument()
+    expect(screen.getByRole('tablist')).toHaveAttribute('data-warm-tablist', 'true')
+    for (const tab of screen.getAllByRole('tab')) {
+      expect(tab.className).not.toMatch(/term-|rounded-none/)
+    }
     expect(screen.getByTestId('subscriptions-view')).toBeInTheDocument()
     expect(screen.queryByTestId('ledger-view')).toBeNull()
   })

@@ -1,6 +1,8 @@
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { readdirSync, readFileSync } from 'node:fs'
+import { extname, join } from 'node:path'
 
 import { DATE_REQUIRED_REPORT_TYPES, isDateRequired } from '@/components/report-upload/types'
 import AutoUploadPage from './page'
@@ -35,6 +37,21 @@ vi.mock('@/lib/project-client-cache', () => ({
 
 const SUMMARY_LABEL = '库存分类账 · 汇总视图（Summary）'
 const DETAIL_LABEL = '库存分类账 · 明细视图（Detail）'
+const AUTO_UPLOAD_SOURCE_ROOT = join(process.cwd(), 'app/dashboard/reports/auto-upload')
+const TERMINAL_VISUAL_RESIDUE = [
+  { label: 'Terminal token', pattern: /--term-/g },
+  { label: 'Terminal utility', pattern: /\bterm-[a-z0-9-]+/g },
+  { label: 'Terminal zero-radius utility', pattern: /\brounded-none\b/g },
+]
+
+function collectSourceFiles(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name)
+    if (entry.isDirectory()) return collectSourceFiles(path)
+    if (entry.name.includes('.test.') || entry.name.includes('.spec.')) return []
+    return ['.css', '.ts', '.tsx'].includes(extname(entry.name)) ? [path] : []
+  })
+}
 
 function jsonResponse(payload: unknown) {
   return { ok: true, json: async () => payload } as Response
@@ -172,6 +189,40 @@ describe('DATE_REQUIRED_REPORT_TYPES / isDateRequired', () => {
 })
 
 describe('AutoUploadPage 队列与状态矩阵渲染', () => {
+  it('使用 Warm Ledger 页面表面并保留桌面表格滚动容器', async () => {
+    const { container } = render(<AutoUploadPage />)
+
+    await screen.findByText('销售')
+
+    expect(container.querySelector('[data-warm-auto-upload="true"]')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'RPA 报表状态' })).toHaveAttribute(
+      'data-warm-rpa-status',
+      'true'
+    )
+    expect(screen.getByTestId('rpa-status-scroll')).toHaveAttribute(
+      'data-auto-upload-status-scroll',
+      'true'
+    )
+    for (const tab of screen.getAllByRole('tab')) {
+      expect(tab.className).not.toMatch(/term-|rounded-none/)
+    }
+  })
+
+  it('源文件不重新引入 Terminal 视觉残留', () => {
+    const violations = collectSourceFiles(AUTO_UPLOAD_SOURCE_ROOT).flatMap((path) => {
+      const source = readFileSync(path, 'utf8')
+      return TERMINAL_VISUAL_RESIDUE.flatMap(({ label, pattern }) =>
+        Array.from(source.matchAll(pattern), (match) => ({
+          path,
+          label,
+          match: match[0],
+        }))
+      )
+    })
+
+    expect(violations).toEqual([])
+  })
+
   it('识别为 inventory_ledger_summary 时队列展示中文标签而非原始 key', async () => {
     const user = userEvent.setup()
     render(<AutoUploadPage />)

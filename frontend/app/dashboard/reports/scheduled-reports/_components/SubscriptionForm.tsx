@@ -25,6 +25,7 @@ import { ProjectScopeSelect } from '@/components/project-scope-select'
 import type { AIModelConfig, Frequency } from './types'
 import { MIN_HOUR_FOR_MONDAY, WEEKDAY_LABELS } from './types'
 import { AiModelOptions } from './ai-model-options'
+import styles from '../scheduled-reports-warm.module.css'
 
 interface Props {
   mode: 'create' | 'edit'
@@ -134,11 +135,11 @@ export function SubscriptionForm({
   return (
     // 三段默认全开后表单明显变高：把标题与「配置预览 + 操作按钮」固定在两端，
     // 只让中间的折叠区滚动，底部按钮不会被顶到滚动边缘、在手机上也不用翻到底才能提交。
-    <div className="flex max-h-[calc(100dvh-8rem)] flex-col pr-1">
+    <div className={styles.form} data-testid="subscription-form" data-warm-ledger-form="true">
       {/* 标题区 */}
-      <div className="mb-4 shrink-0">
-        <h2 className="text-lg font-semibold">{mode === 'create' ? '新增订阅' : '编辑订阅'}</h2>
-        <p className="text-sm text-muted-foreground">
+      <div className={styles.formHeader}>
+        <h2 className={styles.formTitle}>{mode === 'create' ? '新增订阅' : '编辑订阅'}</h2>
+        <p className={styles.formDescription}>
           {mode === 'create' ? '配置自动报告的接收邮箱、频率和内容范围' : '修改订阅配置'}
         </p>
       </div>
@@ -148,11 +149,11 @@ export function SubscriptionForm({
       <Accordion
         type="multiple"
         defaultValue={['basic', 'scope', 'ai']}
-        className="min-h-0 flex-1 space-y-2 overflow-y-auto"
+        className={styles.accordion}
       >
         {/* ── 基础设置 ── */}
-        <AccordionItem value="basic" className="rounded-none border-term-border bg-term-panel px-3">
-          <AccordionTrigger className="text-sm font-medium py-3 hover:no-underline [&[data-state=open]>svg]:text-foreground">
+        <AccordionItem value="basic" className={styles.accordionItem}>
+          <AccordionTrigger className={styles.accordionTrigger}>
             基础设置
           </AccordionTrigger>
           <AccordionContent className="pb-4">
@@ -172,19 +173,22 @@ export function SubscriptionForm({
                       placeholder="ops@company.com"
                       value={formEmail}
                       onChange={(e) => setFormEmail(e.target.value)}
-                      className={cn(formEmail && 'border-emerald-300 dark:border-emerald-700')}
+                      className={cn(
+                        styles.input,
+                        formEmail &&
+                          'border-[color:var(--warm-ledger-color-positive)]'
+                      )}
                     />
                     {formEmail && (
-                      <CheckCircle2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-500" />
+                      <CheckCircle2 className="absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[color:var(--warm-ledger-color-positive)]" />
                     )}
                   </div>
                   <Button
-                    variant="outline"
                     size="sm"
                     onClick={onTestEmail}
                     disabled={testingEmail || !formEmail}
                     title="发送测试邮件到该地址"
-                    className="shrink-0"
+                    className={cn(styles.button, 'shrink-0')}
                   >
                     {testingEmail ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -199,7 +203,9 @@ export function SubscriptionForm({
                   <div
                     className={cn(
                       'mt-1.5 flex items-center gap-1.5 text-xs',
-                      testResult.success ? 'text-emerald-600' : 'text-destructive'
+                      testResult.success
+                        ? 'text-[color:var(--warm-ledger-color-positive)]'
+                        : 'text-[color:var(--warm-ledger-color-negative)]'
                     )}
                   >
                     {testResult.success ? (
@@ -227,13 +233,13 @@ export function SubscriptionForm({
                     }
                   }}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className={styles.control}>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="daily">每日</SelectItem>
-                    <SelectItem value="weekly">每周</SelectItem>
-                    <SelectItem value="monthly">每月</SelectItem>
+                  <SelectContent className={styles.selectContent}>
+                    <SelectItem value="daily" className={styles.selectItem}>每日</SelectItem>
+                    <SelectItem value="weekly" className={styles.selectItem}>每周</SelectItem>
+                    <SelectItem value="monthly" className={styles.selectItem}>每月</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -241,7 +247,7 @@ export function SubscriptionForm({
                 <label className="text-sm font-medium mb-1.5 block">
                   发送时间（北京时间）
                   {isMondayRestricted && (
-                    <span className="ml-1.5 text-xs text-term-warn font-normal">
+                    <span className="ml-1.5 text-xs text-[color:var(--warm-ledger-color-accent)] font-normal">
                       （周一 ≥ 16:00）
                     </span>
                   )}
@@ -265,12 +271,12 @@ export function SubscriptionForm({
                       if (newWeekday === 0 && formDispatchHour < 16) setFormDispatchHour(16)
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className={styles.control}>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className={styles.selectContent}>
                       {WEEKDAY_LABELS.map((label, i) => (
-                        <SelectItem key={i} value={String(i)}>
+                        <SelectItem key={i} value={String(i)} className={styles.selectItem}>
                           {i === 0 ? `${label}（最早 16:00）` : label}
                         </SelectItem>
                       ))}
@@ -285,12 +291,12 @@ export function SubscriptionForm({
                     value={String(formDispatchDay)}
                     onValueChange={(v) => setFormDispatchDay(Number(v))}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className={styles.control}>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="max-h-[240px]">
+                    <SelectContent className={cn(styles.selectContent, 'max-h-[240px]')}>
                       {Array.from({ length: 27 }, (_, i) => (
-                        <SelectItem key={i + 2} value={String(i + 2)}>
+                        <SelectItem key={i + 2} value={String(i + 2)} className={styles.selectItem}>
                           {i + 2} 日
                         </SelectItem>
                       ))}
@@ -303,8 +309,8 @@ export function SubscriptionForm({
         </AccordionItem>
 
         {/* ── 范围设置 ── */}
-        <AccordionItem value="scope" className="rounded-none border-term-border bg-term-panel px-3">
-          <AccordionTrigger className="text-sm font-medium py-3 hover:no-underline">
+        <AccordionItem value="scope" className={styles.accordionItem}>
+          <AccordionTrigger className={styles.accordionTrigger}>
             范围设置
           </AccordionTrigger>
           <AccordionContent className="pb-4">
@@ -313,7 +319,7 @@ export function SubscriptionForm({
                 <label className="text-sm font-medium mb-1.5 block">
                   国家站点
                   {formCountries.length > 1 && (
-                    <span className="ml-1.5 text-xs text-blue-600 font-normal">
+                    <span className="ml-1.5 text-xs font-normal text-[color:var(--warm-ledger-color-accent-strong)]">
                       （{formCountries.length} 个站点合并报告）
                     </span>
                   )}
@@ -322,7 +328,7 @@ export function SubscriptionForm({
                   <PopoverTrigger asChild>
                     <button
                       type="button"
-                      className="flex h-9 w-full items-center justify-between rounded-none border border-term-border bg-term-bg px-3 py-2 font-mono text-sm text-term-text focus-visible:outline-none focus-visible:ring-0 data-[state=open]:border-term-border-strong"
+                      className={cn(styles.control, 'w-full justify-between')}
                     >
                       <span className="truncate">
                         {formCountries.length === 0
@@ -332,7 +338,7 @@ export function SubscriptionForm({
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-[260px] p-2" align="start">
+                  <PopoverContent className={styles.popoverContent} align="start">
                     <div className="space-y-1 max-h-[240px] overflow-y-auto">
                       {COUNTRY_OPTIONS.map((opt) => {
                         const selected = formCountries.includes(opt.value)
@@ -341,8 +347,8 @@ export function SubscriptionForm({
                             key={opt.value}
                             type="button"
                             className={cn(
-                              'flex w-full items-center gap-2 rounded-none px-2 py-1.5 text-sm hover:bg-term-hover transition-colors',
-                              selected && 'bg-accent'
+                              'flex w-full items-center gap-2 rounded-[var(--warm-ledger-radius-inner)] px-2 py-1.5 text-sm hover:bg-[var(--warm-ledger-color-raised-hover)] transition-colors',
+                              selected && 'bg-[var(--warm-ledger-color-accent-soft)]'
                             )}
                             onClick={() => {
                               if (selected) {
@@ -354,9 +360,9 @@ export function SubscriptionForm({
                           >
                             <div
                               className={cn(
-                                'flex h-4 w-4 items-center justify-center rounded-none border-term-border-strong',
+                                'flex h-4 w-4 items-center justify-center rounded-[var(--warm-ledger-radius-inner)] border-[color:var(--warm-ledger-color-hairline-strong)]',
                                 selected
-                                  ? 'bg-primary border-primary text-primary-foreground'
+                                  ? 'border-[color:var(--warm-ledger-color-accent)] bg-[var(--warm-ledger-color-accent)] text-[var(--warm-ledger-color-window)]'
                                   : 'border-input'
                               )}
                             >
@@ -385,8 +391,8 @@ export function SubscriptionForm({
         </AccordionItem>
 
         {/* ── AI 模型 ── */}
-        <AccordionItem value="ai" className="rounded-none border-term-border bg-term-panel px-3">
-          <AccordionTrigger className="text-sm font-medium py-3 hover:no-underline">
+        <AccordionItem value="ai" className={styles.accordionItem}>
+          <AccordionTrigger className={styles.accordionTrigger}>
             AI 模型
             {formAiModel && (
               <span className="ml-auto mr-2 text-xs text-muted-foreground font-normal truncate max-w-[150px]">
@@ -403,12 +409,12 @@ export function SubscriptionForm({
                   onValueChange={setFormAiModel}
                   disabled={isLoadingModelConfig || !modelConfig?.models.length}
                 >
-                  <SelectTrigger aria-label="选择 AI 模型">
+                  <SelectTrigger className={styles.control} aria-label="选择 AI 模型">
                     <SelectValue
                       placeholder={isLoadingModelConfig ? '加载模型中...' : '选择模型'}
                     />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className={styles.selectContent}>
                     <AiModelOptions config={modelConfig} />
                   </SelectContent>
                 </Select>
@@ -423,27 +429,31 @@ export function SubscriptionForm({
 
       {/* 全局错误 */}
       {formError && (
-        <div className="mt-3 flex shrink-0 items-center gap-2 rounded-none border border-term-neg/40 bg-term-neg/10 px-3 py-2 font-mono text-xs text-term-neg">
+        <div className={styles.formError}>
           <XCircle className="h-4 w-4 shrink-0" />
           {formError}
         </div>
       )}
 
       {/* 配置预览 */}
-      <div className="mt-4 shrink-0 rounded-none border border-term-border bg-term-raised p-2.5">
-        <div className="mb-1 font-mono text-[10px] uppercase tracking-wider text-term-faint">配置预览</div>
-        <div className="truncate font-mono text-xs text-term-muted" title={configPreview}>
+      <div className={styles.preview}>
+        <div className={styles.previewLabel}>配置预览</div>
+        <div className={styles.previewValue} title={configPreview}>
           {configPreview}
         </div>
       </div>
 
       {/* 操作按钮 */}
-      <div className="mt-4 flex shrink-0 flex-col gap-2 border-t border-term-border pt-4 sm:flex-row">
-        <Button variant="outline" onClick={onCancel} className="order-2 sm:order-1">
+      <div className={styles.formFooter}>
+        <Button onClick={onCancel} className={cn(styles.button, 'order-2 sm:order-1')}>
           取消
         </Button>
-        <div className="flex-1 order-3 sm:order-2" />
-        <Button onClick={onSubmit} disabled={formSubmitting} className="order-1 sm:order-3">
+        <div className={styles.formFooterSpacer} />
+        <Button
+          onClick={onSubmit}
+          disabled={formSubmitting}
+          className={cn(styles.buttonPrimary, 'order-1 sm:order-3')}
+        >
           {formSubmitting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
           {mode === 'create' ? '确认创建' : '保存修改'}
         </Button>

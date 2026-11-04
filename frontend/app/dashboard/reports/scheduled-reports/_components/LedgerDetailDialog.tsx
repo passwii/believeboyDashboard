@@ -36,22 +36,20 @@ import { fetchLedgerItemByKey } from './api'
 import { ledgerCopyText } from './ledger-insight'
 import { useLedgerInsight } from './use-ledger-insight'
 import type { AIModelConfig, LedgerItem, ResendStage, Subscription } from './types'
+import styles from '../scheduled-reports-warm.module.css'
 
-// BLF-836 终端化：状态区去渐变，改扁平 term 语义色（pos/neg/warn）
+// 状态区沿用真实发送状态与 Warm 语义色，不额外引入说明文案。
 const HERO_BG: Record<string, string> = {
-  sent: 'bg-term-pos/10 border-term-pos/40',
-  failed: 'bg-term-neg/10 border-term-neg/40',
-  missing: 'bg-term-warn/10 border-term-warn/40',
+  sent: 'bg-[color-mix(in_srgb,var(--warm-ledger-color-positive)_10%,transparent)] border-[color:color-mix(in_srgb,var(--warm-ledger-color-positive)_40%,transparent)]',
+  failed: 'bg-[color-mix(in_srgb,var(--warm-ledger-color-negative)_10%,transparent)] border-[color:color-mix(in_srgb,var(--warm-ledger-color-negative)_40%,transparent)]',
+  missing: 'bg-[var(--warm-ledger-color-accent-soft)] border-[color:color-mix(in_srgb,var(--warm-ledger-color-accent)_40%,transparent)]',
 }
 
 const HERO_LABEL: Record<string, { text: string; color: string }> = {
-  sent: { text: '✓ 发送成功', color: 'text-term-pos' },
-  failed: { text: '✗ 发送失败', color: 'text-term-neg' },
-  missing: { text: '⚠ 记录缺失', color: 'text-term-warn' },
+  sent: { text: '✓ 发送成功', color: 'text-[color:var(--warm-ledger-color-positive)]' },
+  failed: { text: '✗ 发送失败', color: 'text-[color:var(--warm-ledger-color-negative)]' },
+  missing: { text: '⚠ 记录缺失', color: 'text-[color:var(--warm-ledger-color-accent)]' },
 }
-
-const SECTION_LABEL =
-  'font-mono text-[10px] uppercase tracking-wider text-term-muted mb-2 block'
 
 const MAX_VISIBLE_PROJECTS = 8
 
@@ -161,9 +159,13 @@ export function LedgerDetailDialog({
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
+          data-warm-ledger-dialog="true"
+          aria-describedby={undefined}
           className={cn(
-            'max-w-[calc(100%-2rem)] rounded-none border-term-border bg-term-panel sm:max-w-xl md:max-w-3xl p-0 gap-0',
-            'flex flex-col max-h-[calc(100vh-2rem)] overflow-hidden'
+            styles.dialogContent,
+            styles.dialogWide,
+            styles.dialogFlush,
+            'flex flex-col overflow-hidden p-0 gap-0'
           )}
         >
           {item ? (
@@ -187,7 +189,7 @@ export function LedgerDetailDialog({
                       variant="ghost"
                       onClick={handleManualRefresh}
                       disabled={manualRefreshing}
-                      className="h-7 w-7 rounded-none text-term-muted hover:text-term-text"
+                      className="h-7 w-7 rounded-[var(--warm-ledger-radius-inner)] text-[color:var(--warm-ledger-color-text-muted)] hover:text-[color:var(--warm-ledger-color-text)]"
                       aria-label="刷新 AI 摘要"
                       title="刷新 AI 摘要"
                     >
@@ -197,10 +199,10 @@ export function LedgerDetailDialog({
                     </Button>
                   )}
                 </div>
-                <DialogTitle className="font-mono text-lg font-semibold tabular-nums tracking-tight text-term-text">
+                <DialogTitle className="font-mono text-lg font-semibold tabular-nums tracking-tight text-[color:var(--warm-ledger-color-text)]">
                   {format(new Date(item.expected_at), 'yyyy-MM-dd · HH:mm')}
                 </DialogTitle>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs tabular-nums text-term-muted">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs tabular-nums text-[color:var(--warm-ledger-color-text-muted)]">
                   <span>{item.email}</span>
                   <span>{FREQUENCY_LABELS[item.frequency]}</span>
                   {countryList.length > 0 && (
@@ -211,22 +213,22 @@ export function LedgerDetailDialog({
 
               <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
                 {item.status === 'failed' && item.error_message && (
-                  <div className="border border-term-neg/40 bg-term-neg/10 p-2">
-                    <div className="mb-1 flex items-center gap-2 font-mono text-xs font-medium text-term-neg">
+                  <div className="border border-[color:color-mix(in_srgb,var(--warm-ledger-color-negative)_40%,transparent)] bg-[color-mix(in_srgb,var(--warm-ledger-color-negative)_10%,transparent)] p-2">
+                    <div className="mb-1 flex items-center gap-2 font-mono text-xs font-medium text-[color:var(--warm-ledger-color-negative)]">
                       <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
                       错误信息
                     </div>
-                    <div className="whitespace-pre-wrap font-mono text-xs text-term-neg">
+                    <div className="whitespace-pre-wrap font-mono text-xs text-[color:var(--warm-ledger-color-negative)]">
                       {item.error_message}
                     </div>
                   </div>
                 )}
 
                 <div>
-                  <span className={SECTION_LABEL}>报告范围</span>
-                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 font-mono text-xs text-term-muted">
+                  <span className={styles.sectionLabel}>报告范围</span>
+                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 font-mono text-xs text-[color:var(--warm-ledger-color-text-muted)]">
                     {visibleProjects.map((name, idx) => (
-                      <span key={`${name}-${idx}`} className="border border-term-border bg-term-raised px-1.5 py-px">
+                      <span key={`${name}-${idx}`} className="border border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] px-1.5 py-px">
                         {name}
                       </span>
                     ))}
@@ -234,7 +236,7 @@ export function LedgerDetailDialog({
                       <button
                         type="button"
                         onClick={() => setShowAllProjects(true)}
-                        className="tabular-nums text-term-accent underline-offset-2 hover:underline"
+                        className="tabular-nums text-[color:var(--warm-ledger-color-accent-strong)] underline-offset-2 hover:underline"
                       >
                         +{hiddenCount} 更多
                       </button>
@@ -243,14 +245,14 @@ export function LedgerDetailDialog({
                       <button
                         type="button"
                         onClick={() => setShowAllProjects(false)}
-                        className="text-term-accent underline-offset-2 hover:underline"
+                        className="text-[color:var(--warm-ledger-color-accent-strong)] underline-offset-2 hover:underline"
                       >
                         收起
                       </button>
                     )}
                   </div>
                   {countryList.length > 0 && (
-                    <div className="mt-2 font-mono text-xs tabular-nums text-term-muted">
+                    <div className="mt-2 font-mono text-xs tabular-nums text-[color:var(--warm-ledger-color-text-muted)]">
                       {countryList.map(getCountryLabel).join(' · ')}
                     </div>
                   )}
@@ -258,12 +260,12 @@ export function LedgerDetailDialog({
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div>
-                    <span className={SECTION_LABEL}>报告截图</span>
+                    <span className={styles.sectionLabel}>报告截图</span>
                     {item.screenshot_r2_url ? (
                       <button
                         type="button"
                         onClick={() => setPreviewScreenshot(item.screenshot_r2_url)}
-                        className="group relative aspect-[3/4] max-h-[60vh] w-full overflow-hidden rounded-none border border-term-border transition-colors hover:border-term-border-strong bg-term-raised"
+                        className="group relative aspect-[3/4] max-h-[60vh] w-full overflow-hidden rounded-[var(--warm-ledger-radius-inner)] border border-[color:var(--warm-ledger-color-hairline)] transition-colors hover:border-[color:var(--warm-ledger-color-hairline-strong)] bg-[var(--warm-ledger-color-panel-strong)]"
                       >
                         <Image
                           src={item.screenshot_r2_thumb_url || item.screenshot_r2_url}
@@ -277,7 +279,7 @@ export function LedgerDetailDialog({
                         </div>
                       </button>
                     ) : (
-                      <div className="flex min-h-[200px] items-center justify-center gap-2 rounded-none border border-dashed border-term-border bg-term-raised px-3 py-12 font-mono text-xs text-term-faint">
+                      <div className="flex min-h-[200px] items-center justify-center gap-2 rounded-[var(--warm-ledger-radius-inner)] border border-dashed border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] px-3 py-12 font-mono text-xs text-[color:var(--warm-ledger-color-text-faint)]">
                         <ImageIcon className="h-4 w-4" aria-hidden />
                         暂无截图
                       </div>
@@ -286,7 +288,7 @@ export function LedgerDetailDialog({
 
                   <div>
                     <div className="flex items-center justify-between mb-2 gap-2">
-                      <span className={cn(SECTION_LABEL, 'mb-0')}>AI 文案</span>
+                      <span className={cn(styles.sectionLabel, 'mb-0')}>AI 文案</span>
                       <div className="flex items-center gap-2">
                         {canRegenerateSummary && (
                           <Popover open={summaryModelOpen} onOpenChange={setSummaryModelOpen}>
@@ -294,7 +296,7 @@ export function LedgerDetailDialog({
                               <button
                                 type="button"
                                 disabled={regeneratingAiSummary || isLoadingModelConfig}
-                                className="flex items-center gap-1 font-mono text-[11px] text-term-accent hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+                                className="flex items-center gap-1 font-mono text-[11px] text-[color:var(--warm-ledger-color-accent-strong)] hover:underline disabled:cursor-not-allowed disabled:opacity-60"
                                 aria-label={summaryActionLabel}
                               >
                                 {regeneratingAiSummary ? (
@@ -406,7 +408,7 @@ export function LedgerDetailDialog({
                           <button
                             type="button"
                             onClick={() => onCopy(ledgerCopyText(item.ai_summary!))}
-                            className="flex items-center gap-1 text-[11px] text-blue-600 hover:underline dark:text-blue-400"
+                            className={styles.copyAction}
                             aria-label="复制 AI 文案"
                           >
                             <Copy className="h-3 w-3" />
@@ -428,11 +430,11 @@ export function LedgerDetailDialog({
                       onRetry={canRegenerateSummary ? panel.onRetry : undefined}
                       onCancel={canTriggerResend ? panel.onCancel : undefined}
                       exportFileName={`AI摘要-${item.expected_date}.md`}
-                      className="rounded-none border border-term-border"
-                      contentClassName="min-h-[200px] bg-term-raised p-3 term-scroll"
+                      className={styles.insightPanel}
+                      contentClassName={styles.insightContent}
                       emptyState={
                         panel.state.status === 'failed' ? (
-                          <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-none border border-term-neg/40 bg-term-neg/10 px-3 py-12 font-mono text-xs text-term-neg">
+                          <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-[var(--warm-ledger-radius-inner)] border border-[color:color-mix(in_srgb,var(--warm-ledger-color-negative)_40%,transparent)] bg-[color-mix(in_srgb,var(--warm-ledger-color-negative)_10%,transparent)] px-3 py-12 font-mono text-xs text-[color:var(--warm-ledger-color-negative)]">
                             <AlertTriangle className="h-4 w-4" aria-hidden />
                             <span>
                               {runBound
@@ -446,7 +448,7 @@ export function LedgerDetailDialog({
                                 data-testid="regenerate-summary-retry"
                                 disabled={isLoadingModelConfig}
                                 onClick={() => onRegenerateAiSummary(item, fallbackModel || null)}
-                                className="mt-1 font-mono text-xs text-term-neg hover:bg-term-hover"
+                                className="mt-1 font-mono text-xs text-[color:var(--warm-ledger-color-negative)] hover:bg-[var(--warm-ledger-color-raised-hover)]"
                               >
                                 <RotateCcw className="mr-1 h-3 w-3" aria-hidden />
                                 重新生成
@@ -454,7 +456,7 @@ export function LedgerDetailDialog({
                             )}
                           </div>
                         ) : panel.state.busy ? (
-                          <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-none border border-term-accent/40 bg-term-accent/10 px-3 py-12 font-mono text-xs text-term-accent">
+                          <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-[var(--warm-ledger-radius-inner)] border border-[color:color-mix(in_srgb,var(--warm-ledger-color-accent)_40%,transparent)] bg-[color-mix(in_srgb,var(--warm-ledger-color-accent)_10%,transparent)] px-3 py-12 font-mono text-xs text-[color:var(--warm-ledger-color-accent-strong)]">
                             <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                             <span>正在为你生成摘要，稍候内容会出现在这里</span>
                             {canRegenerateSummary && (
@@ -463,7 +465,7 @@ export function LedgerDetailDialog({
                                 variant="ghost"
                                 disabled={regeneratingAiSummary}
                                 onClick={() => onRegenerateAiSummary(item, fallbackModel || null)}
-                                className="font-mono text-xs text-term-accent hover:bg-term-hover"
+                                className="font-mono text-xs text-[color:var(--warm-ledger-color-accent-strong)] hover:bg-[var(--warm-ledger-color-raised-hover)]"
                               >
                                 <RotateCcw className="mr-1 h-3 w-3" aria-hidden />
                                 打断并重新生成
@@ -471,7 +473,7 @@ export function LedgerDetailDialog({
                             )}
                           </div>
                         ) : panel.state.status === 'cancelled' ? (
-                          <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-none border border-dashed border-term-border bg-term-raised px-3 py-12 font-mono text-xs text-term-faint">
+                          <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-[var(--warm-ledger-radius-inner)] border border-dashed border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] px-3 py-12 font-mono text-xs text-[color:var(--warm-ledger-color-text-faint)]">
                             <Square className="h-4 w-4" aria-hidden />
                             <span>本轮生成已取消</span>
                             {canRegenerateSummary && (
@@ -480,7 +482,7 @@ export function LedgerDetailDialog({
                                 variant="outline"
                                 disabled={isLoadingModelConfig}
                                 onClick={() => onRegenerateAiSummary(item, fallbackModel || null)}
-                                className="mt-1 font-mono text-xs text-term-accent hover:bg-term-hover"
+                                className="mt-1 font-mono text-xs text-[color:var(--warm-ledger-color-accent-strong)] hover:bg-[var(--warm-ledger-color-raised-hover)]"
                               >
                                 <Sparkles className="mr-1 h-3 w-3" aria-hidden />
                                 重新开始
@@ -490,8 +492,8 @@ export function LedgerDetailDialog({
                         ) : panel.state.status === 'queued' || panel.state.status === 'idle' ? (
                           // BLF-822：报告已发送但摘要尚未生成（后端不再自动生成），
                           // 主行动是手动触发一次生成。
-                          <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-none border border-dashed border-term-border bg-term-raised px-3 py-12 font-mono text-xs text-term-faint">
-                            <Sparkles className="h-4 w-4 text-term-accent" aria-hidden />
+                          <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-[var(--warm-ledger-radius-inner)] border border-dashed border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] px-3 py-12 font-mono text-xs text-[color:var(--warm-ledger-color-text-faint)]">
+                            <Sparkles className="h-4 w-4 text-[color:var(--warm-ledger-color-accent-strong)]" aria-hidden />
                             <span>报告已发送，尚未生成 AI 摘要</span>
                             {canRegenerateSummary && (
                               <Button
@@ -500,7 +502,7 @@ export function LedgerDetailDialog({
                                 data-testid="generate-summary-cta"
                                 disabled={isLoadingModelConfig}
                                 onClick={() => onRegenerateAiSummary(item, fallbackModel || null)}
-                                className="mt-1 font-mono text-xs text-term-accent hover:bg-term-hover"
+                                className="mt-1 font-mono text-xs text-[color:var(--warm-ledger-color-accent-strong)] hover:bg-[var(--warm-ledger-color-raised-hover)]"
                               >
                                 <Sparkles className="mr-1 h-3 w-3" aria-hidden />
                                 生成 AI 摘要
@@ -508,7 +510,7 @@ export function LedgerDetailDialog({
                             )}
                           </div>
                         ) : (
-                          <div className="flex min-h-[200px] items-center justify-center gap-2 rounded-none border border-dashed border-term-border bg-term-raised px-3 py-12 font-mono text-xs text-term-faint">
+                          <div className="flex min-h-[200px] items-center justify-center gap-2 rounded-[var(--warm-ledger-radius-inner)] border border-dashed border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] px-3 py-12 font-mono text-xs text-[color:var(--warm-ledger-color-text-faint)]">
                             <FileText className="h-4 w-4" aria-hidden />
                             暂无 AI 文案
                           </div>
@@ -522,7 +524,7 @@ export function LedgerDetailDialog({
           ) : null}
 
           {canTrigger && item && (
-            <div className="flex shrink-0 items-center justify-end gap-2 border-t border-term-border bg-term-panel px-4 py-2.5">
+            <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] px-4 py-2.5">
               <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
                 取消
               </Button>
