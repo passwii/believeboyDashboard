@@ -1,0 +1,100 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--warm-ledger-space-2);
+}
+
+.chips,
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--warm-ledger-space-2);
+}
+
+.muted {
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-control);
+}
+
+.editButton {
+  min-height: 28px;
+  height: 28px;
+  padding: 0 var(--warm-ledger-space-2);
+  font-size: var(--warm-ledger-font-size-label);
+}
+
+.popover {
+  width: 248px;
+  padding: 0;
+  overflow: hidden;
+  color: var(--warm-ledger-color-text);
+  background: var(--warm-ledger-color-panel-strong);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline-strong);
+  border-radius: var(--warm-ledger-radius-control);
+  box-shadow: var(--warm-ledger-shadow-window), var(--warm-ledger-highlight-rest);
+}
+
+.options {
+  max-height: 240px;
+  padding: var(--warm-ledger-space-1);
+  overflow-y: auto;
+}
+
+.option {
+  display: flex;
+  cursor: pointer;
+  align-items: center;
+  gap: var(--warm-ledger-space-2);
+  padding: var(--warm-ledger-space-2);
+  color: var(--warm-ledger-color-text-soft);
+  font-size: var(--warm-ledger-font-size-control);
+  border-radius: var(--warm-ledger-radius-inner);
+}
+
+.option:hover {
+  color: var(--warm-ledger-color-text);
+  background: var(--warm-ledger-color-raised);
+}
+
+.check {
+  width: 14px;
+  height: 14px;
+  color: var(--warm-ledger-color-accent-strong);
+}
+
+.loading {
+  display: grid;
+  min-height: 72px;
+  place-items: center;
+  color: var(--warm-ledger-color-text-muted);
+}
+
+.error {
+  display: flex;
+  flex-direction: column;
+  gap: var(--warm-ledger-space-2);
+  padding: var(--warm-ledger-space-3);
+  color: var(--warm-ledger-color-negative);
+  font-size: var(--warm-ledger-font-size-control);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--warm-ledger-space-2);
+  padding: var(--warm-ledger-space-2);
+  border-top: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+}
+
+.options :global([role='checkbox']) {
+  border-color: var(--warm-ledger-color-hairline-strong);
+  border-radius: 4px;
+  background: var(--warm-ledger-color-panel);
+}
+
+.options :global([role='checkbox'][data-state='checked']) {
+  color: var(--warm-ledger-color-window);
+  background: var(--warm-ledger-color-accent);
+  border-color: var(--warm-ledger-color-accent-strong);
+}

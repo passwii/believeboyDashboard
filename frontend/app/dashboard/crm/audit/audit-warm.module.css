@@ -1,0 +1,46 @@
+.recordCount {
+  color: var(--warm-ledger-color-text-muted);
+  font-family: var(--warm-ledger-font-mono);
+  font-size: var(--warm-ledger-font-size-control);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+}
+
+.timestamp,
+.entity span,
+.pagination span {
+  font-family: var(--warm-ledger-font-mono);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+}
+
+.timestamp {
+  color: var(--warm-ledger-color-text-muted);
+  white-space: nowrap;
+}
+
+.entity {
+  color: var(--warm-ledger-color-text);
+  white-space: nowrap;
+}
+
+.entity span {
+  margin-left: var(--warm-ledger-space-1);
+  color: var(--warm-ledger-color-text-muted);
+}
+
+.summary {
+  display: -webkit-box;
+  max-width: 360px;
+  overflow: hidden;
+  color: var(--warm-ledger-color-text-soft);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--warm-ledger-space-2);
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-control);
+}

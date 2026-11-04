@@ -3,6 +3,10 @@
 import { useMemo } from 'react'
 import { useTheme } from 'next-themes'
 
+import { cn } from '@/lib/utils'
+
+import styles from './proposal-warm.module.css'
+
 /**
  * 客户方案预览（单个 HTML）。
  *
@@ -45,7 +49,7 @@ export function ProposalPreview({
   content,
   title,
   className,
-  heightClassName = 'min-h-[70vh]',
+  heightClassName = styles.previewDefault,
 }: ProposalPreviewProps) {
   const { resolvedTheme } = useTheme()
   const theme = resolvedTheme === 'dark' ? 'dark' : 'light'
@@ -56,9 +60,7 @@ export function ProposalPreview({
       title={title}
       sandbox="allow-scripts"
       srcDoc={doc}
-      className={`w-full rounded-none border border-term-border bg-white dark:bg-term-bg ${heightClassName} ${
-        className ?? ''
-      }`}
+      className={cn(styles.previewFrame, heightClassName, className)}
     />
   )
 }

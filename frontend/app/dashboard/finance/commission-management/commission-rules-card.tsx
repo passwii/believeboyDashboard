@@ -1,14 +1,6 @@
 'use client'
 
-import { TermPanel } from '@/components/terminal/term-panel'
-import {
-  TermBody,
-  TermCell,
-  TermHead,
-  TermRow,
-  TermTHead,
-  TermTable,
-} from '@/components/terminal/term-table'
+import styles from './commission-management-warm.module.css'
 
 const PROJECT_COMMISSION_RULES = [
   {
@@ -29,74 +21,74 @@ const PROJECT_COMMISSION_RULES = [
   },
 ] as const
 
-/**
- * 工厂佣金结算备注（终端化 BLF-835）：
- * 原 dashboard-surface 渐变卡片收口为两张 TermPanel——规则索引 + 阶梯明细表。
- */
 export function CommissionRulesCard() {
   return (
-    <div className="grid gap-3 xl:grid-cols-2">
-      <TermPanel title="工厂佣金结算备注">
-        <div className="space-y-2 p-3 text-xs leading-5 text-term-muted">
-          <p>
+    <div className={styles.rulesGrid}>
+      <section className={styles.rulesPanel} aria-labelledby="commission-rule-basis-title">
+        <header className={styles.rulesHeader}>
+          <h2 id="commission-rule-basis-title" className={styles.rulesTitle}>
+            工厂佣金结算备注
+          </h2>
+        </header>
+        <div className={styles.rulesBody}>
+          <p className={styles.rulesCopy}>
             这里展示的是项目与工厂之间的佣金结算口径。当前先引用现有两类规则作为说明，后续可继续补充更多结算规则。
           </p>
-          <TermTable>
-            <TermTHead>
-              <TermRow className="hover:bg-transparent">
-                <TermHead>编号</TermHead>
-                <TermHead>规则</TermHead>
-                <TermHead>口径</TermHead>
-              </TermRow>
-            </TermTHead>
-            <TermBody>
+          <table className={styles.rulesTable} data-warm-table="true">
+            <thead>
+              <tr>
+                <th>编号</th>
+                <th>规则</th>
+                <th>口径</th>
+              </tr>
+            </thead>
+            <tbody>
               {PROJECT_COMMISSION_RULES.map((item) => (
-                <TermRow key={item.code}>
-                  <TermCell tone="muted" className="font-mono uppercase">
-                    {item.code}
-                  </TermCell>
-                  <TermCell className="font-medium">{item.title}</TermCell>
-                  <TermCell tone={item.tag === '按回款率' ? 'warn' : undefined}>
-                    {item.basis}
-                  </TermCell>
-                </TermRow>
+                <tr key={item.code}>
+                  <td className={styles.tableCellMono}>{item.code}</td>
+                  <td className={styles.tableCellStrong}>{item.title}</td>
+                  <td>{item.basis}</td>
+                </tr>
               ))}
-            </TermBody>
-          </TermTable>
+            </tbody>
+          </table>
         </div>
-      </TermPanel>
+      </section>
 
-      <TermPanel title="阶梯明细">
-        <div className="p-3">
-          <TermTable>
-            <TermTHead>
-              <TermRow className="hover:bg-transparent">
-                <TermHead>编号</TermHead>
-                <TermHead>阶梯</TermHead>
-                <TermHead numeric>佣金比例</TermHead>
-              </TermRow>
-            </TermTHead>
-            <TermBody>
+      <section className={styles.rulesPanel} aria-labelledby="commission-rule-tiers-title">
+        <header className={styles.rulesHeader}>
+          <h2 id="commission-rule-tiers-title" className={styles.rulesTitle}>
+            阶梯明细
+          </h2>
+        </header>
+        <div className={styles.rulesBody}>
+          <table className={styles.rulesTable} data-warm-table="true">
+            <thead>
+              <tr>
+                <th>编号</th>
+                <th>阶梯</th>
+                <th className={styles.rulesNumeric}>佣金比例</th>
+              </tr>
+            </thead>
+            <tbody>
               {PROJECT_COMMISSION_RULES.flatMap((rule) =>
                 rule.tiers.map((tier) => {
-                  const [range, rate] = tier.split('->').map((s) => s.trim())
+                  const [range, rate] = tier.split('->').map((value) => value.trim())
                   return (
-                    <TermRow key={`${rule.code}-${tier}`}>
-                      <TermCell tone="muted" className="font-mono uppercase">
-                        {rule.code}
-                      </TermCell>
-                      <TermCell className="font-mono">{range}</TermCell>
-                      <TermCell numeric className="font-medium">
+                    <tr key={`${rule.code}-${tier}`}>
+                      <td className={styles.tableCellMono}>{rule.code}</td>
+                      <td className={styles.tableCellMono}>{range}</td>
+                      <td className={`${styles.tableCellStrong} ${styles.rulesNumeric}`}>
                         {rate}
-                      </TermCell>
-                    </TermRow>
+                      </td>
+                    </tr>
                   )
                 })
               )}
-            </TermBody>
-          </TermTable>
+            </tbody>
+          </table>
         </div>
-      </TermPanel>
+      </section>
     </div>
   )
 }

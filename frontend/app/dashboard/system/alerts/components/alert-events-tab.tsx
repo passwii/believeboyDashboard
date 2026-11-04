@@ -1,14 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { useNotifications } from '@/components/notifications'
 import {
   acknowledgeEvent,
@@ -16,22 +8,18 @@ import {
   resolveEvent,
   type AlertEventItem,
 } from '@/lib/alerts-api'
-import {
-  TermBody,
-  TermCell,
-  TermHead,
-  TermRow,
-  TermTHead,
-  TermTable,
-} from '@/components/terminal/term-table'
-import { TermPanel } from '@/components/terminal/term-panel'
-import { TERM_TRIGGER, TERM_SELECT_ITEM, TERM_BUTTON, type TermTone } from '@/components/terminal/term-controls'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
+import {
+  WarmBadge,
+  WarmButton,
+  type WarmBadgeTone,
+} from '@/components/dashboard-v2/warm-ledger/controls'
+import styles from '../alerts-warm.module.css'
 
-const SEVERITY_TONE: Record<string, TermTone> = {
-  critical: 'neg',
-  warning: 'warn',
-  info: 'info',
+const SEVERITY_TONE: Record<string, WarmBadgeTone> = {
+  critical: 'negative',
+  warning: 'accent',
+  info: 'neutral',
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -104,84 +92,94 @@ export function AlertEventsTab({
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
-    <div className="flex min-w-0 flex-col gap-2">
-      {/* BLF-838：筛选行 h-9 终端规格（BLF-887 上档） */}
-      <div className="flex flex-wrap items-center justify-end gap-1.5 max-md:justify-between">
-        <Select value={status} onValueChange={(v) => { setStatus(v); setPage(1) }}>
-          <SelectTrigger className={`w-32 ${TERM_TRIGGER}`}><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem className={TERM_SELECT_ITEM} value="active">活跃</SelectItem>
-            <SelectItem className={TERM_SELECT_ITEM} value="acknowledged">已确认</SelectItem>
-            <SelectItem className={TERM_SELECT_ITEM} value="resolved">已解决</SelectItem>
-            <SelectItem className={TERM_SELECT_ITEM} value="all">全部状态</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={severity} onValueChange={(v) => { setSeverity(v); setPage(1) }}>
-          <SelectTrigger className={`w-32 ${TERM_TRIGGER}`}><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem className={TERM_SELECT_ITEM} value="critical">严重</SelectItem>
-            <SelectItem className={TERM_SELECT_ITEM} value="warning">警告</SelectItem>
-            <SelectItem className={TERM_SELECT_ITEM} value="info">提示</SelectItem>
-            <SelectItem className={TERM_SELECT_ITEM} value="all">全部级别</SelectItem>
-          </SelectContent>
-        </Select>
+    <div className={styles.tabPanel} data-warm-alert-events="true">
+      <div className={styles.filters}>
+        <select
+          value={status}
+          onChange={(event) => {
+            setStatus(event.target.value)
+            setPage(1)
+          }}
+          className={styles.filterSelect}
+          aria-label="按告警状态筛选"
+        >
+          <option value="active">活跃</option>
+          <option value="acknowledged">已确认</option>
+          <option value="resolved">已解决</option>
+          <option value="all">全部状态</option>
+        </select>
+        <select
+          value={severity}
+          onChange={(event) => {
+            setSeverity(event.target.value)
+            setPage(1)
+          }}
+          className={styles.filterSelect}
+          aria-label="按告警级别筛选"
+        >
+          <option value="critical">严重</option>
+          <option value="warning">警告</option>
+          <option value="info">提示</option>
+          <option value="all">全部级别</option>
+        </select>
       </div>
 
-      <TermPanel bodyClassName="p-0 overflow-x-auto">
-        <TermTable>
-          <TermTHead>
-            <TermRow>
-              <TermHead>时间</TermHead>
-              <TermHead>指标</TermHead>
-              <TermHead>消息</TermHead>
-              <TermHead numeric>偏差</TermHead>
-              <TermHead>级别</TermHead>
-              <TermHead>状态</TermHead>
-              <TermHead numeric>操作</TermHead>
-            </TermRow>
-          </TermTHead>
-          <TermBody>
+      <section className={styles.panel}>
+        <div className={styles.tableScroll}>
+          <table className={styles.table} aria-label="告警事件">
+            <thead>
+              <tr>
+                <th>时间</th>
+                <th>指标</th>
+                <th>消息</th>
+                <th className={styles.numericCell}>偏差</th>
+                <th>级别</th>
+                <th>状态</th>
+                <th className={styles.numericCell}>操作</th>
+              </tr>
+            </thead>
+            <tbody>
             {loading ? (
-              <TermRow><TermCell colSpan={7} className="py-8 text-center text-term-faint">加载中…</TermCell></TermRow>
+              <tr><td colSpan={7} className={styles.emptyCell}>加载中…</td></tr>
             ) : items.length === 0 ? (
-              <TermRow><TermCell colSpan={7} className="py-8 text-center text-term-faint">暂无告警事件</TermCell></TermRow>
+              <tr><td colSpan={7} className={styles.emptyCell}>暂无告警事件</td></tr>
             ) : (
               items.map((e) => (
-                <TermRow key={e.id}>
-                  <TermCell className="text-term-muted">{new Date(e.triggered_at).toLocaleString('zh-CN')}</TermCell>
-                  <TermCell>{e.metric}</TermCell>
-                  <TermCell className="max-w-md truncate" title={e.message}>{e.message}</TermCell>
-                  <TermCell numeric tone={e.deviation_pct > 0 ? 'neg' : 'muted'}>{e.deviation_pct.toFixed(1)}%</TermCell>
-                  <TermCell>
-                    <span className={`font-mono text-[11px] ${
-                      e.severity === 'critical' ? 'text-term-neg' : e.severity === 'warning' ? 'text-term-warn' : 'text-term-text'
-                    }`}>
-                      {SEVERITY_TONE[e.severity] ? e.severity : e.severity}
-                    </span>
-                  </TermCell>
-                  <TermCell className="text-term-muted">{STATUS_LABEL[e.status] ?? e.status}</TermCell>
-                  <TermCell numeric>
+                <tr key={e.id}>
+                  <td className={styles.timeCell}>{new Date(e.triggered_at).toLocaleString('zh-CN')}</td>
+                  <td>{e.metric}</td>
+                  <td className={styles.messageCell} title={e.message}>{e.message}</td>
+                  <td className={styles.numericCell} data-tone={e.deviation_pct > 0 ? 'negative' : 'muted'}>
+                    {e.deviation_pct.toFixed(1)}%
+                  </td>
+                  <td>
+                    <WarmBadge tone={SEVERITY_TONE[e.severity] ?? 'neutral'}>
+                      {e.severity}
+                    </WarmBadge>
+                  </td>
+                  <td className={styles.mutedCell}>{STATUS_LABEL[e.status] ?? e.status}</td>
+                  <td className={styles.actionCell}>
                     {e.status === 'active' && (
-                      <Button size="sm" variant="outline" className={`${TERM_BUTTON} px-1.5`} onClick={() => onAck(e.id)}>确认</Button>
+                      <WarmButton className={styles.rowAction} onClick={() => onAck(e.id)}>确认</WarmButton>
                     )}
                     {e.status !== 'resolved' && (
-                      <Button size="sm" variant="ghost" className={`${TERM_BUTTON} border-transparent bg-transparent px-1.5`} onClick={() => onResolve(e.id)}>解决</Button>
+                      <WarmButton variant="quiet" className={styles.rowAction} onClick={() => onResolve(e.id)}>解决</WarmButton>
                     )}
-                  </TermCell>
-                </TermRow>
+                  </td>
+                </tr>
               ))
             )}
-          </TermBody>
-        </TermTable>
-      </TermPanel>
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-      {/* 分页：终端规格（mono 计数 + h-9 按钮，BLF-887 上档） */}
-      <div className="flex items-center justify-between font-mono text-xs text-term-muted">
+      <div className={styles.pagination}>
         <span>共 {total} 条</span>
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" className={`${TERM_BUTTON} px-1.5`} disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>上一页</Button>
-          <span className="tabular-nums">{page} / {totalPages}</span>
-          <Button size="sm" variant="outline" className={`${TERM_BUTTON} px-1.5`} disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>下一页</Button>
+        <div className={styles.paginationActions}>
+          <WarmButton className={styles.rowAction} disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>上一页</WarmButton>
+          <span className={styles.pageCount}>{page} / {totalPages}</span>
+          <WarmButton className={styles.rowAction} disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>下一页</WarmButton>
         </div>
       </div>
     </div>

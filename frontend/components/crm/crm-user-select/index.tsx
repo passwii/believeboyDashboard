@@ -20,6 +20,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Check, ChevronsUpDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { User } from '@/lib/crm/types/user'
+import styles from './crm-user-select-warm.module.css'
 
 export interface CrmUserSelectProps {
   users: User[]
@@ -29,6 +30,8 @@ export interface CrmUserSelectProps {
   /** 是否允许清空（如"移入公海"场景） */
   allowClear?: boolean
   disabled?: boolean
+  className?: string
+  visual?: 'terminal' | 'warm'
 }
 
 /** 选人（搜索 + 头像）。转移客户 / 指派负责人复用。 */
@@ -39,6 +42,8 @@ export function CrmUserSelect({
   placeholder = '选择负责人',
   allowClear = false,
   disabled,
+  className,
+  visual = 'terminal',
 }: CrmUserSelectProps) {
   const [open, setOpen] = useState(false)
   const selected = users.find((u) => u.id === value)
@@ -51,7 +56,7 @@ export function CrmUserSelect({
           role="combobox"
           aria-expanded={open}
           disabled={disabled}
-          className="w-full justify-between"
+          className={cn('w-full justify-between', className)}
         >
           {selected ? (
             <span className="flex items-center gap-2">
@@ -69,7 +74,10 @@ export function CrmUserSelect({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+      <PopoverContent
+        className={cn('w-[--radix-popover-trigger-width] p-0', visual === 'warm' && styles.content)}
+        align="start"
+      >
         <Command>
           <CommandInput placeholder="搜索姓名…" />
           <CommandList>

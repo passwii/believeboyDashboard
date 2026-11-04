@@ -2,35 +2,44 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Plus } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
-import { EmptyState } from '@/components/ui/empty-state'
-import { ErrorState } from '@/components/ui/error-state'
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
+  WarmCrmRecordDrawer,
+  WarmCrmState,
+  WarmCrmStatusPill,
+  WarmCrmToolbar,
+  type WarmCrmStatusTone,
+} from '@/components/dashboard-v2/warm-ledger/crm'
+import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
 import { useNotifications } from '@/components/notifications'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import { useCrmUsers } from '@/hooks/use-crm-users'
 import type { Task, TaskInput, TaskStatus } from '@/lib/crm/types'
 import {
-  TASK_PRIORITY_COLORS,
   TASK_PRIORITY_LABELS,
-  TASK_STATUS_COLORS,
   TASK_STATUS_LABELS,
-  TASK_TYPE_COLORS,
   TASK_TYPE_LABELS,
 } from '@/lib/crm/enums/task.enum'
-import { cn } from '@/lib/utils'
 import { CrmTaskForm } from '@/components/crm/crm-task-form'
-import { formatDueDate } from '@/app/dashboard/crm/tasks/task-utils'
+import { cn } from '@/lib/utils'
+import { dueDateState, formatDueDate } from '@/app/dashboard/crm/tasks/task-utils'
+import styles from './crm-task-tab.module.css'
+
+const STATUS_TONE: Record<Task['status'], WarmCrmStatusTone> = {
+  pending: 'accent',
+  in_progress: 'accent',
+  done: 'positive',
+  cancelled: 'neutral',
+}
+
+const PRIORITY_TONE: Record<Task['priority'], WarmCrmStatusTone> = {
+  low: 'neutral',
+  medium: 'accent',
+  high: 'accent',
+  urgent: 'negative',
+}
 
 /**
- * 抽屉「任务」tab（P7，BLF-514）：展示关联实体的任务列表 + 新建任务弹窗。
+ * 抽屉「任务」tab：展示关联实体的任务列表 + 新建任务。
  * 客户/线索详情抽屉内复用；实体经 entityType + entityId 过滤。
  */
 export function CrmTaskTab({
@@ -58,8 +67,8 @@ export function CrmTaskTab({
         pageSize: 50,
       })
       setTasks(page.items)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '加载任务失败')
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : '加载任务失败')
       setTasks(null)
     } finally {
       setLoading(false)
@@ -87,82 +96,127 @@ export function CrmTaskTab({
       else await client.setTaskStatus(task.id, status)
       notify({
         type: 'success',
-        title: status === 'done' ? '任务已完成' : status === 'cancelled' ? '任务已取消' : '状态已更新',
+        title:
+          status === 'done'
+            ? '任务已完成'
+            : status === 'cancelled'
+              ? '任务已取消'
+              : '状态已更新',
       })
       await load()
-    } catch (e) {
-      notify({ type: 'error', title: '操作失败', message: e instanceof Error ? e.message : String(e) })
+    } catch (statusError) {
+      notify({
+        type: 'error',
+        title: '操作失败',
+        message: statusError instanceof Error ? statusError.message : String(statusError),
+      })
     }
   }
 
   if (loading && !tasks) {
     return (
-      <div className="space-y-3" role="status" aria-label="任务加载中">
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-12 w-full" />
+      <div className={styles.root} data-warm-task-tab>
+        <WarmCrmState kind="loading" title="任务加载中" />
       </div>
     )
   }
+
   if (error && !tasks) {
-    return <ErrorState title="加载失败" message={error} onRetry={() => void load()} />
+    return (
+      <div className={styles.root} data-warm-task-tab>
+        <WarmCrmState
+          kind="error"
+          title="加载任务失败"
+          detail={error}
+          action={<WarmButton onClick={() => void load()}>重试</WarmButton>}
+        />
+      </div>
+    )
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="font-mono text-xs text-term-faint">关联任务 · {tasks?.length ?? 0}</p>
-        <Button size="sm" onClick={() => setCreating(true)} data-testid="task-tab-create">
-          <Plus className="mr-1 h-4 w-4" /> 新建任务
-        </Button>
-      </div>
+    <div className={styles.root} data-warm-task-tab>
+      <WarmCrmToolbar
+        ariaLabel="关联任务工具栏"
+        start={<p className={styles.count}>关联任务 · {tasks?.length ?? 0}</p>}
+        end={
+          <WarmButton onClick={() => setCreating(true)} data-testid="task-tab-create">
+            <Plus aria-hidden="true" className={styles.actionIcon} />
+            新建任务
+          </WarmButton>
+        }
+      />
 
       {!tasks || tasks.length === 0 ? (
-        <EmptyState message="暂无关联任务" />
+        <WarmCrmState kind="empty" title="暂无关联任务" />
       ) : (
-        <ul className="divide-y divide-term-border rounded-none border border-term-border">
+        <ul className={styles.list}>
           {tasks.map((task) => {
             const linked = task.customerName ?? task.leadName
             const linkedKind = task.customerName ? '客户' : task.leadName ? '线索' : undefined
+            const due = dueDateState(task.dueDate)
             return (
-              <li key={task.id} className="space-y-1.5 px-3 py-2.5" data-testid={`task-tab-row-${task.id}`}>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-sm font-medium text-term-text">{task.title}</span>
-                  <Badge
-                    variant="secondary"
-                    className={cn('shrink-0 px-1.5 py-0 text-[11px]', TASK_STATUS_COLORS[task.status])}
-                  >
-                    {TASK_STATUS_LABELS[task.status]}
-                  </Badge>
+              <li
+                key={task.id}
+                className={styles.row}
+                data-testid={`task-tab-row-${task.id}`}
+              >
+                <div className={styles.rowHeading}>
+                  <span className={styles.title}>{task.title}</span>
+                  <div className={styles.pills}>
+                    <WarmCrmStatusPill tone="neutral">
+                      {TASK_TYPE_LABELS[task.type]}
+                    </WarmCrmStatusPill>
+                    <WarmCrmStatusPill tone={PRIORITY_TONE[task.priority]}>
+                      {TASK_PRIORITY_LABELS[task.priority]}
+                    </WarmCrmStatusPill>
+                    <WarmCrmStatusPill tone={STATUS_TONE[task.status]}>
+                      {TASK_STATUS_LABELS[task.status]}
+                    </WarmCrmStatusPill>
+                  </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-1.5 font-mono text-xs text-term-faint">
-                  <Badge variant="outline" className={cn('rounded-none border-term-border px-1.5 py-0 font-mono text-[11px]', TASK_TYPE_COLORS[task.type])}>
-                    {TASK_TYPE_LABELS[task.type]}
-                  </Badge>
-                  <Badge variant="outline" className={cn('rounded-none border-term-border px-1.5 py-0 font-mono text-[11px]', TASK_PRIORITY_COLORS[task.priority])}>
-                    {TASK_PRIORITY_LABELS[task.priority]}
-                  </Badge>
-                  {task.dueDate && <span>{formatDueDate(task.dueDate) || '—'}</span>}
-                  {linked && <span>{linkedKind} · {linked}</span>}
-                  {task.ownerName && <span>负责人：{task.ownerName}</span>}
-                  {task.completedAt && <span>完成于 {new Date(task.completedAt).toLocaleDateString('zh-CN')}</span>}
+
+                <div className={styles.meta}>
+                  {task.dueDate ? (
+                    <span className={cn(styles.due, styles[`due_${due}`])}>
+                      {formatDueDate(task.dueDate) || '—'}
+                    </span>
+                  ) : null}
+                  {linked ? <span>{linkedKind} · {linked}</span> : null}
+                  {task.ownerName ? <span>负责人：{task.ownerName}</span> : null}
+                  {task.completedAt ? (
+                    <span>
+                      完成于 {new Date(task.completedAt).toLocaleDateString('zh-CN')}
+                    </span>
+                  ) : null}
                 </div>
-                <div className="flex gap-1.5 pt-0.5">
-                  {task.status === 'pending' && (
-                    <Button size="sm" variant="outline" onClick={() => handleStatus(task, 'in_progress')}>
+
+                <div className={styles.actions}>
+                  {task.status === 'pending' ? (
+                    <WarmButton
+                      className={styles.compactButton}
+                      onClick={() => handleStatus(task, 'in_progress')}
+                    >
                       开始
-                    </Button>
-                  )}
-                  {task.status !== 'done' && task.status !== 'cancelled' && (
-                    <Button size="sm" variant="outline" onClick={() => handleStatus(task, 'done')}>
-                      完成
-                    </Button>
-                  )}
-                  {task.status !== 'done' && task.status !== 'cancelled' && (
-                    <Button size="sm" variant="ghost" onClick={() => handleStatus(task, 'cancelled')}>
-                      取消
-                    </Button>
-                  )}
+                    </WarmButton>
+                  ) : null}
+                  {task.status !== 'done' && task.status !== 'cancelled' ? (
+                    <>
+                      <WarmButton
+                        className={styles.compactButton}
+                        onClick={() => handleStatus(task, 'done')}
+                      >
+                        完成
+                      </WarmButton>
+                      <WarmButton
+                        variant="quiet"
+                        className={cn(styles.compactButton, styles.dangerButton)}
+                        onClick={() => handleStatus(task, 'cancelled')}
+                      >
+                        取消
+                      </WarmButton>
+                    </>
+                  ) : null}
                 </div>
               </li>
             )
@@ -170,16 +224,13 @@ export function CrmTaskTab({
         </ul>
       )}
 
-      <Sheet open={creating} onOpenChange={setCreating}>
-        <SheetContent className="w-full gap-0 rounded-none border-term-border bg-term-panel p-0 sm:max-w-md">
-          <SheetHeader className="rounded-none border-b border-term-border px-3 py-2">
-            <SheetTitle className="font-mono text-sm uppercase tracking-wider text-term-muted">新建任务</SheetTitle>
-          </SheetHeader>
-          <div className="flex-1 overflow-y-auto px-3 py-3">
-            <CrmTaskForm users={users} onSubmit={handleCreate} submitText="创建任务" />
-          </div>
-        </SheetContent>
-      </Sheet>
+      <WarmCrmRecordDrawer
+        open={creating}
+        onOpenChange={setCreating}
+        title="新建任务"
+      >
+        <CrmTaskForm users={users} onSubmit={handleCreate} submitText="创建任务" />
+      </WarmCrmRecordDrawer>
     </div>
   )
 }

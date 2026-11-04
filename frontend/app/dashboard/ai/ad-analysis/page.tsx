@@ -15,21 +15,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { Calendar, Clock, FileText, Sparkles } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
-import { TermPanel } from '@/components/terminal/term-panel'
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from '@/components/ui/tabs'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import {
   DateRangePicker,
   COUNTRY_TIMEZONE_MAP,
@@ -38,8 +29,13 @@ import {
 import { useNotifications } from '@/components/notifications'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { HistoryList, GenerationDialog } from '@/components/dashboard/ai-ad-analysis'
+import {
+  WarmButton,
+  WarmSelect,
+} from '@/components/dashboard-v2/warm-ledger/controls'
 import { ScheduleList, ScheduleDialog } from '@/components/dashboard/ai-insights'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
+import styles from '@/components/dashboard/ai-ad-analysis/ai-ad-analysis-warm.module.css'
 
 const COUNTRY_OPTIONS = [
   { value: 'US', label: '美国站 (US)' },
@@ -134,72 +130,65 @@ function HistoryTab({
   }, [onRefreshReady, refreshHistory])
 
   return (
-    <div className="space-y-3">
-      <TermPanel bodyClassName="p-3">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-            <div className="md:col-span-4">
-              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">项目</label>
-              <Select
-                value={projectId ? String(projectId) : ''}
-                onValueChange={(v) => setProjectId(Number(v))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="选择项目" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.length === 0 ? (
-                    <SelectItem value="__empty__" disabled>
-                      暂无可用项目
-                    </SelectItem>
-                  ) : (
-                    projects.map((p) => (
-                      <SelectItem key={p.id} value={String(p.id)}>
-                        {p.brand_name ? `${p.name} · ${p.brand_name}` : p.name}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
+    <div className={styles.stack}>
+      <section className={styles.panel}>
+        <div className={styles.panelBody}>
+          <div className={styles.filters}>
+            <WarmSelect
+              id="ad-project"
+              label="项目"
+              value={projectId ? String(projectId) : ''}
+              options={projects.map((project) => ({
+                value: String(project.id),
+                label: project.brand_name
+                  ? `${project.name} · ${project.brand_name}`
+                  : project.name,
+              }))}
+              onChange={(value) => setProjectId(Number(value))}
+              placeholder={projects.length === 0 ? '暂无可用项目' : '选择项目'}
+              disabled={projects.length === 0}
+            />
 
-            <div className="md:col-span-2">
-              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">国家</label>
-              <Select value={country} onValueChange={setCountry}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {COUNTRY_OPTIONS.map((c) => (
-                    <SelectItem key={c.value} value={c.value}>
-                      {c.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <WarmSelect
+              id="ad-country"
+              label="国家"
+              value={country}
+              options={COUNTRY_OPTIONS}
+              onChange={setCountry}
+            />
 
-            <div className="md:col-span-4">
-              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                <span className="inline-flex items-center gap-1">
-                  <Calendar className="h-3 w-3" />
-                  日期范围
-                </span>
-              </label>
+            <div className={styles.field}>
+              <span className={styles.fieldLabel}>
+                <Calendar aria-hidden />
+                日期范围
+              </span>
               <DateRangePicker
                 value={range}
-                onChange={(r) => r?.from && r?.to && setRange({ from: r.from, to: r.to })}
+                onChange={(nextRange) =>
+                  nextRange?.from &&
+                  nextRange?.to &&
+                  setRange({ from: nextRange.from, to: nextRange.to })
+                }
+                className={styles.dateTrigger}
+                popoverClassName={styles.datePopover}
                 timezone={COUNTRY_TIMEZONE_MAP[country]}
               />
             </div>
 
-            <div className="flex items-end md:col-span-2">
-              <Button onClick={handleGenerate} disabled={!canGenerate} className="w-full">
-                <Sparkles className="mr-2 h-4 w-4" />
+            <div className={styles.generateAction}>
+              <WarmButton
+                type="button"
+                variant="primary"
+                onClick={handleGenerate}
+                disabled={!canGenerate}
+              >
+                <Sparkles aria-hidden />
                 立即生成
-              </Button>
+              </WarmButton>
             </div>
           </div>
-      </TermPanel>
+        </div>
+      </section>
 
       <HistoryList projectId={projectId} country={country} refreshTrigger={refreshTrigger} />
 
@@ -234,35 +223,42 @@ function SchedulesTab({
 
   // ScheduleList 自带 onRefresh 触发, 我们用 refreshTrigger 让父组件在保存/删除/切换后重新触发
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">定时任务管理</h2>
-          <p className="text-sm text-muted-foreground">
+    <div className={styles.stack}>
+      <section className={styles.panel}>
+        <header className={styles.panelHeader}>
+          <h2 className={styles.panelTitle}>定时任务管理</h2>
+          <div className={styles.panelActions}>
+            <WarmButton
+              type="button"
+              variant="primary"
+              onClick={() => {
+                setEditingSchedule(null)
+                setScheduleDialogOpen(true)
+              }}
+            >
+              <Clock aria-hidden />
+              新建定时任务
+            </WarmButton>
+          </div>
+        </header>
+        <div className={styles.panelBody}>
+          <p className={styles.helperText}>
             配置定时任务，自动在指定时间生成 AI 广告分析报告
           </p>
-        </div>
-        <Button
-          onClick={() => {
-            setEditingSchedule(null)
-            setScheduleDialogOpen(true)
-          }}
-          className="w-full sm:w-auto"
-        >
-          <Clock className="mr-2 h-4 w-4" />
-          新建定时任务
-        </Button>
-      </div>
 
-      <ScheduleList
-        insightType="ad_analysis"
-        onEdit={(schedule) => {
-          setEditingSchedule(schedule)
-          setScheduleDialogOpen(true)
-        }}
-        onRefresh={() => setRefreshTrigger((n) => n + 1)}
-        isRefreshing={refreshTrigger > 0}
-      />
+          <div className={styles.scheduleSurface}>
+            <ScheduleList
+              insightType="ad_analysis"
+              onEdit={(schedule) => {
+                setEditingSchedule(schedule)
+                setScheduleDialogOpen(true)
+              }}
+              onRefresh={() => setRefreshTrigger((n) => n + 1)}
+              isRefreshing={refreshTrigger > 0}
+            />
+          </div>
+        </div>
+      </section>
 
       <ScheduleDialog
         open={scheduleDialogOpen}
@@ -316,30 +312,30 @@ export default function AdAnalysisPage() {
 
   return (
     // BLF-838：页面标题由 Top Header 面包屑承载；Tab 切换终端规格
-    <div className="flex min-w-0 flex-col gap-2">
+    <div className={styles.page} data-warm-ad-analysis>
       <Tabs
         value={activeTab}
         onValueChange={(v) => {
           setActiveTab(v as TabKey)
           setRefreshTabOwner(null)
         }}
-        className="space-y-2"
+        className={styles.tabs}
       >
-        <TabsList variant="term" className="w-fit justify-start">
-          <TabsTrigger value="history" variant="term">
+        <TabsList className={styles.tabList}>
+          <TabsTrigger value="history">
             <FileText aria-hidden />
             历史记录
           </TabsTrigger>
-          <TabsTrigger value="schedules" variant="term">
+          <TabsTrigger value="schedules">
             <Clock aria-hidden />
             定时任务
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="history">
+        <TabsContent value="history" className={styles.tabContent}>
           <HistoryTab onRefreshReady={registerTabRefreshOwner} />
         </TabsContent>
-        <TabsContent value="schedules">
+        <TabsContent value="schedules" className={styles.tabContent}>
           <SchedulesTab onRefreshReady={registerTabRefreshOwner} />
         </TabsContent>
       </Tabs>

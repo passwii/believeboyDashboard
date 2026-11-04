@@ -2,20 +2,52 @@
 
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
+
+import {
+  WarmCrmPage,
+  WarmCrmRecordDrawer,
+  WarmCrmToolbar,
+} from '@/components/dashboard-v2/warm-ledger/crm'
+import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
 import { CrmLeadTable } from '@/components/crm/lead-table'
 import { CrmLeadForm } from '@/components/crm/crm-lead-form'
-import { ScopeToggle } from '../customers/components/scope-toggle'
-import { Button } from '@/components/ui/button'
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
-import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
-import { useCrmUsers } from '@/hooks/use-crm-users'
 import { useNotifications } from '@/components/notifications'
+import { useCrmDataScope } from '@/hooks/use-crm-data-scope'
+import { useCrmUsers } from '@/hooks/use-crm-users'
+import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import type { LeadInput } from '@/lib/crm/types/lead'
+import { cn } from '@/lib/utils'
+
+import styles from './leads-warm.module.css'
+
+function LeadScopeToggle() {
+  const { scope, setScope } = useCrmDataScope()
+
+  return (
+    <div aria-label="数据范围" className={styles.scopeToggle} role="radiogroup">
+      {(
+        [
+          { value: 'mine', label: '我的' },
+          { value: 'all', label: '全部' },
+        ] as const
+      ).map((option) => (
+        <button
+          aria-checked={scope === option.value}
+          className={cn(
+            styles.scopeOption,
+            scope === option.value && styles.scopeOptionActive
+          )}
+          key={option.value}
+          onClick={() => setScope(option.value)}
+          role="radio"
+          type="button"
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 export default function LeadsPage() {
   const client = useCrmClient()
@@ -30,34 +62,24 @@ export default function LeadsPage() {
   }
 
   return (
-    // BLF-837：页面标题已由 Top Header 面包屑承载（BLF-824 去重原则）
-    <div className="flex min-w-0 flex-col gap-1.5">
-      <div className="flex flex-wrap items-center justify-end gap-1.5 max-md:justify-between">
-        <ScopeToggle />
-        <Button
-          size="sm"
-          className="h-9 shrink-0 rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs text-term-muted hover:border-term-border-strong hover:text-term-text"
-          onClick={() => setOpen(true)}
-        >
-          <Plus className="mr-0.5 h-4 w-4" /> 新建线索
-        </Button>
-      </div>
-      <div className="min-h-0 flex-1">
-        <CrmLeadTable />
-      </div>
+    <WarmCrmPage className={styles.page} data-warm-lead-page>
+      <WarmCrmToolbar
+        ariaLabel="线索工具栏"
+        className={styles.pageToolbar}
+        start={<LeadScopeToggle />}
+        end={
+          <WarmButton onClick={() => setOpen(true)} variant="primary">
+            <Plus aria-hidden="true" />
+            新建线索
+          </WarmButton>
+        }
+      />
 
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent className="w-full gap-0 rounded-none p-0 sm:max-w-xl">
-          <SheetHeader className="rounded-none border-b border-term-border bg-term-panel px-3 py-2">
-            <SheetTitle className="text-sm uppercase tracking-wider text-term-muted">
-              新建线索
-            </SheetTitle>
-          </SheetHeader>
-          <div className="flex-1 overflow-y-auto bg-term-panel px-3 py-3">
-            <CrmLeadForm users={users} onSubmit={handleCreate} submitText="创建线索" />
-          </div>
-        </SheetContent>
-      </Sheet>
-    </div>
+      <CrmLeadTable />
+
+      <WarmCrmRecordDrawer onOpenChange={setOpen} open={open} title="新建线索">
+        <CrmLeadForm onSubmit={handleCreate} submitText="创建线索" users={users} />
+      </WarmCrmRecordDrawer>
+    </WarmCrmPage>
   )
 }

@@ -79,6 +79,9 @@ describe('FunnelStageDrawer（漏斗二层复盘面板，BLF-518）', () => {
     expect(await screen.findByText('卡住 1 条（超 7 天未动）')).toBeTruthy()
     expect(await screen.findByText('本期流入 2')).toBeTruthy()
     expect(await screen.findByText('流出 3')).toBeTruthy()
+    expect(screen.getByRole('dialog', { name: '联系中 · 复盘明细' })).toHaveAttribute(
+      'data-warm-crm-record-drawer'
+    )
   })
 
   it('渲染线索行：名称/公司/负责人/停留/最后动作/下次跟进，卡住行带徽标', async () => {
@@ -104,10 +107,7 @@ describe('FunnelStageDrawer（漏斗二层复盘面板，BLF-518）', () => {
   it('切换「最近动作」视图按 recent 重新请求并回到第一页', async () => {
     renderDrawer()
     await screen.findByText('联系中 · 复盘明细')
-    const recentTab = screen.getByRole('tab', { name: /最近动作/ })
-    // Radix Tabs 需要 pointerdown 序列（与 crm-overview-drawer 测试一致）
-    fireEvent.mouseDown(recentTab)
-    fireEvent.click(recentTab)
+    fireEvent.click(screen.getByRole('button', { name: '最近动作' }))
     await waitFor(() => {
       expect(getFunnelStageDetail).toHaveBeenLastCalledWith({
         stage: 'contacting',

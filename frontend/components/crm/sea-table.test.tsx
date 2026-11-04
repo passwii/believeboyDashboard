@@ -39,10 +39,10 @@ describe('CrmSeaTable', () => {
     render(<CrmSeaTable />)
     // 导出按钮（外层工具栏，立即渲染）
     expect(screen.getByTestId('crm-export-csv')).toBeTruthy()
-    // BLF-837：工具栏提示文案已移除（页面标题由面包屑承载）；导出按钮仍终端规格渲染
-    expect(screen.getByTestId('crm-export-csv').className).toContain('font-mono')
+    expect(screen.getByTestId('crm-export-csv')).toHaveClass('warm-ledger__button')
     // 搜索框在 CrmTable 内，需等初始 fetch 完成（loading 结束）才渲染
     expect(await screen.findByPlaceholderText(/搜索客户名/)).toBeTruthy()
+    expect(document.querySelector('[data-warm-crm-table-frame]')).toBeInTheDocument()
     // 进公海时长列（仅列头，唯一）
     expect(screen.getByText('进公海时长')).toBeTruthy()
     // 快捷筛选行（对象类型仅为筛选项、非列头，唯一匹配）

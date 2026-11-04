@@ -6,10 +6,14 @@ import remarkGfm from 'remark-gfm'
 import remarkBreaks from 'remark-breaks'
 import { Check, Copy, Download } from 'lucide-react'
 
+import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
 import { Button } from '@/components/ui/button'
 import { usePrefersReducedMotion } from '@/lib/hooks/use-prefers-reduced-motion'
 import { splitStreamingMarkdown } from '@/lib/insight/stream-blocks'
 import { cn } from '@/lib/utils'
+
+import type { InsightAppearance } from './insight-presentation'
+import styles from './insight-warm.module.css'
 
 /**
  * Insight 统一 Markdown 渲染器（BLF-1013）。
@@ -65,10 +69,18 @@ export type InsightMarkdownProps = {
   exportFileName?: string
   showRawActions?: boolean
   labels?: Partial<InsightMarkdownLabels>
+  /** Legacy Terminal is the default; Warm opts into the V4 presentation boundary. */
+  appearance?: InsightAppearance
+  /** Page-local class hook for the copy/export action wrapper. */
+  copyExportClassName?: string
   className?: string
 }
 
-function InsightCodeBlock({ language, code }: InsightChartBlock) {
+function InsightCodeBlock({
+  language,
+  code,
+  appearance,
+}: InsightChartBlock & { appearance: InsightAppearance }) {
   const [copied, setCopied] = React.useState(false)
 
   React.useEffect(() => {
@@ -87,18 +99,64 @@ function InsightCodeBlock({ language, code }: InsightChartBlock) {
   }, [code])
 
   return (
-    <div className="my-3 border border-term-border bg-term-raised" data-insight-code-block>
-      <div className="flex items-center justify-between border-b border-term-border px-2 py-1">
-        <span className="font-mono text-[0.6875rem] uppercase tracking-wide text-term-muted">
+    <div
+      className={cn(
+        appearance === 'warm'
+          ? styles.codeBlock
+          : 'my-3 border border-term-border bg-term-raised'
+      )}
+      data-insight-code-block
+      data-insight-appearance={appearance}
+    >
+      <div
+        className={cn(
+          'flex items-center justify-between',
+          appearance === 'warm'
+            ? styles.codeHeader
+            : 'border-b border-term-border px-2 py-1'
+        )}
+      >
+        <span
+          className={cn(
+            'font-mono uppercase tracking-wide',
+            appearance === 'warm'
+              ? styles.codeLanguage
+              : 'text-[0.6875rem] text-term-muted'
+          )}
+        >
           {language || 'text'}
         </span>
-        <Button type="button" variant="ghost" size="xs" onClick={handleCopy}>
-          {copied ? <Check /> : <Copy />}
-          <span>{copied ? '已复制' : '复制'}</span>
-        </Button>
+        {appearance === 'warm' ? (
+          <WarmButton
+            type="button"
+            variant="quiet"
+            className={styles.copyExportAction}
+            onClick={handleCopy}
+          >
+            {copied ? <Check /> : <Copy />}
+            <span>{copied ? '已复制' : '复制'}</span>
+          </WarmButton>
+        ) : (
+          <Button type="button" variant="ghost" size="xs" onClick={handleCopy}>
+            {copied ? <Check /> : <Copy />}
+            <span>{copied ? '已复制' : '复制'}</span>
+          </Button>
+        )}
       </div>
-      <pre className="overflow-x-auto p-3">
-        <code className="font-mono text-[0.8125rem] leading-6">{code}</code>
+      <pre
+        className={cn(
+          'overflow-x-auto',
+          appearance === 'warm' ? styles.codePre : 'p-3'
+        )}
+      >
+        <code
+          className={cn(
+            'font-mono',
+            appearance === 'warm' ? styles.code : 'text-[0.8125rem] leading-6'
+          )}
+        >
+          {code}
+        </code>
       </pre>
     </div>
   )
@@ -128,6 +186,8 @@ export function InsightMarkdown({
   exportFileName = 'insight.md',
   showRawActions = true,
   labels,
+  appearance = 'legacy',
+  copyExportClassName,
   className,
 }: InsightMarkdownProps) {
   const text = { ...DEFAULT_LABELS, ...labels }
@@ -166,7 +226,14 @@ export function InsightMarkdown({
 
       if (!isBlock) {
         return (
-          <code className="rounded-sm bg-term-raised px-1.5 py-0.5 font-mono text-[0.85em]">
+          <code
+            className={cn(
+              'font-mono text-[0.85em]',
+              appearance === 'warm'
+                ? styles.inlineCode
+                : 'rounded-sm bg-term-raised px-1.5 py-0.5'
+            )}
+          >
             {props.children}
           </code>
         )
@@ -180,7 +247,7 @@ export function InsightMarkdown({
       if (renderChartBlock && chartLanguages.includes(block.language)) {
         return <>{renderChartBlock(block)}</>
       }
-      return <InsightCodeBlock {...block} />
+      return <InsightCodeBlock {...block} appearance={appearance} />
     }
 
     return {
@@ -198,7 +265,7 @@ export function InsightMarkdown({
       ),
       pre: (props: { children?: React.ReactNode }) => <>{props.children}</>,
     }
-  }, [chartLanguages, renderChartBlock])
+  }, [appearance, chartLanguages, renderChartBlock])
 
   /**
    * stable 段的渲染结果按元素身份缓存（BLF-1072）。逐字吐字时每帧变的只有 tail，
@@ -227,10 +294,13 @@ export function InsightMarkdown({
         <span
           aria-hidden
           data-insight-caret
-          className="animate-cursor-blink ml-0.5 inline-block h-[1em] w-[2px] translate-y-[0.15em] bg-primary"
+          className={cn(
+            'animate-cursor-blink ml-0.5 inline-block h-[1em] w-[2px] translate-y-[0.15em]',
+            appearance === 'warm' ? styles.caret : 'bg-primary'
+          )}
         />
       ) : null,
-    [isStreaming, reducedMotion]
+    [appearance, isStreaming, reducedMotion]
   )
 
   /**
@@ -244,34 +314,77 @@ export function InsightMarkdown({
         className={cn(
           'break-words whitespace-pre-wrap',
           /^ {0,3}(`{3,}|~{3,})/.test(text)
-            ? 'my-3 border border-term-border bg-term-raised p-3 font-mono text-[0.8125rem] leading-6'
-            : 'text-term-muted'
+            ? appearance === 'warm'
+              ? styles.tailCode
+              : 'my-3 border border-term-border bg-term-raised p-3 font-mono text-[0.8125rem] leading-6'
+            : appearance === 'warm'
+              ? styles.markdownTail
+              : 'text-term-muted'
         )}
       >
         {text}
         {caret}
       </div>
     ),
-    [caret]
+    [appearance, caret]
   )
 
   return (
-    <div className={cn('min-w-0 text-sm leading-6 text-term-text', className)} data-insight-markdown>
+    <div
+      className={cn(
+        'min-w-0 text-sm leading-6',
+        appearance === 'warm' ? styles.markdownRoot : 'text-term-text',
+        className
+      )}
+      data-insight-markdown
+      data-insight-appearance={appearance}
+    >
       {showRawActions && content.length > 0 ? (
         <div
           role="group"
-          className="mb-2 flex flex-wrap items-center justify-end gap-1"
+          className={cn(
+            'flex flex-wrap items-center justify-end',
+            appearance === 'warm'
+              ? styles.rawActions
+              : 'mb-2 gap-1',
+            copyExportClassName
+          )}
           aria-label={text.rawActions}
           data-insight-raw-actions
         >
-          <Button type="button" variant="ghost" size="xs" onClick={copyRaw}>
-            {copied ? <Check /> : <Copy />}
-            <span>{copied ? text.copied : text.copy}</span>
-          </Button>
-          <Button type="button" variant="ghost" size="xs" onClick={exportRaw}>
-            <Download />
-            <span>{text.export}</span>
-          </Button>
+          {appearance === 'warm' ? (
+            <>
+              <WarmButton
+                type="button"
+                variant="quiet"
+                className={styles.copyExportAction}
+                onClick={copyRaw}
+              >
+                {copied ? <Check /> : <Copy />}
+                <span>{copied ? text.copied : text.copy}</span>
+              </WarmButton>
+              <WarmButton
+                type="button"
+                variant="quiet"
+                className={styles.copyExportAction}
+                onClick={exportRaw}
+              >
+                <Download />
+                <span>{text.export}</span>
+              </WarmButton>
+            </>
+          ) : (
+            <>
+              <Button type="button" variant="ghost" size="xs" onClick={copyRaw}>
+                {copied ? <Check /> : <Copy />}
+                <span>{copied ? text.copied : text.copy}</span>
+              </Button>
+              <Button type="button" variant="ghost" size="xs" onClick={exportRaw}>
+                <Download />
+                <span>{text.export}</span>
+              </Button>
+            </>
+          )}
         </div>
       ) : null}
 
@@ -282,20 +395,25 @@ export function InsightMarkdown({
         data-state={state}
         data-content-digest={digest ?? undefined}
         className={cn(
-          'min-w-0 break-words',
-          '[&_a]:text-primary [&_a]:underline-offset-4 hover:[&_a]:underline',
-          '[&_blockquote]:border-l-2 [&_blockquote]:border-term-border [&_blockquote]:pl-4 [&_blockquote]:text-term-muted',
-          '[&_h1]:mt-5 [&_h1]:text-lg [&_h1]:font-semibold',
-          '[&_h2]:mt-4 [&_h2]:text-base [&_h2]:font-semibold',
-          '[&_h3]:mt-3 [&_h3]:text-sm [&_h3]:font-semibold',
-          '[&_hr]:my-4 [&_hr]:border-term-border',
-          '[&_li]:ml-5 [&_li]:list-disc',
-          '[&_ol>li]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-5',
-          '[&_p]:break-words [&_p]:whitespace-pre-wrap',
-          '[&_tbody_tr]:border-t [&_tbody_tr]:border-term-border',
-          '[&_td]:border [&_td]:border-term-border [&_td]:px-3 [&_td]:py-2 [&_td]:align-top',
-          '[&_th]:border [&_th]:border-term-border [&_th]:bg-term-raised [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-medium',
-          '[&_ul>li]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5'
+          'break-words',
+          appearance === 'warm'
+            ? styles.markdownContent
+            : [
+                'min-w-0',
+                '[&_a]:text-primary [&_a]:underline-offset-4 hover:[&_a]:underline',
+                '[&_blockquote]:border-l-2 [&_blockquote]:border-term-border [&_blockquote]:pl-4 [&_blockquote]:text-term-muted',
+                '[&_h1]:mt-5 [&_h1]:text-lg [&_h1]:font-semibold',
+                '[&_h2]:mt-4 [&_h2]:text-base [&_h2]:font-semibold',
+                '[&_h3]:mt-3 [&_h3]:text-sm [&_h3]:font-semibold',
+                '[&_hr]:my-4 [&_hr]:border-term-border',
+                '[&_li]:ml-5 [&_li]:list-disc',
+                '[&_ol>li]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-5',
+                '[&_p]:break-words [&_p]:whitespace-pre-wrap',
+                '[&_tbody_tr]:border-t [&_tbody_tr]:border-term-border',
+                '[&_td]:border [&_td]:border-term-border [&_td]:px-3 [&_td]:py-2 [&_td]:align-top',
+                '[&_th]:border [&_th]:border-term-border [&_th]:bg-term-raised [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-medium',
+                '[&_ul>li]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5',
+              ]
         )}
       >
         {stableTree}

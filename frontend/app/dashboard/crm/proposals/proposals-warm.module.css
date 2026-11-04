@@ -1,0 +1,299 @@
+.listPage[data-warm-crm-page] {
+  /* 8px stage gutters + 64px topbar + 20px/32px main insets. */
+  height: calc(100vh - 132px);
+  min-height: 620px;
+}
+
+.searchField {
+  position: relative;
+  display: block;
+}
+
+.searchIcon {
+  position: absolute;
+  top: 50%;
+  left: var(--warm-ledger-space-3);
+  width: 14px;
+  height: 14px;
+  color: var(--warm-ledger-color-text-muted);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.searchInput {
+  width: 240px;
+  padding-left: calc(var(--warm-ledger-space-3) * 2 + 14px);
+}
+
+.filterSelect {
+  width: 148px;
+}
+
+.titleCell {
+  width: 30%;
+  max-width: 360px;
+}
+
+.titleLink {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--warm-ledger-color-text);
+  font-size: var(--warm-ledger-font-size-control);
+  text-overflow: ellipsis;
+  text-decoration: none;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+.titleLink:hover {
+  color: var(--warm-ledger-color-accent-strong);
+  text-decoration: underline;
+}
+
+.titleLink:focus-visible {
+  outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color);
+  outline-offset: var(--warm-ledger-focus-offset);
+}
+
+.customerCell,
+.dateCell,
+.versionCell {
+  color: var(--warm-ledger-color-text-muted);
+  font-family: var(--warm-ledger-font-mono);
+  font-size: var(--warm-ledger-font-size-label);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+}
+
+.dateCell {
+  white-space: nowrap;
+}
+
+.versionCount {
+  margin-left: var(--warm-ledger-space-1);
+  color: var(--warm-ledger-color-text-muted);
+}
+
+.actionsCell {
+  width: 132px;
+  text-align: right;
+}
+
+.rowActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--warm-ledger-space-1);
+}
+
+.dangerButton {
+  color: var(--warm-ledger-color-text-muted);
+}
+
+.dangerButton:hover:not(:disabled) {
+  color: var(--warm-ledger-color-negative);
+}
+
+.stateCell {
+  padding: var(--warm-ledger-space-6) !important;
+}
+
+.stateCell > section {
+  align-items: center;
+  text-align: center;
+}
+
+.footerCount {
+  display: block;
+  text-align: right;
+}
+
+.dialog {
+  width: calc(100vw - 48px) !important;
+  max-width: 600px !important;
+  max-height: calc(100vh - 48px) !important;
+  padding: var(--warm-ledger-space-6) !important;
+  color: var(--warm-ledger-color-text) !important;
+  font-family: var(--warm-ledger-font-sans);
+  background: var(--warm-ledger-color-panel) !important;
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline-strong) !important;
+  border-radius: var(--warm-ledger-radius-panel) !important;
+  box-shadow: var(--warm-ledger-shadow-window) !important;
+}
+
+.dialog > button:last-child {
+  top: var(--warm-ledger-space-4);
+  right: var(--warm-ledger-space-4);
+  display: inline-flex;
+  width: var(--warm-ledger-control-size-icon);
+  height: var(--warm-ledger-control-size-icon);
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--warm-ledger-color-text-muted);
+  background: transparent;
+  border: var(--warm-ledger-border-width) solid transparent;
+  border-radius: var(--warm-ledger-radius-control);
+}
+
+.dialog > button:last-child:hover {
+  color: var(--warm-ledger-color-text);
+  background: var(--warm-ledger-color-raised);
+  border-color: var(--warm-ledger-color-hairline);
+}
+
+.dialog > button:last-child:focus-visible {
+  outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color);
+  outline-offset: var(--warm-ledger-focus-offset);
+}
+
+.dialogTitle {
+  padding-right: var(--warm-ledger-space-10);
+  color: var(--warm-ledger-color-text) !important;
+  font-family: var(--warm-ledger-font-sans) !important;
+  font-size: 18px !important;
+  font-weight: var(--warm-ledger-font-weight-medium) !important;
+  letter-spacing: 0 !important;
+  line-height: 1.4 !important;
+}
+
+.dialogDescription {
+  color: var(--warm-ledger-color-text-muted) !important;
+  font-family: var(--warm-ledger-font-sans) !important;
+  font-size: var(--warm-ledger-font-size-control) !important;
+  line-height: 1.6 !important;
+}
+
+.detailPage[data-warm-crm-page] {
+  display: grid;
+  /* Keep the same viewport-derived frame as the list page. */
+  height: calc(100vh - 132px);
+  min-height: 620px;
+  grid-template-columns: 320px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.sidebar {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: var(--warm-ledger-space-4);
+}
+
+.infoPanel {
+  flex: 0 0 auto;
+}
+
+.infoBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--warm-ledger-space-3);
+}
+
+.titleRow {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--warm-ledger-space-2);
+}
+
+.backLink {
+  flex: 0 0 auto;
+}
+
+.title {
+  min-width: 0;
+  flex: 1;
+  margin: 0;
+  overflow: hidden;
+  color: var(--warm-ledger-color-text);
+  font-size: var(--warm-ledger-font-size-section);
+  font-weight: var(--warm-ledger-font-weight-medium);
+  line-height: var(--warm-ledger-line-height-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--warm-ledger-space-2);
+}
+
+.meta {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--warm-ledger-space-1);
+  color: var(--warm-ledger-color-text-muted);
+  font-family: var(--warm-ledger-font-mono);
+  font-size: var(--warm-ledger-font-size-label);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+}
+
+.metaLine {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.infoActions {
+  display: flex;
+  align-items: center;
+  gap: var(--warm-ledger-space-2);
+}
+
+.infoAction {
+  min-width: 0;
+  flex: 1;
+}
+
+.versionsSection {
+  min-height: 0;
+  flex: 1;
+}
+
+.versionsBody {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.previewSection {
+  min-width: 0;
+  min-height: 0;
+}
+
+.previewBody {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+}
+
+.previewFill {
+  height: 100%;
+  min-height: 0;
+}
+
+.editDialog {
+  max-width: 520px !important;
+}
+
+.editForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--warm-ledger-space-4);
+}
+
+.editFields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--warm-ledger-space-4);
+}
+
+.editActions {
+  display: flex;
+  justify-content: flex-end;
+}

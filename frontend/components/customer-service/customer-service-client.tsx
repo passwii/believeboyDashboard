@@ -7,6 +7,7 @@ import { ScenarioTabs } from './scenario-tabs'
 import { InputPane } from './input-pane'
 import { ToneCard } from './tone-card'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
+import styles from './customer-service-warm.module.css'
 
 const DRAFT_KEY = 'cs-draft-v1'
 
@@ -85,6 +86,7 @@ export function CustomerServiceClient() {
 
   const scenario = useMemo(() => findScenarioPreset(selectedId), [selectedId])
   const canGenerate = Boolean(freeText.trim() || Object.values(guidedFields).some((v) => v.trim()))
+  const isInitialScenarioLoad = loadingScenarios && scenarios.length === 0
 
   const handleGenerate = () => {
     if (!canGenerate || isGenerating) return
@@ -93,42 +95,58 @@ export function CustomerServiceClient() {
   }
 
   return (
-    <div className="flex h-full flex-col gap-4">
-      {scenarioError && <p role="alert" className="text-sm text-destructive">场景配置刷新失败：{scenarioError}</p>}
-      <ScenarioTabs scenarios={scenarios} selectedId={selectedId} onSelect={setSelectedId} />
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-2">
-        <InputPane
-          scenario={scenario}
-          freeText={freeText}
-          setFreeText={setFreeText}
-          guidedFields={guidedFields}
-          setGuidedFields={setGuidedFields}
-          language={language}
-          setLanguage={setLanguage}
-          length={length}
-          setLength={setLength}
-          onGenerate={handleGenerate}
-          isGenerating={isGenerating}
-          canGenerate={canGenerate}
-        />
-        <div className="flex min-h-0 flex-col gap-3 overflow-y-auto pr-1">
-          {scenario?.toneOptions.map((tone) => (
-            <ToneCard
-              key={tone.id}
-              scenarioId={scenario.id}
-              tone={tone}
+    <div className={styles.page} data-warm-customer-service="true">
+      {scenarioError && (
+        <p role="alert" className={styles.pageError}>
+          场景配置刷新失败：{scenarioError}
+        </p>
+      )}
+      {isInitialScenarioLoad ? (
+        <p role="status" className={styles.scenarioLoading}>
+          正在加载场景配置
+        </p>
+      ) : (
+        <>
+          <ScenarioTabs
+            scenarios={scenarios}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+          />
+          <div className={styles.workspace}>
+            <InputPane
+              scenario={scenario}
               freeText={freeText}
+              setFreeText={setFreeText}
               guidedFields={guidedFields}
+              setGuidedFields={setGuidedFields}
               language={language}
+              setLanguage={setLanguage}
               length={length}
-              schema={scenario.inputSchema}
-              generateToken={generateToken}
-              onStreamingChange={handleStreaming}
+              setLength={setLength}
+              onGenerate={handleGenerate}
+              isGenerating={isGenerating}
+              canGenerate={canGenerate}
             />
-          ))}
-          {!scenario && <p className="text-sm text-muted-foreground">请选择一个场景。</p>}
-        </div>
-      </div>
+            <div className={styles.outputPane}>
+              {scenario?.toneOptions.map((tone) => (
+                <ToneCard
+                  key={tone.id}
+                  scenarioId={scenario.id}
+                  tone={tone}
+                  freeText={freeText}
+                  guidedFields={guidedFields}
+                  language={language}
+                  length={length}
+                  schema={scenario.inputSchema}
+                  generateToken={generateToken}
+                  onStreamingChange={handleStreaming}
+                />
+              ))}
+              {!scenario && <p className={styles.emptyState}>请选择一个场景。</p>}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

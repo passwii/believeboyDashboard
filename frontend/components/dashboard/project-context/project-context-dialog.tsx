@@ -8,9 +8,11 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  WarmBadge,
+  WarmButton,
+} from '@/components/dashboard-v2/warm-ledger/controls'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
 import { useGlobalLoading } from '@/components/global-loading-provider'
@@ -21,7 +23,8 @@ import {
 } from '@/lib/project-context'
 import { AiParseContextSheet } from './ai-parse-context-sheet'
 import { DynamicContextCard } from './dynamic-context-card'
-import { Loader2, Check, Pencil, Save } from 'lucide-react'
+import { Check, Pencil, Save } from 'lucide-react'
+import styles from './project-context-warm.module.css'
 
 type ProjectContextDialogProps = {
   projectId: number
@@ -171,34 +174,35 @@ export function ProjectContextDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-3 text-lg">
+        <DialogContent className={`${styles.surface} ${styles.dialogSurface}`}>
+          <DialogHeader className={styles.dialogHeader}>
+            <DialogTitle className={styles.surfaceTitle}>
               <span
                 className={cn(
-                  'h-3 w-3 shrink-0 rounded-full',
+                  styles.contextDot,
                   context?.project_context && Object.keys(context.project_context).length > 0
-                    ? 'bg-green-500'
-                    : 'bg-term-warn'
+                    ? styles.contextDotReady
+                    : styles.contextDotMissing
                 )}
+                aria-hidden="true"
               />
               {projectName}
               {projectBrand && (
-                <Badge variant="secondary" className="text-xs">
+                <WarmBadge className={styles.brandBadge}>
                   {projectBrand}
-                </Badge>
+                </WarmBadge>
               )}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className={styles.surfaceDescription}>
               {isEditing ? '编辑项目背景信息' : '查看项目背景信息'}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto py-4">
+          <div className={styles.surfaceBody}>
             {loading ? (
-              <div className="space-y-4">
+              <div className={styles.loadingStack}>
                 {Array.from({ length: 3 }).map((_, i) => (
-                  <Skeleton key={i} className="h-32 w-full" />
+                  <Skeleton key={i} className={`${styles.skeleton} h-32 w-full`} />
                 ))}
               </div>
             ) : (
@@ -213,52 +217,55 @@ export function ProjectContextDialog({
             )}
           </div>
 
-          <div className="flex items-center justify-between pt-4 border-t">
+          <div className={styles.surfaceFooter}>
             <div>
               {isEditing && hasChanges && (
-                <Badge variant="secondary" className="text-[10px]">
+                <WarmBadge className={styles.unsavedBadge}>
                   有未保存更改
-                </Badge>
+                </WarmBadge>
               )}
             </div>
-            <div className="flex gap-2">
+            <div className={styles.surfaceFooterActions}>
               {isEditing ? (
                 <>
-                  <Button variant="outline" onClick={handleCancelEdit} disabled={submitting}>
+                  <WarmButton
+                    variant="secondary"
+                    onClick={handleCancelEdit}
+                    disabled={submitting}
+                  >
                     取消
-                  </Button>
-                  <Button
+                  </WarmButton>
+                  <WarmButton
+                    variant="primary"
                     onClick={() => void handleSave()}
                     disabled={submitting || !hasChanges}
-                    className="min-w-[100px]"
+                    loading={saveState === 'saving'}
+                    loadingLabel="正在保存项目背景"
                   >
                     {saveState === 'saving' ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        保存中...
-                      </>
+                      '保存中...'
                     ) : saveState === 'success' ? (
                       <>
-                        <Check className="mr-2 h-4 w-4" />
+                        <Check className="h-4 w-4" aria-hidden="true" />
                         已保存
                       </>
                     ) : (
                       <>
-                        <Save className="mr-2 h-4 w-4" />
+                        <Save className="h-4 w-4" aria-hidden="true" />
                         保存配置
                       </>
                     )}
-                  </Button>
+                  </WarmButton>
                 </>
               ) : (
                 <>
-                  <Button variant="outline" onClick={() => onOpenChange(false)}>
+                  <WarmButton variant="secondary" onClick={() => onOpenChange(false)}>
                     关闭
-                  </Button>
-                  <Button onClick={handleStartEdit}>
-                    <Pencil className="mr-2 h-4 w-4" />
+                  </WarmButton>
+                  <WarmButton variant="primary" onClick={handleStartEdit}>
+                    <Pencil className="h-4 w-4" aria-hidden="true" />
                     编辑背景
-                  </Button>
+                  </WarmButton>
                 </>
               )}
             </div>

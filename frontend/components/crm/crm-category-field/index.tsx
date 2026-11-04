@@ -10,15 +10,17 @@ import { useCallback, useEffect, useState } from 'react'
 import { Check, ChevronsUpDown, Loader2, Plus } from 'lucide-react'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import type { Category, CategoryBrief, Customer } from '@/lib/crm/types'
-import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Badge } from '@/components/ui/badge'
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { useNotifications } from '@/components/notifications'
+import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
+import { WarmCrmStatusPill } from '@/components/dashboard-v2/warm-ledger/crm'
+
+import styles from './crm-category-field-warm.module.css'
 
 function toBrief(c: Category): CategoryBrief {
   return { id: c.id, name: c.name }
@@ -87,70 +89,66 @@ export function CrmCategoryField({
   }
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-1.5">
+    <div className={styles.field}>
+      <div className={styles.chips}>
         {(customer.categories ?? []).length > 0 ? (
           (customer.categories ?? []).map((c) => (
-            <Badge key={c.id} variant="secondary" className="rounded-none border border-term-border bg-term-raised font-mono text-xs text-term-muted">
+            <WarmCrmStatusPill key={c.id}>
               {c.name}
-            </Badge>
+            </WarmCrmStatusPill>
           ))
         ) : (
-          <span className="font-mono text-xs text-term-faint">未设置</span>
+          <span className={styles.muted}>未设置</span>
         )}
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-6 gap-1 rounded-none border border-term-border bg-term-panel px-1.5 font-mono text-xs text-term-muted hover:text-term-text">
+            <WarmButton className={styles.editButton}>
               <Plus className="h-3 w-3" />
               编辑
               <ChevronsUpDown className="h-3 w-3 opacity-60" />
-            </Button>
+            </WarmButton>
           </PopoverTrigger>
-          <PopoverContent align="start" className="w-56 rounded-none border-term-border bg-term-panel p-0">
-            <div className="max-h-60 overflow-y-auto p-1.5">
+          <PopoverContent align="start" className={styles.popover}>
+            <div className={styles.options}>
               {loading ? (
-                <div className="flex items-center justify-center py-4 text-muted-foreground">
+                <div className={styles.loading}>
                   <Loader2 className="h-4 w-4 animate-spin" />
                 </div>
               ) : loadError ? (
-                <div className="space-y-2 px-2 py-3 text-sm text-term-neg">
+                <div className={styles.error}>
                   <p>{loadError}</p>
-                  <Button variant="outline" size="sm" onClick={() => void load()}>
+                  <WarmButton onClick={() => void load()}>
                     重试
-                  </Button>
+                  </WarmButton>
                 </div>
               ) : (
                 categories.map((c) => (
-                  <label
-                    key={c.id}
-                    className="flex cursor-pointer items-center gap-2 rounded-none px-2 py-1.5 font-mono text-xs text-term-text hover:bg-term-hover"
-                  >
+                  <label key={c.id} className={styles.option}>
                     <Checkbox
                       checked={selected.has(c.id)}
                       onCheckedChange={() => toggle(c.id)}
                     />
                     <span className="flex-1">{c.name}</span>
                     {selected.has(c.id) && (
-                      <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                      <Check className={styles.check} />
                     )}
                   </label>
                 ))
               )}
             </div>
-            <div className="flex justify-end gap-2 border-t border-term-border p-2">
-              <Button
-                size="sm"
-                variant="ghost"
+            <div className={styles.actions}>
+              <WarmButton
+                variant="quiet"
                 onClick={() => {
                   setSelected(new Set((customer.categories ?? []).map((c) => c.id)))
                   setOpen(false)
                 }}
               >
                 取消
-              </Button>
-              <Button size="sm" onClick={() => void save()} disabled={saving}>
+              </WarmButton>
+              <WarmButton variant="primary" onClick={() => void save()} disabled={saving}>
                 {saving ? '保存中…' : '保存'}
-              </Button>
+              </WarmButton>
             </div>
           </PopoverContent>
         </Popover>

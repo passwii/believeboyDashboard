@@ -1,8 +1,7 @@
 'use client'
 
-import { Skeleton } from '@/components/ui/skeleton'
 import type { AlertStats } from '@/lib/alerts-api'
-import { TermKpiTile } from '@/components/terminal/term-controls'
+import styles from '../alerts-warm.module.css'
 
 const CARDS = [
   { key: 'total_active', label: '活跃告警', tone: undefined },
@@ -15,18 +14,26 @@ const CARDS = [
 
 export function AlertStatsBar({ stats }: { stats: AlertStats | null }) {
   return (
-    // BLF-838：彩色图标卡换终端 KPI 磁贴（mono 数值 + term 语义色）
-    <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-6">
+    <div
+      className={styles.statsGrid}
+      data-warm-alert-stats="true"
+      aria-busy={stats == null || undefined}
+    >
       {CARDS.map((c) => {
         const value = stats ? String(stats[c.key]) : ''
         return (
-          <TermKpiTile
+          <article
             key={c.key}
-            label={c.label}
-            value={value}
-            tone={c.tone}
-            loading={stats == null}
-          />
+            className={styles.statCard}
+            data-tone={c.tone ?? 'default'}
+          >
+            <span className={styles.statLabel}>{c.label}</span>
+            {stats == null ? (
+              <span className={styles.statSkeleton} aria-hidden />
+            ) : (
+              <span className={styles.statValue}>{value}</span>
+            )}
+          </article>
         )
       })}
     </div>
@@ -35,9 +42,12 @@ export function AlertStatsBar({ stats }: { stats: AlertStats | null }) {
 
 export function AlertStatsBarSkeleton() {
   return (
-    <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-6">
+    <div className={styles.statsGrid} data-warm-alert-stats="true" aria-busy="true">
       {CARDS.map((c) => (
-        <Skeleton key={c.key} className="h-14 w-full rounded-none" />
+        <article key={c.key} className={styles.statCard}>
+          <span className={styles.statLabel}>{c.label}</span>
+          <span className={styles.statSkeleton} aria-hidden />
+        </article>
       ))}
     </div>
   )

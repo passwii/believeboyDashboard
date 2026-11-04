@@ -200,3 +200,15 @@ describe('BLF-1404: 方案上传失败的错误文案分档', () => {
     expect(call.message).toContain('不支持的文件类型')
   })
 })
+
+describe('Warm Ledger 方案列表', () => {
+  it('使用 Warm CRM 页面、工具行与表格框架承载现有行为', async () => {
+    const { container } = render(<ProposalsPage />)
+    await screen.findByText('北美春季方案')
+
+    expect(container.querySelector('[data-warm-crm-page]')).toBeInTheDocument()
+    expect(container.querySelector('[data-warm-crm-toolbar]')).toBeInTheDocument()
+    expect(container.querySelector('[data-warm-crm-table-frame]')).toBeInTheDocument()
+    expect(container.querySelector('[data-table-scroll]')).toBeInTheDocument()
+  })
+})

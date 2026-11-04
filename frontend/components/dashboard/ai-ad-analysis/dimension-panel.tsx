@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronRight, Layers, Link2, Clock, SkipForward, Signal } from 'lucide-react'
 
-import { cn } from '@/lib/utils'
+import { WarmBadge } from '@/components/dashboard-v2/warm-ledger/controls'
+import styles from './ai-ad-analysis-warm.module.css'
 
 export interface DimensionInfo {
   dimension_id: string
@@ -27,46 +28,20 @@ interface DimensionPanelProps {
   defaultExpanded?: boolean
 }
 
-const SIGNAL_STYLES: Record<string, { bg: string; text: string; dot: string; label: string }> = {
-  strong: {
-    bg: 'bg-emerald-50 dark:bg-emerald-950/30',
-    text: 'text-emerald-700 dark:text-emerald-400',
-    dot: 'bg-emerald-500',
-    label: '强',
-  },
-  moderate: {
-    bg: 'bg-term-warn/5',
-    text: 'text-term-warn',
-    dot: 'bg-term-warn',
-    label: '中',
-  },
-  weak: {
-    bg: 'bg-[hsl(var(--muted))]',
-    text: 'text-[hsl(var(--muted-foreground))]',
-    dot: 'bg-[hsl(var(--data-neutral))]',
-    label: '弱',
-  },
-  empty: {
-    bg: 'bg-[hsl(var(--muted))]',
-    text: 'text-[hsl(var(--muted-foreground))]',
-    dot: 'bg-[hsl(var(--data-neutral))]',
-    label: '无',
-  },
+const SIGNAL_LABELS: Record<string, string> = {
+  strong: '强',
+  moderate: '中',
+  weak: '弱',
+  empty: '无',
 }
 
 function SignalBadge({ strength }: { strength?: string }) {
-  const s = SIGNAL_STYLES[strength ?? 'empty'] ?? SIGNAL_STYLES.empty
+  const key = strength ?? 'empty'
+  const tone = key === 'strong' ? 'positive' : key === 'moderate' ? 'accent' : 'neutral'
   return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium',
-        s.bg,
-        s.text
-      )}
-    >
-      <span className={cn('h-1.5 w-1.5 rounded-full', s.dot)} />
-      {s.label}
-    </span>
+    <WarmBadge tone={tone} className="text-[10px]">
+      {SIGNAL_LABELS[key] ?? SIGNAL_LABELS.empty}
+    </WarmBadge>
   )
 }
 
@@ -86,43 +61,41 @@ export function DimensionPanel({
   if (total === 0 && skippedCount === 0) return null
 
   return (
-    <div className={cn('rounded-md border bg-muted/20', className)}>
+    <div className={`${styles.dimensionPanel} ${className ?? ''}`}>
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted/40 transition-colors"
+        className={styles.dimensionToggle}
+        aria-expanded={expanded}
       >
         {expanded ? (
-          <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+          <ChevronDown className="h-3.5 w-3.5 shrink-0" aria-hidden />
         ) : (
-          <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+          <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
         )}
-        <Signal className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="font-medium">分析策略</span>
-        <span className="text-muted-foreground">
+        <Signal className="h-3.5 w-3.5" aria-hidden />
+        <span className={styles.dimensionTitle}>分析策略</span>
+        <span>
           {total} 维度覆盖{skippedCount > 0 ? `，${skippedCount} 跳过` : ''}
         </span>
       </button>
 
       {expanded && (
-        <div className="border-t px-3 py-2.5 space-y-3">
+        <div className={styles.dimensionBody}>
           {/* L1 Single Dimensions */}
           {coverage.analyzed && coverage.analyzed.length > 0 && (
-            <div>
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <Layers className="h-3 w-3 text-emerald-600" />
-                <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
+            <div className={styles.dimensionGroup}>
+              <div className={styles.dimensionGroupTitle}>
+                <Layers className="h-3 w-3" aria-hidden />
+                <span>
                   单维度深挖 (L1)
                 </span>
               </div>
-              <div className="flex flex-wrap gap-1">
+              <div className={styles.dimensionItems}>
                 {coverage.analyzed.map((d) => (
                   <span
                     key={d.dimension_id}
-                    className={cn(
-                      'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium',
-                      'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400'
-                    )}
+                    className={styles.dimensionItem}
                   >
                     {d.name}
                     {d.signal_strength && <SignalBadge strength={d.signal_strength} />}
@@ -134,21 +107,18 @@ export function DimensionPanel({
 
           {/* L2 Cross Dimensions */}
           {coverage.cross && coverage.cross.length > 0 && (
-            <div>
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <Link2 className="h-3 w-3 text-blue-600" />
-                <span className="text-xs font-medium text-blue-700 dark:text-blue-400">
+            <div className={styles.dimensionGroup}>
+              <div className={styles.dimensionGroupTitle}>
+                <Link2 className="h-3 w-3" aria-hidden />
+                <span>
                   交叉分析 (L2)
                 </span>
               </div>
-              <div className="flex flex-wrap gap-1">
+              <div className={styles.dimensionItems}>
                 {coverage.cross.map((d) => (
                   <span
                     key={d.dimension_id}
-                    className={cn(
-                      'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium',
-                      'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-400'
-                    )}
+                    className={styles.dimensionItem}
                   >
                     {d.name}
                     {d.depends_on && d.depends_on.length > 0 && (
@@ -162,21 +132,18 @@ export function DimensionPanel({
 
           {/* L3 Temporal Dimensions */}
           {coverage.temporal && coverage.temporal.length > 0 && (
-            <div>
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <Clock className="h-3 w-3 text-purple-600" />
-                <span className="text-xs font-medium text-purple-700 dark:text-purple-400">
+            <div className={styles.dimensionGroup}>
+              <div className={styles.dimensionGroupTitle}>
+                <Clock className="h-3 w-3" aria-hidden />
+                <span>
                   跨周期分析 (L3)
                 </span>
               </div>
-              <div className="flex flex-wrap gap-1">
+              <div className={styles.dimensionItems}>
                 {coverage.temporal.map((d) => (
                   <span
                     key={d.dimension_id}
-                    className={cn(
-                      'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium',
-                      'border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-800 dark:bg-purple-950/30 dark:text-purple-400'
-                    )}
+                    className={styles.dimensionItem}
                   >
                     {d.name}
                   </span>
@@ -187,20 +154,19 @@ export function DimensionPanel({
 
           {/* Skipped Dimensions */}
           {coverage.skipped && coverage.skipped.length > 0 && (
-            <div>
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <SkipForward className="h-3 w-3 text-gray-500" />
-                <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+            <div className={styles.dimensionGroup}>
+              <div className={styles.dimensionGroupTitle}>
+                <SkipForward className="h-3 w-3" aria-hidden />
+                <span>
                   跳过维度
                 </span>
               </div>
-              <div className="space-y-0.5">
+              <div>
                 {coverage.skipped.map((s) => (
                   <div
                     key={s.dimension_id}
-                    className="flex items-center gap-2 text-[11px] text-muted-foreground"
+                    className={styles.dimensionSkipped}
                   >
-                    <span className="h-1 w-1 rounded-full bg-gray-300 shrink-0" />
                     <span className="font-medium">{s.name}</span>
                     <span className="opacity-60">— {s.reason}</span>
                   </div>

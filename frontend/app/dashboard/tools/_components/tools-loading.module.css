@@ -1,0 +1,89 @@
+.loading {
+  position: relative;
+}
+
+.status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.panels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: 0;
+  gap: var(--warm-ledger-space-4);
+}
+
+.panel {
+  min-width: 0;
+  overflow: hidden;
+  background: var(--warm-ledger-color-panel);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-panel);
+  box-shadow: var(--warm-ledger-highlight-rest);
+}
+
+.panelHeader {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--warm-ledger-space-3);
+  padding: 0 var(--warm-ledger-inset-panel);
+  background: var(--warm-ledger-color-panel-strong);
+  border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+}
+
+.panelBody {
+  display: grid;
+  min-width: 0;
+  gap: var(--warm-ledger-space-3);
+  padding: var(--warm-ledger-inset-panel);
+}
+
+.titleBar,
+.actionBar,
+.copyBar,
+.controlBar,
+.contentBlock,
+.statusBar {
+  display: block;
+  background: var(--warm-ledger-color-raised);
+  border-radius: var(--warm-ledger-radius-inner);
+}
+
+.titleBar {
+  width: 132px;
+  height: 14px;
+}
+
+.actionBar {
+  width: 64px;
+  height: 28px;
+}
+
+.copyBar {
+  width: min(320px, 72%);
+  height: 12px;
+}
+
+.controlBar {
+  width: 100%;
+  height: var(--warm-ledger-control-height);
+}
+
+.contentBlock {
+  width: 100%;
+  height: 176px;
+}
+
+.statusBar {
+  width: 44%;
+  height: 12px;
+}

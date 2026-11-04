@@ -1,0 +1,144 @@
+.card {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  padding: var(--warm-ledger-space-3) var(--warm-ledger-space-3) var(--warm-ledger-space-3)
+    var(--warm-ledger-space-4);
+  background: var(--warm-ledger-color-panel-strong);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-inner);
+  cursor: grab;
+  transition:
+    background-color 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 140ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.card:hover {
+  background: var(--warm-ledger-color-raised);
+  border-color: var(--warm-ledger-color-hairline-strong);
+}
+
+.card:active {
+  cursor: grabbing;
+  transform: translateY(1px);
+}
+
+.dragging {
+  opacity: 0.45;
+}
+
+.priorityBar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 1px;
+  background: var(--warm-ledger-color-text-muted);
+}
+
+.priorityBar[data-priority='medium'],
+.priorityBar[data-priority='high'] {
+  background: var(--warm-ledger-color-accent);
+}
+
+.priorityBar[data-priority='urgent'] {
+  background: var(--warm-ledger-color-negative);
+}
+
+.content {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--warm-ledger-space-2);
+}
+
+.heading {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--warm-ledger-space-2);
+}
+
+.title {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-sans);
+  font-size: var(--warm-ledger-font-size-body);
+  font-weight: var(--warm-ledger-font-weight-medium);
+  line-height: var(--warm-ledger-line-height-body);
+}
+
+.pills {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--warm-ledger-space-1);
+}
+
+.link {
+  width: fit-content;
+  max-width: 100%;
+  padding: 2px var(--warm-ledger-space-2);
+  overflow: hidden;
+  color: var(--warm-ledger-color-text-soft);
+  background: var(--warm-ledger-color-raised);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-inner);
+  font-family: var(--warm-ledger-font-mono);
+  font-size: var(--warm-ledger-font-size-label);
+  line-height: var(--warm-ledger-line-height-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.link[data-kind='customer'] {
+  border-color: color-mix(
+    in srgb,
+    var(--warm-ledger-color-accent) 44%,
+    var(--warm-ledger-color-hairline)
+  );
+}
+
+.meta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--warm-ledger-space-2);
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-label);
+  line-height: var(--warm-ledger-line-height-body);
+}
+
+.due {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--warm-ledger-space-1);
+  font-family: var(--warm-ledger-font-mono);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+}
+
+.dueIcon {
+  width: 12px;
+  height: 12px;
+}
+
+.due_overdue {
+  color: var(--warm-ledger-color-negative);
+}
+
+.due_today {
+  color: var(--warm-ledger-color-accent);
+}
+
+.owner {
+  min-width: 0;
+  max-width: 45%;
+  overflow: hidden;
+  color: var(--warm-ledger-color-text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -13,8 +13,12 @@ import {
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import {
+  WarmBadge,
+  WarmButton,
+  WarmIconButton,
+  WarmSelect,
+} from '@/components/dashboard-v2/warm-ledger/controls'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
@@ -25,32 +29,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { TermPanel } from '@/components/terminal/term-panel'
-import { TERM_BUTTON } from '@/components/terminal/term-controls'
-import { EmptyTableState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { RefreshProgressBar } from '@/components/ui/refresh-progress-bar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
-import { StatusPill } from '@/components/ui/table-presets'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  STICKY_TOP_ROW,
-} from '@/components/ui/table'
 import { useGlobalLoading } from '@/components/global-loading-provider'
 import { useSmoothRefresh } from '@/hooks/use-smooth-refresh'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
@@ -69,6 +52,7 @@ import {
   deriveProjectStartupStatus,
   PROJECT_STARTUP_STATUS_LABELS,
 } from '@/lib/project-startup-status'
+import styles from './project-info-warm.module.css'
 
 type ProjectItem = {
   id: number
@@ -138,13 +122,6 @@ function emptyShopIds(): Record<string, string> {
   return Object.fromEntries(SHOP_COUNTRY_OPTIONS.map(({ value }) => [value, '']))
 }
 
-const TIER_BADGE_CLASS: Record<string, string> = {
-  T1: 'border-term-neg/30 bg-term-neg/10 text-term-neg',
-  T2: 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300',
-  T3: 'border-term-warn/30 bg-term-warn/10 text-term-warn',
-  T4: 'border-slate-500/30 bg-slate-500/10 text-slate-700 dark:text-slate-300',
-}
-
 function parseOperatorNames(value: string | null): string[] {
   if (!value) {
     return []
@@ -206,29 +183,29 @@ function OperatorMultiSelect({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button
+        <button
           type="button"
           id={buttonId}
-          variant="outline"
-          role="combobox"
           disabled={disabled}
-          className={cn('w-full justify-between font-normal', !summary && 'text-muted-foreground')}
+          className={styles.multiSelectTrigger}
         >
-          <span className="truncate">{summary || placeholder}</span>
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
+          <span
+            className={cn(styles.multiSelectSummary, !summary && styles.multiSelectPlaceholder)}
+          >
+            {summary || placeholder}
+          </span>
+          <ChevronsUpDown className={styles.multiSelectIcon} aria-hidden="true" />
+        </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-3">
-        <div className="space-y-2">
+      <PopoverContent align="start" className={styles.multiSelectContent}>
+        <div className={styles.multiSelectList}>
           {options.length > 0 ? (
             options.map((name) => {
               const checked = value.includes(name)
               return (
-                <label
-                  key={`operator-multi-${name}`}
-                  className="flex cursor-pointer items-center gap-3 rounded-none px-2 py-1.5 text-sm hover:bg-term-hover"
-                >
+                <label key={`operator-multi-${name}`} className={styles.multiSelectOption}>
                   <Checkbox
+                    className={styles.checkbox}
                     checked={checked}
                     onCheckedChange={() => onChange(toggleOperatorName(value, name))}
                   />
@@ -237,7 +214,7 @@ function OperatorMultiSelect({
               )
             })
           ) : (
-            <p className="px-2 py-1 text-sm text-muted-foreground">暂无可选运营</p>
+            <p className={styles.multiSelectEmpty}>暂无可选运营</p>
           )}
         </div>
       </PopoverContent>
@@ -302,7 +279,33 @@ function StartupStatusPill({
   workflows: readonly ProjectWorkflowSummaryWorkflow[]
 }) {
   const status = deriveProjectStartupStatus(workflows)
-  return <StatusPill status={startupStatusTone(status)} label={PROJECT_STARTUP_STATUS_LABELS[status]} />
+  const tone = startupStatusTone(status)
+  return (
+    <span
+      className={cn(
+        styles.statusPill,
+        tone === 'success'
+          ? styles.statusSuccess
+          : tone === 'warning'
+            ? styles.statusWarning
+            : styles.statusNeutral
+      )}
+    >
+      <span className={styles.statusDot} aria-hidden="true" />
+      {PROJECT_STARTUP_STATUS_LABELS[status]}
+    </span>
+  )
+}
+
+function ProjectStatusPill({ active }: { active: boolean }) {
+  return (
+    <span
+      className={cn(styles.statusPill, active ? styles.statusSuccess : styles.statusNeutral)}
+    >
+      <span className={styles.statusDot} aria-hidden="true" />
+      {active ? '启用' : '停用'}
+    </span>
+  )
 }
 
 export default function ProjectInfoPage() {
@@ -679,102 +682,102 @@ export default function ProjectInfoPage() {
     }
   }
 
+
   return (
-    <div className="w-full h-full">
-      <Tabs defaultValue="context" className="h-full flex flex-col">
-        <div className="mb-4">
-          <TabsList variant="term" className="w-fit justify-start">
-            <TabsTrigger value="basic" variant="term">
-              <FileText aria-hidden />
+    <div className={styles.page} data-warm-project-info="true">
+      <Tabs defaultValue="context" className={styles.tabs}>
+        <div className={styles.tabBar}>
+          <TabsList className={styles.tabList} aria-label="项目信息">
+            <TabsTrigger className={styles.tabTrigger} value="basic">
+              <FileText aria-hidden="true" />
               基础信息
             </TabsTrigger>
-            <TabsTrigger value="context" variant="term">
-              <Settings aria-hidden />
+            <TabsTrigger className={styles.tabTrigger} value="context">
+              <Settings aria-hidden="true" />
               项目明细
             </TabsTrigger>
           </TabsList>
         </div>
 
-        <TabsContent value="basic" className="flex-1 mt-0">
-          <TermPanel title="项目资料" bodyClassName="p-0" className="flex h-full flex-col overflow-hidden" actions={
-            <span className="font-mono text-[11px] uppercase tracking-wider text-term-muted">系统管理 · 项目资料</span>
-          }>
-            <div className="flex flex-wrap items-start justify-between gap-4 border-b border-term-border p-3">
-              <div className="flex min-w-0 flex-col gap-1">
-                <Badge
-                  variant="outline"
-                  className="w-fit rounded-none border border-term-border bg-term-bg font-mono text-[11px] uppercase tracking-wider text-term-muted"
-                >
-                  系统管理 · 项目资料
-                </Badge>
-                <p className="font-mono text-xs text-term-muted">
-                  维护项目主数据，支持单个新增与项目信息编辑。
-                </p>
+        <TabsContent value="basic" className={styles.tabContent}>
+          <section className={styles.panel} aria-label="项目资料">
+            <header className={styles.panelHeader}>
+              <div className={styles.panelLead}>
+                <h2 className={styles.panelTitle}>项目资料</h2>
+                <p className={styles.panelMeta}>维护项目主数据，支持单个新增与项目信息编辑。</p>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
+              <div className={styles.actions}>
+                {loading || startupSummaryLoading ? (
+                  <span className={styles.refreshing} role="status">
+                    正在刷新数据
+                  </span>
+                ) : null}
+                <WarmButton
                   type="button"
-                  variant="outline"
+                  variant="secondary"
+                  className={styles.actionButton}
                   onClick={() => void Promise.all([loadProjects(), loadStartupSummary()])}
                   disabled={loading || startupSummaryLoading || submitting}
                 >
                   {loading ? '刷新中...' : '刷新数据'}
-                </Button>
+                </WarmButton>
                 <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
                   <DialogTrigger asChild>
-                    <Button type="button" disabled={submitting}>
-                      <PlusCircle className="mr-2 h-4 w-4" />
+                    <WarmButton
+                      type="button"
+                      variant="primary"
+                      className={styles.actionButton}
+                      disabled={submitting}
+                    >
+                      <PlusCircle aria-hidden="true" />
                       单个新增
-                    </Button>
+                    </WarmButton>
                   </DialogTrigger>
                   <DialogContent
                     aria-describedby="add-project-dialog-description"
-                    className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]"
+                    className={styles.dialogSurface}
                   >
                     <span id="add-project-dialog-description" className="sr-only">
                       新增项目，一次仅新增一个项目名称
                     </span>
                     <DialogHeader>
-                      <DialogTitle>新增项目</DialogTitle>
-                      <DialogDescription>
+                      <DialogTitle className={styles.dialogTitle}>新增项目</DialogTitle>
+                      <DialogDescription className={styles.dialogDescription}>
                         一次仅新增一个项目名称，不支持批量导入。
                       </DialogDescription>
                     </DialogHeader>
-                    <div className="grid gap-2">
-                      <label
-                        htmlFor="project-add-name"
-                        className="text-sm font-medium text-foreground"
-                      >
-                        项目名称
-                      </label>
-                      <Input
-                        id="project-add-name"
-                        value={addName}
-                        onChange={(e) => setAddName(e.target.value)}
-                        placeholder="例如：宝勒3店"
-                        disabled={submitting}
-                      />
-                      <label
-                        htmlFor="project-add-brand"
-                        className="text-sm font-medium text-foreground"
-                      >
-                        品牌名称
-                      </label>
-                      <Input
-                        id="project-add-brand"
-                        value={addBrandName}
-                        onChange={(e) => setAddBrandName(e.target.value)}
-                        placeholder="例如：BelieveBoy"
-                        disabled={submitting}
-                      />
-                      <label
-                        htmlFor="project-add-operator"
-                        className="text-sm font-medium text-foreground"
-                      >
-                        运营
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1">
+                    <div className={styles.formGrid}>
+                      <div className={styles.formField}>
+                        <label htmlFor="project-add-name" className={styles.formLabel}>
+                          项目名称
+                        </label>
+                        <Input
+                          id="project-add-name"
+                          value={addName}
+                          onChange={(e) => setAddName(e.target.value)}
+                          placeholder="例如：宝勒3店"
+                          disabled={submitting}
+                          className={styles.formInput}
+                        />
+                      </div>
+                      <div className={styles.formField}>
+                        <label htmlFor="project-add-brand" className={styles.formLabel}>
+                          品牌名称
+                        </label>
+                        <Input
+                          id="project-add-brand"
+                          value={addBrandName}
+                          onChange={(e) => setAddBrandName(e.target.value)}
+                          placeholder="例如：BelieveBoy"
+                          disabled={submitting}
+                          className={styles.formInput}
+                        />
+                      </div>
+                      <div className={`${styles.formField} ${styles.formFieldWide}`}>
+                        <label htmlFor="project-add-operator" className={styles.formLabel}>
+                          运营
+                        </label>
+                        <div className={styles.inlineFieldRow}>
                           <OperatorMultiSelect
                             buttonId="project-add-operator"
                             value={addProjectOperators}
@@ -783,29 +786,26 @@ export default function ProjectInfoPage() {
                             disabled={submitting}
                             onChange={setAddProjectOperators}
                           />
+                          <WarmButton
+                            type="button"
+                            variant="secondary"
+                            onClick={() => setAddProjectOperators([])}
+                            disabled={submitting || addProjectOperators.length === 0}
+                          >
+                            清空
+                          </WarmButton>
                         </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => setAddProjectOperators([])}
-                          disabled={submitting || addProjectOperators.length === 0}
-                        >
-                          清空
-                        </Button>
+                        {addProjectOperators.length > 0 ? (
+                          <p className={styles.selectedNames}>
+                            已选择：{addProjectOperators.join('、')}
+                          </p>
+                        ) : null}
                       </div>
-                      {addProjectOperators.length > 0 ? (
-                        <p className="text-xs text-muted-foreground">
-                          已选择：{addProjectOperators.join('、')}
-                        </p>
-                      ) : null}
-                      <label
-                        htmlFor="project-add-assistant-operator"
-                        className="text-sm font-medium text-foreground"
-                      >
-                        助理运营
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1">
+                      <div className={`${styles.formField} ${styles.formFieldWide}`}>
+                        <label htmlFor="project-add-assistant-operator" className={styles.formLabel}>
+                          助理运营
+                        </label>
+                        <div className={styles.inlineFieldRow}>
                           <OperatorMultiSelect
                             buttonId="project-add-assistant-operator"
                             value={addAssistantOperators}
@@ -814,322 +814,300 @@ export default function ProjectInfoPage() {
                             disabled={submitting}
                             onChange={setAddAssistantOperators}
                           />
+                          <WarmButton
+                            type="button"
+                            variant="secondary"
+                            onClick={() => setAddAssistantOperators([])}
+                            disabled={submitting || addAssistantOperators.length === 0}
+                          >
+                            清空
+                          </WarmButton>
                         </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => setAddAssistantOperators([])}
-                          disabled={submitting || addAssistantOperators.length === 0}
-                        >
-                          清空
-                        </Button>
+                        {addAssistantOperators.length > 0 ? (
+                          <p className={styles.selectedNames}>
+                            已选择：{addAssistantOperators.join('、')}
+                          </p>
+                        ) : null}
                       </div>
-                      {addAssistantOperators.length > 0 ? (
-                        <p className="text-xs text-muted-foreground">
-                          已选择：{addAssistantOperators.join('、')}
-                        </p>
-                      ) : null}
-                      <label
-                        htmlFor="project-add-commission-mode"
-                        className="text-sm font-medium text-foreground"
-                      >
-                        佣金方式
-                      </label>
-                      <Select
-                        value={addCommissionMode}
-                        onValueChange={setAddCommissionMode}
-                        disabled={submitting}
-                      >
-                        <SelectTrigger id="project-add-commission-mode">
-                          <SelectValue placeholder="选择佣金方式" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {COMMISSION_BASIS_OPTIONS.map((option) => (
-                            <SelectItem
-                              key={`commission-basis-add-${option.value}`}
-                              value={option.value}
-                            >
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <label
-                        htmlFor="project-add-commission-rate"
-                        className="text-sm font-medium text-foreground"
-                      >
-                        佣金点数
-                      </label>
-                      <Input
-                        id="project-add-commission-rate"
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.01"
-                        value={addCommissionRate}
-                        onChange={(e) => setAddCommissionRate(e.target.value)}
-                        placeholder={
-                          isAddCashReceivedCommission
-                            ? '平台回款按回款率阶梯自动计算'
-                            : '例如：5（表示 5%）'
-                        }
-                        disabled={submitting || isAddCashReceivedCommission}
-                      />
-                      {isAddCashReceivedCommission ? (
-                        <p className="text-xs text-muted-foreground">
-                          回款率阶梯：40%-50%→7%，50%-60%→10%，60%-70%→13%，70%以上→15%
-                        </p>
-                      ) : null}
-                      <label
-                        htmlFor="project-add-address"
-                        className="text-sm font-medium text-foreground"
-                      >
-                        店铺地址
-                      </label>
-                      <Input
-                        id="project-add-address"
-                        value={addStoreAddress}
-                        onChange={(e) => setAddStoreAddress(e.target.value)}
-                        placeholder="例如：https://www.amazon.com/..."
-                        disabled={submitting}
-                      />
-                      <label
-                        htmlFor="project-add-tier"
-                        className="text-sm font-medium text-foreground"
-                      >
-                        项目等级
-                      </label>
-                      <Select
-                        value={addProjectTier}
-                        onValueChange={setAddProjectTier}
-                        disabled={submitting}
-                      >
-                        <SelectTrigger id="project-add-tier">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {TIER_SELECT_OPTIONS.map((option) => (
-                            <SelectItem key={`tier-add-${option.value}`} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <label
-                        htmlFor="project-add-country"
-                        className="text-sm font-medium text-foreground"
-                      >
-                        站点
-                      </label>
-                      <Select value={addCountry} onValueChange={setAddCountry} disabled={submitting}>
-                        <SelectTrigger id="project-add-country">
-                          <SelectValue placeholder="选择站点" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {PROJECT_COUNTRY_OPTIONS.map((option) => (
-                            <SelectItem key={`country-add-${option.value}`} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className={styles.formField}>
+                        <label htmlFor="project-add-commission-mode" className={styles.formLabel}>
+                          佣金方式
+                        </label>
+                        <WarmSelect
+                          id="project-add-commission-mode"
+                          label="佣金方式"
+                          value={addCommissionMode}
+                          options={COMMISSION_BASIS_OPTIONS}
+                          onChange={setAddCommissionMode}
+                          placeholder="选择佣金方式"
+                          disabled={submitting}
+                          className={styles.formSelect}
+                        />
+                      </div>
+                      <div className={styles.formField}>
+                        <label htmlFor="project-add-commission-rate" className={styles.formLabel}>
+                          佣金点数
+                        </label>
+                        <Input
+                          id="project-add-commission-rate"
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={addCommissionRate}
+                          onChange={(e) => setAddCommissionRate(e.target.value)}
+                          placeholder={
+                            isAddCashReceivedCommission
+                              ? '平台回款按回款率阶梯自动计算'
+                              : '例如：5（表示 5%）'
+                          }
+                          disabled={submitting || isAddCashReceivedCommission}
+                          className={styles.formInput}
+                        />
+                        {isAddCashReceivedCommission ? (
+                          <p className={styles.fieldHint}>
+                            回款率阶梯：40%-50%→7%，50%-60%→10%，60%-70%→13%，70%以上→15%
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className={`${styles.formField} ${styles.formFieldWide}`}>
+                        <label htmlFor="project-add-address" className={styles.formLabel}>
+                          店铺地址
+                        </label>
+                        <Input
+                          id="project-add-address"
+                          value={addStoreAddress}
+                          onChange={(e) => setAddStoreAddress(e.target.value)}
+                          placeholder="例如：https://www.amazon.com/..."
+                          disabled={submitting}
+                          className={styles.formInput}
+                        />
+                      </div>
+                      <div className={styles.formField}>
+                        <label htmlFor="project-add-tier" className={styles.formLabel}>
+                          项目等级
+                        </label>
+                        <WarmSelect
+                          id="project-add-tier"
+                          label="项目等级"
+                          value={addProjectTier}
+                          options={TIER_SELECT_OPTIONS}
+                          onChange={setAddProjectTier}
+                          disabled={submitting}
+                          className={styles.formSelect}
+                        />
+                      </div>
+                      <div className={styles.formField}>
+                        <label htmlFor="project-add-country" className={styles.formLabel}>
+                          站点
+                        </label>
+                        <WarmSelect
+                          id="project-add-country"
+                          label="站点"
+                          value={addCountry}
+                          options={PROJECT_COUNTRY_OPTIONS}
+                          onChange={setAddCountry}
+                          placeholder="选择站点"
+                          disabled={submitting}
+                          className={styles.formSelect}
+                        />
+                      </div>
                     </div>
-                    <DialogFooter>
-                      <Button
+                    <DialogFooter className={styles.dialogFooter}>
+                      <WarmButton
                         type="button"
-                        variant="outline"
+                        variant="secondary"
                         onClick={() => setAddDialogOpen(false)}
                         disabled={submitting}
                       >
                         取消
-                      </Button>
-                      <Button
+                      </WarmButton>
+                      <WarmButton
                         type="button"
+                        variant="primary"
                         onClick={() => void onAddSingle()}
                         disabled={submitting}
                       >
                         {submitting ? '提交中...' : '确认新增'}
-                      </Button>
+                      </WarmButton>
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
               </div>
-            </div>
-            <div className="flex-1 min-h-0 overflow-auto">
-              <div className="relative h-full overflow-auto">
-                <RefreshProgressBar refreshing={isRefreshing}>
-                  <Table>
-                    <TableHeader>
-                      <TableRow className={STICKY_TOP_ROW}>
-                        <TableHead className="w-[80px]">ID</TableHead>
-                        <TableHead>项目名称</TableHead>
-                        <TableHead className="w-[110px]">站点</TableHead>
-                        <TableHead>品牌名称</TableHead>
-                        <TableHead>运营</TableHead>
-                        <TableHead>助理运营</TableHead>
-                        <TableHead>佣金方式</TableHead>
-                        <TableHead>佣金点数</TableHead>
-                        <TableHead className="w-[120px]">店铺地址</TableHead>
-                        <TableHead className="w-[80px]">状态</TableHead>
-                        <TableHead className="w-[100px]">启动状态</TableHead>
-                        <TableHead className="w-[80px]">项目等级</TableHead>
-                        <TableHead className="w-[140px] text-center">排序</TableHead>
-                        <TableHead className="w-[100px] text-right">操作</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {showSkeleton ? (
-                        Array.from({ length: 6 }).map((_, index) => (
-                          <TableRow key={`skeleton-${index}`}>
-                            <TableCell colSpan={14} className="p-4">
-                              <Skeleton className="h-6 w-full" />
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      ) : items.length === 0 ? (
-                        <EmptyTableState colSpan={14} message="暂无项目数据，请先新增一个项目。" />
-                      ) : (
-                        items.map((item) => (
-                          <TableRow key={item.id}>
-                            <TableCell className="text-muted-foreground">{item.id}</TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                {item.is_active && item.has_context && (
-                                  <span
-                                    className="h-2 w-2 shrink-0 rounded-none bg-term-pos"
-                                    title="已配置项目背景"
-                                  />
-                                )}
-                                <span className="truncate font-medium text-foreground">
-                                  {item.name}
-                                </span>
-                              </div>
-                            </TableCell>
-                            <TableCell>{item.country_name ?? getCountryLabel(item.country)}</TableCell>
-                            <TableCell>{item.brand_name || '-'}</TableCell>
-                            <TableCell className="whitespace-pre-wrap break-words">
-                              {item.project_operator || '-'}
-                            </TableCell>
-                            <TableCell className="whitespace-pre-wrap break-words">
-                              {item.assistant_operator || '-'}
-                            </TableCell>
-                            <TableCell>
-                              {item.commission_basis
-                                ? (COMMISSION_BASIS_LABEL[item.commission_basis] ??
-                                  item.commission_basis)
-                                : '-'}
-                            </TableCell>
-                            <TableCell className="tabular-nums">
-                              {item.commission_basis === 'cash_received'
-                                ? '阶梯(7/10/13/15%)'
-                                : (toCommissionPoints(item.commission_rate) ?? '-')}
-                            </TableCell>
-                            <TableCell
-                              className="max-w-[120px] truncate"
-                              title={item.store_address || ''}
+            </header>
+
+            <div className={styles.tableWrap}>
+              <table className={styles.dataTable} aria-label="项目资料列表">
+                <thead>
+                  <tr>
+                    <th scope="col" style={{ width: 80 }}>
+                      ID
+                    </th>
+                    <th scope="col">项目名称</th>
+                    <th scope="col" style={{ width: 110 }}>
+                      站点
+                    </th>
+                    <th scope="col">品牌名称</th>
+                    <th scope="col">运营</th>
+                    <th scope="col">助理运营</th>
+                    <th scope="col">佣金方式</th>
+                    <th scope="col" className={styles.numericCell}>
+                      佣金点数
+                    </th>
+                    <th scope="col" style={{ width: 140 }}>
+                      店铺地址
+                    </th>
+                    <th scope="col" style={{ width: 90 }}>
+                      状态
+                    </th>
+                    <th scope="col" style={{ width: 110 }}>
+                      启动状态
+                    </th>
+                    <th scope="col" style={{ width: 100 }}>
+                      项目等级
+                    </th>
+                    <th scope="col" style={{ width: 130 }}>
+                      排序
+                    </th>
+                    <th scope="col" className={styles.numericCell} style={{ width: 110 }}>
+                      操作
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {showSkeleton ? (
+                    Array.from({ length: 6 }).map((_, index) => (
+                      <tr key={`skeleton-${index}`}>
+                        <td colSpan={14}>
+                          <Skeleton className={styles.skeleton} />
+                        </td>
+                      </tr>
+                    ))
+                  ) : items.length === 0 ? (
+                    <tr>
+                      <td className={styles.stateCell} colSpan={14}>
+                        暂无项目数据，请先新增一个项目。
+                      </td>
+                    </tr>
+                  ) : (
+                    items.map((item) => (
+                      <tr key={item.id}>
+                        <td className={styles.idCell}>{item.id}</td>
+                        <td className={styles.nameCell}>
+                          <div className={styles.projectIdentity}>
+                            {item.is_active && item.has_context && (
+                              <span
+                                className={styles.contextDot}
+                                title="已配置项目背景"
+                                aria-label="已配置项目背景"
+                              />
+                            )}
+                            <span className={styles.projectName}>{item.name}</span>
+                          </div>
+                        </td>
+                        <td>{item.country_name ?? getCountryLabel(item.country)}</td>
+                        <td>{item.brand_name || '-'}</td>
+                        <td className={styles.wrapCell}>{item.project_operator || '-'}</td>
+                        <td className={styles.wrapCell}>{item.assistant_operator || '-'}</td>
+                        <td>
+                          {item.commission_basis
+                            ? (COMMISSION_BASIS_LABEL[item.commission_basis] ??
+                              item.commission_basis)
+                            : '-'}
+                        </td>
+                        <td className={styles.numericCell}>
+                          {item.commission_basis === 'cash_received'
+                            ? '阶梯(7/10/13/15%)'
+                            : (toCommissionPoints(item.commission_rate) ?? '-')}
+                        </td>
+                        <td className={styles.addressCell} title={item.store_address || ''}>
+                          {item.store_address ? `${item.store_address.slice(0, 15)}...` : '-'}
+                        </td>
+                        <td>
+                          <ProjectStatusPill active={item.is_active} />
+                        </td>
+                        <td>
+                          {startupSummaryLoading ? (
+                            <span className={styles.loadingStatus} role="status">
+                              加载中
+                            </span>
+                          ) : startupSummaryError ? (
+                            <span className={styles.loadingStatus} title="启动状态加载失败">
+                              -
+                            </span>
+                          ) : (
+                            <StartupStatusPill
+                              workflows={startupWorkflowsByProject.get(item.id) ?? []}
+                            />
+                          )}
+                        </td>
+                        <td>
+                          {item.project_tier ? (
+                            <WarmBadge className={styles.tierBadge}>
+                              {TIER_LABEL[item.project_tier] || item.project_tier}
+                            </WarmBadge>
+                          ) : (
+                            <span className={styles.loadingStatus}>-</span>
+                          )}
+                        </td>
+                        <td>
+                          <div className={styles.rowActions}>
+                            <WarmIconButton
+                              type="button"
+                              onClick={() => void moveProject(item.id, 'up')}
+                              disabled={submitting || movingId === item.id}
+                              aria-label={`上移项目 ${item.name}`}
+                              title="上移"
+                              className={styles.iconButton}
                             >
-                              {item.store_address ? `${item.store_address.slice(0, 15)}...` : '-'}
-                            </TableCell>
-                            <TableCell>
-                              {item.is_active ? (
-                                <StatusPill status="success" label="启用" />
-                              ) : (
-                                <StatusPill status="neutral" label="停用" />
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {startupSummaryLoading ? (
-                                <span className="text-xs text-muted-foreground">加载中</span>
-                              ) : startupSummaryError ? (
-                                <span className="text-xs text-muted-foreground" title="启动状态加载失败">-</span>
-                              ) : (
-                                <StartupStatusPill
-                                  workflows={startupWorkflowsByProject.get(item.id) ?? []}
-                                />
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {item.project_tier ? (
-                                <Badge
-                                  variant="outline"
-                                  className={cn(
-                                    'text-xs font-medium',
-                                    TIER_BADGE_CLASS[item.project_tier] ||
-                                      'bg-muted text-muted-foreground'
-                                  )}
-                                >
-                                  {TIER_LABEL[item.project_tier] || item.project_tier}
-                                </Badge>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">-</span>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center justify-center gap-1">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => void moveProject(item.id, 'up')}
-                                  disabled={submitting || movingId === item.id}
-                                  aria-label={`上移项目 ${item.name}`}
-                                  title="上移"
-                                  className="h-7 w-7"
-                                >
-                                  <ChevronUp className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => void moveProject(item.id, 'down')}
-                                  disabled={submitting || movingId === item.id}
-                                  aria-label={`下移项目 ${item.name}`}
-                                  title="下移"
-                                  className="h-7 w-7"
-                                >
-                                  <ChevronDown className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex justify-end gap-1">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => openContextDrawer(item)}
-                                  disabled={submitting}
-                                  aria-label={`项目背景配置 ${item.name}`}
-                                  title="项目背景配置"
-                                >
-                                  <Settings className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="icon"
-                                  onClick={() => onOpenEdit(item)}
-                                  disabled={submitting}
-                                  aria-label={`编辑项目 ${item.name}`}
-                                  title="编辑"
-                                >
-                                  <PencilLine className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </RefreshProgressBar>
-              </div>
+                              <ChevronUp aria-hidden="true" />
+                            </WarmIconButton>
+                            <WarmIconButton
+                              type="button"
+                              onClick={() => void moveProject(item.id, 'down')}
+                              disabled={submitting || movingId === item.id}
+                              aria-label={`下移项目 ${item.name}`}
+                              title="下移"
+                              className={styles.iconButton}
+                            >
+                              <ChevronDown aria-hidden="true" />
+                            </WarmIconButton>
+                          </div>
+                        </td>
+                        <td>
+                          <div className={styles.rowActions}>
+                            <WarmIconButton
+                              type="button"
+                              onClick={() => openContextDrawer(item)}
+                              disabled={submitting}
+                              aria-label={`项目背景配置 ${item.name}`}
+                              title="项目背景配置"
+                              className={styles.iconButton}
+                            >
+                              <Settings aria-hidden="true" />
+                            </WarmIconButton>
+                            <WarmIconButton
+                              type="button"
+                              onClick={() => onOpenEdit(item)}
+                              disabled={submitting}
+                              aria-label={`编辑项目 ${item.name}`}
+                              title="编辑"
+                              className={styles.iconButton}
+                            >
+                              <PencilLine aria-hidden="true" />
+                            </WarmIconButton>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
-          </TermPanel>
+          </section>
         </TabsContent>
 
-        <TabsContent value="context" className="flex-1 mt-0">
+        <TabsContent value="context" className={styles.tabContent}>
           <ProjectContextTab />
         </TabsContent>
       </Tabs>
@@ -1137,43 +1115,49 @@ export default function ProjectInfoPage() {
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent
           aria-describedby="edit-project-dialog-description"
-          className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]"
+          className={styles.dialogSurface}
         >
           <span id="edit-project-dialog-description" className="sr-only">
             编辑项目信息
           </span>
           <DialogHeader>
-            <DialogTitle>编辑项目信息</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className={styles.dialogTitle}>编辑项目信息</DialogTitle>
+            <DialogDescription className={styles.dialogDescription}>
               可修改项目名称、品牌名称、运营、助理运营、佣金方式、佣金点数与店铺地址，不调整排序。
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-2">
-            <label htmlFor="project-edit-name" className="text-sm font-medium text-foreground">
-              项目名称
-            </label>
-            <Input
-              id="project-edit-name"
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              placeholder="输入新的项目名称"
-              disabled={submitting}
-            />
-            <label htmlFor="project-edit-brand" className="text-sm font-medium text-foreground">
-              品牌名称
-            </label>
-            <Input
-              id="project-edit-brand"
-              value={editBrandName}
-              onChange={(e) => setEditBrandName(e.target.value)}
-              placeholder="输入品牌名称"
-              disabled={submitting}
-            />
-            <label htmlFor="project-edit-operator" className="text-sm font-medium text-foreground">
-              运营
-            </label>
-            <div className="flex items-center gap-2">
-              <div className="flex-1">
+          <div className={styles.formGrid}>
+            <div className={styles.formField}>
+              <label htmlFor="project-edit-name" className={styles.formLabel}>
+                项目名称
+              </label>
+              <Input
+                id="project-edit-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="输入新的项目名称"
+                disabled={submitting}
+                className={styles.formInput}
+              />
+            </div>
+            <div className={styles.formField}>
+              <label htmlFor="project-edit-brand" className={styles.formLabel}>
+                品牌名称
+              </label>
+              <Input
+                id="project-edit-brand"
+                value={editBrandName}
+                onChange={(e) => setEditBrandName(e.target.value)}
+                placeholder="输入品牌名称"
+                disabled={submitting}
+                className={styles.formInput}
+              />
+            </div>
+            <div className={`${styles.formField} ${styles.formFieldWide}`}>
+              <label htmlFor="project-edit-operator" className={styles.formLabel}>
+                运营
+              </label>
+              <div className={styles.inlineFieldRow}>
                 <OperatorMultiSelect
                   buttonId="project-edit-operator"
                   value={editProjectOperators}
@@ -1182,29 +1166,24 @@ export default function ProjectInfoPage() {
                   disabled={submitting}
                   onChange={setEditProjectOperators}
                 />
+                <WarmButton
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setEditProjectOperators([])}
+                  disabled={submitting || editProjectOperators.length === 0}
+                >
+                  清空
+                </WarmButton>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setEditProjectOperators([])}
-                disabled={submitting || editProjectOperators.length === 0}
-              >
-                清空
-              </Button>
+              {editProjectOperators.length > 0 ? (
+                <p className={styles.selectedNames}>已选择：{editProjectOperators.join('、')}</p>
+              ) : null}
             </div>
-            {editProjectOperators.length > 0 ? (
-              <p className="text-xs text-muted-foreground">
-                已选择：{editProjectOperators.join('、')}
-              </p>
-            ) : null}
-            <label
-              htmlFor="project-edit-assistant-operator"
-              className="text-sm font-medium text-foreground"
-            >
-              助理运营
-            </label>
-            <div className="flex items-center gap-2">
-              <div className="flex-1">
+            <div className={`${styles.formField} ${styles.formFieldWide}`}>
+              <label htmlFor="project-edit-assistant-operator" className={styles.formLabel}>
+                助理运营
+              </label>
+              <div className={styles.inlineFieldRow}>
                 <OperatorMultiSelect
                   buttonId="project-edit-assistant-operator"
                   value={editAssistantOperators}
@@ -1213,178 +1192,178 @@ export default function ProjectInfoPage() {
                   disabled={submitting}
                   onChange={setEditAssistantOperators}
                 />
+                <WarmButton
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setEditAssistantOperators([])}
+                  disabled={submitting || editAssistantOperators.length === 0}
+                >
+                  清空
+                </WarmButton>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setEditAssistantOperators([])}
-                disabled={submitting || editAssistantOperators.length === 0}
-              >
-                清空
-              </Button>
+              {editAssistantOperators.length > 0 ? (
+                <p className={styles.selectedNames}>
+                  已选择：{editAssistantOperators.join('、')}
+                </p>
+              ) : null}
             </div>
-            {editAssistantOperators.length > 0 ? (
-              <p className="text-xs text-muted-foreground">
-                已选择：{editAssistantOperators.join('、')}
-              </p>
-            ) : null}
-            <label
-              htmlFor="project-edit-commission-mode"
-              className="text-sm font-medium text-foreground"
-            >
-              佣金方式
-            </label>
-            <Select
-              value={editCommissionMode}
-              onValueChange={setEditCommissionMode}
-              disabled={submitting}
-            >
-              <SelectTrigger id="project-edit-commission-mode">
-                <SelectValue placeholder="选择佣金方式" />
-              </SelectTrigger>
-              <SelectContent>
-                {COMMISSION_BASIS_OPTIONS.map((option) => (
-                  <SelectItem key={`commission-basis-edit-${option.value}`} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <label
-              htmlFor="project-edit-commission-rate"
-              className="text-sm font-medium text-foreground"
-            >
-              佣金点数
-            </label>
-            <Input
-              id="project-edit-commission-rate"
-              type="number"
-              min="0"
-              max="100"
-              step="0.01"
-              value={editCommissionRate}
-              onChange={(e) => setEditCommissionRate(e.target.value)}
-              placeholder={
-                isEditCashReceivedCommission ? '平台回款按回款率阶梯自动计算' : '例如：5（表示 5%）'
-              }
-              disabled={submitting || isEditCashReceivedCommission}
-            />
-            {isEditCashReceivedCommission ? (
-              <p className="text-xs text-muted-foreground">
-                回款率阶梯：40%-50%→7%，50%-60%→10%，60%-70%→13%，70%以上→15%
-              </p>
-            ) : null}
-            <label htmlFor="project-edit-address" className="text-sm font-medium text-foreground">
-              店铺地址
-            </label>
-            <Input
-              id="project-edit-address"
-              value={editStoreAddress}
-              onChange={(e) => setEditStoreAddress(e.target.value)}
-              placeholder="输入店铺地址"
-              disabled={submitting}
-            />
-            <label htmlFor="project-edit-tier" className="text-sm font-medium text-foreground">
-              项目等级
-            </label>
-            <Select
-              value={editProjectTier}
-              onValueChange={setEditProjectTier}
-              disabled={submitting}
-            >
-              <SelectTrigger id="project-edit-tier">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TIER_SELECT_OPTIONS.map((option) => (
-                  <SelectItem key={`tier-edit-${option.value}`} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {!editIsActive ? (
-              <p className="text-xs text-muted-foreground">
-                项目已停用：如需去掉列表中的 T1-T4 标签，请选择「未分级」。
-              </p>
-            ) : null}
-            <label htmlFor="project-edit-country" className="text-sm font-medium text-foreground">
-              站点
-            </label>
-            <Select value={editCountry} onValueChange={setEditCountry} disabled={submitting}>
-              <SelectTrigger id="project-edit-country">
-                <SelectValue placeholder="选择站点" />
-              </SelectTrigger>
-              <SelectContent>
-                {PROJECT_COUNTRY_OPTIONS.map((option) => (
-                  <SelectItem key={`country-edit-${option.value}`} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <div className="mt-2 grid gap-2 border-t border-term-border pt-3">
-              <div className="text-sm font-medium text-foreground">店铺映射</div>
-              <p className="text-xs text-muted-foreground">
+            <div className={styles.formField}>
+              <label htmlFor="project-edit-commission-mode" className={styles.formLabel}>
+                佣金方式
+              </label>
+              <WarmSelect
+                id="project-edit-commission-mode"
+                label="佣金方式"
+                value={editCommissionMode}
+                options={COMMISSION_BASIS_OPTIONS}
+                onChange={setEditCommissionMode}
+                placeholder="选择佣金方式"
+                disabled={submitting}
+                className={styles.formSelect}
+              />
+            </div>
+            <div className={styles.formField}>
+              <label htmlFor="project-edit-commission-rate" className={styles.formLabel}>
+                佣金点数
+              </label>
+              <Input
+                id="project-edit-commission-rate"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                value={editCommissionRate}
+                onChange={(e) => setEditCommissionRate(e.target.value)}
+                placeholder={
+                  isEditCashReceivedCommission
+                    ? '平台回款按回款率阶梯自动计算'
+                    : '例如：5（表示 5%）'
+                }
+                disabled={submitting || isEditCashReceivedCommission}
+                className={styles.formInput}
+              />
+              {isEditCashReceivedCommission ? (
+                <p className={styles.fieldHint}>
+                  回款率阶梯：40%-50%→7%，50%-60%→10%，60%-70%→13%，70%以上→15%
+                </p>
+              ) : null}
+            </div>
+            <div className={`${styles.formField} ${styles.formFieldWide}`}>
+              <label htmlFor="project-edit-address" className={styles.formLabel}>
+                店铺地址
+              </label>
+              <Input
+                id="project-edit-address"
+                value={editStoreAddress}
+                onChange={(e) => setEditStoreAddress(e.target.value)}
+                placeholder="输入店铺地址"
+                disabled={submitting}
+                className={styles.formInput}
+              />
+            </div>
+            <div className={styles.formField}>
+              <label htmlFor="project-edit-tier" className={styles.formLabel}>
+                项目等级
+              </label>
+              <WarmSelect
+                id="project-edit-tier"
+                label="项目等级"
+                value={editProjectTier}
+                options={TIER_SELECT_OPTIONS}
+                onChange={setEditProjectTier}
+                disabled={submitting}
+                className={styles.formSelect}
+              />
+              {!editIsActive ? (
+                <p className={styles.fieldHint}>
+                  项目已停用：如需去掉列表中的 T1-T4 标签，请选择「未分级」。
+                </p>
+              ) : null}
+            </div>
+            <div className={styles.formField}>
+              <label htmlFor="project-edit-country" className={styles.formLabel}>
+                站点
+              </label>
+              <WarmSelect
+                id="project-edit-country"
+                label="站点"
+                value={editCountry}
+                options={PROJECT_COUNTRY_OPTIONS}
+                onChange={setEditCountry}
+                placeholder="选择站点"
+                disabled={submitting}
+                className={styles.formSelect}
+              />
+            </div>
+            <div className={styles.shopSection}>
+              <span className={styles.formLabel}>店铺映射</span>
+              <p className={styles.fieldHint}>
                 每个站点对应一个 Shop ID；清空已有值将删除该站点映射。
               </p>
-              {SHOP_COUNTRY_OPTIONS.map((option) => (
-                <div key={`shop-id-edit-${option.value}`} className="grid gap-1">
-                  <label
-                    htmlFor={`project-edit-shop-id-${option.value}`}
-                    className="text-sm font-medium text-foreground"
-                  >
-                    {getCountryLabel(option.value)} Shop ID
-                  </label>
-                  <Input
-                    id={`project-edit-shop-id-${option.value}`}
-                    value={editShopIds[option.value] ?? ''}
-                    onChange={(event) =>
-                      setEditShopIds((current) => ({ ...current, [option.value]: event.target.value }))
-                    }
-                    placeholder={`输入 ${option.value} 站 Shop ID`}
-                    disabled={submitting || loadingShopIds}
-                    maxLength={64}
-                  />
-                </div>
-              ))}
-              {loadingShopIds ? <p className="text-xs text-muted-foreground">正在加载店铺映射...</p> : null}
-              {shopLoadError ? <p className="text-xs text-term-neg">{shopLoadError}</p> : null}
+              <div className={styles.shopGrid}>
+                {SHOP_COUNTRY_OPTIONS.map((option) => (
+                  <div key={`shop-id-edit-${option.value}`} className={styles.formField}>
+                    <label
+                      htmlFor={`project-edit-shop-id-${option.value}`}
+                      className={styles.formLabel}
+                    >
+                      {getCountryLabel(option.value)} Shop ID
+                    </label>
+                    <Input
+                      id={`project-edit-shop-id-${option.value}`}
+                      value={editShopIds[option.value] ?? ''}
+                      onChange={(event) =>
+                        setEditShopIds((current) => ({
+                          ...current,
+                          [option.value]: event.target.value,
+                        }))
+                      }
+                      placeholder={`输入 ${option.value} 站 Shop ID`}
+                      disabled={submitting || loadingShopIds}
+                      maxLength={64}
+                      className={styles.formInput}
+                    />
+                  </div>
+                ))}
+              </div>
+              {loadingShopIds ? (
+                <p className={styles.fieldHint} role="status">
+                  正在加载店铺映射...
+                </p>
+              ) : null}
+              {shopLoadError ? <p className={styles.fieldError}>{shopLoadError}</p> : null}
             </div>
-            <div className="flex items-center gap-3 pt-2">
+            <div className={styles.switchRow}>
               <Switch
                 id="project-edit-is-active"
                 checked={editIsActive}
                 onCheckedChange={setEditIsActive}
                 disabled={submitting}
+                className={styles.switchControl}
               />
-              <label
-                htmlFor="project-edit-is-active"
-                className="text-sm font-medium cursor-pointer"
-              >
+              <label htmlFor="project-edit-is-active" className={styles.switchLabel}>
                 启用项目
               </label>
-              <span className="text-xs text-muted-foreground">
-                （停用后，其他页面将不再显示该项目）
-              </span>
+              <span className={styles.fieldHint}>（停用后，其他页面将不再显示该项目）</span>
             </div>
           </div>
-          <DialogFooter>
-            <Button
+          <DialogFooter className={styles.dialogFooter}>
+            <WarmButton
               type="button"
-              variant="outline"
+              variant="secondary"
               onClick={() => setEditDialogOpen(false)}
               disabled={submitting}
             >
               取消
-            </Button>
-            <Button
+            </WarmButton>
+            <WarmButton
               type="button"
+              variant="primary"
               onClick={() => void onEditSingle()}
               disabled={submitting || !editingItem}
             >
               {submitting ? '保存中...' : '保存修改'}
-            </Button>
+            </WarmButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>

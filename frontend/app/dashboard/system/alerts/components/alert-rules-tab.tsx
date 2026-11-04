@@ -2,8 +2,6 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Plus } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
 import { useNotifications } from '@/components/notifications'
 import {
   deleteAlertRule,
@@ -12,27 +10,25 @@ import {
   type AlertRuleItem,
 } from '@/lib/alerts-api'
 import { AlertRuleDialog } from './alert-rule-dialog'
-import {
-  TermBody,
-  TermCell,
-  TermHead,
-  TermRow,
-  TermTHead,
-  TermTable,
-} from '@/components/terminal/term-table'
-import { TermPanel } from '@/components/terminal/term-panel'
-import { TERM_BUTTON, type TermTone } from '@/components/terminal/term-controls'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
+import { cn } from '@/lib/utils'
+import {
+  WarmBadge,
+  WarmButton,
+  type WarmBadgeTone,
+} from '@/components/dashboard-v2/warm-ledger/controls'
+import styles from '../alerts-warm.module.css'
+import { AlertWarmSwitch } from './alert-warm-switch'
 
 interface ProjectOption {
   id: number
   name: string
 }
 
-const SEVERITY_TONE: Record<string, TermTone> = {
-  critical: 'neg',
-  warning: 'warn',
-  info: 'info',
+const SEVERITY_TONE: Record<string, WarmBadgeTone> = {
+  critical: 'negative',
+  warning: 'accent',
+  info: 'neutral',
 }
 
 export function AlertRulesTab({
@@ -90,61 +86,80 @@ export function AlertRulesTab({
   const projectName = (id: number) => projects.find((p) => p.id === id)?.name ?? `#${id}`
 
   return (
-    <div className="flex min-w-0 flex-col gap-2">
-      {/* BLF-838：工具行右对齐终端控件 */}
-      <div className="flex justify-end">
-        <Button onClick={() => { setEditing(null); setDialogOpen(true) }} className={TERM_BUTTON}>
-          <Plus className="h-3.5 w-3.5" /> 新建规则
-        </Button>
+    <div className={styles.tabPanel} data-warm-alert-rules="true">
+      <div className={styles.toolbar}>
+        <WarmButton
+          variant="primary"
+          onClick={() => { setEditing(null); setDialogOpen(true) }}
+        >
+          <Plus className={styles.actionIcon} aria-hidden /> 新建规则
+        </WarmButton>
       </div>
 
-      <TermPanel bodyClassName="p-0 overflow-x-auto">
-        <TermTable>
-          <TermTHead>
-            <TermRow>
-              <TermHead>名称</TermHead>
-              <TermHead>项目</TermHead>
-              <TermHead>指标</TermHead>
-              <TermHead>条件</TermHead>
-              <TermHead numeric>阈值</TermHead>
-              <TermHead>级别</TermHead>
-              <TermHead className="text-center">启用</TermHead>
-              <TermHead numeric>操作</TermHead>
-            </TermRow>
-          </TermTHead>
-          <TermBody>
+      <section className={styles.panel}>
+        <div className={styles.tableScroll}>
+          <table className={styles.table} aria-label="告警规则">
+            <thead>
+              <tr>
+                <th>名称</th>
+                <th>项目</th>
+                <th>指标</th>
+                <th>条件</th>
+                <th className={styles.numericCell}>阈值</th>
+                <th>级别</th>
+                <th className={styles.centerCell}>启用</th>
+                <th className={styles.numericCell}>操作</th>
+              </tr>
+            </thead>
+            <tbody>
             {loading ? (
-              <TermRow><TermCell colSpan={8} className="py-8 text-center text-term-faint">加载中…</TermCell></TermRow>
+              <tr><td colSpan={8} className={styles.emptyCell}>加载中…</td></tr>
             ) : rules.length === 0 ? (
-              <TermRow><TermCell colSpan={8} className="py-8 text-center text-term-faint">暂无规则，点击右上角新建</TermCell></TermRow>
+              <tr><td colSpan={8} className={styles.emptyCell}>暂无规则，点击右上角新建</td></tr>
             ) : (
               rules.map((r) => (
-                <TermRow key={r.id}>
-                  <TermCell className="max-w-[14rem] whitespace-normal font-sans">{r.name}</TermCell>
-                  <TermCell>{projectName(r.project_id)}</TermCell>
-                  <TermCell>{r.metric}</TermCell>
-                  <TermCell className="text-term-muted">{r.condition}</TermCell>
-                  <TermCell numeric tone={r.severity === 'critical' ? 'neg' : r.severity === 'warning' ? 'warn' : 'muted'}>{r.threshold}%</TermCell>
-                  <TermCell>
-                    <span className={`font-mono text-[11px] ${
-                      r.severity === 'critical' ? 'text-term-neg' : r.severity === 'warning' ? 'text-term-warn' : 'text-term-text'
-                    }`}>
-                      {SEVERITY_TONE[r.severity] ? r.severity : r.severity}
-                    </span>
-                  </TermCell>
-                  <TermCell className="text-center">
-                    <Switch checked={r.is_active} onCheckedChange={() => toggleActive(r)} />
-                  </TermCell>
-                  <TermCell numeric>
-                    <Button size="sm" variant="outline" className={`${TERM_BUTTON} px-1.5`} onClick={() => { setEditing(r); setDialogOpen(true) }}>编辑</Button>
-                    <Button size="sm" variant="ghost" className={`${TERM_BUTTON} border-transparent bg-transparent px-1.5 text-term-neg hover:text-term-neg`} onClick={() => onDelete(r)}>删除</Button>
-                  </TermCell>
-                </TermRow>
+                <tr key={r.id}>
+                  <td className={styles.nameCell}>{r.name}</td>
+                  <td>{projectName(r.project_id)}</td>
+                  <td>{r.metric}</td>
+                  <td className={styles.mutedCell}>{r.condition}</td>
+                  <td className={styles.numericCell} data-tone={r.severity}>
+                    {r.threshold}%
+                  </td>
+                  <td>
+                    <WarmBadge tone={SEVERITY_TONE[r.severity] ?? 'neutral'}>
+                      {r.severity}
+                    </WarmBadge>
+                  </td>
+                  <td className={styles.switchCell}>
+                    <AlertWarmSwitch
+                      checked={r.is_active}
+                      label={`启用规则 ${r.name}`}
+                      onCheckedChange={() => toggleActive(r)}
+                    />
+                  </td>
+                  <td className={styles.actionCell}>
+                    <WarmButton
+                      className={styles.rowAction}
+                      onClick={() => { setEditing(r); setDialogOpen(true) }}
+                    >
+                      编辑
+                    </WarmButton>
+                    <WarmButton
+                      variant="quiet"
+                      className={cn(styles.rowAction, styles.dangerAction)}
+                      onClick={() => onDelete(r)}
+                    >
+                      删除
+                    </WarmButton>
+                  </td>
+                </tr>
               ))
             )}
-          </TermBody>
-        </TermTable>
-      </TermPanel>
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <AlertRuleDialog
         open={dialogOpen}

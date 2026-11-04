@@ -21,6 +21,7 @@ const FRONTEND_ROOT = path.resolve(import.meta.dirname, '../..')
 const SHARED_MECHANISM_FILES = [
   'hooks/use-insight-stream.ts',
   'components/insight/insight-markdown.tsx',
+  'components/insight/insight-presentation.ts',
   'components/insight/insight-status.tsx',
   'components/insight/insight-stream-panel.tsx',
   'lib/insight/client.ts',
@@ -35,7 +36,15 @@ const DOMAIN_BRANCH_TOKENS: Record<string, RegExp> = {
   '广告分析域标识': /ad[-_]analysis/i,
   '库存健康域标识': /inventory[-_]health/i,
   '域输出槽常量': /\bAD_OUTPUT_SLOT\b|\bINVENTORY_OUTPUT_SLOT\b/,
-  '域页面依赖': /components\/dashboard|@\/app\//,
+  // `components/dashboard-v2/warm-ledger` is the shared A1 design system, not a
+  // domain page. Only its shared controls are allowed in the Insight mechanism layer.
+  '域页面依赖': /@\/components\/dashboard\/|(?:^|\/)components\/dashboard\/|@\/app\//m,
+  '域专用 Warm 别名模块':
+    /@\/components\/dashboard-v2\/warm-ledger\/(?!controls(?:[\/"'`]|\s|$))/,
+  '域专用 Warm 相对模块':
+    /(?:^|["'`])\.{1,2}\/[^"'`]*dashboard-v2\/warm-ledger\/(?!controls(?:[\/"'`]|\s|$))/m,
+  'Warm 路径穿越':
+    /(?:^|["'`])[^"'`]*dashboard-v2\/warm-ledger\/[^"'`]*\/\.\.\//m,
 }
 
 function readSharedFile(relativePath: string): string {
@@ -49,6 +58,41 @@ describe('共享 Insight 层的域纯度', () => {
       .filter(([, pattern]) => pattern.test(source))
       .map(([label]) => label)
     expect(found).toEqual([])
+  })
+
+  it('允许通用 Warm 设计系统，但仍然拦截域页面依赖', () => {
+    const pagePattern = DOMAIN_BRANCH_TOKENS['域页面依赖']
+    const warmAliasPattern = DOMAIN_BRANCH_TOKENS['域专用 Warm 别名模块']
+    const warmRelativePattern = DOMAIN_BRANCH_TOKENS['域专用 Warm 相对模块']
+    const warmTraversalPattern = DOMAIN_BRANCH_TOKENS['Warm 路径穿越']
+
+    expect(pagePattern.test("@/components/dashboard/ai-ad-analysis")).toBe(true)
+    expect(pagePattern.test("@/app/dashboard/ai/ad-analysis/page")).toBe(true)
+    expect(warmAliasPattern.test("@/components/dashboard-v2/warm-ledger/controls")).toBe(false)
+    expect(
+      warmAliasPattern.test("@/components/dashboard-v2/warm-ledger/crm/warm-crm-page")
+    ).toBe(true)
+    expect(
+      warmRelativePattern.test(
+        "import('../../components/dashboard-v2/warm-ledger/crm/warm-crm-page')"
+      )
+    ).toBe(true)
+    expect(
+      warmRelativePattern.test(
+        "import('../dashboard-v2/warm-ledger/crm/warm-crm-page')"
+      )
+    ).toBe(true)
+    expect(
+      warmRelativePattern.test("import('../dashboard-v2/warm-ledger/controls')")
+    ).toBe(false)
+    expect(
+      warmTraversalPattern.test(
+        "import('@/components/dashboard-v2/warm-ledger/controls/../crm/record-drawer')"
+      )
+    ).toBe(true)
+    expect(
+      warmTraversalPattern.test("@/components/dashboard-v2/warm-ledger/controls")
+    ).toBe(false)
   })
 
   it('渲染器只做展示：不持有传输层（EventSource / fetch）', () => {

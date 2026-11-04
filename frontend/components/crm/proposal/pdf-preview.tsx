@@ -1,10 +1,13 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Loader2, RotateCcw } from 'lucide-react'
+import { RotateCcw } from 'lucide-react'
 
-import { TERM_BUTTON } from '@/components/crm/term-shared'
+import { WarmCrmState } from '@/components/dashboard-v2/warm-ledger/crm'
+import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
 import { cn } from '@/lib/utils'
+
+import styles from './proposal-warm.module.css'
 
 /**
  * 客户方案 PDF 预览。
@@ -32,7 +35,7 @@ export function ProposalPdfPreview({
   load,
   onError,
   className,
-  heightClassName = 'min-h-[70vh]',
+  heightClassName = styles.previewDefault,
 }: ProposalPdfPreviewProps) {
   const [objectUrl, setObjectUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -79,17 +82,10 @@ export function ProposalPdfPreview({
   if (loading) {
     return (
       <div
-        className={cn(
-          'flex items-center justify-center border border-term-border',
-          heightClassName,
-          className
-        )}
+        className={cn(heightClassName, className)}
         data-testid="proposal-pdf-loading"
       >
-        <span className="flex items-center gap-1.5 font-mono text-xs text-term-faint">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          加载 PDF…
-        </span>
+        <WarmCrmState className={styles.previewState} kind="loading" title="加载 PDF…" />
       </div>
     )
   }
@@ -97,24 +93,20 @@ export function ProposalPdfPreview({
   if (error || !objectUrl) {
     return (
       <div
-        className={cn(
-          'flex flex-col items-start gap-2 border border-term-neg/50 bg-term-neg/10 p-2',
-          heightClassName,
-          className
-        )}
+        className={cn(heightClassName, className)}
         data-testid="proposal-pdf-error"
       >
-        <p role="alert" className="font-mono text-xs text-term-neg">
-          ERR · {error ?? 'PDF 预览不可用'}
-        </p>
-        <button
-          type="button"
-          onClick={() => setReloadKey((k) => k + 1)}
-          className={cn(TERM_BUTTON, 'h-7 gap-1.5 px-1.5')}
-        >
-          <RotateCcw className="h-3.5 w-3.5" />
-          重新加载
-        </button>
+        <WarmCrmState
+          action={
+            <WarmButton onClick={() => setReloadKey((k) => k + 1)}>
+              <RotateCcw aria-hidden="true" />
+              重新加载
+            </WarmButton>
+          }
+          className={styles.previewState}
+          kind="error"
+          title={`ERR · ${error ?? 'PDF 预览不可用'}`}
+        />
       </div>
     )
   }
@@ -124,11 +116,7 @@ export function ProposalPdfPreview({
       title={`${title} · PDF`}
       src={objectUrl}
       data-testid="proposal-pdf-preview"
-      className={cn(
-        'w-full rounded-none border border-term-border bg-white dark:bg-term-bg',
-        heightClassName,
-        className
-      )}
+      className={cn(styles.previewFrame, heightClassName, className)}
     />
   )
 }

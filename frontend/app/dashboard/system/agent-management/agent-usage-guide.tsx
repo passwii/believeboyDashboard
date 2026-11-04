@@ -1,17 +1,10 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { BookOpen, Check, Copy } from 'lucide-react'
 import { AGENT_DOMAINS, liveAgentDomains } from '@/lib/agent-domains'
+import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
+import styles from './agent-management-warm.module.css'
 
 /** 取后端公共地址（未配置或失败时返回空串，调用方回退占位符）。 */
 export async function fetchBackendBaseUrl(): Promise<string> {
@@ -1210,56 +1203,60 @@ export function AgentUsageGuide() {
   }
 
   return (
-    <Card className="rounded-none border border-term-border bg-term-panel">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <BookOpen className="h-4 w-4" />
+    <section className={styles.usageGuide} data-warm-agent-usage-guide="true">
+      <header className={styles.usageGuideHeader}>
+        <h2 className={styles.sectionTitle}>
+          <BookOpen className={styles.tabIcon} aria-hidden />
           如何告诉 Agent 调用
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <p className="text-sm text-muted-foreground">
+        </h2>
+      </header>
+      <div className={styles.usageGuideContent}>
+        <div className={styles.usageGuideToolbar}>
+          <p className={styles.usageGuideDescription}>
             创建凭据后，把下面的说明复制给 Agent 作为调用配置。Agent
             每次请求都必须同时携带{' '}
-            <code className="rounded-none bg-term-raised px-1 font-mono text-xs">Authorization</code>{' '}
-            与 <code className="rounded-none bg-term-raised px-1 font-mono text-xs">X-Agent-Id</code>{' '}
+            <code className={styles.inlineCode}>Authorization</code>{' '}
+            与 <code className={styles.inlineCode}>X-Agent-Id</code>{' '}
             两个鉴权头。
             {baseUrl ? (
-              <span className="mt-1 block">
+              <span className={styles.usageGuideMeta}>
                 后端地址已自动填入：
-                <code className="rounded-none bg-term-raised px-1 font-mono text-xs">{baseUrl}</code>
+                <code className={styles.inlineCode}>{baseUrl}</code>
               </span>
             ) : (
-              <span className="mt-1 block">
-                （<code className="rounded-none bg-term-raised px-1 font-mono text-xs">&lt;后端地址&gt;</code>{' '}
+              <span className={styles.usageGuideMeta}>
+                （<code className={styles.inlineCode}>&lt;后端地址&gt;</code>{' '}
                 请替换为实际后端域名）
               </span>
             )}
           </p>
-          <div className="flex shrink-0 items-center gap-2">
-            <Select value={domain} onValueChange={setDomain}>
-              <SelectTrigger className="w-full sm:w-[160px]">
-                <SelectValue placeholder="选择业务域" />
-              </SelectTrigger>
-              <SelectContent>
-                {liveAgentDomains().map((d) => (
-                  <SelectItem key={d.code} value={d.code}>
-                    {d.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button variant="outline" size="sm" onClick={copyAll}>
-              {copied ? <Check className="mr-1 h-4 w-4" /> : <Copy className="mr-1 h-4 w-4" />}
+          <div className={styles.usageGuideActions}>
+            <select
+              value={domain}
+              onChange={(event) => setDomain(event.target.value)}
+              className={styles.domainSelect}
+              aria-label="选择业务域"
+            >
+              {liveAgentDomains().map((d) => (
+                <option key={d.code} value={d.code}>
+                  {d.label}
+                </option>
+              ))}
+            </select>
+            <WarmButton onClick={copyAll}>
+              {copied ? (
+                <Check className={styles.actionIcon} aria-hidden />
+              ) : (
+                <Copy className={styles.actionIcon} aria-hidden />
+              )}
               {copied ? '已复制' : '复制说明'}
-            </Button>
+            </WarmButton>
           </div>
         </div>
-        <pre className="overflow-x-auto rounded-none border border-term-border bg-term-bg p-3 font-mono text-xs leading-relaxed">
+        <pre className={styles.usageGuideCode}>
           {buildUsageText({ baseUrl, domain })}
         </pre>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   )
 }

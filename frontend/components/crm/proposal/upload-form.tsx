@@ -1,14 +1,9 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { FileUp, Loader2, X } from 'lucide-react'
+import { FileUp, X } from 'lucide-react'
 
-import {
-  TERM_BUTTON,
-  TERM_INPUT,
-  TERM_SELECT_NATIVE,
-} from '@/components/crm/term-shared'
-import { cn } from '@/lib/utils'
+import { WarmButton, WarmIconButton } from '@/components/dashboard-v2/warm-ledger/controls'
 import { PROPOSAL_EFFECTIVE_UPLOAD_LIMIT_MB } from '@/lib/crm/constants/proposal'
 import {
   PROPOSAL_ACCEPT,
@@ -19,6 +14,8 @@ import {
   type ProposalType,
   type ProposalVersionInput,
 } from '@/lib/crm/types'
+
+import styles from './proposal-warm.module.css'
 
 const MAX_SIZE_MB = PROPOSAL_EFFECTIVE_UPLOAD_LIMIT_MB
 const WRONG_EXT_ERROR = '仅支持单个 HTML（.html / .htm）或 PDF（.pdf）文件'
@@ -58,44 +55,37 @@ function FileField({
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   return (
-    <div className="flex items-center gap-2">
+    <div className={styles.fileRow}>
       <input
         ref={inputRef}
         type="file"
         accept={PROPOSAL_ACCEPT}
-        className="hidden"
+        className={styles.fileInput}
         data-testid={testId}
         onChange={(e) => onPick(e.target.files?.[0] ?? null)}
       />
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => inputRef.current?.click()}
-        className={cn(TERM_BUTTON, 'gap-1.5')}
-      >
-        <FileUp className="h-3.5 w-3.5" />
+      <WarmButton disabled={disabled} onClick={() => inputRef.current?.click()}>
+        <FileUp aria-hidden="true" />
         选择文件
-      </button>
+      </WarmButton>
       {file ? (
-        <span className="flex min-w-0 items-center gap-1 font-mono text-xs text-term-text">
-          <span className="truncate" title={file.name}>
+        <span className={styles.fileNameGroup}>
+          <span className={styles.fileName} title={file.name}>
             {file.name}
           </span>
-          <button
-            type="button"
+          <WarmIconButton
             aria-label="移除文件"
             disabled={disabled}
             onClick={() => {
               onPick(null)
               if (inputRef.current) inputRef.current.value = ''
             }}
-            className="text-term-faint hover:text-term-text"
           >
-            <X className="h-3.5 w-3.5" />
-          </button>
+            <X aria-hidden="true" />
+          </WarmIconButton>
         </span>
       ) : (
-        <span className="font-mono text-xs text-term-faint">未选择文件</span>
+        <span className={styles.filePlaceholder}>未选择文件</span>
       )}
     </div>
   )
@@ -142,7 +132,7 @@ export function ProposalCreateForm({
 
   return (
     <form
-      className="flex flex-col gap-3"
+      className={styles.form}
       onSubmit={(e) => {
         e.preventDefault()
         setTouched(true)
@@ -157,15 +147,15 @@ export function ProposalCreateForm({
     >
       <FileField file={file} onPick={onPick} disabled={submitting} testId="proposal-file-input" />
       {error ? (
-        <p role="alert" className="font-mono text-xs text-term-neg">
+        <p role="alert" className={styles.errorText}>
           {error}
         </p>
       ) : null}
 
-      <label className="flex flex-col gap-1">
-        <span className="font-mono text-xs text-term-muted">标题（留空则用文件名）</span>
+      <label className={styles.field}>
+        <span className={styles.label}>标题（留空则用文件名）</span>
         <input
-          className={TERM_INPUT}
+          className={styles.input}
           value={title}
           maxLength={200}
           disabled={submitting}
@@ -174,11 +164,11 @@ export function ProposalCreateForm({
         />
       </label>
 
-      <div className="flex flex-wrap gap-3">
-        <label className="flex min-w-[160px] flex-1 flex-col gap-1">
-          <span className="font-mono text-xs text-term-muted">方案类型</span>
+      <div className={styles.fieldGrid}>
+        <label className={styles.field}>
+          <span className={styles.label}>方案类型</span>
           <select
-            className={TERM_SELECT_NATIVE}
+            className={styles.select}
             value={proposalType}
             disabled={submitting}
             onChange={(e) => setProposalType(e.target.value as ProposalType)}
@@ -191,10 +181,10 @@ export function ProposalCreateForm({
           </select>
         </label>
 
-        <label className="flex min-w-[200px] flex-[2] flex-col gap-1">
-          <span className="font-mono text-xs text-term-muted">关联客户（可选）</span>
+        <label className={styles.field}>
+          <span className={styles.label}>关联客户（可选）</span>
           <select
-            className={TERM_SELECT_NATIVE}
+            className={styles.select}
             value={customerId}
             disabled={submitting}
             onChange={(e) => setCustomerId(e.target.value)}
@@ -210,16 +200,15 @@ export function ProposalCreateForm({
       </div>
 
       {touched && !file ? (
-        <p role="alert" className="font-mono text-xs text-term-neg">
+        <p role="alert" className={styles.errorText}>
           请选择要上传的 HTML 或 PDF 文件
         </p>
       ) : null}
 
-      <div className="flex justify-end">
-        <button type="submit" disabled={!canSubmit} className={cn(TERM_BUTTON, 'gap-1.5')}>
-          {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+      <div className={styles.formActions}>
+        <WarmButton type="submit" variant="primary" disabled={!canSubmit} loading={submitting}>
           {submitText}
-        </button>
+        </WarmButton>
       </div>
     </form>
   )
@@ -260,7 +249,7 @@ export function ProposalVersionForm({
 
   return (
     <form
-      className="flex flex-col gap-3"
+      className={styles.form}
       onSubmit={(e) => {
         e.preventDefault()
         setTouched(true)
@@ -270,15 +259,15 @@ export function ProposalVersionForm({
     >
       <FileField file={file} onPick={onPick} disabled={submitting} testId="proposal-version-file" />
       {error ? (
-        <p role="alert" className="font-mono text-xs text-term-neg">
+        <p role="alert" className={styles.errorText}>
           {error}
         </p>
       ) : null}
 
-      <label className="flex flex-col gap-1">
-        <span className="font-mono text-xs text-term-muted">变更说明（可选）</span>
+      <label className={styles.field}>
+        <span className={styles.label}>变更说明（可选）</span>
         <input
-          className={TERM_INPUT}
+          className={styles.input}
           value={changeNote}
           maxLength={500}
           disabled={submitting}
@@ -288,16 +277,15 @@ export function ProposalVersionForm({
       </label>
 
       {touched && !file ? (
-        <p role="alert" className="font-mono text-xs text-term-neg">
+        <p role="alert" className={styles.errorText}>
           请选择要上传的 HTML 或 PDF 文件
         </p>
       ) : null}
 
-      <div className="flex justify-end">
-        <button type="submit" disabled={!canSubmit} className={cn(TERM_BUTTON, 'gap-1.5')}>
-          {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+      <div className={styles.formActions}>
+        <WarmButton type="submit" variant="primary" disabled={!canSubmit} loading={submitting}>
           上传新版本
-        </button>
+        </WarmButton>
       </div>
     </form>
   )

@@ -15,6 +15,115 @@ const shellThemeCss = readFileSync(
   'utf8'
 )
 
+const WARM_NAV_SECTIONS = [
+  {
+    label: '财务资金',
+    links: [
+      ['平台回款', '/dashboard/finance/platform-revenue'],
+      ['汇率信息', '/dashboard/finance/exchange-rate'],
+      ['VAT 发票', '/dashboard/finance/vat-invoice'],
+      ['佣金管理', '/dashboard/finance/commission-management'],
+    ],
+  },
+  {
+    label: 'CRM 客户与合作伙伴',
+    links: [
+      ['数据看板', '/dashboard/crm/dashboard'],
+      ['待跟进', '/dashboard/crm/follow-ups'],
+      ['客户', '/dashboard/crm/customers'],
+      ['客户方案', '/dashboard/crm/proposals'],
+      ['线索', '/dashboard/crm/leads'],
+      ['任务', '/dashboard/crm/tasks'],
+      ['操作日志', '/dashboard/crm/audit'],
+      ['CRM 设置', '/dashboard/crm/settings'],
+    ],
+  },
+  {
+    label: 'AI 智能',
+    links: [
+      ['AI洞察', '/dashboard/ai/insights'],
+      ['AI 广告分析', '/dashboard/ai/ad-analysis'],
+      ['AI 库存健康', '/dashboard/ai/inventory-health'],
+      ['AI Chat', '/dashboard/ai/chat'],
+      ['模型选型', '/dashboard/ai/believeboy-models'],
+      ['客服交流', '/dashboard/ai/customer-service'],
+      ['数字员工', '/dashboard/ai/digital-employees'],
+      ['虚拟办公室', '/dashboard/ai/digital-employees/office'],
+    ],
+  },
+  {
+    label: '工具箱',
+    links: [
+      ['Markdown 转换', '/dashboard/tools/markdown-to-word'],
+      ['Markdown/HTML 渲染', '/dashboard/tools/page-render'],
+      ['品牌备案示例', '/dashboard/tools/brand-registration-example'],
+      ['产品标签制作', '/dashboard/tools/product-label'],
+      ['跨境电商合规', '/dashboard/tools/cross-border-compliance'],
+    ],
+  },
+  {
+    label: '系统管理',
+    links: [
+      ['更新日志', '/dashboard/system/changelog'],
+      ['项目信息', '/dashboard/system/project-info'],
+      ['数据库状态', '/dashboard/system/data-management'],
+      ['账号管理', '/dashboard/system/account-management'],
+      ['运营管理', '/dashboard/system/operator-management'],
+      ['告警中心', '/dashboard/system/alerts'],
+      ['日志查看', '/dashboard/system/logs'],
+      ['Agent 接入管理', '/dashboard/system/agent-management'],
+    ],
+  },
+] as const
+
+const WARM_CURRENT_ROUTES = [
+  ['/dashboard/operations/daily-analysis', '/dashboard/operations/daily-analysis'],
+  ['/dashboard/operations/portfolio-overview', '/dashboard/operations/portfolio-overview'],
+  ['/dashboard/operations/inventory-analysis', '/dashboard/operations/inventory-analysis'],
+  ['/dashboard/operations/inventory-ledger', '/dashboard/operations/inventory-ledger'],
+  ['/dashboard/operations/shipping-plan', '/dashboard/operations/shipping-plan'],
+  ['/dashboard/operations/shipment-management', '/dashboard/operations/shipment-management'],
+  ['/dashboard/operations/sku-info', '/dashboard/operations/sku-info'],
+  ['/dashboard/reports/order-info', '/dashboard/reports/order-info'],
+  ['/dashboard/reports/product-analysis', '/dashboard/reports/product-analysis'],
+  ['/dashboard/reports/monthly-report/display', '/dashboard/reports/monthly-report/display'],
+  ['/dashboard/finance/platform-revenue', '/dashboard/finance/platform-revenue'],
+  ['/dashboard/finance/exchange-rate', '/dashboard/finance/exchange-rate'],
+  ['/dashboard/finance/vat-invoice', '/dashboard/finance/vat-invoice'],
+  ['/dashboard/finance/commission-management', '/dashboard/finance/commission-management'],
+  ['/dashboard/crm/dashboard', '/dashboard/crm/dashboard'],
+  ['/dashboard/crm/follow-ups', '/dashboard/crm/follow-ups'],
+  ['/dashboard/crm/customers', '/dashboard/crm/customers'],
+  ['/dashboard/crm/sea', '/dashboard/crm/customers'],
+  ['/dashboard/crm/proposals', '/dashboard/crm/proposals'],
+  ['/dashboard/crm/proposals/42', '/dashboard/crm/proposals'],
+  ['/dashboard/crm/leads', '/dashboard/crm/leads'],
+  ['/dashboard/crm/tasks', '/dashboard/crm/tasks'],
+  ['/dashboard/crm/audit', '/dashboard/crm/audit'],
+  ['/dashboard/crm/settings', '/dashboard/crm/settings'],
+  ['/dashboard/ai/insights', '/dashboard/ai/insights'],
+  ['/dashboard/ai/ad-analysis', '/dashboard/ai/ad-analysis'],
+  ['/dashboard/ai/inventory-health', '/dashboard/ai/inventory-health'],
+  ['/dashboard/ai/believeboy-models', '/dashboard/ai/believeboy-models'],
+  ['/dashboard/ai/customer-service', '/dashboard/ai/customer-service'],
+  ['/dashboard/ai/digital-employees', '/dashboard/ai/digital-employees'],
+  ['/dashboard/ai/digital-employees/employee-7', '/dashboard/ai/digital-employees'],
+  ['/dashboard/ai/digital-employees/office', '/dashboard/ai/digital-employees/office'],
+  ['/dashboard/tools/markdown-to-word', '/dashboard/tools/markdown-to-word'],
+  ['/dashboard/tools/page-render', '/dashboard/tools/page-render'],
+  ['/dashboard/tools/brand-registration-example', '/dashboard/tools/brand-registration-example'],
+  ['/dashboard/tools/product-label', '/dashboard/tools/product-label'],
+  ['/dashboard/tools/cross-border-compliance', '/dashboard/tools/cross-border-compliance'],
+  ['/dashboard/system/account-management', '/dashboard/system/account-management'],
+  ['/dashboard/system/agent-management', '/dashboard/system/agent-management'],
+  ['/dashboard/system/alerts', '/dashboard/system/alerts'],
+  ['/dashboard/system/changelog', '/dashboard/system/changelog'],
+  ['/dashboard/system/data-management', '/dashboard/system/data-management'],
+  ['/dashboard/system/logs', '/dashboard/system/logs'],
+  ['/dashboard/system/operator-management', '/dashboard/system/operator-management'],
+  ['/dashboard/system/project-info', '/dashboard/system/project-info'],
+] as const
+
 const shellMocks = vi.hoisted(() => ({
   pathname: '/dashboard',
   replace: vi.fn(),
@@ -210,6 +319,90 @@ describe('WarmLedgerShell', () => {
     }
   })
 
+  it('exposes every configured item in the new Warm groups without duplicate links', () => {
+    installMatchMedia(false)
+
+    render(<WarmLedgerShell>Dashboard</WarmLedgerShell>)
+
+    const navigation = screen.getByRole('navigation', { name: '业务域和快捷入口' })
+    for (const section of WARM_NAV_SECTIONS) {
+      expect(within(navigation).getByText(section.label)).toBeInTheDocument()
+      for (const [label, href] of section.links) {
+        const links = within(navigation)
+          .getAllByRole('link', { name: label })
+          .filter((link) => link.getAttribute('href') === href)
+        expect(links).toHaveLength(1)
+      }
+    }
+
+    const hrefs = within(navigation)
+      .getAllByRole('link')
+      .map((link) => link.getAttribute('href'))
+    expect(new Set(hrefs).size).toBe(hrefs.length)
+  })
+
+  it('marks exactly one configured navigation target current for every Warm route', () => {
+    installMatchMedia(false)
+
+    for (const [pathname, navHref] of WARM_CURRENT_ROUTES) {
+      shellMocks.pathname = pathname
+      const { unmount } = render(<WarmLedgerShell>Dashboard</WarmLedgerShell>)
+      const navigation = screen.getByRole('navigation', { name: '业务域和快捷入口' })
+      const matchingLinks = within(navigation)
+        .getAllByRole('link')
+        .filter((link) => link.getAttribute('href') === navHref)
+      const currentLinks = within(navigation)
+        .getAllByRole('link')
+        .filter((link) => link.getAttribute('aria-current') === 'page')
+
+      expect(matchingLinks).toHaveLength(1)
+      expect(currentLinks).toHaveLength(1)
+      expect(currentLinks[0]).toHaveAttribute('href', navHref)
+      expect(within(navigation).getAllByRole('link', { name: '销售数据' })).toHaveLength(1)
+      expect(within(navigation).getAllByRole('link', { name: '订单信息' })).toHaveLength(1)
+      expect(within(navigation).getAllByRole('link', { name: '库存分析' })).toHaveLength(1)
+      expect(within(navigation).getAllByRole('link', { name: '客户消息' })).toHaveLength(1)
+      unmount()
+    }
+  })
+
+  it('does not activate a parent item by prefix when a more specific Warm route is current', () => {
+    installMatchMedia(false)
+
+    const cases = [
+      [
+        '/dashboard/ai/digital-employees/office',
+        '虚拟办公室',
+        '数字员工',
+      ],
+      [
+        '/dashboard/crm/proposals/42',
+        '客户方案',
+        '数据看板',
+      ],
+      [
+        '/dashboard/crm/sea',
+        '客户',
+        '客户方案',
+      ],
+    ] as const
+
+    for (const [pathname, currentLabel, inactiveLabel] of cases) {
+      shellMocks.pathname = pathname
+      const { unmount } = render(<WarmLedgerShell>Dashboard</WarmLedgerShell>)
+      const navigation = screen.getByRole('navigation', { name: '业务域和快捷入口' })
+
+      expect(within(navigation).getByRole('link', { name: currentLabel })).toHaveAttribute(
+        'aria-current',
+        'page'
+      )
+      expect(within(navigation).getByRole('link', { name: inactiveLabel })).not.toHaveAttribute(
+        'aria-current'
+      )
+      unmount()
+    }
+  })
+
   it('provides accessible names for icon-only sidebar links', () => {
     installMatchMedia(false)
 
@@ -369,6 +562,32 @@ describe('WarmLedgerRouteFrame', () => {
     await waitFor(() => {
       expect(probe).toHaveTextContent(/^12\|UK\|\d{4}-\d{2}-\d{2}\|\d{4}-\d{2}-\d{2}$/)
     })
+  })
+
+  it('uses the owning domain label in breadcrumbs for the expanded Warm groups', () => {
+    installMatchMedia(false)
+    const cases = [
+      ['/dashboard/finance/platform-revenue', '平台回款', '财务资金'],
+      ['/dashboard/crm/proposals/42', '客户方案详情', 'CRM 客户与合作伙伴'],
+      ['/dashboard/ai/insights', 'AI洞察', 'AI 智能'],
+      ['/dashboard/tools/markdown-to-word', 'Markdown 转 Word', '工具箱'],
+      ['/dashboard/system/account-management', '系统账号管理', '系统管理'],
+    ] as const
+
+    for (const [pathname, title, section] of cases) {
+      shellMocks.pathname = pathname
+      const { unmount } = render(
+        <WarmLedgerRouteFrame pathname={pathname}>
+          <p>{title} content</p>
+        </WarmLedgerRouteFrame>
+      )
+
+      const breadcrumbs = screen.getByRole('navigation', { name: '面包屑' })
+      expect(within(breadcrumbs).getByText(section)).toBeInTheDocument()
+      expect(within(breadcrumbs).getByText(title)).toHaveAttribute('aria-current', 'page')
+      expect(within(breadcrumbs).queryByText('运营')).not.toBeInTheDocument()
+      unmount()
+    }
   })
 
   it('retains site/date changes made while projects load and seeds only the missing project', async () => {

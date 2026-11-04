@@ -176,7 +176,7 @@ vi.mock('@/components/ui/multi-select', () => ({
 }))
 
 import { AgentManagementClient } from './agent-management-client'
-import { createAgentApiKey, updateAgentApiKey } from '@/lib/api/agent-key-admin'
+import { createAgentApiKey } from '@/lib/api/agent-key-admin'
 
 async function openCredentialsTab(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('tab', { name: /凭据管理/ }))
@@ -190,7 +190,7 @@ describe('AgentManagementClient 4-Tab 枢纽页（BLF-448）', () => {
   })
 
   it('渲染 4 个 Tab（BLF-824：eyebrow pill 已随去重移除）', async () => {
-    render(<AgentManagementClient />)
+    const { container } = render(<AgentManagementClient />)
     await waitFor(() => expect(listAgentApiKeys).toHaveBeenCalledTimes(1))
 
     // 头部精简（BLF-493 移除标题/描述 + BLF-824 移除 eyebrow）：页面标识由 Top Header 面包屑承载
@@ -199,6 +199,9 @@ describe('AgentManagementClient 4-Tab 枢纽页（BLF-448）', () => {
     expect(screen.getByRole('tab', { name: /凭据管理/ })).toBeTruthy()
     expect(screen.getByRole('tab', { name: /调用指南/ })).toBeTruthy()
     expect(screen.getByRole('tab', { name: /访问日志/ })).toBeTruthy()
+    expect(container.querySelector('[data-warm-agent-management="true"]')).toBeTruthy()
+    expect(container.querySelector('[class*="term-"]')).toBeNull()
+    expect(container.querySelector('.rounded-none')).toBeNull()
   })
 
   it('业务域概览 Tab 展示已接入与规划中域', async () => {
@@ -274,7 +277,7 @@ describe('AgentManagementClient 4-Tab 枢纽页（BLF-448）', () => {
 
     await user.type(screen.getByLabelText('名称'), '货件助理 (生产)')
     await user.type(screen.getByLabelText('Agent ID'), 'new-agent')
-    await user.click(screen.getByRole('button', { name: '创建', exact: true }))
+    await user.click(screen.getByRole('button', { name: /^创建$/ }))
 
     await waitFor(() =>
       expect(createAgentApiKey).toHaveBeenCalledWith(
@@ -285,6 +288,39 @@ describe('AgentManagementClient 4-Tab 枢纽页（BLF-448）', () => {
         })
       )
     )
+  })
+
+  it('创建成功后只在当前 Dialog 展示一次性明文 Key 与安全提示', async () => {
+    const user = userEvent.setup()
+    render(<AgentManagementClient />)
+    await waitFor(() => expect(listAgentApiKeys).toHaveBeenCalledTimes(1))
+
+    await user.click(screen.getByRole('button', { name: '创建凭据' }))
+    await user.type(screen.getByLabelText('名称'), '货件助理 (生产)')
+    await user.type(screen.getByLabelText('Agent ID'), 'new-agent')
+    await user.click(screen.getByRole('button', { name: /^创建$/ }))
+
+    expect(await screen.findByText('凭据创建成功')).toBeTruthy()
+    expect(screen.getByText('bbx_new_secret')).toBeTruthy()
+    expect(screen.getByText(/明文仅展示一次/)).toBeTruthy()
+    expect(createAgentApiKey).toHaveBeenCalledWith(
+      expect.objectContaining({
+        label: '货件助理 (生产)',
+        agent_id: 'new-agent',
+      })
+    )
+  })
+
+  it('创建凭据弹窗同样使用 Warm 控件，不混入 Terminal 类', async () => {
+    const user = userEvent.setup()
+    render(<AgentManagementClient />)
+    await waitFor(() => expect(listAgentApiKeys).toHaveBeenCalledTimes(1))
+
+    await user.click(screen.getByRole('button', { name: '创建凭据' }))
+    const dialog = await screen.findByRole('dialog')
+
+    expect(dialog.querySelectorAll('[class*="term-"]')).toHaveLength(0)
+    expect(dialog.querySelectorAll('.rounded-none')).toHaveLength(0)
   })
 
   it('月报域可选为凭据业务范围并透传 monthly_reports（BLF-1314）', async () => {
@@ -300,7 +336,7 @@ describe('AgentManagementClient 4-Tab 枢纽页（BLF-448）', () => {
     await user.selectOptions(within(dialog).getByRole('listbox', { name: '业务域范围' }), 'monthly_reports')
     await user.type(within(dialog).getByLabelText('名称'), '月报助理')
     await user.type(within(dialog).getByLabelText('Agent ID'), 'monthly-report-assistant')
-    await user.click(within(dialog).getByRole('button', { name: '创建', exact: true }))
+    await user.click(within(dialog).getByRole('button', { name: /^创建$/ }))
 
     await waitFor(() => expect(createAgentApiKey).toHaveBeenCalledWith(expect.objectContaining({
       label: '月报助理',

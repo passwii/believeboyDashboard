@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Download, Eye, Loader2, Plus, Search, Trash2 } from 'lucide-react'
+import { Download, Eye, Plus, Search, Trash2 } from 'lucide-react'
 
 import {
   ProposalCreateForm,
@@ -11,12 +11,17 @@ import {
   type CustomerOption,
 } from '@/components/crm/proposal'
 import {
-  CrmPageShell,
-  CrmToolbarRow,
-  TERM_BUTTON,
-  TERM_INPUT,
-  TERM_SELECT_NATIVE,
-} from '@/components/crm/term-shared'
+  WarmCrmPage,
+  WarmCrmState,
+  WarmCrmTableFrame,
+  WarmCrmTableScroller,
+  WarmCrmToolbar,
+} from '@/components/dashboard-v2/warm-ledger/crm'
+import {
+  WarmButton,
+  WarmIconButton,
+  WarmSegmentedControl,
+} from '@/components/dashboard-v2/warm-ledger/controls'
 import {
   Dialog,
   DialogContent,
@@ -41,8 +46,10 @@ import {
   type ProposalStatus,
   type ProposalType,
 } from '@/lib/crm/types'
-import { ScopeToggle } from '../customers/components/scope-toggle'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
+import { cn } from '@/lib/utils'
+import sharedStyles from '@/components/crm/proposal/proposal-warm.module.css'
+import styles from './proposals-warm.module.css'
 
 const PAGE_SIZE = 50
 
@@ -51,7 +58,7 @@ type TypeFilter = 'all' | ProposalType
 
 export default function ProposalsPage() {
   const client = useCrmClient()
-  const { scope } = useCrmDataScope()
+  const { scope, setScope } = useCrmDataScope()
   const { notify } = useNotifications()
   const { confirm } = useConfirm()
 
@@ -220,25 +227,27 @@ export default function ProposalsPage() {
   )
 
   return (
-    <CrmPageShell>
-      <CrmToolbarRow
-        left={
-          <div className="flex flex-wrap items-center gap-1.5">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-term-faint" />
+    <WarmCrmPage className={styles.listPage}>
+      <WarmCrmToolbar
+        ariaLabel="客户方案筛选与操作"
+        start={
+          <>
+            <label className={styles.searchField}>
+              <span className={sharedStyles.visuallyHidden}>搜索方案标题</span>
+              <Search aria-hidden="true" className={styles.searchIcon} />
               <input
                 aria-label="搜索方案标题"
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
                 placeholder="搜索方案标题…"
-                className={`${TERM_INPUT} w-56 pl-7`}
+                className={cn(sharedStyles.input, styles.searchInput)}
               />
-            </div>
+            </label>
             <select
               aria-label="按状态筛选"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-              className={TERM_SELECT_NATIVE}
+              className={cn(sharedStyles.select, styles.filterSelect)}
             >
               <option value="all">全部状态</option>
               {PROPOSAL_STATUS_ORDER.map((s) => (
@@ -251,7 +260,7 @@ export default function ProposalsPage() {
               aria-label="按类型筛选"
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}
-              className={TERM_SELECT_NATIVE}
+              className={cn(sharedStyles.select, styles.filterSelect)}
             >
               <option value="all">全部类型</option>
               {PROPOSAL_TYPE_ORDER.map((t) => (
@@ -260,135 +269,132 @@ export default function ProposalsPage() {
                 </option>
               ))}
             </select>
-          </div>
+          </>
         }
-        right={
-          <div className="flex items-center gap-1.5">
-            <ScopeToggle />
-            <button
-              type="button"
-              onClick={() => setCreateOpen(true)}
-              className={`${TERM_BUTTON} gap-1.5`}
-            >
-              <Plus className="h-3.5 w-3.5" />
+        end={
+          <>
+            <WarmSegmentedControl
+              ariaLabel="数据范围"
+              value={scope}
+              options={[
+                { value: 'mine', label: '我的' },
+                { value: 'all', label: '全部' },
+              ]}
+              onChange={setScope}
+            />
+            <WarmButton variant="primary" onClick={() => setCreateOpen(true)}>
+              <Plus aria-hidden="true" />
               新建方案
-            </button>
-          </div>
+            </WarmButton>
+          </>
         }
       />
 
       {error ? (
-        <div
-          role="alert"
-          className="border border-term-neg/50 bg-term-neg/10 px-2 py-1 font-mono text-xs text-term-neg"
-        >
-          ERR · {error}
-        </div>
+        <WarmCrmState
+          action={<WarmButton onClick={() => void load()}>重试</WarmButton>}
+          kind="error"
+          title={`ERR · ${error}`}
+        />
       ) : null}
 
-      <div className="min-h-0 flex-1 overflow-auto border border-term-border">
-        <table className="w-full border-collapse text-left">
-          <thead className="sticky top-0 bg-term-panel">
-            <tr className="border-b border-term-border font-mono text-[11px] uppercase text-term-faint">
-              <th className="px-2 py-1.5 font-normal">标题</th>
-              <th className="px-2 py-1.5 font-normal">客户</th>
-              <th className="px-2 py-1.5 font-normal">类型</th>
-              <th className="px-2 py-1.5 font-normal">状态</th>
-              <th className="px-2 py-1.5 font-normal">版本</th>
-              <th className="px-2 py-1.5 font-normal">更新时间</th>
-              <th className="px-2 py-1.5 text-right font-normal">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading && items.length === 0 ? (
+      <WarmCrmTableFrame footer={<span className={styles.footerCount}>共 {total} 个方案</span>}>
+        <WarmCrmTableScroller ariaLabel="客户方案列表">
+          <table>
+            <thead>
               <tr>
-                <td colSpan={7} className="px-2 py-16 text-center font-mono text-xs text-term-faint">
-                  加载中…
-                </td>
+                <th>标题</th>
+                <th>客户</th>
+                <th>类型</th>
+                <th>状态</th>
+                <th>版本</th>
+                <th>更新时间</th>
+                <th className={styles.actionsCell}>操作</th>
               </tr>
-            ) : items.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-2 py-16 text-center font-mono text-xs text-term-faint">
-                  还没有方案 · 点右上「新建方案」上传第一个 HTML / PDF
-                </td>
-              </tr>
-            ) : (
-              items.map((p) => (
-                <tr key={p.id} className="border-b border-term-border/60 hover:bg-term-hover">
-                  <td className="max-w-[280px] px-2 py-1.5">
-                    <Link
-                      href={`/dashboard/crm/proposals/${p.id}`}
-                      className="truncate text-xs text-term-text hover:underline"
-                      title={p.title}
-                    >
-                      {p.title}
-                    </Link>
-                  </td>
-                  <td className="px-2 py-1.5 font-mono text-xs text-term-muted">
-                    {p.customerName ?? '—'}
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <ProposalTypePill type={p.proposalType} />
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <ProposalStatusPill status={p.status} />
-                  </td>
-                  <td className="px-2 py-1.5 font-mono text-xs text-term-muted">
-                    v{p.currentVersionNo}
-                    <span className="text-term-faint"> · {p.versionCount} 版</span>
-                  </td>
-                  <td className="px-2 py-1.5 font-mono text-[11px] text-term-faint">
-                    {new Date(p.updatedAt).toLocaleString('zh-CN', { hour12: false })}
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <div className="flex items-center justify-end gap-1">
-                      <Link
-                        href={`/dashboard/crm/proposals/${p.id}`}
-                        className={`${TERM_BUTTON} h-7 px-1.5`}
-                        aria-label={`查看 ${p.title}`}
-                        title="查看"
-                      >
-                        <Eye className="h-3.5 w-3.5" />
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => void handleDownload(p)}
-                        disabled={downloadingId === p.id}
-                        className={`${TERM_BUTTON} h-7 px-1.5`}
-                        aria-label={`下载 ${p.title}`}
-                        title="下载当前版本"
-                      >
-                        {downloadingId === p.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Download className="h-3.5 w-3.5" />
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleDelete(p)}
-                        className={`${TERM_BUTTON} h-7 px-1.5 hover:text-term-neg`}
-                        aria-label={`删除 ${p.title}`}
-                        title="删除"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
+            </thead>
+            <tbody>
+              {isLoading && items.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className={styles.stateCell}>
+                    <WarmCrmState kind="loading" title="加载中…" />
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <p className="font-mono text-[11px] text-term-faint">共 {total} 个方案</p>
+              ) : items.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className={styles.stateCell}>
+                    <WarmCrmState
+                      kind="empty"
+                      title="还没有方案 · 点右上「新建方案」上传第一个 HTML / PDF"
+                    />
+                  </td>
+                </tr>
+              ) : (
+                items.map((p) => (
+                  <tr key={p.id}>
+                    <td className={styles.titleCell}>
+                      <Link
+                        href={`/dashboard/crm/proposals/${p.id}`}
+                        className={styles.titleLink}
+                        title={p.title}
+                      >
+                        {p.title}
+                      </Link>
+                    </td>
+                    <td className={styles.customerCell}>{p.customerName ?? '—'}</td>
+                    <td>
+                      <ProposalTypePill type={p.proposalType} />
+                    </td>
+                    <td>
+                      <ProposalStatusPill status={p.status} />
+                    </td>
+                    <td className={styles.versionCell}>
+                      v{p.currentVersionNo}
+                      <span className={styles.versionCount}> · {p.versionCount} 版</span>
+                    </td>
+                    <td className={styles.dateCell}>
+                      {new Date(p.updatedAt).toLocaleString('zh-CN', { hour12: false })}
+                    </td>
+                    <td className={styles.actionsCell}>
+                      <div className={styles.rowActions}>
+                        <Link
+                          href={`/dashboard/crm/proposals/${p.id}`}
+                          className="warm-ledger__icon-button"
+                          aria-label={`查看 ${p.title}`}
+                          title="查看"
+                        >
+                          <Eye aria-hidden="true" />
+                        </Link>
+                        <WarmIconButton
+                          aria-label={`下载 ${p.title}`}
+                          title="下载当前版本"
+                          loading={downloadingId === p.id}
+                          onClick={() => void handleDownload(p)}
+                        >
+                          <Download aria-hidden="true" />
+                        </WarmIconButton>
+                        <WarmIconButton
+                          className={styles.dangerButton}
+                          aria-label={`删除 ${p.title}`}
+                          title="删除"
+                          onClick={() => void handleDelete(p)}
+                        >
+                          <Trash2 aria-hidden="true" />
+                        </WarmIconButton>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </WarmCrmTableScroller>
+      </WarmCrmTableFrame>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent className={cn('warm-ledger', styles.dialog)}>
           <DialogHeader>
-            <DialogTitle>新建客户方案</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className={styles.dialogTitle}>新建客户方案</DialogTitle>
+            <DialogDescription className={styles.dialogDescription}>
               上传单个 HTML 或 PDF 文件。HTML 会解析并注入本项目主题令牌，PDF 原样保存；两者都固化为 v1。
             </DialogDescription>
           </DialogHeader>
@@ -399,6 +405,6 @@ export default function ProposalsPage() {
           />
         </DialogContent>
       </Dialog>
-    </CrmPageShell>
+    </WarmCrmPage>
   )
 }

@@ -2,33 +2,29 @@
 
 /**
  * 漏斗二层复盘面板（BLF-518）——右侧抽屉。
- *
- * 按 BLF-516 设计决策定稿：
- * - 决策 2：面板位置 = 右侧抽屉 Sheet（复用 crm-overview-drawer 范式，sm:max-w-xl）
- * - 决策 3：默认「卡点列表」（停留时长降序，卡最久在前）+「最近动作」视图切换；
- *   标题区摘要 = 平均停留 X 天 · 卡住 N 条（超 stuckDays 天未动）· 本期流入/流出
- *
- * 数据源：GET /crm/dashboard/funnel/stage/{stage}（BLF-517 后端 service）。
  */
 import { useEffect, useRef, useState } from 'react'
-import { ArrowDownWideNarrow, Clock3, Hourglass, RefreshCcw, UserRound } from 'lucide-react'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
-import { ErrorState } from '@/components/ui/error-state'
-import { Badge } from '@/components/ui/badge'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+  Clock3,
+  Hourglass,
+  RefreshCcw,
+  UserRound,
+} from 'lucide-react'
+import {
+  WarmButton,
+  WarmSegmentedControl,
+} from '@/components/dashboard-v2/warm-ledger/controls'
+import {
+  WarmCrmRecordDrawer,
+  WarmCrmState,
+  WarmCrmStatusPill,
+  WarmCrmTableScroller,
+} from '@/components/dashboard-v2/warm-ledger/crm'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import type { FunnelStageDetail, StageLeadItem } from '@/lib/crm/types'
 import { formatRelativeTime } from '@/lib/crm/method/format'
+
+import styles from './funnel-stage-drawer.module.css'
 
 export interface FunnelStageDrawerProps {
   open: boolean
@@ -50,70 +46,54 @@ function formatDwell(days?: number): string {
 
 function LeadRow({ item, rank }: { item: StageLeadItem; rank: number }) {
   return (
-    <TableRow className={item.isStuck ? 'bg-term-warn/[0.06]' : undefined}>
-      <TableCell>
-        <div className="flex items-center gap-1.5">
-          {rank <= 3 && (
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center border border-term-warn/40 font-mono text-[11px] tabular-nums text-term-warn">
-              {rank}
-            </span>
-          )}
-          <div className="min-w-0">
-            <div className="truncate font-medium text-term-text">{item.name}</div>
-            {item.company && (
-              <div className="truncate text-xs text-term-faint">{item.company}</div>
-            )}
+    <tr data-stuck={item.isStuck ? 'true' : undefined}>
+      <td>
+        <div className={styles.leadIdentity}>
+          {rank <= 3 ? <span className={styles.rank}>{rank}</span> : null}
+          <div className={styles.leadCopy}>
+            <span className={styles.leadName}>{item.name}</span>
+            {item.company ? <span className={styles.leadCompany}>{item.company}</span> : null}
           </div>
         </div>
-      </TableCell>
-      <TableCell>
-        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-          <UserRound className="h-3.5 w-3.5 shrink-0 opacity-60" />
+      </td>
+      <td>
+        <span className={styles.owner}>
+          <UserRound aria-hidden="true" />
           {item.ownerName ?? '未分配'}
-        </div>
-      </TableCell>
-      <TableCell>
-        <div className="flex items-center gap-1">
-          <Hourglass className="h-3.5 w-3.5 shrink-0 opacity-60" strokeWidth={1.75} aria-hidden />
-          <span
-            className={
-              item.isStuck
-                ? 'font-mono text-sm font-semibold tabular-nums text-term-warn'
-                : 'font-mono text-sm tabular-nums text-term-muted'
-            }
-          >
+        </span>
+      </td>
+      <td>
+        <span className={styles.dwell}>
+          <Hourglass aria-hidden="true" />
+          <span data-stuck={item.isStuck ? 'true' : undefined}>
             {formatDwell(item.dwellDays)}
           </span>
-          {item.isStuck && <Badge variant="warning">卡住</Badge>}
-        </div>
-      </TableCell>
-      <TableCell>
+          {item.isStuck ? <WarmCrmStatusPill tone="accent">卡住</WarmCrmStatusPill> : null}
+        </span>
+      </td>
+      <td>
         {item.lastActionAt ? (
-          <div className="min-w-0">
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Clock3 className="h-3 w-3 shrink-0 opacity-60" />
+          <span className={styles.actionCell}>
+            <span className={styles.actionTime}>
+              <Clock3 aria-hidden="true" />
               {formatRelativeTime(item.lastActionAt)}
-            </div>
-            {item.lastActionContent && (
-              <div className="mt-0.5 max-w-[15rem] truncate text-xs text-muted-foreground/80">
-                {item.lastActionContent}
-              </div>
-            )}
-          </div>
-        ) : (
-          <span className="text-xs text-muted-foreground/60">无跟进记录</span>
-        )}
-      </TableCell>
-      <TableCell>
-        {item.nextFollowAt ? (
-          <span className="text-xs tabular-nums text-muted-foreground">
-            {formatRelativeTime(item.nextFollowAt)}
+            </span>
+            {item.lastActionContent ? (
+              <span className={styles.actionContent}>{item.lastActionContent}</span>
+            ) : null}
           </span>
         ) : (
-          <span className="text-xs text-muted-foreground/50">—</span>
+          <span className={styles.muted}>无跟进记录</span>
         )}
-      </TableCell>
-    </TableRow>
+      </td>
+      <td>
+        {item.nextFollowAt ? (
+          <span className={styles.numeric}>{formatRelativeTime(item.nextFollowAt)}</span>
+        ) : (
+          <span className={styles.muted}>—</span>
+        )}
+      </td>
+    </tr>
   )
 }
 
@@ -130,17 +110,18 @@ export function FunnelStageDrawer({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // 用 ref 持有最新加载器：client 来自 context（mock 环境下每次渲染是新对象），
-  // 若把 client 放进 useEffect 依赖，会因引用变化导致 effect 反复触发。
-  // 这里 effect 只依赖 open，加载器内部读取最新闭包值。
+  // client 在生产环境稳定；测试环境可能每次渲染生成新对象，effect 只依赖打开状态、
+  // 排序和页码，加载器内部读取最新闭包。
   const loadRef = useRef<() => void>(() => {})
   loadRef.current = () => {
     setLoading(true)
     setError(null)
     void client
       .getFunnelStageDetail({ stage, sortBy, page, pageSize: PAGE_SIZE })
-      .then((d) => setData(d))
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : '加载阶段明细失败'))
+      .then((detail) => setData(detail))
+      .catch((requestError: unknown) =>
+        setError(requestError instanceof Error ? requestError.message : '加载阶段明细失败')
+      )
       .finally(() => setLoading(false))
   }
 
@@ -148,7 +129,6 @@ export function FunnelStageDrawer({
     if (open) loadRef.current()
   }, [open, sortBy, page])
 
-  // 切换排序视图时回到第一页
   function handleSortChange(next: 'dwell' | 'recent') {
     if (next === sortBy) return
     setSortBy(next)
@@ -158,139 +138,105 @@ export function FunnelStageDrawer({
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      {/* BLF-837：抽屉终端规格——零圆角、term 边界与面板底色 */}
-      <SheetContent className="w-full gap-0 rounded-none border-term-border bg-term-panel p-0 sm:max-w-xl">
-        <SheetHeader className="rounded-none border-b border-term-border px-3 py-2">
-          <div className="flex items-center justify-between gap-2 pr-8">
-            <SheetTitle className="truncate text-sm uppercase tracking-wider text-term-muted">
-              {stageLabel} · 复盘明细
-            </SheetTitle>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => loadRef.current()}
-              disabled={loading}
-              className="h-9 rounded-none font-mono text-xs text-term-muted hover:text-term-text"
-            >
-              <RefreshCcw className={loading ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
-              刷新
-            </Button>
-          </div>
-          {/* 摘要：平均停留 · 卡住 N 条 · 本期流入/流出（终端单色 chips） */}
-          {data && (
-            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 font-mono text-xs">
-              <span className="inline-flex items-center gap-1 border border-term-border bg-term-raised px-1.5 py-0.5 tabular-nums text-term-muted">
-                <Hourglass className="h-3 w-3" strokeWidth={1.75} aria-hidden />
-                平均停留 {data.avgDwellDays != null ? `${data.avgDwellDays} 天` : '—'}
-              </span>
-              <span
-                className={
-                  data.stuckCount > 0
-                    ? 'inline-flex items-center gap-1 border border-term-warn/40 px-1.5 py-0.5 tabular-nums text-term-warn'
-                    : 'inline-flex items-center gap-1 border border-term-border bg-term-raised px-1.5 py-0.5 tabular-nums text-term-muted'
-                }
+    <WarmCrmRecordDrawer
+      open={open}
+      onOpenChange={onOpenChange}
+      title={`${stageLabel} · 复盘明细`}
+      actions={
+        <WarmButton
+          variant="quiet"
+          onClick={() => loadRef.current()}
+          disabled={loading}
+          aria-label="刷新阶段明细"
+        >
+          <RefreshCcw aria-hidden="true" />
+          刷新
+        </WarmButton>
+      }
+      footer={
+        data && data.total > data.pageSize ? (
+          <div className={styles.footer}>
+            <span>
+              共 {data.total} 条 · 第 {data.page}/{totalPages} 页
+            </span>
+            <div className={styles.footerActions}>
+              <WarmButton
+                disabled={data.page <= 1 || loading}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
               >
-                卡住 {data.stuckCount} 条（超 {data.stuckDays} 天未动）
-              </span>
-              <span className="inline-flex items-center gap-1 border border-term-border bg-term-raised px-1.5 py-0.5 tabular-nums text-term-muted">
-                本期流入 {data.inflow}
-              </span>
-              {data.outflow != null && (
-                <span className="inline-flex items-center gap-1 border border-term-border bg-term-raised px-1.5 py-0.5 tabular-nums text-term-muted">
-                  流出 {data.outflow}
-                </span>
-              )}
+                上一页
+              </WarmButton>
+              <WarmButton
+                disabled={data.page >= totalPages || loading}
+                onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+              >
+                下一页
+              </WarmButton>
             </div>
-          )}
-        </SheetHeader>
-
-        <div className="px-5 pt-3">
-          <Tabs value={sortBy} onValueChange={(v) => handleSortChange(v as 'dwell' | 'recent')}>
-            <TabsList variant="term" className="grid h-auto w-full grid-cols-2">
-              <TabsTrigger value="dwell" variant="term">
-                <ArrowDownWideNarrow aria-hidden />
-                卡点列表
-              </TabsTrigger>
-              <TabsTrigger value="recent" variant="term">
-                <Clock3 aria-hidden />
-                最近动作
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+          </div>
+        ) : undefined
+      }
+    >
+      {data ? (
+        <div className={styles.summary}>
+          <span>
+            <Hourglass aria-hidden="true" />
+            平均停留 {data.avgDwellDays != null ? `${data.avgDwellDays} 天` : '—'}
+          </span>
+          <WarmCrmStatusPill tone={data.stuckCount > 0 ? 'accent' : 'neutral'}>
+            卡住 {data.stuckCount} 条（超 {data.stuckDays} 天未动）
+          </WarmCrmStatusPill>
+          <span>本期流入 {data.inflow}</span>
+          {data.outflow != null ? <span>流出 {data.outflow}</span> : null}
         </div>
+      ) : null}
 
-        <div className="flex-1 overflow-y-auto px-5 py-4">
-          {error ? (
-            <ErrorState title="加载失败" message={error} onRetry={() => loadRef.current()} />
-          ) : loading && !data ? (
-            <div className="space-y-3">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-16 w-full" />
-              <Skeleton className="h-16 w-full" />
-              <Skeleton className="h-16 w-full" />
-            </div>
-          ) : data && data.leads.length === 0 ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">
-              该阶段暂无线索明细
-            </p>
-          ) : data ? (
-            <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>线索</TableHead>
-                    <TableHead>负责人</TableHead>
-                    <TableHead>停留</TableHead>
-                    <TableHead>最后动作</TableHead>
-                    <TableHead>下次跟进</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.leads.map((item, i) => (
-                    <LeadRow
-                      key={item.id}
-                      item={item}
-                      rank={(data.page - 1) * data.pageSize + i + 1}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
+      <WarmSegmentedControl
+        ariaLabel="排序视图"
+        value={sortBy}
+        options={[
+          { value: 'dwell', label: '卡点列表' },
+          { value: 'recent', label: '最近动作' },
+        ]}
+        onChange={(value) => handleSortChange(value as 'dwell' | 'recent')}
+      />
 
-              {/* 分页 */}
-              {data.total > data.pageSize && (
-                <div className="mt-4 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                  <span>
-                    共 {data.total} 条 · 第 {data.page}/{totalPages} 页
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={data.page <= 1 || loading}
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    >
-                      上一页
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={data.page >= totalPages || loading}
-                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    >
-                      下一页
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </>
-          ) : null}
-        </div>
-      </SheetContent>
-    </Sheet>
+      {error ? (
+        <WarmCrmState
+          kind="error"
+          title="加载失败"
+          detail={error}
+          action={<WarmButton onClick={() => loadRef.current()}>重试</WarmButton>}
+        />
+      ) : loading && !data ? (
+        <WarmCrmState kind="loading" title="加载中" />
+      ) : data && data.leads.length === 0 ? (
+        <WarmCrmState kind="empty" title="该阶段暂无线索明细" />
+      ) : data ? (
+        <WarmCrmTableScroller ariaLabel="阶段线索表格">
+          <table>
+            <thead>
+              <tr>
+                <th>线索</th>
+                <th>负责人</th>
+                <th>停留</th>
+                <th>最后动作</th>
+                <th>下次跟进</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.leads.map((item, index) => (
+                <LeadRow
+                  key={item.id}
+                  item={item}
+                  rank={(data.page - 1) * data.pageSize + index + 1}
+                />
+              ))}
+            </tbody>
+          </table>
+        </WarmCrmTableScroller>
+      ) : null}
+    </WarmCrmRecordDrawer>
   )
 }
 

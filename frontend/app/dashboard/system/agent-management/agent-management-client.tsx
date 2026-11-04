@@ -1,38 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog'
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from '@/components/ui/tabs'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { EmptyTableState } from '@/components/ui/empty-state'
-import {
-  DataTableCard,
-  DataTableCardBody,
-  DataTableCardHeader,
-} from '@/components/ui/data-card'
-import { StatusPill, type TableStatus } from '@/components/ui/table-presets'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { Loader2, KeyRound, Copy, Check, LayoutGrid, BookOpen, Activity, Pencil, Eye, PenLine } from 'lucide-react'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
@@ -64,6 +38,19 @@ import {
 import { AgentUsageGuide, buildUsageText, fetchBackendBaseUrl } from './agent-usage-guide'
 import { AgentAccessLogsPanel } from '@/components/system/agent-access-logs-panel'
 import { AgentOperationLogsPanel } from '@/components/system/agent-operation-logs-panel'
+import {
+  WarmBadge,
+  WarmButton,
+  type WarmBadgeTone,
+} from '@/components/dashboard-v2/warm-ledger/controls'
+import styles from './agent-management-warm.module.css'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from './agent-warm-dialog'
 
 type CreatedResult = {
   plaintext_key: string
@@ -90,12 +77,12 @@ function getKeyStatus(item: AgentApiKeyItem): KeyStatus {
 
 const STATUS_META: Record<
   KeyStatus,
-  { label: string; pill: TableStatus; lineThrough?: boolean }
+  { label: string; tone: WarmBadgeTone; lineThrough?: boolean }
 > = {
-  active: { label: '激活', pill: 'success' },
-  inactive: { label: '停用', pill: 'neutral' },
-  expired: { label: '已过期', pill: 'warning' },
-  deleted: { label: '已删除', pill: 'neutral', lineThrough: true },
+  active: { label: '激活', tone: 'positive' },
+  inactive: { label: '停用', tone: 'neutral' },
+  expired: { label: '已过期', tone: 'accent' },
+  deleted: { label: '已删除', tone: 'neutral', lineThrough: true },
 }
 
 /** 把后端 project_scope 值格式化成可读文案（* = 全部项目；否则映射项目名）。 */
@@ -174,21 +161,22 @@ function BusinessScopeField({
         type="button"
         onClick={() => handleToggleAll(!isAll)}
         className={cn(
-          'flex w-full items-center gap-2 rounded-none border border-term-border bg-term-bg px-3 py-2 text-sm transition-colors',
-          'hover:bg-term-hover focus:outline-none focus:border-term-border-strong',
-          isAll && 'bg-term-raised'
+          styles.scopeToggle,
+          isAll && styles.scopeToggleSelected
         )}
+        aria-pressed={isAll}
       >
         <div
           className={cn(
-            'flex h-4 w-4 items-center justify-center rounded-none border border-term-border',
-            isAll ? 'bg-term-text text-term-bg' : 'border-term-border-strong'
+            styles.scopeCheckbox,
+            isAll && styles.scopeCheckboxSelected
           )}
+          aria-hidden
         >
-          {isAll && <Check className="h-3 w-3" />}
+          {isAll && <Check className={styles.scopeCheckIcon} />}
         </div>
-        <span className="font-medium">全部业务域</span>
-        <span className="ml-auto font-mono text-xs text-term-faint">
+        <span className={styles.scopeToggleLabel}>全部业务域</span>
+        <span className={styles.scopeToggleHint}>
           {isAll
             ? '该凭据可访问所有已接入业务域'
             : selectedIds.length > 0
@@ -201,7 +189,7 @@ function BusinessScopeField({
         selected={selectedIds}
         onChange={handleIdsChange}
         placeholder="选择具体业务域..."
-        className={cn(isAll && 'opacity-50 pointer-events-none')}
+        className={cn(isAll && styles.scopeMultiSelectDisabled)}
       />
     </div>
   )
@@ -462,270 +450,263 @@ export function AgentManagementClient() {
   }, [keys])
 
   return (
-    <div className="w-full space-y-4">
-      {/* BLF-838：页面标题由 Top Header 面包屑承载；仅保留操作区（终端规格） */}
-      <div className="flex justify-end">
-        <Button
-          onClick={() => setCreateOpen(true)}
-          className="h-9 rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text"
-        >
+    <div className={styles.page} data-warm-agent-management="true">
+      <div className={styles.pageActions}>
+        <WarmButton variant="primary" onClick={() => setCreateOpen(true)}>
           创建凭据
-        </Button>
+        </WarmButton>
       </div>
 
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList variant="term">
-          <TabsTrigger value="overview" variant="term">
-            <LayoutGrid className="h-3.5 w-3.5" />
+      <Tabs defaultValue="overview" className={styles.tabs}>
+        <TabsList className={styles.tabList}>
+          <TabsTrigger value="overview" className={styles.tab}>
+            <LayoutGrid className={styles.tabIcon} aria-hidden />
             业务域概览
           </TabsTrigger>
-          <TabsTrigger value="credentials" variant="term">
-            <KeyRound className="h-3.5 w-3.5" />
+          <TabsTrigger value="credentials" className={styles.tab}>
+            <KeyRound className={styles.tabIcon} aria-hidden />
             凭据管理
           </TabsTrigger>
-          <TabsTrigger value="guide" variant="term">
-            <BookOpen className="h-3.5 w-3.5" />
+          <TabsTrigger value="guide" className={styles.tab}>
+            <BookOpen className={styles.tabIcon} aria-hidden />
             调用指南
           </TabsTrigger>
-          <TabsTrigger value="logs" variant="term">
-            <Activity className="h-3.5 w-3.5" />
+          <TabsTrigger value="logs" className={styles.tab}>
+            <Activity className={styles.tabIcon} aria-hidden />
             访问日志
           </TabsTrigger>
         </TabsList>
 
         {/* ── Tab 1 业务域概览 ─────────────────────────────────────── */}
-        <TabsContent value="overview" className="mt-4 space-y-2">
-          <DataTableCard>
-            <DataTableCardHeader
-              title="业务域接入一览"
-              description="各业务域的 Agent API 接入状态与已授权凭据数"
-            />
-            <DataTableCardBody className="p-4">
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {domainStats.map(({ domain, keyCount }) => (
-                  <div
-                    key={domain.code}
-                    className={cn(
-                      'rounded-none border p-3',
-                      domain.status === 'live'
-                        ? 'border-term-pos/40 bg-term-pos/5'
-                        : 'border-dashed border-term-border bg-term-bg'
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium">{domain.label}</span>
-                      {domain.status === 'live' ? (
-                        <Badge variant="outline" className="rounded-none border-term-pos/40 font-mono text-[11px] text-term-pos">
-                          已接入
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="rounded-none font-mono text-[11px] text-term-faint">规划中</Badge>
-                      )}
-                    </div>
-                    <p className="mt-2 text-xs text-term-muted line-clamp-2">
-                      {domain.description}
-                    </p>
-                    <div className="mt-3 flex flex-wrap items-center gap-1.5 font-mono text-xs">
-                      {domain.status === 'live' && (
-                        <Badge variant="outline" className="rounded-none font-mono text-[11px] text-term-muted">{domain.routeCount} 路由</Badge>
-                      )}
-                      {domain.capabilities.read && (
-                        <Badge variant="outline" className="rounded-none font-mono text-[11px] text-term-muted">读</Badge>
-                      )}
-                      {domain.capabilities.write && (
-                        <Badge variant="outline" className="rounded-none font-mono text-[11px] text-term-muted">写</Badge>
-                      )}
-                      <span className="ml-auto tabular-nums text-term-faint">
-                        {domain.status === 'live' ? `${keyCount} 张凭据授权` : '待接入'}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+        <TabsContent value="overview" className={styles.tabContent}>
+          <section className={styles.panel}>
+            <header className={styles.sectionHeader}>
+              <div>
+                <h2 className={styles.sectionTitle}>业务域接入一览</h2>
+                <p className={styles.sectionDescription}>
+                  各业务域的 Agent API 接入状态与已授权凭据数
+                </p>
               </div>
-            </DataTableCardBody>
-          </DataTableCard>
+            </header>
+            <div className={styles.domainGrid}>
+              {domainStats.map(({ domain, keyCount }) => (
+                <article
+                  key={domain.code}
+                  className={cn(
+                    styles.domainCard,
+                    domain.status === 'live'
+                      ? styles.domainCardLive
+                      : styles.domainCardPlanned
+                  )}
+                >
+                  <div className={styles.domainHeader}>
+                    <span className={styles.domainName}>{domain.label}</span>
+                    <WarmBadge tone={domain.status === 'live' ? 'positive' : 'neutral'}>
+                      {domain.status === 'live' ? '已接入' : '规划中'}
+                    </WarmBadge>
+                  </div>
+                  <p className={styles.domainDescription}>{domain.description}</p>
+                  <div className={styles.domainMeta}>
+                    {domain.status === 'live' && (
+                      <WarmBadge tone="neutral">{domain.routeCount} 路由</WarmBadge>
+                    )}
+                    {domain.capabilities.read && (
+                      <WarmBadge tone="neutral">读</WarmBadge>
+                    )}
+                    {domain.capabilities.write && (
+                      <WarmBadge tone="neutral">写</WarmBadge>
+                    )}
+                    <span className={styles.domainCount}>
+                      {domain.status === 'live' ? `${keyCount} 张凭据授权` : '待接入'}
+                    </span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
         </TabsContent>
 
         {/* ── Tab 2 凭据管理 ───────────────────────────────────────── */}
-        <TabsContent value="credentials" className="mt-6 space-y-4">
-          <DataTableCard>
-            <DataTableCardHeader>
-              <div className="flex w-full flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-between">
-                <div className="min-w-0 space-y-1">
-                  <h2 className="text-base font-semibold leading-none text-foreground">凭据列表</h2>
-                  <p className="text-sm text-muted-foreground">
+        <TabsContent value="credentials" className={styles.tabContent}>
+          <section className={styles.panel}>
+            <header className={styles.credentialsHeader}>
+              <div className={styles.credentialsHeading}>
+                <h2 className={styles.sectionTitle}>凭据列表</h2>
+                <p className={styles.sectionDescription}>
                     管理 Agent 凭据的生命周期状态与项目 / 业务域权限范围
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <label className="flex cursor-pointer items-center gap-1.5 text-sm text-muted-foreground">
-                    <input
-                      type="checkbox"
-                      checked={includeDeleted}
-                      onChange={(e) => setIncludeDeleted(e.target.checked)}
-                      className="h-4 w-4 rounded-none border-term-border accent-term-text"
-                      aria-label="含已删除"
-                    />
-                    含已删除
-                  </label>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value as KeyStatus | 'all')}
-                    className="h-9 rounded-none border border-term-border bg-term-bg px-2 font-mono text-xs text-term-text"
-                    aria-label="按状态筛选"
-                  >
-                    <option value="all">全部状态</option>
-                    <option value="active">激活</option>
-                    <option value="inactive">停用</option>
-                    <option value="expired">已过期</option>
-                  </select>
-                  <select
-                    value={domainFilter}
-                    onChange={(e) => setDomainFilter(e.target.value)}
-                    className="h-9 rounded-none border border-term-border bg-term-bg px-2 font-mono text-xs text-term-text focus:outline-none focus:border-term-border-strong"
-                    aria-label="按业务域筛选"
-                  >
-                    <option value="all">全部业务域</option>
-                    {AGENT_DOMAINS.filter((d) => d.status === 'live').map((d) => (
-                      <option key={d.code} value={d.code}>
-                        {d.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                </p>
               </div>
-            </DataTableCardHeader>
-            <DataTableCardBody>
+              <div className={styles.filters}>
+                <label className={styles.checkboxLabel}>
+                  <input
+                    type="checkbox"
+                    checked={includeDeleted}
+                    onChange={(e) => setIncludeDeleted(e.target.checked)}
+                    className={styles.checkbox}
+                    aria-label="含已删除"
+                  />
+                  含已删除
+                </label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as KeyStatus | 'all')}
+                  className={styles.nativeSelect}
+                  aria-label="按状态筛选"
+                >
+                  <option value="all">全部状态</option>
+                  <option value="active">激活</option>
+                  <option value="inactive">停用</option>
+                  <option value="expired">已过期</option>
+                </select>
+                <select
+                  value={domainFilter}
+                  onChange={(e) => setDomainFilter(e.target.value)}
+                  className={styles.nativeSelect}
+                  aria-label="按业务域筛选"
+                >
+                  <option value="all">全部业务域</option>
+                  {AGENT_DOMAINS.filter((d) => d.status === 'live').map((d) => (
+                    <option key={d.code} value={d.code}>
+                      {d.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </header>
+            <div className={styles.tableScroll}>
               {loading ? (
-                <div className="flex justify-center py-10">
-                  <Loader2 className="h-6 w-6 animate-spin text-term-faint" />
+                <div className={styles.loadingState} role="status">
+                  加载中…
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead className="w-[170px]">名称</TableHead>
-                      <TableHead>Key 前缀</TableHead>
-                      <TableHead>Agent</TableHead>
-                      <TableHead>项目范围</TableHead>
-                      <TableHead>业务域范围</TableHead>
-                      <TableHead>最近使用</TableHead>
-                      <TableHead>状态</TableHead>
-                      <TableHead className="w-[160px]">操作</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+                <table className={styles.table} aria-label="凭据列表">
+                  <thead>
+                    <tr>
+                      <th className={styles.nameColumn}>名称</th>
+                      <th>Key 前缀</th>
+                      <th>Agent</th>
+                      <th>项目范围</th>
+                      <th>业务域范围</th>
+                      <th>最近使用</th>
+                      <th>状态</th>
+                      <th className={styles.actionsColumn}>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
                     {filteredKeys.map((item) => {
                       const status = getKeyStatus(item)
                       const statusMeta = STATUS_META[status]
                       return (
-                        <TableRow key={item.id}>
-                          <TableCell className="font-medium">{item.label}</TableCell>
-                          <TableCell className="font-mono text-xs tabular-nums">
+                        <tr key={item.id}>
+                          <td className={styles.primaryCell}>{item.label}</td>
+                          <td className={styles.monoCell}>
                             {item.key_prefix}…
-                          </TableCell>
-                          <TableCell>
+                          </td>
+                          <td>
                             {item.agent_id ? (
-                              <code className="font-mono text-xs text-term-muted">{item.agent_id}</code>
+                              <code className={styles.agentCode}>{item.agent_id}</code>
                             ) : (
-                              <span className="text-term-faint">—（未绑定）</span>
+                              <span className={styles.faintText}>—（未绑定）</span>
                             )}
-                          </TableCell>
-                          <TableCell>
+                          </td>
+                          <td>
                             {formatProjectScope(item.project_scope, projects)}
-                          </TableCell>
-                          <TableCell className="font-mono text-xs">
+                          </td>
+                          <td className={styles.monoCell}>
                             {formatBusinessScope(item.business_scope)}
-                          </TableCell>
-                          <TableCell className="font-mono text-xs tabular-nums text-term-muted">
+                          </td>
+                          <td className={styles.timeCell}>
                             {item.last_used_at
                               ? new Date(item.last_used_at).toLocaleString()
                               : '从未使用'}
-                          </TableCell>
-                          <TableCell>
-                            <StatusPill
-                              status={statusMeta.pill}
-                              label={statusMeta.label}
-                              dot={status !== 'deleted'}
-                              className={statusMeta.lineThrough ? 'line-through' : undefined}
-                            />
-                          </TableCell>
-                          <TableCell>
+                          </td>
+                          <td>
+                            <WarmBadge
+                              tone={statusMeta.tone}
+                              className={cn(
+                                styles.statusBadge,
+                                statusMeta.lineThrough && styles.statusDeleted
+                              )}
+                            >
+                              {statusMeta.label}
+                            </WarmBadge>
+                          </td>
+                          <td>
                             {status === 'deleted' ? null : (
-                              <div className="flex items-center gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
+                              <div className={styles.rowActions}>
+                                <WarmButton
+                                  variant="quiet"
+                                  className={styles.rowAction}
                                   onClick={() => openEdit(item)}
                                 >
-                                  <Pencil className="mr-1 h-3.5 w-3.5" />
+                                  <Pencil className={styles.rowActionIcon} aria-hidden />
                                   编辑
-                                </Button>
+                                </WarmButton>
                                 {status === 'active' && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
+                                  <WarmButton
+                                    variant="quiet"
+                                    className={styles.rowAction}
                                     onClick={() => handleDeactivate(item)}
                                   >
                                     停用
-                                  </Button>
+                                  </WarmButton>
                                 )}
                                 {status === 'inactive' && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-term-pos hover:text-term-pos"
+                                  <WarmButton
+                                    variant="quiet"
+                                    className={cn(styles.rowAction, styles.positiveAction)}
                                     onClick={() => handleActivate(item)}
                                   >
                                     激活
-                                  </Button>
+                                  </WarmButton>
                                 )}
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="text-destructive"
+                                <WarmButton
+                                  variant="quiet"
+                                  className={cn(styles.rowAction, styles.dangerAction)}
                                   onClick={() => handleDelete(item)}
                                 >
                                   删除
-                                </Button>
+                                </WarmButton>
                               </div>
                             )}
-                          </TableCell>
-                        </TableRow>
+                          </td>
+                        </tr>
                       )
                     })}
                     {filteredKeys.length === 0 && (
-                      <EmptyTableState colSpan={8} message="暂无凭据" />
+                      <tr>
+                        <td colSpan={8} className={styles.emptyCell}>暂无凭据</td>
+                      </tr>
                     )}
-                  </TableBody>
-                </Table>
+                  </tbody>
+                </table>
               )}
-            </DataTableCardBody>
-          </DataTableCard>
+            </div>
+          </section>
         </TabsContent>
 
         {/* ── Tab 3 调用指南 ───────────────────────────────────────── */}
-        <TabsContent value="guide" className="mt-6">
+        <TabsContent value="guide" className={styles.tabContent}>
           <AgentUsageGuide />
         </TabsContent>
 
         {/* ── Tab 4 访问日志（读访问 / 写操作子 Tab） ─────────────── */}
-        <TabsContent value="logs" className="mt-6">
-          <Tabs defaultValue="read" className="w-full">
-            <TabsList variant="term">
-              <TabsTrigger value="read" variant="term">
+        <TabsContent value="logs" className={styles.tabContent}>
+          <Tabs defaultValue="read" className={styles.logTabs}>
+            <TabsList className={styles.logTabList}>
+              <TabsTrigger value="read" className={styles.tab}>
                 <Eye aria-hidden />
                 读访问
               </TabsTrigger>
-              <TabsTrigger value="write" variant="term">
+              <TabsTrigger value="write" className={styles.tab}>
                 <PenLine aria-hidden />
                 写操作
               </TabsTrigger>
             </TabsList>
-            <TabsContent value="read" className="mt-6">
+            <TabsContent value="read" className={styles.logTabContent}>
               <AgentAccessLogsPanel />
             </TabsContent>
-            <TabsContent value="write" className="mt-6">
+            <TabsContent value="write" className={styles.logTabContent}>
               <AgentOperationLogsPanel />
             </TabsContent>
           </Tabs>
@@ -739,109 +720,115 @@ export function AgentManagementClient() {
           if (!open) resetForm()
         }}
       >
-        <DialogContent>
+        <DialogContent aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>
               {created ? '凭据创建成功' : '创建 Agent 凭据'}
             </DialogTitle>
           </DialogHeader>
           {created ? (
-            <div className="space-y-3 text-sm">
-              <div>
-                <div className="text-muted-foreground mb-1">明文 Key</div>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 break-all rounded-none bg-term-raised p-2 font-mono text-xs">
+            <div className={styles.dialogStack}>
+              <div className={styles.detailBlock}>
+                <div className={styles.detailLabel}>明文 Key</div>
+                <div className={styles.secretRow}>
+                  <code className={styles.secretCode}>
                     {created.plaintext_key}
                   </code>
-                  <Button variant="outline" size="sm" onClick={copyPlaintext}>
+                  <WarmButton
+                    aria-label="复制明文 Key"
+                    className={styles.iconAction}
+                    onClick={copyPlaintext}
+                  >
                     {copied ? (
-                      <Check className="h-4 w-4" />
+                      <Check className={styles.actionIcon} aria-hidden />
                     ) : (
-                      <Copy className="h-4 w-4" />
+                      <Copy className={styles.actionIcon} aria-hidden />
                     )}
-                  </Button>
+                  </WarmButton>
                 </div>
               </div>
-              <div>
-                <div className="text-muted-foreground mb-1">Agent</div>
-                <code className="rounded-none bg-term-raised p-1 font-mono text-xs">
+              <div className={styles.detailBlock}>
+                <div className={styles.detailLabel}>Agent</div>
+                <code className={styles.inlineCode}>
                   {created.agent_id}
                 </code>
-                <span className="ml-2 text-sm text-foreground">
+                <span className={styles.detailValue}>
                   （{created.label}）
                 </span>
               </div>
-              <div>
-                <div className="text-muted-foreground mb-1">项目范围</div>
-                <span className="text-sm">
+              <div className={styles.detailBlock}>
+                <div className={styles.detailLabel}>项目范围</div>
+                <span className={styles.detailValue}>
                   {formatProjectScope(created.project_scope, projects)}
                 </span>
               </div>
-              <div>
-                <div className="text-muted-foreground mb-1">业务域范围</div>
-                <span className="text-sm">
+              <div className={styles.detailBlock}>
+                <div className={styles.detailLabel}>业务域范围</div>
+                <span className={styles.detailValue}>
                   {formatBusinessScope(created.business_scope)}
                 </span>
               </div>
-              <p className="rounded-none border border-term-warn/50 bg-term-warn/10 p-2 font-sans text-term-warn">
+              <p className={styles.warning}>
                 ⚠ 明文仅展示一次，请妥善保存。调用时 Authorization 用明文 Key，
                 X-Agent-Id 用 Agent ID。
               </p>
-              <DialogFooter>
-                <Button variant="outline" onClick={copyUsage}>
+              <DialogFooter className={styles.dialogFooter}>
+                <WarmButton onClick={copyUsage}>
                   {usageCopied ? (
-                    <Check className="mr-1 h-4 w-4" />
+                    <Check className={styles.actionIcon} aria-hidden />
                   ) : (
-                    <Copy className="mr-1 h-4 w-4" />
+                    <Copy className={styles.actionIcon} aria-hidden />
                   )}
                   {usageCopied ? '已复制调用说明' : '复制调用说明'}
-                </Button>
-                <Button
+                </WarmButton>
+                <WarmButton
+                  variant="primary"
                   onClick={() => {
                     setCreateOpen(false)
                     resetForm()
                   }}
                 >
                   关闭
-                </Button>
+                </WarmButton>
               </DialogFooter>
             </div>
           ) : (
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <label htmlFor="agent-key-label" className="text-sm font-medium">
+            <div className={styles.dialogStack}>
+              <div className={styles.field}>
+                <label htmlFor="agent-key-label" className={styles.label}>
                   名称
                 </label>
-                <Input
+                <input
                   id="agent-key-label"
+                  className={styles.input}
                   placeholder="如：货件助理 (生产)"
                   value={label}
                   onChange={(e) => setLabel(e.target.value)}
                 />
               </div>
-              <div className="space-y-1.5">
-                <label htmlFor="agent-key-agent-id" className="text-sm font-medium">
+              <div className={styles.field}>
+                <label htmlFor="agent-key-agent-id" className={styles.label}>
                   Agent ID
                 </label>
-                <Input
+                <input
                   id="agent-key-agent-id"
-                  className="font-mono"
+                  className={cn(styles.input, styles.monoInput)}
                   placeholder="如：shipment-assistant-prod"
                   value={agentId}
                   onChange={(e) => setAgentId(e.target.value)}
                   aria-invalid={agentIdError ? true : undefined}
                 />
                 {agentIdError ? (
-                  <p className="text-xs text-destructive">{agentIdError}</p>
+                  <p className={styles.errorText}>{agentIdError}</p>
                 ) : (
-                  <p className="text-xs text-muted-foreground">{AGENT_ID_HINT}</p>
+                  <p className={styles.helpText}>{AGENT_ID_HINT}</p>
                 )}
               </div>
-              <div>
-                <label className="text-sm font-medium">
+              <div className={styles.field}>
+                <label className={styles.label}>
                   项目范围（空 = 全部项目）
                 </label>
-                <div className="mt-1">
+                <div className={styles.scopeField}>
                   <ProjectScopeSelect
                     value={projectScope}
                     selectedIds={selectedProjectIds}
@@ -853,11 +840,11 @@ export function AgentManagementClient() {
                   />
                 </div>
               </div>
-              <div>
-                <label className="text-sm font-medium">
+              <div className={styles.field}>
+                <label className={styles.label}>
                   业务域范围（空 = 全部业务域）
                 </label>
-                <div className="mt-1">
+                <div className={styles.scopeField}>
                   <BusinessScopeField
                     value={businessScope}
                     selectedIds={selectedDomainIds}
@@ -866,34 +853,38 @@ export function AgentManagementClient() {
                   />
                 </div>
                 {selectedDomainIds.includes('agent_provisioning') && (
-                  <p className="mt-1.5 flex items-center gap-1 text-xs text-destructive">
-                    <span className="h-1.5 w-1.5 rounded-full bg-destructive" />
+                  <p className={styles.sensitiveHint}>
+                    <span className={styles.sensitiveDot} aria-hidden />
                     敏感域：凭据签发（全局单例，409 需先停用现役）
                   </p>
                 )}
               </div>
-              <div className="space-y-1.5">
-                <label htmlFor="agent-key-expires" className="text-sm font-medium">
+              <div className={styles.field}>
+                <label htmlFor="agent-key-expires" className={styles.label}>
                   过期时间（可选，空 = 永久有效）
                 </label>
-                <Input
+                <input
                   id="agent-key-expires"
+                  className={styles.input}
                   type="datetime-local"
                   value={expiresAt}
                   onChange={(e) => setExpiresAt(e.target.value)}
                 />
               </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setCreateOpen(false)}>
+              <DialogFooter className={styles.dialogFooter}>
+                <WarmButton onClick={() => setCreateOpen(false)}>
                   取消
-                </Button>
-                <Button
+                </WarmButton>
+                <WarmButton
+                  variant="primary"
                   onClick={handleCreate}
                   disabled={submitting || !label.trim() || !agentId.trim() || !!agentIdError}
+                  loading={submitting}
+                  loadingLabel="正在创建凭据"
                 >
-                  {submitting && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+                  {submitting && <Loader2 className={styles.loadingIcon} aria-hidden />}
                   创建
-                </Button>
+                </WarmButton>
               </DialogFooter>
             </div>
           )}
@@ -907,33 +898,34 @@ export function AgentManagementClient() {
           if (!open) closeEdit()
         }}
       >
-        <DialogContent>
+        <DialogContent aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>编辑凭据权限</DialogTitle>
           </DialogHeader>
           {editing && (
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <label htmlFor="edit-agent-key-label" className="text-sm font-medium">
+            <div className={styles.dialogStack}>
+              <div className={styles.field}>
+                <label htmlFor="edit-agent-key-label" className={styles.label}>
                   名称
                 </label>
-                <Input
+                <input
                   id="edit-agent-key-label"
+                  className={styles.input}
                   value={editLabel}
                   onChange={(e) => setEditLabel(e.target.value)}
                 />
               </div>
-              <div className="rounded-none border border-term-border bg-term-bg p-3 text-sm">
-                <div className="text-muted-foreground">Agent ID（不可改，凭据绑定标识）</div>
-                <code className="font-mono text-xs">
+              <div className={styles.readonlyBlock}>
+                <div className={styles.detailLabel}>Agent ID（不可改，凭据绑定标识）</div>
+                <code className={styles.agentCode}>
                   {editing.agent_id ?? '—（未绑定）'}
                 </code>
               </div>
-              <div>
-                <label className="text-sm font-medium">
+              <div className={styles.field}>
+                <label className={styles.label}>
                   项目范围（空 = 全部项目）
                 </label>
-                <div className="mt-1">
+                <div className={styles.scopeField}>
                   <ProjectScopeSelect
                     value={editProjectScope}
                     selectedIds={editSelectedProjectIds}
@@ -945,11 +937,11 @@ export function AgentManagementClient() {
                   />
                 </div>
               </div>
-              <div>
-                <label className="text-sm font-medium">
+              <div className={styles.field}>
+                <label className={styles.label}>
                   业务域范围（空 = 全部业务域）
                 </label>
-                <div className="mt-1">
+                <div className={styles.scopeField}>
                   <BusinessScopeField
                     value={editBusinessScope}
                     selectedIds={editSelectedDomainIds}
@@ -958,17 +950,20 @@ export function AgentManagementClient() {
                   />
                 </div>
               </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={closeEdit}>
+              <DialogFooter className={styles.dialogFooter}>
+                <WarmButton onClick={closeEdit}>
                   取消
-                </Button>
-                <Button
+                </WarmButton>
+                <WarmButton
+                  variant="primary"
                   onClick={handleUpdate}
                   disabled={editSubmitting || !editLabel.trim()}
+                  loading={editSubmitting}
+                  loadingLabel="正在保存凭据权限"
                 >
-                  {editSubmitting && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}
+                  {editSubmitting && <Loader2 className={styles.loadingIcon} aria-hidden />}
                   保存
-                </Button>
+                </WarmButton>
               </DialogFooter>
             </div>
           )}

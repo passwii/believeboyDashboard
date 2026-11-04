@@ -1,15 +1,22 @@
 'use client'
-import { Textarea } from '@/components/ui/textarea'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+  WarmButton,
+  WarmSegmentedControl,
+  WarmSelect,
+} from '@/components/dashboard-v2/warm-ledger/controls'
 import type { ScenarioPreset } from '@/lib/server/ai-chat'
+import styles from './customer-service-warm.module.css'
+
+const LANGUAGE_OPTIONS = [
+  { value: 'zh', label: '中文' },
+  { value: 'en', label: 'English' },
+] as const
+
+const LENGTH_OPTIONS = [
+  { value: 'brief', label: '简报' },
+  { value: 'standard', label: '标准' },
+  { value: 'detailed', label: '详细' },
+] as const
 
 export function InputPane({
   scenario,
@@ -39,75 +46,88 @@ export function InputPane({
   canGenerate: boolean
 }) {
   if (!scenario) return null
+
   return (
-    <div className="flex min-h-0 flex-col gap-3 overflow-y-auto rounded-none border border-term-border bg-term-panel p-3">
-      {scenario.showFreeTextArea && (
-        <Textarea
-          value={freeText}
-          onChange={(e) => setFreeText(e.target.value)}
-          placeholder="粘贴你的原始草稿 / 数据 / 零散想法…"
-          className="min-h-40 flex-1 resize-none"
-        />
-      )}
-      {scenario.inputSchema.map((f) => (
-        <div key={f.key} className="flex flex-col gap-1">
-          <label className="text-xs text-muted-foreground">{f.label}</label>
-          {f.type === 'textarea' ? (
-            <Textarea
-              value={guidedFields[f.key] ?? ''}
-              onChange={(e) => setGuidedFields({ ...guidedFields, [f.key]: e.target.value })}
-              placeholder={f.placeholder}
-              className="min-h-16 resize-none"
+    <section className={styles.inputPanel} aria-label={scenario.label}>
+      <div className={styles.inputBody}>
+        {scenario.showFreeTextArea && (
+          <div className={styles.field}>
+            <label
+              className={styles.fieldLabel}
+              htmlFor="customer-service-free-text"
+            >
+              原始草稿 / 数据 / 零散想法
+            </label>
+            <textarea
+              id="customer-service-free-text"
+              value={freeText}
+              onChange={(e) => setFreeText(e.target.value)}
+              placeholder="粘贴你的原始草稿 / 数据 / 零散想法…"
+              className={`${styles.control} ${styles.freeText}`}
             />
-          ) : (
-            <Input
-              value={guidedFields[f.key] ?? ''}
-              onChange={(e) => setGuidedFields({ ...guidedFields, [f.key]: e.target.value })}
-              placeholder={f.placeholder}
-            />
-          )}
-        </div>
-      ))}
-      <div className="mt-1 flex flex-wrap items-center gap-3">
-        <div className="flex overflow-hidden rounded-none border border-term-border">
-          <button
-            type="button"
-            onClick={() => setLanguage('zh')}
-            className={[
-              'px-3 py-1 font-mono text-xs leading-5 transition-colors',
-              language === 'zh' ? 'bg-term-raised text-term-text' : 'bg-term-bg text-term-muted hover:text-term-text',
-            ].join(' ')}
-          >
-            中文
-          </button>
-          <button
-            type="button"
-            onClick={() => setLanguage('en')}
-            className={[
-              'px-3 py-1 font-mono text-xs leading-5 transition-colors',
-              language === 'en' ? 'bg-term-raised text-term-text' : 'bg-term-bg text-term-muted hover:text-term-text',
-            ].join(' ')}
-          >
-            English
-          </button>
-        </div>
-        <Select
-          value={length}
-          onValueChange={(v) => setLength(v as 'brief' | 'standard' | 'detailed')}
-        >
-          <SelectTrigger className="w-32">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="brief">简报</SelectItem>
-            <SelectItem value="standard">标准</SelectItem>
-            <SelectItem value="detailed">详细</SelectItem>
-          </SelectContent>
-        </Select>
-        <Button className="ml-auto" onClick={onGenerate} disabled={!canGenerate || isGenerating}>
-          {isGenerating ? '生成中…' : '生成'}
-        </Button>
+          </div>
+        )}
+        {scenario.inputSchema.map((f) => (
+          <div key={f.key} className={styles.field}>
+            <label
+              className={styles.fieldLabel}
+              htmlFor={`customer-service-field-${f.key}`}
+            >
+              {f.label}
+            </label>
+            {f.type === 'textarea' ? (
+              <textarea
+                id={`customer-service-field-${f.key}`}
+                value={guidedFields[f.key] ?? ''}
+                onChange={(e) =>
+                  setGuidedFields({ ...guidedFields, [f.key]: e.target.value })
+                }
+                placeholder={f.placeholder}
+                className={`${styles.control} ${styles.textarea}`}
+              />
+            ) : (
+              <input
+                id={`customer-service-field-${f.key}`}
+                value={guidedFields[f.key] ?? ''}
+                onChange={(e) =>
+                  setGuidedFields({ ...guidedFields, [f.key]: e.target.value })
+                }
+                placeholder={f.placeholder}
+                className={styles.control}
+              />
+            )}
+          </div>
+        ))}
       </div>
-    </div>
+      <div className={styles.controlsRow}>
+        <WarmSegmentedControl
+          ariaLabel="输出语言"
+          value={language}
+          options={LANGUAGE_OPTIONS}
+          onChange={setLanguage}
+          className={styles.languageControl}
+        />
+        <WarmSelect
+          id="customer-service-length"
+          label="篇幅"
+          value={length}
+          options={LENGTH_OPTIONS}
+          onChange={(value) =>
+            setLength(value as 'brief' | 'standard' | 'detailed')
+          }
+          className={styles.lengthSelect}
+        />
+        <WarmButton
+          variant="primary"
+          onClick={onGenerate}
+          disabled={!canGenerate}
+          loading={isGenerating}
+          loadingLabel="正在生成客服文案"
+          className={styles.generateButton}
+        >
+          {isGenerating ? '生成中…' : '生成'}
+        </WarmButton>
+      </div>
+    </section>
   )
 }

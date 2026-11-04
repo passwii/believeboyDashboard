@@ -3,23 +3,29 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
-import { Copy, ExternalLink, Eye, FileCode2, Globe, Loader2, Trash2, Upload } from 'lucide-react'
-
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { TermPanel } from '@/components/terminal/term-panel'
-import { TERM_INPUT } from '@/components/terminal/term-controls'
-import { Input } from '@/components/ui/input'
-import { UploadZone } from '@/components/ui/upload-zone'
-import { useNotifications } from '@/components/notifications'
-import { useConfirm } from '@/hooks/use-confirm'
-import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
-import { normalizeErrorMessage } from '@/lib/error-utils'
-import { cn } from '@/lib/utils'
+import {
+  Copy,
+  ExternalLink,
+  FileCode2,
+  FileText,
+  RefreshCw,
+  Trash2,
+} from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
+
+import {
+  WarmBadge,
+  WarmButton,
+  WarmIconButton,
+} from '@/components/dashboard-v2/warm-ledger/controls'
+import { useNotifications } from '@/components/notifications'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
+import { useConfirm } from '@/hooks/use-confirm'
+import { normalizeErrorMessage } from '@/lib/error-utils'
+
+import { ToolsPageFrame, ToolsPanel, ToolsUploadZone } from '../_components'
+import styles from './page-render.module.css'
 
 const API_BASE = '/api/backend'
 const MAX_SIZE_MB = 2
@@ -61,47 +67,7 @@ function readFileAsText(file: File): Promise<string> {
 
 function MarkdownPreview({ content }: { content: string }) {
   return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      components={{
-        code({ className, children, ...props }) {
-          const match = /language-(\w+)/.exec(className || '')
-          const isInline = !match && !String(children).includes('\n')
-          if (isInline) {
-            return (
-              <code
-                className={cn(
-                  'rounded-none bg-term-raised px-1.5 py-0.5 font-mono text-[0.85em]',
-                  className
-                )}
-                {...props}
-              >
-                {children}
-              </code>
-            )
-          }
-          const code = String(children).replace(/\n$/, '')
-          return (
-            <SyntaxHighlighter
-              language={match ? match[1] : 'text'}
-              style={oneDark}
-              customStyle={{
-                margin: '0.75rem 0',
-                padding: '0.9rem',
-                borderRadius: '0.5rem',
-                fontSize: '0.8125rem',
-                lineHeight: '1.6',
-              }}
-            >
-              {code}
-            </SyntaxHighlighter>
-          )
-        },
-        pre({ children }) {
-          return <>{children}</>
-        },
-      }}
-    >
+    <ReactMarkdown remarkPlugins={[remarkGfm]}>
       {content}
     </ReactMarkdown>
   )
@@ -166,7 +132,6 @@ export default function PageRenderClient() {
         return
       }
 
-      // 1) 即时预览（FileReader，不依赖服务端）
       try {
         const text = await readFileAsText(file)
         setPreviewContent(text)
@@ -177,7 +142,6 @@ export default function PageRenderClient() {
         return
       }
 
-      // 2) 上传到后端
       setIsUploading(true)
       try {
         const formData = new FormData()
@@ -248,182 +212,225 @@ export default function PageRenderClient() {
   )
 
   const historyRows = useMemo(() => history, [history])
+  const recentPublicUrl =
+    recentlyUploaded && typeof window !== 'undefined'
+      ? `${window.location.origin}/p/${recentlyUploaded.id}`
+      : recentlyUploaded
+        ? `/p/${recentlyUploaded.id}`
+        : ''
 
   return (
-    <div className="flex flex-col gap-5">
-      {/* 顶部：标题输入 + 上传区 */}
-      <TermPanel
+    <ToolsPageFrame className={styles.page}>
+      <ToolsPanel
         title="上传 Markdown 或 HTML"
-        actions={<Badge variant="outline" className="rounded-none border-term-border font-mono text-[11px] uppercase tracking-wider text-term-faint">特殊功能</Badge>}
-        bodyClassName="flex flex-col gap-4 p-4"
+        className={styles.panel}
+        bodyClassName={styles.uploadBody}
+        aria-busy={isUploading || undefined}
       >
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="page-render-title" className="font-mono text-xs uppercase tracking-wider text-term-muted">
-              页面标题（可选，留空使用文件名）
-            </label>
-            <Input
-              id="page-render-title"
-              placeholder="例如：2026 Q3 招商公告"
-              value={titleInput}
-              onChange={(e) => setTitleInput(e.target.value)}
-              maxLength={200}
-              className={TERM_INPUT}
-            />
-          </div>
-          <UploadZone
+        <div className={styles.titleField}>
+          <label htmlFor="page-render-title" className={styles.fieldLabel}>
+            页面标题（可选，留空使用文件名）
+          </label>
+          <input
+            id="page-render-title"
+            placeholder="例如：2026 Q3 招商公告"
+            value={titleInput}
+            onChange={(event) => setTitleInput(event.target.value)}
+            maxLength={200}
+            className={styles.input}
+          />
+        </div>
+        <div className={styles.uploadField}>
+          <p className={styles.uploadHint}>
+            文件会先在浏览器本地预览，随后立即上传并生成公开链接。
+          </p>
+          <ToolsUploadZone
             accept={ACCEPT}
             maxSize={MAX_SIZE_MB}
             showPreview={false}
             uploadingText="正在上传..."
             onUpload={handleUpload}
           />
-      </TermPanel>
+        </div>
+      </ToolsPanel>
 
-
-      {/* 即时预览 */}
       {previewContent && previewFormat ? (
-        <TermPanel title={`即时预览${previewFilename ? ` · ${previewFilename}` : ''}`} bodyClassName="p-4">
-            <p className="-mt-1 mb-3 font-sans text-xs text-term-faint">仅在浏览器本地渲染，未上传前不会保存到 R2。</p>
-            {previewFormat === 'markdown' ? (
-              <div
-                className={cn(
-                  'min-h-[60vh] overflow-y-auto rounded-none border border-term-border bg-term-bg p-5 text-sm leading-7 text-term-text',
-                  '[&>blockquote]:border-l-term-accent/50 [&>blockquote]:bg-term-bg [&>blockquote]:px-4 [&>blockquote]:py-3 [&>blockquote]:text-term-muted',
-                  '[&>h1]:mb-3 [&>h1]:text-2xl [&>h1]:font-semibold [&>h1]:tracking-tight',
-                  '[&>h2]:mb-3 [&>h2]:text-xl [&>h2]:font-semibold',
-                  '[&>h3]:mb-2 [&>h3]:text-lg [&>h3]:font-semibold',
-                  '[&>table]:w-full [&>table]:overflow-hidden [&>table]:rounded-none [&>table]:border [&>table]:border-term-border [&>table]:font-mono [&>table]:text-xs',
-                  '[&_th]:border [&_th]:border-term-border [&_th]:bg-term-raised [&_th]:px-3 [&_th]:py-2 [&_th]:font-semibold [&_th]:normal-case [&_th]:tracking-normal [&_th]:text-term-muted',
-                  '[&_td]:border [&_td]:border-term-border [&_td]:px-3 [&_td]:py-2',
-                  '[&_ul]:ml-5 [&_ul]:list-disc [&_ul]:space-y-1 [&_ol]:ml-5 [&_ol]:list-decimal [&>ol]:space-y-1'
-                )}
-              >
-                <MarkdownPreview content={previewContent} />
-              </div>
-            ) : (
-              <iframe
-                sandbox="allow-scripts"
-                srcDoc={previewContent}
-                title="HTML 预览"
-                className="w-full min-h-[60vh] rounded-none border border-term-border bg-white"
-              />
-            )}
-        </TermPanel>
-
-      ) : null}
-
-      {/* 公开链接卡片 */}
-      {recentlyUploaded ? (
-        <TermPanel title="公开链接已生成" bodyClassName="p-4">
-            <p className="mb-3 font-sans text-xs text-term-faint">任何人打开下面的链接即可查看该页面（未登录也可访问）。</p>
-            <div className="flex flex-wrap items-center gap-2">
-              <code className="flex-1 truncate rounded-none border border-term-border bg-term-bg px-3 py-2 font-mono text-xs text-term-text">
-                {typeof window !== 'undefined'
-                  ? `${window.location.origin}/p/${recentlyUploaded.id}`
-                  : `/p/${recentlyUploaded.id}`}
-              </code>
-              <Button variant="outline" size="sm" onClick={() => handleCopyLink(recentlyUploaded)}>
-                <Copy className="mr-1.5 h-4 w-4" />
-                复制链接
-              </Button>
-              <Button variant="ghost" size="sm" asChild>
-                <a href={`/p/${recentlyUploaded.id}`} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="mr-1.5 h-4 w-4" />
-                  打开
-                </a>
-              </Button>
+        <ToolsPanel
+          title="即时预览"
+          className={styles.panel}
+          bodyClassName={styles.previewBody}
+          actions={
+            <WarmBadge tone="neutral">
+              {previewFormat === 'markdown' ? 'Markdown' : 'HTML'}
+            </WarmBadge>
+          }
+        >
+          {previewFilename ? (
+            <div className={styles.previewMeta}>
+              <FileCode2 aria-hidden="true" size={16} />
+              <span title={previewFilename}>{previewFilename}</span>
             </div>
-        </TermPanel>
-
-      ) : null}
-
-      {/* 历史列表 */}
-      <TermPanel
-        title="我的历史"
-        actions={
-          <>
-            <Badge variant="secondary" className="rounded-none border-term-border bg-term-bg font-mono text-[11px] tabular-nums text-term-muted">{historyTotal}</Badge>
-            <Button variant="ghost" size="sm" className="h-7 rounded-none px-2 font-mono text-xs text-term-muted hover:text-term-text" onClick={() => void refreshHistory(true)} disabled={isLoadingHistory}>
-              {isLoadingHistory ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : '刷新'}
-            </Button>
-          </>
-        }
-        bodyClassName="p-4"
-      >
-          {historyRows.length === 0 ? (
-            <div className="flex h-32 flex-col items-center justify-center font-mono text-xs text-term-faint">
-              {isLoadingHistory ? '加载中...' : '暂无记录，上传一个文件试试'}
+          ) : null}
+          {previewFormat === 'markdown' ? (
+            <div
+              className={styles.markdownSurface}
+              data-preview-surface="themed"
+            >
+              <MarkdownPreview content={previewContent} />
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-none border border-term-border">
-              <table className="w-full font-mono text-xs tabular-nums">
-                <thead className="bg-term-raised text-xs text-term-muted">
-                  <tr>
-                    <th className="px-3 py-2 text-left font-medium">标题</th>
-                    <th className="px-3 py-2 text-left font-medium">格式</th>
-                    <th className="px-3 py-2 text-left font-medium">原文件名</th>
-                    <th className="px-3 py-2 text-right font-medium">大小</th>
-                    <th className="px-3 py-2 text-left font-medium">创建时间</th>
-                    <th className="px-3 py-2 text-right font-medium">操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {historyRows.map((row) => (
-                    <tr key={row.id} className="border-t border-term-border transition-colors hover:bg-term-hover">
-                      <td className="max-w-[260px] truncate px-3 py-2 font-medium text-term-text">
-                        {row.title}
-                      </td>
-                      <td className="px-3 py-2">
-                        <Badge variant="outline" className='rounded-none border-term-border font-mono text-[11px] text-term-muted'>
-                          {row.source_format === 'markdown' ? 'Markdown' : 'HTML'}
-                        </Badge>
-                      </td>
-                      <td className="max-w-[240px] truncate px-3 py-2 text-xs text-term-faint">
-                        {row.original_filename}
-                      </td>
-                      <td className="px-3 py-2 text-right text-xs text-term-muted">
-                        {formatBytes(row.file_size)}
-                      </td>
-                      <td className="px-3 py-2 text-xs text-term-muted">
-                        {formatDistanceToNow(new Date(row.created_at), {
-                          addSuffix: true,
-                          locale: zhCN,
-                        })}
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="sm" asChild>
-                            <a href={`/p/${row.id}`} target="_blank" rel="noopener noreferrer">
-                              <ExternalLink className="h-3.5 w-3.5" />
-                            </a>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleCopyLink(row)}
-                            title="复制链接"
-                          >
-                            <Copy className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(row)}
-                            title="删除"
-                            className="text-term-neg hover:text-term-neg"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <iframe
+              sandbox="allow-scripts"
+              srcDoc={previewContent}
+              title="HTML 预览"
+              data-preview-surface="paper"
+              className={styles.htmlPreview}
+            />
           )}
-      </TermPanel>
+        </ToolsPanel>
+      ) : null}
 
-    </div>
+      {recentlyUploaded ? (
+        <ToolsPanel
+          title="公开链接已生成"
+          className={styles.panel}
+          bodyClassName={styles.publicLinkBody}
+        >
+          <p className={styles.sectionNote}>
+            任何人打开下面的链接即可查看该页面（未登录也可访问）。
+          </p>
+          <div className={styles.publicLinkRow}>
+            <code className={styles.publicUrl} title={recentPublicUrl}>
+              {recentPublicUrl}
+            </code>
+            <WarmButton
+              variant="secondary"
+              onClick={() => handleCopyLink(recentlyUploaded)}
+            >
+              <Copy aria-hidden="true" size={16} />
+              复制链接
+            </WarmButton>
+            <a
+              className={`warm-ledger__button warm-ledger__button--secondary ${styles.openButton}`}
+              href={`/p/${recentlyUploaded.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <ExternalLink aria-hidden="true" size={16} />
+              打开
+            </a>
+          </div>
+        </ToolsPanel>
+      ) : null}
+
+      <ToolsPanel
+        title="我的历史"
+        className={styles.panel}
+        bodyClassName={styles.historyBody}
+        actions={
+          <>
+            <WarmBadge tone="neutral">{historyTotal}</WarmBadge>
+            <WarmButton
+              type="button"
+              variant="quiet"
+              onClick={() => void refreshHistory(true)}
+              loading={isLoadingHistory}
+              loadingLabel="正在刷新页面历史"
+            >
+              <RefreshCw aria-hidden="true" size={16} />
+              刷新
+            </WarmButton>
+          </>
+        }
+      >
+        {historyRows.length === 0 ? (
+          <div
+            className={styles.historyEmpty}
+            aria-busy={isLoadingHistory || undefined}
+            role={isLoadingHistory ? 'status' : undefined}
+          >
+            {isLoadingHistory ? '加载中...' : '暂无记录，上传一个文件试试'}
+          </div>
+        ) : (
+          <div
+            className={styles.tableScroll}
+            role="region"
+            aria-label="页面历史表格"
+            tabIndex={0}
+          >
+            <table className={styles.table}>
+              <caption className={styles.visuallyHidden}>我的页面历史</caption>
+              <thead>
+                <tr>
+                  <th scope="col">标题</th>
+                  <th scope="col">格式</th>
+                  <th scope="col">原文件名</th>
+                  <th scope="col" className={styles.numericCell}>
+                    大小
+                  </th>
+                  <th scope="col">创建时间</th>
+                  <th scope="col" className={styles.actionCell}>
+                    操作
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {historyRows.map((row) => (
+                  <tr key={row.id}>
+                    <td className={styles.titleCell}>
+                      <span title={row.title}>{row.title}</span>
+                    </td>
+                    <td>
+                      <WarmBadge tone="neutral">
+                        {row.source_format === 'markdown' ? 'Markdown' : 'HTML'}
+                      </WarmBadge>
+                    </td>
+                    <td className={styles.filenameCell}>
+                      <span title={row.original_filename}>{row.original_filename}</span>
+                    </td>
+                    <td className={styles.numericCell}>{formatBytes(row.file_size)}</td>
+                    <td title={new Date(row.created_at).toLocaleString('zh-CN')}>
+                      {formatDistanceToNow(new Date(row.created_at), {
+                        addSuffix: true,
+                        locale: zhCN,
+                      })}
+                    </td>
+                    <td className={styles.actionCell}>
+                      <div className={styles.rowActions}>
+                        <a
+                          className="warm-ledger__icon-button"
+                          href={`/p/${row.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label={`打开页面：${row.title}`}
+                          title="打开"
+                        >
+                          <ExternalLink aria-hidden="true" />
+                        </a>
+                        <WarmIconButton
+                          aria-label={`复制链接：${row.title}`}
+                          title="复制链接"
+                          onClick={() => handleCopyLink(row)}
+                        >
+                          <Copy aria-hidden="true" />
+                        </WarmIconButton>
+                        <WarmIconButton
+                          aria-label={`删除页面：${row.title}`}
+                          title="删除"
+                          className={styles.deleteButton}
+                          onClick={() => handleDelete(row)}
+                        >
+                          <Trash2 aria-hidden="true" />
+                        </WarmIconButton>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </ToolsPanel>
+    </ToolsPageFrame>
   )
 }

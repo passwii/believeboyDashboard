@@ -1,0 +1,85 @@
+.card {
+  overflow: hidden;
+  background: var(--warm-ledger-color-panel);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-panel);
+  box-shadow: var(--warm-ledger-highlight-rest);
+}
+
+.header {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--warm-ledger-space-2);
+  padding: 0 var(--warm-ledger-space-4);
+  background: var(--warm-ledger-color-panel-strong);
+  border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+}
+
+.title {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--warm-ledger-color-text);
+  font-size: var(--warm-ledger-font-size-body);
+  font-weight: var(--warm-ledger-font-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list {
+  padding: 0 var(--warm-ledger-space-4);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: var(--warm-ledger-space-3);
+  padding: var(--warm-ledger-space-2) 0;
+  border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+.label {
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-label);
+}
+
+.value {
+  min-width: 0;
+  color: var(--warm-ledger-color-text);
+  font-size: var(--warm-ledger-font-size-body);
+  overflow-wrap: anywhere;
+}
+
+.card :global(.text-term-faint) {
+  color: var(--warm-ledger-color-text-muted);
+}
+
+.card :global(.text-term-text) {
+  color: var(--warm-ledger-color-text);
+}
+
+.card :global(.text-term-neg) {
+  color: var(--warm-ledger-color-negative);
+}
+
+.card :global(.text-primary) {
+  color: var(--warm-ledger-color-accent-strong);
+}
+
+.card :global(.bg-term-raised) {
+  background: var(--warm-ledger-color-raised);
+}
+
+.card :global(.border-term-border) {
+  border-color: var(--warm-ledger-color-hairline);
+}
+
+.card :global(.rounded-none) {
+  border-radius: var(--warm-ledger-radius-inner);
+}

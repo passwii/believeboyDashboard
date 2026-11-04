@@ -6,13 +6,19 @@ import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import { useCrmDataScope } from '@/hooks/use-crm-data-scope'
 import { useCrmUsers } from '@/hooks/use-crm-users'
 import { useNotifications } from '@/components/notifications'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { CrmTable } from './crm-table'
 import type { CrmColumnDef, FilterFieldDef } from './crm-table/types'
 import { CrmOverviewDrawer } from './crm-overview-drawer'
 import { CUSTOMER_TYPE_OPTIONS, INTERESTED_SERVICE_OPTIONS } from '@/lib/crm/constants/options'
 import { CrmExportButton } from './crm-export-button'
+import {
+  WarmButton,
+  type WarmBadgeTone,
+} from '@/components/dashboard-v2/warm-ledger/controls'
+import {
+  WarmCrmStatusPill,
+  WarmCrmToolbar,
+} from '@/components/dashboard-v2/warm-ledger/crm'
 import { CUSTOMER_FIELD_DEFS } from '@/lib/crm/field-defs/customer'
 import type { Customer } from '@/lib/crm/types'
 import {
@@ -23,12 +29,18 @@ import {
   CUSTOMER_STATUS_LABELS,
 } from '@/lib/crm/enums/customer.enum'
 import { daysSince } from '@/lib/crm/method/format'
-import { cn } from '@/lib/utils'
 import {
   CUSTOMER_RATING_TERM,
   CUSTOMER_STATUS_TERM,
   NEUTRAL_TERM,
 } from '@/components/crm/term-shared'
+
+const CUSTOMER_STATUS_WARM_TONE: Record<string, WarmBadgeTone> = {
+  active: 'positive',
+  lost: 'negative',
+  signed: 'accent',
+  on_hold: 'accent',
+}
 
 const columns: CrmColumnDef<Customer>[] = [
   { key: 'name', title: '客户名', sortable: true },
@@ -73,9 +85,7 @@ const columns: CrmColumnDef<Customer>[] = [
       return (
         <div className="flex flex-wrap items-center gap-1">
           {shown.map((c) => (
-            <Badge key={c.id} variant="secondary" className="font-normal">
-              {c.name}
-            </Badge>
+            <WarmCrmStatusPill key={c.id}>{c.name}</WarmCrmStatusPill>
           ))}
           {rest > 0 && (
             <span className="text-xs text-muted-foreground">+{rest}</span>
@@ -98,7 +108,7 @@ const columns: CrmColumnDef<Customer>[] = [
       const days = daysSince(v)
       const overdue = Number.isFinite(days) && days > 7
       return (
-        <span className={cn(overdue ? 'text-term-neg' : '')}>
+        <span data-crm-value-tone={overdue ? 'negative' : undefined}>
           <span className="tabular-nums">{new Date(v).toLocaleDateString('zh-CN')}</span>
           {overdue && <span className="ml-1 tabular-nums">· {days}天前</span>}
         </span>
@@ -204,25 +214,27 @@ export function CrmCustomerTable() {
 
   return (
     <>
-      {/* BLF-837：工具行终端化（批量操作 + 导出），提示文案并入面包屑/空态 */}
-      <div className="flex flex-wrap items-center justify-end gap-1.5 max-md:justify-between">
-        <div className="flex flex-wrap items-center gap-1.5">
+      {/* 工具行只保留真实批量操作与导出。 */}
+      <WarmCrmToolbar
+        ariaLabel="客户表格操作"
+        end={
+          <>
           {selectedIds.length > 0 && (
-            <Button
-              size="sm"
-              variant="outline"
+            <WarmButton
               onClick={handleBatchMoveToSea}
               disabled={moving}
               data-testid="batch-move-to-sea"
-              className="h-9 rounded-none border-term-border bg-term-panel font-mono text-xs text-term-muted hover:border-term-border-strong hover:text-term-text"
             >
               {moving ? '处理中…' : `移入公海（${selectedIds.length}）`}
-            </Button>
+            </WarmButton>
           )}
-          <CrmExportButton entity="customers" scope={scope} keyword={keyword} />
-        </div>
-      </div>
+          <CrmExportButton entity="customers" scope={scope} keyword={keyword} visual="warm" />
+          </>
+        }
+      />
       <CrmTable<Customer>
+        visual="warm"
+        tableAriaLabel="客户表格"
         queryKey="customers"
         headerRefresh
         fetchPage={fetchPage}
@@ -249,9 +261,9 @@ export function CrmCustomerTable() {
           fields={CUSTOMER_FIELD_DEFS}
           title={active.name}
           headerExtra={
-            <Badge variant="secondary" className={CUSTOMER_STATUS_COLORS[active.status]}>
+            <WarmCrmStatusPill tone={CUSTOMER_STATUS_WARM_TONE[active.status] ?? 'neutral'}>
               {CUSTOMER_STATUS_LABELS[active.status]}
-            </Badge>
+            </WarmCrmStatusPill>
           }
           users={users}
           loadFollows={(et, id) => client.listFollows(et, id)}

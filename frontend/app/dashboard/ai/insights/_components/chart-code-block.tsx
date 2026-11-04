@@ -21,7 +21,9 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from '@/components/ui/chart'
+import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
 
+import styles from '../insights-warm.module.css'
 import { chartSvgRegistry } from './chart-svg-registry'
 
 function parseLineChart(content: string) {
@@ -69,27 +71,27 @@ function parsePieChart(content: string) {
   return result
 }
 
-// CSS variables — used by live Recharts components (browser resolves them)
+// Warm data accents for live Recharts components (browser resolves the tokens).
 
 const CHART_COLORS = [
-  'hsl(var(--chart-1))',
-  'hsl(var(--chart-2))',
-  'hsl(var(--chart-3))',
-  'hsl(var(--chart-4))',
-  'hsl(var(--chart-5))',
+  'var(--warm-ledger-color-accent-strong)',
+  'var(--warm-ledger-color-accent)',
+  'var(--warm-ledger-color-text-soft)',
+  'var(--warm-ledger-color-text-muted)',
+  'var(--warm-ledger-color-faint)',
 ]
 
-// Absolute hex — used by static SVG generation (SVG data URLs don't resolve CSS vars)
+// Absolute token values — static SVG data URLs cannot resolve CSS variables.
 const CHART_COLORS_HEX = [
-  '#3b82f6', // chart-1 blue
-  '#10b981', // chart-2 green
-  '#f59e0b', // chart-3 amber
-  '#8b5cf6', // chart-4 violet
-  '#ef4444', // chart-5 red
+  '#f3c875', // accent strong
+  '#e8b35a', // accent
+  '#c2bbaf', // text soft
+  '#a9a297', // text muted
+  '#837d74', // faint
 ]
 
 const CHART_CONFIG = {
-  value: { label: '数值', color: 'hsl(var(--chart-1))' },
+  value: { label: '数值', color: 'var(--warm-ledger-color-accent-strong)' },
 } satisfies ChartConfig
 
 function FallbackCodeBlock({ code }: { code: string }) {
@@ -102,29 +104,30 @@ function FallbackCodeBlock({ code }: { code: string }) {
   }, [code])
 
   return (
-    <div className="not-prose my-5 w-full overflow-hidden rounded-none border border-term-border bg-term-panel">
-      <div className="flex items-center justify-between border-b border-term-border bg-term-raised px-4 py-3">
-        <div className="flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-[hsl(var(--chart-1))]" />
-          <span className="font-mono text-xs font-semibold uppercase tracking-wider text-term-faint">
+    <div className={styles.rawBlock}>
+      <div className={styles.rawHeader}>
+        <div className={styles.chartHeading}>
+          <span className={styles.rawDot} />
+          <span className={styles.chartEyebrow}>
             RAW BLOCK
           </span>
         </div>
-        <button
+        <WarmButton
           type="button"
           onClick={() => void handleCopy()}
-          className="inline-flex h-7 items-center gap-1 rounded-none border border-term-border bg-term-bg px-2 font-mono text-xs text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text"
+          variant="quiet"
+          className={styles.rawCopy}
         >
           {copied ? (
-            <Check className="h-3.5 w-3.5 text-emerald-500" />
+            <Check className="h-3.5 w-3.5" />
           ) : (
             <Copy className="h-3.5 w-3.5" />
           )}
           {copied ? '已复制' : '复制'}
-        </button>
+        </WarmButton>
       </div>
-      <pre className="break-words overflow-x-auto px-4 py-4 text-xs leading-6 text-foreground">
-        <code className="whitespace-pre-wrap break-words">{code}</code>
+      <pre className={styles.rawPre}>
+        <code>{code}</code>
       </pre>
     </div>
   )
@@ -206,45 +209,43 @@ export function ChartCodeBlock({
         ` ${toX(chartData.length - 1)},${padT + vh}`
 
       const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" font-family="ui-sans-serif,system-ui,sans-serif" font-size="11" text-anchor="middle">
-  <defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#3b82f6" stop-opacity="0.32"/><stop offset="100%" stop-color="#3b82f6" stop-opacity="0.03"/></linearGradient></defs>
-  ${gridYs.map((y) => `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="#e2e8f0" stroke-dasharray="4 4"/>`).join('\n  ')}
-  ${yLabels.map((label, i) => `<text x="${padL - 6}" y="${gridYs[i] + 4}" text-anchor="end" fill="#94a3b8">${label}</text>`).join('\n  ')}
+  <defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#e8b35a" stop-opacity="0.32"/><stop offset="100%" stop-color="#e8b35a" stop-opacity="0.03"/></linearGradient></defs>
+  ${gridYs.map((y) => `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="#5f5b55" stroke-dasharray="4 4"/>`).join('\n  ')}
+  ${yLabels.map((label, i) => `<text x="${padL - 6}" y="${gridYs[i] + 4}" text-anchor="end" fill="#a9a297">${label}</text>`).join('\n  ')}
   ${labels
     .filter((_, i) => i % Math.ceil(labels.length / 6) === 0 || i === labels.length - 1)
     .map((l, _, arr) => {
       const idx = labels.indexOf(l)
-      return `<text x="${toX(idx)}" y="${H - 6}" fill="#94a3b8">${l}</text>`
+      return `<text x="${toX(idx)}" y="${H - 6}" fill="#a9a297">${l}</text>`
     })
     .join('\n  ')}
   <polygon points="${area}" fill="url(#lg)"/>
-  <polyline points="${polyline}" fill="none" stroke="#3b82f6" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="${polyline}" fill="none" stroke="#e8b35a" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
   <polyline points="${pts}" fill="none" stroke="transparent" stroke-width="8"/>
 </svg>`
       const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgStr)}`
       chartSvgRegistry.set(chartId, url)
       return (
-        <div className="not-prose my-6 w-full overflow-hidden rounded-none border border-term-border bg-term-panel">
-          <div className="border-b border-border/60 px-5 py-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-none border border-term-border bg-term-raised text-term-accent">
+        <div className={styles.chartPanel}>
+          <div className={styles.chartHeader}>
+            <div className={styles.chartHeading}>
+              <div className={styles.chartIcon}>
                 <Sparkles className="h-4 w-4" />
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-term-faint">
-                  Trend Chart
-                </p>
-                <p className="mt-1 text-sm font-semibold text-foreground">
+                <p className={styles.chartEyebrow}>Trend Chart</p>
+                <p className={styles.chartTitle}>
                   {seriesKey?.toUpperCase() || '趋势变化'}
                 </p>
               </div>
             </div>
           </div>
-          <div className="px-4 pb-3 pt-4">
+          <div className={styles.chartBody}>
             {/* Recharts needs one frame to register its SVG; use the pre-generated static SVG as the img src */}
-            <div className="h-[260px] w-full">
+            <div className={styles.chartImageWrap}>
               {/* Use url directly like PieChart does — avoids timing issues with chartSvgRegistry */}
               {/* eslint-disable-next-line @next/next/no-img-element -- SVG data URLs can't use next/image */}
-              <img src={url} alt="趋势图表" className="h-full w-full object-contain" />
+              <img src={url} alt="趋势图表" className={styles.chartImage} />
             </div>
           </div>
         </div>
@@ -252,36 +253,45 @@ export function ChartCodeBlock({
     }
 
     return (
-      <div className="not-prose my-6 w-full overflow-hidden rounded-none border border-term-border bg-term-panel">
-        <div className="border-b border-border/60 px-5 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-none border border-term-border bg-term-raised text-term-accent">
+      <div className={styles.chartPanel}>
+        <div className={styles.chartHeader}>
+          <div className={styles.chartHeading}>
+            <div className={styles.chartIcon}>
               <Sparkles className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-term-faint">
-                Trend Chart
-              </p>
-              <p className="mt-1 text-sm font-semibold text-foreground">
+              <p className={styles.chartEyebrow}>Trend Chart</p>
+              <p className={styles.chartTitle}>
                 {seriesKey?.toUpperCase() || '趋势变化'}
               </p>
             </div>
           </div>
         </div>
-        <div className="px-4 pb-3 pt-4">
+        <div className={styles.chartBody}>
           <ChartContainer config={CHART_CONFIG} className="h-[260px] w-full">
             <LineChart data={chartData} margin={{ top: 12, right: 16, bottom: 0, left: 0 }}>
               <defs>
                 <linearGradient id="ai-insight-line-fill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="hsl(var(--chart-1))" stopOpacity={0.32} />
-                  <stop offset="100%" stopColor="hsl(var(--chart-1))" stopOpacity={0.03} />
+                  <stop
+                    offset="0%"
+                    stopColor="var(--warm-ledger-color-accent)"
+                    stopOpacity={0.32}
+                  />
+                  <stop
+                    offset="100%"
+                    stopColor="var(--warm-ledger-color-accent)"
+                    stopOpacity={0.03}
+                  />
                 </linearGradient>
               </defs>
               <CartesianGrid vertical={false} strokeDasharray="4 4" />
               <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={18} />
               <YAxis tickLine={false} axisLine={false} width={44} />
               <ChartTooltip
-                cursor={{ stroke: 'hsl(var(--border))', strokeDasharray: '4 4' }}
+                cursor={{
+                  stroke: 'var(--warm-ledger-color-hairline-strong)',
+                  strokeDasharray: '4 4',
+                }}
                 content={<ChartTooltipContent indicator="line" />}
               />
               <Line
@@ -293,7 +303,7 @@ export function ChartCodeBlock({
                 activeDot={{
                   r: 5,
                   fill: 'var(--color-value)',
-                  stroke: 'hsl(var(--surface-panel))',
+                  stroke: 'var(--warm-ledger-color-panel)',
                   strokeWidth: 2,
                 }}
               />
@@ -349,39 +359,39 @@ export function ChartCodeBlock({
       })
 
       const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" font-family="ui-sans-serif,system-ui,sans-serif">
-        ${wedges.map((w) => `<path d="${w.path}" fill="${w.color}" stroke="white" stroke-width="2"/>`).join('\n        ')}
+        ${wedges.map((w) => `<path d="${w.path}" fill="${w.color}" stroke="#242525" stroke-width="2"/>`).join('\n        ')}
       </svg>`
       const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgStr)}`
       const pieId = `pie-${code.slice(0, 20)}`
       chartSvgRegistry.set(pieId, url)
 
       return (
-        <div className="not-prose my-6 w-full overflow-hidden rounded-none border border-term-border bg-term-panel">
-          <div className="border-b border-border/60 px-5 py-4">
-            <p className="text-xs font-semibold uppercase tracking-wider text-term-faint">
-              Composition
-            </p>
-            <p className="mt-1 text-sm font-semibold text-foreground">分布占比</p>
-          </div>
-          <div className="flex flex-col gap-6 px-5 py-5 md:flex-row md:items-center">
-            <div className="h-[220px] w-full md:w-[220px]">
-              {/* eslint-disable-next-line @next/next/no-img-element -- SVG data URLs can't use next/image */}
-              <img src={url} alt="饼图" className="h-full w-full object-contain" />
+        <div className={styles.chartPanel}>
+          <div className={styles.chartHeader}>
+            <div>
+              <p className={styles.chartEyebrow}>Composition</p>
+              <p className={styles.chartTitle}>分布占比</p>
             </div>
-            <div className="flex-1 space-y-2.5">
+          </div>
+          <div className={styles.pieLayout}>
+            <div className={styles.pieImageWrap}>
+              {/* eslint-disable-next-line @next/next/no-img-element -- SVG data URLs can't use next/image */}
+              <img src={url} alt="饼图" className={styles.chartImage} />
+            </div>
+            <div className={styles.legend}>
               {displayData.map((item, i) => (
                 <div
                   key={item.name}
-                  className="flex items-center gap-3 rounded-none border border-term-border bg-term-bg px-3 py-2 text-sm"
+                  className={styles.legendItem}
                 >
                   <div
-                    className="h-3 w-3 shrink-0 rounded-none"
+                    className={styles.legendSwatch}
                     style={{ backgroundColor: CHART_COLORS_HEX[i % CHART_COLORS_HEX.length] }}
                   />
-                  <span className="break-words text-muted-foreground">{item.name}</span>
-                  <span className="ml-auto font-medium tabular-nums">
+                  <span className={styles.legendName}>{item.name}</span>
+                  <span className={styles.legendValue}>
                     {item.value}{' '}
-                    <span className="text-xs text-muted-foreground">({item.pct}%)</span>
+                    <span className={styles.legendMeta}>({item.pct}%)</span>
                   </span>
                 </div>
               ))}
@@ -392,15 +402,15 @@ export function ChartCodeBlock({
     }
 
     return (
-      <div className="not-prose my-6 w-full overflow-hidden rounded-none border border-term-border bg-term-panel">
-        <div className="border-b border-border/60 px-5 py-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-term-faint">
-            Composition
-          </p>
-          <p className="mt-1 text-sm font-semibold text-foreground">分布占比</p>
+      <div className={styles.chartPanel}>
+        <div className={styles.chartHeader}>
+          <div>
+            <p className={styles.chartEyebrow}>Composition</p>
+            <p className={styles.chartTitle}>分布占比</p>
+          </div>
         </div>
-        <div className="flex flex-col gap-6 px-5 py-5 md:flex-row md:items-center">
-          <div className="h-[220px] w-full md:w-[220px]">
+        <div className={styles.pieLayout}>
+          <div className={styles.pieImageWrap}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -411,7 +421,7 @@ export function ChartCodeBlock({
                   outerRadius={88}
                   paddingAngle={3}
                   dataKey="value"
-                  stroke="hsl(var(--surface-soft))"
+                  stroke="var(--warm-ledger-color-panel)"
                   strokeWidth={3}
                 >
                   {displayData.map((_, i) => (
@@ -421,28 +431,28 @@ export function ChartCodeBlock({
                 <RechartsTooltip
                   formatter={(value: number) => [value, '']}
                   contentStyle={{
-                    background: 'hsl(var(--surface-panel))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '12px',
+                    background: 'var(--warm-ledger-color-panel-strong)',
+                    border: '1px solid var(--warm-ledger-color-hairline-strong)',
+                    borderRadius: '10px',
                     fontSize: 12,
                   }}
                 />
               </PieChart>
             </ResponsiveContainer>
           </div>
-          <div className="flex-1 space-y-2.5">
+          <div className={styles.legend}>
             {displayData.map((item, i) => (
               <div
                 key={item.name}
-                className="flex items-center gap-3 rounded-none border border-term-border bg-term-bg px-3 py-2 text-sm"
+                className={styles.legendItem}
               >
                 <div
-                  className="h-3 w-3 shrink-0 rounded-none"
+                  className={styles.legendSwatch}
                   style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}
                 />
-                <span className="break-words text-muted-foreground">{item.name}</span>
-                <span className="ml-auto font-medium tabular-nums">
-                  {item.value} <span className="text-xs text-muted-foreground">({item.pct}%)</span>
+                <span className={styles.legendName}>{item.name}</span>
+                <span className={styles.legendValue}>
+                  {item.value} <span className={styles.legendMeta}>({item.pct}%)</span>
                 </span>
               </div>
             ))}

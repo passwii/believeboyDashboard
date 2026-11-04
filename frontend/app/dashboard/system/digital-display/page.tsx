@@ -262,7 +262,10 @@ export default function DigitalDisplayPage() {
   }
 
   return (
-    <div className={cn('min-h-screen bg-background p-6 text-foreground', '[&_*]:!text-foreground')}>
+    <div
+      className={cn('min-h-screen bg-background p-6 text-foreground', '[&_*]:!text-foreground')}
+      data-digital-display-exception="true"
+    >
       {/* ── Header ── */}
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">

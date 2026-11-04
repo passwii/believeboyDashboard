@@ -1,18 +1,11 @@
 'use client'
 
 import {
-  TermBody,
-  TermCell,
-  TermHead,
-  TermRow,
-  TermTHead,
-  TermTable,
-} from '@/components/terminal/term-table'
-import { Skeleton } from '@/components/ui/skeleton'
-import { EmptyTableState } from '@/components/ui/empty-state'
-import { cn } from '@/lib/utils'
-
+  WarmBadge,
+  type WarmBadgeTone,
+} from '@/components/dashboard-v2/warm-ledger/controls'
 import { formatRmb, formatPercent } from './utils'
+import styles from './commission-management-warm.module.css'
 
 type CommissionProjectMonthlySummaryMonthItem = {
   report_month: string
@@ -36,6 +29,12 @@ function getYearMonths(year: string): string[] {
   return Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`)
 }
 
+function getRateTone(rate: number): WarmBadgeTone {
+  if (rate >= 1) return 'positive'
+  if (rate < 0.2) return 'negative'
+  return 'accent'
+}
+
 interface ProjectSummaryTabProps {
   items: CommissionProjectYearlySummaryItem[]
   year: string
@@ -43,64 +42,60 @@ interface ProjectSummaryTabProps {
 }
 
 const TOTAL_MONTH_COLS = 12
-const DATA_COLS = TOTAL_MONTH_COLS + 3 // 12 months + total commission + received + rate
+const DATA_COLS = TOTAL_MONTH_COLS + 3
 
-// 骨架屏行
-function ProjectSummarySkeletonRow() {
+function ProjectSummarySkeleton({ year }: { year: string }) {
+  const months = getYearMonths(year)
   return (
-    <TermRow className="animate-pulse hover:bg-transparent">
-      {Array.from({ length: 16 }).map((_, i) => (
-        <TermCell key={i}>
-          <Skeleton className="h-3.5 w-14 rounded-none" />
-        </TermCell>
-      ))}
-    </TermRow>
-  )
-}
-
-// 骨架屏内容
-function ProjectSummarySkeletonContent() {
-  return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="overflow-auto term-scroll">
-        <TermTable>
-          <TermTHead>
-            <TermRow className="hover:bg-transparent">
-              <TermHead className="sticky left-0 z-20 min-w-[140px] bg-term-raised">项目名称</TermHead>
-              {getYearMonths(new Date().getFullYear().toString()).map((m) => (
-                <TermHead key={m} numeric>
-                  {m.slice(5)}月
-                </TermHead>
-              ))}
-              <TermHead numeric>年度佣金合计</TermHead>
-              <TermHead numeric>年度回款</TermHead>
-              <TermHead numeric>回款率</TermHead>
-            </TermRow>
-          </TermTHead>
-          <TermBody>
-            {Array.from({ length: 5 }).map((_, i) => (
-              <ProjectSummarySkeletonRow key={i} />
+    <div className={styles.skeletonLayer} aria-hidden="true">
+      <table className={`${styles.skeletonTable} ${styles.tableWide}`}>
+        <thead>
+          <tr>
+            <th>
+              <span className={styles.skeletonBlock} />
+            </th>
+            {months.map((month) => (
+              <th key={month}>
+                <span className={`${styles.skeletonBlock} ${styles.skeletonBlockRight}`} />
+              </th>
             ))}
-          </TermBody>
-        </TermTable>
-      </div>
+            {Array.from({ length: 3 }).map((_, index) => (
+              <th key={index}>
+                <span className={`${styles.skeletonBlock} ${styles.skeletonBlockRight}`} />
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {Array.from({ length: 5 }).map((_, rowIndex) => (
+            <tr key={rowIndex}>
+              {Array.from({ length: DATA_COLS }).map((_, cellIndex) => (
+                <td key={cellIndex}>
+                  <span
+                    className={`${styles.skeletonBlock} ${
+                      cellIndex > 0 ? styles.skeletonBlockRight : ''
+                    }`}
+                  />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
 
 export function ProjectSummaryTab({ items, year, loading }: ProjectSummaryTabProps) {
-  // BLF-504：年度合计行（汇总行模式）—— 按月列加总工厂佣金(RMB) + 年度汇总列
+  const months = getYearMonths(year)
   const totals = items.reduce(
     (acc, project) => {
-      let monthSum = 0
-      for (const m of getYearMonths(year)) {
-        const monthData = project.months[m]
-        const v = monthData?.factory_commission_rmb ?? 0
-        monthSum += v
-        acc.months[m] = (acc.months[m] ?? 0) + v
+      for (const month of months) {
+        const monthData = project.months[month]
+        acc.months[month] = (acc.months[month] ?? 0) + (monthData?.factory_commission_rmb ?? 0)
       }
-      acc.commission = acc.commission + project.total_commission_rmb
-      acc.received = acc.received + project.total_received_rmb
+      acc.commission += project.total_commission_rmb
+      acc.received += project.total_received_rmb
       return acc
     },
     { months: {} as Record<string, number>, commission: 0, received: 0 }
@@ -108,104 +103,110 @@ export function ProjectSummaryTab({ items, year, loading }: ProjectSummaryTabPro
   const totalsRate = totals.commission > 0 ? totals.received / totals.commission : 0
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-      {/* 骨架屏层 */}
-      <div
-        className="absolute inset-0 transition-opacity duration-[var(--duration-fast)]"
-        style={{ opacity: loading ? 1 : 0, pointerEvents: loading ? 'auto' : 'none' }}
-        aria-hidden={!loading}
-      >
-        <ProjectSummarySkeletonContent />
-      </div>
-
-      {/* 内容层 */}
-      <div
-        className="relative flex min-h-0 flex-1 flex-col overflow-hidden transition-opacity duration-[var(--duration-fast)]"
-        style={{ opacity: loading ? 0 : 1 }}
-      >
-        <div className="flex-1 overflow-auto term-scroll">
-          <TermTable>
-            <TermTHead>
-              <TermRow className="hover:bg-transparent">
-                <TermHead className="sticky left-0 z-20 min-w-[140px] bg-term-raised">项目名称</TermHead>
-                {getYearMonths(year).map((m) => (
-                  <TermHead key={m} numeric>
-                    {m.slice(5)}月
-                  </TermHead>
+    <div className={styles.tableLayout} aria-busy={loading || undefined}>
+      {loading ? (
+        <>
+          <ProjectSummarySkeleton year={year} />
+          <span className={styles.visuallyHidden} role="status">
+            正在加载项目汇总
+          </span>
+        </>
+      ) : (
+        <div className={styles.tableScroller}>
+          <table className={`${styles.table} ${styles.tableWide}`} data-warm-table="true">
+            <thead className={styles.tableHead}>
+              <tr>
+                <th className={`${styles.tableHeaderCell} ${styles.stickyHeaderCell}`}>
+                  项目名称
+                </th>
+                {months.map((month) => (
+                  <th
+                    key={month}
+                    className={`${styles.tableHeaderCell} ${styles.tableHeaderNumeric}`}
+                  >
+                    {month.slice(5)}月
+                  </th>
                 ))}
-                <TermHead numeric>年度佣金合计</TermHead>
-                <TermHead numeric>年度回款</TermHead>
-                <TermHead numeric>回款率</TermHead>
-              </TermRow>
-            </TermTHead>
-            <TermBody>
+                <th className={`${styles.tableHeaderCell} ${styles.tableHeaderNumeric}`}>
+                  年度佣金合计
+                </th>
+                <th className={`${styles.tableHeaderCell} ${styles.tableHeaderNumeric}`}>
+                  年度回款
+                </th>
+                <th className={`${styles.tableHeaderCell} ${styles.tableHeaderNumeric}`}>回款率</th>
+              </tr>
+            </thead>
+            <tbody>
               {items.length === 0 ? (
-                <TermRow className="hover:bg-transparent">
-                  <TermCell colSpan={DATA_COLS} className="h-24 text-center" tone="muted">
+                <tr>
+                  <td colSpan={DATA_COLS} className={styles.emptyCell}>
                     {year}年暂无数据
-                  </TermCell>
-                </TermRow>
+                  </td>
+                </tr>
               ) : (
                 <>
                   {items.map((project) => (
-                    <TermRow key={project.project_id}>
-                      <TermCell
+                    <tr key={project.project_id} className={styles.tableRow}>
+                      <td
                         title={project.project_name}
-                        className="sticky left-0 z-10 min-w-[140px] bg-term-panel font-medium group-hover:bg-term-hover"
+                        className={`${styles.tableCell} ${styles.stickyProjectCell}`}
                       >
                         {project.project_name}
-                      </TermCell>
-                      {getYearMonths(year).map((m) => {
-                        const monthData = project.months[m]
+                      </td>
+                      {months.map((month) => {
+                        const monthData = project.months[month]
                         return (
-                          <TermCell key={m} numeric tone="muted">
+                          <td
+                            key={month}
+                            className={`${styles.tableCell} ${styles.tableCellNumeric} ${styles.tableCellMuted}`}
+                          >
                             {monthData ? formatRmb(monthData.factory_commission_rmb) : '-'}
-                          </TermCell>
+                          </td>
                         )
                       })}
-                      <TermCell numeric className="font-medium">
-                        {formatRmb(project.total_commission_rmb)}
-                      </TermCell>
-                      <TermCell numeric>{formatRmb(project.total_received_rmb)}</TermCell>
-                      <TermCell
-                        numeric
-                        tone={
-                          project.receive_rate >= 1
-                            ? 'pos'
-                            : project.receive_rate < 0.2
-                              ? 'neg'
-                              : 'warn'
-                        }
+                      <td
+                        className={`${styles.tableCell} ${styles.tableCellNumeric} ${styles.tableCellStrong}`}
                       >
-                        {formatPercent(project.receive_rate)}
-                      </TermCell>
-                    </TermRow>
+                        {formatRmb(project.total_commission_rmb)}
+                      </td>
+                      <td className={`${styles.tableCell} ${styles.tableCellNumeric}`}>
+                        {formatRmb(project.total_received_rmb)}
+                      </td>
+                      <td className={`${styles.tableCell} ${styles.tableCellNumeric}`}>
+                        <WarmBadge tone={getRateTone(project.receive_rate)} className={styles.rateBadge}>
+                          {formatPercent(project.receive_rate)}
+                        </WarmBadge>
+                      </td>
+                    </tr>
                   ))}
-                  {/* 年度合计行（BLF-504 汇总行） */}
-                  <TermRow
-                    highlight
-                    className="[&>td]:font-semibold [&>td]:bg-term-raised hover:bg-term-raised [&>td]:!bg-term-raised"
-                  >
-                    <TermCell className="sticky left-0 z-10 min-w-[140px] !bg-term-raised text-center">
-                      合计
-                    </TermCell>
-                    {getYearMonths(year).map((m) => (
-                      <TermCell key={m} numeric>
-                        {totals.months[m] !== undefined && totals.months[m] > 0
-                          ? formatRmb(totals.months[m])
-                          : '-'}
-                      </TermCell>
+                  <tr className={`${styles.tableRow} ${styles.totalRow}`}>
+                    <td className={`${styles.tableCell} ${styles.stickyProjectCell}`}>合计</td>
+                    {months.map((month) => (
+                      <td
+                        key={month}
+                        className={`${styles.tableCell} ${styles.tableCellNumeric}`}
+                      >
+                        {totals.months[month] > 0 ? formatRmb(totals.months[month]) : '-'}
+                      </td>
                     ))}
-                    <TermCell numeric>{formatRmb(totals.commission)}</TermCell>
-                    <TermCell numeric>{formatRmb(totals.received)}</TermCell>
-                    <TermCell numeric>{formatPercent(totalsRate)}</TermCell>
-                  </TermRow>
+                    <td className={`${styles.tableCell} ${styles.tableCellNumeric}`}>
+                      {formatRmb(totals.commission)}
+                    </td>
+                    <td className={`${styles.tableCell} ${styles.tableCellNumeric}`}>
+                      {formatRmb(totals.received)}
+                    </td>
+                    <td className={`${styles.tableCell} ${styles.tableCellNumeric}`}>
+                      <WarmBadge tone={getRateTone(totalsRate)} className={styles.rateBadge}>
+                        {formatPercent(totalsRate)}
+                      </WarmBadge>
+                    </td>
+                  </tr>
                 </>
               )}
-            </TermBody>
-          </TermTable>
+            </tbody>
+          </table>
         </div>
-      </div>
+      )}
     </div>
   )
 }

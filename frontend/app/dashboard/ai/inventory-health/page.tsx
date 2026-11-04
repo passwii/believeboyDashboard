@@ -16,17 +16,12 @@ import { useCallback, useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { Bot, Calendar, Database, RotateCcw, Sparkles } from 'lucide-react'
 
-import { InsightStreamPanel } from '@/components/insight'
-import { Button } from '@/components/ui/button'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+  WarmButton,
+  WarmSelect,
+} from '@/components/dashboard-v2/warm-ledger/controls'
+import { InsightStreamPanel } from '@/components/insight'
 import { SingleDatePicker, COUNTRY_TIMEZONE_MAP } from '@/components/ui/date-picker'
-import { TermPanel } from '@/components/terminal/term-panel'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { useNotifications } from '@/components/notifications'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
@@ -36,6 +31,7 @@ import {
   useInventoryInsight,
   type InventoryRunScope,
 } from '@/components/dashboard/ai-inventory-health'
+import styles from './inventory-health-warm.module.css'
 
 const COUNTRY_OPTIONS = [
   { value: 'US', label: '美国站 (US)' },
@@ -100,136 +96,122 @@ export default function InventoryHealthPage() {
   const started = submitted !== null
 
   return (
-    <div className="flex min-w-0 flex-col gap-3">
-      <TermPanel bodyClassName="p-3">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-12">
-          <div className="md:col-span-4">
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">项目</label>
-            <Select
+    <div className={styles.page} data-warm-inventory-health>
+      <section className={styles.panel}>
+        <div className={styles.panelBody}>
+          <div className={styles.filters}>
+            <WarmSelect
+              id="inventory-project"
+              label="项目"
               value={projectId ? String(projectId) : ''}
-              onValueChange={(v) => setProjectId(Number(v))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="选择项目" />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.length === 0 ? (
-                  <SelectItem value="__empty__" disabled>
-                    暂无可用项目
-                  </SelectItem>
-                ) : (
-                  projects.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      {p.brand_name ? `${p.name} · ${p.brand_name}` : p.name}
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="md:col-span-2">
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">国家</label>
-            <Select value={country} onValueChange={setCountry}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {COUNTRY_OPTIONS.map((c) => (
-                  <SelectItem key={c.value} value={c.value}>
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="md:col-span-4">
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-              <span className="inline-flex items-center gap-1">
-                <Calendar className="h-3 w-3" />
-                口径日期
-              </span>
-              <span className="ml-2 font-normal normal-case text-term-faint">
-                {INVENTORY_LATEST_SNAPSHOT_HINT}
-              </span>
-            </label>
-            <SingleDatePicker
-              value={reportDate ?? undefined}
-              onChange={(date) => setReportDate(date ?? null)}
-              clearable
-              placeholder="最新库存快照"
-              timezone={COUNTRY_TIMEZONE_MAP[country]}
+              options={projects.map((project) => ({
+                value: String(project.id),
+                label: project.brand_name
+                  ? `${project.name} · ${project.brand_name}`
+                  : project.name,
+              }))}
+              onChange={(value) => setProjectId(Number(value))}
+              placeholder={projects.length === 0 ? '暂无可用项目' : '选择项目'}
+              disabled={projects.length === 0}
             />
-          </div>
 
-          <div className="flex items-end md:col-span-2">
-            <Button onClick={handleGenerate} disabled={!projectId} className="w-full">
-              {started ? (
-                <RotateCcw className="mr-2 h-4 w-4" />
-              ) : (
-                <Sparkles className="mr-2 h-4 w-4" />
-              )}
-              {started ? '重新分析' : '立即生成'}
-            </Button>
+            <WarmSelect
+              id="inventory-country"
+              label="国家"
+              value={country}
+              options={COUNTRY_OPTIONS}
+              onChange={setCountry}
+            />
+
+            <div className={styles.field}>
+              <span className={styles.fieldLabel}>
+                <Calendar aria-hidden />
+                口径日期
+                <span className={styles.fieldHint}>{INVENTORY_LATEST_SNAPSHOT_HINT}</span>
+              </span>
+              <SingleDatePicker
+                value={reportDate ?? undefined}
+                onChange={(date) => setReportDate(date ?? null)}
+                clearable
+                placeholder="最新库存快照"
+                timezone={COUNTRY_TIMEZONE_MAP[country]}
+                className={styles.dateTrigger}
+                popoverClassName={styles.datePopover}
+              />
+            </div>
+
+            <div className={styles.generateAction}>
+              <WarmButton
+                type="button"
+                variant={started ? 'secondary' : 'primary'}
+                onClick={handleGenerate}
+                disabled={!projectId}
+              >
+                {started ? <RotateCcw aria-hidden /> : <Sparkles aria-hidden />}
+                {started ? '重新分析' : '立即生成'}
+              </WarmButton>
+            </div>
           </div>
         </div>
-      </TermPanel>
+      </section>
 
       {started ? (
-        <InsightStreamPanel
-          status={panel.state.status}
-          statusLabel={panel.state.label}
-          progress={panel.state.progress}
-          error={panel.error}
-          backgroundMessage={panel.backgroundMessage}
-          content={panel.content}
-          contentState={panel.contentState}
-          isStreaming={panel.state.isStreaming}
-          digest={panel.digest}
-          onRetry={panel.onRetry}
-          onCancel={panel.onCancel}
-          exportFileName={`库存健康-${activeLabel.replace(/[\\/:*?"<>|]/g, '-')}.md`}
-          className="rounded-none"
-          contentClassName="max-h-[60vh]"
-          slots={{
-            header: (
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-foreground">
-                    {panel.title ?? '库存健康分析'}
+        <section className={styles.panel}>
+          <div className={styles.outputPanel}>
+            <InsightStreamPanel
+              appearance="warm"
+              status={panel.state.status}
+              statusLabel={panel.state.label}
+              progress={panel.state.progress}
+              error={panel.error}
+              backgroundMessage={panel.backgroundMessage}
+              content={panel.content}
+              contentState={panel.contentState}
+              isStreaming={panel.state.isStreaming}
+              digest={panel.digest}
+              onRetry={panel.onRetry}
+              onCancel={panel.onCancel}
+              exportFileName={`库存健康-${activeLabel.replace(/[\\/:*?"<>|]/g, '-')}.md`}
+              className={styles.streamFlush}
+              contentClassName={styles.streamScroller}
+              slots={{
+                header: (
+                  <div className={styles.outputHeaderContent}>
+                    <h2 className={styles.outputTitle}>{panel.title ?? '库存健康分析'}</h2>
+                    <p className={styles.outputMeta}>{activeLabel}</p>
+                  </div>
+                ),
+                meta: (
+                  <p className={styles.note}>
+                    正文「数据局限」段落给出快照新鲜度与缺失维度；表单未指定口径日期时按最新快照分析。
                   </p>
-                  <p className="text-xs text-term-muted">{activeLabel}</p>
-                </div>
-              </div>
-            ),
-            meta: (
-              <p className="text-xs text-term-faint">
-                正文「数据局限」段落给出快照新鲜度与缺失维度；表单未指定口径日期时按最新快照分析。
-              </p>
-            ),
-          }}
-          emptyState={
-            panel.state.status === 'failed' ? (
-              <div className="flex flex-col items-center gap-2 py-12 text-term-neg">
-                <Bot className="h-8 w-8 opacity-40" aria-hidden />
-                <span className="text-xs">本轮库存健康分析未产出内容</span>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-2 py-12 text-term-muted">
-                <Bot className="h-8 w-8 animate-pulse opacity-40" aria-hidden />
-                <span className="text-xs">{panel.state.label}，内容会实时出现在这里</span>
-              </div>
-            )
-          }
-        />
-      ) : (
-        <TermPanel bodyClassName="p-8">
-          <div className="flex flex-col items-center gap-2 text-term-muted">
-            <Database className="h-8 w-8 opacity-40" aria-hidden />
-            <p className="text-sm">选择项目与站点后点击「立即生成」，分析结果会实时出现在这里</p>
+                ),
+              }}
+              emptyState={
+                panel.state.status === 'failed' ? (
+                  <div className={styles.emptyState} data-tone="negative">
+                    <Bot aria-hidden />
+                    <span>本轮库存健康分析未产出内容</span>
+                  </div>
+                ) : (
+                  <div className={styles.emptyState}>
+                    <Bot className="animate-pulse" aria-hidden />
+                    <span>{panel.state.label}，内容会实时出现在这里</span>
+                  </div>
+                )
+              }
+            />
           </div>
-        </TermPanel>
+        </section>
+      ) : (
+        <section className={styles.panel}>
+          <div className={styles.emptyState}>
+            <Database aria-hidden />
+            <p className={styles.note}>
+              选择项目与站点后点击「立即生成」，分析结果会实时出现在这里
+            </p>
+          </div>
+        </section>
       )}
     </div>
   )

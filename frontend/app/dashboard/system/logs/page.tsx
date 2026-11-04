@@ -1,48 +1,25 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import {
-  Activity,
-  Bot,
-  Eye,
-  Loader2,
-  LogIn,
-  RefreshCw,
-  ScrollText,
-  Search,
-  Settings2,
-  ShieldCheck,
-  Users,
-} from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Bot, Eye, LogIn, RefreshCw, ScrollText, Search } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
-import { Button } from '@/components/ui/button'
-import { TermPanel } from '@/components/terminal/term-panel'
-import { TermPill, TermKpiTile, TERM_BUTTON } from '@/components/terminal/term-controls'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { EmptyTableState } from '@/components/ui/empty-state'
-import { Input } from '@/components/ui/input'
+import { WarmBadge, WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AgentAccessLogsPanel } from '@/components/system/agent-access-logs-panel'
 import { buildBackendClientHeaders } from '@/lib/backend-auth'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { useNotifications } from '@/components/notifications'
+import { cn } from '@/lib/utils'
+import styles from './logs-warm.module.css'
 
 type OperationAuditLogItem = {
   id: number
@@ -108,9 +85,7 @@ type CategoryKey =
 type CategoryMeta = {
   key: Exclude<CategoryKey, 'all'>
   label: string
-  description: string
   prefixes: string[]
-  className: string
 }
 
 const API_BASE = '/api/backend'
@@ -119,67 +94,50 @@ const CATEGORY_OPTIONS: CategoryMeta[] = [
   {
     key: 'commission',
     label: '提成与绩效',
-    description: '提成管理',
     prefixes: ['commission.', 'operator.performance.'],
-    className: 'rounded-none border-term-border font-mono text-[11px] text-term-accent',
   },
   {
     key: 'shipment',
     label: '货件管理',
-    description: '货件管理',
     prefixes: ['shipment_schedules.'],
-    className: 'rounded-none border-term-warn/40 font-mono text-[11px] text-term-warn',
   },
   {
     key: 'sku',
     label: 'SKU资料',
-    description: 'SKU资料',
     prefixes: ['sku_info.'],
-    className: 'rounded-none border-term-border font-mono text-[11px] text-term-muted',
   },
   {
     key: 'project',
     label: '项目资料',
-    description: '项目管理',
     prefixes: ['projects.'],
-    className: 'rounded-none border-term-pos/40 font-mono text-[11px] text-term-pos',
   },
   {
     key: 'account',
     label: '账号权限',
-    description: '账号权限',
     prefixes: ['users.'],
-    className: 'rounded-none border-term-neg/40 font-mono text-[11px] text-term-neg',
   },
   {
     key: 'auth',
     label: '用户登录',
-    description: '用户登录',
     prefixes: ['auth.'],
-    className: 'rounded-none border-term-border font-mono text-[11px] text-term-muted',
   },
   {
     key: 'inventory',
     label: '库存补货',
-    description: '库存补货',
     prefixes: [
       'inventory_analysis.',
       'inventory_replenishment.',
       'inventory_replenishment_settings.',
     ],
-    className: 'rounded-none border-term-border font-mono text-[11px] text-term-muted',
   },
   {
     key: 'system',
     label: '系统运维',
-    description: '系统运维',
     prefixes: ['system.'],
-    className: 'rounded-none border-term-border font-mono text-[11px] text-term-muted',
   },
   {
     key: 'report',
     label: '报表中心',
-    description: '报表中心',
     prefixes: [
       'daily_reports.',
       'daily_analysis.',
@@ -190,14 +148,11 @@ const CATEGORY_OPTIONS: CategoryMeta[] = [
       'pricing_calculation.',
       'report_upload.',
     ],
-    className: 'rounded-none border-term-border font-mono text-[11px] text-term-muted',
   },
   {
     key: 'other',
     label: '其他',
-    description: '其他',
     prefixes: [],
-    className: 'border-border/70 bg-muted/40 text-muted-foreground',
   },
 ]
 
@@ -326,14 +281,6 @@ const TARGET_TYPE_LABELS: Record<string, string> = {
   product_analysis_weekly: '周报分析',
 }
 
-const RESULT_META = {
-  success: {
-    label: '成功',
-    className: 'rounded-none border-term-pos/40 font-mono text-[11px] text-term-pos',
-  },
-  failure: { label: '失败', className: 'rounded-none border-term-neg/40 font-mono text-[11px] text-term-neg' },
-} as const
-
 function formatDateTime(value: string | null): string {
   if (!value) return '-'
   const date = new Date(value)
@@ -386,18 +333,21 @@ function formatTargetTypeLabel(targetType: string): string {
   return TARGET_TYPE_LABELS[targetType] || targetType || '-'
 }
 
-function getResultMeta(result: string) {
-  return result === 'failure' ? RESULT_META.failure : RESULT_META.success
+function resultTone(result: string): 'positive' | 'negative' {
+  return result === 'failure' ? 'negative' : 'positive'
+}
+
+function resultLabel(result: string): string {
+  return result === 'failure' ? '失败' : '成功'
 }
 
 type DeviceInfo = {
   os: string
   browser: string
-  icon: string
 }
 
 function parseUserAgent(ua: string | null): DeviceInfo {
-  if (!ua) return { os: '未知', browser: '未知', icon: '🖥️' }
+  if (!ua) return { os: '未知', browser: '未知' }
 
   const lower = ua.toLowerCase()
 
@@ -419,25 +369,13 @@ function parseUserAgent(ua: string | null): DeviceInfo {
   }
 
   let browser = '未知'
-  let icon = '🌐'
-  if (lower.includes('edg/') && !lower.includes('edge/')) {
-    browser = 'Edge'
-    icon = '🌐'
-  } else if (lower.includes('chrome/') && !lower.includes('chromium')) {
-    browser = 'Chrome'
-    icon = '🌐'
-  } else if (lower.includes('firefox/')) {
-    browser = 'Firefox'
-    icon = '🦊'
-  } else if (lower.includes('safari/') && !lower.includes('chrome')) {
-    browser = 'Safari'
-    icon = '🧭'
-  } else if (lower.includes('opera') || lower.includes('opr/')) {
-    browser = 'Opera'
-    icon = '🌐'
-  }
+  if (lower.includes('edg/') && !lower.includes('edge/')) browser = 'Edge'
+  else if (lower.includes('chrome/') && !lower.includes('chromium')) browser = 'Chrome'
+  else if (lower.includes('firefox/')) browser = 'Firefox'
+  else if (lower.includes('safari/') && !lower.includes('chrome')) browser = 'Safari'
+  else if (lower.includes('opera') || lower.includes('opr/')) browser = 'Opera'
 
-  return { os, browser, icon }
+  return { os, browser }
 }
 
 function formatTimeAgo(value: string | null): string {
@@ -457,6 +395,47 @@ function formatTimeAgo(value: string | null): string {
   if (diffHour < 24) return `${diffHour} 小时前`
   if (diffDay < 7) return `${diffDay} 天前`
   return date.toLocaleDateString('zh-CN')
+}
+
+function WarmPanel({
+  title,
+  actions,
+  children,
+  flush = false,
+}: {
+  title: string
+  actions?: ReactNode
+  children: ReactNode
+  flush?: boolean
+}) {
+  return (
+    <section className={styles.panel} aria-label={title} data-warm-panel="true">
+      <header className={styles.panelHeader}>
+        <h2 className={styles.panelTitle}>{title}</h2>
+        {actions ? <div className={styles.panelActions}>{actions}</div> : null}
+      </header>
+      <div className={cn(styles.panelBody, flush && styles.panelBodyFlush)}>{children}</div>
+    </section>
+  )
+}
+
+function StatTile({
+  label,
+  value,
+  tone = 'default',
+}: {
+  label: string
+  value: string
+  tone?: 'default' | 'positive' | 'negative'
+}) {
+  return (
+    <div className={styles.stat} title={`${label} · ${value}`}>
+      <span className={styles.statLabel}>{label}</span>
+      <p className={styles.statValue} data-tone={tone}>
+        {value}
+      </p>
+    </div>
+  )
 }
 
 export default function SystemOperationLogsPage() {
@@ -482,7 +461,6 @@ export default function SystemOperationLogsPage() {
   const [category, setCategory] = useState<CategoryKey>('all')
 
   const [activeRow, setActiveRow] = useState<OperationAuditLogItem | null>(null)
-
   const [activeTab, setActiveTab] = useState<'audit' | 'login' | 'agent'>('audit')
 
   const [loginRows, setLoginRows] = useState<OperationAuditLogItem[]>([])
@@ -625,28 +603,6 @@ export default function SystemOperationLogsPage() {
     return Math.max(1, Math.ceil(loginTotal / pageSize))
   }, [loginTotal])
 
-  const statusMeta = (code: number) => {
-    if (code >= 500)
-      return {
-        label: `${code} · 服务端错误`,
-        className: 'rounded-none border-term-border font-mono text-[11px] text-term-muted',
-      }
-    if (code >= 400)
-      return {
-        label: `${code} · 请求错误`,
-        className: 'rounded-none border-term-border font-mono text-[11px] text-term-muted',
-      }
-    if (code >= 300)
-      return {
-        label: `${code} · 重定向`,
-        className: 'rounded-none border-term-border font-mono text-[11px] text-term-muted',
-      }
-    return {
-      label: `${code} · 成功`,
-      className: 'rounded-none border-term-border font-mono text-[11px] text-term-muted',
-    }
-  }
-
   const applyFilters = useCallback(() => {
     setPage(1)
     setKeyword(keywordInput.trim())
@@ -664,516 +620,501 @@ export default function SystemOperationLogsPage() {
     setCategory('all')
   }, [])
 
-  const summaryCards = useMemo(
-    () => [
-      {
-        key: 'total',
-        title: '全部日志',
-        value: summary?.total ?? 0,
-        detail: '当前筛选条件下的日志总量',
-        icon: <Activity className="h-4 w-4" />,
-        accent: 'from-slate-900/90 via-slate-700/80 to-slate-500/70 text-white',
-      },
-      {
-        key: 'success',
-        title: '成功反馈',
-        value: summary?.success_count ?? 0,
-        detail: '前端统一展示为中文成功状态',
-        icon: <ShieldCheck className="h-4 w-4" />,
-        accent: 'from-emerald-500 via-teal-500 to-cyan-500 text-white',
-      },
-      {
-        key: 'failure',
-        title: '失败反馈',
-        value: summary?.failure_count ?? 0,
-        detail: '便于快速筛查异常操作',
-        icon: <Settings2 className="h-4 w-4" />,
-        accent: 'from-rose-500 via-orange-500 to-amber-500 text-white',
-      },
-      {
-        key: 'operators',
-        title: '活跃操作人',
-        value: summary?.unique_operator_count ?? 0,
-        detail: '当前筛选条件下的去重人数',
-        icon: <Users className="h-4 w-4" />,
-        accent: 'from-indigo-500 via-sky-500 to-cyan-500 text-white',
-      },
-    ],
-    [summary]
-  )
-
   return (
-    <Tabs
-      value={activeTab}
-      onValueChange={(value) => setActiveTab(value as 'audit' | 'login' | 'agent')}
-      className="w-full"
+    <section
+      className={styles.page}
+      data-warm-page="system-logs"
+      aria-label="日志查看"
     >
-      <TabsList variant="term" className="w-fit max-w-full justify-start">
-        <TabsTrigger value="audit" variant="term">
-          <ScrollText aria-hidden />
-          操作审计日志
-        </TabsTrigger>
-        <TabsTrigger value="login" variant="term">
-          <LogIn aria-hidden />
-          登录日志
-        </TabsTrigger>
-        <TabsTrigger value="agent" variant="term">
-          <Bot aria-hidden />
-          Agent 访问日志
-        </TabsTrigger>
-      </TabsList>
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as 'audit' | 'login' | 'agent')}
+        className={styles.tabs}
+      >
+        <TabsList className={styles.tabList}>
+          <TabsTrigger value="audit">
+            <ScrollText aria-hidden="true" />
+            操作审计日志
+          </TabsTrigger>
+          <TabsTrigger value="login">
+            <LogIn aria-hidden="true" />
+            登录日志
+          </TabsTrigger>
+          <TabsTrigger value="agent">
+            <Bot aria-hidden="true" />
+            Agent 访问日志
+          </TabsTrigger>
+        </TabsList>
 
-      <TabsContent value="audit" className="mt-3">
-        <div className="w-full space-y-3">
-          <TermPanel title="统计概览" bodyClassName="p-3">
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              <TermKpiTile label="日志总量" value={String(summary?.total ?? 0)} />
-              <TermKpiTile label="成功" value={String(summary?.success_count ?? 0)} tone="pos" />
-              <TermKpiTile label="失败" value={String(summary?.failure_count ?? 0)} tone="neg" />
-              <TermKpiTile label="活跃操作人" value={String(summary?.unique_operator_count ?? 0)} />
-            </div>
-          </TermPanel>
+        <TabsContent value="audit" className={styles.tabContent}>
+          <div className={styles.stack}>
+            <WarmPanel title="统计概览">
+              <div className={styles.statGrid}>
+                <StatTile label="日志总量" value={String(summary?.total ?? 0)} />
+                <StatTile
+                  label="成功"
+                  value={String(summary?.success_count ?? 0)}
+                  tone="positive"
+                />
+                <StatTile
+                  label="失败"
+                  value={String(summary?.failure_count ?? 0)}
+                  tone="negative"
+                />
+                <StatTile
+                  label="活跃操作人"
+                  value={String(summary?.unique_operator_count ?? 0)}
+                />
+              </div>
+            </WarmPanel>
 
-          <TermPanel
-            title="日志列表"
-            bodyClassName="p-0"
-            actions={
-              <Button
-                type="button"
-                variant="outline"
-                className={TERM_BUTTON}
-                onClick={() => void fetchLogs()}
-                disabled={loading}
-              >
-                {loading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-                {loading ? '刷新中...' : '刷新'}
-              </Button>
-            }
-          >
-              <div className="border border-term-border bg-term-bg p-1.5">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[180px]">时间</TableHead>
-                      <TableHead className="w-[120px]">操作人</TableHead>
-                      <TableHead>分类 / 动作</TableHead>
-                      <TableHead className="w-[140px]">资源类型</TableHead>
-                      <TableHead className="w-[130px]">资源 ID</TableHead>
-                      <TableHead className="w-[100px]">结果</TableHead>
-                      <TableHead className="w-[100px] text-right">详情</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+            <WarmPanel title="筛选">
+              <div className={styles.filters}>
+                <label className={styles.field}>
+                  <span className={styles.fieldLabel}>关键词</span>
+                  <input
+                    value={keywordInput}
+                    onChange={(event) => setKeywordInput(event.target.value)}
+                    placeholder="关键词（动作/路径/资源ID/trace）"
+                    className={styles.input}
+                  />
+                </label>
+                <label className={styles.field}>
+                  <span className={styles.fieldLabel}>操作人</span>
+                  <input
+                    value={operatorInput}
+                    onChange={(event) => setOperatorInput(event.target.value)}
+                    placeholder="操作人"
+                    className={styles.input}
+                  />
+                </label>
+                <label className={styles.field}>
+                  <span className={styles.fieldLabel}>日志分类</span>
+                  <select
+                    value={categoryInput}
+                    onChange={(event) => setCategoryInput(event.target.value as CategoryKey)}
+                    className={styles.select}
+                  >
+                    <option value="all">全部分类</option>
+                    {CATEGORY_OPTIONS.map((item) => (
+                      <option key={item.key} value={item.key}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className={styles.filterActions}>
+                  <WarmButton onClick={applyFilters} variant="primary">
+                    <Search className="h-4 w-4" aria-hidden="true" />
+                    查询
+                  </WarmButton>
+                  <WarmButton onClick={resetFilters}>重置</WarmButton>
+                </div>
+              </div>
+            </WarmPanel>
+
+            <WarmPanel
+              title="日志列表"
+              flush
+              actions={
+                <WarmButton
+                  onClick={() => void fetchLogs()}
+                  loading={loading}
+                  loadingLabel="正在刷新操作审计日志"
+                >
+                  <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                  {loading ? '刷新中' : '刷新'}
+                </WarmButton>
+              }
+            >
+              <div className={styles.tableScroll}>
+                <table className={styles.table}>
+                  <thead className={styles.thead}>
+                    <tr>
+                      <th className={cn(styles.th, 'w-[180px]')}>时间</th>
+                      <th className={cn(styles.th, 'w-[120px]')}>操作人</th>
+                      <th className={styles.th}>分类 / 动作</th>
+                      <th className={cn(styles.th, 'w-[140px]')}>资源类型</th>
+                      <th className={cn(styles.th, 'w-[130px]')}>资源 ID</th>
+                      <th className={cn(styles.th, 'w-[100px]')}>结果</th>
+                      <th className={cn(styles.th, 'w-[100px] text-right')}>详情</th>
+                    </tr>
+                  </thead>
+                  <tbody>
                     {rows.length === 0 ? (
-                      loading ? (
-                        <TableRow>
-                          <TableCell colSpan={7} className="text-center text-muted-foreground">
-                            加载中...
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        <EmptyTableState colSpan={7} message="暂无日志" />
-                      )
+                      <tr>
+                        <td colSpan={7} className={cn(styles.td, styles.emptyCell)}>
+                          {loading ? '加载中...' : '暂无日志'}
+                        </td>
+                      </tr>
                     ) : (
                       rows.map((row) => {
                         const categoryMeta = getCategoryMeta(row.action)
-                        const resultMeta = getResultMeta(row.result)
-
                         return (
-                          <TableRow key={row.id}>
-                            <TableCell>{formatDateTime(row.created_at)}</TableCell>
-                            <TableCell>{row.operator || '-'}</TableCell>
-                            <TableCell className="max-w-[420px]">
-                              <div className="space-y-1">
+                          <tr key={row.id} className={styles.row}>
+                            <td className={cn(styles.td, styles.muted, styles.numeric)}>
+                              {formatDateTime(row.created_at)}
+                            </td>
+                            <td className={styles.td}>{row.operator || '-'}</td>
+                            <td className={cn(styles.td, 'max-w-[420px]')}>
+                              <div className="grid gap-1">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <TermPill tone="muted">{categoryMeta.label}</TermPill>
-                                  <span className="font-medium">
+                                  <WarmBadge tone="neutral">{categoryMeta.label}</WarmBadge>
+                                  <span className="font-medium text-[color:var(--warm-ledger-color-text)]">
                                     {formatActionLabel(row.action)}
                                   </span>
                                 </div>
                                 <p
-                                  className="truncate text-xs text-muted-foreground"
+                                  className={cn(
+                                    'm-0 truncate text-[11px]',
+                                    styles.muted,
+                                    styles.mono
+                                  )}
                                   title={row.action}
                                 >
                                   {row.action}
                                 </p>
                               </div>
-                            </TableCell>
-                            <TableCell>{formatTargetTypeLabel(row.target_type)}</TableCell>
-                            <TableCell
-                              className="max-w-[130px] truncate"
+                            </td>
+                            <td className={styles.td}>
+                              {formatTargetTypeLabel(row.target_type)}
+                            </td>
+                            <td
+                              className={cn(styles.td, styles.truncate, styles.mono)}
                               title={row.target_id || '-'}
                             >
                               {row.target_id || '-'}
-                            </TableCell>
-                            <TableCell>
-                              <TermPill tone={resultMeta.label === '成功' ? 'pos' : resultMeta.label === '失败' ? 'neg' : 'muted'}>{resultMeta.label}</TermPill>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <Button variant="ghost" size="sm" onClick={() => setActiveRow(row)}>
-                                <Eye className="h-4 w-4" />
+                            </td>
+                            <td className={styles.td}>
+                              <WarmBadge tone={resultTone(row.result)}>
+                                {resultLabel(row.result)}
+                              </WarmBadge>
+                            </td>
+                            <td className={cn(styles.td, styles.actionCell)}>
+                              <WarmButton
+                                variant="quiet"
+                                onClick={() => setActiveRow(row)}
+                                aria-label={`查看 ${formatDateTime(row.created_at)} 的日志详情`}
+                              >
+                                <Eye className="h-4 w-4" aria-hidden="true" />
                                 查看
-                              </Button>
-                            </TableCell>
-                          </TableRow>
+                              </WarmButton>
+                            </td>
+                          </tr>
                         )
                       })
                     )}
-                  </TableBody>
-                </Table>
+                  </tbody>
+                </table>
               </div>
-
-              <div className="flex items-center justify-between px-4 py-3">
-                <p className="text-sm text-muted-foreground">
-                  共 {total} 条，当前第 {page} / {totalPages} 页
+              <div className={styles.pager}>
+                <p className="m-0">
+                  共 <span className={styles.pagerValue}>{total}</span> 条，当前第{' '}
+                  <span className={styles.pagerValue}>{page}</span> /{' '}
+                  <span className={styles.pagerValue}>{totalPages}</span> 页
                 </p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                <div className={styles.pagerActions}>
+                  <WarmButton
+                    onClick={() => setPage((previous) => Math.max(1, previous - 1))}
                     disabled={page <= 1 || loading}
                   >
                     上一页
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setPage((prev) => prev + 1)}
+                  </WarmButton>
+                  <WarmButton
+                    onClick={() => setPage((previous) => previous + 1)}
                     disabled={!hasNext || loading}
                   >
                     下一页
-                  </Button>
+                  </WarmButton>
                 </div>
               </div>
-          </TermPanel>
+            </WarmPanel>
 
-          <TermPanel bodyClassName="p-3">
-              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-                <Input
-                  value={keywordInput}
-                  onChange={(event) => setKeywordInput(event.target.value)}
-                  placeholder="关键词（动作/路径/资源ID/trace）"
-                />
-                <Input
-                  value={operatorInput}
-                  onChange={(event) => setOperatorInput(event.target.value)}
-                  placeholder="操作人"
-                />
-                <Select
-                  value={categoryInput}
-                  onValueChange={(value: CategoryKey) => setCategoryInput(value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="日志分类" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">全部分类</SelectItem>
-                    {CATEGORY_OPTIONS.map((item) => (
-                      <SelectItem key={item.key} value={item.key}>
-                        {item.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className="flex gap-2">
-                  <Button className="flex-1" onClick={applyFilters}>
-                    <Search className="h-4 w-4" />
-                    查询
-                  </Button>
-                  <Button type="button" variant="outline" onClick={resetFilters}>
-                    重置
-                  </Button>
-                </div>
-              </div>
-          </TermPanel>
-
-          <Dialog
-            open={Boolean(activeRow)}
-            onOpenChange={(open) => (open ? null : setActiveRow(null))}
-          >
-            <DialogContent
-              aria-describedby="log-detail-dialog-description"
-              className="max-h-[85vh] max-w-[calc(100%-2rem)] overflow-y-auto rounded-none border-term-border bg-term-panel sm:max-w-4xl"
+            <Dialog
+              open={Boolean(activeRow)}
+              onOpenChange={(open) => (open ? null : setActiveRow(null))}
             >
-              <span id="log-detail-dialog-description" className="sr-only">
-                日志详情查看
-              </span>
-              <DialogHeader>
-                <DialogTitle>日志详情</DialogTitle>
-              </DialogHeader>
-              {activeRow ? (
-                <div className="space-y-4 text-sm">
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <p>时间: {formatDateTime(activeRow.created_at)}</p>
-                    <p>操作人: {activeRow.operator || '-'}</p>
-                    <p>分类: {getCategoryMeta(activeRow.action).label}</p>
-                    <p>动作: {formatActionLabel(activeRow.action)}</p>
-                    <p>原始动作标识: {activeRow.action}</p>
-                    <p>结果: {getResultMeta(activeRow.result).label}</p>
-                    <p>资源类型: {formatTargetTypeLabel(activeRow.target_type)}</p>
-                    <p>资源 ID: {activeRow.target_id || '-'}</p>
-                    <p>
-                      请求: {activeRow.request_method || '-'} {activeRow.request_path || ''}
-                    </p>
-                    <p>Trace ID: {activeRow.trace_id || '-'}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <p className="font-medium">变更前</p>
-                    <pre className="overflow-x-auto rounded-none border border-term-border bg-term-bg p-3 font-mono text-xs text-term-text">
-                      {renderJson(activeRow.before_json)}
-                    </pre>
-                  </div>
-                  <div className="space-y-2">
-                    <p className="font-medium">变更后 / 返回结果</p>
-                    <pre className="overflow-x-auto rounded-none border border-term-border bg-term-bg p-3 font-mono text-xs text-term-text">
-                      {renderJson(activeRow.after_json)}
-                    </pre>
-                  </div>
-                  {activeRow.error_message ? (
-                    <div className="space-y-2">
-                      <p className="font-mono text-xs font-medium text-term-neg">失败原因</p>
-                      <pre className="overflow-x-auto rounded-none border border-term-neg/50 bg-term-neg/10 p-3 font-mono text-xs text-term-neg">
-                        {activeRow.error_message}
-                      </pre>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-            </DialogContent>
-          </Dialog>
-        </div>
-      </TabsContent>
-
-      <TabsContent value="login" className="mt-3">
-        <div className="space-y-3">
-          <TermPanel title="登录统计概览" bodyClassName="p-3">
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              <TermKpiTile label="登录总次数" value={String(summary?.total ?? 0)} />
-              <TermKpiTile label="登录成功" value={String(summary?.success_count ?? 0)} tone="pos" />
-              <TermKpiTile label="登录失败" value={String(summary?.failure_count ?? 0)} tone="neg" />
-              <TermKpiTile label="活跃用户" value={String(summary?.unique_operator_count ?? 0)} />
-            </div>
-          </TermPanel>
-
-          <TermPanel
-            title="登录记录"
-            bodyClassName="p-0"
-            actions={
-              <Button
-                type="button"
-                variant="outline"
-                className={TERM_BUTTON}
-                onClick={() => void fetchLoginLogs()}
-                disabled={loginLoading}
+              <DialogContent
+                aria-describedby="log-detail-dialog-description"
+                className={styles.dialog}
               >
-                {loginLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-                {loginLoading ? '刷新中...' : '刷新'}
-              </Button>
-            }
-          >
-              <div className="border border-term-border bg-term-bg p-1.5">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[180px]">登录时间</TableHead>
-                      <TableHead className="w-[100px]">距现在</TableHead>
-                      <TableHead className="w-[160px]">操作人</TableHead>
-                      <TableHead className="w-[100px]">结果</TableHead>
-                      <TableHead className="w-[180px]">设备 / 浏览器</TableHead>
-                      <TableHead className="w-[140px]">IP 地址</TableHead>
-                      <TableHead className="w-[100px] text-right">详情</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+                <DialogDescription id="log-detail-dialog-description" className="sr-only">
+                  日志详情查看
+                </DialogDescription>
+                <DialogHeader className={styles.dialogHeader}>
+                  <DialogTitle className={styles.dialogTitle}>日志详情</DialogTitle>
+                </DialogHeader>
+                {activeRow ? (
+                  <div className={styles.dialogBody}>
+                    <div className={styles.detailGrid}>
+                      <p>
+                        时间: {formatDateTime(activeRow.created_at)}
+                      </p>
+                      <p>操作人: {activeRow.operator || '-'}</p>
+                      <p>分类: {getCategoryMeta(activeRow.action).label}</p>
+                      <p>动作: {formatActionLabel(activeRow.action)}</p>
+                      <p>原始动作标识: {activeRow.action}</p>
+                      <p>结果: {resultLabel(activeRow.result)}</p>
+                      <p>资源类型: {formatTargetTypeLabel(activeRow.target_type)}</p>
+                      <p>资源 ID: {activeRow.target_id || '-'}</p>
+                      <p>
+                        请求: {activeRow.request_method || '-'} {activeRow.request_path || ''}
+                      </p>
+                      <p>Trace ID: {activeRow.trace_id || '-'}</p>
+                    </div>
+                    <div className="grid gap-2">
+                      <p className={styles.sectionLabel}>变更前</p>
+                      <div className={styles.subpanel}>
+                        <pre className={styles.json}>{renderJson(activeRow.before_json)}</pre>
+                      </div>
+                    </div>
+                    <div className="grid gap-2">
+                      <p className={styles.sectionLabel}>变更后 / 返回结果</p>
+                      <div className={styles.subpanel}>
+                        <pre className={styles.json}>{renderJson(activeRow.after_json)}</pre>
+                      </div>
+                    </div>
+                    {activeRow.error_message ? (
+                      <div className="grid gap-2">
+                        <p className={styles.sectionLabel}>失败原因</p>
+                        <pre className={styles.errorPanel}>{activeRow.error_message}</pre>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </DialogContent>
+            </Dialog>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="login" className={styles.tabContent}>
+          <div className={styles.stack}>
+            <WarmPanel title="登录统计概览">
+              <div className={styles.statGrid}>
+                <StatTile label="登录总次数" value={String(summary?.total ?? 0)} />
+                <StatTile
+                  label="登录成功"
+                  value={String(summary?.success_count ?? 0)}
+                  tone="positive"
+                />
+                <StatTile
+                  label="登录失败"
+                  value={String(summary?.failure_count ?? 0)}
+                  tone="negative"
+                />
+                <StatTile
+                  label="活跃用户"
+                  value={String(summary?.unique_operator_count ?? 0)}
+                />
+              </div>
+            </WarmPanel>
+
+            <WarmPanel
+              title="登录记录"
+              flush
+              actions={
+                <WarmButton
+                  onClick={() => void fetchLoginLogs()}
+                  loading={loginLoading}
+                  loadingLabel="正在刷新登录日志"
+                >
+                  <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                  {loginLoading ? '刷新中' : '刷新'}
+                </WarmButton>
+              }
+            >
+              <div className={styles.tableScroll}>
+                <table className={cn(styles.table, styles.tableWide)}>
+                  <thead className={styles.thead}>
+                    <tr>
+                      <th className={cn(styles.th, 'w-[180px]')}>登录时间</th>
+                      <th className={cn(styles.th, 'w-[100px]')}>距现在</th>
+                      <th className={cn(styles.th, 'w-[160px]')}>操作人</th>
+                      <th className={cn(styles.th, 'w-[100px]')}>结果</th>
+                      <th className={cn(styles.th, 'w-[180px]')}>设备 / 浏览器</th>
+                      <th className={cn(styles.th, 'w-[140px]')}>IP 地址</th>
+                      <th className={cn(styles.th, 'w-[100px] text-right')}>详情</th>
+                    </tr>
+                  </thead>
+                  <tbody>
                     {loginRows.length === 0 ? (
-                      loginLoading ? (
-                        <TableRow>
-                          <TableCell colSpan={7} className="text-center text-muted-foreground">
-                            加载中...
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        <EmptyTableState colSpan={7} message="暂无登录记录" />
-                      )
+                      <tr>
+                        <td colSpan={7} className={cn(styles.td, styles.emptyCell)}>
+                          {loginLoading ? '加载中...' : '暂无登录记录'}
+                        </td>
+                      </tr>
                     ) : (
                       loginRows.map((row) => {
-                        const resultMeta = getResultMeta(row.result)
                         const device = parseUserAgent(row.user_agent)
-
                         return (
-                          <TableRow key={row.id}>
-                            <TableCell>{formatDateTime(row.created_at)}</TableCell>
-                            <TableCell className="text-muted-foreground">
+                          <tr key={row.id} className={styles.row}>
+                            <td className={cn(styles.td, styles.muted, styles.numeric)}>
+                              {formatDateTime(row.created_at)}
+                            </td>
+                            <td className={cn(styles.td, styles.muted)}>
                               {formatTimeAgo(row.created_at)}
-                            </TableCell>
-                            <TableCell>{row.operator || '-'}</TableCell>
-                            <TableCell>
-                              <TermPill tone={resultMeta.label === '成功' ? 'pos' : resultMeta.label === '失败' ? 'neg' : 'muted'}>{resultMeta.label}</TermPill>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <span>{device.icon}</span>
-                                <span className="text-sm">{device.os}</span>
-                                <span className="text-xs text-muted-foreground">/</span>
-                                <span className="text-sm">{device.browser}</span>
+                            </td>
+                            <td className={styles.td}>{row.operator || '-'}</td>
+                            <td className={styles.td}>
+                              <WarmBadge tone={resultTone(row.result)}>
+                                {resultLabel(row.result)}
+                              </WarmBadge>
+                            </td>
+                            <td className={styles.td}>
+                              <div className={styles.device}>
+                                <span>{device.os}</span>
+                                <span className={styles.deviceSeparator}>/</span>
+                                <span>{device.browser}</span>
                               </div>
-                            </TableCell>
-                            <TableCell className="font-mono text-sm">
+                            </td>
+                            <td className={cn(styles.td, styles.mono)}>
                               {row.ip_address || '-'}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <Button
-                                variant="ghost"
-                                size="sm"
+                            </td>
+                            <td className={cn(styles.td, styles.actionCell)}>
+                              <WarmButton
+                                variant="quiet"
                                 onClick={() => setLoginActiveRow(row)}
+                                aria-label={`查看 ${formatDateTime(row.created_at)} 的登录详情`}
                               >
-                                <Eye className="h-4 w-4" />
+                                <Eye className="h-4 w-4" aria-hidden="true" />
                                 查看
-                              </Button>
-                            </TableCell>
-                          </TableRow>
+                              </WarmButton>
+                            </td>
+                          </tr>
                         )
                       })
                     )}
-                  </TableBody>
-                </Table>
+                  </tbody>
+                </table>
               </div>
-
-              <div className="flex items-center justify-between px-4 py-3">
-                <p className="text-sm text-muted-foreground">
-                  共 {loginTotal} 条，当前第 {loginPage} / {loginTotalPages} 页
+              <div className={styles.pager}>
+                <p className="m-0">
+                  共 <span className={styles.pagerValue}>{loginTotal}</span> 条，当前第{' '}
+                  <span className={styles.pagerValue}>{loginPage}</span> /{' '}
+                  <span className={styles.pagerValue}>{loginTotalPages}</span> 页
                 </p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setLoginPage((prev) => Math.max(1, prev - 1))}
+                <div className={styles.pagerActions}>
+                  <WarmButton
+                    onClick={() => setLoginPage((previous) => Math.max(1, previous - 1))}
                     disabled={loginPage <= 1 || loginLoading}
                   >
                     上一页
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setLoginPage((prev) => prev + 1)}
+                  </WarmButton>
+                  <WarmButton
+                    onClick={() => setLoginPage((previous) => previous + 1)}
                     disabled={!loginHasNext || loginLoading}
                   >
                     下一页
-                  </Button>
+                  </WarmButton>
                 </div>
               </div>
-          </TermPanel>
+            </WarmPanel>
 
-          <Dialog
-            open={Boolean(loginActiveRow)}
-            onOpenChange={(open) => (open ? null : setLoginActiveRow(null))}
-          >
-            <DialogContent
-              aria-describedby="login-log-detail-dialog-description"
-              className="max-h-[85vh] max-w-[calc(100%-2rem)] overflow-y-auto rounded-none border-term-border bg-term-panel sm:max-w-3xl"
+            <Dialog
+              open={Boolean(loginActiveRow)}
+              onOpenChange={(open) => (open ? null : setLoginActiveRow(null))}
             >
-              <span id="login-log-detail-dialog-description" className="sr-only">
-                登录日志详情查看
-              </span>
-              <DialogHeader>
-                <DialogTitle>登录详情</DialogTitle>
-              </DialogHeader>
-              {loginActiveRow ? (
-                <div className="space-y-4 text-sm">
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <p>
-                      <span className="text-muted-foreground">登录时间:</span>{' '}
-                      {formatDateTime(loginActiveRow.created_at)}
-                    </p>
-                    <p>
-                      <span className="text-muted-foreground">距现在:</span>{' '}
-                      {formatTimeAgo(loginActiveRow.created_at)}
-                    </p>
-                    <p>
-                      <span className="text-muted-foreground">操作人:</span>{' '}
-                      {loginActiveRow.operator || '-'}
-                    </p>
-                    <p>
-                      <span className="text-muted-foreground">登录结果:</span>{' '}
-                      {getResultMeta(loginActiveRow.result).label}
-                    </p>
-                    <p>
-                      <span className="text-muted-foreground">IP 地址:</span>{' '}
-                      <code className="font-mono">{loginActiveRow.ip_address || '-'}</code>
-                    </p>
-                    <p>
-                      <span className="text-muted-foreground">请求路径:</span>{' '}
-                      {loginActiveRow.request_method || '-'} {loginActiveRow.request_path || ''}
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <p className="font-medium">设备信息</p>
-                    <div className="rounded-none border border-term-border bg-term-bg p-3 font-mono text-xs">
-                      {(() => {
-                        const device = parseUserAgent(loginActiveRow.user_agent)
-                        return (
-                          <div className="space-y-1">
-                            <p>
-                              <span className="text-muted-foreground">操作系统:</span> {device.os}
-                            </p>
-                            <p>
-                              <span className="text-muted-foreground">浏览器:</span>{' '}
-                              {device.browser}
-                            </p>
-                            <p>
-                              <span className="text-muted-foreground">完整 UA:</span>
-                            </p>
-                            <pre className="mt-1 overflow-x-auto text-xs text-muted-foreground">
-                              {loginActiveRow.user_agent || '未知'}
-                            </pre>
-                          </div>
-                        )
-                      })()}
-                    </div>
-                  </div>
-
-                  {loginActiveRow.error_message ? (
-                    <div className="space-y-2">
-                      <p className="font-mono text-xs font-medium text-term-neg">失败原因</p>
-                      <pre className="overflow-x-auto rounded-none border border-term-neg/50 bg-term-neg/10 p-3 font-mono text-xs text-term-neg">
-                        {loginActiveRow.error_message}
-                      </pre>
-                    </div>
-                  ) : null}
-
-                  <div className="space-y-2">
-                    <p className="font-medium">其他信息</p>
-                    <div className="rounded-none border border-term-border bg-term-bg p-3 font-mono text-xs">
+              <DialogContent
+                aria-describedby="login-log-detail-dialog-description"
+                className={styles.dialog}
+              >
+                <DialogDescription id="login-log-detail-dialog-description" className="sr-only">
+                  登录日志详情查看
+                </DialogDescription>
+                <DialogHeader className={styles.dialogHeader}>
+                  <DialogTitle className={styles.dialogTitle}>登录详情</DialogTitle>
+                </DialogHeader>
+                {loginActiveRow ? (
+                  <div className={styles.dialogBody}>
+                    <div className={styles.detailGrid}>
                       <p>
-                        <span className="text-muted-foreground">Trace ID:</span>{' '}
-                        <code className="font-mono text-xs">{loginActiveRow.trace_id || '-'}</code>
+                        <span className={styles.detailLabel}>登录时间:</span>{' '}
+                        {formatDateTime(loginActiveRow.created_at)}
                       </p>
                       <p>
-                        <span className="text-muted-foreground">资源类型:</span>{' '}
-                        {formatTargetTypeLabel(loginActiveRow.target_type)}
+                        <span className={styles.detailLabel}>距现在:</span>{' '}
+                        {formatTimeAgo(loginActiveRow.created_at)}
                       </p>
                       <p>
-                        <span className="text-muted-foreground">资源 ID:</span>{' '}
-                        {loginActiveRow.target_id || '-'}
+                        <span className={styles.detailLabel}>操作人:</span>{' '}
+                        {loginActiveRow.operator || '-'}
+                      </p>
+                      <p>
+                        <span className={styles.detailLabel}>登录结果:</span>{' '}
+                        {resultLabel(loginActiveRow.result)}
+                      </p>
+                      <p>
+                        <span className={styles.detailLabel}>IP 地址:</span>{' '}
+                        <code>{loginActiveRow.ip_address || '-'}</code>
+                      </p>
+                      <p>
+                        <span className={styles.detailLabel}>请求路径:</span>{' '}
+                        {loginActiveRow.request_method || '-'}{' '}
+                        {loginActiveRow.request_path || ''}
                       </p>
                     </div>
-                  </div>
-                </div>
-              ) : null}
-            </DialogContent>
-          </Dialog>
-        </div>
-      </TabsContent>
 
-      <TabsContent value="agent" className="mt-3">
-        <AgentAccessLogsPanel />
-      </TabsContent>
-    </Tabs>
+                    <div className="grid gap-2">
+                      <p className={styles.sectionLabel}>设备信息</p>
+                      <div className={styles.subpanel}>
+                        {(() => {
+                          const device = parseUserAgent(loginActiveRow.user_agent)
+                          return (
+                            <div className="grid gap-1">
+                              <p>
+                                <span className={styles.detailLabel}>操作系统:</span> {device.os}
+                              </p>
+                              <p>
+                                <span className={styles.detailLabel}>浏览器:</span>{' '}
+                                {device.browser}
+                              </p>
+                              <p>
+                                <span className={styles.detailLabel}>完整 UA:</span>
+                              </p>
+                              <pre className={cn(styles.json, 'max-h-32')}>
+                                {loginActiveRow.user_agent || '未知'}
+                              </pre>
+                            </div>
+                          )
+                        })()}
+                      </div>
+                    </div>
+
+                    {loginActiveRow.error_message ? (
+                      <div className="grid gap-2">
+                        <p className={styles.sectionLabel}>失败原因</p>
+                        <pre className={styles.errorPanel}>{loginActiveRow.error_message}</pre>
+                      </div>
+                    ) : null}
+
+                    <div className="grid gap-2">
+                      <p className={styles.sectionLabel}>其他信息</p>
+                      <div className={styles.subpanel}>
+                        <p>
+                          <span className={styles.detailLabel}>Trace ID:</span>{' '}
+                          <code>{loginActiveRow.trace_id || '-'}</code>
+                        </p>
+                        <p>
+                          <span className={styles.detailLabel}>资源类型:</span>{' '}
+                          {formatTargetTypeLabel(loginActiveRow.target_type)}
+                        </p>
+                        <p>
+                          <span className={styles.detailLabel}>资源 ID:</span>{' '}
+                          {loginActiveRow.target_id || '-'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </DialogContent>
+            </Dialog>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="agent" className={styles.tabContent}>
+          <AgentAccessLogsPanel />
+        </TabsContent>
+      </Tabs>
+    </section>
   )
 }

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { ArrowLeft, Loader2, Pencil, Upload } from 'lucide-react'
+import { ArrowLeft, Pencil, Upload } from 'lucide-react'
 
 import {
   ProposalPdfPreview,
@@ -15,11 +15,15 @@ import {
   type CustomerOption,
 } from '@/components/crm/proposal'
 import {
-  CrmPageShell,
-  TERM_BUTTON,
-  TERM_INPUT,
-  TERM_SELECT_NATIVE,
-} from '@/components/crm/term-shared'
+  WarmCrmPage,
+  WarmCrmSection,
+  WarmCrmState,
+  WarmCrmStatusPill,
+} from '@/components/dashboard-v2/warm-ledger/crm'
+import {
+  WarmButton,
+  WarmSegmentedControl,
+} from '@/components/dashboard-v2/warm-ledger/controls'
 import {
   Dialog,
   DialogContent,
@@ -46,19 +50,8 @@ import {
   type ProposalStatus,
   type ProposalType,
 } from '@/lib/crm/types'
-
-/**
- * 预览模式开关（适配版 / 原始版）：2 个字的紧凑按钮，
- * 取代原先压在预览上方整行的「预览 · vN（适配版）/ 查看原始版 / 下载此版本」。
- */
-function previewModeButtonClass(active: boolean) {
-  return cn(
-    'border px-1.5 py-0.5 font-mono text-[11px] uppercase tracking-wider transition-colors',
-    active
-      ? 'border-term-border-strong bg-term-raised text-term-text'
-      : 'border-transparent text-term-faint hover:text-term-muted'
-  )
-}
+import sharedStyles from '@/components/crm/proposal/proposal-warm.module.css'
+import styles from '../proposals-warm.module.css'
 
 export default function ProposalDetailPage() {
   const params = useParams<{ id: string }>()
@@ -263,127 +256,108 @@ export default function ProposalDetailPage() {
   )
 
   if (loading && !detail) {
-    return <div className="py-16 text-center font-mono text-xs text-term-faint">加载中…</div>
+    return (
+      <WarmCrmPage>
+        <WarmCrmState kind="loading" title="加载中…" />
+      </WarmCrmPage>
+    )
   }
   if (!detail) {
     return (
-      <div className="flex flex-col items-start gap-2">
-        <div
-          role="alert"
-          className="border border-term-neg/50 bg-term-neg/10 px-2 py-1 font-mono text-xs text-term-neg"
-        >
-          ERR · {error ?? '方案不存在'}
-        </div>
-        <Link href="/dashboard/crm/proposals" className={TERM_BUTTON}>
-          返回列表
-        </Link>
-      </div>
+      <WarmCrmPage>
+        <WarmCrmState
+          action={
+            <Link
+              href="/dashboard/crm/proposals"
+              className={sharedStyles.linkButton}
+            >
+              返回列表
+            </Link>
+          }
+          kind="error"
+          title={`ERR · ${error ?? '方案不存在'}`}
+        />
+      </WarmCrmPage>
     )
   }
 
   return (
-    /**
-     * 布局（BLF 待定 · 方案预览重排）：左栏 = 方案信息 + 版本链，右栏 = 大预览。
-     * 右栏负 margin + calc 高度抵消 #main-content 的 p-1/md:p-2 内边距，
-     * 让 iframe 直接贴住 Top Header 与 Footer（左侧保留原有 8px 留白对齐其他页）。
-     */
-    <CrmPageShell className="min-h-0 lg:-mb-2 lg:-mr-2 lg:-mt-2 lg:grid lg:h-[calc(100%+1rem)] lg:grid-cols-[320px_minmax(0,1fr)] lg:grid-rows-[auto_minmax(0,1fr)] lg:overflow-hidden">
-      {/* 左栏 · 方案信息 */}
-      <div className="flex flex-col gap-2 lg:col-start-1 lg:row-start-1">
+    <WarmCrmPage className={styles.detailPage} data-proposal-preview-layout>
+      <div className={styles.sidebar}>
         {error ? (
-          <div
-            role="alert"
-            className="border border-term-neg/50 bg-term-neg/10 px-2 py-1 font-mono text-xs text-term-neg"
-          >
-            ERR · {error}
-          </div>
+          <WarmCrmState kind="error" title={`ERR · ${error}`} />
         ) : null}
-        <div className="flex flex-col gap-2 border border-term-border bg-term-panel p-2">
-          <div className="flex min-w-0 items-center gap-1.5">
+
+        <WarmCrmSection
+          aria-label="方案信息"
+          bodyClassName={styles.infoBody}
+          className={styles.infoPanel}
+        >
+          <div className={styles.titleRow}>
             <Link
               href="/dashboard/crm/proposals"
-              className={`${TERM_BUTTON} h-7 shrink-0 px-1.5`}
+              className={cn('warm-ledger__icon-button', styles.backLink)}
               aria-label="返回方案列表"
             >
-              <ArrowLeft className="h-3.5 w-3.5" />
+              <ArrowLeft aria-hidden="true" />
             </Link>
-            <h1 className="min-w-0 flex-1 truncate text-sm text-term-text" title={detail.title}>
+            <h1 className={styles.title} title={detail.title}>
               {detail.title}
             </h1>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className={styles.pills}>
             <ProposalStatusPill status={detail.status} />
             <ProposalTypePill type={detail.proposalType} />
           </div>
 
-          <div className="flex flex-col gap-0.5 font-mono text-[11px]">
-            <span className="truncate text-term-muted" title={detail.customerName ?? undefined}>
+          <div className={styles.meta}>
+            <span
+              className={styles.metaLine}
+              title={detail.customerName ?? undefined}
+            >
               客户：{detail.customerName ?? '未关联'}
             </span>
             <span
-              className="truncate text-term-faint"
+              className={styles.metaLine}
               title={detail.ownerName ?? detail.ownerId ?? undefined}
             >
               负责人：{detail.ownerName ?? detail.ownerId ?? '—'}
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={openEdit}
-              className={`${TERM_BUTTON} h-7 flex-1 justify-center gap-1.5`}
-            >
-              <Pencil className="h-3.5 w-3.5" />
+          <div className={styles.infoActions}>
+            <WarmButton className={styles.infoAction} onClick={openEdit}>
+              <Pencil aria-hidden="true" />
               编辑
-            </button>
-            <button
-              type="button"
-              onClick={() => setVersionOpen(true)}
-              className={`${TERM_BUTTON} h-7 flex-1 justify-center gap-1.5`}
-            >
-              <Upload className="h-3.5 w-3.5" />
+            </WarmButton>
+            <WarmButton className={styles.infoAction} onClick={() => setVersionOpen(true)}>
+              <Upload aria-hidden="true" />
               上传新版本
-            </button>
+            </WarmButton>
           </div>
-        </div>
-      </div>
+        </WarmCrmSection>
 
-      {/* 左栏 · 版本链（列表内部滚动，标题行固定） */}
-      <div className="flex min-h-0 flex-col gap-1.5 max-lg:order-3 lg:col-start-1 lg:row-start-2">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="font-mono text-[11px] uppercase tracking-wider text-term-faint">
-            版本历史（{detail.versionCount}）
-          </h2>
-          {/* 原「预览 · vN（适配版）/ 查看原始版」整行已收进这里：只留 2 个字的模式开关。
-              PDF 没有适配产物，展示格式标签代替模式开关。 */}
-          {selectedFormat === 'pdf' ? (
-            <span className="border border-term-border px-1.5 py-0.5 font-mono text-[11px] uppercase tracking-wider text-term-muted">
-              PDF
-            </span>
-          ) : (
-            <div role="group" aria-label="预览模式" className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setPreviewRaw(false)}
-                aria-pressed={!previewRaw}
-                className={previewModeButtonClass(!previewRaw)}
-              >
-                适配版
-              </button>
-              <button
-                type="button"
-                onClick={() => setPreviewRaw(true)}
-                aria-pressed={previewRaw}
-                className={previewModeButtonClass(previewRaw)}
-              >
-                原始版
-              </button>
-            </div>
-          )}
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto term-scroll">
+        <WarmCrmSection
+          actions={
+            selectedFormat === 'pdf' ? (
+              <WarmCrmStatusPill>PDF</WarmCrmStatusPill>
+            ) : (
+              <WarmSegmentedControl
+                ariaLabel="预览模式"
+                value={previewRaw ? 'raw' : 'adapted'}
+                options={[
+                  { value: 'adapted', label: '适配版' },
+                  { value: 'raw', label: '原始版' },
+                ]}
+                onChange={(value) => setPreviewRaw(value === 'raw')}
+              />
+            )
+          }
+          bodyClassName={styles.versionsBody}
+          className={styles.versionsSection}
+          title={`版本历史（${detail.versionCount}）`}
+        >
           <ProposalVersionTimeline
             versions={detail.versions}
             currentVersionNo={detail.currentVersionNo}
@@ -392,42 +366,49 @@ export default function ProposalDetailPage() {
             onDownload={(no, opts) => void handleDownload(no, opts)}
             downloadingVersionNo={downloadingVersionNo}
           />
-        </div>
+        </WarmCrmSection>
       </div>
 
-      {/* 右栏 · 预览（撑满整列，贴住 Header / Footer） */}
-      <section className="flex min-h-0 min-w-0 flex-col max-lg:order-2 lg:col-start-2 lg:row-span-2 lg:row-start-1">
+      <WarmCrmSection
+        aria-label="方案预览"
+        bodyClassName={styles.previewBody}
+        className={styles.previewSection}
+      >
         {selectedFormat === 'pdf' ? (
           <ProposalPdfPreview
             title={detail.title}
             load={loadPdf}
-            heightClassName="min-h-[70vh] lg:h-full lg:min-h-0"
+            heightClassName={styles.previewFill}
             onError={(message) =>
               notify({ type: 'error', title: 'PDF 预览失败', message })
             }
           />
         ) : contentLoading && !content ? (
-          <div className="flex min-h-[70vh] items-center justify-center border border-term-border lg:min-h-0 lg:flex-1">
-            <span className="font-mono text-xs text-term-faint">加载预览…</span>
-          </div>
+          <WarmCrmState
+            className={sharedStyles.previewState}
+            kind="loading"
+            title="加载预览…"
+          />
         ) : content ? (
           <ProposalPreview
             content={content}
             title={detail.title}
-            heightClassName="min-h-[70vh] lg:h-full lg:min-h-0"
+            heightClassName={styles.previewFill}
           />
         ) : (
-          <div className="flex min-h-[70vh] items-center justify-center border border-term-border lg:min-h-0 lg:flex-1">
-            <span className="font-mono text-xs text-term-faint">暂无内容</span>
-          </div>
+          <WarmCrmState
+            className={sharedStyles.previewState}
+            kind="empty"
+            title="暂无内容"
+          />
         )}
-      </section>
+      </WarmCrmSection>
 
       <Dialog open={versionOpen} onOpenChange={setVersionOpen}>
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent className={cn('warm-ledger', styles.dialog)}>
           <DialogHeader>
-            <DialogTitle>上传新版本</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className={styles.dialogTitle}>上传新版本</DialogTitle>
+            <DialogDescription className={styles.dialogDescription}>
               旧版本不会被改写；新版本成为当前版本（v{detail.currentVersionNo + 1}）。
             </DialogDescription>
           </DialogHeader>
@@ -436,32 +417,34 @@ export default function ProposalDetailPage() {
       </Dialog>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className={cn('warm-ledger', styles.dialog, styles.editDialog)}>
           <DialogHeader>
-            <DialogTitle>编辑方案</DialogTitle>
-            <DialogDescription>改标题 / 类型 / 状态 / 关联客户。</DialogDescription>
+            <DialogTitle className={styles.dialogTitle}>编辑方案</DialogTitle>
+            <DialogDescription className={styles.dialogDescription}>
+              改标题 / 类型 / 状态 / 关联客户。
+            </DialogDescription>
           </DialogHeader>
           <form
-            className="flex flex-col gap-3"
+            className={styles.editForm}
             onSubmit={(e) => {
               e.preventDefault()
               void handleSaveEdit()
             }}
           >
-            <label className="flex flex-col gap-1">
-              <span className="font-mono text-xs text-term-muted">标题</span>
+            <label className={sharedStyles.field}>
+              <span className={sharedStyles.label}>标题</span>
               <input
-                className={TERM_INPUT}
+                className={sharedStyles.input}
                 value={editTitle}
                 maxLength={200}
                 onChange={(e) => setEditTitle(e.target.value)}
               />
             </label>
-            <div className="flex flex-wrap gap-3">
-              <label className="flex min-w-[140px] flex-1 flex-col gap-1">
-                <span className="font-mono text-xs text-term-muted">类型</span>
+            <div className={styles.editFields}>
+              <label className={sharedStyles.field}>
+                <span className={sharedStyles.label}>类型</span>
                 <select
-                  className={TERM_SELECT_NATIVE}
+                  className={sharedStyles.select}
                   value={editType}
                   onChange={(e) => setEditType(e.target.value as ProposalType)}
                 >
@@ -472,10 +455,10 @@ export default function ProposalDetailPage() {
                   ))}
                 </select>
               </label>
-              <label className="flex min-w-[140px] flex-1 flex-col gap-1">
-                <span className="font-mono text-xs text-term-muted">状态</span>
+              <label className={sharedStyles.field}>
+                <span className={sharedStyles.label}>状态</span>
                 <select
-                  className={TERM_SELECT_NATIVE}
+                  className={sharedStyles.select}
                   value={editStatus}
                   onChange={(e) => setEditStatus(e.target.value as ProposalStatus)}
                 >
@@ -487,10 +470,10 @@ export default function ProposalDetailPage() {
                 </select>
               </label>
             </div>
-            <label className="flex flex-col gap-1">
-              <span className="font-mono text-xs text-term-muted">关联客户</span>
+            <label className={sharedStyles.field}>
+              <span className={sharedStyles.label}>关联客户</span>
               <select
-                className={TERM_SELECT_NATIVE}
+                className={sharedStyles.select}
                 value={editCustomerId}
                 onChange={(e) => setEditCustomerId(e.target.value)}
               >
@@ -502,15 +485,14 @@ export default function ProposalDetailPage() {
                 ))}
               </select>
             </label>
-            <div className="flex justify-end">
-              <button type="submit" disabled={saving} className={`${TERM_BUTTON} gap-1.5`}>
-                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+            <div className={styles.editActions}>
+              <WarmButton type="submit" variant="primary" disabled={saving} loading={saving}>
                 保存
-              </button>
+              </WarmButton>
             </div>
           </form>
         </DialogContent>
       </Dialog>
-    </CrmPageShell>
+    </WarmCrmPage>
   )
 }

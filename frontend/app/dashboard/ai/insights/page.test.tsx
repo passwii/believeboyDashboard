@@ -129,4 +129,65 @@ describe('AiInsightsPage 模型配置懒加载（BEL-424）', () => {
 
     await waitFor(() => expect(ensureConfigLoaded).toHaveBeenCalledTimes(1))
   })
+
+  it('使用 Warm 页面边界并让旧洞察流进入 Warm 展示', async () => {
+    const user = userEvent.setup()
+    const { container } = render(<AiInsightsPage />)
+
+    expect(container.querySelector('[data-warm-insights]')).toBeInTheDocument()
+
+    const projectTrigger = await screen.findByRole('combobox', { name: '项目' })
+    expect(projectTrigger).toHaveClass('warm-ledger__select')
+
+    await user.click(projectTrigger)
+    await user.click(await screen.findByRole('option', { name: '测试项目' }))
+    await user.click(screen.getByRole('button', { name: '生成洞察' }))
+
+    await waitFor(() =>
+      expect(document.querySelector('[data-insight-appearance="warm"]')).toBeInTheDocument()
+    )
+  })
+
+  it('定时生成 Tab 仍读取原调度端点', async () => {
+    const user = userEvent.setup()
+    render(<AiInsightsPage />)
+
+    await user.click(screen.getByRole('tab', { name: '定时生成' }))
+
+    expect(await screen.findByText('定时任务管理')).toBeInTheDocument()
+    await waitFor(() =>
+      expect(
+        (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.some((call) =>
+          String(call[0]).includes('/api/backend/v1/ai-insights/schedules')
+        )
+      ).toBe(true)
+    )
+  })
+
+  it('Tab 使用 roving focus 并支持方向键、Home 与 End 切换', async () => {
+    const user = userEvent.setup()
+    render(<AiInsightsPage />)
+
+    const insightsTab = screen.getByRole('tab', { name: '洞察记录' })
+    const schedulesTab = screen.getByRole('tab', { name: '定时生成' })
+
+    expect(insightsTab).toHaveAttribute('tabindex', '0')
+    expect(schedulesTab).toHaveAttribute('tabindex', '-1')
+    expect(document.getElementById('insights-panel')).toBeInTheDocument()
+    expect(document.getElementById('schedules-panel')).toBeInTheDocument()
+
+    insightsTab.focus()
+    await user.keyboard('{ArrowRight}')
+    expect(schedulesTab).toHaveFocus()
+    expect(schedulesTab).toHaveAttribute('aria-selected', 'true')
+    expect(insightsTab).toHaveAttribute('tabindex', '-1')
+
+    await user.keyboard('{Home}')
+    expect(insightsTab).toHaveFocus()
+    expect(insightsTab).toHaveAttribute('aria-selected', 'true')
+
+    await user.keyboard('{End}')
+    expect(schedulesTab).toHaveFocus()
+    expect(schedulesTab).toHaveAttribute('aria-selected', 'true')
+  })
 })

@@ -1,28 +1,30 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { ShieldAlert } from 'lucide-react'
+import * as SwitchPrimitive from '@radix-ui/react-switch'
 import { useSession } from 'next-auth/react'
 import { CrmRulesPanel } from '@/components/crm/crm-rules-panel'
 import { CrmCategoryManager } from '@/components/crm/crm-category-manager'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import { useNotifications } from '@/components/notifications'
-import { TermPanel } from '@/components/terminal/term-panel'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Switch } from '@/components/ui/switch'
+import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
+import {
+  WarmCrmPage,
+  WarmCrmSection,
+  WarmCrmState,
+} from '@/components/dashboard-v2/warm-ledger/crm'
 import type { WorkflowSettings } from '@/lib/crm/types'
+
+import styles from './settings-warm.module.css'
 
 const MIN_DAYS = 1
 const MAX_DAYS = 365
 
 /**
- * CRM 设置页：规则引擎可视化编辑器（P9-7，BLF-545）+ 工作流自动化设置
- * （7 天无跟进提醒邮件，P9-2，BLF-540）。其余设置（自定义字段、阶段、来源等）
- * 随 V2 逐步开放。非管理员仅展示提示。
+ * CRM 设置页：规则引擎 + 产品类目 + 工作流提醒设置。
+ *
+ * 管理员门槛、加载/刷新、保存入参与 children 刷新注册均保持现有行为。
  */
 export default function SettingsPage() {
   const { data: session, status: sessionStatus } = useSession()
@@ -50,14 +52,14 @@ export default function SettingsPage() {
     let cancelled = false
     client
       .getWorkflowSettings()
-      .then((s) => {
+      .then((nextSettings) => {
         if (cancelled) return
-        setSettings(s)
-        setDays(String(s.staleDays))
+        setSettings(nextSettings)
+        setDays(String(nextSettings.staleDays))
       })
-      .catch((err) => {
+      .catch((error) => {
         if (cancelled) return
-        notify({ type: 'error', title: '加载设置失败', message: String(err) })
+        notify({ type: 'error', title: '加载设置失败', message: String(error) })
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -80,39 +82,38 @@ export default function SettingsPage() {
       setRefreshing(false)
     }
   }, [client, isAdmin, notify, refreshOwners])
+
   useHeaderRefresh(refreshSettings, { loading: loading || refreshing })
 
   if (sessionStatus === 'loading') {
     return (
-      <div className="flex min-w-0 flex-col gap-2">
-        <Skeleton className="h-40 w-full max-w-2xl" />
-      </div>
+      <WarmCrmPage>
+        <WarmCrmState kind="loading" title="加载中" />
+      </WarmCrmPage>
     )
   }
 
   if (!isAdmin) {
     return (
-      <div className="flex min-w-0 flex-col">
-        <div className="flex flex-col items-center gap-2 border border-term-warn/40 bg-term-warn/5 px-6 py-12 text-center">
-          <ShieldAlert className="h-7 w-7 text-term-warn" aria-hidden="true" />
-          <p className="font-mono text-xs uppercase tracking-wider text-term-warn">
-            仅管理员可查看与修改设置
-          </p>
-        </div>
-      </div>
+      <WarmCrmPage>
+        <WarmCrmState kind="empty" title="仅管理员可查看与修改设置" />
+      </WarmCrmPage>
     )
   }
 
   if (loading || !settings) {
     return (
-      <div className="flex min-w-0 flex-col gap-2">
-        <Skeleton className="h-40 w-full max-w-2xl" />
-      </div>
+      <WarmCrmPage>
+        <WarmCrmState kind="loading" title="加载中" />
+      </WarmCrmPage>
     )
   }
 
-  const daysNum = Number(days)
-  const daysValid = Number.isInteger(daysNum) && daysNum >= MIN_DAYS && daysNum <= MAX_DAYS
+  const daysNumber = Number(days)
+  const daysValid =
+    Number.isInteger(daysNumber) &&
+    daysNumber >= MIN_DAYS &&
+    daysNumber <= MAX_DAYS
 
   const save = async () => {
     if (!daysValid) {
@@ -126,69 +127,80 @@ export default function SettingsPage() {
     setSaving(true)
     try {
       const updated = await client.updateWorkflowSettings({
-        staleDays: daysNum,
+        staleDays: daysNumber,
         staleEmailEnabled: settings.staleEmailEnabled,
       })
       setSettings(updated)
       setDays(String(updated.staleDays))
       notify({ type: 'success', title: '设置已保存' })
-    } catch (err) {
-      notify({ type: 'error', title: '保存失败', message: String(err) })
+    } catch (error) {
+      notify({ type: 'error', title: '保存失败', message: String(error) })
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    // BLF-837：页面标题已由 Top Header 面包屑承载；设置卡片走 TermPanel
-    <div className="flex min-w-0 flex-col gap-2">
+    <WarmCrmPage>
       <CrmRulesPanel onRefreshReady={registerRefreshOwner} />
-
       <CrmCategoryManager onRefreshReady={registerRefreshOwner} />
 
-      <TermPanel title="7 天无跟进提醒" bodyClassName="px-3 py-3 max-md:overflow-x-auto">
-        <p className="mb-3 font-mono text-xs text-term-faint">
+      <WarmCrmSection title="7 天无跟进提醒">
+        <p className={styles.description}>
           客户/线索超过阈值天数无跟进时，自动给负责人发送提醒邮件
         </p>
-        <div className="max-w-xl space-y-4">
-          <div className="flex items-center justify-between border-b border-term-border pb-3">
+
+        <div className={styles.form}>
+          <div className={styles.settingRow}>
             <div>
-              <Label>提醒邮件</Label>
-              <p className="mt-1 text-xs text-term-faint">关闭后不再发送无跟进提醒邮件</p>
+              <span className={styles.settingLabel}>提醒邮件</span>
+              <p>关闭后不再发送无跟进提醒邮件</p>
             </div>
-            <Switch
+            <SwitchPrimitive.Root
               checked={settings.staleEmailEnabled}
-              onCheckedChange={(v) => setSettings({ ...settings, staleEmailEnabled: v })}
+              onCheckedChange={(checked) =>
+                setSettings({ ...settings, staleEmailEnabled: checked })
+              }
               aria-label="提醒邮件开关"
-            />
+              className={styles.switch}
+            >
+              <SwitchPrimitive.Thumb className={styles.switchThumb} />
+            </SwitchPrimitive.Root>
           </div>
 
-          <div className="flex items-center justify-between">
+          <div className={styles.settingRow}>
             <div>
-              <Label htmlFor="stale-days">无跟进天数</Label>
-              <p className="mt-1 text-xs text-term-faint">超过该天数未跟进即触发提醒（默认 7 天）</p>
+              <label className={styles.settingLabel} htmlFor="stale-days">
+                无跟进天数
+              </label>
+              <p>超过该天数未跟进即触发提醒（默认 7 天）</p>
             </div>
-            <div className="flex items-center gap-2">
-              <Input
+            <div className={styles.daysField}>
+              <input
                 id="stale-days"
                 type="number"
                 min={MIN_DAYS}
                 max={MAX_DAYS}
-                className="w-24 rounded-none border-term-border bg-term-bg font-mono text-sm tabular-nums text-term-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                className={styles.daysInput}
                 value={days}
-                onChange={(e) => setDays(e.target.value)}
+                onChange={(event) => setDays(event.target.value)}
               />
-              <span className="font-mono text-xs text-term-muted">天</span>
+              <span>天</span>
             </div>
           </div>
 
-          <div className="flex justify-end border-t border-term-border pt-3">
-            <Button onClick={save} disabled={saving || !daysValid} className="rounded-none font-mono">
+          <div className={styles.footer}>
+            <WarmButton
+              variant="primary"
+              onClick={save}
+              disabled={saving || !daysValid}
+              loading={saving}
+            >
               {saving ? '保存中…' : '保存'}
-            </Button>
+            </WarmButton>
           </div>
         </div>
-      </TermPanel>
-    </div>
+      </WarmCrmSection>
+    </WarmCrmPage>
   )
 }

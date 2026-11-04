@@ -1,0 +1,36 @@
+.content {
+  width: var(--radix-popover-trigger-width);
+  padding: 0;
+  overflow: hidden;
+  color: var(--warm-ledger-color-text);
+  background: var(--warm-ledger-color-panel-strong);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline-strong);
+  border-radius: var(--warm-ledger-radius-control);
+  box-shadow: var(--warm-ledger-shadow-window), var(--warm-ledger-highlight-rest);
+}
+
+.content :global([cmdk-input-wrapper]) {
+  border-color: var(--warm-ledger-color-hairline);
+}
+
+.content :global(input) {
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-sans);
+  font-size: var(--warm-ledger-font-size-body);
+}
+
+.content :global(input::placeholder),
+.content :global(.text-term-muted) {
+  color: var(--warm-ledger-color-text-muted);
+}
+
+.content :global([cmdk-item]) {
+  color: var(--warm-ledger-color-text-soft);
+  font-family: var(--warm-ledger-font-sans);
+  font-size: var(--warm-ledger-font-size-body);
+}
+
+.content :global([cmdk-item][data-selected='true']) {
+  color: var(--warm-ledger-color-text);
+  background: var(--warm-ledger-color-raised);
+}

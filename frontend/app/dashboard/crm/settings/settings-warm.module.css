@@ -1,0 +1,92 @@
+.description {
+  margin: 0 0 var(--warm-ledger-space-4);
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-control);
+}
+
+.form {
+  max-width: 640px;
+}
+
+.settingRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--warm-ledger-space-5);
+  padding: var(--warm-ledger-space-3) 0;
+  border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+}
+
+.settingRow p {
+  margin: var(--warm-ledger-space-1) 0 0;
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-label);
+}
+
+.settingLabel {
+  color: var(--warm-ledger-color-text);
+  font-size: var(--warm-ledger-font-size-body);
+  font-weight: var(--warm-ledger-font-weight-medium);
+}
+
+.switch {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  flex: 0 0 36px;
+  padding: 0;
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline-strong);
+  border-radius: 999px;
+  background: var(--warm-ledger-color-raised);
+}
+
+.switch[data-state='checked'] {
+  border-color: var(--warm-ledger-color-accent);
+  background: var(--warm-ledger-color-accent);
+}
+
+.switchThumb {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--warm-ledger-color-window);
+  transform: translateX(0);
+}
+
+.switch[data-state='checked'] .switchThumb {
+  transform: translateX(16px);
+}
+
+.daysField {
+  display: flex;
+  align-items: center;
+  gap: var(--warm-ledger-space-2);
+  color: var(--warm-ledger-color-text-muted);
+  font-family: var(--warm-ledger-font-mono);
+  font-size: var(--warm-ledger-font-size-control);
+}
+
+.daysInput {
+  width: 96px;
+  height: var(--warm-ledger-control-height);
+  padding: 0 var(--warm-ledger-space-3);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-control);
+  background: var(--warm-ledger-color-panel-strong);
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-mono);
+  font-size: var(--warm-ledger-font-size-body);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+}
+
+.daysInput:focus-visible {
+  outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-color-accent-strong);
+  outline-offset: var(--warm-ledger-focus-offset);
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--warm-ledger-space-4);
+}

@@ -1,7 +1,7 @@
 'use client'
 
 import { FormEvent, useCallback, useEffect, useState } from 'react'
-import { Loader2, MoreHorizontal, RefreshCw, Shield, Store } from 'lucide-react'
+import { MoreHorizontal, RefreshCw, Shield, Store } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,8 +10,15 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
-import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useNotifications } from '@/components/notifications'
+import { UNNAMED_DISPLAY_NAME } from '@/lib/auth/display-name'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
+import {
+  WarmButton,
+  WarmIconButton,
+} from '@/components/dashboard-v2/warm-ledger/controls'
+import styles from './account-management-warm.module.css'
 import {
   Dialog,
   DialogContent,
@@ -19,30 +26,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { EmptyTableState } from '@/components/ui/empty-state'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { useNotifications } from '@/components/notifications'
-import { UNNAMED_DISPLAY_NAME } from '@/lib/auth/display-name'
-import { TermPageShell, TERM_BUTTON } from '@/components/terminal/term-controls'
-import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
-import { TermPanel } from '@/components/terminal/term-panel'
+} from './account-warm-dialog'
 
 type UserRoleType = 'admin' | 'operator' | 'businessdev'
 
@@ -56,7 +40,7 @@ function RoleTypeBadge({ roleType }: { roleType: UserRoleType }) {
   const option = ROLE_TYPE_OPTIONS.find((o) => o.value === roleType)
   if (!option) return null
   return (
-    <span className="inline-flex items-center gap-1 font-mono text-xs text-term-muted">
+    <span className={styles.roleBadge} data-role-type={roleType}>
       {option.icon}
       {option.label}
     </span>
@@ -328,254 +312,196 @@ export default function AccountManagementPage() {
   }
 
   return (
-    // BLF-838：页面标题由 Top Header 面包屑承载；面板走 TermPanel 终端规格
-    <TermPageShell>
-      <TermPanel
-        title="账号管理"
-        actions={
-          <div className="flex items-center gap-1.5">
-            <Button variant="outline" size="sm" className={TERM_BUTTON} onClick={() => void load()} disabled={loading}>
-              {loading ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <RefreshCw className="h-3.5 w-3.5" />
-              )}
+    <div className={styles.page} data-warm-account-management="true">
+      <section className={styles.panel} aria-labelledby="account-management-title">
+        <header className={styles.panelHeader}>
+          <h1 id="account-management-title" className={styles.panelTitle}>
+            账号管理
+          </h1>
+          <div className={styles.panelActions}>
+            <WarmButton
+              variant="secondary"
+              onClick={() => void load()}
+              loading={loading}
+              loadingLabel="正在刷新账号列表"
+            >
+              <RefreshCw className={styles.actionIcon} aria-hidden />
               刷新
-            </Button>
-            <Button size="sm" className="h-8 rounded-none font-mono text-xs" onClick={() => setCreateOpen(true)}>
+            </WarmButton>
+            <WarmButton variant="primary" onClick={() => setCreateOpen(true)}>
               新增账号
-            </Button>
+            </WarmButton>
           </div>
-        }
-        bodyClassName="p-0"
-      >
-        {/* 桌面端：完整表格 */}
-        <div className="hidden md:block">
-          <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>名称</TableHead>
-                    <TableHead>姓名</TableHead>
-                    <TableHead>邮箱</TableHead>
-                    <TableHead>角色属性</TableHead>
-                    <TableHead>状态</TableHead>
-                    <TableHead>更新时间</TableHead>
-                    <TableHead className="w-[140px]">操作</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loading ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground">
-                        加载中...
-                      </TableCell>
-                    </TableRow>
-                  ) : items.length === 0 ? (
-                    <EmptyTableState colSpan={7} message="暂无账号" />
-                  ) : (
-                    items.map((item) => {
-                      const isProtected = isYaweiAccount(item)
-                      return (
-                        <TableRow key={item.id}>
-                          <TableCell className="font-medium">{getAccountDisplayName(item)}</TableCell>
-                          <TableCell>
-                            {item.fullName?.trim() ? (
-                              item.fullName
-                            ) : (
-                              <span className="text-term-faint">{UNNAMED_DISPLAY_NAME}</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="font-mono text-xs">{item.email}</TableCell>
-                          <TableCell>
-                            <RoleTypeBadge roleType={item.roleType} />
-                          </TableCell>
-                          <TableCell>
-                            <span
-                              className={cn(
-                                'font-mono text-xs',
-                                item.isActive ? 'text-term-pos' : 'text-term-neg'
-                              )}
-                            >
-                              {item.isActive ? '启用' : '停用'}
-                            </span>
-                          </TableCell>
-                          <TableCell className="font-mono text-xs tabular-nums text-term-muted">{fmtTime(item.updatedAt)}</TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Button
-                                variant={item.isActive ? 'outline' : 'default'}
-                                size="sm"
-                                disabled={busyId === item.id || (isProtected && item.isActive)}
-                                onClick={() =>
-                                  void updateOne(item.id, { isActive: !item.isActive })
-                                }
-                              >
-                                {item.isActive ? '停用' : '启用'}
-                              </Button>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="outline" size="sm" disabled={busyId === item.id}>
-                                    <MoreHorizontal className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => onEditOpen(item)}>
-                                    改角色属性 / 编辑
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() => {
-                                      setResetUser(item)
-                                      setResetOpen(true)
-                                    }}
-                                  >
-                                    重置密码
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    disabled={isProtected}
-                                    className="text-destructive focus:text-destructive"
-                                    onClick={() => onDeleteOpen(item)}
-                                  >
-                                    删除账号
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+        </header>
 
-            {/* 手机端：卡片列表 */}
-            <div className="md:hidden space-y-3 p-4">
+        <div className={styles.tableScroll}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>名称</th>
+                <th>姓名</th>
+                <th>邮箱</th>
+                <th>角色属性</th>
+                <th>状态</th>
+                <th>更新时间</th>
+                <th className={styles.operationsColumn}>操作</th>
+              </tr>
+            </thead>
+            <tbody>
               {loading ? (
-                <div className="text-center text-sm text-muted-foreground py-8">加载中...</div>
+                <tr>
+                  <td colSpan={7} className={styles.emptyCell}>
+                    加载中...
+                  </td>
+                </tr>
               ) : items.length === 0 ? (
-                <div className="text-center text-sm text-muted-foreground py-8">暂无账号</div>
+                <tr>
+                  <td colSpan={7} className={styles.emptyCell}>
+                    暂无账号
+                  </td>
+                </tr>
               ) : (
                 items.map((item) => {
                   const isProtected = isYaweiAccount(item)
                   return (
-                    <div key={item.id} className="space-y-3 border border-term-border bg-term-panel p-4">
-                      {/* 头部 */}
-                      <div className="flex items-start justify-between gap-2 border-b border-term-border pb-3">
-                        <div>
-                          <div className="font-semibold">{getAccountDisplayName(item)}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {item.fullName?.trim() ? (
-                              item.fullName
-                            ) : (
-                              <span className="text-term-faint">{UNNAMED_DISPLAY_NAME}</span>
-                            )}
-                          </div>
-                        </div>
+                    <tr key={item.id}>
+                      <td className={styles.primaryCell}>{getAccountDisplayName(item)}</td>
+                      <td>
+                        {item.fullName?.trim() ? (
+                          item.fullName
+                        ) : (
+                          <span className={styles.faintText}>{UNNAMED_DISPLAY_NAME}</span>
+                        )}
+                      </td>
+                      <td className={styles.monoCell}>{item.email}</td>
+                      <td>
                         <RoleTypeBadge roleType={item.roleType} />
-                      </div>
-
-                      {/* 信息 */}
-                      <div className="space-y-2 text-sm">
-                        <div>
-                          <span className="text-xs text-muted-foreground">邮箱</span>
-                          <div className="text-sm">{item.email}</div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground">状态</span>
-                          <span
-                            className={cn(
-                              'font-mono text-sm font-medium tabular-nums',
-                              item.isActive ? 'text-term-pos' : 'text-term-neg'
-                            )}
+                      </td>
+                      <td>
+                        <span
+                          className={cn(
+                            styles.status,
+                            item.isActive ? styles.statusActive : styles.statusInactive
+                          )}
+                          data-account-status={item.isActive ? 'active' : 'inactive'}
+                        >
+                          {item.isActive ? '启用' : '停用'}
+                        </span>
+                      </td>
+                      <td className={styles.timeCell}>{fmtTime(item.updatedAt)}</td>
+                      <td>
+                        <div className={styles.rowActions}>
+                          <WarmButton
+                            variant={item.isActive ? 'secondary' : 'primary'}
+                            className={styles.rowAction}
+                            disabled={busyId === item.id || (isProtected && item.isActive)}
+                            onClick={() =>
+                              void updateOne(item.id, { isActive: !item.isActive })
+                            }
                           >
-                            {item.isActive ? '启用' : '停用'}
-                          </span>
+                            {item.isActive ? '停用' : '启用'}
+                          </WarmButton>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <WarmIconButton
+                                aria-label="更多操作"
+                                disabled={busyId === item.id}
+                              >
+                                <MoreHorizontal className={styles.moreIcon} aria-hidden />
+                              </WarmIconButton>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className={styles.menuContent}>
+                              <DropdownMenuItem
+                                className={styles.menuItem}
+                                onClick={() => onEditOpen(item)}
+                              >
+                                改角色属性 / 编辑
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className={styles.menuItem}
+                                onClick={() => {
+                                  setResetUser(item)
+                                  setResetOpen(true)
+                                }}
+                              >
+                                重置密码
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator className={styles.menuSeparator} />
+                              <DropdownMenuItem
+                                disabled={isProtected}
+                                className={cn(styles.menuItem, styles.menuDanger)}
+                                onClick={() => onDeleteOpen(item)}
+                              >
+                                删除账号
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
-                        <div className="font-mono text-xs text-term-faint">
-                          更新: {fmtTime(item.updatedAt)}
-                        </div>
-                      </div>
-
-                      {/* 操作按钮 */}
-                      <div className="flex gap-2 pt-2 border-t border-term-border">
-                        <Button
-                          variant={item.isActive ? 'outline' : 'default'}
-                          size="sm"
-                          className="h-9 min-h-[44px] flex-1"
-                          disabled={busyId === item.id || (isProtected && item.isActive)}
-                          onClick={() => void updateOne(item.id, { isActive: !item.isActive })}
-                        >
-                          {item.isActive ? '停用' : '启用'}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-9 min-h-[44px] flex-1"
-                          disabled={busyId === item.id}
-                          onClick={() => onEditOpen(item)}
-                        >
-                          编辑
-                        </Button>
-                      </div>
-                    </div>
+                      </td>
+                    </tr>
                   )
                 })
               )}
-            </div>
-      </TermPanel>
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent
           aria-describedby="create-account-dialog-description"
-          className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]"
         >
           <span id="create-account-dialog-description" className="sr-only">
             创建新用户并指定角色属性和权限级别
           </span>
           <DialogHeader>
             <DialogTitle>新增账号</DialogTitle>
-            <DialogDescription>创建新用户并指定角色属性和权限级别。</DialogDescription>
+            <DialogDescription className={styles.dialogDescription}>
+              创建新用户并指定角色属性和权限级别。
+            </DialogDescription>
           </DialogHeader>
-          <form className="space-y-4" onSubmit={onCreate}>
-            <div className="space-y-2">
-              <Label htmlFor="create-name">名称</Label>
-              <Input
+          <form className={styles.form} onSubmit={onCreate}>
+            <div className={styles.field}>
+              <label htmlFor="create-name" className={styles.label}>名称</label>
+              <input
                 id="create-name"
+                className={styles.input}
                 value={createName}
                 onChange={(e) => setCreateName(e.target.value)}
                 required
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="create-full-name">姓名</Label>
-              <Input
+            <div className={styles.field}>
+              <label htmlFor="create-full-name" className={styles.label}>姓名</label>
+              <input
                 id="create-full-name"
+                className={styles.input}
                 value={createFullName}
                 onChange={(e) => setCreateFullName(e.target.value)}
                 placeholder="全局显示名，日志 / 负责人 / 创建人都用它"
                 required
               />
-              <p className="text-xs text-muted-foreground">
+              <p className={styles.helpText}>
                 必填：这是全局唯一的显示名。留空的话该账号在各处显示「{UNNAMED_DISPLAY_NAME}」，
                 且依赖 X-Operator 的接口（告警偏好 / 订单等）会因缺名字而失败。
               </p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="create-email">邮箱</Label>
-              <Input
+            <div className={styles.field}>
+              <label htmlFor="create-email" className={styles.label}>邮箱</label>
+              <input
                 id="create-email"
+                className={styles.input}
                 type="email"
                 value={createEmail}
                 onChange={(e) => setCreateEmail(e.target.value)}
                 required
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="create-password">初始密码</Label>
-              <Input
+            <div className={styles.field}>
+              <label htmlFor="create-password" className={styles.label}>初始密码</label>
+              <input
                 id="create-password"
+                className={styles.input}
                 type="password"
                 value={createPassword}
                 onChange={(e) => setCreatePassword(e.target.value)}
@@ -583,45 +509,45 @@ export default function AccountManagementPage() {
                 required
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="create-role-type">角色属性</Label>
-              <Select
+            <div className={styles.field}>
+              <label htmlFor="create-role-type" className={styles.label}>角色属性</label>
+              <select
+                id="create-role-type"
+                className={styles.selectTrigger}
                 value={createRoleType}
-                onValueChange={(v) => setCreateRoleType(v as UserRoleType)}
+                onChange={(event) =>
+                  setCreateRoleType(event.target.value as UserRoleType)
+                }
               >
-                <SelectTrigger id="create-role-type">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ROLE_TYPE_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      <span className="inline-flex items-center gap-1.5">
-                        {opt.icon}
-                        {opt.label}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
+                {ROLE_TYPE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <p className={styles.helpText}>
                 {createRoleType === 'admin'
                   ? '管理员拥有系统全局权限。'
                   : '选择用户的业务角色属性。'}
               </p>
             </div>
-            <DialogFooter>
-              <Button
+            <DialogFooter className={styles.dialogFooter}>
+              <WarmButton
                 type="button"
-                variant="outline"
                 onClick={() => setCreateOpen(false)}
                 disabled={creating}
               >
                 取消
-              </Button>
-              <Button type="submit" disabled={creating}>
-                {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              </WarmButton>
+              <WarmButton
+                type="submit"
+                variant="primary"
+                disabled={creating}
+                loading={creating}
+                loadingLabel="正在创建账号"
+              >
                 {creating ? '创建中...' : '创建账号'}
-              </Button>
+              </WarmButton>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -630,22 +556,22 @@ export default function AccountManagementPage() {
       <Dialog open={resetOpen} onOpenChange={setResetOpen}>
         <DialogContent
           aria-describedby="reset-password-dialog-description"
-          className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]"
         >
           <span id="reset-password-dialog-description" className="sr-only">
             为账号设置新密码
           </span>
           <DialogHeader>
             <DialogTitle>重置密码</DialogTitle>
-            <DialogDescription>
+            <DialogDescription className={styles.dialogDescription}>
               为账号 {resetUser?.email || '-'} 设置新密码（至少 8 位）。
             </DialogDescription>
           </DialogHeader>
-          <form className="space-y-4" onSubmit={onResetPassword}>
-            <div className="space-y-2">
-              <Label htmlFor="reset-password">新密码</Label>
-              <Input
+          <form className={styles.form} onSubmit={onResetPassword}>
+            <div className={styles.field}>
+              <label htmlFor="reset-password" className={styles.label}>新密码</label>
+              <input
                 id="reset-password"
+                className={styles.input}
                 type="password"
                 value={resetPassword}
                 onChange={(e) => setResetPassword(e.target.value)}
@@ -653,19 +579,23 @@ export default function AccountManagementPage() {
                 required
               />
             </div>
-            <DialogFooter>
-              <Button
+            <DialogFooter className={styles.dialogFooter}>
+              <WarmButton
                 type="button"
-                variant="outline"
                 onClick={() => setResetOpen(false)}
                 disabled={resetting}
               >
                 取消
-              </Button>
-              <Button type="submit" disabled={resetting}>
-                {resetting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              </WarmButton>
+              <WarmButton
+                type="submit"
+                variant="primary"
+                disabled={resetting}
+                loading={resetting}
+                loadingLabel="正在重置密码"
+              >
                 {resetting ? '提交中...' : '确认重置'}
-              </Button>
+              </WarmButton>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -674,62 +604,64 @@ export default function AccountManagementPage() {
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent
           aria-describedby="edit-account-dialog-description"
-          className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]"
         >
           <span id="edit-account-dialog-description" className="sr-only">
             修改姓名和角色属性
           </span>
           <DialogHeader>
             <DialogTitle>编辑账号</DialogTitle>
-            <DialogDescription>修改姓名和角色属性。</DialogDescription>
+            <DialogDescription className={styles.dialogDescription}>
+              修改姓名和角色属性。
+            </DialogDescription>
           </DialogHeader>
-          <form className="space-y-4" onSubmit={onEdit}>
-            <div className="space-y-2">
-              <Label htmlFor="edit-full-name">姓名</Label>
-              <Input
+          <form className={styles.form} onSubmit={onEdit}>
+            <div className={styles.field}>
+              <label htmlFor="edit-full-name" className={styles.label}>姓名</label>
+              <input
                 id="edit-full-name"
+                className={styles.input}
                 value={editFullName}
                 onChange={(e) => setEditFullName(e.target.value)}
                 placeholder="全局显示名，日志 / 负责人 / 创建人都用它"
               />
-              <p className="text-xs text-muted-foreground">
+              <p className={styles.helpText}>
                 全局唯一的显示名。留空时各处显示「{UNNAMED_DISPLAY_NAME}」，不会回落登录名。
               </p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-role-type">角色属性</Label>
-              <Select
+            <div className={styles.field}>
+              <label htmlFor="edit-role-type" className={styles.label}>角色属性</label>
+              <select
+                id="edit-role-type"
+                className={styles.selectTrigger}
                 value={editRoleType}
-                onValueChange={(v) => setEditRoleType(v as UserRoleType)}
+                onChange={(event) =>
+                  setEditRoleType(event.target.value as UserRoleType)
+                }
               >
-                <SelectTrigger id="edit-role-type">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ROLE_TYPE_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      <span className="inline-flex items-center gap-1.5">
-                        {opt.icon}
-                        {opt.label}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                {ROLE_TYPE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
             </div>
-            <DialogFooter>
-              <Button
+            <DialogFooter className={styles.dialogFooter}>
+              <WarmButton
                 type="button"
-                variant="outline"
                 onClick={() => setEditOpen(false)}
                 disabled={editBusy}
               >
                 取消
-              </Button>
-              <Button type="submit" disabled={editBusy}>
-                {editBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              </WarmButton>
+              <WarmButton
+                type="submit"
+                variant="primary"
+                disabled={editBusy}
+                loading={editBusy}
+                loadingLabel="正在保存账号"
+              >
                 {editBusy ? '保存中...' : '保存'}
-              </Button>
+              </WarmButton>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -738,38 +670,38 @@ export default function AccountManagementPage() {
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent
           aria-describedby="delete-account-dialog-description"
-          className="dark:border-border/80 dark:bg-[hsl(var(--surface-panel))]"
         >
           <span id="delete-account-dialog-description" className="sr-only">
             确认删除账号操作
           </span>
           <DialogHeader>
             <DialogTitle>删除账号</DialogTitle>
-            <DialogDescription>
+            <DialogDescription className={styles.dialogDescription}>
               确定要删除账号 <strong>{deleteUser?.email}</strong> 吗？此操作不可恢复。
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button
+          <DialogFooter className={styles.dialogFooter}>
+            <WarmButton
               type="button"
-              variant="outline"
               onClick={() => setDeleteOpen(false)}
               disabled={deleting}
             >
               取消
-            </Button>
-            <Button
+            </WarmButton>
+            <WarmButton
               type="button"
-              variant="destructive"
+              variant="secondary"
+              className={styles.dangerButton}
               onClick={() => void onDelete()}
               disabled={deleting}
+              loading={deleting}
+              loadingLabel="正在删除账号"
             >
-              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {deleting ? '删除中...' : '确认删除'}
-            </Button>
+            </WarmButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </TermPageShell>
+    </div>
   )
 }

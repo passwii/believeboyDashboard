@@ -2,8 +2,7 @@
 
 import { Loader2 } from 'lucide-react'
 
-import { cn } from '@/lib/utils'
-
+import styles from '../insights-warm.module.css'
 import { LEGACY_SUB_STATUS_LABELS } from './legacy-insight-compat'
 
 const GENERATION_STEPS = [
@@ -39,19 +38,19 @@ export function GenerationProgress({ currentSubStatus }: { currentSubStatus: str
     : -1
 
   return (
-    <div className="space-y-6">
+    <div className={styles.progress}>
       {/* Status header */}
       {currentSubStatus && (
-        <div className="flex items-center gap-2 rounded-none border border-term-accent/40 bg-term-bg px-4 py-3">
-          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-term-accent" />
-          <span className="font-mono text-xs font-medium text-term-accent">
+        <div className={styles.progressStatus} role="status" aria-live="polite">
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+          <span>
             {LEGACY_SUB_STATUS_LABELS[currentSubStatus] ?? '处理中...'}
           </span>
         </div>
       )}
 
       {/* Stepper */}
-      <div className="space-y-0">
+      <div className={styles.progressSteps}>
         {GENERATION_STEPS.map((step, index) => {
           const isActive = index === topLevelIndex
           // Completed if we've moved past this step, OR we've entered a sub-step of this step
@@ -59,45 +58,22 @@ export function GenerationProgress({ currentSubStatus }: { currentSubStatus: str
             index < topLevelIndex ||
             (topLevelIndex === index && isInSubSteps) ||
             (topLevelIndex === 1 && currentSubStatus === 'ai_generating' && index === 0)
-          const isPending = !isActive && !isCompleted
 
           // Determine connector fill: step 1 needs topLevelIndex >= 1; step 2 needs >= 2
           const connectorFilled = index === 1 ? topLevelIndex >= 1 : topLevelIndex >= 2
 
           return (
-            <div key={step.key} className="flex items-start gap-4">
-              {/* Connector line */}
-              {index > 0 && (
-                <div className="flex flex-col items-center">
+            <div key={step.key} className={styles.progressStep}>
+              <div className={styles.progressRail}>
+                {index > 0 && (
                   <div
-                    className={cn(
-                      'w-0.5 h-4 transition-colors duration-500',
-                      connectorFilled ? 'bg-term-accent' : 'bg-term-border'
-                    )}
-                  />
-                </div>
-              )}
-              {index === 0 && <div className="w-5" />}
-
-              {/* Step indicator */}
-              <div className="relative flex flex-col items-center shrink-0">
-                {/* Pulsing glow ring when this step is active (matches Loader2 spinner above) */}
-                {isActive && !isInSubSteps && (
-                  <div
-                    className="absolute rounded-full bg-term-accent/30 animate-ping"
-                    style={{ width: 20, height: 20, top: -7, left: -7 }}
+                    className={styles.progressConnector}
+                    data-complete={connectorFilled}
                   />
                 )}
                 <div
-                  className={cn(
-                    'flex items-center justify-center rounded-full border transition-all duration-[var(--duration-quick)]',
-                    isCompleted
-                      ? 'border-term-pos bg-term-pos text-term-bg'
-                      : isActive
-                        ? 'border-term-accent bg-term-bg text-term-accent'
-                        : 'border-term-border bg-term-bg text-term-faint',
-                    isActive ? 'h-5 w-5' : 'h-5 w-5'
-                  )}
+                  className={styles.progressDot}
+                  data-state={isCompleted ? 'complete' : isActive ? 'active' : 'pending'}
                 >
                   {isCompleted ? (
                     <svg
@@ -122,96 +98,35 @@ export function GenerationProgress({ currentSubStatus }: { currentSubStatus: str
               </div>
 
               {/* Step content */}
-              <div className="flex-1 pb-6">
+              <div className={styles.progressCopy}>
                 <p
-                  className={cn(
-                    'text-sm font-medium transition-colors duration-[var(--duration-quick)]',
-                    isActive
-                      ? 'text-term-accent'
-                      : isCompleted
-                        ? 'text-term-text'
-                        : 'text-muted-foreground'
-                  )}
+                  className={styles.progressLabel}
+                  data-state={isActive ? 'active' : isCompleted ? 'complete' : 'pending'}
                 >
                   {step.label}
                 </p>
-                <p className="text-xs text-muted-foreground mt-0.5">{step.description}</p>
+                <p className={styles.progressDescription}>{step.description}</p>
 
                 {/* Nested data sub-steps when in data_aggregating phase */}
                 {step.key === 'data_aggregating' && (
-                  <div className="mt-2 space-y-1.5 border-l-2 border-term-border pl-2">
+                  <div className={styles.progressSubtasks}>
                     {DATA_STEPS.map((ds, di) => {
                       const isDCompleted = activeSubStepIndex > di || topLevelIndex > 0
                       const isDActive = effectiveSubStatus === ds.key
-                      const detail = undefined
 
                       return (
                         <div
                           key={ds.key}
-                          className={cn(
-                            'flex flex-col gap-1 transition-all duration-[var(--duration-fast)]',
-                            isDActive ? 'translate-x-1' : ''
-                          )}
+                          className={styles.progressSubtask}
+                          data-state={
+                            isDActive ? 'active' : isDCompleted ? 'complete' : 'pending'
+                          }
                         >
-                          <div className="flex items-center gap-2">
-                            <div className="relative flex items-center justify-center w-3 h-3">
-                              {/* Running dot for active step */}
-                              {isDActive && (
-                                <div className="absolute inset-0 rounded-full bg-term-accent/30 animate-ping" />
-                              )}
-                              <div
-                                className={cn(
-                                  'h-1.5 w-1.5 rounded-full transition-colors duration-[var(--duration-quick)]',
-                                  isDActive
-                                    ? 'bg-term-accent'
-                                    : isDCompleted
-                                      ? 'bg-term-pos'
-                                      : 'bg-term-border'
-                                )}
-                              />
-                            </div>
-                            <span
-                              className={cn(
-                                'text-xs transition-colors duration-[var(--duration-quick)]',
-                                isDActive
-                                  ? 'text-term-accent font-semibold'
-                                  : isDCompleted
-                                    ? 'text-foreground'
-                                    : 'text-muted-foreground'
-                              )}
-                            >
-                              {ds.label}
-                            </span>
-                            {/* Animated indicator for active sub-step */}
-                            {isDActive && (
-                              <div className="ml-auto flex gap-0.5">
-                                {[0, 1, 2].map((i) => (
-                                  <div
-                                    key={i}
-                                    className="h-1 w-1 rounded-full bg-term-accent animate-bounce"
-                                    style={{ animationDelay: `${i * 120}ms` }}
-                                  />
-                                ))}
-                              </div>
-                            )}
-                          </div>
-
+                          <span className={styles.progressSubtaskDot} aria-hidden />
+                          <span>{ds.label}</span>
                         </div>
                       )
                     })}
-                  </div>
-                )}
-
-                {/* Animated dots for active top-level step (AI generating / title generating) */}
-                {isActive && !isInSubSteps && (
-                  <div className="flex gap-1 mt-2">
-                    {[0, 1, 2].map((i) => (
-                      <div
-                        key={i}
-                        className="h-1.5 w-1.5 rounded-full bg-term-accent animate-bounce"
-                        style={{ animationDelay: `${i * 150}ms` }}
-                      />
-                    ))}
                   </div>
                 )}
               </div>
@@ -219,11 +134,6 @@ export function GenerationProgress({ currentSubStatus }: { currentSubStatus: str
           )
         })}
       </div>
-
-      {/* Info note */}
-      <p className="text-xs text-muted-foreground border-t pt-4">
-        生成任务在后台运行，可以切换到其他页面，稍后再来查看结果。完成后可在下方查看完整的洞察报告。
-      </p>
     </div>
   )
 }

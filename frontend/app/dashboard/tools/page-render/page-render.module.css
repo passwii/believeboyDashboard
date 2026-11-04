@@ -1,0 +1,381 @@
+.page {
+  min-width: 0;
+}
+
+.panel {
+  min-width: 0;
+}
+
+.panel > .uploadBody {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(260px, 0.7fr) minmax(0, 1.3fr);
+  align-items: start;
+  gap: var(--warm-ledger-space-4);
+  padding: var(--warm-ledger-inset-panel);
+}
+
+.titleField,
+.uploadField {
+  display: grid;
+  min-width: 0;
+  gap: var(--warm-ledger-space-2);
+}
+
+.fieldLabel {
+  color: var(--warm-ledger-color-text);
+  font-size: var(--warm-ledger-font-size-control);
+  font-weight: var(--warm-ledger-font-weight-medium);
+}
+
+.input {
+  width: 100%;
+  min-height: var(--warm-ledger-control-height-select);
+  padding: 0 var(--warm-ledger-space-3);
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-sans);
+  font-size: var(--warm-ledger-font-size-body);
+  background: var(--warm-ledger-color-window);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-control);
+  box-shadow: var(--warm-ledger-highlight-rest);
+  transition:
+    border-color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease),
+    box-shadow var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease);
+}
+
+.input::placeholder {
+  color: var(--warm-ledger-color-text-muted);
+}
+
+.input:focus-visible {
+  border-color: var(--warm-ledger-color-accent-strong);
+  outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color);
+  outline-offset: var(--warm-ledger-focus-offset);
+  box-shadow: none;
+}
+
+.input,
+.markdownSurface {
+  caret-color: var(--warm-ledger-color-accent-strong);
+}
+
+.uploadHint,
+.sectionNote {
+  margin: 0;
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-label);
+  line-height: var(--warm-ledger-line-height-body);
+}
+
+.panel > .previewBody,
+.panel > .publicLinkBody,
+.panel > .historyBody {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--warm-ledger-space-3);
+  padding: var(--warm-ledger-inset-panel);
+}
+
+.previewMeta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--warm-ledger-space-2);
+  color: var(--warm-ledger-color-text-muted);
+  font-family: var(--warm-ledger-font-mono);
+  font-size: var(--warm-ledger-font-size-label);
+}
+
+.previewMeta span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.markdownSurface {
+  min-height: 60vh;
+  overflow: auto;
+  padding: var(--warm-ledger-space-6);
+  color: var(--warm-ledger-color-text);
+  font-size: var(--warm-ledger-font-size-body);
+  line-height: 1.7;
+  background: var(--warm-ledger-color-window);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-control);
+  box-shadow: var(--warm-ledger-highlight-rest);
+  scrollbar-color: var(--warm-ledger-color-raised-hover) var(--warm-ledger-color-window);
+}
+
+.markdownSurface :global(h1),
+.markdownSurface :global(h2),
+.markdownSurface :global(h3),
+.markdownSurface :global(h4) {
+  margin: 1.25em 0 0.5em;
+  color: var(--warm-ledger-color-text);
+  font-weight: var(--warm-ledger-font-weight-medium);
+  line-height: 1.25;
+}
+
+.markdownSurface :global(h1:first-child),
+.markdownSurface :global(h2:first-child),
+.markdownSurface :global(h3:first-child) {
+  margin-top: 0;
+}
+
+.markdownSurface :global(h1) {
+  font-size: 28px;
+}
+
+.markdownSurface :global(h2) {
+  font-size: 22px;
+}
+
+.markdownSurface :global(h3) {
+  font-size: 18px;
+}
+
+.markdownSurface :global(p),
+.markdownSurface :global(ul),
+.markdownSurface :global(ol),
+.markdownSurface :global(blockquote),
+.markdownSurface :global(pre),
+.markdownSurface :global(table) {
+  margin: 0.75em 0;
+}
+
+.markdownSurface :global(ul),
+.markdownSurface :global(ol) {
+  padding-left: 1.5em;
+}
+
+.markdownSurface :global(ul) {
+  list-style: disc;
+}
+
+.markdownSurface :global(ol) {
+  list-style: decimal;
+}
+
+.markdownSurface :global(blockquote) {
+  padding: var(--warm-ledger-space-3) var(--warm-ledger-space-4);
+  color: var(--warm-ledger-color-text-soft);
+  background: var(--warm-ledger-color-panel-strong);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-inner);
+}
+
+.markdownSurface :global(a) {
+  color: var(--warm-ledger-color-accent-strong);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.markdownSurface :global(code) {
+  padding: 2px 5px;
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-mono);
+  font-size: 0.9em;
+  background: var(--warm-ledger-color-raised);
+  border-radius: 5px;
+}
+
+.markdownSurface :global(pre) {
+  overflow-x: auto;
+  padding: var(--warm-ledger-space-4);
+  background: var(--warm-ledger-color-panel);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-inner);
+}
+
+.markdownSurface :global(pre code) {
+  padding: 0;
+  background: transparent;
+}
+
+.markdownSurface :global(table) {
+  width: 100%;
+  overflow: hidden;
+  border-collapse: collapse;
+  font-family: var(--warm-ledger-font-mono);
+  font-size: var(--warm-ledger-font-size-control);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-inner);
+}
+
+.markdownSurface :global(th),
+.markdownSurface :global(td) {
+  padding: var(--warm-ledger-space-2) var(--warm-ledger-space-3);
+  text-align: left;
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+}
+
+.markdownSurface :global(th) {
+  color: var(--warm-ledger-color-text-soft);
+  font-family: var(--warm-ledger-font-sans);
+  font-weight: var(--warm-ledger-font-weight-medium);
+  background: var(--warm-ledger-color-raised);
+}
+
+/* User HTML stays on a paper canvas so the document content is not re-themed. */
+.htmlPreview {
+  width: 100%;
+  min-height: 60vh;
+  color-scheme: light;
+  background: #fff;
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline-strong);
+  border-radius: var(--warm-ledger-radius-control);
+}
+
+.publicLinkRow {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--warm-ledger-space-2);
+}
+
+.publicUrl {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  padding: var(--warm-ledger-space-2) var(--warm-ledger-space-3);
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-mono);
+  font-size: var(--warm-ledger-font-size-control);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: var(--warm-ledger-color-window);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-inner);
+}
+
+.openButton {
+  text-decoration: none;
+}
+
+.historyBody {
+  gap: 0;
+}
+
+.historyEmpty {
+  display: flex;
+  min-height: 128px;
+  align-items: center;
+  justify-content: center;
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-control);
+}
+
+.tableScroll {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-inner);
+  scrollbar-color: var(--warm-ledger-color-raised-hover) var(--warm-ledger-color-panel);
+}
+
+.tableScroll:focus-visible {
+  outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color);
+  outline-offset: var(--warm-ledger-focus-offset);
+}
+
+.table {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+  color: var(--warm-ledger-color-text);
+  font-size: var(--warm-ledger-font-size-control);
+  text-align: left;
+}
+
+.table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: 40px;
+  padding: 0 var(--warm-ledger-space-3);
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-label);
+  font-weight: var(--warm-ledger-font-weight-medium);
+  background: var(--warm-ledger-color-raised);
+  border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+}
+
+.table td {
+  height: 48px;
+  padding: 0 var(--warm-ledger-space-3);
+  color: var(--warm-ledger-color-text-soft);
+  border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.table tbody tr:hover td {
+  background: var(--warm-ledger-color-raised);
+}
+
+.table td:first-child,
+.table td:nth-child(3),
+.table td:nth-child(5) {
+  font-family: var(--warm-ledger-font-mono);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+}
+
+.titleCell,
+.filenameCell {
+  max-width: 260px;
+}
+
+.titleCell span,
+.filenameCell span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.titleCell span {
+  color: var(--warm-ledger-color-text);
+}
+
+.numericCell {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.actionCell {
+  width: 120px;
+  text-align: right;
+}
+
+.rowActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--warm-ledger-space-1);
+}
+
+.rowActions :global(.warm-ledger__icon-button) {
+  color: var(--warm-ledger-color-text-muted);
+}
+
+.rowActions .deleteButton:hover:not(:disabled) {
+  color: var(--warm-ledger-color-negative);
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

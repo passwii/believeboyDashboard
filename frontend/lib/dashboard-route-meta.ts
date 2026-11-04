@@ -59,7 +59,287 @@ export const DASHBOARD_PAGE_TITLES: Array<{ match: string; title: string }> = [
   { match: '/dashboard/crm', title: 'CRM 业务' },
 ]
 
+export type DashboardRouteMeta = {
+  title: string
+  sectionLabel?: string
+  sectionHref?: string
+  navHref?: string
+  warm?: boolean
+}
+
+const OPERATIONS_SECTION = {
+  sectionLabel: '运营',
+  sectionHref: '/dashboard',
+} as const
+const REPORTS_SECTION = { sectionLabel: '报表中心' } as const
+const FINANCE_SECTION = { sectionLabel: '财务资金' } as const
+const CRM_SECTION = { sectionLabel: 'CRM 客户与合作伙伴' } as const
+const AI_SECTION = { sectionLabel: 'AI 智能' } as const
+const TOOLS_SECTION = { sectionLabel: '工具箱' } as const
+const SYSTEM_SECTION = { sectionLabel: '系统管理' } as const
+
+const WARM_LEDGER_EXACT_ROUTE_META: Record<string, DashboardRouteMeta> = {
+  '/dashboard/operations/daily-analysis': {
+    ...OPERATIONS_SECTION,
+    title: '销售数据',
+    warm: true,
+  },
+  '/dashboard/operations/portfolio-overview': {
+    ...OPERATIONS_SECTION,
+    title: '组合分析',
+    warm: true,
+  },
+  '/dashboard/operations/inventory-analysis': {
+    ...OPERATIONS_SECTION,
+    title: '库存分析',
+    warm: true,
+  },
+  '/dashboard/operations/inventory-ledger': {
+    ...OPERATIONS_SECTION,
+    title: '库存分类账',
+    warm: true,
+  },
+  '/dashboard/operations/shipping-plan': {
+    ...OPERATIONS_SECTION,
+    title: '发货规划',
+    warm: true,
+  },
+  '/dashboard/operations/shipment-management': {
+    ...OPERATIONS_SECTION,
+    title: '货件管理',
+    warm: true,
+  },
+  '/dashboard/operations/sku-info': {
+    ...OPERATIONS_SECTION,
+    title: 'SKU 信息中心',
+    warm: true,
+  },
+  '/dashboard/reports/order-info': {
+    ...REPORTS_SECTION,
+    title: '订单信息',
+    warm: true,
+  },
+  '/dashboard/reports/product-analysis': {
+    ...REPORTS_SECTION,
+    title: '产品分析',
+    warm: true,
+  },
+  '/dashboard/reports/monthly-report/display': {
+    ...REPORTS_SECTION,
+    title: '财务月报',
+    warm: true,
+  },
+  '/dashboard/finance/platform-revenue': {
+    ...FINANCE_SECTION,
+    title: '平台回款',
+    warm: true,
+  },
+  '/dashboard/finance/exchange-rate': {
+    ...FINANCE_SECTION,
+    title: '汇率信息',
+    warm: true,
+  },
+  '/dashboard/finance/vat-invoice': {
+    ...FINANCE_SECTION,
+    title: 'VAT 发票',
+    warm: true,
+  },
+  '/dashboard/finance/commission-management': {
+    ...FINANCE_SECTION,
+    title: '佣金管理',
+    warm: true,
+  },
+  '/dashboard/crm/dashboard': {
+    ...CRM_SECTION,
+    title: '数据看板',
+    warm: true,
+  },
+  '/dashboard/crm/follow-ups': {
+    ...CRM_SECTION,
+    title: '待跟进',
+    warm: true,
+  },
+  '/dashboard/crm/customers': {
+    ...CRM_SECTION,
+    title: '客户',
+    warm: true,
+  },
+  '/dashboard/crm/sea': {
+    ...CRM_SECTION,
+    title: '客户公海',
+    navHref: '/dashboard/crm/customers',
+    warm: true,
+  },
+  '/dashboard/crm/proposals': {
+    ...CRM_SECTION,
+    title: '客户方案',
+    warm: true,
+  },
+  '/dashboard/crm/leads': {
+    ...CRM_SECTION,
+    title: '线索',
+    warm: true,
+  },
+  '/dashboard/crm/tasks': {
+    ...CRM_SECTION,
+    title: '任务',
+    warm: true,
+  },
+  '/dashboard/crm/audit': {
+    ...CRM_SECTION,
+    title: '操作日志',
+    warm: true,
+  },
+  '/dashboard/crm/settings': {
+    ...CRM_SECTION,
+    title: 'CRM 设置',
+    warm: true,
+  },
+  '/dashboard/ai/insights': {
+    ...AI_SECTION,
+    title: 'AI洞察',
+    warm: true,
+  },
+  '/dashboard/ai/ad-analysis': {
+    ...AI_SECTION,
+    title: 'AI 广告分析',
+    warm: true,
+  },
+  '/dashboard/ai/inventory-health': {
+    ...AI_SECTION,
+    title: 'AI 库存健康',
+    warm: true,
+  },
+  '/dashboard/ai/believeboy-models': {
+    ...AI_SECTION,
+    title: '模型选型',
+    warm: true,
+  },
+  '/dashboard/ai/customer-service': {
+    ...AI_SECTION,
+    title: '客服交流',
+    warm: true,
+  },
+  '/dashboard/ai/digital-employees': {
+    ...AI_SECTION,
+    title: '数字员工',
+    warm: true,
+  },
+  '/dashboard/ai/digital-employees/office': {
+    ...AI_SECTION,
+    title: '虚拟办公室',
+    warm: true,
+  },
+  '/dashboard/tools/markdown-to-word': {
+    ...TOOLS_SECTION,
+    title: 'Markdown 转 Word',
+    warm: true,
+  },
+  '/dashboard/tools/page-render': {
+    ...TOOLS_SECTION,
+    title: 'Markdown / HTML 渲染',
+    warm: true,
+  },
+  '/dashboard/tools/brand-registration-example': {
+    ...TOOLS_SECTION,
+    title: '品牌备案示例',
+    warm: true,
+  },
+  '/dashboard/tools/product-label': {
+    ...TOOLS_SECTION,
+    title: '产品标签制作',
+    warm: true,
+  },
+  '/dashboard/tools/cross-border-compliance': {
+    ...TOOLS_SECTION,
+    title: '跨境电商合规',
+    warm: true,
+  },
+  '/dashboard/system/account-management': {
+    ...SYSTEM_SECTION,
+    title: '系统账号管理',
+    warm: true,
+  },
+  '/dashboard/system/agent-management': {
+    ...SYSTEM_SECTION,
+    title: 'Agent 接入管理',
+    warm: true,
+  },
+  '/dashboard/system/alerts': {
+    ...SYSTEM_SECTION,
+    title: '告警中心',
+    warm: true,
+  },
+  '/dashboard/system/changelog': {
+    ...SYSTEM_SECTION,
+    title: '更新日志',
+    warm: true,
+  },
+  '/dashboard/system/data-management': {
+    ...SYSTEM_SECTION,
+    title: '数据库状态',
+    warm: true,
+  },
+  '/dashboard/system/logs': {
+    ...SYSTEM_SECTION,
+    title: '日志查看',
+    warm: true,
+  },
+  '/dashboard/system/operator-management': {
+    ...SYSTEM_SECTION,
+    title: '运营管理',
+    warm: true,
+  },
+  '/dashboard/system/project-info': {
+    ...SYSTEM_SECTION,
+    title: '项目信息',
+    warm: true,
+  },
+}
+
+const WARM_LEDGER_DYNAMIC_ROUTE_META: Array<{
+  pattern: RegExp
+  meta: DashboardRouteMeta
+}> = [
+  {
+    pattern: /^\/dashboard\/crm\/proposals\/[^/]+$/,
+    meta: {
+      ...CRM_SECTION,
+      title: '客户方案详情',
+      navHref: '/dashboard/crm/proposals',
+      warm: true,
+    },
+  },
+  {
+    pattern: /^\/dashboard\/ai\/digital-employees\/(?!office$)[^/]+$/,
+    meta: {
+      ...AI_SECTION,
+      title: '数字员工详情',
+      navHref: '/dashboard/ai/digital-employees',
+      warm: true,
+    },
+  },
+]
+
+function normalizeDashboardRoute(pathname: string) {
+  return pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname
+}
+
+export function getDashboardRouteMeta(pathname: string): DashboardRouteMeta | undefined {
+  const normalizedPathname = normalizeDashboardRoute(pathname)
+  const routeMeta =
+    WARM_LEDGER_EXACT_ROUTE_META[normalizedPathname] ??
+    WARM_LEDGER_DYNAMIC_ROUTE_META.find(({ pattern }) => pattern.test(normalizedPathname))?.meta
+  if (!routeMeta) return undefined
+  return {
+    ...routeMeta,
+    navHref: routeMeta.navHref ?? normalizedPathname,
+  }
+}
+
 export function getDashboardPageTitle(pathname: string) {
   if (pathname === '/dashboard') return '运营总览与关键数据面板'
+  const routeMeta = getDashboardRouteMeta(pathname)
+  if (routeMeta) return routeMeta.title
   return DASHBOARD_PAGE_TITLES.find(({ match }) => pathname.includes(match))?.title ?? 'Dashboard'
 }

@@ -9,6 +9,11 @@ describe('InsightStatus', () => {
       <InsightStatus status="live" label="正在生成第 2 节" progress={42} />
     )
 
+    expect(container.querySelector('[data-insight-status]')).toHaveAttribute(
+      'data-insight-appearance',
+      'legacy'
+    )
+
     const bar = container.querySelector('[role="progressbar"]')
     expect(bar).toHaveAttribute('aria-valuenow', '42')
 
@@ -53,5 +58,32 @@ describe('InsightStatus', () => {
     expect(screen.getByText('任务仍在后台运行，可稍后查看')).toBeInTheDocument()
     expect(getInsightStatusTone('reconnecting')).toBe('warning')
     expect(getInsightStatusTone('live', true)).toBe('danger')
+  })
+
+  it('opts into Warm status controls without changing tone or action semantics', () => {
+    const onRetry = vi.fn()
+    const { container } = render(
+      <InsightStatus
+        appearance="warm"
+        status="failed"
+        label="生成失败"
+        error={{ code: 'MODEL_UNAVAILABLE', message: '模型暂不可用', retryable: true }}
+        onRetry={onRetry}
+        className="page-status"
+      />
+    )
+
+    const status = container.querySelector('[data-insight-status]')
+    expect(status).toHaveAttribute('data-insight-appearance', 'warm')
+    expect(status).toHaveAttribute('data-tone', 'danger')
+    expect(status).toHaveClass('page-status')
+    expect(container.querySelector('[data-insight-status-badge]')).toHaveClass(
+      'warm-ledger__badge'
+    )
+
+    const retry = screen.getByRole('button', { name: '重试' })
+    expect(retry).toHaveClass('warm-ledger__button')
+    fireEvent.click(retry)
+    expect(onRetry).toHaveBeenCalledTimes(1)
   })
 })

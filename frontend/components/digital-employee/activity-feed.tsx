@@ -1,11 +1,23 @@
 'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
+import {
+  Activity,
+  CheckCircle2,
+  HeartPulse,
+  Rocket,
+  XCircle,
+  Zap,
+} from 'lucide-react'
 import type { DigitalEmployeeTask, DigitalEmployee } from '@/types/digital-employee'
 import { fetchDigitalEmployees } from '@/lib/digital-employee-api'
-import { fetchEmployeeTasks } from '@/lib/digital-employee-api'
-import { PERSONA_MAP } from '@/components/digital-employee/persona'
+import {
+  WarmBadge,
+  type WarmBadgeTone,
+} from '@/components/dashboard-v2/warm-ledger/controls'
 import { cn } from '@/lib/utils'
+
+import styles from './digital-employee-warm.module.css'
 
 const API_BASE = '/api/backend'
 
@@ -157,58 +169,46 @@ function formatRelativeTime(date: Date): string {
   return `${days}天前`
 }
 
-const EVENT_STYLES: Record<
+const EVENT_PRESENTATION: Record<
   ActivityEvent['eventType'],
   {
-    icon: string
-    color: string
-    border: string
+    icon: typeof Rocket
     label: string
-    bg: string
+    tone: WarmBadgeTone
   }
 > = {
   started: {
-    icon: '🚀',
-    color: 'text-blue-600 dark:text-blue-400',
-    border: 'border-blue-200 dark:border-blue-800',
-    bg: 'bg-blue-50 dark:bg-blue-950/40',
+    icon: Rocket,
     label: '启动',
+    tone: 'accent',
   },
   progress: {
-    icon: '⚡',
-    color: 'text-blue-600 dark:text-blue-400',
-    border: 'border-blue-200 dark:border-blue-800',
-    bg: 'bg-blue-50 dark:bg-blue-950/40',
+    icon: Zap,
     label: '进行中',
+    tone: 'accent',
   },
   completed: {
-    icon: '✅',
-    color: 'text-emerald-600 dark:text-emerald-400',
-    border: 'border-emerald-200 dark:border-emerald-800',
-    bg: 'bg-emerald-50 dark:bg-emerald-950/40',
+    icon: CheckCircle2,
     label: '完成',
+    tone: 'positive',
   },
   failed: {
-    icon: '❌',
-    color: 'text-term-neg',
-    border: 'border-term-neg/30',
-    bg: 'bg-term-neg/5',
+    icon: XCircle,
     label: '失败',
+    tone: 'negative',
   },
   heartbeat: {
-    icon: '💓',
-    color: 'text-muted-foreground',
-    border: 'border-muted',
-    bg: 'bg-muted/40',
+    icon: HeartPulse,
     label: '心跳',
+    tone: 'neutral',
   },
 }
 
 function ProgressBar({ percent }: { percent: number }) {
   return (
-    <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-muted">
+    <div className={styles.activityProgress}>
       <div
-        className="h-full rounded-full bg-blue-500 transition-all duration-[var(--duration-very-slow)]"
+        className={styles.activityProgressBar}
         style={{ width: `${percent}%` }}
       />
     </div>
@@ -216,89 +216,32 @@ function ProgressBar({ percent }: { percent: number }) {
 }
 
 function ActivityItem({ activity, compact }: { activity: ActivityEvent; compact?: boolean }) {
-  const style = EVENT_STYLES[activity.eventType]
-  const persona = PERSONA_MAP[activity.employeeType] || PERSONA_MAP.CUSTOM
-  const avatar = activity.avatarUrl || persona.emoji
+  const presentation = EVENT_PRESENTATION[activity.eventType]
+  const EventIcon = presentation.icon
 
   return (
     <div
-      className={cn(
-        'group relative flex gap-3 rounded-xl border p-3 transition-all duration-[var(--duration-quick)]',
-        'hover:shadow-sm hover:-translate-y-0.5',
-        style.border,
-        style.bg,
-        compact ? 'py-2.5' : ''
-      )}
+      className={styles.activityItem}
+      data-event={activity.eventType}
+      data-compact={compact || undefined}
     >
-      {/* Timeline dot */}
-      <div
-        className={cn(
-          'absolute -left-1.5 top-4 h-3 w-3 rounded-full border-2',
-          style.border.replace('border-', 'bg-'),
-          'bg-background'
-        )}
-      />
-
-      {/* Avatar */}
-      <div className="relative shrink-0">
-        <div
-          className={cn(
-            'flex items-center justify-center rounded-xl border text-xl',
-            compact ? 'h-9 w-9 text-lg' : 'h-11 w-11 text-2xl'
-          )}
-          style={{
-            background: `linear-gradient(135deg, hsl(var(--${persona.color.split('-')[1]}-500)/.08) 0%, hsl(var(--${persona.color.split('-')[1]}-500)/.03) 100%)`,
-            borderColor: `hsl(var(--${persona.color.split('-')[1]}-500)/.2)`,
-          }}
-        >
-          {avatar}
-        </div>
-        <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border bg-background text-[10px] shadow-sm">
-          {style.icon}
-        </span>
+      <div className={styles.activityIcon}>
+        <EventIcon aria-hidden="true" />
       </div>
 
-      {/* Content */}
-      <div className="min-w-0 flex-1">
-        {/* Header */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className="truncate text-sm font-semibold">{activity.employeeName}</span>
-            <span
-              className={cn(
-                'shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium',
-                style.bg,
-                style.color
-              )}
-            >
-              {style.label}
-            </span>
-          </div>
-          <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
+      <div className={styles.activityCopy}>
+        <div className={styles.activityIdentity}>
+          <strong>{activity.employeeName}</strong>
+          <WarmBadge tone={presentation.tone}>{presentation.label}</WarmBadge>
+          <span className={styles.activityTime}>
             {formatRelativeTime(activity.timestamp)}
           </span>
         </div>
 
-        {/* Task name */}
-        <p
-          className={cn('mt-0.5 text-xs text-muted-foreground truncate', compact && 'text-[11px]')}
-        >
-          {activity.taskName}
-        </p>
+        <p className={styles.activityTask}>{activity.taskName}</p>
 
-        {/* Message */}
-        <p
-          className={cn(
-            'mt-1 text-sm leading-relaxed',
-            activity.eventType === 'failed'
-              ? 'text-term-neg font-medium'
-              : 'text-foreground/80'
-          )}
-        >
-          {activity.message}
-        </p>
+        <p className={styles.activityMessage}>{activity.message}</p>
 
-        {/* Progress bar for running tasks */}
         {activity.eventType === 'progress' && activity.progressPercent > 0 && (
           <ProgressBar percent={activity.progressPercent} />
         )}
@@ -318,14 +261,14 @@ export function ActivityFeed({
 
   if (isLoading) {
     return (
-      <div className={cn('space-y-2', className)}>
+      <div className={cn(styles.activityList, className)} aria-busy="true">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="flex gap-3 rounded-xl border p-3">
-            <div className="h-11 w-11 rounded-xl bg-muted animate-pulse shrink-0" />
-            <div className="flex-1 space-y-2 pt-1">
-              <div className="h-3 w-24 rounded bg-muted animate-pulse" />
-              <div className="h-3 w-40 rounded bg-muted animate-pulse" />
-              <div className="h-3 w-full rounded bg-muted animate-pulse" />
+          <div key={i} className={styles.activitySkeleton}>
+            <div className={cn(styles.skeleton, styles.activityAvatarSkeleton)} />
+            <div className={styles.activityTextSkeleton}>
+              <span className={styles.skeleton} />
+              <span className={styles.skeleton} />
+              <span className={styles.skeleton} />
             </div>
           </div>
         ))}
@@ -336,14 +279,11 @@ export function ActivityFeed({
   if (activities.length === 0) {
     return (
       <div
-        className={cn(
-          'flex flex-col items-center justify-center rounded-xl border border-dashed py-12 text-muted-foreground',
-          className
-        )}
+        className={cn(styles.activityEmpty, className)}
       >
-        <span className="text-3xl">🤖</span>
-        <p className="mt-2 text-sm">暂无活动记录</p>
-        <p className="text-xs">数字员工正在待命...</p>
+        <Activity aria-hidden="true" />
+        <p>暂无活动记录</p>
+        <p>数字员工正在待命...</p>
       </div>
     )
   }
@@ -351,7 +291,8 @@ export function ActivityFeed({
   return (
     <div
       ref={scrollRef}
-      className={cn('space-y-2 overflow-y-auto pr-1', className)}
+      className={cn(styles.activityList, className)}
+      data-testid="digital-employee-activity-list"
       style={{ maxHeight }}
     >
       {activities.map((activity) => (

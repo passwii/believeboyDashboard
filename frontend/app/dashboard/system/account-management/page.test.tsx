@@ -92,8 +92,13 @@ beforeEach(() => {
         item: {
           ...base,
           fullName: 'fullName' in patch ? (patch.fullName as string | null) : base.fullName,
+          isActive: 'isActive' in patch ? (patch.isActive as boolean) : base.isActive,
+          roleType: 'roleType' in patch ? patch.roleType : base.roleType,
         },
       })
+    }
+    if (url.startsWith('/api/admin/users/') && init?.method === 'DELETE') {
+      return jsonResponse({ ok: true })
     }
     return jsonResponse({}, 404)
   })
@@ -105,15 +110,16 @@ afterEach(() => {
 })
 
 async function renderPage() {
-  render(<AccountManagementPage />)
-  // 桌面表格 + 手机卡片两处都会渲染，按表头等待（唯一）。
+  const result = render(<AccountManagementPage />)
+  // V4 仅保留桌面表格，等待表头确认数据已完成首轮加载。
   await screen.findByRole('columnheader', { name: '姓名' })
+  return result
 }
 
-/** 桌面表格（md:block 分支）里按「名称」列（登录名）定位一行。 */
+/** Warm 表格里按「名称」列（登录名）定位一行。 */
 function desktopRow(loginName: string): HTMLElement {
-  const desktop = document.querySelector('.hidden.md\\:block') as HTMLElement
-  const nameCell = within(desktop).getByText(loginName, { selector: 'td' })
+  const table = screen.getByRole('table')
+  const nameCell = within(table).getByText(loginName, { selector: 'td' })
   return nameCell.closest('tr') as HTMLElement
 }
 
@@ -143,8 +149,9 @@ describe('账号管理 · 姓名列只取 full_name', () => {
   it('「运营名」列已删除：表头只有姓名、没有运营名', async () => {
     await renderPage()
 
-    const desktop = document.querySelector('.hidden.md\\:block') as HTMLElement
-    const headers = within(desktop).getAllByRole('columnheader').map((el) => el.textContent)
+    const headers = within(screen.getByRole('table'))
+      .getAllByRole('columnheader')
+      .map((el) => el.textContent)
     expect(headers).toContain('姓名')
     expect(headers).not.toContain('运营名')
   })
@@ -161,9 +168,8 @@ describe('账号管理 · 姓名列只取 full_name', () => {
 describe('账号管理 · 编辑弹窗（只剩姓名 / 角色属性）', () => {
   async function openEditFor(loginName: string) {
     await renderPage()
-    const desktop = document.querySelector('.hidden.md\\:block') as HTMLElement
-    const row = within(desktop).getByText(loginName).closest('tr') as HTMLElement
-    await userEvent.click(within(row).getByRole('button', { name: '' }))
+    const row = desktopRow(loginName)
+    await userEvent.click(within(row).getByRole('button', { name: '更多操作' }))
     await userEvent.click(await screen.findByRole('menuitem', { name: /编辑/ }))
     return screen.findByRole('dialog')
   }
@@ -222,6 +228,100 @@ describe('账号管理 · 编辑弹窗（只剩姓名 / 角色属性）', () => 
       const body = JSON.parse(String((patchCall![1] as RequestInit).body))
       expect(body.fullName).toBe('')
       expect(body).not.toHaveProperty('operator_name_zh')
+    })
+  })
+
+  it('编辑角色属性时提交 camelCase roleType', async () => {
+    const dialog = await openEditFor('DamonROCK')
+
+    await userEvent.selectOptions(within(dialog).getByLabelText('角色属性'), 'businessdev')
+    await userEvent.click(within(dialog).getByRole('button', { name: '保存' }))
+
+    await waitFor(() => {
+      const patchCall = fetchMock.mock.calls.find(
+        (call: unknown[]) =>
+          String(call[0]) === '/api/admin/users/u2' &&
+          (call[1] as RequestInit | undefined)?.method === 'PATCH'
+      )
+      expect(patchCall).toBeTruthy()
+      const body = JSON.parse(String((patchCall![1] as RequestInit).body))
+      expect(body.roleType).toBe('businessdev')
+      expect(body).not.toHaveProperty('role_type')
+    })
+  })
+})
+
+describe('账号管理 · Warm Ledger 与既有写入行为', () => {
+  it('使用 Warm 本地页面表面，不渲染 Terminal 视觉类', async () => {
+    const { container } = await renderPage()
+    const page = container.querySelector('[data-warm-account-management="true"]')
+
+    expect(page).toBeTruthy()
+    expect(container.querySelector('[class*="term-"]')).toBeNull()
+    expect(container.querySelector('.rounded-none')).toBeNull()
+    expect(screen.getAllByRole('table')).toHaveLength(1)
+  })
+
+  it('账号弹窗同样使用 Warm 控件，不混入 Terminal 类', async () => {
+    await renderPage()
+    await userEvent.click(screen.getByRole('button', { name: '新增账号' }))
+    const dialog = await screen.findByRole('dialog')
+
+    expect(dialog.querySelectorAll('[class*="term-"]')).toHaveLength(0)
+    expect(dialog.querySelectorAll('.rounded-none')).toHaveLength(0)
+  })
+
+  it('启停按钮保留 PATCH 契约', async () => {
+    await renderPage()
+    const row = desktopRow('DamonROCK')
+
+    await userEvent.click(within(row).getByRole('button', { name: '停用' }))
+
+    await waitFor(() => {
+      const patchCall = fetchMock.mock.calls.find(
+        (call: unknown[]) =>
+          String(call[0]) === '/api/admin/users/u2' &&
+          (call[1] as RequestInit | undefined)?.method === 'PATCH'
+      )
+      expect(patchCall).toBeTruthy()
+      expect(JSON.parse(String((patchCall![1] as RequestInit).body))).toEqual({
+        isActive: false,
+      })
+    })
+  })
+
+  it('重置密码保留 PATCH password 契约', async () => {
+    await renderPage()
+    const row = desktopRow('DamonROCK')
+
+    await userEvent.click(within(row).getByRole('button', { name: '更多操作' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: '重置密码' }))
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.type(within(dialog).getByLabelText('新密码'), 'new-password')
+    await userEvent.click(within(dialog).getByRole('button', { name: '确认重置' }))
+
+    await waitFor(() => {
+      const patchCall = fetchMock.mock.calls.find(
+        (call: unknown[]) =>
+          String(call[0]) === '/api/admin/users/u2' &&
+          (call[1] as RequestInit | undefined)?.method === 'PATCH' &&
+          JSON.parse(String((call[1] as RequestInit).body)).password === 'new-password'
+      )
+      expect(patchCall).toBeTruthy()
+    })
+  })
+
+  it('删除账号保留 DELETE 契约和确认弹窗', async () => {
+    await renderPage()
+    const row = desktopRow('DamonROCK')
+
+    await userEvent.click(within(row).getByRole('button', { name: '更多操作' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: '删除账号' }))
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: '确认删除' }))
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/admin/users/u2', { method: 'DELETE' })
     })
   })
 })

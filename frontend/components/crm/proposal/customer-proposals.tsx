@@ -2,13 +2,17 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ArrowUpRight, Loader2, Plus } from 'lucide-react'
+import { ArrowUpRight, Plus } from 'lucide-react'
 
-import { TERM_BUTTON } from '@/components/crm/term-shared'
+import {
+  WarmCrmSection,
+  WarmCrmState,
+} from '@/components/dashboard-v2/warm-ledger/crm'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import { useCrmDataScope } from '@/hooks/use-crm-data-scope'
 import type { Proposal } from '@/lib/crm/types'
 import { ProposalStatusPill, ProposalTypePill } from './pill'
+import styles from './proposal-warm.module.css'
 
 /**
  * 客户详情抽屉里的「方案」Tab：列出该客户关联的客户方案。
@@ -73,55 +77,51 @@ export function CustomerProposals({ customerId, className }: CustomerProposalsPr
   }, [client, customerId, scope])
 
   return (
-    <section className={className} data-testid="customer-proposals">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="font-mono text-xs uppercase tracking-wider text-term-muted">
-          关联方案{loading ? '' : `（${items.length}）`}
-        </h3>
+    <WarmCrmSection
+      actions={
         <Link
           href="/dashboard/crm/proposals"
-          className={`${TERM_BUTTON} h-7 gap-1 px-1.5`}
+          className={`${styles.linkButton} ${styles.linkButtonCompact}`}
           title="前往客户方案页"
         >
-          <ArrowUpRight className="h-3.5 w-3.5" />
+          <ArrowUpRight aria-hidden="true" />
           方案页
         </Link>
-      </div>
-
+      }
+      className={className}
+      data-testid="customer-proposals"
+      title={`关联方案${loading ? '' : `（${items.length}）`}`}
+    >
       {loading ? (
-        <div className="flex items-center gap-1.5 border border-term-border px-2 py-6 font-mono text-xs text-term-faint">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          加载关联方案…
-        </div>
+        <WarmCrmState kind="loading" title="加载关联方案…" />
       ) : error ? (
-        <p
-          role="alert"
-          className="border border-term-neg/50 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg"
-        >
-          ERR · {error}
-        </p>
+        <WarmCrmState kind="error" title={`ERR · ${error}`} />
       ) : items.length === 0 ? (
-        <div className="flex flex-col items-start gap-2 border border-term-border px-2 py-4">
-          <p className="font-mono text-xs text-term-faint">
-            该客户还没有关联方案。新建方案时在「关联客户」里选择此客户即可关联。
-          </p>
-          <Link href="/dashboard/crm/proposals" className={`${TERM_BUTTON} h-7 gap-1 px-1.5`}>
-            <Plus className="h-3.5 w-3.5" />
-            新建方案
-          </Link>
-        </div>
+        <WarmCrmState
+          action={
+            <Link
+              href="/dashboard/crm/proposals"
+              className={`${styles.linkButton} ${styles.linkButtonCompact}`}
+            >
+              <Plus aria-hidden="true" />
+              新建方案
+            </Link>
+          }
+          kind="empty"
+          title="该客户还没有关联方案。新建方案时在「关联客户」里选择此客户即可关联。"
+        />
       ) : (
-        <ul className="flex flex-col gap-1">
+        <ul className={styles.customerList}>
           {items.map((p) => (
             <li
               key={p.id}
-              className="border border-term-border bg-term-panel px-2 py-1.5"
+              className={styles.customerItem}
               data-testid={`customer-proposal-${p.id}`}
             >
-              <div className="flex flex-wrap items-center gap-2">
+              <div className={styles.customerMain}>
                 <Link
                   href={`/dashboard/crm/proposals/${p.id}`}
-                  className="min-w-0 flex-1 truncate text-xs text-term-text hover:underline"
+                  className={styles.customerTitle}
                   title={p.title}
                 >
                   {p.title}
@@ -129,7 +129,7 @@ export function CustomerProposals({ customerId, className }: CustomerProposalsPr
                 <ProposalTypePill type={p.proposalType} />
                 <ProposalStatusPill status={p.status} />
               </div>
-              <div className="mt-1 flex items-center justify-between font-mono text-[11px] text-term-faint">
+              <div className={styles.customerMeta}>
                 <span>
                   v{p.currentVersionNo} · {p.versionCount} 版
                 </span>
@@ -139,6 +139,6 @@ export function CustomerProposals({ customerId, className }: CustomerProposalsPr
           ))}
         </ul>
       )}
-    </section>
+    </WarmCrmSection>
   )
 }

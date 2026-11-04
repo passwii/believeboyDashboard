@@ -5,8 +5,6 @@
  * 嵌入客户详情抽屉顶部。
  */
 import { useState } from 'react'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import {
   Tooltip,
   TooltipContent,
@@ -14,22 +12,34 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { HelpCircle } from 'lucide-react'
+import {
+  WarmButton,
+  type WarmBadgeTone,
+} from '@/components/dashboard-v2/warm-ledger/controls'
+import { WarmCrmStatusPill } from '@/components/dashboard-v2/warm-ledger/crm'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import {
   SCORE_FIELDS,
   GRADE_OPTIONS,
-  GRADE_COLOR,
   computeRating,
   type Grade,
   type ScoreKey,
 } from '@/lib/crm/constants/value-score'
 import type { Customer, ValueScoresInput } from '@/lib/crm/types/customer'
+import styles from './crm-value-profile-card-warm.module.css'
 
 const KEY_TO_CUST: Record<ScoreKey, keyof Customer> = {
   score_scale: 'scoreScale',
   score_pay: 'scorePay',
   score_fit: 'scoreFit',
   score_coop: 'scoreCoop',
+}
+
+const GRADE_TONE: Record<Grade, WarmBadgeTone> = {
+  A: 'positive',
+  B: 'accent',
+  C: 'neutral',
+  D: 'negative',
 }
 
 export function CrmValueProfileCard({
@@ -75,40 +85,38 @@ export function CrmValueProfileCard({
   }
 
   return (
-    <div className="space-y-3 rounded-none border border-term-border bg-term-panel p-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm font-medium text-term-text">
-          <span className="font-mono text-xs uppercase tracking-wider text-term-muted">价值画像</span>
+    <div className={styles.card}>
+      <div className={styles.header}>
+        <div className={styles.header}>
+          <span className={styles.title}>价值画像</span>
           {customer.rating ? (
-            <Badge className={GRADE_COLOR[customer.rating as Grade]} variant="secondary">
+            <WarmCrmStatusPill tone={GRADE_TONE[customer.rating as Grade] ?? 'neutral'}>
               综合档 {customer.rating}
-            </Badge>
+            </WarmCrmStatusPill>
           ) : (
-            <span className="font-mono text-xs text-term-faint">评分待完善</span>
+            <span className={styles.muted}>评分待完善</span>
           )}
           {editing && liveRating && liveRating !== customer.rating && (
-            <Badge variant="outline" className="font-mono text-xs">
-              预览 {liveRating}
-            </Badge>
+            <WarmCrmStatusPill>预览 {liveRating}</WarmCrmStatusPill>
           )}
         </div>
         {!editing && (
-          <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+          <WarmButton onClick={() => setEditing(true)}>
             编辑评分
-          </Button>
+          </WarmButton>
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <div className={styles.grid}>
         {SCORE_FIELDS.map((f) => {
           const cur = editing ? draft[f.key] : (customer[KEY_TO_CUST[f.key]] as Grade | null)
           return (
-            <div key={f.key} className="flex items-center gap-2 text-sm text-term-text">
-              <span className="font-mono text-xs text-term-muted">{f.label}</span>
+            <div key={f.key} className={styles.scoreRow}>
+              <span className={styles.scoreLabel}>{f.label}</span>
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <HelpCircle className="h-3.5 w-3.5 cursor-help text-muted-foreground" />
+                    <HelpCircle className={styles.help} />
                   </TooltipTrigger>
                   <TooltipContent className="max-w-xs">
                     <p>{f.tooltip}</p>
@@ -116,7 +124,7 @@ export function CrmValueProfileCard({
                 </Tooltip>
               </TooltipProvider>
               {editing ? (
-                <div className="ml-auto flex gap-0.5" role="radiogroup" aria-label={f.label}>
+                <div className={styles.gradeOptions} role="radiogroup" aria-label={f.label}>
                   {GRADE_OPTIONS.map((g) => (
                     <button
                       key={g}
@@ -125,22 +133,18 @@ export function CrmValueProfileCard({
                       aria-label={g}
                       aria-checked={cur === g}
                       onClick={() => setDraft((d) => ({ ...d, [f.key]: g }))}
-                      className={`h-6 w-6 rounded-none border text-xs font-medium transition-colors ${
-                        cur === g
-                          ? 'border-term-border bg-term-raised text-term-text'
-                          : 'border-term-border bg-term-bg text-term-muted hover:bg-term-hover'
-                      }`}
+                      className={styles.option}
                     >
                       {g}
                     </button>
                   ))}
                 </div>
               ) : cur ? (
-                <Badge variant="secondary" className={`ml-auto font-mono ${GRADE_COLOR[cur]}`}>
+                <WarmCrmStatusPill className={styles.rating} tone={GRADE_TONE[cur]}>
                   {cur}
-                </Badge>
+                </WarmCrmStatusPill>
               ) : (
-                <span className="ml-auto font-mono text-xs text-term-faint">—</span>
+                <span className={`${styles.rating} ${styles.muted}`}>—</span>
               )}
             </div>
           )
@@ -148,20 +152,19 @@ export function CrmValueProfileCard({
       </div>
 
       {editing && (
-        <div className="flex justify-end gap-2">
-          <Button
-            size="sm"
-            variant="ghost"
+        <div className={styles.actions}>
+          <WarmButton
+            variant="quiet"
             onClick={() => {
               setEditing(false)
               resetDraft()
             }}
           >
             取消
-          </Button>
-          <Button size="sm" onClick={handleSave} disabled={saving}>
+          </WarmButton>
+          <WarmButton variant="primary" onClick={handleSave} disabled={saving}>
             {saving ? '保存中…' : '保存评分'}
-          </Button>
+          </WarmButton>
         </div>
       )}
     </div>

@@ -1,11 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { CalendarRange, FolderKanban, LayoutDashboard, Loader2, RefreshCw, Wallet } from 'lucide-react'
+import { CalendarRange, FolderKanban, LayoutDashboard, RefreshCw, Wallet } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
-import { Button } from '@/components/ui/button'
-import { TermPanel } from '@/components/terminal/term-panel'
 import {
   MonthPicker,
   formatMonthInputValue,
@@ -13,14 +11,9 @@ import {
 } from '@/components/ui/date-picker'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
-import { HeaderSlotButton, TERM_HEADER_W_SM } from '@/components/terminal/header-filter-suite'
+  WarmButton,
+  WarmSelect,
+} from '@/components/dashboard-v2/warm-ledger/controls'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
 import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
 import {
@@ -28,7 +21,6 @@ import {
   useHeaderSlot,
   useMobileFilterStrip,
 } from '@/components/terminal/terminal-header-slot'
-import { cn } from '@/lib/utils'
 import { buildBackendClientHeaders } from '@/lib/backend-auth'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useNotifications } from '@/components/notifications'
@@ -47,6 +39,7 @@ import type {
   ProjectRow,
 } from './types'
 import { SITE_ORDER } from './types'
+import styles from './commission-management-warm.module.css'
 
 type CommissionProjectMonthsResponse = {
   report_month: string
@@ -141,7 +134,9 @@ export default function CommissionManagementPage() {
   const [countryFilter, setCountryFilter] = useState<SiteCode | 'all'>('all') // 'all', 'US', 'DE', 'UK'
 
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
+  const [summaryError, setSummaryError] = useState<string | null>(null)
   const [recomputing, setRecomputing] = useState(false)
 
   const [rows, setRows] = useState<CommissionProjectMonth[]>([])
@@ -170,6 +165,7 @@ export default function CommissionManagementPage() {
 
   const loadData = useCallback(async () => {
     setLoading(true)
+    setLoadError(null)
     try {
       const params = new URLSearchParams({ report_month: month })
       if (countryFilter !== 'all') {
@@ -195,17 +191,20 @@ export default function CommissionManagementPage() {
         }, {})
       )
     } catch (loadError) {
+      const message =
+        loadError instanceof Error ? loadError.message : '佣金数据加载失败'
       notify({
         type: 'error',
         title: '佣金数据加载失败',
-        message: loadError instanceof Error ? loadError.message : '佣金数据加载失败',
+        message,
       })
+      setLoadError(message)
       setRows([])
       setReceivedDraftById({})
     } finally {
       setLoading(false)
     }
-  }, [month, session, countryFilter])
+  }, [month, session, countryFilter, notify])
 
   const loadProjectMeta = useCallback(async () => {
     try {
@@ -233,6 +232,7 @@ export default function CommissionManagementPage() {
 
   const loadYearlySummary = useCallback(async () => {
     setSummaryLoading(true)
+    setSummaryError(null)
     try {
       const monthlyParams = new URLSearchParams({ year: summaryYear })
       const projectParams = new URLSearchParams({ year: summaryYear })
@@ -269,11 +269,14 @@ export default function CommissionManagementPage() {
       setMonthlySummary(Array.isArray(monthlyPayload.items) ? monthlyPayload.items : [])
       setProjectSummary(Array.isArray(projectPayload.items) ? projectPayload.items : [])
     } catch (loadError) {
+      const message =
+        loadError instanceof Error ? loadError.message : '佣金数据加载失败'
       notify({
         type: 'error',
         title: '汇总数据加载失败',
-        message: loadError instanceof Error ? loadError.message : '佣金数据加载失败',
+        message,
       })
+      setSummaryError(message)
       setMonthlySummary([])
       setProjectSummary([])
     } finally {
@@ -292,13 +295,6 @@ export default function CommissionManagementPage() {
   useEffect(() => {
     void loadExchangeRates()
   }, [loadExchangeRates])
-
-  // Reload when country filter changes (but not for 'all' since we already have all data)
-  useEffect(() => {
-    if (countryFilter !== 'all') {
-      void loadData()
-    }
-  }, [countryFilter, loadData])
 
   const sortedRows = useMemo(() => {
     return [...rows].sort((a, b) => a.project_id - b.project_id)
@@ -473,95 +469,104 @@ export default function CommissionManagementPage() {
     setCountryFilter('all')
   }
 
+  const yearOptions = Array.from({ length: 6 }, (_, index) => {
+    const year = new Date().getFullYear() - index
+    return { value: String(year), label: `${year}年` }
+  })
+  const countryOptions = [
+    { value: 'all', label: '全部站点' },
+    ...SITE_ORDER.map((code) => ({ value: code, label: SITE_INFO[code].label })),
+  ]
+
   const filterControls = (
-    <>
+    <div className={styles.headerFilters}>
       {activeTab === 'detail' ? (
         <MonthPicker
           value={parseMonthInputValue(month)}
           onChange={(date) => setMonth(date ? formatMonthInputValue(date) : month)}
-          className={cn('h-10 w-full justify-start border-term-border bg-term-panel px-2 font-mono text-xs shadow-none', TERM_HEADER_W_SM)}
+          className={styles.headerDatePicker}
+          popoverClassName="warm-ledger warm-ledger__date-picker-content"
         />
       ) : (
-        <Select
+        <WarmSelect
+          id="commission-summary-year"
+          label="年份"
           value={summaryYear}
-          onValueChange={(value) => setSummaryYear(value)}
-        >
-          <SelectTrigger className={cn('h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none', TERM_HEADER_W_SM)}>
-            <SelectValue placeholder="年份" />
-          </SelectTrigger>
-          <SelectContent>
-            {Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i).map((y) => (
-              <SelectItem key={y} value={String(y)}>
-                {y}年
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          options={yearOptions}
+          onChange={setSummaryYear}
+          className={styles.headerSelectCompact}
+        />
       )}
 
-      <Select
+      <WarmSelect
+        id="commission-country-filter"
+        label="站点"
         value={countryFilter}
-        onValueChange={(value) => setCountryFilter(value as SiteCode | 'all')}
-      >
-        <SelectTrigger className={cn('h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none', TERM_HEADER_W_SM)}>
-          <SelectValue placeholder="站点" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">全部站点</SelectItem>
-          {SITE_ORDER.map((code) => (
-            <SelectItem key={code} value={code}>
-              {SITE_INFO[code].label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+        options={countryOptions}
+        onChange={(value) => setCountryFilter(value as SiteCode | 'all')}
+        className={styles.headerSelect}
+      />
 
       {activeTab === 'detail' ? (
         <>
-          <HeaderSlotButton variant="muted" onClick={resetFilters}>重置</HeaderSlotButton>
-          <HeaderSlotButton variant="primary" onClick={() => void handleRecompute()} disabled={recomputing || loading}>
-            {recomputing ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} />
-            ) : (
-              <RefreshCw className="h-3.5 w-3.5" strokeWidth={1.75} />
-            )}
+          <WarmButton variant="quiet" onClick={resetFilters}>
+            重置
+          </WarmButton>
+          <WarmButton
+            variant="primary"
+            onClick={() => void handleRecompute()}
+            disabled={recomputing || loading}
+            loading={recomputing}
+            loadingLabel="正在重新核算佣金"
+          >
+            <RefreshCw aria-hidden />
             核算
-          </HeaderSlotButton>
+          </WarmButton>
         </>
       ) : null}
 
-      {/* 本月/年度统计：head 内 mono 元信息（不占页面纵向空间） */}
       {activeTab === 'detail' ? (
-        <div className="hidden h-10 items-center gap-3 border border-term-border bg-term-panel px-2 font-mono text-xs tabular-nums xl:flex">
-          <span className="uppercase tracking-wider text-term-faint">本月</span>
-          <span className="text-term-muted">
-            工厂佣金 <span className="text-term-text">{formatRmb(totalFactoryCommissionRmb)}</span>
+        <div className={styles.headerMetrics}>
+          <span className={styles.headerMetricLabel}>
+            工厂佣金
+            <span className={styles.headerMetricValue}>{formatRmb(totalFactoryCommissionRmb)}</span>
           </span>
-          <span className="text-term-muted">
-            已回款 <span className="text-term-text">{formatRmb(totalReceivedRmb)}</span>
+          <span className={styles.headerMetricLabel}>
+            已回款
+            <span className={styles.headerMetricValue}>{formatRmb(totalReceivedRmb)}</span>
+          </span>
+        </div>
+      ) : activeTab === 'monthly' || activeTab === 'projectSummary' ? (
+        <div className={styles.headerMetrics}>
+          <span className={styles.headerMetricLabel}>
+            销售
+            <span className={styles.headerMetricValue}>{formatUsd(yearlyTotals.income)}</span>
+          </span>
+          <span className={styles.headerMetricLabel}>
+            佣金
+            <span className={styles.headerMetricValue}>{formatRmb(yearlyTotals.commission)}</span>
+          </span>
+          <span className={styles.headerMetricLabel}>
+            回款
+            <span className={styles.headerMetricValue}>{formatRmb(yearlyTotals.received)}</span>
           </span>
         </div>
       ) : null}
-      {(activeTab === 'monthly' || activeTab === 'projectSummary') ? (
-        <div className="hidden h-10 items-center gap-3 border border-term-border bg-term-panel px-2 font-mono text-xs tabular-nums xl:flex">
-          <span className="uppercase tracking-wider text-term-faint">{summaryYear}</span>
-          <span className="text-term-muted">
-            销售 <span className="text-term-text">{formatUsd(yearlyTotals.income)}</span>
-          </span>
-          <span className="text-term-muted">
-            佣金 <span className="text-term-text">{formatRmb(yearlyTotals.commission)}</span>
-          </span>
-          <span className="text-term-muted">
-            回款 <span className="text-term-text">{formatRmb(yearlyTotals.received)}</span>
-          </span>
-        </div>
-      ) : null}
-    </>
+    </div>
   )
 
   const headerSlotPortal = useHeaderSlot(
     <HeaderFilterControls isMobileView={false} controls={filterControls} />
   )
+
+  const activeError = activeTab === 'detail' ? loadError : summaryError
+  const retryActiveTab = () => {
+    if (activeTab === 'detail') {
+      void loadData()
+      return
+    }
+    void loadYearlySummary()
+  }
 
   // BLF-931 · 移动端：筛选控件下迁为正文顶部可折叠筛选条
   const mobileMonthLabel = activeTab === 'detail' ? month : `${summaryYear} 年`
@@ -570,6 +575,7 @@ export default function CommissionManagementPage() {
   const mobileFilterStrip = useMobileFilterStrip(
     <MobileFilterStrip
       summary={mobileFilterSummary}
+      className={styles.mobileFilterStrip}
       controls={
         <>
           <MobileFilterWide>
@@ -577,59 +583,40 @@ export default function CommissionManagementPage() {
               <MonthPicker
                 value={parseMonthInputValue(month)}
                 onChange={(date) => setMonth(date ? formatMonthInputValue(date) : month)}
-                className="h-10 w-full justify-start border-term-border bg-term-panel px-2 font-mono text-xs shadow-none"
+                className={styles.headerDatePicker}
+                popoverClassName="warm-ledger warm-ledger__date-picker-content"
               />
             ) : (
-              <Select
+              <WarmSelect
+                id="commission-mobile-year"
+                label="年份"
                 value={summaryYear}
-                onValueChange={(value) => setSummaryYear(value)}
-              >
-                <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none">
-                  <SelectValue placeholder="年份" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i).map((y) => (
-                    <SelectItem key={y} value={String(y)}>
-                      {y}年
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                options={yearOptions}
+                onChange={setSummaryYear}
+                className={styles.mobileFilterWide}
+              />
             )}
           </MobileFilterWide>
-          <Select
+          <WarmSelect
+            id="commission-mobile-country"
+            label="站点"
             value={countryFilter}
-            onValueChange={(value) => setCountryFilter(value as SiteCode | 'all')}
-          >
-            <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none">
-              <SelectValue placeholder="站点" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部站点</SelectItem>
-              {SITE_ORDER.map((code) => (
-                <SelectItem key={code} value={code}>
-                  {SITE_INFO[code].label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            options={countryOptions}
+            onChange={(value) => setCountryFilter(value as SiteCode | 'all')}
+            className={styles.mobileFilterWide}
+          />
           {activeTab === 'detail' ? (
             <MobileFilterWide>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
+              <WarmButton
+                variant="secondary"
                 onClick={() => void handleRecompute()}
                 disabled={recomputing || loading}
-                className="h-10 w-full gap-1 rounded-none border-term-border px-2 text-xs shadow-none hover:bg-term-hover hover:text-term-text"
+                loading={recomputing}
+                loadingLabel="正在重新核算佣金"
               >
-                {recomputing ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} />
-                ) : (
-                  <RefreshCw className="h-3.5 w-3.5" strokeWidth={1.75} />
-                )}
+                <RefreshCw aria-hidden />
                 核算
-              </Button>
+              </WarmButton>
             </MobileFilterWide>
           ) : null}
         </>
@@ -638,19 +625,16 @@ export default function CommissionManagementPage() {
   )
 
   return (
-    <div className="flex min-w-0 flex-col gap-3">
-      {/* BLF-826 阶段 C：月份/年份 + 站点 + 核算已上移 Top Header 中段插槽 */}
+    <div className={styles.page} data-warm-commission-management="true">
       {headerSlotPortal}
-      {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
       {mobileFilterStrip}
 
-      {/* Tab 切换：BLF-883 全局统一 variant="term" + 前置 icon */}
       <Tabs
         value={activeTab}
         onValueChange={(value) => setActiveTab(value as CommissionViewTab)}
-        className="w-full"
+        className={styles.tabs}
       >
-        <TabsList variant="term" className="w-fit justify-start">
+        <TabsList className={styles.tabList} data-warm-tablist="true">
           {(
             [
               ['detail', '总览', LayoutDashboard],
@@ -659,50 +643,59 @@ export default function CommissionManagementPage() {
               ['monthlyCollection', '月度回款', Wallet],
             ] as Array<[CommissionViewTab, string, typeof LayoutDashboard]>
           ).map(([key, label, Icon]) => (
-            <TabsTrigger key={key} value={key} variant="term">
+            <TabsTrigger key={key} value={key}>
               <Icon aria-hidden />
               {label}
             </TabsTrigger>
           ))}
         </TabsList>
-      </Tabs>
 
-      <TermPanel bodyClassName="flex min-h-0 flex-col overflow-hidden">
-        {loading && activeTab === 'detail' ? null : null}
-        {activeTab === 'detail' ? (
-          <DetailTab
-            projectRows={projectRows}
-            exchangeRates={exchangeRates}
-            projectMetaById={projectMetaById}
-            loading={loading}
-            updatingId={updatingId}
-            receivedDraftById={receivedDraftById}
-            onUpdateDraft={(id, value) =>
-              setReceivedDraftById((prev) => ({ ...prev, [id]: value }))
-            }
-            onUpdatePaymentStatus={updatePaymentStatus}
-            onUpdateReceivedAmount={updateReceivedAmount}
-          />
-        ) : activeTab === 'monthly' ? (
-          <MonthlySummaryTab
-            items={monthlySummary}
-            year={summaryYear}
-            loading={summaryLoading}
-          />
-        ) : activeTab === 'projectSummary' ? (
-          <ProjectSummaryTab
-            items={projectSummary}
-            year={summaryYear}
-            loading={summaryLoading}
-          />
-        ) : activeTab === 'monthlyCollection' ? (
-          <MonthlyCollectionTab
-            items={projectSummary}
-            year={summaryYear}
-            loading={summaryLoading}
-          />
-        ) : null}
-      </TermPanel>
+        <section className={styles.dataPanel} data-warm-panel="true">
+          {activeError ? (
+            <div className={styles.loadError} role="alert">
+              <span>
+                {activeTab === 'detail' ? '佣金数据加载失败' : '汇总数据加载失败'}：
+                {activeError}
+              </span>
+              <WarmButton variant="quiet" onClick={retryActiveTab}>
+                重试
+              </WarmButton>
+            </div>
+          ) : activeTab === 'detail' ? (
+            <DetailTab
+              projectRows={projectRows}
+              exchangeRates={exchangeRates}
+              projectMetaById={projectMetaById}
+              loading={loading}
+              updatingId={updatingId}
+              receivedDraftById={receivedDraftById}
+              onUpdateDraft={(id, value) =>
+                setReceivedDraftById((prev) => ({ ...prev, [id]: value }))
+              }
+              onUpdatePaymentStatus={updatePaymentStatus}
+              onUpdateReceivedAmount={updateReceivedAmount}
+            />
+          ) : activeTab === 'monthly' ? (
+            <MonthlySummaryTab
+              items={monthlySummary}
+              year={summaryYear}
+              loading={summaryLoading}
+            />
+          ) : activeTab === 'projectSummary' ? (
+            <ProjectSummaryTab
+              items={projectSummary}
+              year={summaryYear}
+              loading={summaryLoading}
+            />
+          ) : activeTab === 'monthlyCollection' ? (
+            <MonthlyCollectionTab
+              items={projectSummary}
+              year={summaryYear}
+              loading={summaryLoading}
+            />
+          ) : null}
+        </section>
+      </Tabs>
 
       <CommissionRulesCard />
     </div>

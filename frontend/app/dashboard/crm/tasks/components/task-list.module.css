@@ -1,0 +1,164 @@
+.root {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--warm-ledger-space-3);
+}
+
+.filters {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--warm-ledger-space-2);
+}
+
+.filter {
+  display: flex;
+  align-items: center;
+  gap: var(--warm-ledger-space-2);
+}
+
+.filterLabel {
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-label);
+  line-height: var(--warm-ledger-line-height-body);
+  white-space: nowrap;
+}
+
+.select {
+  height: var(--warm-ledger-control-height-compact);
+  min-width: 112px;
+  padding: 0 var(--warm-ledger-space-3);
+  color: var(--warm-ledger-color-text-soft);
+  background: var(--warm-ledger-color-raised);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-control);
+  font-family: var(--warm-ledger-font-sans);
+  font-size: var(--warm-ledger-font-size-control);
+  line-height: var(--warm-ledger-line-height-body);
+  outline: none;
+}
+
+.select:hover {
+  background: var(--warm-ledger-color-raised-hover);
+  border-color: var(--warm-ledger-color-hairline-strong);
+}
+
+.select:focus-visible {
+  outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color);
+  outline-offset: var(--warm-ledger-focus-offset);
+}
+
+.select option {
+  color: var(--warm-ledger-color-text);
+  background: var(--warm-ledger-color-panel);
+}
+
+.table {
+  min-width: 980px;
+  table-layout: auto;
+}
+
+.table tbody tr {
+  transition: background-color 140ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.table tbody tr:hover {
+  background: var(--warm-ledger-color-panel-strong);
+}
+
+.titleCell {
+  min-width: 190px;
+  max-width: 280px;
+}
+
+.taskTitle {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-sans);
+  font-weight: var(--warm-ledger-font-weight-medium);
+}
+
+.completed {
+  display: block;
+  margin-top: var(--warm-ledger-space-1);
+  color: var(--warm-ledger-color-text-muted);
+  font-family: var(--warm-ledger-font-mono);
+  font-size: var(--warm-ledger-font-size-label);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+}
+
+.secondaryCell {
+  color: var(--warm-ledger-color-text-muted);
+  font-family: var(--warm-ledger-font-sans);
+}
+
+.dateCell,
+.dueCell {
+  color: var(--warm-ledger-color-text-muted);
+  font-family: var(--warm-ledger-font-mono);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+  white-space: nowrap;
+}
+
+.dueOverdue {
+  color: var(--warm-ledger-color-negative);
+}
+
+.dueToday {
+  color: var(--warm-ledger-color-accent);
+}
+
+.sortButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--warm-ledger-space-1);
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.sortButton:hover,
+.sortButtonActive {
+  color: var(--warm-ledger-color-text);
+}
+
+.sortButton:focus-visible {
+  outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color);
+  outline-offset: var(--warm-ledger-focus-offset);
+}
+
+.sortIcon {
+  font-size: 10px;
+}
+
+.rowActions {
+  display: flex;
+  align-items: center;
+  gap: var(--warm-ledger-space-1);
+}
+
+.rowButton {
+  min-height: 28px;
+  padding: 0 var(--warm-ledger-space-2);
+  font-size: var(--warm-ledger-font-size-label);
+}
+
+.dangerButton {
+  color: var(--warm-ledger-color-negative);
+}
+
+.rowIcon,
+.actionIcon {
+  width: 14px;
+  height: 14px;
+}
+
+.actionIcon {
+  margin-right: var(--warm-ledger-space-1);
+}

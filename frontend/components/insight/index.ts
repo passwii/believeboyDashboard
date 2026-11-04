@@ -1,5 +1,6 @@
 'use client'
 
+export type { InsightAppearance } from './insight-presentation'
 export { InsightMarkdown } from './insight-markdown'
 export type {
   InsightChartBlock,

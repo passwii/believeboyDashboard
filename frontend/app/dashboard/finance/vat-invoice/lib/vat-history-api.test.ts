@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   listInvoices,
+  listAllInvoices,
   voidInvoice,
   downloadInvoicePdf,
   exportInvoicesCsv,
@@ -20,6 +21,26 @@ describe('vat-history-api', () => {
     const url = String(spy.mock.calls[0][0])
     expect(url).toContain('project_id=7')
     expect(url).toContain('status=issued')
+  })
+
+  it('listAllInvoices pages until the backend returns a short page', async () => {
+    const firstPage = Array.from({ length: 500 }, (_, index) => ({ id: index + 1 }))
+    const spy = vi
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(firstPage), { status: 200 })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify([{ id: 501 }]), { status: 200 })
+      )
+
+    const rows = await listAllInvoices({ project_id: 7, status: 'issued' })
+
+    expect(rows).toHaveLength(501)
+    expect(spy).toHaveBeenCalledTimes(2)
+    const secondUrl = new URL(String(spy.mock.calls[1][0]), 'http://localhost')
+    expect(secondUrl.searchParams.get('limit')).toBe('500')
+    expect(secondUrl.searchParams.get('offset')).toBe('500')
   })
 
   it('voidInvoice POSTs with reason', async () => {

@@ -5,13 +5,19 @@ import { useSearchParams } from 'next/navigation'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import { useCrmUsers } from '@/hooks/use-crm-users'
 import { useNotifications } from '@/components/notifications'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { CrmTable } from './crm-table'
 import type { CrmColumnDef, FilterFieldDef } from './crm-table/types'
 import { CrmOverviewDrawer } from './crm-overview-drawer'
 import { CUSTOMER_TYPE_OPTIONS, INTERESTED_SERVICE_OPTIONS } from '@/lib/crm/constants/options'
 import { CrmExportButton } from './crm-export-button'
+import {
+  WarmButton,
+  type WarmBadgeTone,
+} from '@/components/dashboard-v2/warm-ledger/controls'
+import {
+  WarmCrmStatusPill,
+  WarmCrmToolbar,
+} from '@/components/dashboard-v2/warm-ledger/crm'
 import { CUSTOMER_FIELD_DEFS } from '@/lib/crm/field-defs/customer'
 import type { Customer } from '@/lib/crm/types'
 import {
@@ -27,6 +33,13 @@ import {
   CUSTOMER_STATUS_TERM,
   NEUTRAL_TERM,
 } from '@/components/crm/term-shared'
+
+const CUSTOMER_STATUS_WARM_TONE: Record<string, WarmBadgeTone> = {
+  active: 'positive',
+  lost: 'negative',
+  signed: 'accent',
+  on_hold: 'accent',
+}
 
 const columns: CrmColumnDef<Customer>[] = [
   { key: 'name', title: '客户名', sortable: true },
@@ -75,7 +88,7 @@ const columns: CrmColumnDef<Customer>[] = [
       const days = daysSince(v)
       const stale = Number.isFinite(days) && days > 30
       return (
-        <span className={stale ? 'text-term-warn' : ''}>
+        <span data-crm-value-tone={stale ? 'negative' : undefined}>
           <span className="tabular-nums">{Number.isFinite(days) ? `${days} 天前` : '-'}</span>
         </span>
       )
@@ -160,11 +173,14 @@ export function CrmSeaTable() {
 
   return (
     <>
-      {/* BLF-837：工具行终端化（导出右对齐），提示文案并入面包屑/空态 */}
-      <div className="flex flex-wrap items-center justify-end gap-1.5 max-md:justify-between">
-        <CrmExportButton entity="customers" scope="sea" keyword={keyword} />
-      </div>
+      {/* 工具行只保留当前公海数据的导出操作。 */}
+      <WarmCrmToolbar
+        ariaLabel="公海客户表格操作"
+        end={<CrmExportButton entity="customers" scope="sea" keyword={keyword} visual="warm" />}
+      />
       <CrmTable<Customer>
+        visual="warm"
+        tableAriaLabel="公海客户表格"
         queryKey="sea"
         headerRefresh
         fetchPage={fetchPage}
@@ -188,14 +204,14 @@ export function CrmSeaTable() {
           fields={CUSTOMER_FIELD_DEFS}
           title={active.name}
           actions={
-            <Button size="sm" onClick={handleClaim}>
+            <WarmButton variant="primary" onClick={handleClaim}>
               领取
-            </Button>
+            </WarmButton>
           }
           headerExtra={
-            <Badge variant="secondary" className={CUSTOMER_STATUS_COLORS[active.status]}>
+            <WarmCrmStatusPill tone={CUSTOMER_STATUS_WARM_TONE[active.status] ?? 'neutral'}>
               {CUSTOMER_STATUS_LABELS[active.status]}
-            </Badge>
+            </WarmCrmStatusPill>
           }
           users={users}
           loadFollows={(et, id) => client.listFollows(et, id)}

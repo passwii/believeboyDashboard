@@ -3,6 +3,10 @@
 import * as React from 'react'
 import { ArrowDown, ChevronDown, ChevronRight, X } from 'lucide-react'
 
+import {
+  WarmButton,
+  WarmIconButton,
+} from '@/components/dashboard-v2/warm-ledger/controls'
 import { Button } from '@/components/ui/button'
 import { InsightMarkdown, type InsightChartBlock } from '@/components/insight/insight-markdown'
 import { InsightStatus } from '@/components/insight/insight-status'
@@ -10,6 +14,9 @@ import { useInsightFollowBottom } from '@/hooks/use-insight-follow-bottom'
 import type { InsightErrorPayload } from '@/lib/insight/protocol'
 import { usePrefersReducedMotion } from '@/lib/hooks/use-prefers-reduced-motion'
 import { cn } from '@/lib/utils'
+
+import type { InsightAppearance } from './insight-presentation'
+import styles from './insight-warm.module.css'
 
 /**
  * InsightStreamPanel — 独立 Insight 的共享展示面板（BLF-1013）。
@@ -73,6 +80,12 @@ export type InsightStreamPanelProps = {
   slots?: InsightStreamPanelSlots
   labels?: Partial<InsightStreamPanelLabels>
   exportFileName?: string
+  /** Legacy Terminal is the default; Warm opts into the V4 presentation boundary. */
+  appearance?: InsightAppearance
+  /** Optional page-local class hook for the nested status/root surfaces. */
+  statusClassName?: string
+  markdownClassName?: string
+  copyExportClassName?: string
   className?: string
   /** 滚动内容区样式（高度、内边距等由 adapter 决定） */
   contentClassName?: string
@@ -98,6 +111,10 @@ export function InsightStreamPanel({
   slots,
   labels,
   exportFileName,
+  appearance = 'legacy',
+  statusClassName,
+  markdownClassName,
+  copyExportClassName,
   className,
   contentClassName,
 }: InsightStreamPanelProps) {
@@ -114,32 +131,72 @@ export function InsightStreamPanel({
 
   return (
     <div
-      className={cn('flex min-w-0 flex-col gap-2 border border-term-border bg-term-panel', className)}
+      className={cn(
+        'flex min-w-0 flex-col',
+        appearance === 'warm'
+          ? styles.panel
+          : 'gap-2 border border-term-border bg-term-panel',
+        className
+      )}
       data-insight-panel
+      data-insight-appearance={appearance}
       data-detached={backgroundMessage ? 'true' : undefined}
     >
       {slots?.header || slots?.actions || onClose ? (
-        <div className="flex items-start justify-between gap-2 border-b border-term-border p-2">
+        <div
+          className={cn(
+            'flex items-start justify-between gap-2',
+            appearance === 'warm'
+              ? styles.panelHeader
+              : 'border-b border-term-border p-2'
+          )}
+          data-insight-panel-header
+        >
           <div className="min-w-0 flex-1">{slots?.header}</div>
           <div className="flex shrink-0 items-center gap-1">
             {slots?.actions}
             {onClose ? (
-              <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label={text.close}>
-                <X />
-              </Button>
+              appearance === 'warm' ? (
+                <WarmIconButton
+                  type="button"
+                  onClick={onClose}
+                  aria-label={text.close}
+                >
+                  <X />
+                </WarmIconButton>
+              ) : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={onClose}
+                  aria-label={text.close}
+                >
+                  <X />
+                </Button>
+              )
             ) : null}
           </div>
         </div>
       ) : null}
 
       {slots?.meta ? (
-        <div className="min-w-0 px-2" data-insight-slot="meta">
+        <div
+          className={cn(
+            'min-w-0',
+            appearance === 'warm' ? styles.panelMeta : 'px-2'
+          )}
+          data-insight-slot="meta"
+        >
           {slots.meta}
         </div>
       ) : null}
 
       {slots?.status ?? (
-        <div className="px-2">
+        <div
+          className={cn(appearance === 'warm' ? styles.panelStatus : 'px-2')}
+          data-insight-panel-status
+        >
           <InsightStatus
             status={status}
             label={statusLabel}
@@ -149,30 +206,57 @@ export function InsightStreamPanel({
             backgroundMessage={backgroundMessage}
             onRetry={onRetry}
             onCancel={onCancel}
+            appearance={appearance}
+            className={statusClassName}
           />
         </div>
       )}
 
       {slots?.inspector ? (
-        <div className="px-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            aria-expanded={showInspector}
-            aria-controls={inspectorId}
-            onClick={() => setShowInspector((previous) => !previous)}
+        <div
+          className={cn(appearance === 'warm' ? styles.panelInspector : 'px-2')}
+          data-insight-panel-inspector
+        >
+          {appearance === 'warm' ? (
+            <WarmButton
+              type="button"
+              variant="quiet"
+              aria-expanded={showInspector}
+              aria-controls={inspectorId}
+              onClick={() => setShowInspector((previous) => !previous)}
+            >
+              {showInspector ? <ChevronDown /> : <ChevronRight />}
+              <span>{text.inspector}</span>
+            </WarmButton>
+          ) : (
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              aria-expanded={showInspector}
+              aria-controls={inspectorId}
+              onClick={() => setShowInspector((previous) => !previous)}
+            >
+              {showInspector ? <ChevronDown /> : <ChevronRight />}
+              <span>{text.inspector}</span>
+            </Button>
+          )}
+          <div
+            id={inspectorId}
+            hidden={!showInspector}
+            className="mt-1"
+            data-insight-slot="inspector"
           >
-            {showInspector ? <ChevronDown /> : <ChevronRight />}
-            <span>{text.inspector}</span>
-          </Button>
-          <div id={inspectorId} hidden={!showInspector} className="mt-1" data-insight-slot="inspector">
             {slots.inspector}
           </div>
         </div>
       ) : null}
 
-      {slots?.beforeContent ? <div className="px-2">{slots.beforeContent}</div> : null}
+      {slots?.beforeContent ? (
+        <div className={cn(appearance === 'warm' ? styles.panelSection : 'px-2')}>
+          {slots.beforeContent}
+        </div>
+      ) : null}
 
       <div className="relative min-w-0">
         <div
@@ -182,8 +266,13 @@ export function InsightStreamPanel({
           aria-label={text.content}
           data-insight-scroll
           className={cn(
-            'max-h-[60vh] min-h-[8rem] overflow-y-auto overscroll-contain px-2 pb-2',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            'overflow-y-auto overscroll-contain',
+            appearance === 'warm'
+              ? styles.panelScroller
+              : [
+                  'max-h-[60vh] min-h-[8rem] px-2 pb-2',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                ],
             contentClassName
           )}
         >
@@ -196,9 +285,20 @@ export function InsightStreamPanel({
               chartLanguages={chartLanguages}
               renderChartBlock={renderChartBlock}
               exportFileName={exportFileName}
+              appearance={appearance}
+              copyExportClassName={copyExportClassName}
+              className={markdownClassName}
             />
           ) : (
-            <div className="py-6 text-center text-xs text-term-muted" data-insight-empty>
+            <div
+              className={cn(
+                'text-center',
+                appearance === 'warm'
+                  ? styles.panelEmpty
+                  : 'py-6 text-xs text-term-muted'
+              )}
+              data-insight-empty
+            >
               {emptyState ?? text.empty}
             </div>
           )}
@@ -206,22 +306,47 @@ export function InsightStreamPanel({
 
         {hasNewContent ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-2 z-10 flex justify-center">
-            <Button
-              type="button"
-              variant="term"
-              size="sm"
-              className="animate-scroll-btn-enter pointer-events-auto border-term-border-strong bg-term-raised"
-              onClick={scrollToBottom}
-              data-insight-new-content
-            >
-              <ArrowDown />
-              <span>{text.scrollToLatest}</span>
-            </Button>
+            {appearance === 'warm' ? (
+              <WarmButton
+                type="button"
+                variant="secondary"
+                className={cn(
+                  'pointer-events-auto animate-scroll-btn-enter',
+                  styles.newContentAction
+                )}
+                onClick={scrollToBottom}
+                data-insight-new-content
+              >
+                <ArrowDown />
+                <span>{text.scrollToLatest}</span>
+              </WarmButton>
+            ) : (
+              <Button
+                type="button"
+                variant="term"
+                size="sm"
+                className="animate-scroll-btn-enter pointer-events-auto border-term-border-strong bg-term-raised"
+                onClick={scrollToBottom}
+                data-insight-new-content
+              >
+                <ArrowDown />
+                <span>{text.scrollToLatest}</span>
+              </Button>
+            )}
           </div>
         ) : null}
       </div>
 
-      {slots?.afterContent ? <div className="px-2">{slots.afterContent}</div> : null}
+      {slots?.afterContent ? (
+        <div
+          className={cn(
+            appearance === 'warm' ? styles.panelSection : 'px-2',
+            appearance === 'warm' && 'pb-5'
+          )}
+        >
+          {slots.afterContent}
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -4,10 +4,7 @@
 // 字段：Description / Qty / Unit Price (incl. VAT) / VAT% / Line Total (自动算)
 // 操作：每行删除 / 底部 + Add row / 运费行跟随第一行 VAT 率
 
-import { TermPanel } from '@/components/terminal/term-panel'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -16,8 +13,14 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Plus, Trash2, Truck } from 'lucide-react'
+import {
+  WarmButton,
+  WarmIconButton,
+} from '@/components/dashboard-v2/warm-ledger/controls'
+import { cn } from '@/lib/utils'
 import { lineSubtotal } from '../lib/vat-calc'
 import { VAT_RATE_OPTIONS, type InvoiceForm, type InvoiceLineItem } from '../types'
+import styles from '../vat-invoice-warm.module.css'
 
 interface LineItemsEditorProps {
   form: InvoiceForm
@@ -73,75 +76,71 @@ export function LineItemsEditor({ form, currencySymbol, onChange }: LineItemsEdi
   }
 
   return (
-    <TermPanel
-      title="3 · 商品明细"
-      actions={
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-7 gap-1 rounded-none border-term-border px-2 text-xs shadow-none hover:bg-term-hover hover:text-term-text"
-          onClick={addRow}
-        >
-          <Plus className="h-3.5 w-3.5" strokeWidth={1.75} />
+    <section className={styles.panel} aria-labelledby="invoice-lines-title" data-warm-panel="true">
+      <header className={styles.panelHeader}>
+        <h2 id="invoice-lines-title" className={styles.panelTitle}>
+          3 · 商品明细
+        </h2>
+        <div className={styles.panelActions}>
+          <WarmButton variant="secondary" onClick={addRow}>
+            <Plus aria-hidden />
           添加行
-        </Button>
-      }
-    >
-      <div className="space-y-3 p-3">
+          </WarmButton>
+        </div>
+      </header>
+      <div className={styles.panelBody}>
         {items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
+          <p className={styles.emptyState}>
             暂无明细行。点击右上角「添加行」开始录入。
           </p>
         ) : (
-          <>
-            {/* 表头 */}
-            <div className="hidden grid-cols-12 gap-2 text-xs font-medium text-muted-foreground md:grid">
-              <div className="col-span-5">商品描述</div>
-              <div className="col-span-2">ASIN</div>
-              <div className="col-span-1 text-right">数量</div>
-              <div className="col-span-2 text-right">单价 (含税)</div>
-              <div className="col-span-1">VAT%</div>
-              <div className="col-span-1 text-right">小计 (含税)</div>
+          <div className={styles.formStack}>
+            <div className={styles.lineHeader}>
+              <span>商品描述</span>
+              <span>ASIN</span>
+              <span className={styles.lineHeaderNumeric}>数量</span>
+              <span className={styles.lineHeaderNumeric}>单价（含税）</span>
+              <span>VAT%</span>
+              <span className={styles.lineHeaderNumeric}>小计（含税）</span>
+              <span aria-hidden />
             </div>
 
-            {/* 行 */}
             {items.map((it, idx) => {
               const sub = lineSubtotal(it)
               return (
-                <div
-                  key={idx}
-                  className="grid grid-cols-12 items-center gap-2 rounded-none border border-border/60 bg-background/50 p-2"
-                >
-                  <div className="col-span-12 md:col-span-5">
-                    <Label className="text-xs text-muted-foreground md:hidden">商品描述</Label>
+                <div key={idx} className={styles.lineRow}>
+                  <div className={styles.lineCell}>
                     <Input
+                      aria-label={`第 ${idx + 1} 行商品描述`}
+                      className={styles.control}
                       value={it.description}
                       onChange={(e) => updateRow(idx, { description: e.target.value })}
                       placeholder="商品名称 / 描述"
                     />
                   </div>
-                  <div className="col-span-6 md:col-span-2">
-                    <Label className="text-xs text-muted-foreground md:hidden">ASIN</Label>
+                  <div className={styles.lineCell}>
                     <Input
+                      aria-label={`第 ${idx + 1} 行 ASIN`}
+                      className={cn(styles.control, styles.numericControl)}
                       value={it.asin}
                       onChange={(e) => updateRow(idx, { asin: e.target.value })}
                       placeholder="B0G4N65TD5"
                     />
                   </div>
-                  <div className="col-span-3 md:col-span-1">
-                    <Label className="text-xs text-muted-foreground md:hidden">数量</Label>
+                  <div className={styles.lineCell}>
                     <Input
+                      aria-label={`第 ${idx + 1} 行数量`}
                       type="number"
                       min={1}
                       step={1}
                       value={it.qty}
                       onChange={(e) => handleNumberInput(idx, 'qty', e.target.value, 1)}
-                      className="text-right"
+                      className={cn(styles.control, styles.numericControl)}
                     />
                   </div>
-                  <div className="col-span-3 md:col-span-2">
-                    <Label className="text-xs text-muted-foreground md:hidden">单价 (含税)</Label>
+                  <div className={styles.lineCell}>
                     <Input
+                      aria-label={`第 ${idx + 1} 行含税单价`}
                       type="number"
                       min={0}
                       step={0.01}
@@ -149,20 +148,22 @@ export function LineItemsEditor({ form, currencySymbol, onChange }: LineItemsEdi
                       onChange={(e) =>
                         handleNumberInput(idx, 'unit_price_incl_vat', e.target.value, 0)
                       }
-                      className="text-right"
+                      className={cn(styles.control, styles.numericControl)}
                       placeholder="0.00"
                     />
                   </div>
-                  <div className="col-span-6 md:col-span-1">
-                    <Label className="text-xs text-muted-foreground md:hidden">VAT%</Label>
+                  <div className={styles.lineCell}>
                     <Select
                       value={String(it.vat_rate)}
                       onValueChange={(v) => updateRow(idx, { vat_rate: Number(v) })}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger
+                        aria-label={`第 ${idx + 1} 行 VAT 税率`}
+                        className={styles.selectTrigger}
+                      >
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className={cn('warm-ledger', styles.selectContent)}>
                         {VAT_RATE_OPTIONS.map((r) => (
                           <SelectItem key={r} value={String(r)}>
                             {r}%
@@ -171,35 +172,29 @@ export function LineItemsEditor({ form, currencySymbol, onChange }: LineItemsEdi
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="col-span-4 flex items-center justify-end md:col-span-1">
-                    <span className="text-sm font-medium tabular-nums">
-                      {currencySymbol}
-                      {sub.incl.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="col-span-2 flex items-center justify-end md:col-span-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
+                  <span className={styles.lineAmount}>
+                    {currencySymbol}
+                    {sub.incl.toFixed(2)}
+                  </span>
+                  <div className={styles.lineCell}>
+                    <WarmIconButton
                       onClick={() => removeRow(idx)}
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive max-md:h-10 max-md:w-10"
                       aria-label="删除该行"
+                      title="删除该行"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                      <Trash2 aria-hidden />
+                    </WarmIconButton>
                   </div>
                 </div>
               )
             })}
 
-            {/* 运费行 */}
-            <div className="grid grid-cols-12 items-center gap-2 rounded-none border border-dashed border-border/60 bg-term-raised p-2">
-              <div className="col-span-12 flex items-center gap-1.5 text-sm font-medium md:col-span-7">
-                <Truck className="h-3.5 w-3.5 text-muted-foreground" />
+            <div className={styles.shippingRow}>
+              <div className={styles.shippingLabel}>
+                <Truck className="h-3.5 w-3.5" aria-hidden />
                 运费（含税） · VAT 跟随第一行：{firstItemRate ?? 0}%
               </div>
-              <div className="col-span-8 md:col-span-3">
+              <div>
                 <Input
                   type="number"
                   min={0}
@@ -217,20 +212,20 @@ export function LineItemsEditor({ form, currencySymbol, onChange }: LineItemsEdi
                       shipping_incl_vat: Number.isFinite(n) ? Math.max(0, n) : 0,
                     })
                   }}
-                  className="text-right"
+                  className={cn(styles.control, styles.numericControl)}
                   placeholder="0.00"
                   aria-label="运费（含税）"
                 />
               </div>
-              <div className="col-span-2 flex items-center justify-end text-sm tabular-nums text-muted-foreground md:col-span-1">
+              <span className={styles.lineAmount}>
                 {currencySymbol}
                 {form.shipping_incl_vat.toFixed(2)}
-              </div>
-              <div className="hidden md:col-span-1 md:block" />
+              </span>
+              <span aria-hidden />
             </div>
-          </>
+          </div>
         )}
       </div>
-    </TermPanel>
+    </section>
   )
 }

@@ -1,7 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef } from 'react'
-import { usePathname } from 'next/navigation'
+import { Suspense, useCallback, useEffect, useMemo, useRef } from 'react'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import { SearchCommand } from '@/components/dashboard/search-command'
 import { TerminalShell } from '@/components/terminal/terminal-shell'
@@ -14,9 +14,18 @@ import { ServerNotificationsProvider } from '@/components/notifications/server-n
 import { buildLoginCallbackUrl } from '@/lib/login-callback-url'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={<div data-dashboard-layout-loading aria-busy="true" />}>
+      <DashboardLayoutContent>{children}</DashboardLayoutContent>
+    </Suspense>
+  )
+}
+
+function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const isWarmLedgerHome = pathname === '/dashboard'
-  const isWarmLedger = isWarmLedgerRoute(pathname)
+  const isWarmLedger = isWarmLedgerRoute(pathname, searchParams)
   const pageTitle = useMemo(() => getWarmLedgerPageTitle(pathname), [pathname])
   const { status } = useSession()
   const wasAuthenticatedRef = useRef(false)

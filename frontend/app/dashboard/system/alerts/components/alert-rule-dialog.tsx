@@ -1,23 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { useNotifications } from '@/components/notifications'
 import {
   createAlertRule,
@@ -27,6 +10,15 @@ import {
   type AlertRulePayload,
   type MetricOption,
 } from '@/lib/alerts-api'
+import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
+import styles from '../alerts-warm.module.css'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from './alert-warm-dialog'
 
 interface ProjectOption {
   id: number
@@ -114,93 +106,134 @@ export function AlertRuleDialog({ open, onOpenChange, rule, projects, onSaved }:
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-lg">
+      <DialogContent aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>{rule ? '编辑告警规则' : '新建告警规则'}</DialogTitle>
         </DialogHeader>
-        <div className="grid gap-4 py-2">
-          <div className="grid gap-1.5">
-            <Label>名称</Label>
-            <Input value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="如：US 销售额骤降" />
+        <div className={styles.ruleForm}>
+          <div className={styles.field}>
+            <label htmlFor="alert-rule-name" className={styles.fieldLabel}>名称</label>
+            <input
+              id="alert-rule-name"
+              className={styles.input}
+              value={form.name}
+              onChange={(e) => set('name', e.target.value)}
+              placeholder="如：US 销售额骤降"
+            />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label>项目</Label>
-              <Select value={String(form.project_id)} onValueChange={(v) => set('project_id', Number(v))}>
-                <SelectTrigger><SelectValue placeholder="选择项目" /></SelectTrigger>
-                <SelectContent>
-                  {projects.map((p) => (
-                    <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div className={styles.formRow}>
+            <div className={styles.field}>
+              <label htmlFor="alert-rule-project" className={styles.fieldLabel}>项目</label>
+              <select
+                id="alert-rule-project"
+                className={styles.selectTrigger}
+                value={String(form.project_id)}
+                onChange={(event) => set('project_id', Number(event.target.value))}
+              >
+                {projects.map((p) => (
+                  <option key={p.id} value={String(p.id)}>{p.name}</option>
+                ))}
+              </select>
             </div>
-            <div className="grid gap-1.5">
-              <Label>国家</Label>
-              <Input value={form.country} onChange={(e) => set('country', e.target.value)} />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label>指标</Label>
-              <Select value={form.metric} onValueChange={(v) => set('metric', v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {metrics.map((m) => (
-                    <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-1.5">
-              <Label>条件</Label>
-              <Select value={form.condition} onValueChange={(v) => set('condition', v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="drop_pct">下降超过 %</SelectItem>
-                  <SelectItem value="rise_pct">上升超过 %</SelectItem>
-                  <SelectItem value="below">低于基线 %</SelectItem>
-                  <SelectItem value="above">高于基线 %</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className={styles.field}>
+              <label htmlFor="alert-rule-country" className={styles.fieldLabel}>国家</label>
+              <input
+                id="alert-rule-country"
+                className={styles.input}
+                value={form.country}
+                onChange={(e) => set('country', e.target.value)}
+              />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <div className="grid gap-1.5">
-              <Label>阈值 (%)</Label>
-              <Input type="number" value={form.threshold} onChange={(e) => set('threshold', Number(e.target.value))} />
+          <div className={styles.formRow}>
+            <div className={styles.field}>
+              <label htmlFor="alert-rule-metric" className={styles.fieldLabel}>指标</label>
+              <select
+                id="alert-rule-metric"
+                className={styles.selectTrigger}
+                value={form.metric}
+                onChange={(event) => set('metric', event.target.value)}
+              >
+                {metrics.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
             </div>
-            <div className="grid gap-1.5">
-              <Label>窗口 (天)</Label>
-              <Input type="number" value={form.window_days} onChange={(e) => set('window_days', Number(e.target.value))} />
-            </div>
-            <div className="col-span-2 grid gap-1.5 sm:col-span-1">
-              <Label>级别</Label>
-              <Select value={form.severity} onValueChange={(v) => set('severity', v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="info">提示</SelectItem>
-                  <SelectItem value="warning">警告</SelectItem>
-                  <SelectItem value="critical">严重</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className={styles.field}>
+              <label htmlFor="alert-rule-condition" className={styles.fieldLabel}>条件</label>
+              <select
+                id="alert-rule-condition"
+                className={styles.selectTrigger}
+                value={form.condition}
+                onChange={(event) => set('condition', event.target.value)}
+              >
+                <option value="drop_pct">下降超过 %</option>
+                <option value="rise_pct">上升超过 %</option>
+                <option value="below">低于基线 %</option>
+                <option value="above">高于基线 %</option>
+              </select>
             </div>
           </div>
-          <div className="grid gap-1.5">
-            <Label>通知通道</Label>
-            <Select value={form.notification_channels} onValueChange={(v) => set('notification_channels', v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="in_app">站内</SelectItem>
-                <SelectItem value="email">邮件</SelectItem>
-                <SelectItem value="both">站内 + 邮件</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className={styles.formRowThree}>
+            <div className={styles.field}>
+              <label htmlFor="alert-rule-threshold" className={styles.fieldLabel}>阈值 (%)</label>
+              <input
+                id="alert-rule-threshold"
+                className={styles.input}
+                type="number"
+                value={form.threshold}
+                onChange={(e) => set('threshold', Number(e.target.value))}
+              />
+            </div>
+            <div className={styles.field}>
+              <label htmlFor="alert-rule-window" className={styles.fieldLabel}>窗口 (天)</label>
+              <input
+                id="alert-rule-window"
+                className={styles.input}
+                type="number"
+                value={form.window_days}
+                onChange={(e) => set('window_days', Number(e.target.value))}
+              />
+            </div>
+            <div className={styles.field}>
+              <label htmlFor="alert-rule-severity" className={styles.fieldLabel}>级别</label>
+              <select
+                id="alert-rule-severity"
+                className={styles.selectTrigger}
+                value={form.severity}
+                onChange={(event) => set('severity', event.target.value)}
+              >
+                <option value="info">提示</option>
+                <option value="warning">警告</option>
+                <option value="critical">严重</option>
+              </select>
+            </div>
+          </div>
+          <div className={styles.field}>
+            <label htmlFor="alert-rule-channel" className={styles.fieldLabel}>通知通道</label>
+            <select
+              id="alert-rule-channel"
+              className={styles.selectTrigger}
+              value={form.notification_channels}
+              onChange={(event) => set('notification_channels', event.target.value)}
+            >
+              <option value="in_app">站内</option>
+              <option value="email">邮件</option>
+              <option value="both">站内 + 邮件</option>
+            </select>
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
-          <Button onClick={submit} disabled={saving}>{saving ? '保存中…' : '保存'}</Button>
+        <DialogFooter className={styles.dialogFooter}>
+          <WarmButton onClick={() => onOpenChange(false)}>取消</WarmButton>
+          <WarmButton
+            variant="primary"
+            onClick={submit}
+            disabled={saving}
+            loading={saving}
+            loadingLabel="正在保存告警规则"
+          >
+            {saving ? '保存中…' : '保存'}
+          </WarmButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>

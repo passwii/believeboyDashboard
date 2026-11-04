@@ -14,7 +14,12 @@ import {
   XCircle,
 } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
+import {
+  WarmBadge,
+  WarmButton,
+  WarmIconButton,
+  type WarmBadgeTone,
+} from '@/components/dashboard-v2/warm-ledger/controls'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,17 +27,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
-import { cn } from '@/lib/utils'
 import { useConfirm } from '@/hooks/use-confirm'
+import styles from './ai-ad-analysis-warm.module.css'
 import { ViewDialog } from './view-dialog'
 
 type InsightItem = {
@@ -62,14 +58,14 @@ const STATUS_CONFIG: Record<
   string,
   {
     label: string
-    variant: 'default' | 'secondary' | 'destructive' | 'outline'
+    tone: WarmBadgeTone
     icon: typeof CheckCircle2
   }
 > = {
-  completed: { label: '已完成', variant: 'default', icon: CheckCircle2 },
-  generating: { label: '生成中', variant: 'secondary', icon: Loader2 },
-  pending: { label: '等待中', variant: 'outline', icon: Clock },
-  failed: { label: '失败', variant: 'destructive', icon: XCircle },
+  completed: { label: '已完成', tone: 'positive', icon: CheckCircle2 },
+  generating: { label: '生成中', tone: 'accent', icon: Loader2 },
+  pending: { label: '等待中', tone: 'neutral', icon: Clock },
+  failed: { label: '失败', tone: 'negative', icon: XCircle },
 }
 
 function formatDate(dateStr: string | null) {
@@ -169,114 +165,116 @@ export function HistoryList({ projectId, country, refreshTrigger }: HistoryListP
 
   if (loading && insights.length === 0) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        <span className="ml-2 text-muted-foreground">加载中...</span>
+      <div data-warm-ad-history>
+        <div className={styles.loadingState} role="status">
+          <Loader2 className="animate-spin" aria-hidden />
+          <span>加载中...</span>
+        </div>
       </div>
     )
   }
 
   if (error && insights.length === 0) {
     return (
-      <div className="rounded-lg border border-term-neg/30 bg-term-neg/5 p-6 text-center">
-        <AlertTriangle className="mx-auto h-8 w-8 text-term-neg mb-3" />
-        <p className="text-sm text-term-neg mb-4">{error}</p>
-        <Button variant="outline" size="sm" onClick={loadInsights}>
-          重试
-        </Button>
+      <div data-warm-ad-history>
+        <div className={styles.errorState} role="alert">
+          <AlertTriangle aria-hidden />
+          <span>{error}</span>
+          <WarmButton type="button" variant="secondary" onClick={loadInsights}>
+            重试
+          </WarmButton>
+        </div>
       </div>
     )
   }
 
   if (insights.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-border p-8 text-center">
-        <FileText className="mx-auto h-10 w-10 text-muted-foreground/50 mb-3" />
-        <p className="text-sm text-muted-foreground mb-1">暂无广告分析报告</p>
-        <p className="text-xs text-muted-foreground">
-          点击「立即生成」按钮创建一个，或设置定时任务自动生成
-        </p>
+      <div data-warm-ad-history>
+        <div className={styles.emptyState}>
+          <FileText aria-hidden />
+          <span>暂无广告分析报告</span>
+          <span>点击「立即生成」按钮创建一个，或设置定时任务自动生成</span>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-3">
+    <div className={styles.stack} data-warm-ad-history>
       {error && (
-        <div className="rounded-lg bg-term-warn/5 border border-term-warn/30 px-4 py-2 text-sm text-term-warn flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4 shrink-0" />
+        <div className={styles.errorBanner} role="alert">
+          <AlertTriangle aria-hidden />
           <span>{error}</span>
-          <button className="ml-auto text-xs underline" onClick={() => setError(null)}>
+          <WarmButton
+            type="button"
+            variant="quiet"
+            className="ml-auto"
+            onClick={() => setError(null)}
+          >
             关闭
-          </button>
+          </WarmButton>
         </div>
       )}
 
-      <div className="rounded-lg border border-border overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-muted/50">
-              <TableHead className="w-[220px]">标题</TableHead>
-              <TableHead className="w-[120px]">项目</TableHead>
-              <TableHead className="w-[60px]">站点</TableHead>
-              <TableHead className="w-[160px]">日期范围</TableHead>
-              <TableHead className="w-[80px] text-center">状态</TableHead>
-              <TableHead className="w-[100px]">创建者</TableHead>
-              <TableHead className="w-[120px]">创建时间</TableHead>
-              <TableHead className="w-[50px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+      <div className={styles.tableScroller}>
+        <table className={styles.dataTable}>
+          <thead>
+            <tr>
+              <th>标题</th>
+              <th>项目</th>
+              <th>站点</th>
+              <th>日期范围</th>
+              <th>状态</th>
+              <th>创建者</th>
+              <th>创建时间</th>
+              <th aria-label="操作" />
+            </tr>
+          </thead>
+          <tbody>
             {insights.map((item) => {
               const cfg = STATUS_CONFIG[item.status] || STATUS_CONFIG.pending
               const StatusIcon = cfg.icon
               return (
-                <TableRow
+                <tr
                   key={item.id}
-                  className={cn(
-                    'cursor-pointer hover:bg-muted/30',
-                    item.status === 'failed' && 'opacity-70'
-                  )}
+                  data-clickable={item.status === 'completed' ? 'true' : undefined}
                   onClick={() => {
                     if (item.status === 'completed') setViewInsightId(item.id)
                   }}
                 >
-                  <TableCell className="font-medium">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate max-w-[200px]">{item.title}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-sm">{item.project_name}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="text-xs">
-                      {item.country}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
+                  <td className={styles.titleCell}>
+                    <span className={styles.titleText}>{item.title}</span>
+                  </td>
+                  <td>{item.project_name}</td>
+                  <td>
+                    <WarmBadge tone="neutral">{item.country}</WarmBadge>
+                  </td>
+                  <td className={styles.numeric}>
                     {item.date_range_start} ~ {item.date_range_end}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Badge variant={cfg.variant} className="text-xs gap-1">
+                  </td>
+                  <td>
+                    <WarmBadge tone={cfg.tone}>
                       <StatusIcon
-                        className={cn('h-3 w-3', item.status === 'generating' && 'animate-spin')}
+                        className={item.status === 'generating' ? 'animate-spin' : undefined}
                       />
                       {cfg.label}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground truncate max-w-[100px]">
-                    {item.created_by}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {formatDate(item.created_at)}
-                  </TableCell>
-                  <TableCell>
+                    </WarmBadge>
+                  </td>
+                  <td>{item.created_by}</td>
+                  <td className={styles.numeric}>{formatDate(item.created_at)}</td>
+                  <td>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                        <Button variant="ghost" size="sm" className="h-9 w-9 p-0 sm:h-8 sm:w-8">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
+                        <WarmIconButton
+                          type="button"
+                          aria-label="更多操作"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <MoreHorizontal aria-hidden />
+                        </WarmIconButton>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-[140px]">
+                      <DropdownMenuContent align="end" className={styles.menuContent}>
                         {item.status === 'completed' && (
                           <DropdownMenuItem
                             onClick={(e) => {
@@ -307,45 +305,45 @@ export function HistoryList({ projectId, country, refreshTrigger }: HistoryListP
                             handleDelete(item)
                           }}
                           disabled={actionLoading === item.id}
-                          className="text-term-neg focus:text-term-neg"
+                          className={styles.deleteItem}
                         >
                           <Trash2 className="mr-2 h-4 w-4" />
                           删除
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
-                  </TableCell>
-                </TableRow>
+                  </td>
+                </tr>
               )
             })}
-          </TableBody>
-        </Table>
+          </tbody>
+        </table>
       </div>
 
       {/* Pagination + stats footer */}
-      <div className="flex flex-col gap-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+      <div className={styles.footer}>
         <span>共 {total} 条记录</span>
         {totalPages > 1 && (
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
+          <div className={styles.pager}>
+            <WarmButton
+              type="button"
+              variant="secondary"
               disabled={currentPage <= 1}
               onClick={() => setOffset(Math.max(0, offset - limit))}
             >
               上一页
-            </Button>
+            </WarmButton>
             <span>
               第 {currentPage} / {totalPages} 页
             </span>
-            <Button
-              variant="outline"
-              size="sm"
+            <WarmButton
+              type="button"
+              variant="secondary"
               disabled={currentPage >= totalPages}
               onClick={() => setOffset(offset + limit)}
             >
               下一页
-            </Button>
+            </WarmButton>
           </div>
         )}
       </div>

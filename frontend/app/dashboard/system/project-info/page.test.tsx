@@ -1,8 +1,18 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { readFileSync, readdirSync } from 'node:fs'
+import { extname, join } from 'node:path'
 
-const { SESSION_DATA, NOTIFY, FETCH_MANAGED_PROJECTS_CACHED, FETCH_WORKFLOW_SUMMARY, REFRESH_HANDLER } = vi.hoisted(() => ({
+const {
+  SESSION_DATA,
+  NOTIFY,
+  FETCH_MANAGED_PROJECTS_CACHED,
+  FETCH_WORKFLOW_SUMMARY,
+  REFRESH_HANDLER,
+  SEARCH_PARAMS,
+  CONTEXT_DRAWER_PROPS,
+} = vi.hoisted(() => ({
   SESSION_DATA: { user: { id: 'u1', roleType: 'admin', name: '测试' } },
   NOTIFY: { notify: vi.fn() },
   FETCH_MANAGED_PROJECTS_CACHED: vi.fn().mockResolvedValue([
@@ -11,10 +21,16 @@ const { SESSION_DATA, NOTIFY, FETCH_MANAGED_PROJECTS_CACHED, FETCH_WORKFLOW_SUMM
   ]),
   FETCH_WORKFLOW_SUMMARY: vi.fn().mockResolvedValue({ projects: [] }),
   REFRESH_HANDLER: { current: null as null | (() => Promise<void>) },
+  SEARCH_PARAMS: { configure: null as string | null },
+  CONTEXT_DRAWER_PROPS: {
+    current: null as null | { projectId: number; projectName: string; open: boolean },
+  },
 }))
 
 vi.mock('next/navigation', () => ({
-  useSearchParams: () => ({ get: () => null }),
+  useSearchParams: () => ({
+    get: (key: string) => (key === 'configure' ? SEARCH_PARAMS.configure : null),
+  }),
 }))
 
 vi.mock('next-auth/react', () => ({
@@ -56,16 +72,71 @@ vi.mock('@/components/dashboard/project-context/project-context-tab', () => ({
 }))
 
 vi.mock('@/components/dashboard/project-context/project-context-drawer', () => ({
-  ProjectContextDrawer: () => null,
+  ProjectContextDrawer: (props: {
+    projectId: number
+    projectName: string
+    open: boolean
+  }) => {
+    CONTEXT_DRAWER_PROPS.current = props
+    return (
+      <div
+        data-testid="context-drawer"
+        data-project-id={props.projectId}
+        data-project-name={props.projectName}
+        data-open={props.open}
+      />
+    )
+  },
 }))
 
 import ProjectInfoPage from './page'
 
+const PROJECT_INFO_SOURCE_ROOT = join(process.cwd(), 'app/dashboard/system/project-info')
+const TERMINAL_VISUAL_RESIDUE = [
+  { label: 'Terminal token', pattern: /--term-/g },
+  { label: 'Terminal utility', pattern: /\bterm-[a-z0-9-]+/g },
+  { label: 'Terminal zero-radius utility', pattern: /\brounded-none\b/g },
+]
+
+function collectProjectInfoSourceFiles(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name)
+    if (entry.isDirectory()) return collectProjectInfoSourceFiles(path)
+    if (entry.name.includes('.test.') || entry.name.includes('.spec.')) return []
+    return ['.css', '.ts', '.tsx'].includes(extname(entry.name)) ? [path] : []
+  })
+}
+
 afterEach(() => {
   vi.restoreAllMocks()
+  SEARCH_PARAMS.configure = null
+  CONTEXT_DRAWER_PROPS.current = null
 })
 
 describe('StoreInfoPage 站点列/下拉', () => {
+  it('V4 Project Info 源文件不重新引入 Terminal 视觉残留', () => {
+    const violations = collectProjectInfoSourceFiles(PROJECT_INFO_SOURCE_ROOT).flatMap((path) => {
+      const source = readFileSync(path, 'utf8')
+      return TERMINAL_VISUAL_RESIDUE.flatMap(({ label, pattern }) =>
+        Array.from(source.matchAll(pattern), (match) => ({
+          path,
+          label,
+          match: match[0],
+        }))
+      )
+    })
+
+    expect(violations).toEqual([])
+  })
+
+  it('页面使用 Warm Ledger 表面并保留基础信息/项目明细切换', async () => {
+    const { container } = render(<ProjectInfoPage />)
+
+    expect(container.firstElementChild).toHaveAttribute('data-warm-project-info', 'true')
+    expect(await screen.findByRole('tab', { name: '基础信息' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: '项目明细' })).toBeInTheDocument()
+  })
+
   it('表格表头包含「站点」列', async () => {
     render(<ProjectInfoPage />)
     // 切到基础信息 tab（默认是项目明细 tab）
@@ -195,6 +266,46 @@ describe('StoreInfoPage 站点列/下拉', () => {
     await userEvent.click((await screen.findAllByRole('button', { name: /编辑项目 店铺甲/ }))[0])
     expect(await screen.findByLabelText('美国站 Shop ID')).toHaveValue('shop-us-current')
     expect(fetchMock).toHaveBeenCalledWith('/api/backend/api/v1/projects/1/shops')
+  })
+
+  it('清空已有 Shop ID 时仍调用对应站点的 DELETE', async () => {
+    const fetchMock = vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url === '/api/backend/api/v1/projects/1/shops') {
+        return new Response(JSON.stringify([{ id: 101, country: 'US', shop_id: 'shop-us-current' }]), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      if (url === '/api/backend/api/v1/projects/1/shops/US' && init?.method === 'DELETE') {
+        return new Response('{}', { status: 200 })
+      }
+      if (init?.method === 'PATCH') return new Response('{}', { status: 200 })
+      return new Response(JSON.stringify([]), { status: 200 })
+    })
+
+    render(<ProjectInfoPage />)
+    await userEvent.click(await screen.findByRole('tab', { name: '基础信息' }))
+    await userEvent.click((await screen.findAllByRole('button', { name: /编辑项目 店铺甲/ }))[0])
+    const shopInput = await screen.findByLabelText('美国站 Shop ID')
+    expect(shopInput).toHaveValue('shop-us-current')
+    await userEvent.clear(shopInput)
+    await userEvent.click(screen.getByRole('button', { name: '保存修改' }))
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/backend/api/v1/projects/1/shops/US',
+      { method: 'DELETE', headers: {} }
+    )
+  })
+
+  it('?configure=<projectId> 仍会打开对应项目的背景抽屉', async () => {
+    SEARCH_PARAMS.configure = '1'
+    render(<ProjectInfoPage />)
+
+    const drawer = await screen.findByTestId('context-drawer')
+    expect(drawer).toHaveAttribute('data-project-id', '1')
+    expect(drawer).toHaveAttribute('data-project-name', '店铺甲')
+    expect(drawer).toHaveAttribute('data-open', 'true')
   })
 
   it('保存编辑项目时写入当前站点的 Shop ID', async () => {

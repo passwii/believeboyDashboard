@@ -1,8 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { TermPanel } from '@/components/terminal/term-panel'
-import { Button } from '@/components/ui/button'
+import { useCallback, useEffect, useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -13,11 +11,14 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Download, Loader2 } from 'lucide-react'
+import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
 import { useNotifications } from '@/components/notifications'
 import { normalizeErrorMessage } from '@/lib/error-utils'
+import { cn } from '@/lib/utils'
 import { fetchProjectsManage } from '../lib/invoice-api'
 import {
   listInvoices,
+  listAllInvoices,
   voidInvoice,
   downloadInvoicePdf,
   exportInvoicesCsv,
@@ -25,6 +26,7 @@ import {
 } from '../lib/vat-history-api'
 import { InvoiceHistoryTable } from './invoice-history-table'
 import { InvoiceDetailDialog } from './invoice-detail-dialog'
+import styles from '../vat-invoice-warm.module.css'
 
 type StatusFilter = '' | 'draft' | 'issued' | 'voided'
 
@@ -36,6 +38,8 @@ export function VatInvoiceHistoryPanel() {
   const [q, setQ] = useState<string>('')
   const [rows, setRows] = useState<VatInvoiceListItem[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [exporting, setExporting] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
 
@@ -62,6 +66,7 @@ export function VatInvoiceHistoryPanel() {
 
   const fetchList = useCallback(async () => {
     setLoading(true)
+    setLoadError(null)
     try {
       const data = await listInvoices({
         project_id: projectId ? Number(projectId) : undefined,
@@ -70,7 +75,9 @@ export function VatInvoiceHistoryPanel() {
       })
       setRows(data)
     } catch (err) {
-      notify({ type: 'error', title: '加载发票失败', message: normalizeErrorMessage(err) })
+      const message = normalizeErrorMessage(err)
+      setLoadError(message)
+      notify({ type: 'error', title: '加载发票失败', message })
       setRows([])
     } finally {
       setLoading(false)
@@ -82,7 +89,8 @@ export function VatInvoiceHistoryPanel() {
   }, [fetchList])
 
   const onVoid = async (id: number) => {
-    const reason = typeof window !== 'undefined' ? window.prompt('作废原因（可选）：') ?? '' : ''
+    const reason = typeof window !== 'undefined' ? window.prompt('作废原因（可选）：') : ''
+    if (reason === null) return
     try {
       await voidInvoice(id, reason)
       notify({ type: 'success', title: '已作废' })
@@ -99,38 +107,54 @@ export function VatInvoiceHistoryPanel() {
     setDetailOpen(true)
   }
 
-  const onExportCsv = () => {
-    if (rows.length === 0) {
-      notify({ type: 'info', title: '没有可导出的数据' })
-      return
+  const onExportCsv = async () => {
+    setExporting(true)
+    try {
+      const exportRows = await listAllInvoices({
+        project_id: projectId ? Number(projectId) : undefined,
+        status: status || undefined,
+        q: q || undefined,
+      })
+      if (exportRows.length === 0) {
+        notify({ type: 'info', title: '没有可导出的数据' })
+        return
+      }
+      const csv = exportInvoicesCsv(exportRows)
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `vat-invoices-${new Date().toISOString().slice(0, 10)}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      notify({ type: 'error', title: '导出失败', message: normalizeErrorMessage(err) })
+    } finally {
+      setExporting(false)
     }
-    const csv = exportInvoicesCsv(rows)
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `vat-invoices-${new Date().toISOString().slice(0, 10)}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
   }
 
-  const projectNameById = useMemo(() => {
-    const m: Record<number, string> = {}
-    for (const p of projects) m[p.id] = p.name
-    return m
-  }, [projects])
-
   return (
-    <div className="space-y-3">
-      <TermPanel title="VAT 发票历史">
-        <div className="grid grid-cols-1 gap-3 p-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <Label htmlFor="project">店铺</Label>
-              <Select value={projectId || 'all'} onValueChange={(v) => setProjectId(v === 'all' ? '' : v)}>
-                <SelectTrigger id="project" className="h-8 rounded-none border-term-border bg-term-panel text-xs shadow-none">
+    <div className={styles.historyStack}>
+      <section className={styles.panel} aria-labelledby="vat-history-filters-title" data-warm-panel="true">
+        <header className={styles.panelHeader}>
+          <h2 id="vat-history-filters-title" className={styles.panelTitle}>
+            VAT 发票历史
+          </h2>
+        </header>
+        <div className={styles.historyToolbar}>
+            <div className={styles.field}>
+              <Label htmlFor="project" className={styles.label}>
+                店铺
+              </Label>
+              <Select
+                value={projectId || 'all'}
+                onValueChange={(v) => setProjectId(v === 'all' ? '' : v)}
+              >
+                <SelectTrigger id="project" className={styles.selectTrigger}>
                   <SelectValue placeholder="全部" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className={cn('warm-ledger', styles.selectContent)}>
                   <SelectItem value="all">全部</SelectItem>
                   {projects.map((p) => (
                     <SelectItem key={p.id} value={String(p.id)}>
@@ -140,13 +164,18 @@ export function VatInvoiceHistoryPanel() {
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label htmlFor="status">状态</Label>
-              <Select value={status || 'all'} onValueChange={(v) => setStatus((v === 'all' ? '' : v) as StatusFilter)}>
-                <SelectTrigger id="status" className="h-8 rounded-none border-term-border bg-term-panel text-xs shadow-none">
+            <div className={styles.field}>
+              <Label htmlFor="status" className={styles.label}>
+                状态
+              </Label>
+              <Select
+                value={status || 'all'}
+                onValueChange={(v) => setStatus((v === 'all' ? '' : v) as StatusFilter)}
+              >
+                <SelectTrigger id="status" className={styles.selectTrigger}>
                   <SelectValue placeholder="全部" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className={cn('warm-ledger', styles.selectContent)}>
                   <SelectItem value="all">全部</SelectItem>
                   <SelectItem value="draft">草稿</SelectItem>
                   <SelectItem value="issued">已签发</SelectItem>
@@ -154,34 +183,50 @@ export function VatInvoiceHistoryPanel() {
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label htmlFor="q">关键字（发票号/订单号）</Label>
+            <div className={styles.field}>
+              <Label htmlFor="q" className={styles.label}>
+                关键字（发票号/订单号）
+              </Label>
               <Input
                 id="q"
+                className={cn(styles.control, styles.numericControl)}
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="INV-… 或 ORDER-…"
-                className="h-8 rounded-none border-term-border bg-term-panel font-mono text-xs shadow-none"
               />
             </div>
-            <div className="flex items-end">
-              <Button
-                onClick={onExportCsv}
-                variant="outline"
-                className="h-8 gap-1.5 rounded-none border-term-border px-2 text-xs shadow-none hover:bg-term-hover hover:text-term-text"
+            <div>
+              <WarmButton
+                onClick={() => void onExportCsv()}
+                variant="secondary"
+                loading={exporting}
+                loadingLabel="正在导出 CSV"
+                className={styles.historyToolbarAction}
               >
-                <Download className="h-3.5 w-3.5" strokeWidth={1.75} />
+                <Download aria-hidden />
                 导出 CSV
-              </Button>
+              </WarmButton>
             </div>
         </div>
-      </TermPanel>
+      </section>
 
-      <TermPanel title="发票列表">
-        <div className="p-3">
-          {loading ? (
-            <div className="flex items-center gap-2 text-xs text-term-muted">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} />
+      <section className={styles.panel} aria-labelledby="vat-history-list-title" data-warm-panel="true">
+        <header className={styles.panelHeader}>
+          <h2 id="vat-history-list-title" className={styles.panelTitle}>
+            发票列表
+          </h2>
+        </header>
+        <div className={styles.panelBody}>
+          {loadError ? (
+            <div className={styles.loadError} role="alert">
+              <span>加载发票列表失败：{loadError}</span>
+              <WarmButton variant="quiet" onClick={() => void fetchList()}>
+                重试
+              </WarmButton>
+            </div>
+          ) : loading ? (
+            <div className={styles.loadingState} role="status">
+              <Loader2 className="mr-2 inline h-3.5 w-3.5 animate-spin" aria-hidden />
               加载发票列表…
             </div>
           ) : (
@@ -193,17 +238,13 @@ export function VatInvoiceHistoryPanel() {
             />
           )}
         </div>
-      </TermPanel>
+      </section>
 
       <InvoiceDetailDialog
         invoiceId={detailId}
         open={detailOpen}
         onOpenChange={setDetailOpen}
       />
-
-      {/* projectNameById reserved for future per-row actions; keeps the project
-          dropdown mapping available without re-fetching. */}
-      <span hidden>{Object.keys(projectNameById).length}</span>
     </div>
   )
 }

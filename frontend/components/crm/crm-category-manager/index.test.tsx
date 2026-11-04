@@ -50,9 +50,11 @@ beforeEach(() => {
 
 describe('CrmCategoryManager（P6b 产品类目管理）', () => {
   it('渲染类目列表', async () => {
-    render(<CrmCategoryManager />)
+    const { container } = render(<CrmCategoryManager />)
     expect(await screen.findByText('家居')).toBeTruthy()
     expect(screen.getByText('3C')).toBeTruthy()
+    expect(screen.getByRole('region', { name: '产品类目' })).toBeTruthy()
+    expect(container.querySelector('[class*="term-"]')).not.toBeInTheDocument()
   })
 
   it('新增类目调 createCategory 并刷新', async () => {

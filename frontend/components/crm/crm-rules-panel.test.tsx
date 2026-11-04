@@ -61,11 +61,13 @@ function renderPanel() {
 
 describe('CrmRulesPanel（规则引擎设置面板，P9-7 BLF-545）', () => {
   it('加载并渲染规则列表 + 摘要句子 + 启停状态', async () => {
-    renderPanel()
+    const { container } = renderPanel()
     expect(await screen.findByText('客户 7 天无跟进提醒')).toBeTruthy()
     expect(screen.getByText('当客户创建超过 7 天 且 从未跟进 → 提醒负责人')).toBeTruthy()
     expect(screen.getByText('启用中')).toBeTruthy()
     expect(listRules).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('region', { name: '规则引擎' })).toBeTruthy()
+    expect(container.querySelector('[class*="term-"]')).not.toBeInTheDocument()
   })
 
   it('listRules 抛错 → 展示无权限兜底（后端 require_admin 403）', async () => {
@@ -78,6 +80,9 @@ describe('CrmRulesPanel（规则引擎设置面板，P9-7 BLF-545）', () => {
     renderPanel()
     fireEvent.click(await screen.findByText('新建规则'))
     await screen.findByText(/可视化配置「当 X 发生，做 Y」。MVP 支持/)
+    expect(screen.getByRole('dialog', { name: '新建规则' })).toHaveAttribute(
+      'data-warm-rule-editor'
+    )
 
     const nameInput = screen.getByPlaceholderText('如：客户 7 天无跟进提醒')
     fireEvent.change(nameInput, { target: { value: '客户 10 天无跟进提醒' } })

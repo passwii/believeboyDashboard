@@ -10,9 +10,9 @@ import { addBLF611FixtureAuth } from '../setup/blf611-fixture'
  * 3. 来源提示「根据用户提供的课件整理」与限制性提示可见；
  * 4. 勾选首单材料 → 进度文本变化（已核对 n/N · 完成 p%）；
  * 5. 「重置」回到 0/N · 完成 0%；
- * 6. 窄屏（375 / 390 / 768px）无整体横向溢出（表格自身在 overflow-x-auto 容器内横滑，不算溢出），
+ * 6. 桌面 1440×900 无整体横向溢出（表格自身在 overflow-x-auto 容器内横滑，不算溢出），
  *    且 5 个页内锚点逐个可跳转、目标区块进入视口（并断言 URL hash 真的切到该锚点）；
- * 7. 明暗主题切换下页面仍可读、进度交互仍生效（主题令牌在两态下都可解析）；
+ * 7. Warm Ledger 表面令牌生效，进度交互仍可用；
  * 8. 勾选 / **取消勾选** / 重置全程零非 GET 请求 → 勾选状态确实只存在于本地 state。
  *
  * 自包含：session cookie 用 next-auth/jwt encode 伪造（BLF611_FIXTURE_SECRET，与
@@ -58,7 +58,7 @@ async function mockBackend(page: Page): Promise<void> {
 /**
  * 页面级横向溢出断言：文档根 + #main-content 都不得出现整体横向滚动。
  *
- * 说明：Terminal Shell 的滚动容器是 `#main-content`（`overflow-x-clip overflow-y-auto`），
+ * 说明：Warm Ledger 的滚动容器是 `#main-content`（`overflow-x-clip overflow-y-auto`），
  * document 本身不滚动，所以「页面整体横向溢出」要看 #main-content 的 scrollWidth。
  * 课件对照表等宽表放在 `overflow-x-auto` 容器里，容器自身横滑不算页面溢出。
  */
@@ -79,22 +79,6 @@ async function expectNoPageHorizontalOverflow(page: Page): Promise<void> {
   expect(offenders, '页面级容器不应出现横向溢出（等宽表在 overflow-x-auto 容器内横滑）').toEqual([])
 }
 
-/**
- * 健壮的主题切换：等菜单真正打开、选中后等菜单真正卸载。
- *
- * 为什么不用「点一下就选」：共享组件 `theme-mode-picker.tsx`（Radix DropdownMenu）自带
- * 80ms hover 开启 + 160ms 关闭延迟，菜单关闭动画期间元素会被 detach，直接连点会
- * 偶发 `element was detached from the DOM`（在 `/dashboard` 等无关页面同样复现，
- * 是该共享组件的既有竞态，与本页无关）。等菜单完全卸载再进行下一次切换即可稳定。
- */
-async function pickTheme(page: Page, name: '浅色' | '深色'): Promise<void> {
-  await page.getByRole('button', { name: /主题设置：/ }).click()
-  const item = page.getByRole('menuitemradio', { name })
-  await expect(item).toBeVisible({ timeout: 10000 })
-  await item.click()
-  await expect(page.getByRole('menuitemradio')).toHaveCount(0, { timeout: 10000 })
-}
-
 test.use({ storageState: { cookies: [], origins: [] } })
 
 test.beforeEach(async ({ page, context }) => {
@@ -104,19 +88,17 @@ test.beforeEach(async ({ page, context }) => {
 
 test.describe('跨境电商合规页用户流程（BLF-1393）', () => {
   test('从「工具箱」进入合规页：标题、来源提示与五步证据链可见', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 1000 })
+    await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/dashboard')
 
-    // 1. 从 L1 主轨的「工具箱」进入（图标按钮，aria-label = 组名）。
-    const toolsRailButton = page.getByRole('button', { name: '工具箱' })
-    await expect(toolsRailButton).toBeVisible()
-    await toolsRailButton.click()
-
-    // 2. L2 子导航展开「工具箱」分组，点「跨境电商合规」进入目标页。
-    const complianceLink = page.getByRole('link', { name: '跨境电商合规' }).first()
+    // 1. V4 主导航按业务域展开，工具箱下的合规链接直接可见。
+    const navigation = page.getByRole('navigation', { name: '业务域和快捷入口' })
+    await expect(navigation.getByText('工具箱', { exact: true })).toBeVisible()
+    const complianceLink = navigation.getByRole('link', { name: '跨境电商合规' })
     await expect(complianceLink).toBeVisible()
     await complianceLink.click()
 
+    // 2. 进入目标页后，V4 路由元数据负责面包屑与页内标题。
     await expect(page).toHaveURL(/\/dashboard\/tools\/cross-border-compliance$/)
     await expect(page.getByRole('heading', { level: 1, name: '跨境电商合规' })).toBeVisible()
 
@@ -139,7 +121,7 @@ test.describe('跨境电商合规页用户流程（BLF-1393）', () => {
   })
 
   test('勾选首单材料后进度文本变化，「重置」回到 0/N', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 1000 })
+    await page.setViewportSize({ width: 1440, height: 900 })
 
     // AC4 后半句：勾选状态**不得**发往后端（纯本地）。记录本页所有非 GET 请求，
     // 勾选/取消/重置三态跑完后断言其数量为 0。
@@ -192,20 +174,12 @@ test.describe('跨境电商合规页用户流程（BLF-1393）', () => {
     expect(mutatingRequests, '勾选状态不得发往后端（应为零非 GET 请求）').toEqual([])
   })
 
-  test('窄屏无整体横向溢出，且 5 个页内锚点逐个可跳转', async ({ page }) => {
-    // 三档窄屏视口逐档验证「页面整体无横向滚动」。
-    // 375 / 390 / 768 是设计稿点名的三档；这里显式 setViewportSize（不依赖 project
-    // 的 Pixel 5 = 393px），保证三档都被真正覆盖。
-    for (const width of [375, 390, 768]) {
-      await page.setViewportSize({ width, height: 812 })
-      await page.goto('/dashboard/tools/cross-border-compliance')
-      await expect(page.getByRole('heading', { level: 1, name: '跨境电商合规' })).toBeVisible()
-      await expectNoPageHorizontalOverflow(page)
-    }
-
-    // 页内锚点：5 个分组锚点逐个点击，每个都必须把目标区块滚进视口。
-    await page.setViewportSize({ width: 375, height: 812 })
+  test('桌面 1440×900 无整体横向溢出，且 5 个页内锚点逐个可跳转', async ({ page }) => {
+    // V4 Warm Ledger 页面迁移仅验收桌面 1440×900，不新增移动端断点改造。
+    await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/dashboard/tools/cross-border-compliance')
+    await expect(page.getByRole('heading', { level: 1, name: '跨境电商合规' })).toBeVisible()
+    await expectNoPageHorizontalOverflow(page)
 
     const anchors = [
       { id: 'chain', label: /业务证据链/ },
@@ -234,29 +208,47 @@ test.describe('跨境电商合规页用户流程（BLF-1393）', () => {
     }
   })
 
-  test('明暗主题切换下标题、来源提示与勾选交互均可用', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 1000 })
+  test('Warm Ledger 表面令牌生效，来源提示与勾选交互可用', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/dashboard/tools/cross-border-compliance')
 
     const heading = page.getByRole('heading', { level: 1, name: '跨境电商合规' })
     await expect(heading).toBeVisible()
 
-    // 主题选择器在 L1 主轨底部（aria-label = 「主题设置：<当前模式>」），是下拉菜单而非直接切换。
-    await expect(page.getByRole('button', { name: /主题设置：/ })).toBeVisible()
-    await pickTheme(page, '深色')
-    await expect(page.locator('html')).toHaveClass(/dark/)
+    const frameStyles = await page
+      .locator('[data-tools-page-frame="true"]')
+      .evaluate((element) => {
+        const styles = getComputedStyle(element)
+        const shell = document.querySelector('.warm-ledger')
+        return {
+          color: styles.color,
+          fontFamily: styles.fontFamily,
+          shellFontFamily: shell ? getComputedStyle(shell).fontFamily : '',
+          accent: styles.getPropertyValue('--warm-ledger-color-accent').trim(),
+        }
+      })
+    expect(frameStyles.color).toBe('rgb(241, 237, 229)')
+    expect(frameStyles.fontFamily).toBe(frameStyles.shellFontFamily)
+    expect(frameStyles.accent).toBe('#e8b35a')
 
-    // 暗色下标题、来源提示仍可见（主题令牌两态都可解析），勾选交互仍生效。
+    const panelStyles = await page
+      .locator('[data-tools-panel="true"]')
+      .first()
+      .evaluate((element) => {
+        const styles = getComputedStyle(element)
+        return {
+          backgroundColor: styles.backgroundColor,
+          borderRadius: styles.borderRadius,
+        }
+      })
+    expect(panelStyles.backgroundColor).toBe('rgb(43, 44, 43)')
+    expect(panelStyles.borderRadius).toBe('16px')
+
     await expect(heading).toBeVisible()
     await expect(page.getByText('来源：根据用户提供的课件整理')).toBeVisible()
 
     const progress = page.getByTestId('material-progress')
     await page.getByRole('checkbox').first().click()
-    await expect(progress).toHaveText(`已核对 1/${TOTAL_MATERIALS} · 完成 5%`)
-
-    // 切回浅色，勾选状态保持（组件本地 state，不随主题重置）。
-    await pickTheme(page, '浅色')
-    await expect(page.locator('html')).not.toHaveClass(/dark/)
     await expect(progress).toHaveText(`已核对 1/${TOTAL_MATERIALS} · 完成 5%`)
   })
 })

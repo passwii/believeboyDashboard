@@ -61,11 +61,20 @@ async function uploadLabel(user: ReturnType<typeof userEvent.setup>, file = make
 
 describe('ProductLabelClient', () => {
   it('初始状态：未选文件、生成按钮禁用，且默认勾选 Made In China', () => {
-    render(<ProductLabelClient />)
+    const { container } = render(<ProductLabelClient />)
 
+    expect(container.querySelector('[data-tools-page-frame="true"]')).toBeInTheDocument()
+    expect(container.querySelectorAll('[data-tools-panel="true"]')).toHaveLength(2)
+    expect(container.querySelector('[data-tools-upload-zone="true"]')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '产品标签制作' })).toBeInTheDocument()
     expect(screen.getByText('未选择')).toBeInTheDocument()
+    expect(screen.getByText('0/3 行 · 0/200 字')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /生成并下载/ })).toBeDisabled()
     expect(screen.getByRole('checkbox', { name: 'Made In China' })).toBeChecked()
+    expect(document.querySelector('input[type="file"]')).toHaveAttribute(
+      'accept',
+      '.pdf,application/pdf'
+    )
   })
 
   it('上传标签后展示文件名，生成按钮可用', async () => {
@@ -158,6 +167,20 @@ describe('ProductLabelClient', () => {
     expect(screen.getByRole('checkbox', { name: 'Made In China' })).not.toBeChecked()
     expect(screen.getByRole('button', { name: /生成并下载/ })).toBeDisabled()
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('超过 50MB 的文件在客户端拦下，不进入生成流程', async () => {
+    const user = userEvent.setup()
+    render(<ProductLabelClient />)
+
+    const oversized = makePdf('oversized.pdf')
+    Object.defineProperty(oversized, 'size', { value: 51 * 1024 * 1024 })
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement
+    await user.upload(input, oversized)
+
+    expect(await screen.findByText('ERR · 文件大小不能超过 50MB')).toBeInTheDocument()
+    expect(screen.getByTestId('selected-file-name')).toHaveTextContent('未选择')
+    expect(screen.getByRole('button', { name: /生成并下载/ })).toBeDisabled()
   })
 
   it('生成后可重新下载上一次的结果', async () => {

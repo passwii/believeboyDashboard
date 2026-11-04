@@ -1,23 +1,15 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
 import { useNotifications } from '@/components/notifications'
 import {
   fetchAlertPreferences,
   updateAlertPreferences,
   type AlertPreference,
 } from '@/lib/alerts-api'
+import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
+import styles from '../alerts-warm.module.css'
+import { AlertWarmSwitch } from './alert-warm-switch'
 
 function arePreferencesEqual(left: AlertPreference, right: AlertPreference): boolean {
   return (
@@ -67,7 +59,7 @@ export function AlertPreferencesTab({
   }, [load, onRefreshReady])
 
   if (!pref) {
-    return <div className="py-8 text-center font-mono text-xs text-term-faint">加载中…</div>
+    return <div className={styles.loadingState}>加载中…</div>
   }
 
   const save = async () => {
@@ -85,60 +77,84 @@ export function AlertPreferencesTab({
   }
 
   return (
-    // BLF-838：偏好设置卡走 TermPanel 终端规格，输入 mono 化
-    <div className="max-w-xl space-y-6 border border-term-border bg-term-panel px-4 py-4">
-      <div className="flex items-center justify-between">
+    <section
+      className={styles.preferencesPanel}
+      data-warm-alert-preferences="true"
+    >
+      <div className={styles.preferenceRow}>
         <div>
-          <Label>邮件通知</Label>
-          <p className="text-xs text-term-faint">告警触发时发送邮件</p>
+          <span id="alert-email-label" className={styles.preferenceLabel}>邮件通知</span>
+          <p className={styles.preferenceDescription}>告警触发时发送邮件</p>
         </div>
-        <Switch
+        <AlertWarmSwitch
+          labelledBy="alert-email-label"
           checked={pref.email_enabled}
           onCheckedChange={(v) => updateDraft({ ...pref, email_enabled: v })}
         />
       </div>
-      <div className="flex items-center justify-between">
+      <div className={styles.preferenceRow}>
         <div>
-          <Label>站内通知</Label>
-          <p className="text-xs text-term-faint">告警触发时写入通知中心（铃铛）</p>
+          <span id="alert-in-app-label" className={styles.preferenceLabel}>站内通知</span>
+          <p className={styles.preferenceDescription}>告警触发时写入通知中心（铃铛）</p>
         </div>
-        <Switch
+        <AlertWarmSwitch
+          labelledBy="alert-in-app-label"
           checked={pref.in_app_enabled}
           onCheckedChange={(v) => updateDraft({ ...pref, in_app_enabled: v })}
         />
       </div>
-      <div className="grid gap-1.5">
-        <Label>最低告警级别</Label>
-        <Select value={pref.min_severity} onValueChange={(v) => updateDraft({ ...pref, min_severity: v })}>
-          <SelectTrigger className={`w-40 rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text focus:ring-0 data-[state=open]:border-term-border-strong`}><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem className="rounded-none text-xs focus:bg-term-hover focus:text-term-text" value="info">提示及以上</SelectItem>
-            <SelectItem className="rounded-none text-xs focus:bg-term-hover focus:text-term-text" value="warning">警告及以上</SelectItem>
-            <SelectItem className="rounded-none text-xs focus:bg-term-hover focus:text-term-text" value="critical">仅严重</SelectItem>
-          </SelectContent>
-        </Select>
+      <div className={styles.field}>
+        <label htmlFor="alert-min-severity" className={styles.preferenceLabel}>
+          最低告警级别
+        </label>
+        <select
+          id="alert-min-severity"
+          value={pref.min_severity}
+          onChange={(event) =>
+            updateDraft({ ...pref, min_severity: event.target.value })
+          }
+          className={styles.severitySelect}
+        >
+          <option value="info">提示及以上</option>
+          <option value="warning">警告及以上</option>
+          <option value="critical">仅严重</option>
+        </select>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="grid gap-1.5">
-          <Label>免打扰开始</Label>
-          <Input
+      <div className={styles.quietHoursGrid}>
+        <div className={styles.field}>
+          <label htmlFor="alert-quiet-start" className={styles.preferenceLabel}>
+            免打扰开始
+          </label>
+          <input
+            id="alert-quiet-start"
             type="time"
-            className="h-9 rounded-none border-term-border bg-term-bg font-mono text-sm tabular-nums text-term-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+            className={styles.timeInput}
             value={pref.quiet_hours_start ?? ''}
             onChange={(e) => updateDraft({ ...pref, quiet_hours_start: e.target.value || null })}
           />
         </div>
-        <div className="grid gap-1.5">
-          <Label>免打扰结束</Label>
-          <Input
+        <div className={styles.field}>
+          <label htmlFor="alert-quiet-end" className={styles.preferenceLabel}>
+            免打扰结束
+          </label>
+          <input
+            id="alert-quiet-end"
             type="time"
-            className="h-9 rounded-none border-term-border bg-term-bg font-mono text-sm tabular-nums text-term-text shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+            className={styles.timeInput}
             value={pref.quiet_hours_end ?? ''}
             onChange={(e) => updateDraft({ ...pref, quiet_hours_end: e.target.value || null })}
           />
         </div>
       </div>
-      <Button onClick={save} disabled={saving} className="rounded-none font-mono text-xs">{saving ? '保存中…' : '保存偏好'}</Button>
-    </div>
+      <WarmButton
+        variant="primary"
+        onClick={save}
+        disabled={saving}
+        loading={saving}
+        loadingLabel="正在保存通知偏好"
+      >
+        {saving ? '保存中…' : '保存偏好'}
+      </WarmButton>
+    </section>
   )
 }

@@ -1,28 +1,16 @@
 'use client'
 
-import { useForm, type Resolver } from 'react-hook-form'
+import { useId } from 'react'
+import {
+  Controller,
+  useForm,
+  type Resolver,
+} from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { DatePicker } from '@/components/ui/date-picker'
-import { parseDateInputValue, formatDateInputValue } from '@/components/ui/date-picker'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
-import { CrmUserSelect } from '@/components/crm/crm-user-select'
+  WarmButton,
+  WarmSelect,
+} from '@/components/dashboard-v2/warm-ledger/controls'
 import {
   TASK_PRIORITY_LABELS,
   TASK_TYPE_LABELS,
@@ -30,6 +18,7 @@ import {
 import type { User } from '@/lib/crm/types/user'
 import type { TaskInput } from '@/lib/crm/types/task'
 import { taskSchema, type TaskFormValues } from './schemas/task.schema'
+import styles from './task-form.module.css'
 
 export interface CrmTaskFormProps {
   users: User[]
@@ -40,10 +29,30 @@ export interface CrmTaskFormProps {
   submitText?: string
 }
 
+const TYPE_OPTIONS = Object.entries(TASK_TYPE_LABELS).map(([value, label]) => ({
+  value,
+  label,
+}))
+
+const PRIORITY_OPTIONS = Object.entries(TASK_PRIORITY_LABELS).map(([value, label]) => ({
+  value,
+  label,
+}))
+
+function normalizeDateInput(value?: string) {
+  if (!value) return ''
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 /**
  * 任务新建/编辑表单（react-hook-form + zod）。
- * 标题必填；类型/优先级/截止/描述/负责人可选（负责人仅 admin 可指派他人）。
- * 新建与编辑复用同一组件（编辑传 initialValues）。
+ * 标题必填；类型/优先级/截止/描述/负责人可选（负责人权限仍由后端校验）。
  */
 export function CrmTaskForm({
   users,
@@ -51,18 +60,33 @@ export function CrmTaskForm({
   onSubmit,
   submitText = '保存',
 }: CrmTaskFormProps) {
+  const formId = useId()
+  const titleId = `${formId}-title`
+  const titleErrorId = `${formId}-title-error`
+  const dueDateId = `${formId}-due-date`
+  const dueDateErrorId = `${formId}-due-date-error`
+  const descriptionId = `${formId}-description`
+  const descriptionErrorId = `${formId}-description-error`
+
+  const baseValues: TaskFormValues = {
+    title: '',
+    type: 'custom',
+    priority: 'medium',
+    dueDate: '',
+    description: '',
+    ownerId: null,
+  }
+  const defaultValues: TaskFormValues = {
+    ...baseValues,
+    ...initialValues,
+    dueDate: normalizeDateInput(initialValues?.dueDate ?? ''),
+  }
+
   const form = useForm<TaskFormValues>({
     resolver: zodResolver(taskSchema) as Resolver<TaskFormValues>,
-    defaultValues: {
-      title: '',
-      type: 'custom',
-      priority: 'medium',
-      dueDate: '',
-      description: '',
-      ownerId: null,
-      ...initialValues,
-    },
+    defaultValues,
   })
+  const errors = form.formState.errors
 
   async function handleSubmit(values: TaskFormValues) {
     const input: TaskInput = {
@@ -76,131 +100,129 @@ export function CrmTaskForm({
     await onSubmit(input)
   }
 
+  const ownerOptions = users.map((user) => ({
+    value: user.id,
+    label: user.name,
+  }))
+
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-        <FormField
+    <form
+      onSubmit={form.handleSubmit(handleSubmit)}
+      className={styles.form}
+      data-warm-task-form
+    >
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor={titleId}>
+          标题 *
+        </label>
+        <input
+          {...form.register('title')}
+          id={titleId}
+          className={styles.input}
+          placeholder="如：确认报价单并发送客户"
+          aria-invalid={errors.title ? true : undefined}
+          aria-describedby={errors.title ? titleErrorId : undefined}
+        />
+        <FieldError id={titleErrorId} message={errors.title?.message} />
+      </div>
+
+      <div className={styles.pair}>
+        <Controller
           control={form.control}
-          name="title"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>标题 *</FormLabel>
-              <FormControl>
-                <Input {...field} placeholder="如：确认报价单并发送客户" />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
+          name="type"
+          render={({ field, fieldState }) => (
+            <WarmSelect
+              id={`${formId}-type`}
+              label="类型"
+              value={field.value}
+              options={TYPE_OPTIONS}
+              onChange={field.onChange}
+              error={fieldState.error?.message ?? null}
+            />
           )}
         />
+        <Controller
+          control={form.control}
+          name="priority"
+          render={({ field, fieldState }) => (
+            <WarmSelect
+              id={`${formId}-priority`}
+              label="优先级"
+              value={field.value}
+              options={PRIORITY_OPTIONS}
+              onChange={field.onChange}
+              error={fieldState.error?.message ?? null}
+            />
+          )}
+        />
+      </div>
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <FormField
-            control={form.control}
-            name="type"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>类型</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {Object.entries(TASK_TYPE_LABELS).map(([v, l]) => (
-                      <SelectItem key={v} value={v}>
-                        {l}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor={dueDateId}>
+          截止时间
+        </label>
+        <input
+          {...form.register('dueDate')}
+          id={dueDateId}
+          type="date"
+          className={styles.input}
+          aria-invalid={errors.dueDate ? true : undefined}
+          aria-describedby={errors.dueDate ? dueDateErrorId : undefined}
+        />
+        <FieldError id={dueDateErrorId} message={errors.dueDate?.message} />
+      </div>
+
+      <Controller
+        control={form.control}
+        name="ownerId"
+        render={({ field, fieldState }) => (
+          <WarmSelect
+            id={`${formId}-owner`}
+            label="负责人"
+            value={field.value ?? ''}
+            options={ownerOptions}
+            onChange={field.onChange}
+            placeholder="选择负责人（留空=自己）"
+            error={fieldState.error?.message ?? null}
           />
-          <FormField
-            control={form.control}
-            name="priority"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>优先级</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {Object.entries(TASK_PRIORITY_LABELS).map(([v, l]) => (
-                      <SelectItem key={v} value={v}>
-                        {l}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+        )}
+      />
 
-        <FormField
-          control={form.control}
-          name="dueDate"
-          render={({ field }) => (
-            <FormItem className="flex flex-col">
-              <FormLabel>截止时间</FormLabel>
-              <FormControl>
-                <DatePicker
-                  mode="single"
-                  value={parseDateInputValue(field.value)}
-                  onChange={(d) => field.onChange(d ? formatDateInputValue(d) : '')}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor={descriptionId}>
+          描述
+        </label>
+        <textarea
+          {...form.register('description')}
+          id={descriptionId}
+          value={form.watch('description') ?? ''}
+          rows={3}
+          className={styles.textarea}
+          aria-invalid={errors.description ? true : undefined}
+          aria-describedby={errors.description ? descriptionErrorId : undefined}
         />
+        <FieldError id={descriptionErrorId} message={errors.description?.message} />
+      </div>
 
-        <FormField
-          control={form.control}
-          name="ownerId"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>负责人</FormLabel>
-              <FormControl>
-                <CrmUserSelect
-                  users={users}
-                  value={field.value}
-                  onChange={(v) => field.onChange(v)}
-                  placeholder="选择负责人（留空=自己）"
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+      <div className={styles.submitRow}>
+        <WarmButton
+          type="submit"
+          variant="primary"
+          loading={form.formState.isSubmitting}
+          loadingLabel="保存中…"
+        >
+          {form.formState.isSubmitting ? '保存中…' : submitText}
+        </WarmButton>
+      </div>
+    </form>
+  )
+}
 
-        <FormField
-          control={form.control}
-          name="description"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>描述</FormLabel>
-              <FormControl>
-                <Textarea {...field} value={field.value ?? ''} rows={3} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <div className="flex justify-end gap-2 pt-2">
-          <Button type="submit" disabled={form.formState.isSubmitting}>
-            {form.formState.isSubmitting ? '保存中…' : submitText}
-          </Button>
-        </div>
-      </form>
-    </Form>
+function FieldError({ id, message }: { id: string; message?: string }) {
+  if (!message) return null
+  return (
+    <p id={id} role="alert" className={styles.error}>
+      {message}
+    </p>
   )
 }

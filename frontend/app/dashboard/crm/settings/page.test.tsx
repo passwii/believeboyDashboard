@@ -87,10 +87,14 @@ describe('SettingsPage（BLF-540 工作流设置）', () => {
   })
 
   it('管理员加载设置并展示开关与天数', async () => {
-    renderPage()
+    const { container } = renderPage()
     expect(await screen.findByText('7 天无跟进提醒')).toBeInTheDocument()
     expect(screen.getByRole('switch', { name: '提醒邮件开关' })).toBeChecked()
     expect(screen.getByLabelText('无跟进天数')).toHaveValue(7)
+    expect(container.querySelector('[data-warm-crm-page]')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: '规则引擎' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: '产品类目' })).toBeInTheDocument()
+    expect(container.querySelector('[class*="term-"]')).not.toBeInTheDocument()
   })
 
   it('Head 刷新重新读取工作流设置，并保留未保存的天数输入', async () => {

@@ -4,8 +4,6 @@
 // 数据来自 /api/v1/vat-entities（vat-entity-api）；不再回退到 project_context JSON。
 
 import { useEffect, useState } from 'react'
-import { TermPanel } from '@/components/terminal/term-panel'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -25,8 +23,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Loader2, Pencil, Plus, Trash2, AlertTriangle } from 'lucide-react'
+import {
+  WarmButton,
+  WarmIconButton,
+} from '@/components/dashboard-v2/warm-ledger/controls'
 import { useNotifications } from '@/components/notifications'
 import { normalizeErrorMessage } from '@/lib/error-utils'
+import { cn } from '@/lib/utils'
 import { fetchProjectsManage } from '../lib/invoice-api'
 import {
   fetchEntities,
@@ -35,6 +38,7 @@ import {
   deleteEntity,
 } from '../lib/vat-entity-api'
 import type { ProjectOption, VatEntity } from '../types'
+import styles from '../vat-invoice-warm.module.css'
 
 interface SellerCardProps {
   selectedProjectId: number | null
@@ -238,54 +242,42 @@ export function SellerCard({
   }
 
   return (
-    <TermPanel
-      title="1 · 店铺与 Seller"
-      actions={
-        selectedProjectId != null && (
-          <div className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 gap-1 rounded-none border-term-border px-2 text-xs shadow-none hover:bg-term-hover hover:text-term-text"
-              onClick={openAddNew}
-              disabled={loadingEntities}
-            >
-              <Plus className="h-3.5 w-3.5" strokeWidth={1.75} />
+    <section className={styles.panel} aria-labelledby="invoice-seller-title" data-warm-panel="true">
+      <header className={styles.panelHeader}>
+        <h2 id="invoice-seller-title" className={styles.panelTitle}>
+          1 · 店铺与 Seller
+        </h2>
+        {selectedProjectId != null ? (
+          <div className={styles.panelActions}>
+            <WarmButton variant="secondary" onClick={openAddNew} disabled={loadingEntities}>
+              <Plus aria-hidden />
               新增国家
-            </Button>
+            </WarmButton>
             {selectedCountry && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7 gap-1 rounded-none border-term-border px-2 text-xs shadow-none hover:bg-term-hover hover:text-term-text"
-                onClick={openEdit}
-                disabled={loadingEntities}
-              >
-                <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
+              <WarmButton variant="quiet" onClick={openEdit} disabled={loadingEntities}>
+                <Pencil aria-hidden />
                 编辑
-              </Button>
+              </WarmButton>
             )}
           </div>
-        )
-      }
-    >
-      <div className="space-y-4 p-3">
-        {/* 店铺下拉（vat_enabled 过滤） */}
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-          <Label htmlFor="project-select" className="self-center">
+        ) : null}
+      </header>
+      <div className={styles.panelBody}>
+        <div className={styles.sellerProjectRow}>
+          <Label htmlFor="project-select" className={styles.label}>
             店铺
           </Label>
-          <div className="md:col-span-2">
+          <div>
             <Select
               value={selectedProjectId != null ? String(selectedProjectId) : ''}
               onValueChange={(v) => onSelectProject(Number(v))}
               disabled={loadingProjects}
             >
-              <SelectTrigger id="project-select">
+              <SelectTrigger id="project-select" className={styles.selectTrigger}>
                 <SelectValue placeholder={loadingProjects ? '加载中…' : '选择店铺'} />
                 {loadingProjects && <Loader2 className="ml-2 h-3.5 w-3.5 animate-spin" />}
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className={cn('warm-ledger', styles.selectContent)}>
                 {projects
                   .filter((p) => p.is_active && p.vat_enabled)
                   .map((p) => (
@@ -298,17 +290,16 @@ export function SellerCard({
           </div>
         </div>
 
-        {/* 国家选择 */}
         {selectedProjectId != null && sellers.length > 0 ? (
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-            <Label className="self-center">开票国家</Label>
-            <div className="flex gap-2 md:col-span-2">
-              <div className="flex-1">
+          <div className={styles.sellerCountryRow}>
+            <Label className={styles.label}>开票国家</Label>
+            <div className={styles.sellerCountryControls}>
+              <div className={styles.sellerCountrySelect}>
                 <Select value={selectedCountry} onValueChange={onCountryChange}>
-                  <SelectTrigger>
+                  <SelectTrigger className={styles.selectTrigger}>
                     <SelectValue placeholder="选择国家" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className={cn('warm-ledger', styles.selectContent)}>
                     {sellers
                       .filter((s) => s.country)
                       .map((s) => (
@@ -320,69 +311,58 @@ export function SellerCard({
                 </Select>
               </div>
               {selectedCountry && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive max-md:h-11 max-md:w-11"
+                <WarmIconButton
                   onClick={() => confirmDelete(selectedCountry)}
                   disabled={saving}
                   title={`删除 ${selectedCountry} Seller`}
+                  aria-label={`删除 ${selectedCountry} Seller`}
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
+                  <Trash2 aria-hidden />
+                </WarmIconButton>
               )}
             </div>
           </div>
         ) : selectedProjectId != null && !loadingEntities ? (
-          <div className="flex items-start gap-2 rounded-none border border-[hsl(var(--data-warning)/0.4)] bg-[hsl(var(--data-warning)/0.08)] px-3 py-2 text-xs text-[hsl(var(--data-warning))]">
+          <div className={styles.notice}>
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <div>尚未配置任何国家的 VAT 主体。请点击右上角「新增国家」补充。</div>
           </div>
         ) : null}
 
-        {/* Seller 预览 */}
         {selectedProjectId != null ? (
           loadingEntities ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className={styles.loadingState} role="status">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
               加载 Seller…
             </div>
           ) : currentSeller ? (
-            <div className="rounded-none border border-border/60 bg-term-raised p-4">
-              <div className="space-y-1 text-sm">
-                <div className="font-semibold text-foreground">
+            <div className={styles.subpanel}>
+              <div className={styles.sellerIdentity}>
+                <div className={styles.sellerName}>
                   {currentSeller.company_name || '（未填写公司名）'}
                 </div>
-                {currentSeller.vat_id && (
-                  <div className="text-muted-foreground">VAT: {currentSeller.vat_id}</div>
-                )}
-                {currentSeller.address_line && (
-                  <div className="text-muted-foreground">{currentSeller.address_line}</div>
-                )}
-                {(currentSeller.postal_code || currentSeller.city) && (
-                  <div className="text-muted-foreground">
+                {currentSeller.vat_id ? <div>VAT: {currentSeller.vat_id}</div> : null}
+                {currentSeller.address_line ? <div>{currentSeller.address_line}</div> : null}
+                {currentSeller.postal_code || currentSeller.city ? (
+                  <div>
                     {[currentSeller.postal_code, currentSeller.city].filter(Boolean).join(' ')}
                   </div>
-                )}
-                {currentSeller.country && (
-                  <div className="text-muted-foreground">{currentSeller.country}</div>
-                )}
-                {currentSeller.email && (
-                  <div className="text-muted-foreground">{currentSeller.email}</div>
-                )}
+                ) : null}
+                {currentSeller.country ? <div>{currentSeller.country}</div> : null}
+                {currentSeller.email ? <div>{currentSeller.email}</div> : null}
               </div>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">尚未配置任何国家的 Seller。请新增。</p>
+            <p className={styles.emptyState}>尚未配置任何国家的 Seller。请新增。</p>
           )
         ) : (
-          <p className="text-sm text-muted-foreground">请先选择店铺以加载 Seller。</p>
+          <p className={styles.emptyState}>请先选择店铺以加载 Seller。</p>
         )}
       </div>
 
       {/* 编辑 / 新增 Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="max-w-[calc(100%-2rem)] max-h-[calc(100vh-3rem)] overflow-y-auto rounded-none sm:max-w-xl">
+        <DialogContent className={cn('warm-ledger', styles.dialog, styles.dialogForm)}>
           <DialogHeader>
             <DialogTitle>
               {editMode === 'add' ? '新增 Seller' : `编辑 ${selectedCountry} Seller`}
@@ -392,11 +372,14 @@ export function SellerCard({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div className="space-y-1.5 md:col-span-2">
-              <Label htmlFor="edit-country">国家代码 *</Label>
+          <div className={styles.fieldGrid}>
+            <div className={cn(styles.field, styles.fieldFull)}>
+              <Label htmlFor="edit-country" className={styles.label}>
+                国家代码 *
+              </Label>
               <Input
                 id="edit-country"
+                className={cn(styles.control, styles.numericControl)}
                 value={editDraft.country}
                 onChange={(e) =>
                   setEditDraft({
@@ -409,87 +392,113 @@ export function SellerCard({
                 disabled={editMode === 'edit'}
               />
             </div>
-            <div className="space-y-1.5 md:col-span-2">
-              <Label htmlFor="edit-company">公司名 *</Label>
+            <div className={cn(styles.field, styles.fieldFull)}>
+              <Label htmlFor="edit-company" className={styles.label}>
+                公司名 *
+              </Label>
               <Input
                 id="edit-company"
+                className={styles.control}
                 value={editDraft.company_name}
                 onChange={(e) => setEditDraft({ ...editDraft, company_name: e.target.value })}
                 placeholder="ACME EU GmbH"
               />
             </div>
-            <div className="space-y-1.5 md:col-span-2">
-              <Label htmlFor="edit-vat">VAT 号 *</Label>
+            <div className={cn(styles.field, styles.fieldFull)}>
+              <Label htmlFor="edit-vat" className={styles.label}>
+                VAT 号 *
+              </Label>
               <Input
                 id="edit-vat"
+                className={cn(styles.control, styles.numericControl)}
                 value={editDraft.vat_id}
                 onChange={(e) => setEditDraft({ ...editDraft, vat_id: e.target.value })}
                 placeholder="DE123456789"
               />
             </div>
-            <div className="space-y-1.5 md:col-span-2">
-              <Label htmlFor="edit-addr">街道地址</Label>
+            <div className={cn(styles.field, styles.fieldFull)}>
+              <Label htmlFor="edit-addr" className={styles.label}>
+                街道地址
+              </Label>
               <Input
                 id="edit-addr"
+                className={styles.control}
                 value={editDraft.address_line}
                 onChange={(e) => setEditDraft({ ...editDraft, address_line: e.target.value })}
                 placeholder="38 avenue John F. Kennedy"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-postal">邮编</Label>
+            <div className={styles.field}>
+              <Label htmlFor="edit-postal" className={styles.label}>
+                邮编
+              </Label>
               <Input
                 id="edit-postal"
+                className={cn(styles.control, styles.numericControl)}
                 value={editDraft.postal_code}
                 onChange={(e) => setEditDraft({ ...editDraft, postal_code: e.target.value })}
                 placeholder="L-1855"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-city">城市</Label>
+            <div className={styles.field}>
+              <Label htmlFor="edit-city" className={styles.label}>
+                城市
+              </Label>
               <Input
                 id="edit-city"
+                className={styles.control}
                 value={editDraft.city}
                 onChange={(e) => setEditDraft({ ...editDraft, city: e.target.value })}
                 placeholder="Luxembourg"
               />
             </div>
-            <div className="space-y-1.5 md:col-span-2">
-              <Label htmlFor="edit-email">邮箱</Label>
+            <div className={cn(styles.field, styles.fieldFull)}>
+              <Label htmlFor="edit-email" className={styles.label}>
+                邮箱
+              </Label>
               <Input
                 id="edit-email"
+                className={styles.control}
                 value={editDraft.email}
                 onChange={(e) => setEditDraft({ ...editDraft, email: e.target.value })}
                 placeholder="ar@acme.example"
               />
             </div>
-            <div className="flex items-center gap-2 md:col-span-2">
+            <div className={cn(styles.checkboxRow, styles.fieldFull)}>
               <Checkbox
                 id="edit-default"
+                className={styles.checkbox}
                 checked={editDraft.is_default}
                 onCheckedChange={(v) =>
                   setEditDraft({ ...editDraft, is_default: Boolean(v) })
                 }
               />
-              <Label htmlFor="edit-default">设为该国家默认 Seller</Label>
+              <Label htmlFor="edit-default" className={styles.label}>
+                设为该国家默认 Seller
+              </Label>
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditOpen(false)} disabled={saving}>
+            <WarmButton variant="quiet" onClick={() => setEditOpen(false)} disabled={saving}>
               取消
-            </Button>
-            <Button onClick={saveEdit} disabled={saving}>
-              {saving && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+            </WarmButton>
+            <WarmButton
+              variant="primary"
+              onClick={saveEdit}
+              disabled={saving}
+              loading={saving}
+              loadingLabel="正在保存 Seller"
+            >
               {saving ? '保存中…' : '保存'}
-            </Button>
+            </WarmButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* 删除确认 */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <DialogContent className="max-w-[calc(100%-2rem)] rounded-none sm:max-w-sm">
+        <DialogContent className={cn('warm-ledger', styles.dialog, styles.dialogSmall)}>
           <DialogHeader>
             <DialogTitle>确认删除</DialogTitle>
             <DialogDescription>
@@ -497,16 +506,26 @@ export function SellerCard({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)} disabled={saving}>
+            <WarmButton
+              variant="quiet"
+              onClick={() => setDeleteConfirmOpen(false)}
+              disabled={saving}
+            >
               取消
-            </Button>
-            <Button variant="destructive" onClick={executeDelete} disabled={saving}>
-              {saving && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+            </WarmButton>
+            <WarmButton
+              variant="secondary"
+              className={styles.dangerAction}
+              onClick={executeDelete}
+              disabled={saving}
+              loading={saving}
+              loadingLabel="正在删除 Seller"
+            >
               删除
-            </Button>
+            </WarmButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </TermPanel>
+    </section>
   )
 }

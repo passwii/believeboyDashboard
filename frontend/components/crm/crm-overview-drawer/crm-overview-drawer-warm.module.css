@@ -1,0 +1,190 @@
+.tabs {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--warm-ledger-space-4);
+}
+
+.tabList.tabList {
+  display: grid;
+  width: 100%;
+  min-height: 0;
+  gap: var(--warm-ledger-space-1);
+  padding: var(--warm-ledger-space-1);
+  background: var(--warm-ledger-color-panel);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-control);
+  box-shadow: var(--warm-ledger-highlight-rest);
+}
+
+.tabListCustomer {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.tabListEntity {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.tabList .tab {
+  min-height: var(--warm-ledger-control-height-compact);
+  padding: 0 var(--warm-ledger-space-2);
+  color: var(--warm-ledger-color-text-muted);
+  font-family: var(--warm-ledger-font-sans);
+  font-size: var(--warm-ledger-font-size-control);
+  font-weight: var(--warm-ledger-font-weight-regular);
+  background: transparent;
+  border: var(--warm-ledger-border-width) solid transparent;
+  border-radius: var(--warm-ledger-radius-inner);
+  box-shadow: none;
+  transform: none;
+}
+
+.tabList .tab::after {
+  display: none;
+}
+
+.tabList .tab:hover {
+  color: var(--warm-ledger-color-text);
+  background: var(--warm-ledger-color-raised-hover);
+}
+
+.tabList .tab[data-state='active'] {
+  color: var(--warm-ledger-color-text);
+  background: var(--warm-ledger-color-raised);
+  border-color: var(--warm-ledger-color-hairline-strong);
+  box-shadow: var(--warm-ledger-highlight-rest);
+  transform: none;
+}
+
+.tabList .tab:focus-visible {
+  outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color);
+  outline-offset: 1px;
+}
+
+.tabList .tab svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+}
+
+.content {
+  min-width: 0;
+}
+
+.categoryPanel {
+  display: grid;
+  gap: var(--warm-ledger-space-2);
+  padding: var(--warm-ledger-space-3);
+  background: var(--warm-ledger-color-panel-strong);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-inner);
+}
+
+.categoryTitle {
+  margin: 0;
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-label);
+  font-weight: var(--warm-ledger-font-weight-medium);
+}
+
+.detailStack {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--warm-ledger-space-3);
+}
+
+.editAction {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.formLoading {
+  display: grid;
+  min-height: 240px;
+  place-items: center;
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-inner);
+  background: var(--warm-ledger-color-panel);
+}
+
+.formLoading span {
+  width: 32%;
+  height: 10px;
+  border-radius: var(--warm-ledger-radius-inner);
+  background: var(--warm-ledger-color-raised);
+}
+
+/* Existing lead/task/audit/proposal tabs keep their behavior while inheriting Warm surfaces. */
+.legacySurface :global([class*='border-term-border']) {
+  border-color: var(--warm-ledger-color-hairline);
+}
+
+.legacySurface :global(.bg-term-panel) {
+  background: var(--warm-ledger-color-panel);
+}
+
+.legacySurface :global(.bg-term-raised) {
+  background: var(--warm-ledger-color-raised);
+}
+
+.legacySurface :global(.text-term-text) {
+  color: var(--warm-ledger-color-text);
+}
+
+.legacySurface :global(.text-term-muted) {
+  color: var(--warm-ledger-color-text-muted);
+}
+
+.legacySurface :global(.text-term-faint) {
+  color: var(--warm-ledger-color-text-muted);
+}
+
+.legacySurface :global(.text-term-neg) {
+  color: var(--warm-ledger-color-negative);
+}
+
+.legacySurface :global(.text-term-pos) {
+  color: var(--warm-ledger-color-positive);
+}
+
+.legacySurface :global(.text-term-warn),
+.legacySurface :global(.text-term-accent) {
+  color: var(--warm-ledger-color-accent-strong);
+}
+
+.legacySurface :global(.rounded-none) {
+  border-radius: var(--warm-ledger-radius-inner);
+}
+
+.legacySurface :global([class*='hover:bg-term-hover']:hover) {
+  background: var(--warm-ledger-color-raised-hover);
+}
+
+.legacySurface :global([class*='before:bg-term-border'])::before {
+  background: var(--warm-ledger-color-hairline-strong);
+}
+
+.legacySurface :global([class~='border-term-bg']) {
+  border-color: var(--warm-ledger-color-panel);
+}
+
+.legacySurface :global([class~='bg-term-hover']) {
+  background: var(--warm-ledger-color-raised-hover);
+}
+
+.legacySurface :global([class~='bg-term-pos']) {
+  background: var(--warm-ledger-color-positive);
+}
+
+.legacySurface :global([class~='bg-term-neg']) {
+  background: var(--warm-ledger-color-negative);
+}
+
+.legacySurface :global([class~='bg-term-faint']) {
+  background: var(--warm-ledger-color-text-muted);
+}
+
+.legacySurface :global([class~='bg-term-accent']) {
+  background: var(--warm-ledger-color-accent);
+}
