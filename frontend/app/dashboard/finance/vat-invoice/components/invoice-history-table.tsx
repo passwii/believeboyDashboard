@@ -1,17 +1,13 @@
 'use client'
 
-import { Button } from '@/components/ui/button'
 import { Download, Eye, Ban } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import {
-  TermBody,
-  TermCell,
-  TermHead,
-  TermRow,
-  TermTHead,
-  TermTable,
-} from '@/components/terminal/term-table'
+  WarmBadge,
+  WarmIconButton,
+  type WarmBadgeTone,
+} from '@/components/dashboard-v2/warm-ledger/controls'
 import type { VatInvoiceListItem } from '../lib/vat-history-api'
+import styles from '../vat-invoice-warm.module.css'
 
 interface Props {
   rows: VatInvoiceListItem[]
@@ -27,97 +23,99 @@ const STATUS_LABEL: Record<VatInvoiceListItem['status'], string> = {
   voided: '已作废',
 }
 
-const STATUS_TONE: Record<VatInvoiceListItem['status'], 'muted' | 'pos' | 'neg'> = {
-  draft: 'muted',
-  issued: 'pos',
-  voided: 'neg',
+const STATUS_TONE: Record<VatInvoiceListItem['status'], WarmBadgeTone> = {
+  draft: 'accent',
+  issued: 'positive',
+  voided: 'negative',
 }
 
-/**
- * VAT 发票历史表（终端化 BLF-835）：
- * 原 Table + density presets 收口为 TermTable 高密度规格，状态走 term 语义色。
- */
 export function InvoiceHistoryTable({ rows, onSelect, onDownload, onVoid, loading }: Props) {
   if (loading) {
-    return <p className="text-xs text-term-muted">加载中…</p>
+    return (
+      <p className={styles.loadingState} role="status">
+        加载中…
+      </p>
+    )
   }
   return (
-    <div className="overflow-auto term-scroll">
-      <TermTable className="min-w-[760px]">
-        <TermTHead>
-          <TermRow className="hover:bg-transparent">
-            <TermHead>发票号</TermHead>
-            <TermHead>店铺</TermHead>
-            <TermHead>买方</TermHead>
-            <TermHead>货币</TermHead>
-            <TermHead>日期</TermHead>
-            <TermHead numeric>总额（含税）</TermHead>
-            <TermHead>状态</TermHead>
-            <TermHead numeric>操作</TermHead>
-          </TermRow>
-        </TermTHead>
-        <TermBody>
+    <div className={styles.tableScroller}>
+      <table className={styles.table} data-warm-table="true">
+        <thead className={styles.tableHead}>
+          <tr>
+            <th className={styles.tableHeaderCell}>发票号</th>
+            <th className={styles.tableHeaderCell}>店铺</th>
+            <th className={styles.tableHeaderCell}>买方</th>
+            <th className={styles.tableHeaderCell}>货币</th>
+            <th className={styles.tableHeaderCell}>日期</th>
+            <th className={`${styles.tableHeaderCell} ${styles.tableHeaderNumeric}`}>
+              总额（含税）
+            </th>
+            <th className={styles.tableHeaderCell}>状态</th>
+            <th className={`${styles.tableHeaderCell} ${styles.tableHeaderNumeric}`}>操作</th>
+          </tr>
+        </thead>
+        <tbody>
           {rows.length === 0 ? (
-            <TermRow className="hover:bg-transparent">
-              <TermCell colSpan={8} className="h-24 text-center" tone="muted">
+            <tr>
+              <td colSpan={8} className={styles.tableEmptyCell}>
                 没有匹配的发票。
-              </TermCell>
-            </TermRow>
+              </td>
+            </tr>
           ) : (
             rows.map((r) => (
-              <TermRow key={r.id}>
-                <TermCell className="font-mono">{r.invoice_no}</TermCell>
-                <TermCell>{r.project_name}</TermCell>
-                <TermCell title={r.buyer_name}>{r.buyer_name}</TermCell>
-                <TermCell tone="muted" className="font-mono uppercase">
+              <tr key={r.id} className={styles.tableRow}>
+                <td className={`${styles.tableCell} ${styles.tableCellMono}`}>{r.invoice_no}</td>
+                <td className={styles.tableCell}>{r.project_name}</td>
+                <td className={styles.tableCell} title={r.buyer_name}>
+                  {r.buyer_name}
+                </td>
+                <td className={`${styles.tableCell} ${styles.tableCellMono}`}>
                   {r.currency}
-                </TermCell>
-                <TermCell className="font-mono">{r.invoice_date}</TermCell>
-                <TermCell numeric className="font-medium">
+                </td>
+                <td className={`${styles.tableCell} ${styles.tableCellMono}`}>{r.invoice_date}</td>
+                <td
+                  className={`${styles.tableCell} ${styles.tableCellNumeric} ${styles.tableCellStrong}`}
+                >
                   {r.total_incl}
-                </TermCell>
-                <TermCell tone={STATUS_TONE[r.status]}>{STATUS_LABEL[r.status]}</TermCell>
-                <TermCell numeric>
-                  <span className="inline-flex justify-end gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 rounded-none text-term-muted hover:bg-term-hover hover:text-term-text"
+                </td>
+                <td className={styles.tableCell}>
+                  <WarmBadge tone={STATUS_TONE[r.status]}>{STATUS_LABEL[r.status]}</WarmBadge>
+                </td>
+                <td className={`${styles.tableCell} ${styles.tableCellNumeric}`}>
+                  <span className={styles.tableActions}>
+                    <WarmIconButton
+                      className={styles.tableAction}
                       title="详情"
+                      aria-label="详情"
                       onClick={() => onSelect(r.id)}
                     >
-                      <Eye className="h-3.5 w-3.5" strokeWidth={1.75} />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 rounded-none text-term-muted hover:bg-term-hover hover:text-term-text"
+                      <Eye aria-hidden />
+                    </WarmIconButton>
+                    <WarmIconButton
+                      className={styles.tableAction}
                       title="下载 PDF"
+                      aria-label="下载 PDF"
                       onClick={() => onDownload(r.id)}
                       disabled={!r.has_pdf}
                     >
-                      <Download className="h-3.5 w-3.5" strokeWidth={1.75} />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className={cn(
-                        'h-7 w-7 rounded-none text-term-muted hover:bg-term-hover',
-                        r.status !== 'voided' && 'hover:text-term-neg'
-                      )}
+                      <Download aria-hidden />
+                    </WarmIconButton>
+                    <WarmIconButton
+                      className={styles.tableAction}
                       title="作废"
+                      aria-label="作废"
                       onClick={() => onVoid(r.id)}
                       disabled={r.status === 'voided'}
                     >
-                      <Ban className="h-3.5 w-3.5" strokeWidth={1.75} />
-                    </Button>
+                      <Ban aria-hidden />
+                    </WarmIconButton>
                   </span>
-                </TermCell>
-              </TermRow>
+                </td>
+              </tr>
             ))
           )}
-        </TermBody>
-      </TermTable>
+        </tbody>
+      </table>
     </div>
   )
 }

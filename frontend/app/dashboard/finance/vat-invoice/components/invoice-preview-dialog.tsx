@@ -12,13 +12,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
 import { Download, FileText, Loader2, Save } from 'lucide-react'
+import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
 import { useNotifications } from '@/components/notifications'
 import { normalizeErrorMessage } from '@/lib/error-utils'
+import { cn } from '@/lib/utils'
 import { drawInvoice, downloadInvoice } from '../lib/invoice-pdf'
 import { createInvoiceDraft, issueInvoice } from '../lib/vat-invoice-api'
 import type { InvoiceForm, InvoiceSellerEntry } from '../types'
+import styles from '../vat-invoice-warm.module.css'
 
 interface InvoicePreviewDialogProps {
   open: boolean
@@ -144,10 +146,10 @@ export function InvoicePreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[calc(100%-2rem)] max-h-[calc(100vh-3rem)] overflow-y-auto rounded-none sm:max-w-5xl">
+      <DialogContent className={cn('warm-ledger', styles.dialog)}>
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="h-4 w-4" />
+          <DialogTitle>
+            <FileText className="mr-2 inline h-4 w-4" aria-hidden />
             发票预览
           </DialogTitle>
           <DialogDescription>
@@ -156,10 +158,10 @@ export function InvoicePreviewDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_auto]">
-          <div className="min-h-[480px] rounded-none border border-border/60 bg-term-raised">
+        <div className={styles.previewGrid}>
+          <div className={styles.previewFrame}>
             {building ? (
-              <div className="flex h-[480px] items-center justify-center gap-2 text-sm text-muted-foreground">
+              <div className={styles.previewState} role="status">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 正在渲染 PDF…
               </div>
@@ -167,36 +169,35 @@ export function InvoicePreviewDialog({
               <iframe
                 src={pdfUrl}
                 title="Invoice PDF preview"
-                className="h-[420px] w-full rounded-none sm:h-[600px]"
               />
             ) : (
-              <div className="flex h-[480px] items-center justify-center text-sm text-muted-foreground">
-                预览不可用
-              </div>
+              <div className={styles.previewState}>预览不可用</div>
             )}
           </div>
 
-          <div className="flex flex-col gap-2 md:w-48">
-            <Button onClick={handleIssue} disabled={!pdfBlob || issuing}>
-              {issuing ? (
-                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-              ) : (
-                <Save className="mr-1.5 h-4 w-4" />
-              )}
+          <div className={styles.previewActions}>
+            <WarmButton
+              variant="primary"
+              onClick={handleIssue}
+              disabled={!pdfBlob || issuing}
+              loading={issuing}
+              loadingLabel="正在签发并归档"
+            >
+              <Save aria-hidden />
               {issuing ? '签发中…' : '签发并归档'}
-            </Button>
-            <Button variant="outline" onClick={handleDownload} disabled={!pdfUrl}>
-              <Download className="mr-1.5 h-4 w-4" />
+            </WarmButton>
+            <WarmButton variant="secondary" onClick={handleDownload} disabled={!pdfUrl}>
+              <Download aria-hidden />
               下载 PDF（本地）
-            </Button>
-            <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            </WarmButton>
+            <WarmButton variant="quiet" onClick={() => onOpenChange(false)}>
               关闭
-            </Button>
+            </WarmButton>
           </div>
         </div>
 
         <DialogFooter>
-          <p className="text-xs text-muted-foreground">
+          <p className={styles.actionNote}>
             {seller.company_name || 'Seller'} · 订单 {form.order_id || '未填'} · {form.currency}
           </p>
         </DialogFooter>
