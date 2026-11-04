@@ -183,15 +183,16 @@ Damon 已确认生产直接使用新设计，不设 feature flag：
 | C2 | 运营执行 / 库存 | `inventory-ledger`、`shipping-plan`、`shipment-management`、`sku-info` | **已完成（2026-11-04）**：27 Vitest files / 199 tests、build、focused ESLint、78/78 Playwright、最终独立 review PASS；授权/技术 follow-ups 保留 |
 | C3 | 报表 / 订单 | `order-info`、`product-analysis`、`monthly-report/display` | **已完成（2026-11-04）**：三条精确路由、1440×900 desktop acceptance、全量 Vitest 基线对账、lint/build 完成；前三次 Luna review 的 P2 均已修复，第六轮 Luna/max 最终门禁 PASS；无组件晋升 |
 | C4 | 广告 | `ad-analysis/*`、`ad-data` | **暂缓（2026-11-04）**：用户判断当前阶段价值不足，未启动实现；保留范围记录，不自动推进 |
-| C5 | 财务 | `platform-revenue`、`exchange-rate`、`commission-management` | 账期、币种、汇总口径明确 |
-| C6 | CRM | `crm/dashboard`、`customers`、`follow-ups`、`tasks` | 页面壳稳定；CRM 状态不并入订单状态 |
-| C7 | AI / 工具 / 系统 | `ai/*`、`tools/*`、`system/*` | 前面批次稳定；权限与操作安全单独评审 |
+| C5 | 财务 | `platform-revenue`、`exchange-rate`、`vat-invoice`、`commission-management` | **纳入合并扩张批次**：4 个 canonical routes / 8 个可见视图；VAT 2 tab、Commission 4 tab；`vat-invoices` 仅重定向 |
+| C6 | CRM | 10 个实际页面（8 sidebar + proposal detail + sea） | **纳入合并扩张批次**：`/crm` 与 `/crm/workbench` 仅重定向；proposal detail 需 dynamic route；CRM 状态不并入订单状态 |
+| C7 | AI / 工具 / 系统 | AI 10 routes、Tools 5 dashboard routes + `/p/[id]`、System 9 routes | **拆为三个子域并入合并扩张批次**：Chat landing/chat 与 presentation/digital-display 保持视觉例外；权限/安全单独评审 |
 
 Stage-order gate from 2026-11-04:
 
 - C4 is deferred by user decision and must not be started automatically.
 - From C5 onward, the main Agent must present the actual page/subroute count, proposed stage scope, shared-component dependencies, risks, and recommended order before creating implementation workspaces.
 - The user decides whether to keep or change the order. No stage starts until that decision is explicit.
+- 2026-11-04 user decision: C5, C6, and split C7 proceed together as one larger implementation batch with multiple agents. C5 and C6 each require an independent reviewer; C7 subdomains require domain reviewers plus one final Luna/max gate. Execution plan: `docs/superpowers/plans/2026-11-04-v4-warm-ledger-expansion/README.md`.
 
 首批 8 页：
 
