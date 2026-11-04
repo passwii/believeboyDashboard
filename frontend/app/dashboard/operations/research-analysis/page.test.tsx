@@ -1,5 +1,7 @@
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { SESSION, NOTIFY } = vi.hoisted(() => ({
@@ -61,6 +63,17 @@ describe('ResearchAnalysisPage Warm Ledger 契约', () => {
       expect(color).toMatch(/^var\(--research-chart-/)
       expect(color).not.toContain('--chart-')
     }
+  })
+
+  it('余量扇区使用 Warm neutral，源码不再引用全局 muted/chart token', () => {
+    expect(RESEARCH_WARM_PALETTE.neutral).toBe('var(--research-chart-neutral)')
+
+    const source = readFileSync(
+      resolve(process.cwd(), 'app/dashboard/operations/research-analysis/page.tsx'),
+      'utf8'
+    )
+    expect(source).not.toContain('hsl(var(--muted))')
+    expect(source).not.toContain('--chart-')
   })
 
   it('关键词和版本列表为空时显示明确占位项', async () => {

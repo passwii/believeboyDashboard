@@ -2,6 +2,7 @@
   --research-chart-accent: var(--warm-ledger-color-accent);
   --research-chart-accent-strong: var(--warm-ledger-color-accent-strong);
   --research-chart-accent-soft: var(--warm-ledger-color-accent-soft);
+  --research-chart-neutral: var(--warm-ledger-color-raised);
   --research-chart-positive: var(--warm-ledger-color-positive);
   --research-chart-text-soft: var(--warm-ledger-color-text-soft);
   --research-chart-text-muted: var(--warm-ledger-color-text-muted);

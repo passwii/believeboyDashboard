@@ -142,6 +142,36 @@ describe('项目启动台模板编辑器', () => {
     expect(screen.getByText(/Key: store-launch-v1/)).toHaveAttribute('data-numeric', 'true')
   })
 
+  it('附件文件名使用普通 sans，不套数值样式', async () => {
+    const detailWithAttachment: WorkflowTemplateDetail = {
+      ...DETAIL,
+      tasks: [
+        {
+          ...DETAIL.tasks[0],
+          attachments: [
+            {
+              id: 201,
+              filename: '供应商合同.pdf',
+              content_type: 'application/pdf',
+              file_size: 2048,
+              uploader: '运营A',
+              created_at: '2026-11-05T10:00:00Z',
+              origin: 'upload',
+            },
+          ],
+        },
+      ],
+    }
+    vi.mocked(fetchAdminTemplates).mockResolvedValue({ templates: [detailWithAttachment] })
+    vi.mocked(fetchAdminTemplate).mockResolvedValue(detailWithAttachment)
+
+    render(<WorkflowTemplateEditor />)
+
+    const filename = await screen.findByText('供应商合同.pdf')
+    expect(filename).not.toHaveAttribute('data-numeric')
+    expect(filename.className).not.toContain('numeric')
+  })
+
   it('切换阶段前自动保存阶段字段和已有内容', async () => {
     const user = userEvent.setup()
     const twoTaskDetail: WorkflowTemplateDetail = {

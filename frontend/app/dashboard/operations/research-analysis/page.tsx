@@ -87,6 +87,7 @@ export const RESEARCH_WARM_PALETTE = {
   accent: 'var(--research-chart-accent)',
   accentStrong: 'var(--research-chart-accent-strong)',
   accentSoft: 'var(--research-chart-accent-soft)',
+  neutral: 'var(--research-chart-neutral)',
   positive: 'var(--research-chart-positive)',
   textSoft: 'var(--research-chart-text-soft)',
   textMuted: 'var(--research-chart-text-muted)',
@@ -1318,7 +1319,7 @@ function buildMarketChartModels(
             value:
               100 -
               normalizeToPercent(overview.advanced_metrics.seasonality.peak3_month_sales_share),
-            fill: 'hsl(var(--muted))',
+            fill: RESEARCH_WARM_PALETTE.neutral,
             description: '淡季占比',
           },
         ],
@@ -1342,7 +1343,7 @@ function buildMarketChartModels(
             value:
               100 -
               clamp((overview.advanced_metrics.market_growth.last12_vs_prev12_growth + 1) * 50),
-            fill: 'hsl(var(--muted))',
+            fill: RESEARCH_WARM_PALETTE.neutral,
             description: '增长空间',
           },
         ],
