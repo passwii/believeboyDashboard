@@ -70,9 +70,9 @@ Wave 4: integrated matrix + final Luna/max review
 
 **Tasks:**
 
-- [ ] C5-A migrates Platform Revenue and Exchange Rate, preserving admin/read behavior, filters, writes, pagination, and XLSX semantics.
-- [ ] C5-B migrates both VAT tabs and four Commission tabs, preserving invoice issue/void/export, payment/recompute, and financial units.
-- [ ] C5-I integrates the four exact routes and Warm-compatible finance loading state.
+- [x] C5-A migrates Platform Revenue and Exchange Rate, preserving admin/read behavior, filters, writes, pagination, and XLSX semantics.
+- [x] C5-B migrates both VAT tabs and four Commission tabs, preserving invoice issue/void/export, payment/recompute, and financial units.
+- [x] C5-I integrates the four exact routes and Warm-compatible finance loading state.
 - [ ] R-C5 independently reviews all C5 routes, formulas, permissions, writes, exports, and desktop states using Luna/max.
 
 **Known follow-ups, not visual fixes:** unauthenticated Commission endpoints, unfiltered VAT history scope, mixed-currency export total, exchange single-field filtering, and request duplication.
@@ -90,12 +90,12 @@ Wave 4: integrated matrix + final Luna/max review
 
 **Tasks:**
 
-- [ ] C6-W0 publishes Warm page frame, table frame, toolbar, record-drawer frame, status, and state primitives without changing business APIs.
-- [ ] C6-A migrates dashboard, follow-ups, customers, sea, and the shared record drawer.
-- [ ] C6-B migrates leads and conversion flow.
-- [ ] C6-C migrates proposal list/detail, upload/version/preview/download states.
-- [ ] C6-D migrates tasks, audit, and settings, preserving admin and board/list behavior.
-- [ ] R-C6 independently reviews all 10 screens, CRM owner/scope semantics, writes, dynamic proposal detail, and desktop acceptance using Luna/max.
+- [x] C6-W0 publishes Warm page frame, table frame, toolbar, record-drawer frame, status, and state primitives without changing business APIs.
+- [x] C6-A migrates dashboard, follow-ups, customers, sea, and the shared record drawer.
+- [x] C6-B migrates leads and conversion flow.
+- [x] C6-C migrates proposal list/detail, upload/version/preview/download states.
+- [x] C6-D migrates tasks, audit, and settings, preserving admin and board/list behavior.
+- [x] R-C6 independently reviews all 10 screens, CRM owner/scope semantics, writes, dynamic proposal detail, and desktop acceptance using Luna/max.
 
 **Known follow-ups, not visual fixes:** owner checks on contacts/follows, sea drawer write exposure, non-admin scope presentation, and misleading 403/empty states.
 
@@ -111,12 +111,12 @@ Wave 4: integrated matrix + final Luna/max review
 
 **Tasks:**
 
-- [ ] AI-S0 creates a Warm-compatible shared presentation boundary without unifying legacy, canonical, Chat, or Office transports.
-- [ ] AI-A migrates Insights, Ad Analysis, and Inventory Health while preserving run/stream/schedule behavior.
-- [ ] AI-B migrates Customer Service and model reference.
-- [ ] AI-C migrates Digital Employee list/detail and Office normal mode; presentation mode remains an exception.
-- [ ] AI-X protects Chat and landing styling/shell refresh behavior; no Warm restyle.
-- [ ] R-AI independently reviews streams/state, permissions, writes, Chat/Office exceptions, and desktop acceptance using Luna/max.
+- [x] AI-S0 creates a Warm-compatible shared presentation boundary without unifying legacy, canonical, Chat, or Office transports.
+- [x] AI-A migrates Insights, Ad Analysis, and Inventory Health while preserving run/stream/schedule behavior.
+- [x] AI-B migrates Customer Service and model reference.
+- [x] AI-C migrates Digital Employee list/detail and Office normal mode; presentation mode remains an exception.
+- [x] AI-X protects Chat and landing styling/shell refresh behavior; no Warm restyle.
+- [x] R-AI independently reviews streams/state, permissions, writes, Chat/Office exceptions, and desktop acceptance using Luna/max.
 
 ## C7-Tools Team
 
@@ -128,10 +128,10 @@ Wave 4: integrated matrix + final Luna/max review
 
 **Tasks:**
 
-- [ ] Tools-I freezes a local Warm tool panel and upload-zone adapter; do not change shared `UploadZone` defaults.
-- [ ] Tools-A migrates Markdown/Page Render while preserving local/export/public persistence boundaries, iframe sandbox, and white preview exceptions.
-- [ ] Tools-B migrates brand reference, Product Label, and Compliance while preserving assets, fail-closed PDF rules, sources, disclaimers, and local-only state.
-- [ ] R-Tools independently reviews all five dashboard screens plus `/p/[id]`, privacy boundaries, downloads, and desktop acceptance using Luna/max.
+- [x] Tools-I freezes a local Warm tool panel and upload-zone adapter; do not change shared `UploadZone` defaults.
+- [x] Tools-A migrates Markdown/Page Render while preserving local/export/public persistence boundaries, iframe sandbox, and white preview exceptions.
+- [x] Tools-B migrates brand reference, Product Label, and Compliance while preserving assets, fail-closed PDF rules, sources, disclaimers, and local-only state.
+- [x] R-Tools independently reviews all five dashboard screens plus `/p/[id]`, privacy boundaries, downloads, and desktop acceptance using Luna/max.
 
 **Known follow-ups, not visual fixes:** Markdown PDF layout/pagination, public render retention/indexing, EXIF in static assets, and filename/action accessibility.
 
@@ -145,22 +145,24 @@ Wave 4: integrated matrix + final Luna/max review
 
 **Tasks:**
 
-- [ ] System-A migrates Accounts, Agent credentials, and Alerts while preserving lifecycle, credential, alert-write, and project-access contracts.
-- [ ] System-B migrates Operator Management and Project Info, preserving financial writes, project ownership, Shop-ID mapping, and context behavior.
-- [ ] System-C migrates Logs/Changelog/Data Management and protects the forced-dark digital-display exception.
-- [ ] R-System independently reviews all nine routes, admin/destructive-action risks, data exposure, display exception, and desktop acceptance using Luna/max.
+- [x] System-A migrates Accounts, Agent credentials, and Alerts while preserving lifecycle, credential, alert-write, and project-access contracts.
+- [x] System-B migrates Operator Management and Project Info, preserving financial writes, project ownership, Shop-ID mapping, and context behavior.
+- [x] System-C migrates Logs/Changelog/Data Management and protects the forced-dark digital-display exception.
+- [x] R-System independently reviews all nine routes, admin/destructive-action risks, data exposure, display exception, and desktop acceptance using Luna/max.
 
 **Known follow-ups, not visual fixes:** system-management authorization gaps, global logs/alerts exposure, destructive cache clearing, last-admin invariants, and stale system route metadata.
 
 ## Integration Gate
 
-- [ ] All 38 dashboard route templates are classified as Warm target or explicit exception; `/p/[id]` is reviewed as a coupled surface.
-- [ ] C5/C6/C7 domain tests pass.
-- [ ] One combined desktop Playwright matrix covers every Warm route at `1440x900`, while exception routes retain their existing behavior.
-- [ ] Full Vitest has no new failures beyond the reconciled `main` baseline; CI-unblock work is tracked separately.
-- [ ] `pnpm lint`, `pnpm build`, and `git diff --check` pass.
+- [x] All 38 dashboard route templates are classified as Warm target or explicit exception; `/p/[id]` is reviewed as a coupled surface.
+- [x] C5/C6/C7 domain tests pass.
+- [x] One combined desktop Playwright matrix covers every Warm route at `1440x900`, while exception routes retain their existing behavior.
+- [x] Full Vitest has no new failures beyond the reconciled `main` baseline; CI-unblock work is tracked separately.
+- [x] `pnpm lint`, `pnpm build`, and `git diff --check` pass.
 - [ ] All five domain reviewers pass.
 - [ ] Final Luna/max review passes before the expansion batch is marked complete.
+
+Review evidence: [`2026-11-05-expansion-review-audit.md`](./2026-11-05-expansion-review-audit.md).
 
 ## Security Track
 
