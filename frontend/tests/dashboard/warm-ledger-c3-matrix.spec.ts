@@ -156,6 +156,13 @@ const PRODUCT_RUN_RESULT = {
 }
 
 function recognitionFor(body: string, sequence: number) {
+  if (body.includes('business-copy.csv')) {
+    return recognition(
+      'business_report',
+      `business-temp-${sequence}`,
+      'business-copy.csv'
+    )
+  }
   if (body.includes('business.csv')) {
     return recognition('business_report', `business-temp-${sequence}`)
   }
@@ -165,12 +172,12 @@ function recognitionFor(body: string, sequence: number) {
   return recognition('ad_promoted_product_report', `ad-temp-${sequence}`)
 }
 
-function recognition(reportType: string, tempFileId: string) {
+function recognition(reportType: string, tempFileId: string, originalFilename?: string) {
   const fileStem = tempFileId.split('-temp-')[0]
   return {
     temp_file_id: tempFileId,
     original_filename:
-      fileStem === 'ad' ? 'ad.xlsx' : `${fileStem}.csv`,
+      originalFilename ?? (fileStem === 'ad' ? 'ad.xlsx' : `${fileStem}.csv`),
     extension: fileStem === 'ad' ? 'xlsx' : 'csv',
     report_type: reportType,
     matched_columns: [],
@@ -600,8 +607,12 @@ async function selectWarmOption(page: Page, controlName: string, optionName: str
   await page.getByRole('option', { name: optionName, exact: true }).click()
 }
 
-async function uploadProductFiles(page: Page, inputId: string) {
-  await page.locator(`#${inputId}`).setInputFiles([
+async function uploadProductFiles(
+  page: Page,
+  inputId: string,
+  extraFiles: Array<{ name: string; mimeType: string; buffer: Buffer }> = []
+) {
+  const files = [
     {
       name: 'business.csv',
       mimeType: 'text/csv',
@@ -617,10 +628,17 @@ async function uploadProductFiles(page: Page, inputId: string) {
       mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       buffer: Buffer.from('ad'),
     },
-  ])
-  await expect(page.getByText(/business\.csv/).first()).toBeVisible()
-  await expect(page.getByText(/payment\.csv/).first()).toBeVisible()
-  await expect(page.getByText(/ad\.xlsx/).first()).toBeVisible()
+    ...extraFiles,
+  ]
+  await page.locator(`#${inputId}`).setInputFiles(files)
+  const visibleFileNames = [
+    extraFiles.find((file) => file.name.includes('business'))?.name ?? 'business.csv',
+    'payment.csv',
+    'ad.xlsx',
+  ]
+  for (const fileName of visibleFileNames) {
+    await expect(page.getByText(fileName, { exact: false }).first()).toBeVisible()
+  }
 }
 
 test.skip(({ isMobile }) => isMobile, 'C3 acceptance is desktop-only')
@@ -782,7 +800,72 @@ test.describe('Warm Ledger C3 desktop acceptance', () => {
 
     await page.getByRole('tab', { name: '手动核算' }).click()
     await selectWarmOption(page, '项目', 'C3 Fixture Store')
-    await uploadProductFiles(page, 'manual-calculation-upload')
+    await uploadProductFiles(page, 'manual-calculation-upload', [
+      {
+        name: 'business-copy.csv',
+        mimeType: 'text/csv',
+        buffer: Buffer.from('business-copy'),
+      },
+    ])
+    const candidateSelect = page
+      .getByRole('combobox')
+      .filter({ hasText: 'business-copy.csv' })
+    await expect(candidateSelect).toBeVisible()
+    await candidateSelect.click()
+    const candidateMenu = page.getByRole('listbox')
+    await expect(candidateMenu).toBeVisible()
+    const menuStyles = await candidateMenu.evaluate((element) => {
+      const style = getComputedStyle(element)
+      return {
+        borderRadius: style.borderRadius,
+        backgroundColor: style.backgroundColor,
+        borderColor: style.borderColor,
+        color: style.color,
+        warmPanelStrong: style
+          .getPropertyValue('--warm-ledger-color-panel-strong')
+          .trim(),
+      }
+    })
+    expect(menuStyles).toEqual({
+      borderRadius: '10px',
+      backgroundColor: 'rgb(51, 52, 51)',
+      borderColor: 'rgba(246, 238, 226, 0.2)',
+      color: 'rgb(241, 237, 229)',
+      warmPanelStrong: '#333433',
+    })
+
+    const candidateOption = candidateMenu
+      .getByRole('option', { name: 'business.csv', exact: true })
+      .first()
+    await candidateOption.hover()
+    await expect
+      .poll(() =>
+        candidateOption.evaluate((element) => {
+          const style = getComputedStyle(element)
+          return {
+            borderRadius: style.borderRadius,
+            backgroundColor: style.backgroundColor,
+            color: style.color,
+            fontFamily: style.fontFamily,
+            highlighted: element.hasAttribute('data-highlighted'),
+          }
+        })
+      )
+      .toMatchObject({
+        borderRadius: '6px',
+        backgroundColor: 'rgb(59, 60, 59)',
+        color: 'rgb(241, 237, 229)',
+        highlighted: true,
+      })
+    const optionStyles = await candidateOption.evaluate((element) => {
+      const style = getComputedStyle(element)
+      return {
+        fontFamily: style.fontFamily,
+      }
+    })
+    expect(optionStyles.fontFamily.toLowerCase()).not.toMatch(/mono/)
+    await page.keyboard.press('Escape')
+
     for (const confirmButton of await page.getByRole('button', { name: '确认保存' }).all()) {
       await confirmButton.click()
     }
@@ -815,7 +898,7 @@ test.describe('Warm Ledger C3 desktop acceptance', () => {
     expect(requestsFor(audit, '/product-analysis/calculation/check', 'POST').length).toBeGreaterThan(0)
     expect(requestsFor(audit, '/product-analysis/calculation/run', 'POST').length).toBeGreaterThan(0)
     expect(requestsFor(audit, '/product-analysis/calculation/preview', 'POST')).toHaveLength(1)
-    expect(requestsFor(audit, '/report-upload/recognize', 'POST')).toHaveLength(4)
+    expect(requestsFor(audit, '/report-upload/recognize', 'POST')).toHaveLength(5)
     expect(requestsFor(audit, '/ad-upload/recognize', 'POST')).toHaveLength(2)
     expect(requestsFor(audit, '/report-upload/commit', 'POST')).toHaveLength(4)
     expect(requestsFor(audit, '/ad-upload/commit', 'POST')).toHaveLength(2)

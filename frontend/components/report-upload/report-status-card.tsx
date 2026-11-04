@@ -46,6 +46,8 @@ type Props = {
   datesLocked?: boolean
   /** Static period label shown when datesLocked=true */
   periodLabel?: string
+  /** Optional page-local styling for portalled select content. */
+  selectContentClassName?: string
 }
 
 function statusBadge(state: ReportCardState) {
@@ -129,6 +131,7 @@ export function ReportStatusCard({
   projectLocked = false,
   datesLocked = false,
   periodLabel,
+  selectContentClassName,
 }: Props) {
   const recognition = state.recognition
   const projectWarning = needsProjectAttention(state)
@@ -177,7 +180,7 @@ export function ReportStatusCard({
                   <SelectTrigger className="h-8 rounded-none border-term-border bg-term-bg font-mono text-xs leading-5 text-term-text shadow-none focus-visible:outline-none focus-visible:border-term-border-strong">
                     <SelectValue placeholder="选择要使用的文件" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className={selectContentClassName}>
                     {state.candidates.map((candidate) => (
                       <SelectItem key={candidate.temp_file_id} value={candidate.temp_file_id}>
                         {candidate.original_filename}
@@ -222,7 +225,7 @@ export function ReportStatusCard({
                 >
                   <SelectValue placeholder="请选择项目" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className={selectContentClassName}>
                   {projects.map((project) => (
                     <SelectItem key={project} value={project}>
                       {project}

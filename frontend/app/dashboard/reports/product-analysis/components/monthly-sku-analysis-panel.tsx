@@ -737,6 +737,7 @@ export default function MonthlySkuAnalysisPanel() {
                 projectLocked
                 datesLocked
                 periodLabel={periodLabel}
+                selectContentClassName={`warm-ledger ${styles.statusSelectContent}`}
               />
             )
           })}

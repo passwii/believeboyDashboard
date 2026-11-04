@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js App Router, React, TypeScript, CSS Modules, existing Warm Ledger shell/controls, Vitest, Testing Library, Playwright.
 
-> **Final review status (2026-11-04):** C3 implementation and desktop acceptance are complete, but the final Luna/max review found two P2 issues. Order Info V3 visual residue is being remediated and C3 documentation is reset to implementation complete + final review remediation in progress. Do not mark C3 complete or check the independent-review gate until a fresh Luna/max re-review passes.
+> **Final review status (2026-11-04):** C3 implementation and desktop acceptance are complete. The first Luna/max review found two P2 issues; both were remediated. A second Luna/max C3 re-review then found one remaining P2 in Product Analysis's multi-candidate select portal. Its page-local Warm fix and regression coverage are in progress, so C3 remains implementation complete + final review remediation in progress. Do not mark C3 complete or check the independent-review gate until a new Luna/max re-review passes.
 
 ## Global Constraints
 
