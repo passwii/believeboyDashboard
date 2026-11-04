@@ -43,6 +43,8 @@ const DOMAIN_BRANCH_TOKENS: Record<string, RegExp> = {
     /@\/components\/dashboard-v2\/warm-ledger\/(?!controls(?:[\/"'`]|\s|$))/,
   '域专用 Warm 相对模块':
     /(?:^|["'`])\.{1,2}\/[^"'`]*dashboard-v2\/warm-ledger\/(?!controls(?:[\/"'`]|\s|$))/m,
+  'Warm 路径穿越':
+    /(?:^|["'`])[^"'`]*dashboard-v2\/warm-ledger\/[^"'`]*\/\.\.\//m,
 }
 
 function readSharedFile(relativePath: string): string {
@@ -62,6 +64,7 @@ describe('共享 Insight 层的域纯度', () => {
     const pagePattern = DOMAIN_BRANCH_TOKENS['域页面依赖']
     const warmAliasPattern = DOMAIN_BRANCH_TOKENS['域专用 Warm 别名模块']
     const warmRelativePattern = DOMAIN_BRANCH_TOKENS['域专用 Warm 相对模块']
+    const warmTraversalPattern = DOMAIN_BRANCH_TOKENS['Warm 路径穿越']
 
     expect(pagePattern.test("@/components/dashboard/ai-ad-analysis")).toBe(true)
     expect(pagePattern.test("@/app/dashboard/ai/ad-analysis/page")).toBe(true)
@@ -81,6 +84,14 @@ describe('共享 Insight 层的域纯度', () => {
     ).toBe(true)
     expect(
       warmRelativePattern.test("import('../dashboard-v2/warm-ledger/controls')")
+    ).toBe(false)
+    expect(
+      warmTraversalPattern.test(
+        "import('@/components/dashboard-v2/warm-ledger/controls/../crm/record-drawer')"
+      )
+    ).toBe(true)
+    expect(
+      warmTraversalPattern.test("@/components/dashboard-v2/warm-ledger/controls")
     ).toBe(false)
   })
 
