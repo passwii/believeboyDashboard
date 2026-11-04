@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   AlertCircle,
   AlertTriangle,
@@ -8,31 +8,18 @@ import {
   ArrowUp,
   CheckCircle2,
   Download,
-  Loader2,
   XCircle,
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
-import { Button } from '@/components/ui/button'
-import { TermPanel } from '@/components/terminal/term-panel'
-import {
-  DateRangePicker,
-  formatDateInputValue,
-  parseDateRangeInputValue,
-} from '@/components/ui/date-picker'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { WarmButton, WarmSelect } from '@/components/dashboard-v2/warm-ledger/controls'
+import { formatDateInputValue } from '@/components/ui/date-picker'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { pickSessionDisplayName } from '@/lib/auth/display-name'
 import { normalizeErrorMessage } from '@/lib/error-utils'
-import { cn } from '@/lib/utils'
 import { exportProductAnalysisToExcel } from '@/lib/product-analysis-export'
+import styles from '../product-analysis-warm.module.css'
 
 type CountryOption = 'US' | 'DE' | 'UK'
 
@@ -153,6 +140,26 @@ const REPORT_ROWS = [
   { key: 'ad_report', label: '广告报告', getMissing: (a: DataAvailability) => a.ad_report_missing },
   { key: 'inventory', label: '库存报告', getMissing: (a: DataAvailability) => a.inventory_missing },
 ] as const
+
+function WarmPanel({
+  title,
+  actions,
+  children,
+}: {
+  title: string
+  actions?: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <section className={styles.panel} aria-label={title} data-warm-panel="true">
+      <header className={styles.panelHeader}>
+        <h2 className={styles.panelTitle}>{title}</h2>
+        {actions ? <div className={styles.panelActions}>{actions}</div> : null}
+      </header>
+      <div className={styles.panelBody}>{children}</div>
+    </section>
+  )
+}
 
 function parseDateStr(s: string) {
   const [y, m, d] = s.split('-').map(Number)
@@ -276,17 +283,17 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
     }
   }, [availability, dates])
 
-  const getCellClass = (
+  const getCellStatus = (
     hasData: boolean,
     isPeriodicOnly: boolean,
     isObjectiveEmpty: boolean,
     isMissing: boolean
   ) => {
-    if (hasData) return 'bg-emerald-500'
-    if (isPeriodicOnly)
-      return 'bg-blue-500 border-2 border-dashed border-blue-300 dark:border-blue-600'
-    if (isObjectiveEmpty) return 'bg-term-warn'
-    return 'bg-term-neg'
+    if (hasData) return 'available'
+    if (isPeriodicOnly) return 'periodic'
+    if (isObjectiveEmpty) return 'objective-empty'
+    if (isMissing) return 'missing'
+    return 'empty'
   }
 
   const getCellIcon = (
@@ -295,10 +302,10 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
     isObjectiveEmpty: boolean,
     _isMissing: boolean
   ) => {
-    if (hasData) return <CheckCircle2 className="h-4 w-4 text-white" />
-    if (isPeriodicOnly) return <span className="text-xs text-white">P</span>
-    if (isObjectiveEmpty) return <AlertTriangle className="h-4 w-4 text-white" />
-    return <XCircle className="h-4 w-4 text-white" />
+    if (hasData) return <CheckCircle2 aria-hidden />
+    if (isPeriodicOnly) return <span aria-hidden>P</span>
+    if (isObjectiveEmpty) return <AlertTriangle aria-hidden />
+    return <XCircle aria-hidden />
   }
 
   const getCellTitle = (
@@ -316,70 +323,46 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
   }
 
   return (
-    <div className="space-y-3">
-      {/* Legend */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-xs text-term-muted">
-        <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded-none bg-emerald-500" />
-          <span className="text-muted-foreground">单日数据</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded-none border-2 border-dashed border-blue-400 bg-blue-500" />
-          <span className="text-muted-foreground">周期性兜底</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded-none bg-term-warn" />
-          <span className="text-muted-foreground">已导入但客观无数据</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded-none bg-term-neg" />
-          <span className="text-muted-foreground">缺失</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded-none bg-blue-500" />
-          <span className="text-muted-foreground">有周期性数据</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded-none border border-dashed border-muted-foreground/40" />
-          <span className="text-muted-foreground">无周期性数据</span>
-        </div>
+    <div className={styles.availability}>
+      <div className={styles.legend} aria-label="数据可用性图例">
+        {[
+          ['available', '单日数据'],
+          ['periodic', '周期性兜底'],
+          ['objective-empty', '已导入但客观无数据'],
+          ['missing', '缺失'],
+          ['full-periodic', '有周期性数据'],
+          ['no-periodic', '无周期性数据'],
+        ].map(([tone, label]) => (
+          <span key={tone} className={styles.legendItem}>
+            <span className={styles.legendSwatch} data-tone={tone} aria-hidden />
+            {label}
+          </span>
+        ))}
       </div>
 
-      {/* Grid */}
-      <div className="overflow-x-auto">
+      <div className={styles.availabilityScroller}>
         <div
-          className="grid min-w-[520px]"
+          className={styles.availabilityGrid}
           style={{ gridTemplateColumns: `120px repeat(${dates.length}, 1fr) 100px` }}
         >
-          {/* Header row */}
-          <div className="flex items-center border border-b-0 border-term-border bg-term-raised px-2 py-2 text-xs font-semibold text-muted-foreground">
+          <div className={styles.availabilityHead} data-align="start">
             报表类型
           </div>
           {dates.map((d) => {
-            const weekdayIdx = (parseDateStr(d).getDay() + 6) % 7 // Mon=0
+            const weekdayIdx = (parseDateStr(d).getDay() + 6) % 7
             return (
-              <div
-                key={d}
-                className="flex flex-col items-center justify-center border border-b-0 border-term-border bg-term-raised px-1 py-2 text-xs"
-              >
-                <span className="text-[10px] text-muted-foreground">
-                  {WEEKDAY_LABELS[weekdayIdx]}
-                </span>
-                <span className="font-medium">{formatDayAbbr(d)}</span>
+              <div key={d} className={styles.availabilityHead}>
+                <span>{WEEKDAY_LABELS[weekdayIdx]}</span>
+                <span>{formatDayAbbr(d)}</span>
               </div>
             )
           })}
-          {/* Header: Periodic column */}
-          <div className="flex items-center justify-center border border-b-0 border-term-border bg-term-raised px-2 py-2 text-xs font-semibold text-muted-foreground">
-            周期性数据
-          </div>
+          <div className={styles.availabilityHead}>周期性数据</div>
 
-          {/* Business Report row */}
-          <div className="flex items-center border border-t-0 border-term-border bg-term-panel px-2 py-1.5 font-mono text-xs">
-            业务报告
-          </div>
+          <div className={styles.availabilityRowLabel}>业务报告</div>
           {dates.map((d) => {
             const { hasData, isPeriodicOnly, isMissing } = coverageMap.business
+            const status = getCellStatus(hasData(d), isPeriodicOnly(d), false, isMissing(d))
             return (
               <div
                 key={d}
@@ -391,47 +374,31 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
                   false,
                   isMissing(d)
                 )}
-                className={cn(
-                  'flex items-center justify-center border border-t-0 border-term-border py-2.5 transition-colors',
-                  getCellClass(hasData(d), isPeriodicOnly(d), false, isMissing(d))
-                )}
+                className={styles.availabilityCell}
+                data-status={status}
               >
                 {getCellIcon(hasData(d), isPeriodicOnly(d), false, isMissing(d))}
               </div>
             )
           })}
-          {/* Business: Periodic column */}
           <div
-            className={cn(
-              'flex items-center justify-center border border-t-0 border-term-border py-2.5 text-xs',
-              hasPeriodicData.business
-                ? 'bg-blue-500 text-white'
-                : 'bg-term-panel text-muted-foreground border-dashed'
-            )}
+            className={styles.availabilityCell}
+            data-status={hasPeriodicData.business ? 'periodic' : 'empty'}
             title={
               hasPeriodicData.business
                 ? `有周期性数据（覆盖 ${availability.business_period_info.map((p) => `${p.period_start_date}~${p.period_end_date}`).join(', ')}）`
                 : '无周期性数据'
             }
           >
-            {hasPeriodicData.business ? (
-              <div className="flex flex-col items-center">
-                <span className="font-medium">
-                  {periodicCoversAllDates.business ? '全周期' : '部分'}
-                </span>
-                <span className="text-[10px] opacity-80">P</span>
-              </div>
-            ) : (
-              <span className="text-muted-foreground">-</span>
-            )}
+            {hasPeriodicData.business
+              ? `${periodicCoversAllDates.business ? '全周期' : '部分'} · P`
+              : '-'}
           </div>
 
-          {/* Ad Report row */}
-          <div className="flex items-center border border-t-0 border-term-border bg-term-panel px-2 py-1.5 font-mono text-xs">
-            广告报告
-          </div>
+          <div className={styles.availabilityRowLabel}>广告报告</div>
           {dates.map((d) => {
             const { hasData, isPeriodicOnly, isMissing } = coverageMap.ad
+            const status = getCellStatus(hasData(d), isPeriodicOnly(d), false, isMissing(d))
             return (
               <div
                 key={d}
@@ -443,73 +410,52 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
                   false,
                   isMissing(d)
                 )}
-                className={cn(
-                  'flex items-center justify-center border border-t-0 border-term-border py-2.5 transition-colors',
-                  getCellClass(hasData(d), isPeriodicOnly(d), false, isMissing(d))
-                )}
+                className={styles.availabilityCell}
+                data-status={status}
               >
                 {getCellIcon(hasData(d), isPeriodicOnly(d), false, isMissing(d))}
               </div>
             )
           })}
-          {/* Ad: Periodic column */}
           <div
-            className={cn(
-              'flex items-center justify-center border border-t-0 border-term-border py-2.5 text-xs',
-              hasPeriodicData.ad
-                ? 'bg-blue-500 text-white'
-                : 'bg-term-panel text-muted-foreground border-dashed'
-            )}
+            className={styles.availabilityCell}
+            data-status={hasPeriodicData.ad ? 'periodic' : 'empty'}
             title={
               hasPeriodicData.ad
                 ? `有周期性数据（覆盖 ${availability.ad_period_info.map((p) => `${p.period_start_date}~${p.period_end_date}`).join(', ')}）`
                 : '无周期性数据'
             }
           >
-            {hasPeriodicData.ad ? (
-              <div className="flex flex-col items-center">
-                <span className="font-medium">{periodicCoversAllDates.ad ? '全周期' : '部分'}</span>
-                <span className="text-[10px] opacity-80">P</span>
-              </div>
-            ) : (
-              <span className="text-muted-foreground">-</span>
-            )}
+            {hasPeriodicData.ad ? `${periodicCoversAllDates.ad ? '全周期' : '部分'} · P` : '-'}
           </div>
 
-          {/* Inventory Report row */}
-          <div className="flex items-center border border-t-0 border-term-border bg-term-panel px-2 py-1.5 font-mono text-xs">
-            库存报告
-          </div>
+          <div className={styles.availabilityRowLabel}>库存报告</div>
           {dates.map((d) => {
             const isMissing = inventoryMissingSet.has(d)
             return (
               <div
                 key={d}
                 title={isMissing ? `库存报告 缺少 ${d}` : `库存报告 ${d} 有数据`}
-                className={cn(
-                  'flex items-center justify-center border border-t-0 border-term-border py-2.5 transition-colors',
-                  isMissing ? 'bg-term-neg' : 'bg-emerald-500'
-                )}
+                className={styles.availabilityCell}
+                data-status={isMissing ? 'missing' : 'available'}
               >
-                {isMissing ? (
-                  <XCircle className="h-4 w-4 text-white" />
-                ) : (
-                  <CheckCircle2 className="h-4 w-4 text-white" />
-                )}
+                {isMissing ? <XCircle aria-hidden /> : <CheckCircle2 aria-hidden />}
               </div>
             )
           })}
-          {/* Inventory: N/A */}
-          <div className="flex items-center justify-center border border-t-0 border-term-border bg-term-panel py-1.5 font-mono text-xs text-term-faint border-dashed">
+          <div className={styles.availabilityCell} data-status="empty">
             -
           </div>
 
-          {/* Payment report row */}
-          <div className="flex items-center border border-t-0 border-term-border bg-term-panel px-2 py-1.5 font-mono text-xs">
-            付款报告
-          </div>
+          <div className={styles.availabilityRowLabel}>付款报告</div>
           {dates.map((d) => {
             const { hasData, isPeriodicOnly, isObjectiveEmpty, isMissing } = coverageMap.payment
+            const status = getCellStatus(
+              hasData(d),
+              isPeriodicOnly(d),
+              isObjectiveEmpty(d),
+              isMissing(d)
+            )
             return (
               <div
                 key={d}
@@ -521,39 +467,25 @@ function AvailabilityGrid({ startDate, endDate, availability }: AvailabilityGrid
                   isObjectiveEmpty(d),
                   isMissing(d)
                 )}
-                className={cn(
-                  'flex items-center justify-center border border-t-0 border-term-border py-2.5 transition-colors',
-                  getCellClass(hasData(d), isPeriodicOnly(d), isObjectiveEmpty(d), isMissing(d))
-                )}
+                className={styles.availabilityCell}
+                data-status={status}
               >
                 {getCellIcon(hasData(d), isPeriodicOnly(d), isObjectiveEmpty(d), isMissing(d))}
               </div>
             )
           })}
-          {/* Payment: Periodic column */}
           <div
-            className={cn(
-              'flex items-center justify-center border border-t-0 border-term-border py-2.5 text-xs',
-              hasPeriodicData.payment
-                ? 'bg-blue-500 text-white'
-                : 'bg-term-panel text-muted-foreground border-dashed'
-            )}
+            className={styles.availabilityCell}
+            data-status={hasPeriodicData.payment ? 'periodic' : 'empty'}
             title={
               hasPeriodicData.payment
                 ? `有周期性数据（覆盖 ${availability.payment_periods_overlapping.map((p) => `${p.period_start_date}~${p.period_end_date}`).join(', ')}）`
                 : '无周期性数据'
             }
           >
-            {hasPeriodicData.payment ? (
-              <div className="flex flex-col items-center">
-                <span className="font-medium">
-                  {availability.payment_full_period_covered ? '全周期' : '部分'}
-                </span>
-                <span className="text-[10px] opacity-80">P</span>
-              </div>
-            ) : (
-              <span className="text-muted-foreground">-</span>
-            )}
+            {hasPeriodicData.payment
+              ? `${availability.payment_full_period_covered ? '全周期' : '部分'} · P`
+              : '-'}
           </div>
         </div>
       </div>
@@ -773,7 +705,7 @@ export default function ProductAnalysisPanel({ session }: ProductAnalysisPanelPr
 
   function renderCell(value: unknown, fmt?: 'percent' | 'currency') {
     if (value === null || value === undefined)
-      return <span className="text-term-faint">—</span>
+      return <span className={styles.mutedValue}>—</span>
     if (fmt === 'percent') return <span>{formatPercent(value)}</span>
     if (fmt === 'currency') {
       const sym = CURRENCY_CONFIG[country].symbol
@@ -788,113 +720,100 @@ export default function ProductAnalysisPanel({ session }: ProductAnalysisPanelPr
   }
 
   const detailColCount = DETAIL_DISPLAY_COLUMNS.length
+  const projectOptions = projects.map((project) => ({
+    value: project.name,
+    label: project.name,
+  }))
+  const today = formatDateInputValue(new Date()) ?? ''
 
   return (
-    <div className="space-y-3">
-      {/* Filter Controls */}
-      <TermPanel
-        title="核算参数"
-        bodyClassName="p-3 space-y-3 [&_label]:font-mono [&_label]:text-[10px] [&_label]:uppercase [&_label]:tracking-wider [&_label]:text-term-muted"
-      >
-          {/* 手机端：2 列网格（日期全宽）| 桌面端：横向排列 */}
-          <div className="grid grid-cols-2 gap-3 lg:flex lg:flex-row lg:items-end lg:gap-3">
-            {/* Project */}
-            <div className="space-y-1.5">
-              <label className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                项目
-              </label>
-              <Select
-                value={selectedProjectName}
-                onValueChange={(value) => {
-                  setSelectedProjectName(value)
-                  setCheckState('idle')
-                  setAvailability(null)
-                  setRunState('idle')
-                  setPeriods([])
-                  setExpandedIndex(null)
-                }}
-                disabled={projectsLoading || projects.length === 0}
-              >
-                <SelectTrigger className="h-8 w-full lg:w-56">
-                  <SelectValue
-                    placeholder={
-                      projectsLoading
-                        ? '项目加载中...'
-                        : projectLoadError
-                          ? projectLoadError
-                          : projects.length
-                            ? '请选择项目'
-                            : '暂无可选项目'
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent className="max-h-64 overflow-y-auto">
-                  {projects.map((p) => (
-                    <SelectItem key={p.name} value={p.name}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+    <div className={styles.stack} data-warm-product-analysis-panel="true">
+      <WarmPanel title="核算参数">
+        <div className={styles.filters}>
+          <WarmSelect
+            id="product-analysis-project"
+            label="项目"
+            value={selectedProjectName}
+            options={projectOptions}
+            onChange={(value) => {
+              setSelectedProjectName(value)
+              setCheckState('idle')
+              setAvailability(null)
+              setRunState('idle')
+              setPeriods([])
+              setExpandedIndex(null)
+            }}
+            placeholder={
+              projectsLoading
+                ? '项目加载中...'
+                : projects.length
+                  ? '请选择项目'
+                  : '暂无可选项目'
+            }
+            disabled={projectsLoading || projects.length === 0}
+            error={projectLoadError}
+            className={styles.projectField}
+          />
 
-            {/* Country */}
-            <div className="space-y-1.5">
-              <label className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                站点
-              </label>
-              <Select value={country} onValueChange={(value) => setCountry(value as CountryOption)}>
-                <SelectTrigger className="h-8 w-full lg:w-36">
-                  <SelectValue placeholder="请选择站点" />
-                </SelectTrigger>
-                <SelectContent>
-                  {COUNTRY_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <WarmSelect
+            id="product-analysis-country"
+            label="站点"
+            value={country}
+            options={COUNTRY_OPTIONS}
+            onChange={(value) => setCountry(value as CountryOption)}
+            className={styles.countryField}
+          />
 
-            {/* Date Range */}
-            <div className="col-span-2 space-y-1.5 lg:col-span-1 lg:min-w-0 lg:flex-1">
-              <label className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                日期范围
-              </label>
-              <DateRangePicker
-                value={parseDateRangeInputValue(startDate, endDate)}
-                onChange={(range) => {
-                  setStartDate(formatDateInputValue(range?.from) ?? startDate)
-                  setEndDate(formatDateInputValue(range?.to) ?? endDate)
+          <div className={`${styles.field} ${styles.dateField}`}>
+            <span className={styles.fieldLabel}>日期范围</span>
+            <div className={styles.dateInputs}>
+              <input
+                id="product-analysis-start-date"
+                type="date"
+                aria-label="开始日期"
+                max={today}
+                className={styles.dateInput}
+                value={startDate}
+                onChange={(event) => {
+                  setStartDate(event.target.value)
                   setCheckState('idle')
                   setAvailability(null)
                   setRunState('idle')
                   setPeriods([])
                 }}
-                className="h-8 w-full"
+              />
+              <input
+                id="product-analysis-end-date"
+                type="date"
+                aria-label="结束日期"
+                max={today}
+                className={styles.dateInput}
+                value={endDate}
+                onChange={(event) => {
+                  setEndDate(event.target.value)
+                  setCheckState('idle')
+                  setAvailability(null)
+                  setRunState('idle')
+                  setPeriods([])
+                }}
               />
             </div>
+          </div>
 
-            {/* Buttons */}
-            <div className="col-span-2 flex items-center gap-2 lg:col-span-1 lg:pb-0.5">
-              <Button
-                size="sm"
-                variant="outline"
+          <div className={`${styles.field} ${styles.actionField}`}>
+            <div className={styles.buttonRow}>
+              <WarmButton
+                variant="secondary"
                 onClick={() => void handleCheck()}
                 disabled={!canCheck}
-                className="flex-1 lg:flex-none"
+                loading={checkState === 'checking'}
+                loadingLabel="正在检查数据"
               >
-                {checkState === 'checking' ? (
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="mr-1 h-4 w-4" />
-                )}
+                {checkState !== 'checking' ? <CheckCircle2 aria-hidden /> : null}
                 检查数据
-              </Button>
-
-              <Button
-                size="sm"
+              </WarmButton>
+              <WarmButton
+                variant="primary"
                 onClick={() => void handleRun()}
                 disabled={
                   checkState !== 'done' ||
@@ -902,200 +821,150 @@ export default function ProductAnalysisPanel({ session }: ProductAnalysisPanelPr
                   !availability.has_minimum_data ||
                   runState === 'running'
                 }
-                className="flex-1 lg:flex-none"
+                loading={runState === 'running'}
+                loadingLabel="正在执行核算"
               >
-                {runState === 'running' ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
                 执行核算
-              </Button>
+              </WarmButton>
             </div>
           </div>
+        </div>
 
-          {checkError && (
-            <div className="flex items-center gap-2 rounded-none border border-term-neg/40 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
-              <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
-              {checkError}
-            </div>
-          )}
+        {checkError ? (
+          <div className={styles.error} role="alert">
+            <AlertCircle aria-hidden />
+            {checkError}
+          </div>
+        ) : null}
+        {runError ? (
+          <div className={styles.error} role="alert">
+            <AlertCircle aria-hidden />
+            {runError}
+          </div>
+        ) : null}
+      </WarmPanel>
 
-          {runError && (
-            <div className="flex items-center gap-2 rounded-none border border-term-neg/40 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
-              <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
-              {runError}
-            </div>
-          )}
-      </TermPanel>
+      {availability ? (
+        <WarmPanel title={`数据可用性 ${startDate} — ${endDate}`}>
+          <AvailabilityGrid startDate={startDate} endDate={endDate} availability={availability} />
+          <div className={styles.summaryCheck} data-valid={availability.has_minimum_data}>
+            {availability.has_minimum_data ? (
+              <>
+                <CheckCircle2 aria-hidden />
+                可执行核算
+                {availability.weekly_availability?.some((week) => week.is_partial) ? (
+                  <span className={styles.partialBadge}>
+                    <AlertTriangle aria-hidden />
+                    部分周数据不完整
+                  </span>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <XCircle aria-hidden />
+                数据不足，无法执行核算（缺少核心报表数据）
+              </>
+            )}
+          </div>
+        </WarmPanel>
+      ) : null}
 
-      {/* Data Availability */}
-      {availability && (
-        <TermPanel
-          title={`数据可用性 ${startDate} — ${endDate}`}
-          bodyClassName="p-3 space-y-3"
-        >
-            {/* Grid table */}
-            <AvailabilityGrid startDate={startDate} endDate={endDate} availability={availability} />
-
-            {/* Minimum Data Summary */}
-            <div className="flex items-center gap-2 border-t border-term-border pt-2 font-mono text-xs">
-              {availability.has_minimum_data ? (
-                <div className="flex items-center gap-1.5 font-medium text-term-pos">
-                  <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
-                  可执行核算
-                  {availability.weekly_availability?.some((w) => w.is_partial) && (
-                    <span className="ml-1 inline-flex items-center gap-1 border border-term-warn/50 px-1.5 py-px text-[11px] text-term-warn">
-                      <AlertTriangle className="h-3 w-3" aria-hidden />
-                      部分周数据不完整
-                    </span>
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5 font-medium text-term-neg">
-                  <XCircle className="h-3.5 w-3.5" aria-hidden />
-                  数据不足，无法执行核算（缺少核心报表数据）
-                </div>
-              )}
-            </div>
-        </TermPanel>
-      )}
-
-      {/* Results */}
-      {runState === 'done' && (
-        <TermPanel
+      {runState === 'done' ? (
+        <WarmPanel
           title={`核算结果 · 共 ${periods.length} 个周期`}
           actions={
-            <Button
-              size="sm"
-              variant="outline"
+            <WarmButton
+              variant="secondary"
               onClick={() => void handleExport()}
               disabled={periods.length === 0}
             >
-              <Download className="mr-1 h-4 w-4" aria-hidden />
+              <Download aria-hidden />
               导出 Excel
-            </Button>
+            </WarmButton>
           }
         >
-          <div className="p-3">
-            {periods.length === 0 ? (
-              <div className="py-8 text-center font-mono text-sm text-term-faint">无核算数据</div>
-            ) : (
-              <div className="space-y-3">
-                {periods.map((period, idx) => {
-                  const isExpanded = expandedIndex === idx
-                  return (
-                    <div key={idx} className="space-y-1">
-                      {/* Summary row */}
-                      <div
-                        className={`flex flex-wrap items-center gap-2 rounded-none border px-2 py-1.5 font-mono text-xs transition-colors ${
-                          isExpanded
-                            ? 'border-term-border-strong bg-term-raised text-term-text'
-                            : 'border-term-border bg-term-panel text-term-muted hover:bg-term-hover'
-                        }`}
-                        onClick={() => setExpandedIndex(isExpanded ? null : idx)}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            setExpandedIndex(isExpanded ? null : idx)
-                          }
-                        }}
-                      >
-                        <button
-                          className="rounded-none p-0.5 hover:bg-term-hover shrink-0"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setExpandedIndex(isExpanded ? null : idx)
-                          }}
-                          title={isExpanded ? '收起明细' : '展开明细'}
+          {periods.length === 0 ? (
+            <div className={styles.empty} role="status">
+              无核算数据
+            </div>
+          ) : (
+            <div className={styles.periodList}>
+              {periods.map((period, idx) => {
+                const isExpanded = expandedIndex === idx
+                return (
+                  <div key={idx} className={styles.period}>
+                    <button
+                      type="button"
+                      className={styles.periodSummary}
+                      aria-expanded={isExpanded}
+                      aria-label={isExpanded ? '收起明细' : '展开明细'}
+                      onClick={() => setExpandedIndex(isExpanded ? null : idx)}
+                    >
+                      {isExpanded ? <ArrowUp aria-hidden /> : <ArrowDown aria-hidden />}
+                      <span className={styles.periodRange}>
+                        {period.report_start_date} ~ {period.report_end_date}
+                      </span>
+                      {period.persisted ? (
+                        <span className={styles.persistedBadge}>
+                          <CheckCircle2 aria-hidden />
+                          已写入PT1
+                        </span>
+                      ) : null}
+                      {period.is_partial && period.completeness ? (
+                        <span
+                          className={styles.partialBadge}
+                          title={`数据不完整：业务报告 ${period.completeness.available_business_days}/${period.completeness.total_days} 天，广告报告 ${period.completeness.available_ad_days}/${period.completeness.total_days} 天${period.completeness.payment_missing ? '，缺少付款数据' : ''}`}
                         >
-                          {isExpanded ? (
-                            <ArrowUp className="h-4 w-4" />
-                          ) : (
-                            <ArrowDown className="h-4 w-4" />
-                          )}
-                        </button>
-
-                        <span className="shrink-0 font-medium text-sm">
-                          {period.report_start_date} ~ {period.report_end_date}
-                          {period.persisted && (
-                            <span className="ml-1.5 inline-flex items-center gap-0.5 rounded bg-emerald-100 px-1 py-0.5 text-[10px] font-medium leading-none text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
-                              <CheckCircle2 className="h-3 w-3" />
-                              已写入PT1
-                            </span>
-                          )}
-                          {period.is_partial && period.completeness && (
-                            <span
-                              className="ml-1.5 inline-flex items-center gap-0.5 rounded bg-term-warn/10 px-1 py-0.5 text-[10px] font-medium leading-none text-term-warn"
-                              title={`数据不完整：业务报告 ${period.completeness.available_business_days}/${period.completeness.total_days} 天，广告报告 ${period.completeness.available_ad_days}/${period.completeness.total_days} 天${period.completeness.payment_missing ? '，缺少付款数据' : ''}`}
-                            >
-                              <AlertTriangle className="h-3 w-3" />
-                              {period.completeness.available_business_days}/
-                              {period.completeness.total_days}天
-                            </span>
-                          )}
+                          <AlertTriangle aria-hidden />
+                          {period.completeness.available_business_days}/
+                          {period.completeness.total_days}天
                         </span>
+                      ) : null}
+                      <span className={styles.periodMetrics}>
+                        <span>总销售额: {renderCell(period.summary['总销售额'])}</span>
+                        <span>利润: {renderCell(period.summary['利润'])}</span>
+                        <span>利润率: {renderCell(period.summary['利润率'], 'percent')}</span>
+                        <span>ACOS: {renderCell(period.summary['ACOS'], 'percent')}</span>
+                      </span>
+                    </button>
 
-                        <span className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                          <span>总销售额: {renderCell(period.summary['总销售额'])}</span>
-                          <span>利润: {renderCell(period.summary['利润'])}</span>
-                          <span>利润率: {renderCell(period.summary['利润率'], 'percent')}</span>
-                          <span>ACOS: {renderCell(period.summary['ACOS'], 'percent')}</span>
-                        </span>
-                      </div>
-
-                      {/* Detail table */}
-                      {isExpanded && (
-                        <div className="overflow-x-auto rounded-none border border-term-border term-scroll">
-                          <table className="w-full border-collapse font-mono text-xs tabular-nums">
-                            <thead>
-                              <tr className="border-b border-term-border bg-term-raised">
-                                {DETAIL_DISPLAY_COLUMNS.map((col) => (
-                                  <th
-                                    key={col.key}
-                                    className="h-9 px-2 text-right font-medium normal-case tracking-normal whitespace-nowrap text-term-muted"
-                                  >
-                                    {col.label}
-                                  </th>
-                                ))}
+                    {isExpanded ? (
+                      <div className={styles.detailScroller}>
+                        <table className={styles.detailTable}>
+                          <thead>
+                            <tr>
+                              {DETAIL_DISPLAY_COLUMNS.map((col) => (
+                                <th key={col.key}>{col.label}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {period.details.length === 0 ? (
+                              <tr>
+                                <td colSpan={detailColCount} className={styles.mutedValue}>
+                                  无 SKU 明细
+                                </td>
                               </tr>
-                            </thead>
-                            <tbody>
-                              {period.details.length === 0 ? (
-                                <tr>
-                                  <td
-                                    colSpan={detailColCount}
-                                    className="px-2 py-3 text-center font-mono text-xs text-term-faint"
-                                  >
-                                    无 SKU 明细
-                                  </td>
+                            ) : (
+                              period.details.map((detail, dIdx) => (
+                                <tr key={dIdx}>
+                                  {DETAIL_DISPLAY_COLUMNS.map((col) => (
+                                    <td key={col.key}>{renderCell(detail[col.key], col.fmt)}</td>
+                                  ))}
                                 </tr>
-                              ) : (
-                                period.details.map((detail, dIdx) => (
-                                  <tr
-                                    key={dIdx}
-                                    className="border-b border-term-border hover:bg-term-hover"
-                                  >
-                                    {DETAIL_DISPLAY_COLUMNS.map((col) => (
-                                      <td
-                                        key={col.key}
-                                        className="h-8 px-2 text-right whitespace-nowrap text-term-text"
-                                      >
-                                        {renderCell(detail[col.key], col.fmt)}
-                                      </td>
-                                    ))}
-                                  </tr>
-                                ))
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </TermPanel>
-      )}
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : null}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </WarmPanel>
+      ) : null}
     </div>
   )
 }
