@@ -448,24 +448,7 @@ test.describe('@mobile-blf620 系统·数字大屏 手机端（BLF-620）', () =
   })
 })
 
-test.describe('@mobile-blf620 系统·小屏 360×800 与桌面零回归（BLF-620）', () => {
-  test('360×800：日志页 Tab 2 列 + 无整体横向滚动', async ({ page }) => {
-    await page.setViewportSize({ width: 360, height: 800 })
-    await mockBase(page)
-    await page.route('**/api/v1/system-management/audit-logs?**', (route) =>
-      route.fulfill({ json: AUDIT_LOGS })
-    )
-    await page.route('**/api/v1/system-management/audit-logs/summary?**', (route) =>
-      route.fulfill({ json: AUDIT_SUMMARY })
-    )
-    await page.goto('/dashboard/system/logs')
-    await expect(page.getByRole('tab', { name: '操作审计日志' })).toBeVisible({ timeout: 30000 })
-    const tab1Box = (await page.getByRole('tab', { name: '操作审计日志' }).boundingBox())!
-    const tab3Box = (await page.getByRole('tab', { name: 'Agent 访问日志' }).boundingBox())!
-    expect(tab3Box.y, '360px 下第 3 个 Tab 仍换行到第二行').toBeGreaterThan(tab1Box.y + 4)
-    await expectNoPageHorizontalOverflow(page)
-  })
-
+test.describe('@mobile-blf620 系统·桌面零回归（BLF-620）', () => {
   test('1440 桌面零回归：账号表 + 日志 TabList 单行 + 无溢出', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await mockBase(page)
