@@ -1,28 +1,19 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, Database, Loader2, RefreshCw, Server, Trash2 } from 'lucide-react'
+import { CheckCircle2, Database, RefreshCw, Server, Trash2 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
-import { Button } from '@/components/ui/button'
-import { TermPanel } from '@/components/terminal/term-panel'
-import { TermPill, TermKpiTile, TERM_BUTTON } from '@/components/terminal/term-controls'
-import { EmptyTableState } from '@/components/ui/empty-state'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  STICKY_TOP_ROW,
-} from '@/components/ui/table'
-import { densityCell, densityHead } from '@/components/ui/table-presets'
+  WarmBadge,
+  WarmButton,
+  type WarmBadgeTone,
+} from '@/components/dashboard-v2/warm-ledger/controls'
+import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
 import { buildBackendClientHeaders } from '@/lib/backend-auth'
-import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
-import { cn } from '@/lib/utils'
+import styles from './data-management-warm.module.css'
 
 type DataLifecycleStatus = 'active' | 'maintenance' | 'read_only' | 'paused'
 type TableHealthStatus = 'healthy' | 'empty' | 'stale' | 'error'
@@ -117,12 +108,11 @@ function statusLabel(status: DataLifecycleStatus): string {
   return '暂停更新'
 }
 
-function tableStatusTone(status: TableHealthStatus): string {
-  // BLF-838：终端单色语义（healthy=pos · empty=muted · stale=warn · 其余 neg）
-  if (status === 'healthy') return 'rounded-none border-term-pos/40 font-mono text-[11px] text-term-pos'
-  if (status === 'empty') return 'rounded-none border-term-border font-mono text-[11px] text-term-muted'
-  if (status === 'stale') return 'rounded-none border-term-warn/40 font-mono text-[11px] text-term-warn'
-  return 'rounded-none border-term-neg/40 font-mono text-[11px] text-term-neg'
+function tableStatusTone(status: TableHealthStatus): WarmBadgeTone {
+  if (status === 'healthy') return 'positive'
+  if (status === 'stale') return 'accent'
+  if (status === 'error') return 'negative'
+  return 'neutral'
 }
 
 function hasSummary(value: unknown): value is { summary: DataManagementOverview['summary'] } {
@@ -242,7 +232,7 @@ export default function SystemDataManagementPage() {
     } finally {
       setClearingCache(false)
     }
-  }, [refreshAll, session, notify])
+  }, [refreshAll, session, notify, confirm])
 
   const summaryCards = useMemo(() => {
     const snapshot = overview ?? statusOverview
@@ -254,146 +244,153 @@ export default function SystemDataManagementPage() {
         title: '数据库连接',
         value: snapshot.database.healthy ? '正常' : '异常',
         hint: `引擎 ${snapshot.database.engine}`,
-        icon: <Database className="h-4 w-4" />,
-        tone: snapshot.database.healthy ? 'text-emerald-600' : 'text-destructive',
+        icon: Database,
+        tone: snapshot.database.healthy ? 'positive' : 'negative',
       },
       {
         key: 'tables',
         title: '表数量',
         value: formatNumber(summary.total_tables),
         hint: detailsLoading ? '明细加载中' : `异常/陈旧 ${summary.stale_tables}`,
-        icon: <Server className="h-4 w-4" />,
-        tone: summary.stale_tables > 0 ? 'text-term-warn' : 'text-foreground',
+        icon: Server,
+        tone: summary.stale_tables > 0 ? 'accent' : 'neutral',
       },
       {
         key: 'rows',
         title: '总数据量',
         value: formatNumber(summary.total_rows),
         hint: detailsLoading ? '正在更新统计' : '统计所有业务表',
-        icon: <Database className="h-4 w-4" />,
-        tone: 'text-foreground',
+        icon: Database,
+        tone: 'neutral',
       },
       {
         key: 'status',
         title: '数据状态',
         value: statusLabel(summary.data_status),
         hint: `更新时间 ${formatDateTime(snapshot.data_status_updated_at)}`,
-        icon: <CheckCircle2 className="h-4 w-4" />,
-        tone: 'text-cyan-700 dark:text-cyan-300',
+        icon: CheckCircle2,
+        tone: 'accent',
       },
-    ]
+    ] satisfies Array<{
+      key: string
+      title: string
+      value: string
+      hint: string
+      icon: typeof Database
+      tone: 'positive' | 'negative' | 'accent' | 'neutral'
+    }>
   }, [detailsLoading, overview, statusOverview])
 
-  return (
-    <div className="w-full space-y-3">
-      <TermPanel
-        title="系统管理"
-        bodyClassName="p-3"
-        actions={
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              className={TERM_BUTTON}
-              onClick={() => void refreshAll()}
-              disabled={loading || detailsLoading || clearingCache}
-            >
-              {loading || detailsLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              {loading || detailsLoading ? '刷新中...' : '刷新状态'}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className={TERM_BUTTON}
-              onClick={() => void onClearCache()}
-              disabled={loading || detailsLoading || clearingCache}
-            >
-              {clearingCache ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2 className="h-4 w-4" />
-              )}
-              {clearingCache ? '清理中...' : '清理缓存'}
-            </Button>
-          </>
-        }
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <TermPill tone="info">实时查看数据库/表/数据状态</TermPill>
-        </div>
-        <div className={cn('mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4', detailsLoading && 'opacity-60')}>
-          {summaryCards.map((card) => (
-            <TermKpiTile
-              key={card.key}
-              label={card.title}
-              value={card.value}
-              hint={card.hint}
-            />
-          ))}
-        </div>
-      </TermPanel>
+  const isRefreshing = loading || detailsLoading
 
-      <TermPanel title="数据表状态" bodyClassName="overflow-auto p-0" className="overflow-hidden">
-        <div style={{ maxHeight: '600px' }} className="overflow-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className={STICKY_TOP_ROW}>
-                <TableHead className={densityHead.compact}>表名</TableHead>
-                <TableHead className={densityHead.compact}>中文名</TableHead>
-                <TableHead className={densityHead.compact}>行数</TableHead>
-                <TableHead className={densityHead.compact}>最后更新</TableHead>
-                <TableHead className={densityHead.compact}>状态</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+  return (
+    <div className={styles.page} data-warm-data-management="true">
+      <div className={styles.toolbar}>
+        <WarmButton
+          type="button"
+          variant="secondary"
+          onClick={() => void refreshAll()}
+          disabled={isRefreshing || clearingCache}
+          loading={isRefreshing}
+          loadingLabel="正在刷新数据库状态"
+        >
+          {!isRefreshing ? <RefreshCw aria-hidden="true" /> : null}
+          {isRefreshing ? '刷新中...' : '刷新状态'}
+        </WarmButton>
+        <WarmButton
+          type="button"
+          variant="secondary"
+          className={styles.destructiveButton}
+          onClick={() => void onClearCache()}
+          disabled={isRefreshing || clearingCache}
+          loading={clearingCache}
+          loadingLabel="正在清理 Redis 缓存"
+        >
+          {!clearingCache ? <Trash2 aria-hidden="true" /> : null}
+          {clearingCache ? '清理中...' : '清理缓存'}
+        </WarmButton>
+      </div>
+
+      <section
+        className={styles.summaryPanel}
+        aria-label="数据库状态概览"
+        aria-busy={isRefreshing}
+      >
+        {summaryCards.length > 0 ? (
+          <div className={styles.summaryGrid}>
+            {summaryCards.map((card) => {
+              const Icon = card.icon
+
+              return (
+                <article
+                  key={card.key}
+                  className={styles.summaryCard}
+                  data-tone={card.tone}
+                >
+                  <div className={styles.summaryLabel}>
+                    <Icon aria-hidden="true" />
+                    <span>{card.title}</span>
+                  </div>
+                  <p className={styles.summaryValue}>{card.value}</p>
+                  <p className={styles.summaryHint}>{card.hint}</p>
+                </article>
+              )
+            })}
+          </div>
+        ) : (
+          <p className={styles.summaryPlaceholder} role="status">
+            加载中...
+          </p>
+        )}
+      </section>
+
+      <section className={styles.tablePanel} aria-labelledby="data-table-status-title">
+        <header className={styles.tableHeader}>
+          <h2 id="data-table-status-title">数据表状态</h2>
+        </header>
+        <div className={styles.tableScroll}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th scope="col">表名</th>
+                <th scope="col">中文名</th>
+                <th scope="col">行数</th>
+                <th scope="col">最后更新</th>
+                <th scope="col">状态</th>
+              </tr>
+            </thead>
+            <tbody>
               {!overview || overview.tables.length === 0 ? (
-                detailsLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground">
-                      加载中...
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  <EmptyTableState colSpan={5} message="暂无表状态数据" />
-                )
+                <tr>
+                  <td colSpan={5} className={styles.tableEmpty}>
+                    {detailsLoading ? '加载中...' : '暂无表状态数据'}
+                  </td>
+                </tr>
               ) : (
                 overview.tables.map((item) => (
-                  <TableRow key={item.table_name}>
-                    <TableCell className={cn(densityCell.compact, 'font-medium')}>
-                      {item.table_name}
-                    </TableCell>
-                    <TableCell className={densityCell.compact}>
-                      {item.table_name_cn ?? '-'}
-                    </TableCell>
-                    <TableCell className={cn(densityCell.compact, 'tabular-nums')}>
+                  <tr key={item.table_name} data-table-status={item.status}>
+                    <td className={styles.tableName}>{item.table_name}</td>
+                    <td>{item.table_name_cn ?? '-'}</td>
+                    <td className={styles.numeric}>
                       {item.row_count == null ? '-' : formatNumber(item.row_count)}
-                    </TableCell>
-                    <TableCell className={densityCell.compact}>
+                    </td>
+                    <td className={styles.dateTime}>
                       {formatDateTime(item.last_updated_at)}
-                    </TableCell>
-                    <TableCell className={densityCell.compact}>
-                      <span
-                        className={cn(
-                          'inline-flex items-center border px-1.5 py-0.5',
-                          tableStatusTone(item.status)
-                        )}
-                      >
+                    </td>
+                    <td>
+                      <WarmBadge tone={tableStatusTone(item.status)}>
                         {item.status}
-                      </span>
-                    </TableCell>
-                  </TableRow>
+                      </WarmBadge>
+                    </td>
+                  </tr>
                 ))
               )}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
         </div>
-      </TermPanel>
+      </section>
 
-      <p className="font-mono text-xs leading-5 text-term-muted">
+      <p className={styles.sourceNote}>
         数据源：{(overview ?? statusOverview)?.database.source || '-'}，检查时间：
         {formatDateTime((overview ?? statusOverview)?.database.checked_at || null)}。
       </p>

@@ -1,11 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { Badge } from '@/components/ui/badge'
-import { getChangelogSnapshot, ReleaseVersion } from '@/lib/server/changelog'
-import { cn } from '@/lib/utils'
-import { ArrowUpRight, ChevronDown, Waypoints } from 'lucide-react'
-import { TermPanel } from '@/components/terminal/term-panel'
+import { ArrowUpRight, ChevronDown, Layers3, Waypoints } from 'lucide-react'
+
+import { WarmBadge } from '@/components/dashboard-v2/warm-ledger/controls'
+import { getChangelogSnapshot, type ReleaseVersion } from '@/lib/server/changelog'
+import styles from './changelog-warm.module.css'
 
 function formatDateLabel(dateValue: string): string {
   const date = new Date(`${dateValue}T00:00:00`)
@@ -25,191 +25,189 @@ function formatDateRange(release: ReleaseVersion): string {
   return `${formatDateLabel(release.startDate)} - ${formatDateLabel(release.endDate)}`
 }
 
-function SourceLogsSection({ logs }: { logs: string[] }) {
+function SourceLogsSection({
+  logs,
+  releaseVersion,
+}: {
+  logs: string[]
+  releaseVersion: string
+}) {
   const [isExpanded, setIsExpanded] = useState(false)
 
   if (logs.length === 0) return null
 
+  const panelId = `source-logs-${releaseVersion.toLowerCase()}`
+
   return (
-    <div className="space-y-3">
+    <section className={styles.sourceLogs}>
       <button
         type="button"
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="flex w-full items-center gap-2 font-mono text-xs text-term-muted transition-colors hover:text-term-text"
+        className={styles.sourceLogsToggle}
+        aria-expanded={isExpanded}
+        aria-controls={panelId}
+        onClick={() => setIsExpanded((expanded) => !expanded)}
       >
-        <Waypoints className="h-4 w-4 text-term-accent" strokeWidth={1.75} />
+        <Waypoints className={styles.sourceLogsIcon} aria-hidden="true" />
         <span>原始 log 线索</span>
-        <Badge variant="secondary" className="ml-1 rounded-none border-term-border bg-term-bg font-mono text-[10px] text-term-faint">
-          {logs.length}
-        </Badge>
+        <WarmBadge tone="neutral">{logs.length}</WarmBadge>
         <ChevronDown
-          className={cn(
-            'ml-auto h-4 w-4 text-term-faint transition-transform duration-[var(--duration-fast)]',
-            isExpanded && 'rotate-180'
-          )}
-          strokeWidth={1.75}
+          className={styles.sourceLogsChevron}
+          data-expanded={isExpanded}
+          aria-hidden="true"
         />
       </button>
-      <div
-        className={cn(
-          'overflow-hidden rounded-none border border-dashed border-term-border bg-term-bg transition-all duration-[var(--duration-fast)]',
-          isExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
-        )}
-      >
-        <ul className="space-y-2 p-4">
+      <div id={panelId} className={styles.sourceLogsBody} hidden={!isExpanded}>
+        <ul className={styles.sourceLogList}>
           {logs.map((log) => (
-            <li key={log} className="flex gap-2">
-              <span className="mt-[0.72rem] h-1.5 w-1.5 shrink-0 rounded-none bg-term-accent" />
-              <span className="break-all font-mono text-[0.8rem] text-term-muted">{log}</span>
+            <li key={log}>
+              <span className={styles.sourceLogMarker} aria-hidden="true" />
+              <span>{log}</span>
             </li>
           ))}
         </ul>
       </div>
+    </section>
+  )
+}
+
+function ReleaseMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className={styles.releaseMetric}>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
     </div>
   )
 }
 
 export default function ChangelogPage() {
   const snapshot = getChangelogSnapshot()
-  const { releases } = snapshot
-  const releasesDesc = [...releases].reverse()
+  const releasesDesc = [...snapshot.releases].reverse()
 
   return (
-    // BLF-838：渐变彩卡 → 终端面板；页面标题由面包屑承载
-    <div className="flex min-w-0 flex-col gap-3">
-      <div className="grid gap-3 lg:grid-cols-[16.5rem_minmax(0,1fr)] lg:items-start">
-        <aside className="lg:sticky lg:top-0 lg:self-start">
-          <TermPanel title="版本导航" className="flex flex-col overflow-hidden lg:max-h-[calc(100dvh-6.5rem)]" bodyClassName="overflow-y-auto p-3 term-scroll">
-            <p className="mb-3 font-sans text-xs leading-5 text-term-faint">
-              按大版本查看关键能力建设与原始变更线索。
-            </p>
-            <nav className="space-y-1.5" aria-label="Changelog release navigation">
-              {releasesDesc.map((release) => (
-                <a
-                  key={release.version}
-                  href={`#${release.version.toLowerCase()}`}
-                  className="group flex cursor-pointer items-center justify-between rounded-none border border-term-border bg-term-bg px-2 py-2 transition-colors hover:border-term-border-strong hover:bg-term-hover"
-                >
-                  <div className="min-w-0">
-                    <div className="font-mono text-sm font-semibold tabular-nums text-term-text">
-                      {release.version}
-                    </div>
-                    <div className="truncate font-mono text-[11px] tabular-nums text-term-faint">
-                      {formatDateRange(release)}
-                    </div>
-                  </div>
-                  <ArrowUpRight
-                    className="h-4 w-4 shrink-0 text-term-faint transition-transform duration-[var(--duration-quick)] group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-term-text"
-                    strokeWidth={1.75}
-                  />
-                </a>
-              ))}
-            </nav>
-          </TermPanel>
-        </aside>
-
-        <div className="min-w-0 space-y-3">
-          {releasesDesc.map((release) => (
-            <section
-              key={release.version}
-              id={release.version.toLowerCase()}
-              className="scroll-mt-2"
-            >
-              <TermPanel bodyClassName="p-4">
-                <div className="flex flex-col gap-3 border-b border-term-border pb-4 md:flex-row md:items-start md:justify-between">
-                  <div className="min-w-0 space-y-2">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <h3 className="font-mono text-lg font-semibold tabular-nums tracking-tight text-term-text">
-                        {release.version}
-                      </h3>
-                      <span className="text-sm text-term-muted">{release.codename}</span>
-                      <span className="font-mono text-xs tabular-nums text-term-faint">
+    <div className={styles.page} data-warm-changelog="true">
+      <div className={styles.layout}>
+        <aside className={styles.navigationColumn}>
+          <section className={styles.navigationPanel} aria-label="版本导航">
+            <header className={styles.panelHeader}>
+              <h2>版本导航</h2>
+            </header>
+            <div className={styles.navigationBody}>
+              <p className={styles.navigationHint}>
+                按大版本查看关键能力建设与原始变更线索。
+              </p>
+              <nav
+                className={styles.releaseNavigation}
+                aria-label="Changelog release navigation"
+              >
+                {releasesDesc.map((release) => (
+                  <a
+                    key={release.version}
+                    href={`#${release.version.toLowerCase()}`}
+                    className={styles.releaseNavItem}
+                    data-release-status={release.status}
+                  >
+                    <span className={styles.releaseNavCopy}>
+                      <span className={styles.releaseNavVersion}>{release.version}</span>
+                      <span className={styles.releaseNavName}>{release.codename}</span>
+                      <span className={styles.releaseNavDate}>
                         {formatDateRange(release)}
                       </span>
-                    </div>
-                    <p className="max-w-4xl text-sm leading-6 text-term-muted">{release.summary}</p>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 sm:max-w-[24rem] sm:self-stretch">
-                    <div className="rounded-none border border-term-border bg-term-bg px-2 py-2 text-center">
-                      <div className="font-mono text-[11px] uppercase tracking-wider text-term-faint">模块</div>
-                      <div className="mt-1 font-mono text-base font-semibold tabular-nums text-term-text">{release.focus.length}</div>
-                    </div>
-                    <div className="rounded-none border border-term-border bg-term-bg px-2 py-2 text-center">
-                      <div className="font-mono text-[11px] uppercase tracking-wider text-term-faint">亮点</div>
-                      <div className="mt-1 font-mono text-base font-semibold tabular-nums text-term-text">{release.highlights.length}</div>
-                    </div>
-                    <div className="rounded-none border border-term-border bg-term-bg px-2 py-2 text-center">
-                      <div className="font-mono text-[11px] uppercase tracking-wider text-term-faint">线索</div>
-                      <div className="mt-1 font-mono text-base font-semibold tabular-nums text-term-text">{release.sourceLogs.length}</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-1.5">
-                  {release.focus.map((item) => (
-                    <span
-                      key={item}
-                      className="rounded-none border border-term-border bg-term-bg px-2 py-0.5 font-mono text-[11px] text-term-muted"
-                    >
-                      {item}
                     </span>
-                  ))}
-                </div>
+                    <ArrowUpRight
+                      className={styles.releaseNavArrow}
+                      aria-hidden="true"
+                    />
+                  </a>
+                ))}
+              </nav>
+            </div>
+          </section>
+        </aside>
 
-                <div className="mt-4 grid gap-2 lg:grid-cols-2">
-                  {release.highlights.map((highlight) => (
-                    <article
-                      key={`${release.version}-${highlight.title}`}
-                      className="group rounded-none border border-term-border bg-term-bg p-3 transition-colors hover:border-term-border-strong"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="mt-0.5 rounded-none border border-term-border bg-term-raised p-1.5 text-term-accent">
-                          {/* icon 由原 Layers3 改为统一 term 边框块 */}
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} className="h-4 w-4" aria-hidden>
-                            <path d="M12 2 2 7l10 5 10-5-10-5Z" strokeLinecap="round" strokeLinejoin="round" />
-                            <path d="m2 17 10 5 10-5" strokeLinecap="round" strokeLinejoin="round" />
-                            <path d="m2 12 10 5 10-5" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        </div>
-                        <div className="min-w-0 space-y-1.5">
-                          <div className="space-y-0.5">
-                            <div className="font-mono text-[11px] uppercase tracking-wider text-term-faint">
-                              {highlight.area}
-                            </div>
-                            <h4 className="text-sm font-semibold text-term-text">{highlight.title}</h4>
-                          </div>
-                          <p className="text-sm leading-6 text-term-muted">{highlight.detail}</p>
-                        </div>
-                      </div>
-                    </article>
-                  ))}
-                </div>
+        <div className={styles.releaseList}>
+          {releasesDesc.map((release) => {
+            const headingId = `release-title-${release.version.toLowerCase()}`
 
-                <div className="mt-4 grid gap-4 border-t border-term-border pt-4 lg:grid-cols-[minmax(0,0.82fr)_minmax(17rem,0.55fr)]">
-                  <SourceLogsSection logs={release.sourceLogs} />
-
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 font-mono text-xs text-term-muted">
-                      版本定位
-                    </div>
-                    <div className="rounded-none border border-term-border bg-term-bg p-3">
-                      <p className="text-sm leading-6 text-term-muted">
-                        {release.version} 主要聚焦{' '}
-                        <span className="font-medium text-term-text">
-                          {release.focus.slice(0, 2).join('、')}
+            return (
+              <section
+                key={release.version}
+                id={release.version.toLowerCase()}
+                className={styles.releaseSection}
+                aria-labelledby={headingId}
+              >
+                <article className={styles.releasePanel}>
+                  <header className={styles.releaseHeader}>
+                    <div className={styles.releaseIntro}>
+                      <div className={styles.releaseTitleRow}>
+                        <h2 id={headingId} className={styles.releaseVersion}>
+                          {release.version}
+                        </h2>
+                        <span className={styles.releaseCodename}>{release.codename}</span>
+                        <span className={styles.releaseDate}>
+                          {formatDateRange(release)}
                         </span>
-                        ，并向{' '}
-                        <span className="font-medium text-term-text">
-                          {release.focus.slice(2).join('、') || '相关体验优化'}
-                        </span>{' '}
-                        延展，代表这一阶段最完整的一次能力打包。
-                      </p>
+                      </div>
+                      <p className={styles.releaseSummary}>{release.summary}</p>
+                    </div>
+
+                    <dl className={styles.releaseMetrics}>
+                      <ReleaseMetric label="模块" value={release.focus.length} />
+                      <ReleaseMetric label="亮点" value={release.highlights.length} />
+                      <ReleaseMetric label="线索" value={release.sourceLogs.length} />
+                    </dl>
+                  </header>
+
+                  <div className={styles.releaseBody}>
+                    <div className={styles.focusList} aria-label="版本关注模块">
+                      {release.focus.map((item) => (
+                        <WarmBadge key={item} tone="neutral">
+                          {item}
+                        </WarmBadge>
+                      ))}
+                    </div>
+
+                    <div className={styles.highlightGrid}>
+                      {release.highlights.map((highlight) => (
+                        <article
+                          key={`${release.version}-${highlight.title}`}
+                          className={styles.highlightCard}
+                        >
+                          <span className={styles.highlightIcon} aria-hidden="true">
+                            <Layers3 />
+                          </span>
+                          <div className={styles.highlightCopy}>
+                            <span className={styles.highlightArea}>{highlight.area}</span>
+                            <h3>{highlight.title}</h3>
+                            <p>{highlight.detail}</p>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+
+                    <div className={styles.releaseFooter}>
+                      <SourceLogsSection
+                        logs={release.sourceLogs}
+                        releaseVersion={release.version}
+                      />
+
+                      <section className={styles.positioning}>
+                        <h3>版本定位</h3>
+                        <p>
+                          {release.version} 主要聚焦{' '}
+                          <strong>{release.focus.slice(0, 2).join('、')}</strong>
+                          ，并向{' '}
+                          <strong>
+                            {release.focus.slice(2).join('、') || '相关体验优化'}
+                          </strong>{' '}
+                          延展，代表这一阶段最完整的一次能力打包。
+                        </p>
+                      </section>
                     </div>
                   </div>
-                </div>
-              </TermPanel>
-            </section>
-          ))}
+                </article>
+              </section>
+            )
+          })}
         </div>
       </div>
     </div>
