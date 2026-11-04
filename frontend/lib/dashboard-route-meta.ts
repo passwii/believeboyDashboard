@@ -129,6 +129,143 @@ const WARM_LEDGER_EXACT_ROUTE_META: Record<string, DashboardRouteMeta> = {
     title: '财务月报',
     warm: true,
   },
+  '/dashboard/reports/auto-upload': {
+    ...REPORTS_SECTION,
+    title: '报表自动化',
+    warm: true,
+  },
+  '/dashboard/reports/monthly-report/generate': {
+    ...REPORTS_SECTION,
+    title: '制作报表',
+    navHref: '/dashboard/reports/monthly-report/display',
+    warm: true,
+  },
+  '/dashboard/reports/monthly-report/reconcile': {
+    ...REPORTS_SECTION,
+    title: '报表核对',
+    navHref: '/dashboard/reports/monthly-report/display',
+    warm: true,
+  },
+  '/dashboard/reports/pricing-calculation': {
+    ...REPORTS_SECTION,
+    title: '定价核算',
+    navHref: '/dashboard/reports/pricing-calculation/new-product',
+    warm: true,
+  },
+  '/dashboard/reports/pricing-calculation/new-product': {
+    ...REPORTS_SECTION,
+    title: '新品核算',
+    warm: true,
+  },
+  '/dashboard/reports/pricing-calculation/shop-calculation': {
+    ...REPORTS_SECTION,
+    title: '店铺测算',
+    warm: true,
+  },
+  '/dashboard/reports/report-reconciliation': {
+    ...REPORTS_SECTION,
+    title: '报表核对',
+    navHref: '/dashboard/reports/monthly-report/display',
+    warm: true,
+  },
+  '/dashboard/reports/scheduled-reports': {
+    ...REPORTS_SECTION,
+    title: '定时报告',
+    warm: true,
+  },
+  '/dashboard/reports/scheduled-reports/ledger': {
+    ...REPORTS_SECTION,
+    title: '调度记录',
+    navHref: '/dashboard/reports/scheduled-reports',
+    warm: true,
+  },
+  '/dashboard/reports/scheduled-reports/subscriptions': {
+    ...REPORTS_SECTION,
+    title: '订阅管理',
+    navHref: '/dashboard/reports/scheduled-reports',
+    warm: true,
+  },
+  '/dashboard/operations/complaint-center': {
+    ...OPERATIONS_SECTION,
+    title: '客户消息',
+    warm: true,
+  },
+  '/dashboard/operations/complaint-center/list': {
+    ...OPERATIONS_SECTION,
+    title: '客诉明细',
+    navHref: '/dashboard/operations/complaint-center',
+    warm: true,
+  },
+  '/dashboard/operations/inventory-replenishment': {
+    ...OPERATIONS_SECTION,
+    title: '补货分析',
+    warm: true,
+  },
+  '/dashboard/operations/platform-inspection': {
+    ...OPERATIONS_SECTION,
+    title: '平台巡检',
+    warm: true,
+  },
+  '/dashboard/operations/project-goals': {
+    ...OPERATIONS_SECTION,
+    title: '项目目标',
+    warm: true,
+  },
+  '/dashboard/operations/project-launch': {
+    ...OPERATIONS_SECTION,
+    title: '项目启动台',
+    warm: true,
+  },
+  '/dashboard/operations/project-launch/templates': {
+    ...OPERATIONS_SECTION,
+    title: '流程模板管理',
+    warm: true,
+  },
+  '/dashboard/operations/research-analysis': {
+    ...OPERATIONS_SECTION,
+    title: '调研分析',
+    warm: true,
+  },
+  '/dashboard/operations/return-analysis': {
+    ...OPERATIONS_SECTION,
+    title: '退货分析',
+    warm: true,
+  },
+  '/dashboard/operations/review-tracking': {
+    ...OPERATIONS_SECTION,
+    title: '评论追踪',
+    warm: true,
+  },
+  '/dashboard/operations/seasonal-replenishment': {
+    ...OPERATIONS_SECTION,
+    title: '季节性补货分析',
+    warm: true,
+  },
+  '/dashboard/operations/site-navigation': {
+    ...OPERATIONS_SECTION,
+    title: '站点导航',
+    warm: true,
+  },
+  '/dashboard/operations/store-navigation': {
+    ...OPERATIONS_SECTION,
+    title: '店铺导航',
+    warm: true,
+  },
+  '/dashboard/operations/weekly-product-analysis': {
+    ...OPERATIONS_SECTION,
+    title: '按周产品分析',
+    warm: true,
+  },
+  '/dashboard/agent-center/overview': {
+    ...OPERATIONS_SECTION,
+    title: '数据流总览',
+    warm: true,
+  },
+  '/dashboard/agent-center/employees': {
+    ...OPERATIONS_SECTION,
+    title: 'Agent 员工',
+    warm: true,
+  },
   '/dashboard/finance/platform-revenue': {
     ...FINANCE_SECTION,
     title: '平台回款',

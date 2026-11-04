@@ -41,6 +41,32 @@ const WARM_ROUTES = [
   '/dashboard/system/logs',
   '/dashboard/system/operator-management',
   '/dashboard/system/project-info',
+  '/dashboard/reports/auto-upload',
+  '/dashboard/reports/monthly-report/generate',
+  '/dashboard/reports/monthly-report/reconcile',
+  '/dashboard/reports/pricing-calculation',
+  '/dashboard/reports/pricing-calculation/new-product',
+  '/dashboard/reports/pricing-calculation/shop-calculation',
+  '/dashboard/reports/report-reconciliation',
+  '/dashboard/reports/scheduled-reports',
+  '/dashboard/reports/scheduled-reports/ledger',
+  '/dashboard/reports/scheduled-reports/subscriptions',
+  '/dashboard/operations/complaint-center',
+  '/dashboard/operations/complaint-center/list',
+  '/dashboard/operations/inventory-replenishment',
+  '/dashboard/operations/platform-inspection',
+  '/dashboard/operations/project-goals',
+  '/dashboard/operations/project-launch',
+  '/dashboard/operations/project-launch/templates',
+  '/dashboard/operations/research-analysis',
+  '/dashboard/operations/return-analysis',
+  '/dashboard/operations/review-tracking',
+  '/dashboard/operations/seasonal-replenishment',
+  '/dashboard/operations/site-navigation',
+  '/dashboard/operations/store-navigation',
+  '/dashboard/operations/weekly-product-analysis',
+  '/dashboard/agent-center/overview',
+  '/dashboard/agent-center/employees',
 ] as const
 
 const PROJECTS = [
@@ -174,8 +200,8 @@ test.describe('V4 Warm Ledger desktop expansion matrix', () => {
     await expect(page.locator('.warm-ledger__app-window')).toHaveCount(0)
   })
 
-  test('all C5-C7 routes keep the compact desktop canvas', async ({ page, context }) => {
-    test.setTimeout(360_000)
+  test('all C5-C8 routes keep the compact desktop canvas', async ({ page, context }) => {
+    test.setTimeout(480_000)
     await page.setViewportSize(VIEWPORT)
     await addBLF611FixtureAuth(context)
     await installApiFixtures(page)
