@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import { SearchCommand } from '@/components/dashboard/search-command'
@@ -14,6 +14,14 @@ import { ServerNotificationsProvider } from '@/components/notifications/server-n
 import { buildLoginCallbackUrl } from '@/lib/login-callback-url'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={<div data-dashboard-layout-loading aria-busy="true" />}>
+      <DashboardLayoutContent>{children}</DashboardLayoutContent>
+    </Suspense>
+  )
+}
+
+function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const isWarmLedgerHome = pathname === '/dashboard'
