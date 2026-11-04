@@ -3,17 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Image from 'next/image'
 import { useSession } from 'next-auth/react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { UploadZone } from '@/components/ui/upload-zone'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import {
   Dialog,
   DialogContent,
@@ -22,28 +13,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { PortraitScreenshotDialog } from '@/components/ui/image-preview-dialog'
-import { Textarea } from '@/components/ui/textarea'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Skeleton } from '@/components/ui/skeleton'
-import { TermPanel } from '@/components/terminal/term-panel'
 import {
-  TermBody,
-  TermCell,
-  TermHead,
-  TermRow,
-  TermTHead,
-  TermTable,
-} from '@/components/terminal/term-table'
-import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
-import { HeaderSlotButton, TERM_HEADER_W_SM, TERM_HEADER_W_MD } from '@/components/terminal/header-filter-suite'
-import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
-import {
-  useHeaderRefresh,
-  useHeaderSlot,
-  useMobileFilterStrip,
-} from '@/components/terminal/terminal-header-slot'
+  WarmBadge,
+  WarmButton,
+  WarmIconButton,
+  WarmSelect,
+  type WarmSelectOption,
+} from '@/components/dashboard-v2/warm-ledger/controls'
+import { useHeaderRefresh, useHeaderSlot } from '@/components/terminal/terminal-header-slot'
 import { cn } from '@/lib/utils'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { getCountryLabel } from '@/lib/country'
@@ -57,10 +36,10 @@ import {
   Pencil,
   Trash2,
   Plus,
-  Loader2,
   X,
   Download,
 } from 'lucide-react'
+import styles from './platform-revenue-warm.module.css'
 
 // 币种选项
 const CURRENCY_OPTIONS = [
@@ -207,18 +186,18 @@ const formatTotals = (totals: Record<string, number>) => {
     .join(' | ')
 }
 
-/** 币种 → mono 符号 + term 语义色（终端化：去渐变 Badge，走文本语义色） */
+/** 币种 → Warm 文本符号与辅助名称 */
 const getCurrencyBadgeMeta = (currency: string) => {
   const normalizedCurrency = currency.trim().toUpperCase()
   switch (normalizedCurrency) {
     case 'USD':
-      return { symbol: '$', accent: '美元', tone: 'pos' as const }
+      return { symbol: '$', accent: '美元' }
     case 'GBP':
-      return { symbol: '£', accent: '英镑', tone: 'warn' as const }
+      return { symbol: '£', accent: '英镑' }
     case 'EUR':
-      return { symbol: '€', accent: '欧元', tone: undefined }
+      return { symbol: '€', accent: '欧元' }
     default:
-      return { symbol: '¤', accent: '其他货币', tone: 'muted' as const }
+      return { symbol: '¤', accent: '其他货币' }
   }
 }
 
@@ -241,7 +220,6 @@ const getCountryBadgeMeta = (country: string) => {
 export default function PlatformRevenuePage() {
   const { notify } = useNotifications()
   const { data: session } = useSession()
-  const isAdmin = Boolean(session?.user?.isAdmin)
 
   // 状态
   const [revenues, setRevenues] = useState<PlatformRevenue[]>([])
@@ -268,6 +246,7 @@ export default function PlatformRevenuePage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deletingRevenue, setDeletingRevenue] = useState<PlatformRevenue | null>(null)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
+  const [previewZoomed, setPreviewZoomed] = useState(false)
   const [uploadingImage, setUploadingImage] = useState(false)
   const [imageUploadState, setImageUploadState] = useState<{
     status: 'idle' | 'uploading' | 'success' | 'error'
@@ -364,6 +343,10 @@ export default function PlatformRevenuePage() {
   useEffect(() => {
     void fetchRevenues()
   }, [fetchRevenues])
+
+  useEffect(() => {
+    if (previewImage) setPreviewZoomed(false)
+  }, [previewImage])
 
   // —— BLF-826 阶段 B/C：head 插槽 + 全局刷新 ——
   // 刷新语义：当前筛选条件下重新拉取。
@@ -573,12 +556,6 @@ export default function PlatformRevenuePage() {
       ...prev,
       attachments: prev.attachments.filter((image) => image.id !== imageId),
     }))
-  }
-
-  const formatFileSize = (size: number) => {
-    if (size < 1024) return `${size}B`
-    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)}KB`
-    return `${(size / (1024 * 1024)).toFixed(1)}MB`
   }
 
   // 导出 Excel
@@ -824,413 +801,316 @@ export default function PlatformRevenuePage() {
   }
 
   const filterControls = (
-    <>
-      <Select
+    <div className={styles.filters} role="group" aria-label="平台回款筛选">
+      <WarmSelect
+        id="platform-revenue-project-filter"
+        label="项目"
         value={filters.project_id || ALL_FILTER_VALUE}
-        onValueChange={(value) =>
+        options={[
+          { value: ALL_FILTER_VALUE, label: '全部项目' },
+          ...projects.map((project) => ({
+            value: project.id.toString(),
+            label: project.name,
+          })),
+        ]}
+        onChange={(value) =>
           handleFilterChange('project_id', value === ALL_FILTER_VALUE ? '' : value)
         }
-      >
-        <SelectTrigger className={cn('h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none', TERM_HEADER_W_MD)}>
-          <SelectValue placeholder="全部项目" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={ALL_FILTER_VALUE}>全部项目</SelectItem>
-          {projects.map((project) => (
-            <SelectItem key={project.id} value={project.id.toString()}>
-              {project.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <Select
+        className={styles.filterProject}
+      />
+      <WarmSelect
+        id="platform-revenue-year-filter"
+        label="年份"
         value={filters.year || ALL_FILTER_VALUE}
-        onValueChange={(value) =>
+        options={[
+          { value: ALL_FILTER_VALUE, label: '全部年份' },
+          ...getYearOptions().map((year) => ({
+            value: year.value.toString(),
+            label: year.label,
+          })),
+        ]}
+        onChange={(value) =>
           handleFilterChange('year', value === ALL_FILTER_VALUE ? '' : value)
         }
-      >
-        <SelectTrigger className={cn('h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none', TERM_HEADER_W_SM)}>
-          <SelectValue placeholder="全部年份" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={ALL_FILTER_VALUE}>全部年份</SelectItem>
-          {getYearOptions().map((year) => (
-            <SelectItem key={year.value} value={year.value.toString()}>
-              {year.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <Select
+        className={styles.filterSelect}
+      />
+      <WarmSelect
+        id="platform-revenue-month-filter"
+        label="月份"
         value={filters.month || ALL_FILTER_VALUE}
-        onValueChange={(value) =>
+        options={[
+          { value: ALL_FILTER_VALUE, label: '全部月份' },
+          ...MONTH_OPTIONS.map((month) => ({
+            value: month.value.toString(),
+            label: month.label,
+          })),
+        ]}
+        onChange={(value) =>
           handleFilterChange('month', value === ALL_FILTER_VALUE ? '' : value)
         }
-      >
-        <SelectTrigger className={cn('h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none', TERM_HEADER_W_MD)}>
-          <SelectValue placeholder="全部月份" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={ALL_FILTER_VALUE}>全部月份</SelectItem>
-          {MONTH_OPTIONS.map((month) => (
-            <SelectItem key={month.value} value={month.value.toString()}>
-              {month.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <Select
+        className={styles.filterSelect}
+      />
+      <WarmSelect
+        id="platform-revenue-currency-filter"
+        label="币种"
         value={filters.currency || ALL_FILTER_VALUE}
-        onValueChange={(value) =>
+        options={[
+          { value: ALL_FILTER_VALUE, label: '全部币种' },
+          ...CURRENCY_OPTIONS.map((currency) => ({
+            value: currency.value,
+            label: currency.label,
+          })),
+        ]}
+        onChange={(value) =>
           handleFilterChange('currency', value === ALL_FILTER_VALUE ? '' : value)
         }
-      >
-        <SelectTrigger className={cn('h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none', TERM_HEADER_W_SM)}>
-          <SelectValue placeholder="全部币种" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={ALL_FILTER_VALUE}>全部币种</SelectItem>
-          {CURRENCY_OPTIONS.map((currency) => (
-            <SelectItem key={currency.value} value={currency.value}>
-              {currency.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <Select
+        className={styles.filterSelect}
+      />
+      <WarmSelect
+        id="platform-revenue-type-filter"
+        label="回款类型"
         value={filters.revenue_type || ALL_FILTER_VALUE}
-        onValueChange={(value) =>
+        options={[
+          { value: ALL_FILTER_VALUE, label: '全部类型' },
+          { value: '订单回款', label: '订单回款' },
+          { value: 'B2B回款', label: 'B2B回款' },
+        ]}
+        onChange={(value) =>
           handleFilterChange('revenue_type', value === ALL_FILTER_VALUE ? '' : value)
         }
+        className={styles.filterSelect}
+      />
+      <WarmButton
+        className={styles.filterReset}
+        variant="quiet"
+        aria-label="重置筛选"
+        onClick={resetFilters}
       >
-        <SelectTrigger className={cn('h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none', TERM_HEADER_W_SM)}>
-          <SelectValue placeholder="全部类型" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={ALL_FILTER_VALUE}>全部类型</SelectItem>
-          <SelectItem value="订单回款">订单回款</SelectItem>
-          <SelectItem value="B2B回款">B2B回款</SelectItem>
-        </SelectContent>
-      </Select>
-      <HeaderSlotButton variant="muted" onClick={resetFilters}>重置</HeaderSlotButton>
-    </>
+        重置
+      </WarmButton>
+    </div>
   )
 
-  const headerSlotPortal = useHeaderSlot(
-    <HeaderFilterControls isMobileView={false} controls={filterControls} />
-  )
-
-  // BLF-931 · 移动端：筛选控件下迁为正文顶部可折叠筛选条
-  const mobileProjectLabel = filters.project_id ? (projects.find((p) => String(p.id) === filters.project_id)?.name ?? filters.project_id) : '全部项目'
-  const mobileDateLabel = `${filters.year || '全部'}年 · ${filters.month ? `${filters.month}月` : '全部月份'}`
-  const mobileCurrencyLabel = filters.currency ? (CURRENCY_OPTIONS.find((o) => o.value === filters.currency)?.label ?? filters.currency) : '全部币种'
-  const mobileTypeLabel = filters.revenue_type || '全部类型'
-  const mobileFilterSummary = `${mobileProjectLabel} · ${mobileDateLabel} · ${mobileCurrencyLabel} · ${mobileTypeLabel}`
-  const mobileFilterStrip = useMobileFilterStrip(
-    <MobileFilterStrip
-      summary={mobileFilterSummary}
-      controls={
-        <>
-          <Select
-            value={filters.project_id || ALL_FILTER_VALUE}
-            onValueChange={(value) =>
-              handleFilterChange('project_id', value === ALL_FILTER_VALUE ? '' : value)
-            }
-          >
-            <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none">
-              <SelectValue placeholder="全部项目" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_FILTER_VALUE}>全部项目</SelectItem>
-              {projects.map((project) => (
-                <SelectItem key={project.id} value={project.id.toString()}>
-                  {project.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={filters.year || ALL_FILTER_VALUE}
-            onValueChange={(value) =>
-              handleFilterChange('year', value === ALL_FILTER_VALUE ? '' : value)
-            }
-          >
-            <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none">
-              <SelectValue placeholder="全部年份" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_FILTER_VALUE}>全部年份</SelectItem>
-              {getYearOptions().map((year) => (
-                <SelectItem key={year.value} value={year.value.toString()}>
-                  {year.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={filters.month || ALL_FILTER_VALUE}
-            onValueChange={(value) =>
-              handleFilterChange('month', value === ALL_FILTER_VALUE ? '' : value)
-            }
-          >
-            <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none">
-              <SelectValue placeholder="全部月份" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_FILTER_VALUE}>全部月份</SelectItem>
-              {MONTH_OPTIONS.map((month) => (
-                <SelectItem key={month.value} value={month.value.toString()}>
-                  {month.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={filters.currency || ALL_FILTER_VALUE}
-            onValueChange={(value) =>
-              handleFilterChange('currency', value === ALL_FILTER_VALUE ? '' : value)
-            }
-          >
-            <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none">
-              <SelectValue placeholder="全部币种" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_FILTER_VALUE}>全部币种</SelectItem>
-              {CURRENCY_OPTIONS.map((currency) => (
-                <SelectItem key={currency.value} value={currency.value}>
-                  {currency.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={filters.revenue_type || ALL_FILTER_VALUE}
-            onValueChange={(value) =>
-              handleFilterChange('revenue_type', value === ALL_FILTER_VALUE ? '' : value)
-            }
-          >
-            <SelectTrigger className="h-10 w-full rounded-none border-term-border bg-term-panel text-xs shadow-none">
-              <SelectValue placeholder="全部类型" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_FILTER_VALUE}>全部类型</SelectItem>
-              <SelectItem value="订单回款">订单回款</SelectItem>
-              <SelectItem value="B2B回款">B2B回款</SelectItem>
-            </SelectContent>
-          </Select>
-          <MobileFilterWide>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={resetFilters}
-              className="h-10 w-full rounded-none border-term-border px-2 text-xs shadow-none hover:bg-term-hover hover:text-term-text"
-            >
-              重置
-            </Button>
-          </MobileFilterWide>
-        </>
-      }
-    />
-  )
+  const headerSlotPortal = useHeaderSlot(filterControls)
 
   return (
-    <div className="flex min-w-0 flex-col gap-3">
-      {/* BLF-826 阶段 C：筛选控件已上移 Top Header 中段插槽；页面仅渲染 portal 宿主 */}
+    <div className={styles.page} data-warm-platform-revenue="true">
       {headerSlotPortal}
-      {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
-      {mobileFilterStrip}
 
-      {/* 数据表格 */}
-      <TermPanel
-        title="平台回款"
-        bodyClassName="min-h-0 overflow-hidden"
-        actions={
-          <div className="flex items-center gap-1">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-7 gap-1 rounded-none border-term-border px-2 text-xs shadow-none hover:bg-term-hover hover:text-term-text"
+      <section
+        className={styles.panel}
+        data-warm-platform-revenue-panel="true"
+        aria-labelledby="platform-revenue-title"
+      >
+        <header className={styles.panelHeader}>
+          <div className={styles.panelHeading}>
+            <h2 className={styles.panelTitle} id="platform-revenue-title">
+              平台回款
+            </h2>
+          </div>
+          <div className={styles.panelActions}>
+            <WarmButton
+              className={styles.actionButton}
+              variant="secondary"
               onClick={handleExport}
-              disabled={exporting || revenues.length === 0}
+              disabled={revenues.length === 0}
+              loading={exporting}
+              loadingLabel="正在导出平台回款"
             >
-              {exporting ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.75} />
-              ) : (
-                <Download className="h-3.5 w-3.5" strokeWidth={1.75} />
-              )}
-              {exporting ? '导出中...' : '导出 Excel'}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-7 gap-1 rounded-none border-term-border px-2 text-xs shadow-none hover:bg-term-hover hover:text-term-text"
+              <Download className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
+              {exporting ? '导出中…' : '导出 Excel'}
+            </WarmButton>
+            <WarmButton
+              className={styles.actionButton}
+              variant="primary"
               onClick={handleAdd}
             >
-              <Plus className="h-3.5 w-3.5" strokeWidth={1.75} />
+              <Plus className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden="true" />
               新增回款
-            </Button>
+            </WarmButton>
           </div>
-        }
-      >
-        {/* 滚动收口在面板内（Canvas 内滚动），表头 sticky */}
-        <div className="max-h-[calc(100vh-280px)] min-h-[240px] overflow-auto term-scroll">
-          <TermTable>
-            <TermTHead>
-              <TermRow className="hover:bg-transparent">
-                <TermHead>回款日期</TermHead>
-                <TermHead>项目</TermHead>
-                <TermHead>站点</TermHead>
-                <TermHead numeric>金额</TermHead>
-                <TermHead>币种</TermHead>
-                <TermHead>回款类型</TermHead>
-                <TermHead>备注</TermHead>
-                <TermHead numeric>操作</TermHead>
-              </TermRow>
-            </TermTHead>
-            <TermBody>
-              {loading ? (
-                Array.from({ length: 6 }).map((_, i) => (
-                  <TermRow key={`skeleton-${i}`} className="hover:bg-transparent">
-                    {Array.from({ length: 8 }).map((__, j) => (
-                      <TermCell key={j}>
-                        <Skeleton className="h-3.5 w-full max-w-[80px] rounded-none" />
-                      </TermCell>
-                    ))}
-                  </TermRow>
-                ))
-              ) : loadError ? (
-                <TermRow className="hover:bg-transparent">
-                  <TermCell colSpan={8} className="h-24 text-center" tone="neg">
-                    <span className="inline-flex items-center justify-center gap-2">{loadError}</span>
-                  </TermCell>
-                </TermRow>
-              ) : revenues.length === 0 ? (
-                <TermRow className="hover:bg-transparent">
-                  <TermCell colSpan={8} className="h-24 text-center" tone="muted">
-                    暂无回款数据，点击右上角「新增回款」录入
-                  </TermCell>
-                </TermRow>
-              ) : (
-                <>
-                  {revenues.map((revenue) => {
-                    const currencyMeta = getCurrencyBadgeMeta(revenue.currency)
-                    const countryMeta = getCountryBadgeMeta(revenue.country)
-                    return (
-                      <TermRow key={revenue.id}>
-                        <TermCell className="whitespace-nowrap font-mono">
-                          {revenue.received_date.slice(0, 10)}
-                        </TermCell>
-                        <TermCell title={revenue.project_name}>{revenue.project_name}</TermCell>
-                        <TermCell tone="muted" title={`${countryMeta.code} - ${countryMeta.accent}`}>
-                          {countryMeta.code}
-                        </TermCell>
-                        <TermCell numeric className="font-medium">
-                          {formatCurrency(revenue.amount, revenue.currency)}
-                        </TermCell>
-                        <TermCell tone={currencyMeta.tone} title={`${revenue.currency} - ${currencyMeta.accent}`}>
-                          {currencyMeta.symbol} {revenue.currency}
-                        </TermCell>
-                        <TermCell tone={revenue.revenue_type === 'B2B回款' ? 'warn' : undefined}>
-                          {revenue.revenue_type || '订单回款'}
-                        </TermCell>
-                        <TermCell
-                          className="max-w-[260px] truncate"
-                          title={revenue.note || undefined}
-                        >
-                          {revenue.note || (revenue.attachments?.length > 0 ? '' : '-')}
-                          {revenue.attachments?.length > 0 && (
-                            <span className="ml-1 inline-flex gap-0.5 align-middle">
-                              {revenue.attachments.slice(0, 3).map((image) => (
-                                <button
-                                  key={image.id}
-                                  type="button"
-                                  className="relative h-5 w-5 shrink-0 overflow-hidden border border-term-border align-middle"
-                                  onClick={() => setPreviewImage(image.url)}
-                                  title={image.filename}
-                                >
-                                  <Image
-                                    src={image.url}
-                                    alt={image.filename}
-                                    fill
-                                    sizes="20px"
-                                    className="object-cover"
-                                    unoptimized
-                                  />
-                                </button>
-                              ))}
-                              {revenue.attachments.length > 3 && (
-                                <span className="font-mono text-[10px] text-term-muted">
-                                  +{revenue.attachments.length - 3}
-                                </span>
-                              )}
-                            </span>
-                          )}
-                        </TermCell>
-                        <TermCell numeric>
-                          <span className="inline-flex justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 rounded-none text-term-muted hover:bg-term-hover hover:text-term-text"
-                              onClick={() => handleEdit(revenue)}
-                              title="编辑"
-                            >
-                              <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 rounded-none text-term-muted hover:bg-term-hover hover:text-term-neg"
-                              onClick={() => handleDeleteClick(revenue)}
-                              title="删除"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
-                            </Button>
-                          </span>
-                        </TermCell>
-                      </TermRow>
-                    )
-                  })}
-                  {/* 合计行 */}
-                  <TermRow highlight className="[&>td]:font-semibold [&>td]:bg-term-raised hover:bg-term-raised">
-                    <TermCell colSpan={3}>合计（当前页）</TermCell>
-                    <TermCell numeric>{formatTotals(calculateTotals(revenues))}</TermCell>
-                    <TermCell colSpan={4} />
-                  </TermRow>
-                </>
-              )}
-            </TermBody>
-          </TermTable>
-        </div>
-      </TermPanel>
+        </header>
 
-      {/* 分页：终端工具条规格 */}
-      <div className="flex flex-wrap items-center justify-between gap-3 font-mono text-xs tabular-nums text-term-muted">
+        <div
+          className={styles.tableRegion}
+          role="region"
+          aria-label="平台回款表格"
+          aria-busy={loading || undefined}
+          data-warm-platform-revenue-table="true"
+          tabIndex={0}
+        >
+          <table className={styles.table} aria-label="平台回款">
+            <thead>
+              <tr>
+                <th scope="col">回款日期</th>
+                <th scope="col">项目</th>
+                <th scope="col">站点</th>
+                <th className={styles.numeric} scope="col">
+                  金额
+                </th>
+                <th scope="col">币种</th>
+                <th scope="col">回款类型</th>
+                <th scope="col">备注</th>
+                <th className={styles.numeric} scope="col">
+                  操作
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <>
+                  <tr>
+                    <td colSpan={8}>
+                      <p className={styles.loadingLabel} role="status">
+                        正在加载平台回款
+                      </p>
+                    </td>
+                  </tr>
+                  {Array.from({ length: 6 }).map((_, rowIndex) => (
+                    <tr key={`skeleton-${rowIndex}`}>
+                      {Array.from({ length: 8 }).map((__, columnIndex) => (
+                        <td key={columnIndex}>
+                          <span
+                            className={cn(
+                              styles.skeletonBar,
+                              columnIndex > 0 && styles.skeletonBarNumeric
+                            )}
+                          />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </>
+              ) : loadError ? (
+                <tr className={styles.messageRow}>
+                  <td colSpan={8}>
+                    <p className={cn(styles.message, styles.errorMessage)} role="alert">
+                      {loadError}
+                    </p>
+                  </td>
+                </tr>
+              ) : revenues.length === 0 ? (
+                <tr className={styles.messageRow}>
+                  <td colSpan={8}>
+                    <p className={styles.message} role="status">
+                      暂无回款数据，点击右上角「新增回款」录入
+                    </p>
+                  </td>
+                </tr>
+              ) : (
+                revenues.map((revenue) => {
+                  const currencyMeta = getCurrencyBadgeMeta(revenue.currency)
+                  const countryMeta = getCountryBadgeMeta(revenue.country)
+                  return (
+                    <tr key={revenue.id}>
+                      <td className={styles.date}>{revenue.received_date.slice(0, 10)}</td>
+                      <td className={styles.project} title={revenue.project_name}>
+                        {revenue.project_name}
+                      </td>
+                      <td title={`${countryMeta.code} - ${countryMeta.accent}`}>
+                        <span className={styles.siteCode}>{countryMeta.code}</span>
+                      </td>
+                      <td className={styles.amount}>
+                        {formatCurrency(revenue.amount, revenue.currency)}
+                      </td>
+                      <td title={`${revenue.currency} - ${currencyMeta.accent}`}>
+                        <WarmBadge className={styles.currencyBadge}>
+                          <span className={styles.currencySymbol}>{currencyMeta.symbol}</span>{' '}
+                          {revenue.currency}
+                        </WarmBadge>
+                      </td>
+                      <td>
+                        <WarmBadge>{revenue.revenue_type || '订单回款'}</WarmBadge>
+                      </td>
+                      <td className={styles.noteCell} title={revenue.note || undefined}>
+                        <span className={styles.noteText}>
+                          {revenue.note || (revenue.attachments?.length > 0 ? '' : '-')}
+                        </span>
+                        {revenue.attachments?.length > 0 ? (
+                          <span className={styles.thumbnailList}>
+                            {revenue.attachments.slice(0, 3).map((image) => (
+                              <button
+                                key={image.id}
+                                type="button"
+                                className={styles.thumbnailButton}
+                                onClick={() => setPreviewImage(image.url)}
+                                title={image.filename}
+                                aria-label={`预览附件 ${image.filename}`}
+                              >
+                                <Image
+                                  src={image.url}
+                                  alt=""
+                                  fill
+                                  sizes="22px"
+                                  className={styles.thumbnailImage}
+                                  unoptimized
+                                />
+                              </button>
+                            ))}
+                            {revenue.attachments.length > 3 ? (
+                              <span className={styles.attachmentOverflow}>
+                                +{revenue.attachments.length - 3}
+                              </span>
+                            ) : null}
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className={styles.numeric}>
+                        <span className={styles.rowActions}>
+                          <WarmIconButton
+                            className={styles.rowAction}
+                            aria-label={`编辑回款 ${revenue.project_name}`}
+                            onClick={() => handleEdit(revenue)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} />
+                          </WarmIconButton>
+                          <WarmIconButton
+                            className={`${styles.rowAction} ${styles.rowActionDanger}`}
+                            aria-label={`删除回款 ${revenue.project_name}`}
+                            onClick={() => handleDeleteClick(revenue)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
+                          </WarmIconButton>
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+            {!loading && !loadError && revenues.length > 0 ? (
+              <tfoot>
+                <tr className={styles.totalRow}>
+                  <td className={styles.totalLabel} colSpan={3}>
+                    合计（当前页）
+                  </td>
+                  <td className={styles.totalValue}>{formatTotals(calculateTotals(revenues))}</td>
+                  <td colSpan={4} />
+                </tr>
+              </tfoot>
+            ) : null}
+          </table>
+        </div>
+      </section>
+
+      <nav className={styles.pagination} aria-label="平台回款分页">
         <span>
           共 {pagination.total} 条 · 第 {pagination.page}/{pagination.total_pages} 页
         </span>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 rounded-none border-term-border bg-transparent px-2 text-xs text-term-muted shadow-none hover:bg-term-hover hover:text-term-text"
+        <div className={styles.paginationActions}>
+          <WarmButton
+            className={styles.paginationButton}
+            variant="quiet"
             onClick={() =>
               setPagination((prev) => ({ ...prev, page: Math.max(1, prev.page - 1) }))
             }
             disabled={pagination.page <= 1}
           >
             上一页
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 rounded-none border-term-border bg-transparent px-2 text-xs text-term-muted shadow-none hover:bg-term-hover hover:text-term-text"
+          </WarmButton>
+          <WarmButton
+            className={styles.paginationButton}
+            variant="quiet"
             onClick={() =>
               setPagination((prev) => ({
                 ...prev,
@@ -1240,118 +1120,104 @@ export default function PlatformRevenuePage() {
             disabled={pagination.page >= pagination.total_pages}
           >
             下一页
-          </Button>
+          </WarmButton>
         </div>
-      </div>
+      </nav>
 
       {/* 新增/编辑弹窗 */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent
           aria-describedby="platform-revenue-dialog-description"
-          className="max-w-[calc(100%-2rem)] max-h-[calc(100vh-3rem)] overflow-y-auto rounded-none sm:max-w-[520px] dark:border-border/90 dark:bg-term-panel"
+          className={cn('warm-ledger', styles.dialog)}
         >
           <span id="platform-revenue-dialog-description" className="sr-only">
             {editingRevenue ? '修改回款记录' : '录入新的回款记录'}
           </span>
           <DialogHeader>
-            <DialogTitle>{editingRevenue ? '编辑回款记录' : '新增回款记录'}</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className={styles.dialogTitle}>
+              {editingRevenue ? '编辑回款记录' : '新增回款记录'}
+            </DialogTitle>
+            <DialogDescription className={styles.dialogDescription}>
               {editingRevenue ? '修改回款信息，保存后将立即生效' : '录入新的回款记录'}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="project">
-                  项目 <span className="text-destructive">*</span>
-                </Label>
-                <Select
-                  value={formData.project_id}
-                  onValueChange={(value) => {
-                    const selectedProject = projects.find((p) => p.id.toString() === value)
-                    setFormData((prev) => ({
-                      ...prev,
-                      project_id: value,
-                      project_name: selectedProject?.name || '',
-                      country: 'US',
-                      currency: 'USD',
-                      currencyLocked: true,
-                    }))
-                  }}
-                >
-                  <SelectTrigger id="project" className="w-full dark:bg-term-panel">
-                    <SelectValue placeholder="选择项目" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects.map((project) => (
-                      <SelectItem key={project.id} value={project.id.toString()}>
-                        {project.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="country">
-                  站点 <span className="text-destructive">*</span>
-                </Label>
-                <Select
-                  value={formData.country}
-                  onValueChange={(value) => {
-                    const currencyMap: Record<string, string> = {
-                      US: 'USD',
-                      UK: 'GBP',
-                      DE: 'EUR',
-                    }
-                    const newCurrency = currencyMap[value] || formData.currency
-                    const isLocked = !!currencyMap[value]
 
-                    setFormData((prev) => ({
-                      ...prev,
-                      country: value,
-                      currency: newCurrency,
-                      currencyLocked: isLocked,
-                    }))
-                  }}
-                  disabled={!formData.project_id}
-                >
-                  <SelectTrigger id="country" className="w-full dark:bg-term-panel">
-                    <SelectValue placeholder="选择站点" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {COUNTRY_OPTIONS.map((country) => (
-                      <SelectItem key={country.value} value={country.value}>
-                        {country.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+          <div className={styles.form}>
+            <div className={styles.formGrid}>
+              <WarmSelect
+                id="platform-revenue-project"
+                label="项目 *"
+                value={formData.project_id}
+                placeholder="选择项目"
+                options={projects.map((project) => ({
+                  value: project.id.toString(),
+                  label: project.name,
+                }))}
+                onChange={(value) => {
+                  const selectedProject = projects.find((project) => project.id.toString() === value)
+                  setFormData((prev) => ({
+                    ...prev,
+                    project_id: value,
+                    project_name: selectedProject?.name || '',
+                    country: 'US',
+                    currency: 'USD',
+                    currencyLocked: true,
+                  }))
+                }}
+              />
+              <WarmSelect
+                id="platform-revenue-country"
+                label="站点 *"
+                value={formData.country}
+                placeholder="选择站点"
+                options={COUNTRY_OPTIONS.map((country) => ({
+                  value: country.value,
+                  label: country.label,
+                }))}
+                disabled={!formData.project_id}
+                onChange={(value) => {
+                  const currencyMap: Record<string, string> = {
+                    US: 'USD',
+                    UK: 'GBP',
+                    DE: 'EUR',
+                  }
+                  const newCurrency = currencyMap[value] || formData.currency
+                  const isLocked = !!currencyMap[value]
+
+                  setFormData((prev) => ({
+                    ...prev,
+                    country: value,
+                    currency: newCurrency,
+                    currencyLocked: isLocked,
+                  }))
+                }}
+              />
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="received_date">
-                  回款日期 <span className="text-destructive">*</span>
+            <div className={styles.formGrid}>
+              <div className={styles.field}>
+                <Label className={styles.fieldLabel} htmlFor="platform-revenue-received-date">
+                  回款日期 <span className={styles.required}>*</span>
                 </Label>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        'w-full justify-start text-left font-normal',
-                        !formData.received_date && 'text-muted-foreground'
-                      )}
+                    <WarmButton
+                      id="platform-revenue-received-date"
+                      className={styles.dateButton}
+                      variant="secondary"
                     >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      <CalendarIcon className="h-4 w-4" aria-hidden="true" />
                       {formData.received_date ? (
-                        format(formData.received_date, 'yyyy-MM-dd')
+                        <span>{format(formData.received_date, 'yyyy-MM-dd')}</span>
                       ) : (
-                        <span>选择日期</span>
+                        <span className={styles.datePlaceholder}>选择日期</span>
                       )}
-                    </Button>
+                    </WarmButton>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
+                  <PopoverContent
+                    className={cn('warm-ledger', styles.calendarPopover)}
+                    align="start"
+                  >
                     <Calendar
                       mode="single"
                       selected={formData.received_date || undefined}
@@ -1364,208 +1230,193 @@ export default function PlatformRevenuePage() {
                   </PopoverContent>
                 </Popover>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="amount">
-                  回款金额 <span className="text-destructive">*</span>
+
+              <div className={styles.field}>
+                <Label className={styles.fieldLabel} htmlFor="platform-revenue-amount">
+                  回款金额 <span className={styles.required}>*</span>
                 </Label>
-                <Input
-                  id="amount"
+                <input
+                  id="platform-revenue-amount"
                   type="text"
                   inputMode="decimal"
                   value={formData.amount}
-                  onChange={(e) => {
-                    // 允许粘贴带千分位逗号的金额（如 "11,693.69"），
-                    // 同时阻止用户连续输入多个逗号以外的非法字符
-                    const formatted = formatAmountInput(e.target.value)
+                  onChange={(event) => {
+                    const formatted = formatAmountInput(event.target.value)
                     setFormData((prev) => ({ ...prev, amount: formatted }))
                   }}
                   placeholder="0.00"
-                  className="w-full"
+                  className={styles.input}
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="currency">
-                  币种 <span className="text-destructive">*</span>
-                </Label>
-                <Select
-                  value={formData.currency}
-                  onValueChange={(value) => {
-                    if (!formData.currencyLocked) {
-                      setFormData((prev) => ({ ...prev, currency: value }))
-                    }
-                  }}
-                  disabled={formData.currencyLocked}
-                >
-                  <SelectTrigger
-                    id="currency"
-                    className="w-full dark:bg-term-panel"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CURRENCY_OPTIONS.map((currency) => (
-                      <SelectItem key={currency.value} value={currency.value}>
-                        {currency.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="revenue_type">
-                  回款类型 <span className="text-destructive">*</span>
-                </Label>
-                <Select
-                  value={formData.revenue_type}
-                  onValueChange={(value) =>
-                    setFormData((prev) => ({ ...prev, revenue_type: value }))
-                  }
-                >
-                  <SelectTrigger
-                    id="revenue_type"
-                    className="w-full dark:bg-term-panel"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="订单回款">订单回款</SelectItem>
-                    <SelectItem value="B2B回款">B2B回款</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="note">备注</Label>
-              <Textarea
-                id="note"
-                value={formData.note}
-                onChange={(e) => setFormData((prev) => ({ ...prev, note: e.target.value }))}
-                placeholder="可选：添加相关备注信息"
-                rows={2}
-                className="w-full"
-              />
-            </div>
-
-            <div className="space-y-3">
-              <Label>图片附件</Label>
-              <UploadZone
-                accept="image/png,image/jpeg,image/webp,image/gif"
-                maxSize={10}
-                onUpload={async (file) => {
-                  if (!formData.project_name) {
-                    notify({ type: 'error', title: '请先选择项目' })
-                    return
-                  }
-
-                  setImageUploadState({ status: 'uploading', message: '上传中...' })
-                  setUploadingImage(true)
-                  try {
-                    const uploadFormData = new FormData()
-                    uploadFormData.append('file', file)
-                    uploadFormData.append('project_name', formData.project_name)
-
-                    const response = await fetch(
-                      '/api/backend/api/v1/platform-revenues/upload-image',
-                      {
-                        method: 'POST',
-                        body: uploadFormData,
-                      }
-                    )
-                    if (!response.ok) {
-                      const errorData = await response.json().catch(() => ({}))
-                      throw new Error(errorData.detail || '上传图片失败')
-                    }
-
-                    const result = await response.json()
-                    if (!result.id || !result.url) {
-                      throw new Error('图片信息异常')
-                    }
-
-                    setFormData((prev) => ({
-                      ...prev,
-                      attachments: [...prev.attachments, result],
-                    }))
-                    setImageUploadState({ status: 'success', message: '上传成功' })
-                    setTimeout(() => setImageUploadState({ status: 'idle', message: '' }), 2000)
-                  } catch (error) {
-                    console.error('Error uploading image:', error)
-                    setImageUploadState({
-                      status: 'error',
-                      message: error instanceof Error ? error.message : '上传失败',
-                    })
-                    setTimeout(() => setImageUploadState({ status: 'idle', message: '' }), 3000)
-                    throw error
-                  } finally {
-                    setUploadingImage(false)
+            <div className={styles.formGrid}>
+              <WarmSelect
+                id="platform-revenue-currency"
+                label="币种 *"
+                value={formData.currency}
+                options={CURRENCY_OPTIONS.map((currency) => ({
+                  value: currency.value,
+                  label: currency.label,
+                }))}
+                disabled={formData.currencyLocked}
+                onChange={(value) => {
+                  if (!formData.currencyLocked) {
+                    setFormData((prev) => ({ ...prev, currency: value }))
                   }
                 }}
-                uploadingText={imageUploadState.message || '上传中...'}
-                disabled={uploadingImage}
               />
-              {imageUploadState.message && imageUploadState.status !== 'idle' && (
-                <div
+              <WarmSelect
+                id="platform-revenue-type"
+                label="回款类型 *"
+                value={formData.revenue_type}
+                options={[
+                  { value: '订单回款', label: '订单回款' },
+                  { value: 'B2B回款', label: 'B2B回款' },
+                ]}
+                onChange={(value) =>
+                  setFormData((prev) => ({ ...prev, revenue_type: value }))
+                }
+              />
+            </div>
+
+            <div className={styles.field}>
+              <Label className={styles.fieldLabel} htmlFor="platform-revenue-note">
+                备注
+              </Label>
+              <textarea
+                id="platform-revenue-note"
+                value={formData.note}
+                onChange={(event) =>
+                  setFormData((prev) => ({ ...prev, note: event.target.value }))
+                }
+                placeholder="可选：添加相关备注信息"
+                rows={2}
+                className={styles.textarea}
+              />
+            </div>
+
+            <div className={styles.field}>
+              <Label className={styles.fieldLabel}>图片附件</Label>
+              <div className={styles.uploadZone}>
+                <UploadZone
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  maxSize={10}
+                  onUpload={async (file) => {
+                    if (!formData.project_name) {
+                      notify({ type: 'error', title: '请先选择项目' })
+                      return
+                    }
+
+                    setImageUploadState({ status: 'uploading', message: '上传中…' })
+                    setUploadingImage(true)
+                    try {
+                      const uploadFormData = new FormData()
+                      uploadFormData.append('file', file)
+                      uploadFormData.append('project_name', formData.project_name)
+
+                      const response = await fetch(
+                        '/api/backend/api/v1/platform-revenues/upload-image',
+                        {
+                          method: 'POST',
+                          body: uploadFormData,
+                        }
+                      )
+                      if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}))
+                        throw new Error(errorData.detail || '上传图片失败')
+                      }
+
+                      const result = await response.json()
+                      if (!result.id || !result.url) {
+                        throw new Error('图片信息异常')
+                      }
+
+                      setFormData((prev) => ({
+                        ...prev,
+                        attachments: [...prev.attachments, result],
+                      }))
+                      setImageUploadState({ status: 'success', message: '上传成功' })
+                      setTimeout(
+                        () => setImageUploadState({ status: 'idle', message: '' }),
+                        2000
+                      )
+                    } catch (error) {
+                      console.error('Error uploading image:', error)
+                      setImageUploadState({
+                        status: 'error',
+                        message: error instanceof Error ? error.message : '上传失败',
+                      })
+                      setTimeout(
+                        () => setImageUploadState({ status: 'idle', message: '' }),
+                        3000
+                      )
+                      throw error
+                    } finally {
+                      setUploadingImage(false)
+                    }
+                  }}
+                  uploadingText={imageUploadState.message || '上传中…'}
+                  disabled={uploadingImage}
+                />
+              </div>
+              {imageUploadState.message && imageUploadState.status !== 'idle' ? (
+                <p
                   className={cn(
-                    'text-xs',
-                    imageUploadState.status === 'error' && 'text-destructive',
-                    imageUploadState.status === 'success' && 'text-green-600',
-                    imageUploadState.status === 'uploading' && 'text-muted-foreground'
+                    styles.uploadStatus,
+                    imageUploadState.status === 'error' && styles.uploadError,
+                    imageUploadState.status === 'success' && styles.uploadSuccess
                   )}
+                  role={imageUploadState.status === 'error' ? 'alert' : 'status'}
                 >
                   {imageUploadState.message}
-                </div>
-              )}
-              {formData.attachments.length > 0 && (
-                <div className="flex flex-wrap gap-3 rounded-none border border-border/70 bg-term-raised p-3">
+                </p>
+              ) : null}
+              {formData.attachments.length > 0 ? (
+                <div className={styles.attachmentGrid}>
                   {formData.attachments.map((image) => (
-                    <div key={image.id} className="space-y-1">
-                      <div
-                        role="button"
-                        tabIndex={0}
-                        className="relative block h-20 w-20 cursor-pointer overflow-hidden rounded border"
-                        onClick={() => setPreviewImage(image.url)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') setPreviewImage(image.url)
-                        }}
-                      >
-                        <Image
-                          src={image.url}
-                          alt={image.filename}
-                          fill
-                          className="object-cover"
-                          unoptimized
-                        />
+                    <div key={image.id} className={styles.attachmentItem}>
+                      <div className={styles.attachmentTile}>
                         <button
                           type="button"
-                          className="absolute right-0 top-0 flex h-5 w-5 items-center justify-center rounded-bl bg-black/50 text-white"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleRemoveImage(image.id)
-                          }}
+                          className={styles.attachmentImageButton}
+                          onClick={() => setPreviewImage(image.url)}
+                          aria-label={`预览附件 ${image.filename}`}
                         >
-                          <X className="h-3 w-3" />
+                          <Image
+                            src={image.url}
+                            alt=""
+                            fill
+                            className={styles.thumbnailImage}
+                            unoptimized
+                          />
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.removeImageButton}
+                          onClick={() => handleRemoveImage(image.id)}
+                          aria-label={`移除附件 ${image.filename}`}
+                        >
+                          <X className="h-3 w-3" aria-hidden="true" />
                         </button>
                       </div>
-                      <div
-                        className="w-20 truncate text-[10px] text-muted-foreground"
-                        title={image.filename}
-                      >
+                      <div className={styles.attachmentName} title={image.filename}>
                         {image.filename}
                       </div>
                     </div>
                   ))}
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+
+          <DialogFooter className={styles.dialogFooter}>
+            <WarmButton variant="quiet" onClick={() => setDialogOpen(false)}>
               取消
-            </Button>
-            <Button onClick={handleSubmit}>{editingRevenue ? '保存修改' : '确认创建'}</Button>
+            </WarmButton>
+            <WarmButton variant="primary" onClick={handleSubmit}>
+              {editingRevenue ? '保存修改' : '确认创建'}
+            </WarmButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1574,47 +1425,87 @@ export default function PlatformRevenuePage() {
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent
           aria-describedby="delete-revenue-dialog-description"
-          className="max-w-[calc(100%-2rem)] rounded-none sm:max-w-[425px]"
+          className={cn('warm-ledger', styles.dialog)}
         >
           <span id="delete-revenue-dialog-description" className="sr-only">
             确认删除回款记录
           </span>
           <DialogHeader>
-            <DialogTitle>确认删除</DialogTitle>
-            <DialogDescription>您确定要删除这条回款记录吗？此操作不可恢复。</DialogDescription>
+            <DialogTitle className={styles.dialogTitle}>确认删除</DialogTitle>
+            <DialogDescription className={styles.dialogDescription}>
+              您确定要删除这条回款记录吗？此操作不可恢复。
+            </DialogDescription>
           </DialogHeader>
-          {deletingRevenue && (
-            <div className="my-4 rounded-none bg-term-raised p-3 text-sm">
+          {deletingRevenue ? (
+            <div className={styles.deleteSummary}>
               <p>
-                <span className="font-medium">项目:</span> {deletingRevenue.project_name}
+                <strong>项目：</strong> {deletingRevenue.project_name}
               </p>
               <p>
-                <span className="font-medium">日期:</span>{' '}
-                {new Date(deletingRevenue.received_date).toLocaleDateString('zh-CN')}
+                <strong>日期：</strong>{' '}
+                <span className={styles.deleteValue}>
+                  {new Date(deletingRevenue.received_date).toLocaleDateString('zh-CN')}
+                </span>
               </p>
               <p>
-                <span className="font-medium">金额:</span>{' '}
-                {formatCurrency(deletingRevenue.amount, deletingRevenue.currency)}
+                <strong>金额：</strong>{' '}
+                <span className={styles.deleteValue}>
+                  {formatCurrency(deletingRevenue.amount, deletingRevenue.currency)}
+                </span>
               </p>
             </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+          ) : null}
+          <DialogFooter className={styles.dialogFooter}>
+            <WarmButton variant="quiet" onClick={() => setDeleteDialogOpen(false)}>
               取消
-            </Button>
-            <Button variant="destructive" onClick={handleDelete}>
+            </WarmButton>
+            <WarmButton
+              variant="secondary"
+              className={styles.dangerButton}
+              onClick={handleDelete}
+            >
               确认删除
-            </Button>
+            </WarmButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <PortraitScreenshotDialog
+      <Dialog
         open={!!previewImage}
-        onOpenChange={(open) => !open && setPreviewImage(null)}
-        src={previewImage}
-        alt="图片预览"
-      />
+        onOpenChange={(open) => {
+          if (!open) {
+            setPreviewImage(null)
+            setPreviewZoomed(false)
+          }
+        }}
+      >
+        <DialogContent
+          className={cn('warm-ledger', styles.dialog, styles.previewDialog)}
+          data-warm-attachment-preview="true"
+        >
+          <DialogTitle className="sr-only">图片预览</DialogTitle>
+          <DialogDescription className="sr-only">查看回款附件大图</DialogDescription>
+          <button
+            type="button"
+            className={styles.previewViewport}
+            onClick={() => setPreviewZoomed((current) => !current)}
+            aria-label={previewZoomed ? '缩小图片' : '放大图片'}
+            title={previewZoomed ? '点击缩小' : '点击放大'}
+          >
+            {previewImage ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={previewImage}
+                alt="图片预览"
+                className={cn(
+                  styles.previewImage,
+                  previewZoomed && styles.previewImageZoomed
+                )}
+              />
+            ) : null}
+          </button>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
