@@ -304,6 +304,22 @@ describe('补货分析页 header 化渲染契约（operations header migration B
     expect(scroll.className).toMatch(/warm/i)
   })
 
+  it('主请求失败时显示独立 error 状态，不退化为 empty，且保留通知', async () => {
+    vi.mocked(fetchOpsJsonCached).mockRejectedValueOnce(new Error('补货服务不可用'))
+    const { container } = render(<InventoryReplenishmentPage />)
+    const page = container.querySelector('[data-warm-page="inventory-replenishment"]')
+
+    expect(await screen.findByText('分析数据加载失败')).toHaveAttribute(
+      'data-warm-state',
+      'error'
+    )
+    expect(page).toHaveAttribute('data-warm-state', 'error')
+    expect(screen.queryByText('当前筛选条件下没有可分析的 SKU。')).not.toBeInTheDocument()
+    expect(mockNotify).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'error', title: '分析数据加载失败' })
+    )
+  })
+
   it('4 个筛选控件注册进头部插槽（项目/关键词/站点/风险状态），正文不再渲染', async () => {
     render(<InventoryReplenishmentPage />)
     await screen.findByText('SKU-001')

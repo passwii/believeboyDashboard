@@ -317,15 +317,16 @@ const TAB_ICONS: Record<ViewTab, LucideIcon> = {
   raw: Table2,
 }
 
-const REASON_COLORS = [
-  'var(--warm-ledger-color-accent)',
-  'var(--warm-ledger-color-accent-strong)',
-  'var(--warm-ledger-color-positive)',
-  'var(--warm-ledger-color-negative)',
+/** 分类色只区分排名，不表达好/坏；避免 positive/negative/accent 语义。 */
+export const RETURN_REASON_COLORS = [
   'var(--warm-ledger-color-text-muted)',
+  'var(--warm-ledger-color-text-soft)',
+  'var(--warm-ledger-color-text)',
+  'var(--warm-ledger-color-text-faint)',
+  'var(--warm-ledger-color-raised-hover)',
 ]
 
-/** 统计磁贴：终端规格（1px 边界、mono label、tabular 数值、语义色） */
+/** 统计磁贴：Warm 面板、sans 标签、mono/tabular 数值。 */
 function SummaryTile({
   label,
   value,
@@ -413,6 +414,7 @@ export default function ReturnAnalysisPage() {
 
   const [data, setData] = useState<ReturnAnalysisResponse | null>(null)
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
 
   // 原始行懒加载状态：只在切到「原始数据」Tab 或点导出时才发请求（spec §3.3）
@@ -433,14 +435,15 @@ export default function ReturnAnalysisPage() {
 
   const { showSkeleton, isRefreshing } = useSmoothRefresh({ loading, hasData: !!data })
   const warmState =
-    projectsLoading || (loading && !data)
-      ? 'loading'
-      : !data || (activeTab === 'rankings' && data.ranking_rows.length === 0)
-        ? 'empty'
-        : 'ready'
+    loadError
+      ? 'error'
+      : projectsLoading || (loading && !data)
+        ? 'loading'
+        : !data || (activeTab === 'rankings' && data.ranking_rows.length === 0)
+          ? 'empty'
+          : 'ready'
 
-  // 主分析请求失败（data 为空且不在加载中）时原始 Tab 没有可依赖的周期数据：
-  // 给诚实空态，而不是让 tbody 永远停在 skeleton。
+  // 主分析数据尚未成功返回时，原始 Tab 没有可依赖的周期数据。
   const rawNeedsMainData = !data && !loading && !rawRows && !rawError
 
   useEffect(() => {
@@ -501,6 +504,7 @@ export default function ReturnAnalysisPage() {
       if (force) rawForceRef.current = true
 
       setLoading(true)
+      setLoadError(null)
       try {
         const search = new URLSearchParams({
           project_id: projectId,
@@ -513,6 +517,7 @@ export default function ReturnAnalysisPage() {
           { session, force, fallbackError: '退货数据加载失败' }
         )
         setData(payload)
+        setLoadError(null)
       } catch (fetchError) {
         notify({
           type: 'error',
@@ -520,6 +525,7 @@ export default function ReturnAnalysisPage() {
           message: fetchError instanceof Error ? fetchError.message : '退货数据加载失败',
         })
         setData(null)
+        setLoadError(fetchError instanceof Error ? fetchError.message : '退货数据加载失败')
       } finally {
         setLoading(false)
       }
@@ -961,6 +967,22 @@ export default function ReturnAnalysisPage() {
       {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
       {mobileFilterStrip}
 
+      {loadError ? (
+        <div className={styles.errorNotice} data-warm-state="error">
+          <div className={styles.errorCopy}>
+            <h2 className={styles.errorTitle} data-warm-state="error">
+              退货数据加载失败
+            </h2>
+            {loadError !== '退货数据加载失败' ? (
+              <p className={styles.errorMessage}>{loadError}</p>
+            ) : null}
+          </div>
+          <WarmButton variant="secondary" onClick={() => void loadData(true)}>
+            重试
+          </WarmButton>
+        </div>
+      ) : (
+        <>
       {/* 统计磁贴条（原控制台 Summary Stats，终端规格） */}
       {data && (
         <div className={styles.summaryGrid} data-warm-summary="return-analysis">
@@ -1223,7 +1245,8 @@ export default function ReturnAnalysisPage() {
                                 data={data.reason_rows.slice(0, 5).map((r, i) => ({
                                   name: r.reason_display,
                                   value: r.return_count,
-                                  fill: REASON_COLORS[i % REASON_COLORS.length],
+                                  fill:
+                                    RETURN_REASON_COLORS[i % RETURN_REASON_COLORS.length],
                                 }))}
                                 cx="50%"
                                 cy="50%"
@@ -1231,7 +1254,10 @@ export default function ReturnAnalysisPage() {
                                 dataKey="value"
                               >
                                 {data.reason_rows.slice(0, 5).map((_, i) => (
-                                  <Cell key={i} fill={REASON_COLORS[i % REASON_COLORS.length]} />
+                                  <Cell
+                                    key={i}
+                                    fill={RETURN_REASON_COLORS[i % RETURN_REASON_COLORS.length]}
+                                  />
                                 ))}
                               </Pie>
                               <ChartTooltip content={<ChartTooltipContent nameKey="name" />} />
@@ -1722,6 +1748,8 @@ export default function ReturnAnalysisPage() {
           </DataTableCardBody>
         </DataTableCard>
       </Tabs>
+        </>
+      )}
     </div>
   )
 }

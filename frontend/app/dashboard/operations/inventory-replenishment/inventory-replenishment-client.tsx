@@ -495,6 +495,7 @@ export default function InventoryReplenishmentPage() {
   const [rows, setRows] = useState<AnalysisRow[]>([])
   const [summary, setSummary] = useState<Summary>(EMPTY_SUMMARY)
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
   const [refreshingAll, setRefreshingAll] = useState(false)
   const [refreshNonce, setRefreshNonce] = useState(0)
@@ -534,11 +535,13 @@ export default function InventoryReplenishmentPage() {
   }, [actionFilter, rows, stateFilter])
 
   const warmState =
-    projectsLoading || (loading && filteredRows.length === 0)
-      ? 'loading'
-      : filteredRows.length === 0
-        ? 'empty'
-        : 'ready'
+    loadError
+      ? 'error'
+      : projectsLoading || (loading && filteredRows.length === 0)
+        ? 'loading'
+        : filteredRows.length === 0
+          ? 'empty'
+          : 'ready'
 
   const currentProjectId = useMemo(() => {
     const parsed = Number(projectId)
@@ -628,11 +631,13 @@ export default function InventoryReplenishmentPage() {
     if (!currentProjectId) {
       setRows([])
       setSummary(EMPTY_SUMMARY)
+      setLoadError(null)
       return
     }
     let active = true
     async function loadAnalysis() {
       setLoading(true)
+      setLoadError(null)
       try {
         let url: string
         let params = new URLSearchParams({
@@ -662,6 +667,7 @@ export default function InventoryReplenishmentPage() {
         if (!active) return
         setRows(payload.items)
         setSummary(payload.summary)
+        setLoadError(null)
         setEdits((prev) => {
           const next = { ...prev }
           payload.items.forEach((row) => {
@@ -674,6 +680,7 @@ export default function InventoryReplenishmentPage() {
         if (!active) return
         setRows([])
         setSummary(EMPTY_SUMMARY)
+        setLoadError(loadError instanceof Error ? loadError.message : '分析数据加载失败')
         notify({
           type: 'error',
           title: '分析数据加载失败',
@@ -871,6 +878,11 @@ export default function InventoryReplenishmentPage() {
       return
     }
     void refreshWithSave()
+  }
+
+  const retryAnalysis = () => {
+    setLoadError(null)
+    setRefreshNonce((nonce) => nonce + 1)
   }
   // ref 桥接：触发时永远执行最新闭包，防过期 state
   const handleHeaderRefreshRef = useRef(handleHeaderRefresh)
@@ -1209,6 +1221,19 @@ export default function InventoryReplenishmentPage() {
       {headerSlotPortal}
       {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
       {mobileFilterStrip}
+      {loadError ? (
+        <div className={styles.errorNotice} data-warm-state="error">
+          <div className={styles.errorCopy}>
+            <h2 className={styles.errorTitle} data-warm-state="error">
+              分析数据加载失败
+            </h2>
+            <p className={styles.errorMessage}>{loadError}</p>
+          </div>
+          <WarmButton variant="secondary" onClick={retryAnalysis}>
+            重试
+          </WarmButton>
+        </div>
+      ) : null}
 
       {/* 原控制台内容收口：筛选控件已上移 header 插槽，「刷新重算」按钮已删（全局刷新唯一入口）；
           快照选择（含创建/编辑入口，偏重）与三段式指挥带保留正文 */}
@@ -1233,17 +1258,19 @@ export default function InventoryReplenishmentPage() {
         </div>
 
         {/* 统计条 → 三段式指挥带（BLF-491） */}
-        <div className={styles.summarySurface} data-warm-summary="inventory-replenishment">
-          <CockpitOverview
-            rows={filteredRows}
-            summary={summary}
-            loading={loading}
-            stateFilter={stateFilter}
-            actionFilter={actionFilter}
-            onStateFilter={setStateFilter}
-            onActionFilter={setActionFilter}
-          />
-        </div>
+        {!loadError && (
+          <div className={styles.summarySurface} data-warm-summary="inventory-replenishment">
+            <CockpitOverview
+              rows={filteredRows}
+              summary={summary}
+              loading={loading}
+              stateFilter={stateFilter}
+              actionFilter={actionFilter}
+              onStateFilter={setStateFilter}
+              onActionFilter={setActionFilter}
+            />
+          </div>
+        )}
       </div>
 
       <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'cockpit' | 'table' | 'calendar')}>
@@ -1280,7 +1307,7 @@ export default function InventoryReplenishmentPage() {
             <div className={styles.stateNotice} data-warm-state="empty">
               请先选择项目。
             </div>
-          ) : loading && filteredRows.length === 0 ? (
+          ) : loadError ? null : loading && filteredRows.length === 0 ? (
             <div className={styles.loadingPanel} data-warm-state="loading">
               <Skeleton className="h-40 w-full" />
               <Skeleton className="h-40 w-full" />
@@ -1313,7 +1340,7 @@ export default function InventoryReplenishmentPage() {
             <div className={styles.stateNotice} data-warm-state="empty">
               请先选择项目。
             </div>
-          ) : loading && rows.length === 0 ? (
+          ) : loadError ? null : loading && rows.length === 0 ? (
             <div className={styles.loadingPanel} data-warm-state="loading">
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />

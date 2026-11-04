@@ -203,10 +203,39 @@ describe('SeasonalReplenishmentClient header 化渲染契约（operations header
     expect(page).toHaveAttribute('data-warm-state', 'empty')
   })
 
-  it('5 个筛选控件注册进头部插槽（portal 节点非空）', async () => {
-    render(<SeasonalReplenishmentClient />)
+  it('主请求失败时显示独立 error 状态，不退化为 empty，且保留通知', async () => {
+    vi.mocked(fetchOpsJsonCached).mockRejectedValueOnce(new Error('季节性服务不可用'))
+    const { container } = render(<SeasonalReplenishmentClient />)
+    const page = container.querySelector('[data-warm-page="seasonal-replenishment"]')
+
+    expect(await screen.findByText('季节性补货数据加载失败')).toHaveAttribute(
+      'data-warm-state',
+      'error'
+    )
+    expect(page).toHaveAttribute('data-warm-state', 'error')
+    expect(screen.queryByText('当前筛选条件下没有可分析的 SKU。')).not.toBeInTheDocument()
+    expect(mockNotify).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'error', title: '分析数据加载失败' })
+    )
+  })
+
+  it('5 个筛选控件均渲染，且「去年」标签使用界面 sans', async () => {
+    const { unmount } = render(<SeasonalReplenishmentClient />)
     await screen.findAllByText('SKU-001')
     expect(capturedSlotNode).not.toBeNull()
+    unmount()
+
+    const { container } = render(<>{capturedSlotNode}</>)
+    expect(container.querySelectorAll('[data-filter-control]')).toHaveLength(5)
+    expect(container.querySelector('[data-filter-control="project"]')).not.toBeNull()
+    expect(container.querySelector('[data-filter-control="country"]')).not.toBeNull()
+    expect(container.querySelector('[data-filter-control="date"]')).not.toBeNull()
+    expect(container.querySelector('[data-filter-control="keyword"]')).not.toBeNull()
+    expect(container.querySelector('[data-filter-control="compare"]')).not.toBeNull()
+    expect(screen.getAllByRole('combobox')).toHaveLength(2)
+    expect(screen.getByPlaceholderText('搜索 SKU / ASIN')).toBeInTheDocument()
+    expect(screen.getByRole('switch')).toBeInTheDocument()
+    expect(screen.getByText('去年')).not.toHaveClass('font-mono')
   })
 
   it('旧控制台已移除：无「控制台」文案、无「刷新重算」按钮，正文不再渲染筛选控件', async () => {

@@ -185,6 +185,40 @@
   border-radius: var(--warm-ledger-radius-panel);
 }
 
+.errorNotice {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--warm-ledger-space-3);
+  padding: var(--warm-ledger-space-4) var(--warm-ledger-space-5);
+  color: var(--warm-ledger-color-text);
+  background: var(--warm-ledger-color-panel);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-negative);
+  border-radius: var(--warm-ledger-radius-panel);
+}
+
+.errorCopy {
+  min-width: 0;
+}
+
+.errorTitle {
+  margin: 0;
+  color: var(--warm-ledger-color-negative);
+  font-size: var(--warm-ledger-font-size-body);
+  font-weight: var(--warm-ledger-font-weight-medium);
+  line-height: var(--warm-ledger-line-height-body);
+}
+
+.errorMessage {
+  margin: var(--warm-ledger-space-1) 0 0;
+  overflow-wrap: anywhere;
+  color: var(--warm-ledger-color-text-soft);
+  font-size: var(--warm-ledger-font-size-control);
+  line-height: var(--warm-ledger-line-height-body);
+}
+
 .loadingPanel {
   display: grid;
   gap: var(--warm-ledger-space-3);
@@ -252,6 +286,14 @@
   font-weight: var(--warm-ledger-font-weight-medium);
   background: var(--warm-ledger-color-accent-soft);
   border-radius: 999px;
+}
+
+.filterLabel {
+  cursor: pointer;
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-sans);
+  font-size: var(--warm-ledger-font-size-body);
+  line-height: var(--warm-ledger-line-height-body);
 }
 
 .mobileCard {

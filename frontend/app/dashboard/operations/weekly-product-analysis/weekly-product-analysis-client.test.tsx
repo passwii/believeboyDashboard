@@ -279,7 +279,7 @@ describe('WeeklyProductAnalysisClient header 化渲染契约（operations header
     expect(screen.getByRole('button', { name: /导出 Excel/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /重新核算/ })).toBeInTheDocument()
 
-    // 趋势统计条（DataTableCardStatBar 保留项）
+    // 趋势统计条（WarmStatBar 保留项）
     expect(screen.getByText('销售额合计')).toBeInTheDocument()
 
     // 稳定引用回归护栏：session/notify identity 抖动会导致 effect 重复触发 → 重复拉数
@@ -299,6 +299,19 @@ describe('WeeklyProductAnalysisClient header 化渲染契约（operations header
     expect(scroll).not.toBeNull()
     expect(scroll?.querySelector('table')).not.toBeNull()
     expect(scroll?.className).toMatch(/warm/i)
+  })
+
+  it('统计条标签用界面 sans，销售额/销量/广告花费数值保留 Warm mono 与 tabular 契约', async () => {
+    render(<WeeklyProductAnalysisClient />)
+    await screen.findByText('2026-08-17 至 2026-08-23')
+
+    for (const labelText of ['销售额合计', '销量合计', '广告花费合计']) {
+      const label = screen.getByText(labelText)
+      expect(label).toHaveClass('warm-ledger-stat-label')
+      expect(label.className).not.toMatch(/font-mono/)
+      const value = label.nextElementSibling
+      expect(value).toHaveClass('warm-ledger-stat-value')
+    }
   })
 
   it('Warm Ledger 契约：错误态与空态保留明确标记', async () => {

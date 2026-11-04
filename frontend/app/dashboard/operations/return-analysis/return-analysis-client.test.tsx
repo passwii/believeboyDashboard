@@ -320,7 +320,7 @@ vi.mock('@/lib/ops-client-cache', async (importOriginal) => {
   }
 })
 
-import ReturnAnalysisClient from './return-analysis-client'
+import ReturnAnalysisClient, { RETURN_REASON_COLORS } from './return-analysis-client'
 import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
 import { RAW_DISPLAY_LIMIT, RETURN_RAW_COLUMNS } from './return-raw-columns'
 
@@ -396,6 +396,33 @@ describe('ReturnAnalysisClient header 化渲染契约（BLF-834 / operations hea
     const { container } = render(<ReturnAnalysisClient />)
     expect(await screen.findByText('退货原因分析')).toBeInTheDocument()
     expect(container.querySelector('[data-warm-chart="return-reasons"]')).not.toBeNull()
+  })
+
+  it('主请求失败时显示独立 error 状态，不退化为 empty，且保留通知', async () => {
+    vi.mocked(fetchOpsJsonCached).mockRejectedValueOnce(new Error('退货服务不可用'))
+    const { container } = render(<ReturnAnalysisClient />)
+    const page = container.querySelector('[data-warm-page="return-analysis"]')
+
+    expect(await screen.findByText('退货数据加载失败')).toHaveAttribute(
+      'data-warm-state',
+      'error'
+    )
+    expect(page).toHaveAttribute('data-warm-state', 'error')
+    expect(screen.queryByText('暂无退货排行数据')).not.toBeInTheDocument()
+    expect(mockNotify).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'error', title: '退货数据加载失败' })
+    )
+  })
+
+  it('退货原因饼图使用中性分类色，不表达 positive/negative 语义', () => {
+    expect(RETURN_REASON_COLORS).toEqual([
+      'var(--warm-ledger-color-text-muted)',
+      'var(--warm-ledger-color-text-soft)',
+      'var(--warm-ledger-color-text)',
+      'var(--warm-ledger-color-text-faint)',
+      'var(--warm-ledger-color-raised-hover)',
+    ])
+    expect(RETURN_REASON_COLORS.join(' ')).not.toMatch(/positive|negative|accent/)
   })
 
   it('Warm Ledger 契约：空态与原始数据错误态带可识别状态标记', async () => {
@@ -645,12 +672,15 @@ describe('原始数据 Tab（原始行懒加载）', () => {
     expect(await screen.findByText('所选周期无原始退货数据')).toBeInTheDocument()
   })
 
-  it('主分析请求失败（data 为空）时展示诚实空态而非永久 skeleton', async () => {
+  it('主分析请求失败时展示独立错误态，且不触发原始行懒加载', async () => {
     vi.mocked(fetchOpsJsonCached).mockRejectedValueOnce(new Error('退货数据加载失败'))
     mockParams = { project: '1', country: 'US', tab: 'raw' }
     render(<ReturnAnalysisClient />)
 
-    expect(await screen.findByText('请先加载退货分析数据')).toBeInTheDocument()
+    expect(await screen.findByText('退货数据加载失败')).toHaveAttribute(
+      'data-warm-state',
+      'error'
+    )
     // data 为 null 时懒加载不会发原始行请求
     expect(rawRequestCount).toBe(0)
   })

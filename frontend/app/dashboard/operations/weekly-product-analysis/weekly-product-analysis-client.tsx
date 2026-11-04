@@ -32,7 +32,6 @@ import {
   DataTableCard,
   DataTableCardHeader,
   DataTableCardBody,
-  DataTableCardStatBar,
 } from '@/components/ui/data-card'
 import { formatDateInputValue, parseDateRangeInputValue } from '@/components/ui/date-picker'
 import {
@@ -408,6 +407,30 @@ function WarmTable({
       >
         {children}
       </Table>
+    </div>
+  )
+}
+
+function WarmStatBar({
+  items,
+}: {
+  items: ReadonlyArray<{ label: string; value: ReactNode; highlight?: boolean }>
+}) {
+  return (
+    <div className={styles.statBar} data-warm-stat-bar="weekly-product-analysis">
+      {items.map((item) => (
+        <div key={item.label}>
+          <div className={cn(styles.statBarLabel, 'warm-ledger-stat-label')}>
+            {item.label}
+          </div>
+          <div
+            className={cn(styles.statBarValue, 'warm-ledger-stat-value')}
+            data-tone={item.highlight ? 'accent' : undefined}
+          >
+            {item.value}
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -2059,8 +2082,7 @@ export default function WeeklyProductAnalysisPage() {
             </div>
           }
         />
-        <DataTableCardStatBar
-          className={styles.statBar}
+        <WarmStatBar
           items={[
             {
               label: '销售额合计',

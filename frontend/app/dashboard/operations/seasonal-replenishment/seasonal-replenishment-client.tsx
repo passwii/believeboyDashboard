@@ -247,6 +247,7 @@ export default function SeasonalReplenishmentPage() {
   const [rows, setRows] = useState<SeasonalRow[]>([])
   const [summary, setSummary] = useState<Summary>(EMPTY_SUMMARY)
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
   const [refreshNonce, setRefreshNonce] = useState(0)
   // BEL-423："刷新重算"后的下一次加载跳过客户端缓存（拿后端最新重算结果）。
@@ -261,11 +262,13 @@ export default function SeasonalReplenishmentPage() {
   const toDate = dateRange?.to
   const compareYearOffset = compareYear ? 1 : 0
   const warmState =
-    projectsLoading || (loading && rows.length === 0)
-      ? 'loading'
-      : rows.length === 0
-        ? 'empty'
-        : 'ready'
+    loadError
+      ? 'error'
+      : projectsLoading || (loading && rows.length === 0)
+        ? 'loading'
+        : rows.length === 0
+          ? 'empty'
+          : 'ready'
 
   const tableTotals = useMemo(
     () =>
@@ -343,11 +346,13 @@ export default function SeasonalReplenishmentPage() {
     if (!currentProjectId || !fromDate || !toDate) {
       setRows([])
       setSummary(EMPTY_SUMMARY)
+      setLoadError(null)
       return
     }
     let active = true
     async function loadAnalysis() {
       setLoading(true)
+      setLoadError(null)
       try {
         const params = new URLSearchParams({
           country,
@@ -369,10 +374,12 @@ export default function SeasonalReplenishmentPage() {
         if (!active) return
         setRows(payload.items)
         setSummary(payload.summary)
+        setLoadError(null)
       } catch (loadError) {
         if (!active) return
         setRows([])
         setSummary(EMPTY_SUMMARY)
+        setLoadError(loadError instanceof Error ? loadError.message : '分析数据加载失败')
         notify({
           type: 'error',
           title: '分析数据加载失败',
@@ -635,46 +642,57 @@ export default function SeasonalReplenishmentPage() {
   // 5 个筛选控件 portal 进 Top Header 中段插槽（项目 / 站点 / 日期范围 / 关键词 / 同比开关）
   const filterControls = (
     <>
-      <HeaderSlotSelect
-        value={projectId}
-        onChange={setProjectId}
-        options={projects.map((project) => ({
-          value: String(project.id),
-          label: project.name,
-        }))}
-        placeholder={projectsLoading ? '项目加载中…' : '选择项目'}
-        disabled={projectsLoading}
-        widthClass={TERM_HEADER_W_MD}
-        title="项目筛选"
-      />
-      <HeaderSlotSelect
-        value={country}
-        onChange={(value) => setCountry(value as 'US' | 'DE' | 'UK' | 'ALL')}
-        options={COUNTRY_SLOT_OPTIONS}
-        widthClass={TERM_HEADER_W_SM}
-        title="站点筛选"
-      />
-      <div className="shrink-0" title={dateRangeHint || undefined}>
-        <HeaderSlotDateRange
-          value={dateRange}
-          onChange={setDateRange}
-          timezone={COUNTRY_TIMEZONE_MAP[country]}
-          widthClass={TERM_HEADER_W_XL}
+      <div className="contents" data-filter-control="project">
+        <HeaderSlotSelect
+          value={projectId}
+          onChange={setProjectId}
+          options={projects.map((project) => ({
+            value: String(project.id),
+            label: project.name,
+          }))}
+          placeholder={projectsLoading ? '项目加载中…' : '选择项目'}
+          disabled={projectsLoading}
+          widthClass={TERM_HEADER_W_MD}
+          title="项目筛选"
         />
       </div>
-      {/* 关键词输入：Input lg 档即 h-10 term 规格（rounded-[var(--warm-ledger-radius-inner)] / term 边界 / mono），与 TERM_HEADER_TRIGGER 高度对齐（BLF-887 上档） */}
-      <Input
-        size="lg"
-        value={keyword}
-        onChange={(event) => setKeyword(event.target.value)}
-        placeholder="搜索 SKU / ASIN"
-        className={cn('shrink-0', TERM_HEADER_W_LG)}
-        title="关键词筛选（SKU / ASIN）"
-      />
-      {/* 「去年」同比开关：h-10 term 容器对齐（BLF-887 上档），mono label */}
-      <div className="flex h-10 shrink-0 items-center gap-1.5 rounded-[var(--warm-ledger-radius-inner)] border border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] px-2.5">
+      <div className="contents" data-filter-control="country">
+        <HeaderSlotSelect
+          value={country}
+          onChange={(value) => setCountry(value as 'US' | 'DE' | 'UK' | 'ALL')}
+          options={COUNTRY_SLOT_OPTIONS}
+          widthClass={TERM_HEADER_W_SM}
+          title="站点筛选"
+        />
+      </div>
+      <div className="contents" data-filter-control="date">
+        <div className="shrink-0" title={dateRangeHint || undefined}>
+          <HeaderSlotDateRange
+            value={dateRange}
+            onChange={setDateRange}
+            timezone={COUNTRY_TIMEZONE_MAP[country]}
+            widthClass={TERM_HEADER_W_XL}
+          />
+        </div>
+      </div>
+      {/* 关键词输入沿用 header 控件高度，视觉由页面本地 Warm 样式接管。 */}
+      <div className="contents" data-filter-control="keyword">
+        <Input
+          size="lg"
+          value={keyword}
+          onChange={(event) => setKeyword(event.target.value)}
+          placeholder="搜索 SKU / ASIN"
+          className={cn('shrink-0', TERM_HEADER_W_LG)}
+          title="关键词筛选（SKU / ASIN）"
+        />
+      </div>
+      {/* 「去年」同比开关：保持与 header 控件同高，标签使用界面 sans */}
+      <div
+        className="flex h-10 shrink-0 items-center gap-1.5 rounded-[var(--warm-ledger-radius-inner)] border border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] px-2.5"
+        data-filter-control="compare"
+      >
         <Switch checked={compareYear} onCheckedChange={setCompareYear} id="compare-yoy" />
-        <label htmlFor="compare-yoy" className="cursor-pointer font-mono text-sm text-[var(--warm-ledger-color-text)]">
+        <label htmlFor="compare-yoy" className={styles.filterLabel}>
           去年
         </label>
       </div>
@@ -736,7 +754,7 @@ export default function SeasonalReplenishmentPage() {
           </MobileFilterWide>
           <div className="flex h-10 shrink-0 items-center gap-1.5 rounded-[var(--warm-ledger-radius-inner)] border border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] px-2.5">
             <Switch checked={compareYear} onCheckedChange={setCompareYear} id="compare-yoy-mobile" />
-            <label htmlFor="compare-yoy-mobile" className="cursor-pointer font-mono text-sm text-[var(--warm-ledger-color-text)]">
+            <label htmlFor="compare-yoy-mobile" className={styles.filterLabel}>
               去年
             </label>
           </div>
@@ -756,8 +774,23 @@ export default function SeasonalReplenishmentPage() {
       {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
       {mobileFilterStrip}
 
+      {loadError ? (
+        <div className={styles.errorNotice} data-warm-state="error">
+          <div className={styles.errorCopy}>
+            <h2 className={styles.errorTitle} data-warm-state="error">
+              季节性补货数据加载失败
+            </h2>
+            <p className={styles.errorMessage}>{loadError}</p>
+          </div>
+          <WarmButton variant="secondary" onClick={handleRefreshRecalc}>
+            重试
+          </WarmButton>
+        </div>
+      ) : null}
+
       {/* 5 格统计条（原控制台内容，保留） */}
-      <div className={styles.summaryPanel} data-warm-summary="seasonal-replenishment">
+      {!loadError && (
+        <div className={styles.summaryPanel} data-warm-summary="seasonal-replenishment">
         <div>
           {loading && rows.length === 0 ? (
             <div className={styles.summaryGrid} data-warm-state="loading">
@@ -783,9 +816,11 @@ export default function SeasonalReplenishmentPage() {
             </div>
           )}
         </div>
-      </div>
+        </div>
+      )}
 
-      <div>
+      {!loadError && (
+        <div>
         <div className={styles.tableToolbar}>
           <div className={styles.tableTitleRow}>
             <Table2 className="h-4 w-4 text-[var(--warm-ledger-color-text-muted)]" />
@@ -1162,7 +1197,8 @@ export default function SeasonalReplenishmentPage() {
             </div>
           </>
         )}
-      </div>
+        </div>
+      )}
 
       <div className={styles.callout}>
         <div className="space-y-3">

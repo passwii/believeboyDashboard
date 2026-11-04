@@ -50,16 +50,49 @@
 }
 
 .statBar {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   border-color: var(--warm-ledger-color-hairline);
   background: var(--warm-ledger-color-panel-strong);
 }
 
 .statBar > :global(div) {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--warm-ledger-space-1);
+  padding: var(--warm-ledger-space-2) var(--warm-ledger-space-4);
   border-color: var(--warm-ledger-color-hairline);
+  border-right: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
 }
 
-.statBar :global([class*='font-mono']) {
+.statBar > :global(div:last-child) {
+  border-right: 0;
+}
+
+.statBarLabel {
+  margin: 0;
+  color: var(--warm-ledger-color-text-muted);
   font-family: var(--warm-ledger-font-sans);
+  font-size: var(--warm-ledger-font-size-label);
+  line-height: var(--warm-ledger-line-height-body);
+}
+
+.statBarValue {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-mono);
+  font-size: 20px;
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+  line-height: var(--warm-ledger-line-height-tight);
+}
+
+.statBarValue[data-tone='accent'] {
+  color: var(--warm-ledger-color-accent);
 }
 
 .legendButton {
