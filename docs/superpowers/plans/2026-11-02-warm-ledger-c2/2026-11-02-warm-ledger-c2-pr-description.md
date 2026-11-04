@@ -21,3 +21,7 @@ Backend project-scope authorization findings and SKU Info pagination/export/imag
 ## Build warnings
 
 The build completed successfully with existing Next.js workspace-root/NFT, stale Browserslist, and Turbopack NFT-list warnings.
+
+## GitHub CI baseline note
+
+The PR's full frontend Vitest workflow reports 5 failures in `inventory-analysis-client.test.tsx` and `portfolio-overview-client.test.tsx`. The same failure cases are present in the base `main` workflow run `41735587296`; that baseline run also had a stale Warm topbar assertion which this PR corrects. The focused C2 suite (27 files / 199 tests) is green. The Vercel status check reports “Account is blocked”; the base commit shows the same Vercel account failure.

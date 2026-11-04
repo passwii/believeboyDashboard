@@ -64,5 +64,5 @@ Later categories remain C4 Advertising, C5 Finance, C6 CRM and C7 AI/Tools/Syste
 ## Handoff constraints
 
 - Team implementation and review members use the user's preferred GPT-6-Luna / max setup.
-- At the original checkpoint, C2 changes were uncommitted on `main` at `435c9cc7`. The user has since authorized a PR on `feat/warm-ledger-c2-closeout`; exclude and preserve the pre-existing untracked `gui/` directory. This C2 change has no backend files and is not manually deployed.
+- At the original checkpoint, C2 changes were uncommitted on `main` at `435c9cc7`. The user later authorized PR #798 on `feat/warm-ledger-c2-closeout` (`6fe6aea4`); exclude and preserve the pre-existing untracked `gui/` directory. This C2 change has no backend files and is not manually deployed.
 - Task 6 build and browser evidence is recorded above. Backend authorization and the SKU technical follow-ups remain open in the separate security/technical records.
