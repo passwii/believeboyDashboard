@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { WarmLedgerShell } from './warm-ledger-shell'
@@ -170,35 +172,49 @@ describe('WarmLedgerShell', () => {
 })
 
 describe('WarmLedgerTopbar', () => {
-  it('renders a labeled project select and reports selection changes', () => {
+  it('renders the selected project and reports option selection changes', async () => {
     installMatchMedia(false)
+    const user = userEvent.setup()
     const onProjectChange = vi.fn()
+    const projectOptions = [
+      { value: 'all', label: '全部项目' },
+      { value: 'project-2', label: '项目二' },
+    ]
 
-    render(
-      <WarmLedgerShell
-        topbar={
-          <WarmLedgerTopbar
-            projectId="project-2"
-            projectOptions={[
-              { value: 'all', label: '全部项目' },
-              { value: 'project-2', label: '项目二' },
-            ]}
-            onProjectChange={onProjectChange}
-            siteLabel="US"
-          />
-        }
-      >
-        Dashboard
-      </WarmLedgerShell>
-    )
+    function ControlledShell() {
+      const [projectId, setProjectId] = useState('project-2')
+
+      return (
+        <WarmLedgerShell
+          topbar={
+            <WarmLedgerTopbar
+              projectId={projectId}
+              projectOptions={projectOptions}
+              onProjectChange={(value) => {
+                onProjectChange(value)
+                setProjectId(value)
+              }}
+              siteLabel="US"
+            />
+          }
+        >
+          Dashboard
+        </WarmLedgerShell>
+      )
+    }
+
+    render(<ControlledShell />)
 
     const select = screen.getByRole('combobox', { name: '项目筛选' })
-    expect(select).toHaveValue('project-2')
+    expect(select).toHaveTextContent('项目二')
     expect(screen.getByText('近 7 天')).toBeInTheDocument()
     expect(screen.getByText('US')).toBeInTheDocument()
 
-    fireEvent.change(select, { target: { value: 'all' } })
+    await user.click(select)
+    await user.click(await screen.findByRole('option', { name: '全部项目' }))
+
     expect(onProjectChange).toHaveBeenCalledWith('all')
+    expect(select).toHaveTextContent('全部项目')
   })
 
   it('only renders action buttons when their callbacks exist', () => {

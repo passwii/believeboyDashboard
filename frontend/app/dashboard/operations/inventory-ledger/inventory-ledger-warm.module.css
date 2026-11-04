@@ -93,7 +93,11 @@
 }
 
 .filterField :global(.warm-ledger__select-error) {
-  max-width: 260px;
+  position: static;
+  inset: auto;
+  z-index: auto;
+  max-width: min(260px, 100%);
+  white-space: normal;
   overflow-wrap: anywhere;
   color: var(--warm-ledger-color-negative);
   font-size: var(--warm-ledger-font-size-label);

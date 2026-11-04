@@ -1,5 +1,6 @@
 .page {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   width: 100%;
   min-width: 0;
   gap: 16px;
@@ -10,6 +11,7 @@
 .content,
 .tabs {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   gap: 16px;
 }
@@ -554,7 +556,10 @@
 
 .toolbar {
   display: flex;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
+  box-sizing: border-box;
   flex-direction: column;
   align-items: stretch;
   gap: 12px;
@@ -562,7 +567,10 @@
 }
 
 .tabViewport {
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
+  box-sizing: border-box;
   overflow: hidden;
 }
 
@@ -752,12 +760,18 @@
 }
 
 .tableFrame {
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
+  box-sizing: border-box;
   overflow: hidden;
 }
 
 .tableViewport {
+  width: 100%;
   max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   overflow-x: auto;
   overflow-y: visible;
   overscroll-behavior-x: contain;
@@ -1292,6 +1306,7 @@
 
 .loadingPage {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   gap: 16px;
   color: var(--warm-ledger-color-text);

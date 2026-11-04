@@ -59,10 +59,11 @@ vi.mock('@/components/terminal/terminal-header-slot', () => ({
     capturedRefreshLoading = opts?.loading
     return { setLoading: vi.fn() }
   },
-  useHeaderSlot: (node: ReactNode) => {
+  usePrimaryFilterSlot: (node: ReactNode) => {
     capturedSlotNode = node
     return node
   },
+  useSecondaryHeaderSlot: (node: ReactNode) => node,
   useMobileFilterStrip: () => null,
 }))
 
@@ -147,7 +148,7 @@ import { buildListingCopyPayload } from '@/components/dashboard/sku-info/listing
 
 /** 项目下拉由 fetchManagedProjectsCached 异步填充；等到 trigger 可用即列表就绪 */
 async function waitForProjectsReady() {
-  await waitFor(() => expect(screen.getByTitle('项目筛选')).toBeEnabled())
+  await waitFor(() => expect(screen.getByRole('combobox', { name: '项目' })).toBeEnabled())
 }
 
 /** Radix Select 打开（jsdom 下 pointerDown + click，与 header-filter-suite.test 同款） */
@@ -223,10 +224,10 @@ describe('SkuInfoPage header 化渲染契约（operations header migration B3）
   it('提交制语义：选择项目不触发查询（旧 onProjectFilterChange 自动查询已移除）', async () => {
     render(<SkuInfoPage />)
     await waitForProjectsReady()
-    const trigger = screen.getByTitle('项目筛选')
+    const trigger = screen.getByRole('combobox', { name: '项目' })
     openSelect(trigger)
     fireEvent.click(await screen.findByText('项目A'))
-    await waitFor(() => expect(screen.getByTitle('项目筛选')).toHaveTextContent('项目A'))
+    await waitFor(() => expect(screen.getByRole('combobox', { name: '项目' })).toHaveTextContent('项目A'))
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
@@ -245,10 +246,10 @@ describe('SkuInfoPage header 化渲染契约（operations header migration B3）
     await waitForProjectsReady()
 
     // 选择项目（不触发查询）
-    const trigger = screen.getByTitle('项目筛选')
+    const trigger = screen.getByRole('combobox', { name: '项目' })
     openSelect(trigger)
     fireEvent.click(await screen.findByText('项目A'))
-    await waitFor(() => expect(screen.getByTitle('项目筛选')).toHaveTextContent('项目A'))
+    await waitFor(() => expect(screen.getByRole('combobox', { name: '项目' })).toHaveTextContent('项目A'))
     // 填写 SKU（不触发查询）
     fireEvent.change(screen.getByPlaceholderText('输入 SKU 或 ASIN'), {
       target: { value: 'SKU-001' },

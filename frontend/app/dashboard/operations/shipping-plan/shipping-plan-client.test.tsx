@@ -1,24 +1,33 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { notify, stableNotifications, stableSession } from '@/test-utils/stable-mocks'
 
 const mocks = vi.hoisted(() => ({
-  filter: { ready: true, projectId: '42', country: 'US', dateFrom: '', dateTo: '' },
-  notify: vi.fn(),
-  refresh: vi.fn(),
-  slotNode: null as ReactNode,
-  selectOnValueChange: null as ((value: string) => void) | null,
+  filter: {
+    ready: true,
+    projectId: '42',
+    country: 'US',
+    dateFrom: '',
+    dateTo: '',
+    setProjectId: vi.fn(),
+    setCountry: vi.fn(),
+  },
 }))
 
+vi.mock('next-auth/react', () => ({
+  useSession: () => stableSession({ user: { id: 'user-1', roleType: 'admin' } }),
+}))
 vi.mock('@/components/terminal/global-filter-context', () => ({
   useTerminalGlobalFilter: () => mocks.filter,
 }))
 vi.mock('@/components/notifications', () => ({
-  useNotifications: () => ({ notify: mocks.notify }),
+  useNotifications: () => stableNotifications(),
 }))
 vi.mock('@/components/terminal/terminal-header-slot', () => ({
-  useHeaderRefresh: () => ({ setLoading: vi.fn() }),
-  useHeaderSlot: (node: ReactNode) => { mocks.slotNode = node; return null },
+  useHeaderRefresh: vi.fn(),
+  usePrimaryFilterSlot: (node: ReactNode) => node,
   useMobileFilterStrip: () => null,
 }))
 vi.mock('recharts', () => ({
@@ -34,21 +43,17 @@ vi.mock('recharts', () => ({
   XAxis: () => null,
   YAxis: () => null,
 }))
-vi.mock('@/components/ui/select', () => ({
-  Select: ({ children, onValueChange }: { children: ReactNode; onValueChange?: (value: string) => void }) => {
-    mocks.selectOnValueChange = onValueChange ?? null
-    return <div>{children}</div>
-  },
-  SelectContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  SelectItem: ({ children, value }: { children: ReactNode; value: string }) => <button type="button" role="option" aria-selected="false" onClick={() => mocks.selectOnValueChange?.(value)}>{children}</button>,
-  SelectTrigger: ({ children, ...props }: React.HTMLAttributes<HTMLButtonElement>) => <button {...props}>{children}</button>,
-  SelectValue: ({ placeholder }: { placeholder: string }) => <span>{placeholder}</span>,
-}))
 
 import ShippingPlanClient from './shipping-plan-client'
 
 function response(data: unknown) {
   return { ok: true, status: 200, json: async () => data } as Response
+}
+
+async function selectWarmOption(label: string, optionName: string | RegExp) {
+  const user = userEvent.setup()
+  await user.click(screen.getByRole('combobox', { name: label }))
+  await user.click(await screen.findByRole('option', { name: optionName }))
 }
 
 function deferred<T>() {
@@ -67,13 +72,20 @@ const sku = {
 }
 
 beforeEach(() => {
-  mocks.filter = { ready: true, projectId: '42', country: 'US', dateFrom: '', dateTo: '' }
-  mocks.selectOnValueChange = null
-  mocks.notify.mockReset()
-  mocks.refresh.mockReset()
+  mocks.filter = {
+    ready: true,
+    projectId: '42',
+    country: 'US',
+    dateFrom: '',
+    dateTo: '',
+    setProjectId: vi.fn(),
+    setCountry: vi.fn(),
+  }
+  notify.mockClear()
   let allocationRemoved = false
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
+    if (url.includes('/api/v1/projects/manage')) return response([{ id: 42, name: '测试项目' }])
     if (url.includes('/skus?')) return response({ items: [sku], total: 1, page: 1, page_size: 200, valid_forecast_sku_count: 1, missing_forecast_sku_count: 0, known_confirmed_sales_upper_bound: 170, known_planned_sales_upper_bound: 180 })
     if (url.includes('/shipment-history?')) return response({ project_id: 42, country: 'US', etd_from: '2025-10-08', etd_to: '2026-10-08', months: [{ month: '2026-09', shipment_count: 2, quantity: 40 }], missing_etd_shipment_count: 1, missing_etd_quantity: 7, included_statuses: ['in_transit', 'completed'], date_basis: 'ETD 作为 V1 计划发运日期代理，不代表实际离港日' })
     if (url.includes('/batches?')) return response({ items: [{ id: 1, name: 'OCT-PLAN', expected_arrival_date: '2026-11-01', status: 'active', remark: null, items: [{ id: 11, sku: 'SKU-001', quantity: 12, allocated_quantity: allocationRemoved ? 0 : 4, remaining_quantity: allocationRemoved ? 12 : 8, allocations: allocationRemoved ? [] : [{ id: 8, plan_item_id: 11, shipment_schedule_id: 90, sku: 'SKU-001', quantity: 4 }] }] }] })
@@ -94,20 +106,32 @@ afterEach(() => {
 })
 
 describe('ShippingPlanClient', () => {
-  it('shows plan projections, shipment history and partial allocation balance', async () => {
+  it('shows Warm filters, SKU details, forecast and shipment plan content', async () => {
     render(<ShippingPlanClient />)
-    expect(await screen.findByText('销量与库存预测')).toBeInTheDocument()
     expect(await screen.findByText('OCT-PLAN')).toBeInTheDocument()
+    expect(await screen.findByText('B0TEST')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '发货规划', level: 1 })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: '项目和站点筛选' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: '项目' })).toHaveTextContent('测试项目')
+    expect(screen.getByRole('combobox', { name: '站点' })).toHaveTextContent('美国站 (US)')
+    expect(screen.getByRole('heading', { name: 'SKU 清单' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: '选择预测 SKU' })).toHaveTextContent('SKU-001')
+    expect(screen.getByRole('button', { name: /SKU-001/ })).toHaveTextContent('测试商品')
+    expect(screen.getByText('B0TEST')).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: '预测 SKU' })).toHaveTextContent('SKU-001')
+    expect(screen.getByRole('heading', { name: '180 天销量与库存预测' })).toBeInTheDocument()
+    expect(await screen.findByTestId('shipping-plan-forecast-chart')).toBeInTheDocument()
     expect(screen.getByText('计划 12 · 已关联 4 · 余额 8')).toBeInTheDocument()
-    expect(screen.getByTestId('shipment-history-chart')).toBeInTheDocument()
+    expect(await screen.findByTestId('shipment-history-chart')).toBeInTheDocument()
     expect(screen.getByText(/缺少 ETD：1 件货/)).toBeInTheDocument()
-    expect(screen.getByText(/预测从预计到仓日当天计入库存/)).toBeInTheDocument()
+    expect(screen.getByText('按自然月汇总；缺口为当月预测需求未能满足的数量')).toBeInTheDocument()
   })
 
-  it('requires a single site instead of aggregating ALL sites', () => {
-    mocks.filter = { ready: true, projectId: '42', country: 'ALL', dateFrom: '', dateTo: '' }
+  it('requires a single site instead of aggregating ALL sites', async () => {
+    mocks.filter = { ...mocks.filter, country: 'ALL' }
     render(<ShippingPlanClient />)
-    expect(screen.getByText('请先选择项目和单一站点')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '需要选择单一项目和站点' })).toBeInTheDocument()
+    expect(screen.getByText('发货规划需要 US、DE 或 UK 单一站点；全部站点不受支持。')).toBeInTheDocument()
     expect(screen.queryByTestId('shipping-plan-forecast-chart')).not.toBeInTheDocument()
   })
 
@@ -115,9 +139,10 @@ describe('ShippingPlanClient', () => {
     const fetchMock = vi.mocked(fetch)
     render(<ShippingPlanClient />)
     await screen.findByText('OCT-PLAN')
+    await waitFor(() => expect(screen.getByRole('combobox', { name: '计划 SKU 1' })).toBeEnabled())
     fireEvent.change(screen.getByLabelText('计划批次名称'), { target: { value: 'NOV-PLAN' } })
     fireEvent.change(screen.getByLabelText('预计到仓日期'), { target: { value: '2026-11-20' } })
-    fireEvent.change(screen.getByLabelText('计划 SKU 1'), { target: { value: 'SKU-001' } })
+    await selectWarmOption('计划 SKU 1', 'SKU-001')
     fireEvent.change(screen.getByLabelText('计划数量 1'), { target: { value: '18' } })
     fireEvent.click(screen.getByRole('button', { name: '创建多 SKU 计划' }))
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
@@ -169,14 +194,14 @@ describe('ShippingPlanClient', () => {
       expect.stringContaining('/shipment-schedules/91'),
       expect.any(Object)
     ))
-    const select = screen.getByLabelText('选择正式货件')
-    fireEvent.click(select)
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('combobox', { name: '正式货件' }))
     const candidateOptions = await screen.findAllByRole('option', { name: /FBA-DRAFT-91.*可关联 10/ })
     expect(candidateOptions.length).toBeGreaterThan(0)
     expect(screen.queryByText(/FBA-OTHER-SKU/)).not.toBeInTheDocument()
-    fireEvent.click(candidateOptions[0]!)
+    await user.click(candidateOptions[0]!)
     fireEvent.change(screen.getByLabelText('关联数量'), { target: { value: '5' } })
-    fireEvent.click(screen.getByRole('button', { name: '确认' }))
+    fireEvent.click(screen.getByRole('button', { name: '确认关联' }))
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining('/batches/1/allocations?'),
       expect.objectContaining({
@@ -192,11 +217,10 @@ describe('ShippingPlanClient', () => {
     await screen.findByText('OCT-PLAN')
     fireEvent.click(screen.getByRole('button', { name: '关联正式货件' }))
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/shipment-schedules/91'), expect.any(Object)))
-    fireEvent.click(screen.getByLabelText('选择正式货件'))
-    fireEvent.click((await screen.findAllByRole('option', { name: /FBA-DRAFT-91.*可关联 10/ }))[0]!)
+    await selectWarmOption('正式货件', /FBA-DRAFT-91.*可关联 10/)
     fireEvent.change(screen.getByLabelText('关联数量'), { target: { value: '9' } })
     fireEvent.submit(screen.getByLabelText('关联数量').closest('form')!)
-    await waitFor(() => expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({
+    await waitFor(() => expect(notify).toHaveBeenCalledWith(expect.objectContaining({
       title: '关联信息不完整',
       message: '请选择正式货件，并输入不超过计划余额和货件可分配量的正整数。',
     })))
@@ -208,9 +232,10 @@ describe('ShippingPlanClient', () => {
     const pending = deferred<Response>()
     fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
       const url = String(input)
+      if (url.includes('/api/v1/projects/manage')) return response([{ id: 42, name: '测试项目' }])
       if (url.includes('/batches/1/allocations?')) return pending.promise
       if (url.includes('/shipment-schedules/91')) return response({ id: 91, shipment_no: 'FBA-DRAFT-91', shipment_status: 'draft', etd_date: null, eta_date: '2026-11-01', items: [{ sku: 'SKU-001', quantity: 10 }] })
-      if (url.includes('/shipment-schedules?')) return response({ items: [{ id: 91, shipment_no: 'FBA-DRAFT-91', shipment_status: 'draft', etd_date: null, eta_date: '2026-11-01' }], has_next: false })
+      if (url.includes('/shipment-schedules?')) return response({ items: url.includes('shipment_status=in_transit') ? [] : [{ id: 91, shipment_no: 'FBA-DRAFT-91', shipment_status: 'draft', etd_date: null, eta_date: '2026-11-01' }], has_next: false })
       if (url.includes('/skus?')) return response({ items: [sku], total: 1, page: 1, page_size: 200, valid_forecast_sku_count: 1, missing_forecast_sku_count: 0, known_confirmed_sales_upper_bound: '170', known_planned_sales_upper_bound: '180' })
       if (url.includes('/shipment-history?')) return response({ project_id: 42, country: 'US', etd_from: '2025-10-08', etd_to: '2026-10-08', months: [], missing_etd_shipment_count: 0, missing_etd_quantity: 0, included_statuses: [], date_basis: 'ETD' })
       if (url.includes('/batches?')) return response({ items: [{ id: 1, name: 'OCT-PLAN', expected_arrival_date: '2026-11-01', status: 'active', remark: null, items: [{ id: 11, sku: 'SKU-001', quantity: 12, allocated_quantity: 4, remaining_quantity: 8, allocations: [{ id: 8, plan_item_id: 11, shipment_schedule_id: 90, sku: 'SKU-001', quantity: 4 }] }] }] })
@@ -221,8 +246,7 @@ describe('ShippingPlanClient', () => {
     await screen.findByText('OCT-PLAN')
     fireEvent.click(screen.getByRole('button', { name: '关联正式货件' }))
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/shipment-schedules/91'), expect.any(Object)))
-    fireEvent.click(screen.getByLabelText('选择正式货件'))
-    fireEvent.click((await screen.findAllByRole('option', { name: /FBA-DRAFT-91.*可关联 10/ }))[0]!)
+    await selectWarmOption('正式货件', /FBA-DRAFT-91.*可关联 10/)
     const form = screen.getByLabelText('关联数量').closest('form')!
     fireEvent.submit(form)
     fireEvent.submit(form)
@@ -268,20 +292,42 @@ describe('ShippingPlanClient', () => {
     render(<ShippingPlanClient />)
     const input = await screen.findByLabelText('SKU 增长系数')
     fireEvent.change(input, { target: { value: '1.7' } })
-    fireEvent.click(screen.getByRole('button', { name: '保存' }))
-    await waitFor(() => expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({
+    fireEvent.click(screen.getByRole('button', { name: '保存增长系数' }))
+    await waitFor(() => expect(notify).toHaveBeenCalledWith(expect.objectContaining({
       title: '保存失败',
       message: 'growth_factor: 输入不符合要求',
     })))
     expect(input).toHaveValue(1.7)
   })
 
-  it('posts a non-negative SKU growth factor and refreshes the data', async () => {
+  it('posts a non-negative SKU growth factor and reloads its scoped forecast once', async () => {
     const fetchMock = vi.mocked(fetch)
+    const isScopedForecastRequest = (input: RequestInfo | URL) => {
+      const url = new URL(String(input), 'http://localhost')
+      return url.pathname.endsWith('/shipping-plan/forecast') &&
+        url.searchParams.get('project_id') === '42' &&
+        url.searchParams.get('country') === 'US' &&
+        url.searchParams.get('sku') === 'SKU-001'
+    }
+    const forecastRequestCount = () => fetchMock.mock.calls.filter(([input]) =>
+      isScopedForecastRequest(input)
+    ).length
+
     render(<ShippingPlanClient />)
     const input = await screen.findByLabelText('SKU 增长系数')
+    await screen.findByTestId('shipping-plan-forecast-chart')
+    const initialForecastRequestCount = forecastRequestCount()
+    expect(initialForecastRequestCount).toBeGreaterThan(0)
+
+    const pendingForecast = deferred<Response>()
+    const defaultFetch = fetchMock.getMockImplementation()!
+    fetchMock.mockImplementation(async (request, init) => {
+      if (isScopedForecastRequest(request)) return pendingForecast.promise
+      return defaultFetch(request, init)
+    })
+
     fireEvent.change(input, { target: { value: '1.4' } })
-    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+    fireEvent.click(screen.getByRole('button', { name: '保存增长系数' }))
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining('/skus/SKU-001/growth-factor'),
@@ -291,5 +337,27 @@ describe('ShippingPlanClient', () => {
         })
       )
     )
+    await waitFor(() =>
+      expect(forecastRequestCount()).toBe(initialForecastRequestCount + 1)
+    )
+    expect(await screen.findByText('正在计算所选 SKU 的预测')).toBeInTheDocument()
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: '保存增长系数' })).toBeEnabled()
+    )
+    expect(forecastRequestCount()).toBe(initialForecastRequestCount + 1)
+
+    await act(async () => {
+      pendingForecast.resolve(await defaultFetch(
+        '/api/v1/shipping-plan/forecast?project_id=42&country=US&sku=SKU-001',
+        {}
+      ))
+    })
+
+    await waitFor(() => {
+      expect(screen.queryByText('正在计算所选 SKU 的预测')).not.toBeInTheDocument()
+      expect(screen.getByTestId('shipping-plan-forecast-chart')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '保存增长系数' })).toBeEnabled()
+      expect(forecastRequestCount()).toBe(initialForecastRequestCount + 1)
+    })
   })
 })

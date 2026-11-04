@@ -59,7 +59,7 @@ Rechecked `backend/app/api/v1/endpoints/shipment_schedules.py` and the shipment 
 - `frontend/components/ui/combobox.tsx`
 - `frontend/components/ui/dialog.tsx`
 - `docs/superpowers/plans/2026-11-02-warm-ledger-c2-security-follow-up.md`
-- `docs/superpowers/plans/2026-11-03-warm-ledger-c2-task-4-report.md`
+- `docs/superpowers/plans/2026-11-02-warm-ledger-c2/2026-11-03-warm-ledger-c2-task-4-report.md`
 
 ## Validation and limits
 
@@ -137,6 +137,6 @@ Files changed for this follow-up:
 - `frontend/components/ui/combobox.tsx`
 - `frontend/components/dashboard/shipment/shipment-batch-combobox.tsx`
 - `frontend/components/dashboard/sku-info/image-lightbox.tsx`
-- `docs/superpowers/plans/2026-11-03-warm-ledger-c2-task-4-report.md`
+- `docs/superpowers/plans/2026-11-02-warm-ledger-c2/2026-11-03-warm-ledger-c2-task-4-report.md`
 
 Focused ESLint on `page.tsx`, `combobox.tsx`, `shipment-batch-combobox.tsx`, and `image-lightbox.tsx` passed with no diagnostics. `git diff --check` and the CSS/report trailing-whitespace scan passed. CodeGraph sync completed; `codegraph status` still reports one added file pending in the shared worktree, without exposing its path. A focused read-only Luna max source review passed with no residual findings. Tests, build, and browser checks were not run as instructed; runtime and viewport verification remain pending under Task 6.

@@ -520,7 +520,17 @@ export default function ShippingPlanClient() {
       })
       if (currentScopeKeyRef.current !== mutationScopeKey) return
       notify({ type: 'success', title: '增长系数已保存', message: `${mutationSku} × ${factorDraft}` })
+      const forecastRequestIdBeforeRefresh = forecastRequestIdRef.current
       await refreshPage(mutationScopeKey)
+      if (
+        currentScopeKeyRef.current !== mutationScopeKey ||
+        selectedSkuRef.current !== mutationSku
+      ) return
+      // The refreshed SKU request normally retriggers this effect through skuLoading.
+      // Fall back to the existing effect trigger if no current-SKU request started.
+      if (forecastRequestIdRef.current === forecastRequestIdBeforeRefresh) {
+        setForecastRetryKey((current) => current + 1)
+      }
     } catch (error) {
       if (currentScopeKeyRef.current === mutationScopeKey) {
         notify({ type: 'error', title: '保存失败', message: error instanceof Error ? error.message : '请重试' })

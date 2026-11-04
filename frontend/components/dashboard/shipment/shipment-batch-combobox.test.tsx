@@ -37,7 +37,7 @@ describe("ShipmentBatchCombobox", () => {
     );
 
     await user.click(screen.getByRole("combobox"));
-    await screen.findByText("BATCH-OLD");
+    await screen.findByRole("option", { name: "BATCH-OLD", exact: true });
 
     await user.click(screen.getByRole("button", { name: /隐藏 BATCH-OLD/ }));
 
@@ -47,8 +47,12 @@ describe("ShipmentBatchCombobox", () => {
         expect.objectContaining({ method: "DELETE" }),
       );
     });
-    expect(screen.queryByText("BATCH-OLD")).toBeNull();
-    expect(screen.getByText("BATCH-NEW")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "BATCH-OLD", exact: true }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "BATCH-NEW", exact: true }),
+    ).toBeInTheDocument();
   });
 
   it("新输入 value 立即出现在 options 第一位", async () => {
@@ -69,7 +73,7 @@ describe("ShipmentBatchCombobox", () => {
     );
 
     await user.click(screen.getByRole("combobox"));
-    await screen.findByText("BATCH-OLD");
+    await screen.findByRole("option", { name: "BATCH-OLD", exact: true });
 
     const input = screen.getByPlaceholderText("搜索或输入新批次…");
     input.focus();

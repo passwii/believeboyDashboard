@@ -19,6 +19,9 @@ import { BLF611_FIXTURE_SECRET } from './tests/setup/blf611-fixture'
 // 解法：仅在本次运行目标包含自包含 fixture spec（手机端回归系列 / 跨境电商合规页）时，
 // 临时把 .env.local 替换为 fixture-only 内容（备份原文件，退出/中断时还原）；不污染其他
 // spec（motion/a11y 等依赖真实后端的用例不受影响）。
+// 多会话并行时允许每个 Playwright 运行指定专属端口；默认保持 3200。
+const PLAYWRIGHT_PORT = process.env.PLAYWRIGHT_PORT || '3200'
+const LOCAL_AUTH_URL = `http://localhost:${PLAYWRIGHT_PORT}`
 const ENV_FILE = path.join(__dirname, '.env.local')
 const runsSelfContainedSpec = process.argv.some(
   (arg) =>
@@ -44,7 +47,8 @@ const runsSelfContainedSpec = process.argv.some(
     arg.includes('crm/lead-to-customer') ||
     arg.includes('crm/sea-flow') ||
     // 跨境电商合规页（BLF-1393）：非 mobile-only，但同样用 fixture 伪造 session + mock 后端
-    arg.includes('cross-border-compliance')
+    arg.includes('cross-border-compliance') ||
+    arg.includes('warm-ledger-c2-matrix')
 )
 let envFileBackup: string | null = null
 let envFileExisted = false
@@ -54,7 +58,7 @@ if (runsSelfContainedSpec) {
   if (envFileExisted) envFileBackup = fs.readFileSync(ENV_FILE, 'utf8')
   fs.writeFileSync(
     ENV_FILE,
-    `# TEMPORARILY REPLACED by playwright (self-contained fixture specs) — restored on exit.\nNEXTAUTH_SECRET=${BLF611_FIXTURE_SECRET}\nNEXT_PUBLIC_CRM_API_MODE=mock\n`
+    `# TEMPORARILY REPLACED by playwright (self-contained fixture specs) — restored on exit.\nAUTH_SECRET=${BLF611_FIXTURE_SECRET}\nNEXTAUTH_SECRET=${BLF611_FIXTURE_SECRET}\nAUTH_URL=${LOCAL_AUTH_URL}\nNEXTAUTH_URL=${LOCAL_AUTH_URL}\nNEXT_PUBLIC_CRM_API_MODE=mock\n`
   )
   const restoreEnvFile = () => {
     if (envFileBackup !== null) {
@@ -77,10 +81,16 @@ if (runsSelfContainedSpec) {
   })
 }
 
-// 多会话并行（多 Multica runtime 同时跑同一仓库）时各会话共用端口 3200 会互踩：
-// A 会话的 dev server 可能被 B 会话的 playwright 复用，导致 B 看到 A 的旧代码。
-// 允许用 PLAYWRIGHT_PORT 指定专属端口，默认维持 3200 不变。
-const PLAYWRIGHT_PORT = process.env.PLAYWRIGHT_PORT || '3200'
+const webServerEnv = {
+  NEXTAUTH_SECRET: BLF611_FIXTURE_SECRET,
+  ...(runsSelfContainedSpec
+    ? {
+        AUTH_SECRET: BLF611_FIXTURE_SECRET,
+        AUTH_URL: LOCAL_AUTH_URL,
+        NEXTAUTH_URL: LOCAL_AUTH_URL,
+      }
+    : {}),
+}
 
 export default defineConfig({
   testDir: './tests',
@@ -113,13 +123,13 @@ export default defineConfig({
         url: `http://localhost:${PLAYWRIGHT_PORT}`,
         reuseExistingServer: false,
         timeout: 120 * 1000,
-        env: { NEXTAUTH_SECRET: BLF611_FIXTURE_SECRET },
+        env: webServerEnv,
       }
     : {
         command: `pnpm dev -p ${PLAYWRIGHT_PORT}`,
         url: `http://localhost:${PLAYWRIGHT_PORT}`,
-        reuseExistingServer: true,
+        reuseExistingServer: !runsSelfContainedSpec,
         timeout: 120 * 1000,
-        env: { NEXTAUTH_SECRET: BLF611_FIXTURE_SECRET },
+        env: webServerEnv,
       },
 })
