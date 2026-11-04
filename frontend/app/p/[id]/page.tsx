@@ -4,6 +4,7 @@ import { buildBackendAuthHeaders } from '@/lib/backend-auth'
 import { backendFetchJson, getBackendApiKey } from '@/lib/server/backend-api'
 
 import PageRenderer from './page-renderer'
+import styles from './page-renderer.module.css'
 
 // Public content is immutable (no versioning). A long revalidate window
 // keeps the R2 bucket egress low without ever serving stale data.
@@ -87,9 +88,5 @@ export default async function PublicPage({ params }: { params: Promise<{ id: str
 }
 
 function ErrorPanel({ message }: { message: string }) {
-  return (
-    <div className="rounded-lg border border-border/60 bg-background p-8 text-center text-sm text-muted-foreground">
-      {message}
-    </div>
-  )
+  return <div className={styles.errorState}>{message}</div>
 }
