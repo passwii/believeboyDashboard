@@ -198,9 +198,9 @@ Damon 已确认生产直接使用新设计，不设 feature flag：
 7. `/dashboard/reports/product-analysis`
 8. `/dashboard/reports/monthly-report/display`
 
-## 7. DeepSeek Max Agent Team
+## 7. DeepSeek Max implementation + Luna Max review
 
-自 2026-11-04 起，新任务的实现 Agent 与最终审阅 Agent 统一使用 `believeboy/DeepSeek-V4.1-Flash` + `max` reasoning。Luna 不再用于后续 V4 任务；历史批次记录中的 Luna review 保留原事实。
+自 2026-11-04 起，新任务的实现 Agent 统一使用 `believeboy/DeepSeek-V4.1-Flash` + `max` reasoning；最终独立 Reviewer 使用 `believeboy/GPT-6-Luna` + `max` reasoning。Luna 非常适合做独立代码、契约、视觉与风险审阅，但不再承担实施。历史批次记录保留原模型事实。
 
 不按任务难度降档，A0–A7 与 R1 全部采用 max think。R1 必须是独立只读审阅，不能复用实现 Agent 的会话判断。
 
@@ -214,7 +214,7 @@ Damon 已确认生产直接使用新设计，不设 feature flag：
 | A5 订单流 | DeepSeek / max | 新增 order-flow wrapper | 订单展开、移动 Sheet；默认收起，只消费 A1 controls |
 | A6 集成 | DeepSeek / max | `app/dashboard/page.tsx`、必要 layout 与 integration contracts | 共享 props types、数据接线、整页 QA |
 | A7 类目试点 | DeepSeek / max | 仅分配的单页面目录 | C1 页面试点 |
-| R1 审阅 | DeepSeek / max | 只读 | 规范、代码、视觉、a11y review |
+| R1 审阅 | Luna / max | 只读 | 规范、代码、视觉、a11y review |
 
 ### 并行边界
 

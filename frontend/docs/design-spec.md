@@ -141,7 +141,7 @@ V4 是 BelieveBoy 运营与业务页面的全新设计语言：暖石墨表面�
 | V4 Warm Ledger foundations | `docs/design-drafts/2026-11-01-operations-dashboard/components/foundations/spec.md` | token、布局、字体、状态、桌面契约 |
 | V4 冻结与批准记录 | `docs/design-drafts/2026-11-01-operations-dashboard/components/foundations/freeze.md` | exact routes、desktop canvas、用户决策 |
 | V4 页面基准 | `docs/design-drafts/2026-11-01-operations-dashboard/design.md` | Warm Ledger 方向与页面结构 |
-| V4 推广 / Agent Team | `docs/design-drafts/2026-11-01-operations-dashboard/components/rollout.md` | 类目批次、并行边界、DeepSeek Max |
+| V4 推广 / Agent Team | `docs/design-drafts/2026-11-01-operations-dashboard/components/rollout.md` | 类目批次、并行边界、DeepSeek Max 实施与 Luna Max 审阅 |
 | V3 Terminal 历史 | `docs/terminal-design/master-prompt.md` | 历史与未迁移路由维护，不再是 V4 设计权威 |
 | V3 表格历史 | `frontend/docs/table-spec.md` | V3 存量表格契约；V4 页面不直接沿用 |
 | 动效基础 | `frontend/docs/motion-system.md` | `u-*` / duration / ease 可复用；视觉表面按 V4 重写 |

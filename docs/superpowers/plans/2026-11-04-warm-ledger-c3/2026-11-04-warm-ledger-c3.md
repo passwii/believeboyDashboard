@@ -1,6 +1,6 @@
 # Warm Ledger V4 C3 Implementation Plan
 
-> **For agentic workers:** Use DeepSeek / max implementers with disjoint write scopes. Task 2 completes first; Tasks 3 and 4 may then run in parallel in separate worktrees. Perform one independent DeepSeek / max review of the integrated C3 stage after the page implementations and browser matrix are complete.
+> **For agentic workers:** Use DeepSeek / max implementers with disjoint write scopes. Task 2 completes first; Tasks 3 and 4 may then run in parallel in separate worktrees. Perform one independent Luna / max review of the integrated C3 stage after the page implementations and browser matrix are complete.
 
 **Goal:** Migrate Order Info, Product Analysis, and Monthly Report Display to the existing Warm Ledger route shell while preserving each page's filters, data scope, formulas, permissions, writes, and export contracts.
 
@@ -19,7 +19,7 @@
 - Preserve current data, filter, URL, sort, pagination, authorization, write, formula, and export semantics. Do not silently change report payloads, totals, workbook sheets/columns, or file names.
 - Loading, error, empty, and zero-data states must remain distinct; their presentation may be corrected to meet the Warm Ledger state contract without changing API or data semantics.
 - Keep page-specific tables, filters, uploads, dialogs, and export UI local. Promote no component to a shared design primitive in this stage.
-- From 2026-11-04 onward, all new implementation and final-review agents use `codex/believeboy/DeepSeek-V4.1-Flash`, `full-access`, `max` reasoning. Task 1 and the in-flight Task 2 predate this switch; their historical model record remains unchanged.
+- From 2026-11-04 onward, all new implementation agents use `codex/believeboy/DeepSeek-V4.1-Flash`, `full-access`, `max` reasoning. The final independent reviewer uses `codex/believeboy/GPT-6-Luna`, `full-access`, `max` reasoning. Task 1 and the in-flight Task 2 predate this switch; their historical model record remains unchanged.
 - The 5 known full-Vitest failures on main (`inventory-analysis-client.test.tsx` and `portfolio-overview-client.test.tsx`) are pre-existing baseline failures; reconcile them after the single C3 full run and do not hide them with skip/xfail.
 
 ## Audit Baseline
@@ -156,7 +156,7 @@ Task 3 and Task 4 have disjoint write scopes and may run in parallel after Task 
 - [ ] Run `cd frontend && pnpm test:ui -- tests/dashboard/warm-ledger-c3-matrix.spec.ts` at the single desktop acceptance viewport; intercept all backend requests and perform no real writes or exports.
 - [ ] Run full `cd frontend && pnpm test` once because the route frame is a shared component, record the complete result, and reconcile the known five main-baseline failures without hiding them.
 - [ ] Run `cd frontend && pnpm lint`, `cd frontend && pnpm build`, and `git diff --check`.
-- [ ] Run one independent DeepSeek/max whole-C3 review after all three page implementations, their targeted tests, and the browser matrix are complete.
+- [ ] Run one independent Luna/max whole-C3 review after all three page implementations, their targeted tests, and the browser matrix are complete.
 
 ## Stage Exit Gate
 

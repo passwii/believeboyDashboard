@@ -8,7 +8,7 @@ The audit covers only the exact C3 routes:
 - `/dashboard/reports/product-analysis`
 - `/dashboard/reports/monthly-report/display`
 
-Three independent `believeboy/GPT-6-Luna` agents with `max` reasoning reviewed one route each in isolated worktrees based on `origin/main` before the model-policy switch. The reviews were read-only; agents did not modify source or run tests. Findings below are implementation inputs, not claims of browser verification. All subsequent implementation and final-review work uses `believeboy/DeepSeek-V4.1-Flash` with `max` reasoning.
+Three independent `believeboy/GPT-6-Luna` agents with `max` reasoning reviewed one route each in isolated worktrees based on `origin/main` before the model-policy switch. The reviews were read-only; agents did not modify source or run tests. Findings below are implementation inputs, not claims of browser verification. Subsequent implementation uses `believeboy/DeepSeek-V4.1-Flash` with `max` reasoning; the final independent review uses `believeboy/GPT-6-Luna` with `max` reasoning.
 
 ## Shared Warm Ledger boundary
 
@@ -58,4 +58,4 @@ Keep these findings visible for a separate behavior/security decision. Do not ch
 
 ## Implementation handoff
 
-Use `2026-11-04-warm-ledger-c3.md` for the staged tasks, file ownership, tests, browser matrix, and exit criteria. After Task 2, use separate DeepSeek/max implementers for the disjoint Task 3 and Task 4 page scopes, then one independent DeepSeek/max review of the integrated C3 stage after the browser matrix is complete.
+Use `2026-11-04-warm-ledger-c3.md` for the staged tasks, file ownership, tests, browser matrix, and exit criteria. After Task 2, use separate DeepSeek/max implementers for the disjoint Task 3 and Task 4 page scopes, then one independent Luna/max review of the integrated C3 stage after the browser matrix is complete.

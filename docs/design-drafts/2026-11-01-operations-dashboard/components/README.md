@@ -26,4 +26,4 @@
 
 - `registry.md`：组件清单、复用级别、真实验证证据。
 - `plan.md`：B0–B7 批次、依赖与验收。
-- `rollout.md`：生产推广顺序、flag、页面批次和 DeepSeek Max Agent Team。
+- `rollout.md`：生产推广顺序、flag、页面批次，以及 DeepSeek Max 实施 / Luna Max 审阅分工。
