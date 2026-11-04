@@ -53,7 +53,6 @@
   --warm-ledger-inset-stage: 8px;
   --warm-ledger-inset-content: 20px;
   --warm-ledger-inset-panel: 20px;
-  --warm-ledger-layout-window-max-width: 1840px;
   --warm-ledger-layout-sidebar-width: 280px;
   --warm-ledger-layout-home-max-width: 1600px;
   --warm-ledger-nav-icon-column: 20px;
@@ -165,8 +164,8 @@
   display: grid;
   grid-template-columns: var(--warm-ledger-layout-sidebar-width) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
-  width: min(var(--warm-ledger-layout-window-max-width), calc(100vw - 2 * var(--warm-ledger-inset-stage)));
-  height: min(960px, calc(100dvh - 2 * var(--warm-ledger-inset-stage)));
+  width: calc(100vw - 2 * var(--warm-ledger-inset-stage));
+  height: calc(100dvh - 2 * var(--warm-ledger-inset-stage));
   min-height: min(480px, calc(100dvh - 2 * var(--warm-ledger-inset-stage)));
   overflow: hidden;
   background: var(--warm-ledger-color-window);

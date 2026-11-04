@@ -9,6 +9,7 @@ import { useWarmLedgerNavigation } from './warm-ledger-navigation'
 
 const QUICK_LINK_TITLES = ['销售数据', '订单信息', '库存分析', '客户消息'] as const
 const PORTFOLIO_ROUTE = '/dashboard/operations/portfolio-overview'
+const PRODUCT_ANALYSIS_ROUTE = '/dashboard/reports/product-analysis'
 const INVENTORY_FULFILLMENT_ROUTES = [
   '/dashboard/operations/inventory-ledger',
   '/dashboard/operations/shipping-plan',
@@ -50,6 +51,20 @@ const quickLinks = QUICK_LINK_TITLES.flatMap((title) => {
 
 const portfolioNavigation = SIDEBAR_TOP_GROUPS.flatMap((group) => {
   const item = filterByRole(group.items).find((entry) => entry.url === PORTFOLIO_ROUTE)
+  if (!item) return []
+
+  return [
+    {
+      title: item.title,
+      href: item.url,
+      icon: item.icon ?? group.icon,
+      routeMatches: [item.url, ...(item.matchPrefixes ?? [])],
+    },
+  ]
+})
+
+const productAnalysisNavigation = SIDEBAR_TOP_GROUPS.flatMap((group) => {
+  const item = filterByRole(group.items).find((entry) => entry.url === PRODUCT_ANALYSIS_ROUTE)
   if (!item) return []
 
   return [
@@ -139,6 +154,26 @@ export function WarmLedgerSidebar() {
           </Link>
 
           {primaryNavigation.map(({ title, href, icon: Icon, routeMatches }) => {
+            const active = isCurrentRoute(pathname, routeMatches)
+            return (
+              <Link
+                key={href}
+                href={href}
+                className="warm-ledger__nav-item"
+                aria-label={title}
+                title={title}
+                aria-current={active ? 'page' : undefined}
+                onClick={closeAfterNavigation}
+              >
+                <span className="warm-ledger__nav-indicator" aria-hidden="true" />
+                <span className="warm-ledger__nav-icon-wrap">
+                  <Icon aria-hidden="true" />
+                </span>
+                <span className="warm-ledger__nav-copy">{title}</span>
+              </Link>
+            )
+          })}
+          {productAnalysisNavigation.map(({ title, href, icon: Icon, routeMatches }) => {
             const active = isCurrentRoute(pathname, routeMatches)
             return (
               <Link

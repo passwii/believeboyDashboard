@@ -1,24 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { ChangeEvent, DragEvent } from 'react'
-import { AlertCircle, CalendarRange, CheckCircle2, Download, Loader2 } from 'lucide-react'
+import type { ChangeEvent, DragEvent, ReactNode } from 'react'
+import { AlertCircle, CalendarRange, CheckCircle2, Download } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
-import { Button } from '@/components/ui/button'
-import { TermPanel } from '@/components/terminal/term-panel'
-import {
-  DateRangePicker,
-  formatDateInputValue,
-  parseDateRangeInputValue,
-} from '@/components/ui/date-picker'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { WarmButton, WarmSelect } from '@/components/dashboard-v2/warm-ledger/controls'
 import { SimpleDropzone } from '@/components/report-upload/simple-dropzone'
 import { ReportStatusCard } from '@/components/report-upload/report-status-card'
 import type {
@@ -30,11 +17,11 @@ import type {
 } from '@/components/report-upload/types'
 import { useNotifications } from '@/components/notifications'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
-import { cn } from '@/lib/utils'
 import {
   exportProductAnalysisToExcel,
   type ExportCountryOption,
 } from '@/lib/product-analysis-export'
+import styles from '../product-analysis-warm.module.css'
 
 // =============================================================================
 // Types
@@ -104,6 +91,26 @@ const PRODUCT_ANALYSIS_CARD_CONFIGS: ReportCardConfig[] = [
     projectHint: 'SKU 匹配项目',
   },
 ]
+
+function WarmPanel({
+  title,
+  actions,
+  children,
+}: {
+  title: string
+  actions?: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <section className={styles.panel} aria-label={title} data-warm-panel="true">
+      <header className={styles.panelHeader}>
+        <h2 className={styles.panelTitle}>{title}</h2>
+        {actions ? <div className={styles.panelActions}>{actions}</div> : null}
+      </header>
+      <div className={styles.panelBody}>{children}</div>
+    </section>
+  )
+}
 
 // =============================================================================
 // Helper functions
@@ -195,6 +202,7 @@ export default function MonthlySkuAnalysisPanel() {
   const [runState, setRunState] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
   const [runError, setRunError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
+  const [emptyResult, setEmptyResult] = useState(false)
 
   const selectedProject = useMemo(
     () => projects.find((p) => p.name === projectName),
@@ -488,6 +496,7 @@ export default function MonthlySkuAnalysisPanel() {
     if (!selectedProject?.id) return
     setRunState('running')
     setRunError(null)
+    setEmptyResult(false)
 
     // 收集 3 类报告的 activeTempFileId
     const businessTempId = cards.business_report?.activeTempFileId
@@ -531,6 +540,7 @@ export default function MonthlySkuAnalysisPanel() {
           title: '核算结果为空',
           message: '当前日期范围没有可用的核算数据',
         })
+        setEmptyResult(true)
         setRunState('done')
         return
       }
@@ -545,267 +555,236 @@ export default function MonthlySkuAnalysisPanel() {
       })
 
       notify({ type: 'success', title: 'Excel 已下载', message: `共 ${periods.length} 个周期` })
+      setEmptyResult(false)
       setRunState('done')
     } catch (err) {
       const msg = err instanceof Error ? err.message : '核算并导出失败'
       setRunError(msg)
+      setEmptyResult(false)
       setRunState('error')
       notify({ type: 'error', title: '核算并导出失败', message: msg })
     }
   }, [selectedProject, projectName, country, startDate, endDate, notify, cards])
 
+  const projectOptions = projects.map((project) => ({
+    value: project.name,
+    label: project.name,
+  }))
+  const today = toDateInputValue(new Date())
+
   return (
-    <div className="space-y-3">
-      {/* ═══ Panel 1: Parameters ═══ */}
-      <TermPanel
-        title="核算参数"
-        bodyClassName="p-3 space-y-3 [&_label]:font-mono [&_label]:text-[10px] [&_label]:uppercase [&_label]:tracking-wider [&_label]:text-term-muted"
-      >
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-            {/* Project */}
-            <div className="space-y-1.5">
-              <label className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                项目
-              </label>
-              <Select
-                value={projectName}
-                onValueChange={(value) => {
-                  setProjectName(value)
-                  setCards((prev) => {
-                    const next = { ...prev }
-                    for (const key of PRODUCT_ANALYSIS_TYPES) {
-                      if (next[key]) next[key] = { ...next[key], selectedProject: value }
-                    }
-                    return next
-                  })
-                }}
-                disabled={projectsLoading || projects.length === 0}
-              >
-                <SelectTrigger className="h-8 max-w-full">
-                  <SelectValue
-                    placeholder={
-                      projectsLoading
-                        ? '项目加载中...'
-                        : projects.length
-                          ? '请选择项目名称'
-                          : '暂无可选项目'
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent className="max-h-64 overflow-y-auto">
-                  {projects.map((p) => (
-                    <SelectItem key={p.name} value={p.name}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Country */}
-            <div className="space-y-1.5">
-              <label className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                站点
-              </label>
-              <Select
-                value={country}
-                onValueChange={(value) => setCountry(value as ExportCountryOption)}
-              >
-                <SelectTrigger className="h-8 max-w-full">
-                  <SelectValue placeholder="请选择国家站点" />
-                </SelectTrigger>
-                <SelectContent>
-                  {COUNTRY_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Date Range */}
-            <div className="space-y-1.5">
-              <label className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                日期范围
-              </label>
-              <DateRangePicker
-                value={parseDateRangeInputValue(startDate, endDate)}
-                onChange={(range) => {
-                  setStartDate(formatDateInputValue(range?.from) ?? startDate)
-                  setEndDate(formatDateInputValue(range?.to) ?? endDate)
-                }}
-                className="h-8"
-              />
-              {startDate && endDate && startDate > endDate && (
-                <p className="text-xs text-destructive">开始日期不能晚于结束日期</p>
-              )}
-            </div>
-
-            {/* Quick action */}
-            <div className="space-y-1.5">
-              <label className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                快捷
-              </label>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => {
-                  const range = getLastMonthRange()
-                  setStartDate(range.start)
-                  setEndDate(range.end)
-                }}
-                className="w-full h-8"
-              >
-                <CalendarRange className="mr-1 h-4 w-4" />
-                上月
-              </Button>
-            </div>
-          </div>
-
-          {/* Status indicators */}
-          <div className="grid gap-2 sm:grid-cols-3">
-            {PRODUCT_ANALYSIS_CARD_CONFIGS.map((config) => {
-              const card = cards[config.type]
-              const status = card?.commitStatus ?? 'idle'
-              return (
-                <div
-                  key={config.type}
-                  className="rounded-none border border-term-border bg-term-raised px-2 py-1.5"
-                >
-                  <p className="font-mono text-[10px] uppercase tracking-wider text-term-faint">{config.title}</p>
-                  <p
-                    className={cn(
-                      'mt-1 font-mono text-sm font-semibold tabular-nums',
-                      status === 'success'
-                        ? 'text-term-pos'
-                        : status === 'saving'
-                          ? 'text-term-accent'
-                          : status === 'error'
-                            ? 'text-term-neg'
-                            : 'text-term-muted'
-                    )}
-                  >
-                    {status === 'success'
-                      ? '已识别（不入库）'
-                      : status === 'saving'
-                        ? '提交中'
-                        : status === 'error'
-                          ? '提交失败'
-                          : '未提交'}
-                  </p>
-                </div>
-              )
-            })}
-          </div>
-
-          {formError && (
-            <div className="flex items-center gap-2 rounded-none border border-term-neg/40 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
-              <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
-              {formError}
-            </div>
-          )}
-      </TermPanel>
-
-      {/* ═══ Panel 2: File Upload & Recognition ═══ */}
-      <TermPanel title="文件上传与识别" bodyClassName="p-3 space-y-4">
-          <SimpleDropzone
-            dragActive={dragActive}
-            recognizing={recognizing}
-            onDrop={onDrop}
-            onDragOver={(e) => {
-              e.preventDefault()
-              setDragActive(true)
+    <div className={styles.stack} data-warm-monthly-sku-panel="true">
+      <WarmPanel title="核算参数">
+        <div className={styles.filters}>
+          <WarmSelect
+            id="monthly-sku-project"
+            label="项目"
+            value={projectName}
+            options={projectOptions}
+            onChange={(value) => {
+              setProjectName(value)
+              setCards((prev) => {
+                const next = { ...prev }
+                for (const key of PRODUCT_ANALYSIS_TYPES) {
+                  if (next[key]) next[key] = { ...next[key], selectedProject: value }
+                }
+                return next
+              })
             }}
-            onDragLeave={(e) => {
-              e.preventDefault()
-              setDragActive(false)
-            }}
-            onPickFiles={onPickFiles}
+            placeholder={
+              projectsLoading
+                ? '项目加载中...'
+                : projects.length
+                  ? '请选择项目名称'
+                  : '暂无可选项目'
+            }
+            disabled={projectsLoading || projects.length === 0}
+            className={styles.projectField}
           />
 
-          {/* Report Status Cards */}
-          <div className="grid gap-4 md:grid-cols-3">
-            {PRODUCT_ANALYSIS_CARD_CONFIGS.map((config) => {
-              const cardState = cards[config.type] ?? emptyCardState()
-              return (
-                <ReportStatusCard
-                  key={config.type}
-                  config={config}
-                  state={cardState}
-                  projects={projectName ? [projectName] : []}
-                  onPickCandidate={(tempFileId) => {
-                    setCards((prev) => ({
-                      ...prev,
-                      [config.type]: {
-                        ...prev[config.type],
-                        activeTempFileId: tempFileId,
-                        recognition:
-                          prev[config.type]?.candidates.find(
-                            (c) => c.temp_file_id === tempFileId
-                          ) ?? null,
-                        commitStatus: 'idle',
-                        commitMessage: null,
-                      },
-                    }))
-                  }}
-                  onProjectChange={() => {}}
-                  onDateChange={() => {}}
-                  onCommit={() => void commitCard(config.type)}
-                  canCommit={Boolean(
-                    cardState.activeTempFileId &&
-                      projectName &&
-                      cardState.commitStatus !== 'saving' &&
-                      cardState.commitStatus !== 'success'
-                  )}
-                  projectLocked
-                  datesLocked
-                  periodLabel={periodLabel}
-                />
-              )
-            })}
-          </div>
+          <WarmSelect
+            id="monthly-sku-country"
+            label="站点"
+            value={country}
+            options={COUNTRY_OPTIONS}
+            onChange={(value) => setCountry(value as ExportCountryOption)}
+            className={styles.countryField}
+          />
 
-          {/* Action: 一次提交所有未提交 + 核算导出 */}
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => void uploadAllReady()}
-              disabled={
-                recognizing ||
-                !selectedProject?.id ||
-                !dateRangeValid ||
-                PRODUCT_ANALYSIS_TYPES.every(
-                  (t) => cards[t]?.commitStatus === 'success' || !cards[t]?.activeTempFileId
-                )
-              }
-            >
-              <CheckCircle2 className="mr-1 h-4 w-4" />
-              一键识别并提交（不入库）
-            </Button>
-
-            <Button
-              type="button"
-              onClick={() => void handleCalculateAndExport()}
-              disabled={!canCalculate}
-            >
-              {runState === 'running' ? (
-                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-              ) : (
-                <Download className="mr-1 h-4 w-4" />
-              )}
-              核算并导出 Excel
-            </Button>
-          </div>
-
-          {runError && (
-            <div className="flex items-center gap-2 rounded-none border border-term-neg/40 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
-              <AlertCircle className="h-4 w-4 shrink-0" />
-              {runError}
+          <div className={`${styles.field} ${styles.dateField}`}>
+            <span className={styles.fieldLabel}>日期范围</span>
+            <div className={styles.dateInputs}>
+              <input
+                id="monthly-sku-start-date"
+                type="date"
+                aria-label="开始日期"
+                max={today}
+                className={styles.dateInput}
+                value={startDate}
+                onChange={(event) => setStartDate(event.target.value)}
+              />
+              <input
+                id="monthly-sku-end-date"
+                type="date"
+                aria-label="结束日期"
+                max={today}
+                className={styles.dateInput}
+                value={endDate}
+                onChange={(event) => setEndDate(event.target.value)}
+              />
             </div>
-          )}
-      </TermPanel>
+            {startDate && endDate && startDate > endDate ? (
+              <p className={styles.fieldError}>开始日期不能晚于结束日期</p>
+            ) : null}
+          </div>
+
+          <div className={`${styles.field} ${styles.actionField}`}>
+            <span className={styles.fieldLabel}>快捷</span>
+            <WarmButton
+              variant="secondary"
+              onClick={() => {
+                const range = getLastMonthRange()
+                setStartDate(range.start)
+                setEndDate(range.end)
+              }}
+            >
+              <CalendarRange aria-hidden />
+              上月
+            </WarmButton>
+          </div>
+        </div>
+
+        <div className={styles.statusGrid}>
+          {PRODUCT_ANALYSIS_CARD_CONFIGS.map((config) => {
+            const card = cards[config.type]
+            const status = card?.commitStatus ?? 'idle'
+            return (
+              <div key={config.type} className={styles.statusTile}>
+                <span className={styles.statusLabel}>{config.title}</span>
+                <p className={styles.statusValue} data-status={status}>
+                  {status === 'success'
+                    ? '已识别（不入库）'
+                    : status === 'saving'
+                      ? '提交中'
+                      : status === 'error'
+                        ? '提交失败'
+                        : '未提交'}
+                </p>
+              </div>
+            )
+          })}
+        </div>
+
+        {formError ? (
+          <div className={styles.error} role="alert">
+            <AlertCircle aria-hidden />
+            {formError}
+          </div>
+        ) : null}
+      </WarmPanel>
+
+      <WarmPanel title="文件上传与识别">
+        <SimpleDropzone
+          dragActive={dragActive}
+          recognizing={recognizing}
+          onDrop={onDrop}
+          onDragOver={(event) => {
+            event.preventDefault()
+            setDragActive(true)
+          }}
+          onDragLeave={(event) => {
+            event.preventDefault()
+            setDragActive(false)
+          }}
+          onPickFiles={onPickFiles}
+          inputId="monthly-sku-upload"
+          className={styles.uploadZone}
+        />
+
+        <div className={styles.statusCards}>
+          {PRODUCT_ANALYSIS_CARD_CONFIGS.map((config) => {
+            const cardState = cards[config.type] ?? emptyCardState()
+            return (
+              <ReportStatusCard
+                key={config.type}
+                config={config}
+                state={cardState}
+                projects={projectName ? [projectName] : []}
+                onPickCandidate={(tempFileId) => {
+                  setCards((prev) => ({
+                    ...prev,
+                    [config.type]: {
+                      ...prev[config.type],
+                      activeTempFileId: tempFileId,
+                      recognition:
+                        prev[config.type]?.candidates.find(
+                          (candidate) => candidate.temp_file_id === tempFileId
+                        ) ?? null,
+                      commitStatus: 'idle',
+                      commitMessage: null,
+                    },
+                  }))
+                }}
+                onProjectChange={() => {}}
+                onDateChange={() => {}}
+                onCommit={() => void commitCard(config.type)}
+                canCommit={Boolean(
+                  cardState.activeTempFileId &&
+                    projectName &&
+                    cardState.commitStatus !== 'saving' &&
+                    cardState.commitStatus !== 'success'
+                )}
+                projectLocked
+                datesLocked
+                periodLabel={periodLabel}
+                selectContentClassName={`warm-ledger ${styles.statusSelectContent}`}
+              />
+            )
+          })}
+        </div>
+
+        <div className={styles.buttonRow}>
+          <WarmButton
+            variant="secondary"
+            onClick={() => void uploadAllReady()}
+            disabled={
+              recognizing ||
+              !selectedProject?.id ||
+              !dateRangeValid ||
+              PRODUCT_ANALYSIS_TYPES.every(
+                (type) =>
+                  cards[type]?.commitStatus === 'success' || !cards[type]?.activeTempFileId
+              )
+            }
+          >
+            <CheckCircle2 aria-hidden />
+            一键识别并提交（不入库）
+          </WarmButton>
+
+          <WarmButton
+            variant="primary"
+            onClick={() => void handleCalculateAndExport()}
+            disabled={!canCalculate}
+            loading={runState === 'running'}
+            loadingLabel="正在核算并导出"
+          >
+            <Download aria-hidden />
+            核算并导出 Excel
+          </WarmButton>
+        </div>
+
+        {runError ? (
+          <div className={styles.error} role="alert">
+            <AlertCircle aria-hidden />
+            {runError}
+          </div>
+        ) : null}
+        {runState === 'done' && emptyResult ? (
+          <div className={styles.empty} role="status">
+            当前日期范围无可核算数据
+          </div>
+        ) : null}
+      </WarmPanel>
     </div>
   )
 }

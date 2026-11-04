@@ -48,7 +48,8 @@ const runsSelfContainedSpec = process.argv.some(
     arg.includes('crm/sea-flow') ||
     // 跨境电商合规页（BLF-1393）：非 mobile-only，但同样用 fixture 伪造 session + mock 后端
     arg.includes('cross-border-compliance') ||
-    arg.includes('warm-ledger-c2-matrix')
+    arg.includes('warm-ledger-c2-matrix') ||
+    arg.includes('warm-ledger-c3-matrix')
 )
 let envFileBackup: string | null = null
 let envFileExisted = false

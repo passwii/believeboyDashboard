@@ -2,6 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
 import { stableSession } from '@/test-utils/stable-mocks'
+import {
+  getWarmLedgerPageTitle,
+  isWarmLedgerRoute,
+} from '@/components/dashboard-v2/warm-ledger/shell/warm-ledger-route-frame'
 
 let mockPathname = '/dashboard'
 vi.mock('next/navigation', () => ({
@@ -58,5 +62,34 @@ describe('DashboardLayout shell routing', () => {
     expect(screen.getByTestId('terminal-shell')).toBeInTheDocument()
     expect(screen.getByTestId('child')).toBeInTheDocument()
     expect(screen.queryByTestId('search-command')).not.toBeInTheDocument()
+  })
+
+  it('warms only the three exact C3 report routes and uses their sidebar titles', () => {
+    const routes = [
+      ['/dashboard/reports/order-info', '订单信息'],
+      ['/dashboard/reports/product-analysis', '产品分析'],
+      ['/dashboard/reports/monthly-report/display', '财务月报'],
+    ] as const
+
+    for (const [pathname, title] of routes) {
+      expect(isWarmLedgerRoute(pathname)).toBe(true)
+      expect(getWarmLedgerPageTitle(pathname)).toBe(title)
+    }
+  })
+
+  it('keeps adjacent and nested report routes outside Warm Ledger', () => {
+    const nonWarmReportRoutes = [
+      '/dashboard/reports',
+      '/dashboard/reports/order-info/history',
+      '/dashboard/reports/product-analysis/archive',
+      '/dashboard/reports/monthly-report/display/export',
+      '/dashboard/reports/monthly-report/generate',
+      '/dashboard/reports/monthly-report/reconcile',
+      '/dashboard/reports/scheduled-reports',
+    ]
+
+    for (const pathname of nonWarmReportRoutes) {
+      expect(isWarmLedgerRoute(pathname)).toBe(false)
+    }
   })
 })

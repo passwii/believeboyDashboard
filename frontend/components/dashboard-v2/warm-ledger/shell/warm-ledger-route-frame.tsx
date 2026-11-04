@@ -41,11 +41,15 @@ const WARM_LEDGER_ROUTES = [
   '/dashboard/operations/shipping-plan',
   '/dashboard/operations/shipment-management',
   '/dashboard/operations/sku-info',
+  '/dashboard/reports/order-info',
+  '/dashboard/reports/product-analysis',
+  '/dashboard/reports/monthly-report/display',
 ] as const
 
 type WarmLedgerRoute = (typeof WARM_LEDGER_ROUTES)[number]
 
 const DAILY_ANALYSIS_ROUTE: WarmLedgerRoute = '/dashboard/operations/daily-analysis'
+const ORDER_INFO_ROUTE: WarmLedgerRoute = '/dashboard/reports/order-info'
 const FALLBACK_REFRESH_WATCHDOG_MS = 10_000
 const WARM_LEDGER_ROUTE_TITLES: Record<WarmLedgerRoute, string> = {
   '/dashboard/operations/daily-analysis': '销售数据',
@@ -55,6 +59,9 @@ const WARM_LEDGER_ROUTE_TITLES: Record<WarmLedgerRoute, string> = {
   '/dashboard/operations/shipping-plan': '发货规划',
   '/dashboard/operations/shipment-management': '货件管理',
   '/dashboard/operations/sku-info': 'SKU 信息中心',
+  '/dashboard/reports/order-info': '订单信息',
+  '/dashboard/reports/product-analysis': '产品分析',
+  '/dashboard/reports/monthly-report/display': '财务月报',
 }
 
 const GLOBAL_COUNTRY_OPTIONS: ReadonlyArray<WarmSelectOption> = [
@@ -252,6 +259,215 @@ function DailyAnalysisGlobalFilters() {
   )
 }
 
+function OrderInfoGlobalFilters() {
+  const globalFilter = useTerminalGlobalFilter()
+  const {
+    projectId: globalProjectId,
+    country: globalCountry,
+    dateFrom: globalDateFrom,
+    dateTo: globalDateTo,
+    ready: filtersReady,
+    setProjectId,
+    syncDailyAnalysisFilters,
+  } = globalFilter
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null)
+  const { projects, loading, error, refetch } = useManagedProjects()
+  const [retryRequested, setRetryRequested] = useState(false)
+  const initialScopeAppliedRef = useRef(false)
+  const initialProjectSeededRef = useRef(false)
+  const userChangedFiltersRef = useRef({ country: false, date: false })
+
+  useEffect(() => {
+    setPortalContainer(document.getElementById('warm-ledger-portal-root'))
+  }, [])
+
+  const validProjects = useMemo(
+    () => projects.filter((project) => project.id > 0),
+    [projects]
+  )
+  const projectOptions = useMemo<ReadonlyArray<WarmSelectOption>>(() => {
+    const options: WarmSelectOption[] = [
+      { value: 'all', label: '全部项目' },
+      ...validProjects.map((project) => ({ value: String(project.id), label: project.name })),
+    ]
+
+    if (globalFilter.projectId && globalFilter.projectId !== 'all' &&
+      !validProjects.some((project) => String(project.id) === globalFilter.projectId)) {
+      options.unshift({
+        value: globalFilter.projectId,
+        label: loading ? '加载项目…' : globalFilter.projectId,
+      })
+    }
+
+    return options
+  }, [globalFilter.projectId, loading, validProjects])
+
+  let projectPlaceholder = '选择项目'
+  if (loading) projectPlaceholder = '加载项目…'
+  else if (error) projectPlaceholder = '项目列表加载失败'
+  else if (validProjects.length === 0) projectPlaceholder = '暂无可用项目'
+
+  const timezone = COUNTRY_TIMEZONE_MAP[
+    globalFilter.country === 'ALL' ? 'US' : globalFilter.country
+  ] ?? COUNTRY_TIMEZONE_MAP.US
+
+  useEffect(() => {
+    if (!filtersReady || initialScopeAppliedRef.current) return
+    initialScopeAppliedRef.current = true
+
+    const params = new URLSearchParams(window.location.search)
+    const rawPageProjectId = params.get('project_id')
+    const pageProjectId = rawPageProjectId && rawPageProjectId !== '__all__'
+      ? rawPageProjectId
+      : ''
+    const pageDateFrom = params.get('date_from')
+    const pageDateTo = params.get('date_to')
+    const hasPageDateRange = Boolean(pageDateFrom && pageDateTo)
+    const defaultRange = defaultGlobalDateRange(COUNTRY_TIMEZONE_MAP.US)
+    const firstProjectId = !globalProjectId && !loading && !error
+      ? String(validProjects[0]?.id ?? '')
+      : ''
+    const projectId = pageProjectId || globalProjectId || firstProjectId
+    if (!globalProjectId && projectId) initialProjectSeededRef.current = true
+    const nextCountry = userChangedFiltersRef.current.country || globalProjectId
+      ? globalCountry
+      : 'ALL'
+    const nextDateFrom = userChangedFiltersRef.current.date
+      ? globalDateFrom
+      : hasPageDateRange
+        ? pageDateFrom!
+        : globalProjectId
+          ? globalDateFrom
+          : defaultRange.dateFrom
+    const nextDateTo = userChangedFiltersRef.current.date
+      ? globalDateTo
+      : hasPageDateRange
+        ? pageDateTo!
+        : globalProjectId
+          ? globalDateTo
+          : defaultRange.dateTo
+
+    if (
+      projectId === globalProjectId &&
+      nextCountry === globalCountry &&
+      nextDateFrom === globalDateFrom &&
+      nextDateTo === globalDateTo
+    ) return
+
+    syncDailyAnalysisFilters(
+      {
+        projectId,
+        country: nextCountry,
+        dateFrom: nextDateFrom,
+        dateTo: nextDateTo,
+      },
+      { projectId, country: nextCountry }
+    )
+  }, [
+    error,
+    filtersReady,
+    globalCountry,
+    globalDateFrom,
+    globalDateTo,
+    globalProjectId,
+    loading,
+    syncDailyAnalysisFilters,
+    validProjects,
+  ])
+
+  useEffect(() => {
+    if (
+      !initialScopeAppliedRef.current ||
+      initialProjectSeededRef.current ||
+      !filtersReady ||
+      globalProjectId ||
+      loading ||
+      error
+    ) {
+      return
+    }
+
+    const params = new URLSearchParams(window.location.search)
+    const pageProjectId = params.get('project_id')
+    if (pageProjectId && pageProjectId !== '__all__') return
+
+    const firstProjectId = validProjects[0]?.id
+    if (firstProjectId) {
+      initialProjectSeededRef.current = true
+      setProjectId(String(firstProjectId))
+    }
+  }, [error, filtersReady, globalProjectId, loading, setProjectId, validProjects])
+
+  const retryProjectList = useCallback(async () => {
+    setRetryRequested(true)
+    try {
+      await refetch()
+    } finally {
+      setRetryRequested(false)
+    }
+  }, [refetch])
+
+  return (
+    <div
+      className="warm-ledger__route-global-filters"
+      role="group"
+      aria-label="全局筛选"
+      aria-busy={loading || retryRequested || undefined}
+    >
+      <WarmSelect
+        id="warm-ledger-order-info-project-filter"
+        label="项目筛选"
+        value={globalFilter.projectId}
+        placeholder={projectPlaceholder}
+        options={projectOptions}
+        onChange={globalFilter.setProjectId}
+        disabled={loading || Boolean(error)}
+        error={error}
+        className="warm-ledger__route-project-select"
+      />
+      {error || retryRequested ? (
+        <WarmButton
+          className="warm-ledger__route-project-retry"
+          variant="quiet"
+          aria-label="重试加载项目列表"
+          loading={retryRequested && loading}
+          loadingLabel="正在重试项目列表"
+          disabled={loading}
+          onClick={retryProjectList}
+        >
+          重试
+        </WarmButton>
+      ) : null}
+      <WarmSelect
+        id="warm-ledger-order-info-country-filter"
+        label="站点筛选"
+        value={globalFilter.country}
+        options={GLOBAL_COUNTRY_OPTIONS}
+        onChange={(country) => {
+          userChangedFiltersRef.current.country = true
+          globalFilter.setCountry(country)
+        }}
+        className="warm-ledger__route-country-select"
+      />
+      <DateRangePicker
+        value={parseDateRangeInputValue(globalFilter.dateFrom, globalFilter.dateTo)}
+        timezone={timezone}
+        onChange={(range) => {
+          userChangedFiltersRef.current.date = true
+          globalFilter.setDateRange(
+            formatDateInputValue(range?.from),
+            formatDateInputValue(range?.to)
+          )
+        }}
+        placeholder="选择日期范围"
+        className="warm-ledger__route-date-range"
+        portalContainer={portalContainer}
+        popoverClassName="warm-ledger__date-picker-content"
+      />
+    </div>
+  )
+}
+
 function WarmLedgerRouteContent({
   pathname,
   children,
@@ -279,9 +495,13 @@ function WarmLedgerRouteContent({
   const fallbackRefreshStartedRef = useRef(false)
 
   const isDailyAnalysis = pathname === DAILY_ANALYSIS_ROUTE
-  const hasGlobalFilters = isDailyAnalysis && globalFilter.ready
+  const isOrderInfo = pathname === ORDER_INFO_ROUTE
+  const hasGlobalFilters = (isDailyAnalysis || isOrderInfo) && globalFilter.ready
   const showPrimarySlot = hasGlobalFilters || primaryFilterSlotActive
   const title = getWarmLedgerPageTitle(pathname)
+  const breadcrumbs = pathname.startsWith('/dashboard/reports/')
+    ? [{ label: '报表中心' }, { label: title }]
+    : [{ label: '运营', href: '/dashboard' }, { label: title }]
 
   useEffect(() => {
     announceRefresh('', 'idle')
@@ -333,7 +553,8 @@ function WarmLedgerRouteContent({
     ) : null,
     primary: showPrimarySlot ? (
       <PrimaryFilterSlotMount className="warm-ledger__route-slot warm-ledger__route-primary-slot">
-        {hasGlobalFilters ? <DailyAnalysisGlobalFilters /> : null}
+        {isDailyAnalysis && globalFilter.ready ? <DailyAnalysisGlobalFilters /> : null}
+        {isOrderInfo && globalFilter.ready ? <OrderInfoGlobalFilters /> : null}
       </PrimaryFilterSlotMount>
     ) : null,
     secondary: secondarySlotActive ? (
@@ -351,7 +572,7 @@ function WarmLedgerRouteContent({
         topbar={(
           <WarmLedgerTopbar
             routeFrame
-            breadcrumbs={[{ label: '运营', href: '/dashboard' }, { label: title }]}
+            breadcrumbs={breadcrumbs}
             routeSlots={routeSlots}
             showScopeMeta={false}
             onRefresh={handleRefresh}

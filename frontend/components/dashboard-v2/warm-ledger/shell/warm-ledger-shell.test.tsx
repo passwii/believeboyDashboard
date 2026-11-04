@@ -1,19 +1,79 @@
 import { useState } from 'react'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { WarmLedgerShell } from './warm-ledger-shell'
 import { WarmLedgerTopbar } from './warm-ledger-topbar'
+import { WarmLedgerRouteFrame } from './warm-ledger-route-frame'
+import { useTerminalGlobalFilter } from '@/components/terminal/global-filter-context'
+
+const shellThemeCss = readFileSync(
+  join(process.cwd(), 'components/dashboard-v2/warm-ledger/shell/theme.css'),
+  'utf8'
+)
+
+const shellMocks = vi.hoisted(() => ({
+  pathname: '/dashboard',
+  replace: vi.fn(),
+  refresh: vi.fn(),
+  refreshNotifications: vi.fn(),
+  refetchProjects: vi.fn(),
+  loadingProjects: false,
+  projects: [
+    { id: 11, name: '项目一' },
+    { id: 12, name: '项目二' },
+  ],
+}))
 
 vi.mock('next/navigation', () => ({
-  usePathname: () => '/dashboard',
+  usePathname: () => shellMocks.pathname,
+  useRouter: () => ({ replace: shellMocks.replace, refresh: shellMocks.refresh }),
 }))
 
 vi.mock('next/link', () => ({
   default: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
     href: string
   }) => (
+    <a href={href} {...props}>
+      {children}
+    </a>
+  ),
+}))
+
+vi.mock('@/lib/hooks/use-managed-projects', () => ({
+  useManagedProjects: () => ({
+    projects: shellMocks.projects,
+    loading: shellMocks.loadingProjects,
+    error: null,
+    refetch: shellMocks.refetchProjects,
+  }),
+}))
+
+vi.mock('@/components/notifications', () => ({
+  useServerNotifications: () => ({
+    unreadCount: 0,
+    refresh: shellMocks.refreshNotifications,
+  }),
+}))
+
+vi.mock('./warm-notification-panel', () => ({
+  WarmNotificationPanel: () => null,
+}))
+
+vi.mock('@/components/dashboard/search-command', () => ({
+  OPEN_SEARCH_EVENT: 'open-search',
+  SearchCommand: () => null,
+}))
+
+vi.mock('@/components/dashboard/route-loading-link', () => ({
+  RouteLoadingLink: ({
+    href,
+    children,
+    ...props
+  }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
     <a href={href} {...props}>
       {children}
     </a>
@@ -57,9 +117,31 @@ function installMatchMedia(initialMobile: boolean) {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  shellMocks.pathname = '/dashboard'
+  shellMocks.loadingProjects = false
+  shellMocks.projects = [
+    { id: 11, name: '项目一' },
+    { id: 12, name: '项目二' },
+  ]
+  window.localStorage.clear()
 })
 
 describe('WarmLedgerShell', () => {
+  it('fills the desktop viewport inside equal 8px stage insets without window caps', () => {
+    const appWindowRule =
+      shellThemeCss.match(/\.warm-ledger__app-window\s*\{([^}]*)\}/)?.[1] ?? ''
+
+    expect(shellThemeCss).toContain('--warm-ledger-inset-stage: 8px')
+    expect(appWindowRule).toContain(
+      'width: calc(100vw - 2 * var(--warm-ledger-inset-stage))'
+    )
+    expect(appWindowRule).toContain(
+      'height: calc(100dvh - 2 * var(--warm-ledger-inset-stage))'
+    )
+    expect(appWindowRule).not.toContain('960px')
+    expect(shellThemeCss).not.toContain('--warm-ledger-layout-window-max-width')
+  })
+
   it('keeps the dashboard navigation and main content landmarks', () => {
     installMatchMedia(false)
 
@@ -101,6 +183,30 @@ describe('WarmLedgerShell', () => {
     for (const [label, href] of quickLinks) {
       const link = within(navigation).getByRole('link', { name: label })
       expect(link).toHaveAttribute('href', href)
+    }
+  })
+
+  it('links each C3 route once, marks its active link, and retains four quick links', () => {
+    installMatchMedia(false)
+
+    const c3Routes = [
+      '/dashboard/reports/order-info',
+      '/dashboard/reports/product-analysis',
+      '/dashboard/reports/monthly-report/display',
+    ]
+
+    for (const route of c3Routes) {
+      shellMocks.pathname = route
+      const { container, unmount } = render(<WarmLedgerShell>Dashboard</WarmLedgerShell>)
+      const navigation = screen.getByRole('navigation', { name: '业务域和快捷入口' })
+      const matchingLinks = within(navigation)
+        .getAllByRole('link')
+        .filter((link) => link.getAttribute('href') === route)
+
+      expect(matchingLinks).toHaveLength(1)
+      expect(matchingLinks[0]).toHaveAttribute('aria-current', 'page')
+      expect(container.querySelectorAll('.warm-ledger__quick-list a')).toHaveLength(4)
+      unmount()
     }
   })
 
@@ -170,6 +276,162 @@ describe('WarmLedgerShell', () => {
     expect(document.getElementById('dashboard-sidebar')).toHaveAttribute('inert')
   })
 })
+
+describe('WarmLedgerRouteFrame', () => {
+  it('uses non-clickable reports breadcrumbs and keeps the operations breadcrumb linked', () => {
+    installMatchMedia(false)
+    const reportRoutes = [
+      ['/dashboard/reports/order-info', '订单信息'],
+      ['/dashboard/reports/product-analysis', '产品分析'],
+      ['/dashboard/reports/monthly-report/display', '财务月报'],
+    ] as const
+
+    for (const [pathname, title] of reportRoutes) {
+      shellMocks.pathname = pathname
+      const { unmount } = render(
+        <WarmLedgerRouteFrame pathname={pathname}>
+          <p>{title} content</p>
+        </WarmLedgerRouteFrame>
+      )
+
+      const reportBreadcrumbs = screen.getByRole('navigation', { name: '面包屑' })
+      const reportsLabel = within(reportBreadcrumbs).getByText('报表中心')
+      expect(reportsLabel.closest('a')).toBeNull()
+      expect(within(reportBreadcrumbs).getByText(title)).toHaveAttribute('aria-current', 'page')
+      if (pathname !== '/dashboard/reports/order-info') {
+        expect(screen.queryByRole('group', { name: '全局筛选' })).not.toBeInTheDocument()
+      }
+      unmount()
+    }
+
+    shellMocks.pathname = '/dashboard/operations/daily-analysis'
+
+    render(
+      <WarmLedgerRouteFrame pathname="/dashboard/operations/daily-analysis">
+        <p>Daily Analysis content</p>
+      </WarmLedgerRouteFrame>
+    )
+
+    const operationsBreadcrumbs = screen.getByRole('navigation', { name: '面包屑' })
+    expect(within(operationsBreadcrumbs).getByRole('link', { name: '运营' })).toHaveAttribute(
+      'href',
+      '/dashboard'
+    )
+  })
+
+  it('synchronizes Order Info project, supported site, and date controls through global filters', async () => {
+    installMatchMedia(false)
+    shellMocks.pathname = '/dashboard/reports/order-info'
+    const user = userEvent.setup()
+
+    const { container } = render(
+      <WarmLedgerRouteFrame pathname="/dashboard/reports/order-info">
+        <GlobalFilterProbe />
+      </WarmLedgerRouteFrame>
+    )
+
+    const filters = await screen.findByRole('group', { name: '全局筛选' })
+    const probe = screen.getByTestId('global-filter-probe')
+    await waitFor(() => {
+      expect(probe).toHaveTextContent(
+        /^11\|ALL\|\d{4}-\d{2}-\d{2}\|\d{4}-\d{2}-\d{2}$/
+      )
+    })
+    const projectSelect = within(filters).getByRole('combobox', { name: '项目筛选' })
+    const countrySelect = within(filters).getByRole('combobox', { name: '站点筛选' })
+    const dateSelect = container.querySelector<HTMLButtonElement>(
+      '.warm-ledger__route-date-range'
+    )
+
+    expect(projectSelect).toBeInTheDocument()
+    expect(countrySelect).toBeInTheDocument()
+    expect(dateSelect).toBeInTheDocument()
+    expect(projectSelect).toHaveTextContent('项目一')
+    expect(countrySelect).toHaveTextContent('全部站点')
+
+    await user.click(projectSelect)
+    await user.click(await screen.findByRole('option', { name: '项目二' }))
+    await waitFor(() => expect(probe).toHaveTextContent(/^12\|ALL\|/))
+
+    for (const [code, label] of [
+      ['ALL', '全部站点'],
+      ['US', /\(US\)$/],
+      ['DE', /\(DE\)$/],
+      ['UK', /\(UK\)$/],
+    ] as const) {
+      await user.click(countrySelect)
+      await user.click(await screen.findByRole('option', { name: label }))
+      await waitFor(() => expect(probe).toHaveTextContent(new RegExp(`^12\\|${code}\\|`)))
+    }
+
+    await user.click(dateSelect!)
+    await user.click(await screen.findByRole('button', { name: '近7天' }))
+    await waitFor(() => {
+      expect(probe).toHaveTextContent(/^12\|UK\|\d{4}-\d{2}-\d{2}\|\d{4}-\d{2}-\d{2}$/)
+    })
+  })
+
+  it('retains site/date changes made while projects load and seeds only the missing project', async () => {
+    installMatchMedia(false)
+    shellMocks.pathname = '/dashboard/reports/order-info'
+    shellMocks.loadingProjects = true
+    shellMocks.projects = []
+    const user = userEvent.setup()
+
+    const { container, rerender } = render(
+      <WarmLedgerRouteFrame pathname="/dashboard/reports/order-info">
+        <GlobalFilterProbe />
+      </WarmLedgerRouteFrame>
+    )
+
+    const filters = await screen.findByRole('group', { name: '全局筛选' })
+    const probe = screen.getByTestId('global-filter-probe')
+    const projectSelect = within(filters).getByRole('combobox', { name: '项目筛选' })
+    const countrySelect = within(filters).getByRole('combobox', { name: '站点筛选' })
+    const dateSelect = container.querySelector<HTMLButtonElement>(
+      '.warm-ledger__route-date-range'
+    )
+
+    expect(projectSelect).toBeDisabled()
+    expect(countrySelect).toBeEnabled()
+    expect(dateSelect).toBeEnabled()
+
+    await user.click(countrySelect)
+    await user.click(await screen.findByRole('option', { name: /\(DE\)$/ }))
+    await user.click(dateSelect!)
+    await user.click(await screen.findByRole('button', { name: '昨天' }))
+
+    const [projectBeforeLoad, countryBeforeLoad, dateFromBeforeLoad, dateToBeforeLoad] =
+      probe.textContent?.split('|') ?? []
+    expect(projectBeforeLoad).toBe('')
+    expect(countryBeforeLoad).toBe('DE')
+    expect(dateFromBeforeLoad).toBeTruthy()
+    expect(dateFromBeforeLoad).toBe(dateToBeforeLoad)
+
+    shellMocks.projects = [{ id: 11, name: '项目一' }]
+    shellMocks.loadingProjects = false
+    rerender(
+      <WarmLedgerRouteFrame pathname="/dashboard/reports/order-info">
+        <GlobalFilterProbe />
+      </WarmLedgerRouteFrame>
+    )
+
+    await waitFor(() => {
+      expect(probe).toHaveTextContent(
+        `11|DE|${dateFromBeforeLoad}|${dateToBeforeLoad}`
+      )
+    })
+  })
+})
+
+function GlobalFilterProbe() {
+  const { projectId, country, dateFrom, dateTo } = useTerminalGlobalFilter()
+  return (
+    <output data-testid="global-filter-probe">
+      {`${projectId}|${country}|${dateFrom}|${dateTo}`}
+    </output>
+  )
+}
 
 describe('WarmLedgerTopbar', () => {
   it('renders the selected project and reports option selection changes', async () => {

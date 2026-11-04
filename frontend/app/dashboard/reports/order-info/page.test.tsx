@@ -1,12 +1,16 @@
+import { readdirSync, readFileSync } from 'node:fs'
+import { extname, join } from 'node:path'
 import type { ReactNode } from 'react'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { stableSession } from '@/test-utils/stable-mocks'
 
 const projectListMock = vi.hoisted(() => vi.fn())
 const headerRefreshState = vi.hoisted(() => ({ handler: null as (() => void | Promise<void>) | null }))
+const globalFilterTestMode = vi.hoisted(() => ({ useRealProvider: false }))
+const serverNotificationRefresh = vi.hoisted(() => vi.fn())
 
 // BLF-819 review：用可控 mock 替换 useTerminalGlobalFilter，驱动头部→页面同步测试。
 // 默认值与真实 Provider 水合后的默认一致（ready + country=US + 近7天）。
@@ -26,23 +30,35 @@ vi.mock('@/components/terminal/global-filter-context', async (importOriginal) =>
   const actual = await importOriginal<
     typeof import('@/components/terminal/global-filter-context')
   >()
+  const RealProvider = actual.TerminalGlobalFilterProvider
   return {
     ...actual,
-    TerminalGlobalFilterProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
-    useTerminalGlobalFilter: () => gfValue,
+    TerminalGlobalFilterProvider: ({ children }: { children: ReactNode }) =>
+      globalFilterTestMode.useRealProvider
+        ? <RealProvider>{children}</RealProvider>
+        : <>{children}</>,
+    useTerminalGlobalFilter: () => globalFilterTestMode.useRealProvider
+      ? actual.useTerminalGlobalFilter()
+      : gfValue,
   }
 })
 
 // BLF-940：header slot / mobile strip / refresh 走 mock，避免挂载点缺失抛错。
 // 插槽内容直接渲染回页面正文（便于断言筛选控件存在性，生产环境 portal 进 head）。
-vi.mock('@/components/terminal/terminal-header-slot', () => ({
-  useHeaderRefresh: vi.fn((handler: () => void | Promise<void>) => {
-    headerRefreshState.handler = handler
-    return { setLoading: vi.fn() }
-  }),
-  useHeaderSlot: (node: React.ReactNode) => node,
-  useMobileFilterStrip: () => null,
-}))
+vi.mock('@/components/terminal/terminal-header-slot', async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import('@/components/terminal/terminal-header-slot')
+  >()
+  return {
+    ...actual,
+    useHeaderRefresh: vi.fn((handler: () => void | Promise<void>) => {
+      headerRefreshState.handler = handler
+      return { setLoading: vi.fn() }
+    }),
+    useHeaderSlot: (node: React.ReactNode) => node,
+    useMobileFilterStrip: () => null,
+  }
+})
 
 /** 测试内修改全局筛选态（模拟用户在头部操作）；bump 版本号让 mock 返回新引用触发重渲染 */
 let gfVersion = 0
@@ -75,10 +91,32 @@ vi.mock('next-auth/react', () => ({
   useSession: () => stableSession(),
 }))
 
+vi.mock('next/link', () => ({
+  default: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
+    href: string
+  }) => <a href={href} {...props}>{children}</a>,
+}))
+
+vi.mock('@/components/dashboard/route-loading-link', () => ({
+  RouteLoadingLink: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
+    href: string
+  }) => <a href={href} {...props}>{children}</a>,
+}))
+
 const notify = vi.fn()
 
 vi.mock('@/components/notifications', () => ({
   useNotifications: () => ({ notify }),
+  useServerNotifications: () => ({ unreadCount: 0, refresh: serverNotificationRefresh }),
+}))
+
+vi.mock('@/components/dashboard/search-command', () => ({
+  OPEN_SEARCH_EVENT: 'open-search',
+  SearchCommand: () => null,
+}))
+
+vi.mock('../../../../components/dashboard-v2/warm-ledger/shell/warm-notification-panel', () => ({
+  WarmNotificationPanel: () => null,
 }))
 
 vi.mock('@/lib/project-client-cache', () => ({
@@ -214,11 +252,37 @@ const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =
 
 vi.stubGlobal('fetch', fetchMock)
 
-import { TerminalGlobalFilterProvider } from '@/components/terminal/global-filter-context'
+import {
+  TerminalGlobalFilterProvider,
+  useTerminalGlobalFilter,
+} from '@/components/terminal/global-filter-context'
+import { WarmLedgerRouteFrame } from '@/components/dashboard-v2/warm-ledger/shell/warm-ledger-route-frame'
 import OrderInfoPage from './page'
 
-describe('订单信息页终端化（BLF-817）', () => {
+const ORDER_INFO_SOURCE_ROOT = join(
+  process.cwd(),
+  'app/dashboard/reports/order-info'
+)
+const TERMINAL_VISUAL_RESIDUE = [
+  { label: 'Terminal token', pattern: /--term-/g },
+  { label: 'Terminal utility', pattern: /\bterm-[a-z0-9-]+/g },
+  { label: 'Terminal zero-radius utility', pattern: /\brounded-none\b/g },
+]
+
+function collectOrderInfoSourceFiles(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name)
+    if (entry.isDirectory()) return collectOrderInfoSourceFiles(path)
+    if (entry.name.includes('.test.') || entry.name.includes('.spec.')) return []
+    return ['.css', '.ts', '.tsx'].includes(extname(entry.name)) ? [path] : []
+  })
+}
+
+describe('订单信息页 Warm Ledger 迁移', () => {
   beforeEach(() => {
+    globalFilterTestMode.useRealProvider = false
+    window.localStorage.clear()
+    window.history.replaceState({}, '', '/dashboard/reports/order-info')
     vi.clearAllMocks()
     fetchMock.mockClear()
     fetchMock.mockImplementation(async () =>
@@ -241,7 +305,28 @@ describe('订单信息页终端化（BLF-817）', () => {
     projectListMock.mockResolvedValue([{ id: 1, name: '店铺A' }])
   })
 
-  it('订单表使用实体 term 表头、规范数值列与选中态语义', async () => {
+  afterEach(() => {
+    globalFilterTestMode.useRealProvider = false
+    window.localStorage.clear()
+    window.history.replaceState({}, '', '/dashboard/reports/order-info')
+  })
+
+  it('V4 Order Info 源文件不重新引入 Terminal 视觉残留', () => {
+    const violations = collectOrderInfoSourceFiles(ORDER_INFO_SOURCE_ROOT).flatMap((path) => {
+      const source = readFileSync(path, 'utf8')
+      return TERMINAL_VISUAL_RESIDUE.flatMap(({ label, pattern }) =>
+        Array.from(source.matchAll(pattern), (match) => ({
+          path,
+          label,
+          match: match[0],
+        }))
+      )
+    })
+
+    expect(violations).toEqual([])
+  })
+
+  it('订单表保留 13 列、规范数值列与选中态语义', async () => {
     render(
       <TerminalGlobalFilterProvider>
         <OrderInfoPage />
@@ -250,19 +335,23 @@ describe('订单信息页终端化（BLF-817）', () => {
 
     await screen.findByText('111-1111111-0000001')
     const table = screen.getByRole('table', { name: '订单列表' })
+    const orderPanel = screen.getByRole('region', { name: '订单信息' })
+    const tableScroll = table.parentElement
     const firstHeader = table.querySelector('thead th')
     const quantityHeader = screen.getByRole('columnheader', { name: /数量/ })
     const quantityCell = table.querySelector('tbody tr:first-child td:nth-child(6)')
     const amountCell = table.querySelector('tbody tr:first-child td:nth-child(7)')
 
-    expect(firstHeader?.className).toContain('bg-term-raised')
-    expect(quantityHeader.className).toContain('text-right')
-    expect(quantityHeader.className).toContain('tabular-nums')
-    expect(quantityCell?.className).toContain('text-right')
-    expect(quantityCell?.className).toContain('tabular-nums')
-    expect(amountCell?.className).toContain('text-right')
-    expect(amountCell?.className).toContain('tabular-nums')
-    expect(table).toHaveClass('tabular-nums')
+    expect(orderPanel).toHaveAttribute('data-warm-order-info', 'true')
+    expect(tableScroll).toHaveAttribute('data-order-info-table-scroll', 'true')
+    expect(table).toHaveAttribute('data-order-info-table-min-width', '1560')
+    expect(table.querySelectorAll('thead th')).toHaveLength(13)
+    expect(firstHeader).toHaveAttribute('scope', 'col')
+    expect(firstHeader?.className).not.toMatch(/term-|rounded-none/)
+    expect(quantityHeader).toHaveAttribute('data-numeric', 'true')
+    expect(quantityCell).toHaveAttribute('data-numeric', 'true')
+    expect(amountCell).toHaveAttribute('data-numeric', 'true')
+    expect(table).toHaveAttribute('data-order-info-numeric', 'true')
   })
 
   it('订单专属筛选集中在订单信息面板内，不占用全局 Header 插槽', async () => {
@@ -286,7 +375,101 @@ describe('订单信息页终端化（BLF-817）', () => {
     expect(within(filters).getByText('订单查找')).toBeInTheDocument()
   })
 
-  it('渲染订单行与终端状态 pill 语义色（Pending warn / Shipped pos / Cancelled neg）', async () => {
+  it('订单类型筛选保留多选，可同时提交 FBA 与 FBM', async () => {
+    const restore = routeFetch(() =>
+      jsonResponse({
+        ...FILTER_OPTIONS_OK,
+        fulfillment_channels: [
+          { value: 'Amazon', label: 'FBA-UT' },
+          { value: 'Merchant', label: 'FBM-UT' },
+        ],
+      })
+    )
+
+    try {
+      resetGfAndParams()
+      const user = userEvent.setup()
+      render(
+        <TerminalGlobalFilterProvider>
+          <OrderInfoPage />
+        </TerminalGlobalFilterProvider>
+      )
+
+      await screen.findByText('111-1111111-0000001')
+      const orderPanel = screen.getByRole('region', { name: '订单信息' })
+      const filters = within(orderPanel).getByRole('group', { name: '订单筛选' })
+      await user.click(screen.getAllByRole('combobox')[0]!)
+      await user.click(await screen.findByRole('option', { name: 'FBA-UT' }))
+      await user.click(screen.getByRole('option', { name: 'FBM-UT' }))
+
+      await waitFor(() => {
+        const lastUrl = String(fetchMock.mock.calls.at(-1)![0])
+        expect(lastUrl).toContain('fulfillment_channels=Amazon')
+        expect(lastUrl).toContain('fulfillment_channels=Merchant')
+      })
+      expect(filters.querySelectorAll('[data-warm-order-multiselect="true"]')).toHaveLength(3)
+    } finally {
+      restore()
+    }
+  })
+
+  it('首次加载时保留表格骨架状态', async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/order-info/overview')) {
+        return new Promise<Response>(() => {})
+      }
+      return jsonResponse(FILTER_OPTIONS_OK)
+    })
+
+    render(
+      <TerminalGlobalFilterProvider>
+        <OrderInfoPage />
+      </TerminalGlobalFilterProvider>
+    )
+
+    const table = await screen.findByRole('table', { name: '订单列表' })
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/order-info/overview'))).toBe(true)
+    })
+
+    expect(table.querySelectorAll('tbody tr')).toHaveLength(12)
+    expect(table.querySelectorAll('[data-warm-order-skeleton="true"]')).toHaveLength(12)
+    expect(screen.queryByText('暂无订单数据')).not.toBeInTheDocument()
+  })
+
+  it('无匹配订单时显示筛选空态，底部汇总仍显示真实零值', async () => {
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({
+        items: [],
+        total: 0,
+        page: 1,
+        page_size: 50,
+        stats: {
+          total_orders: 0,
+          total_quantity: 0,
+          total_amount: 0,
+          currency: 'USD',
+          fba_count: 0,
+          fbm_count: 0,
+        },
+      })
+    )
+
+    render(
+      <TerminalGlobalFilterProvider>
+        <OrderInfoPage />
+      </TerminalGlobalFilterProvider>
+    )
+
+    expect(await screen.findByText(/当前筛选条件下无订单/)).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText('Σ 单量').closest('span')).toHaveTextContent('0')
+      expect(screen.getByText('Σ 金额').closest('span')).toHaveTextContent('0.00 USD')
+    })
+    expect(screen.queryByText('111-1111111-0000001')).not.toBeInTheDocument()
+  })
+
+  it('渲染订单行与 Warm 状态 pill 语义（Pending warn / Shipped pos / Cancelled neg）', async () => {
     render(
       <TerminalGlobalFilterProvider>
         <OrderInfoPage />
@@ -298,10 +481,18 @@ describe('订单信息页终端化（BLF-817）', () => {
     expect(screen.getByText('111-1111111-0000002')).toBeInTheDocument()
     expect(screen.getByText('111-1111111-0000003')).toBeInTheDocument()
 
-    const pendingPill = screen.getByText('处理中').closest('span')!
-    expect(pendingPill.className).toContain('text-term-warn')
-    expect(screen.getByText('已发货').closest('span')!.className).toContain('text-term-pos')
-    expect(screen.getByText('已取消').closest('span')!.className).toContain('text-term-neg')
+    expect(screen.getByText('处理中').closest('[data-order-status-tone]')).toHaveAttribute(
+      'data-order-status-tone',
+      'warn'
+    )
+    expect(screen.getByText('已发货').closest('[data-order-status-tone]')).toHaveAttribute(
+      'data-order-status-tone',
+      'pos'
+    )
+    expect(screen.getByText('已取消').closest('[data-order-status-tone]')).toHaveAttribute(
+      'data-order-status-tone',
+      'neg'
+    )
   })
 
   it('底部 pinned 聚合条展示总单量 / 总金额 / FBA·FBM 行数与翻页信息', async () => {
@@ -336,6 +527,87 @@ describe('订单信息页终端化（BLF-817）', () => {
     })
   })
 
+  it('CSV 导出沿用当前筛选载荷，不携带分页、排序或所选行范围', async () => {
+    const previousGf = { ...gfState }
+    resetGfAndParams()
+    setGf({ projectId: '1' })
+    const originalImplementation = fetchMock.getMockImplementation()!
+    const createObjectUrlDescriptor = Object.getOwnPropertyDescriptor(URL, 'createObjectURL')
+    const revokeObjectUrlDescriptor = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL')
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: vi.fn(() => 'blob:order-info-test'),
+    })
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: vi.fn(),
+    })
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/order-info/export')) {
+        return jsonResponse({ filename: 'orders_20260825.csv', content_base64: '' })
+      }
+      return jsonResponse(OVERVIEW_OK)
+    })
+
+    try {
+      const user = userEvent.setup()
+      render(
+        <TerminalGlobalFilterProvider>
+          <OrderInfoPage />
+        </TerminalGlobalFilterProvider>
+      )
+      await screen.findByText('111-1111111-0000001')
+      await user.click(screen.getByLabelText('选中订单 111-1111111-0000001'))
+      await user.click(screen.getByRole('button', { name: '导出 CSV' }))
+
+      await waitFor(() => {
+        expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/order-info/export'))).toBe(true)
+      })
+      const exportCall = fetchMock.mock.calls.find(([url]) =>
+        String(url).includes('/order-info/export')
+      )!
+      const payload = JSON.parse(exportCall[1]?.body as string) as Record<string, unknown>
+      const overviewCall = fetchMock.mock.calls.find(([url]) =>
+        String(url).includes('/order-info/overview')
+      )!
+      const overviewUrl = new URL(String(overviewCall[0]), window.location.origin)
+
+      expect(payload).toMatchObject({
+        project_ids: [1],
+        fulfillment_channels: [],
+        order_statuses: [],
+        countries: ['US'],
+        currencies: [],
+        sku_keyword: null,
+        order_id_keyword: null,
+        asin_keyword: null,
+      })
+      expect(payload.date_from).toBe(overviewUrl.searchParams.get('date_from'))
+      expect(payload.date_to).toBe(overviewUrl.searchParams.get('date_to'))
+      expect(payload).not.toHaveProperty('page')
+      expect(payload).not.toHaveProperty('page_size')
+      expect(payload).not.toHaveProperty('sort_by')
+      expect(payload).not.toHaveProperty('sort_dir')
+      expect(payload).not.toHaveProperty('selected_ids')
+      expect(click).toHaveBeenCalledOnce()
+    } finally {
+      click.mockRestore()
+      fetchMock.mockImplementation(originalImplementation)
+      if (createObjectUrlDescriptor) {
+        Object.defineProperty(URL, 'createObjectURL', createObjectUrlDescriptor)
+      } else {
+        Reflect.deleteProperty(URL, 'createObjectURL')
+      }
+      if (revokeObjectUrlDescriptor) {
+        Object.defineProperty(URL, 'revokeObjectURL', revokeObjectUrlDescriptor)
+      } else {
+        Reflect.deleteProperty(URL, 'revokeObjectURL')
+      }
+      setGf(previousGf)
+    }
+  })
+
   it('表头排序按钮可点击触发带 sort 参数的刷新请求', async () => {
     const user = userEvent.setup()
     render(
@@ -347,7 +619,7 @@ describe('订单信息页终端化（BLF-817）', () => {
     await screen.findByText('111-1111111-0000001')
     const callsAfterLoad = fetchMock.mock.calls.length
 
-    await user.click(screen.getByRole('columnheader', { name: /数量/ }))
+    await user.click(screen.getByRole('button', { name: /数量/ }))
 
     await waitFor(() => {
       expect(fetchMock.mock.calls.length).toBeGreaterThan(callsAfterLoad)
@@ -519,6 +791,71 @@ describe('订单信息页终端化（BLF-817）', () => {
     } finally {
       mockSearchParams.get = realGet
       mockSearchParams.getAll = realGetAll
+    }
+  })
+
+  it('Warm Order Info 深链项目/日期优先于已保存全局范围并同步首个 overview 请求', async () => {
+    const params = new URLSearchParams({
+      project_id: '3',
+      date_from: '2026-08-01',
+      date_to: '2026-08-05',
+    })
+    window.history.replaceState(
+      {},
+      '',
+      `/dashboard/reports/order-info?${params.toString()}`
+    )
+    window.localStorage.setItem(
+      'bb.terminal.global-filter',
+      JSON.stringify({
+        projectId: '99',
+        country: 'DE',
+        dateFrom: '2026-09-01',
+        dateTo: '2026-09-07',
+      })
+    )
+    mockSearchParams.get = vi.fn((key: string) => params.get(key))
+    mockSearchParams.getAll = vi.fn(() => [])
+    projectListMock.mockResolvedValue([
+      { id: 1, name: '店铺A' },
+      { id: 3, name: '店铺三' },
+    ])
+    globalFilterTestMode.useRealProvider = true
+
+    try {
+      render(
+        <WarmLedgerRouteFrame pathname="/dashboard/reports/order-info">
+          <>
+            <GlobalFilterProbe />
+            <OrderInfoPage />
+          </>
+        </WarmLedgerRouteFrame>
+      )
+
+      await screen.findByText('111-1111111-0000001')
+      const probe = screen.getByTestId('global-filter-probe')
+      await waitFor(() => {
+        expect(probe).toHaveTextContent('3|DE|2026-08-01|2026-08-05')
+      })
+      expect(screen.getByRole('combobox', { name: '项目筛选' })).toHaveTextContent('店铺三')
+      expect(screen.getByRole('combobox', { name: '站点筛选' })).toHaveTextContent(/DE/)
+      expect(document.querySelector('.warm-ledger__route-date-range')).toHaveTextContent(
+        '2026-08-01 ~ 2026-08-05'
+      )
+
+      const overviewRequests = fetchMock.mock.calls.filter(([url]) =>
+        String(url).includes('/order-info/overview')
+      )
+      expect(overviewRequests.length).toBeGreaterThan(0)
+      const firstOverviewUrl = String(overviewRequests[0]![0])
+      expect(firstOverviewUrl).toContain('project_ids=3')
+      expect(firstOverviewUrl).toContain('countries=DE')
+      expect(firstOverviewUrl).toContain('date_from=2026-08-01')
+      expect(firstOverviewUrl).toContain('date_to=2026-08-05')
+    } finally {
+      globalFilterTestMode.useRealProvider = false
+      mockSearchParams.get = vi.fn(() => null)
+      mockSearchParams.getAll = vi.fn(() => [])
     }
   })
 
@@ -954,14 +1291,14 @@ describe('订单信息页终端化（BLF-817）', () => {
         headerRefreshState.handler?.()
       })
 
-      expect(await screen.findByText(/ERR · timeout/)).toBeInTheDocument()
+      expect(await screen.findByText(/数据加载失败.*timeout/)).toBeInTheDocument()
       expect(screen.getByText('111-1111111-0000001')).toBeInTheDocument()
 
       act(() => {
         headerRefreshState.handler?.()
       })
       await waitFor(() => {
-        expect(screen.queryByText(/ERR · timeout/)).not.toBeInTheDocument()
+        expect(screen.queryByText(/数据加载失败.*timeout/)).not.toBeInTheDocument()
       })
       expect(screen.getByText('111-1111111-0000001')).toBeInTheDocument()
     } finally {
@@ -1000,3 +1337,12 @@ describe('订单信息页终端化（BLF-817）', () => {
     }
   })
 })
+
+function GlobalFilterProbe() {
+  const { projectId, country, dateFrom, dateTo } = useTerminalGlobalFilter()
+  return (
+    <output data-testid="global-filter-probe">
+      {`${projectId}|${country}|${dateFrom}|${dateTo}`}
+    </output>
+  )
+}

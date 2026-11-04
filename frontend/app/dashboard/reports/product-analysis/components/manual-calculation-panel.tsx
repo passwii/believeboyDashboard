@@ -1,53 +1,35 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { DragEvent, ChangeEvent } from 'react'
+import type { DragEvent, ChangeEvent, ReactNode } from 'react'
 import {
   AlertCircle,
   ArrowDown,
   ArrowUp,
   CalendarRange,
   CheckCircle2,
-  DatabaseZap,
   Download,
-  Loader2,
-  Upload,
   XCircle,
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
-import React from 'react'
 
-import { Button } from '@/components/ui/button'
-import { TermPanel } from '@/components/terminal/term-panel'
-import {
-  DateRangePicker,
-  formatDateInputValue,
-  parseDateRangeInputValue,
-} from '@/components/ui/date-picker'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { WarmButton, WarmSelect } from '@/components/dashboard-v2/warm-ledger/controls'
 import { SimpleDropzone } from '@/components/report-upload/simple-dropzone'
 import { ReportStatusCard } from '@/components/report-upload/report-status-card'
 import type {
   ReportCardConfig,
   ReportCardState,
   ReportType,
-  ReportUploadCountry,
   RecognitionResponse,
   UploadQueueItem,
 } from '@/components/report-upload/types'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { pickSessionDisplayName } from '@/lib/auth/display-name'
 import { normalizeErrorMessage } from '@/lib/error-utils'
-import { cn } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
 import { downloadBlob } from '@/lib/download-blob'
 import { applyDataRowBanding } from '@/lib/excel-styles'
+import styles from '../product-analysis-warm.module.css'
 
 // =============================================================================
 // Types
@@ -206,6 +188,26 @@ const DETAIL_DISPLAY_COLUMNS = [
   { key: '利润', label: '利润', fmt: 'currency' as const },
   { key: '利润率', label: '利润率', fmt: 'percent' as const },
 ]
+
+function WarmPanel({
+  title,
+  actions,
+  children,
+}: {
+  title: string
+  actions?: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <section className={styles.panel} aria-label={title} data-warm-panel="true">
+      <header className={styles.panelHeader}>
+        <h2 className={styles.panelTitle}>{title}</h2>
+        {actions ? <div className={styles.panelActions}>{actions}</div> : null}
+      </header>
+      <div className={styles.panelBody}>{children}</div>
+    </section>
+  )
+}
 
 // =============================================================================
 // Helper functions
@@ -848,7 +850,7 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
   // ── Render helpers ──
   function renderCell(value: unknown, fmt?: 'percent' | 'currency') {
     if (value === null || value === undefined)
-      return <span className="text-muted-foreground">-</span>
+      return <span className={styles.mutedValue}>-</span>
     if (fmt === 'percent') return <span>{formatPercent(value)}</span>
     if (fmt === 'currency') {
       const sym = CURRENCY_CONFIG[country].symbol
@@ -863,398 +865,332 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
   }
 
   const detailColCount = DETAIL_DISPLAY_COLUMNS.length
+  const projectOptions = projects.map((project) => ({
+    value: project.name,
+    label: project.name,
+  }))
+  const today = toDateInputValue(new Date())
 
   // ── Render ──
   return (
-    <div className="space-y-3">
-      {/* ═══ Panel 1: Parameters ═══ */}
-      <TermPanel
-        title="核算参数"
-        bodyClassName="p-3 space-y-3 [&_label]:font-mono [&_label]:text-[10px] [&_label]:uppercase [&_label]:tracking-wider [&_label]:text-term-muted"
-      >
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-            {/* Project */}
-            <div className="space-y-1.5">
-              <label className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                项目
-              </label>
-              <Select
-                value={projectName}
-                onValueChange={(value) => {
-                  setProjectName(value)
-                  // Update card projects
-                  setCards((prev) => {
-                    const next = { ...prev }
-                    for (const key of PRODUCT_ANALYSIS_TYPES) {
-                      if (next[key]) next[key] = { ...next[key], selectedProject: value }
-                    }
-                    return next
-                  })
-                  resetDownstream()
-                }}
-                disabled={projectsLoading || projects.length === 0}
-              >
-                <SelectTrigger className="h-8 max-w-full">
-                  <SelectValue
-                    placeholder={
-                      projectsLoading
-                        ? '项目加载中...'
-                        : projects.length
-                          ? '请选择项目名称'
-                          : '暂无可选项目'
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent className="max-h-64 overflow-y-auto">
-                  {projects.map((p) => (
-                    <SelectItem key={p.name} value={p.name}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Country */}
-            <div className="space-y-1.5">
-              <label className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                站点
-              </label>
-              <Select value={country} onValueChange={(value) => setCountry(value as CountryOption)}>
-                <SelectTrigger className="h-8 max-w-full">
-                  <SelectValue placeholder="请选择国家站点" />
-                </SelectTrigger>
-                <SelectContent>
-                  {COUNTRY_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Date Range */}
-            <div className="space-y-1.5">
-              <label className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                日期范围
-              </label>
-              <DateRangePicker
-                value={parseDateRangeInputValue(startDate, endDate)}
-                onChange={(range) => {
-                  setStartDate(formatDateInputValue(range?.from) ?? startDate)
-                  setEndDate(formatDateInputValue(range?.to) ?? endDate)
-                  resetDownstream()
-                }}
-                className="h-8"
-              />
-              {startDate && endDate && startDate > endDate && (
-                <p className="text-xs text-destructive">开始日期不能晚于结束日期</p>
-              )}
-            </div>
-
-            {/* Quick action */}
-            <div className="space-y-1.5">
-              <label className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                快捷
-              </label>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => {
-                  const range = getLastWeekRange()
-                  setStartDate(range.start)
-                  setEndDate(range.end)
-                  resetDownstream()
-                }}
-                className="w-full h-8"
-              >
-                <CalendarRange className="mr-1 h-4 w-4" />
-                上周
-              </Button>
-            </div>
-          </div>
-
-          {/* Status indicators */}
-          <div className="grid gap-2 sm:grid-cols-3">
-            {PRODUCT_ANALYSIS_CARD_CONFIGS.map((config) => {
-              const card = cards[config.type]
-              const status = card?.commitStatus ?? 'idle'
-              return (
-                <div
-                  key={config.type}
-                  className="rounded-none border border-term-border bg-term-raised px-2 py-1.5"
-                >
-                  <p className="font-mono text-[10px] uppercase tracking-wider text-term-faint">{config.title}</p>
-                  <p
-                    className={cn(
-                      'mt-1 font-mono text-sm font-semibold tabular-nums',
-                      status === 'success'
-                        ? 'text-term-pos'
-                        : status === 'saving'
-                          ? 'text-term-accent'
-                          : status === 'error'
-                            ? 'text-term-neg'
-                            : 'text-term-muted'
-                    )}
-                  >
-                    {status === 'success'
-                      ? '已提交'
-                      : status === 'saving'
-                        ? '提交中'
-                        : status === 'error'
-                          ? '提交失败'
-                          : '未提交'}
-                  </p>
-                </div>
-              )
-            })}
-          </div>
-
-          {formError && (
-            <div className="flex items-center gap-2 rounded-none border border-term-neg/40 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
-              <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
-              {formError}
-            </div>
-          )}
-      </TermPanel>
-
-      {/* ═══ Panel 2: File Upload & Recognition ═══ */}
-      <TermPanel title="文件上传与识别" bodyClassName="p-3 space-y-4">
-          <SimpleDropzone
-            dragActive={dragActive}
-            recognizing={recognizing}
-            onDrop={onDrop}
-            onDragOver={(e) => {
-              e.preventDefault()
-              setDragActive(true)
+    <div className={styles.stack} data-warm-manual-calculation-panel="true">
+      <WarmPanel title="核算参数">
+        <div className={styles.filters}>
+          <WarmSelect
+            id="manual-calculation-project"
+            label="项目"
+            value={projectName}
+            options={projectOptions}
+            onChange={(value) => {
+              setProjectName(value)
+              setCards((prev) => {
+                const next = { ...prev }
+                for (const key of PRODUCT_ANALYSIS_TYPES) {
+                  if (next[key]) next[key] = { ...next[key], selectedProject: value }
+                }
+                return next
+              })
+              resetDownstream()
             }}
-            onDragLeave={(e) => {
-              e.preventDefault()
-              setDragActive(false)
-            }}
-            onPickFiles={onPickFiles}
+            placeholder={
+              projectsLoading
+                ? '项目加载中...'
+                : projects.length
+                  ? '请选择项目名称'
+                  : '暂无可选项目'
+            }
+            disabled={projectsLoading || projects.length === 0}
+            className={styles.projectField}
           />
 
-          {/* Report Status Cards */}
-          <div className="grid gap-4 md:grid-cols-3">
-            {PRODUCT_ANALYSIS_CARD_CONFIGS.map((config) => {
-              const cardState = cards[config.type] ?? emptyCardState()
-              return (
-                <ReportStatusCard
-                  key={config.type}
-                  config={config}
-                  state={cardState}
-                  projects={projectName ? [projectName] : []}
-                  onPickCandidate={(tempFileId) => {
-                    setCards((prev) => ({
-                      ...prev,
-                      [config.type]: {
-                        ...prev[config.type],
-                        activeTempFileId: tempFileId,
-                        recognition:
-                          prev[config.type]?.candidates.find(
-                            (c) => c.temp_file_id === tempFileId
-                          ) ?? null,
-                        commitStatus: 'idle',
-                        commitMessage: null,
-                      },
-                    }))
-                  }}
-                  onProjectChange={() => {}}
-                  onDateChange={() => {}}
-                  onCommit={() => void commitCard(config.type)}
-                  canCommit={Boolean(
-                    cardState.activeTempFileId &&
-                      projectName &&
-                      cardState.commitStatus !== 'saving' &&
-                      cardState.commitStatus !== 'success'
-                  )}
-                  projectLocked={true}
-                  datesLocked={true}
-                  periodLabel={periodLabel}
-                />
-              )
-            })}
+          <WarmSelect
+            id="manual-calculation-country"
+            label="站点"
+            value={country}
+            options={COUNTRY_OPTIONS}
+            onChange={(value) => setCountry(value as CountryOption)}
+            className={styles.countryField}
+          />
+
+          <div className={`${styles.field} ${styles.dateField}`}>
+            <span className={styles.fieldLabel}>日期范围</span>
+            <div className={styles.dateInputs}>
+              <input
+                id="manual-calculation-start-date"
+                type="date"
+                aria-label="开始日期"
+                max={today}
+                className={styles.dateInput}
+                value={startDate}
+                onChange={(event) => {
+                  setStartDate(event.target.value)
+                  resetDownstream()
+                }}
+              />
+              <input
+                id="manual-calculation-end-date"
+                type="date"
+                aria-label="结束日期"
+                max={today}
+                className={styles.dateInput}
+                value={endDate}
+                onChange={(event) => {
+                  setEndDate(event.target.value)
+                  resetDownstream()
+                }}
+              />
+            </div>
+            {startDate && endDate && startDate > endDate ? (
+              <p className={styles.fieldError}>开始日期不能晚于结束日期</p>
+            ) : null}
           </div>
 
-          {/* Action buttons */}
-          <div className="flex items-center gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => void handleCheck()}
-              disabled={!canCheck}
+          <div className={`${styles.field} ${styles.actionField}`}>
+            <span className={styles.fieldLabel}>快捷</span>
+            <WarmButton
+              variant="secondary"
+              onClick={() => {
+                const range = getLastWeekRange()
+                setStartDate(range.start)
+                setEndDate(range.end)
+                resetDownstream()
+              }}
             >
-              {checkState === 'checking' ? (
-                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-              ) : (
-                <CheckCircle2 className="mr-1 h-4 w-4" />
-              )}
-              检查数据
-            </Button>
-
-            <Button type="button" onClick={() => void handleRun()} disabled={!canRun}>
-              {runState === 'running' ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
-              执行核算
-            </Button>
+              <CalendarRange aria-hidden />
+              上周
+            </WarmButton>
           </div>
+        </div>
 
-          {checkError && (
-            <div className="flex items-center gap-2 rounded-none border border-term-neg/40 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
-              <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
-              {checkError}
-            </div>
-          )}
+        <div className={styles.statusGrid}>
+          {PRODUCT_ANALYSIS_CARD_CONFIGS.map((config) => {
+            const card = cards[config.type]
+            const status = card?.commitStatus ?? 'idle'
+            return (
+              <div key={config.type} className={styles.statusTile}>
+                <span className={styles.statusLabel}>{config.title}</span>
+                <p className={styles.statusValue} data-status={status}>
+                  {status === 'success'
+                    ? '已提交'
+                    : status === 'saving'
+                      ? '提交中'
+                      : status === 'error'
+                        ? '提交失败'
+                        : '未提交'}
+                </p>
+              </div>
+            )
+          })}
+        </div>
 
-          {runError && (
-            <div className="flex items-center gap-2 rounded-none border border-term-neg/40 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
-              <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
-              {runError}
-            </div>
-          )}
-      </TermPanel>
+        {formError ? (
+          <div className={styles.error} role="alert">
+            <AlertCircle aria-hidden />
+            {formError}
+          </div>
+        ) : null}
+      </WarmPanel>
 
-      {/* ═══ Panel 3: Data Availability ═══ */}
-      {availability && (
-        <TermPanel title={`数据可用性 ${startDate} — ${endDate}`} bodyClassName="p-3 space-y-3">
-            <div className="flex items-center gap-2 border-t border-term-border pt-2 font-mono text-xs">
-              {availability.has_minimum_data ? (
-                <div className="flex items-center gap-1.5 font-medium text-term-pos">
-                  <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
-                  可执行核算
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5 font-medium text-term-neg">
-                  <XCircle className="h-3.5 w-3.5" aria-hidden />
-                  数据不足，无法执行核算（缺少核心报表数据）
-                </div>
-              )}
-            </div>
-        </TermPanel>
-      )}
+      <WarmPanel title="文件上传与识别">
+        <SimpleDropzone
+          dragActive={dragActive}
+          recognizing={recognizing}
+          onDrop={onDrop}
+          onDragOver={(event) => {
+            event.preventDefault()
+            setDragActive(true)
+          }}
+          onDragLeave={(event) => {
+            event.preventDefault()
+            setDragActive(false)
+          }}
+          onPickFiles={onPickFiles}
+          inputId="manual-calculation-upload"
+          className={styles.uploadZone}
+        />
 
-      {/* ═══ Panel 4: Results ═══ */}
-      {runState === 'done' && (
-        <TermPanel
+        <div className={styles.statusCards}>
+          {PRODUCT_ANALYSIS_CARD_CONFIGS.map((config) => {
+            const cardState = cards[config.type] ?? emptyCardState()
+            return (
+              <ReportStatusCard
+                key={config.type}
+                config={config}
+                state={cardState}
+                projects={projectName ? [projectName] : []}
+                onPickCandidate={(tempFileId) => {
+                  setCards((prev) => ({
+                    ...prev,
+                    [config.type]: {
+                      ...prev[config.type],
+                      activeTempFileId: tempFileId,
+                      recognition:
+                        prev[config.type]?.candidates.find(
+                          (candidate) => candidate.temp_file_id === tempFileId
+                        ) ?? null,
+                      commitStatus: 'idle',
+                      commitMessage: null,
+                    },
+                  }))
+                }}
+                onProjectChange={() => {}}
+                onDateChange={() => {}}
+                onCommit={() => void commitCard(config.type)}
+                canCommit={Boolean(
+                  cardState.activeTempFileId &&
+                    projectName &&
+                    cardState.commitStatus !== 'saving' &&
+                    cardState.commitStatus !== 'success'
+                )}
+                projectLocked
+                datesLocked
+                periodLabel={periodLabel}
+                selectContentClassName={`warm-ledger ${styles.statusSelectContent}`}
+              />
+            )
+          })}
+        </div>
+
+        <div className={styles.buttonRow}>
+          <WarmButton
+            variant="secondary"
+            onClick={() => void handleCheck()}
+            disabled={!canCheck}
+            loading={checkState === 'checking'}
+            loadingLabel="正在检查数据"
+          >
+            {checkState !== 'checking' ? <CheckCircle2 aria-hidden /> : null}
+            检查数据
+          </WarmButton>
+          <WarmButton
+            variant="primary"
+            onClick={() => void handleRun()}
+            disabled={!canRun}
+            loading={runState === 'running'}
+            loadingLabel="正在执行核算"
+          >
+            执行核算
+          </WarmButton>
+        </div>
+
+        {checkError ? (
+          <div className={styles.error} role="alert">
+            <AlertCircle aria-hidden />
+            {checkError}
+          </div>
+        ) : null}
+        {runError ? (
+          <div className={styles.error} role="alert">
+            <AlertCircle aria-hidden />
+            {runError}
+          </div>
+        ) : null}
+      </WarmPanel>
+
+      {availability ? (
+        <WarmPanel title={`数据可用性 ${startDate} — ${endDate}`}>
+          <div className={styles.summaryCheck} data-valid={availability.has_minimum_data}>
+            {availability.has_minimum_data ? (
+              <>
+                <CheckCircle2 aria-hidden />
+                可执行核算
+              </>
+            ) : (
+              <>
+                <XCircle aria-hidden />
+                数据不足，无法执行核算（缺少核心报表数据）
+              </>
+            )}
+          </div>
+        </WarmPanel>
+      ) : null}
+
+      {runState === 'done' ? (
+        <WarmPanel
           title={`核算结果 · 共 ${periods.length} 个周期`}
           actions={
-            <Button
-              size="sm"
-              variant="outline"
+            <WarmButton
+              variant="secondary"
               onClick={() => void handleExport()}
               disabled={periods.length === 0}
             >
-              <Download className="mr-1 h-4 w-4" aria-hidden />
+              <Download aria-hidden />
               导出 Excel
-            </Button>
+            </WarmButton>
           }
         >
-          <div className="p-3">
-            {periods.length === 0 ? (
-              <div className="py-8 text-center font-mono text-sm text-term-faint">无核算数据</div>
-            ) : (
-              <div className="space-y-3">
-                {periods.map((period, idx) => {
-                  const isExpanded = expandedIndex === idx
-                  return (
-                    <div key={idx} className="space-y-1">
-                      <div
-                        className={`flex flex-wrap items-center gap-2 rounded-none border px-2 py-1.5 font-mono text-xs transition-colors ${
-                          isExpanded
-                            ? 'border-term-border-strong bg-term-raised text-term-text'
-                            : 'border-term-border bg-term-panel text-term-muted hover:bg-term-hover'
-                        }`}
-                        onClick={() => setExpandedIndex(isExpanded ? null : idx)}
-                      >
-                        <button
-                          className="rounded-none p-0.5 hover:bg-term-hover shrink-0"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setExpandedIndex(isExpanded ? null : idx)
-                          }}
-                        >
-                          {isExpanded ? (
-                            <ArrowUp className="h-4 w-4" />
-                          ) : (
-                            <ArrowDown className="h-4 w-4" />
-                          )}
-                        </button>
-
-                        <span className="shrink-0 font-medium text-sm">
-                          <span className="tabular-nums">
-                            {period.report_start_date} ~ {period.report_end_date}
-                          </span>
-                          {period.persisted && (
-                            <span className="ml-1.5 inline-flex items-center gap-0.5 rounded-none border border-term-pos/40 px-1 py-px font-mono text-[10px] leading-none text-term-pos">
-                              <CheckCircle2 className="h-3 w-3" aria-hidden />
-                              已写入PT1
-                            </span>
-                          )}
+          {periods.length === 0 ? (
+            <div className={styles.empty} role="status">
+              无核算数据
+            </div>
+          ) : (
+            <div className={styles.periodList}>
+              {periods.map((period, idx) => {
+                const isExpanded = expandedIndex === idx
+                return (
+                  <div key={idx} className={styles.period}>
+                    <button
+                      type="button"
+                      className={styles.periodSummary}
+                      aria-expanded={isExpanded}
+                      aria-label={isExpanded ? '收起明细' : '展开明细'}
+                      onClick={() => setExpandedIndex(isExpanded ? null : idx)}
+                    >
+                      {isExpanded ? <ArrowUp aria-hidden /> : <ArrowDown aria-hidden />}
+                      <span className={styles.periodRange}>
+                        {period.report_start_date} ~ {period.report_end_date}
+                      </span>
+                      {period.persisted ? (
+                        <span className={styles.persistedBadge}>
+                          <CheckCircle2 aria-hidden />
+                          已写入PT1
                         </span>
+                      ) : null}
+                      <span className={styles.periodMetrics}>
+                        <span>总销售额: {renderCell(period.summary['总销售额'])}</span>
+                        <span>利润: {renderCell(period.summary['利润'])}</span>
+                        <span>利润率: {renderCell(period.summary['利润率'], 'percent')}</span>
+                        <span>ACOS: {renderCell(period.summary['ACOS'], 'percent')}</span>
+                      </span>
+                    </button>
 
-                        <span className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 tabular-nums text-term-muted">
-                          <span>总销售额: {renderCell(period.summary['总销售额'])}</span>
-                          <span>利润: {renderCell(period.summary['利润'])}</span>
-                          <span>利润率: {renderCell(period.summary['利润率'], 'percent')}</span>
-                          <span>ACOS: {renderCell(period.summary['ACOS'], 'percent')}</span>
-                        </span>
-                      </div>
-
-                      {isExpanded && (
-                        <div className="overflow-x-auto rounded-none border border-term-border term-scroll">
-                          <table className="w-full border-collapse font-mono text-xs tabular-nums">
-                            <thead>
-                              <tr className="border-b border-term-border bg-term-raised">
-                                {DETAIL_DISPLAY_COLUMNS.map((col) => (
-                                  <th
-                                    key={col.key}
-                                    className="h-9 px-2 text-right font-medium normal-case tracking-normal whitespace-nowrap text-term-muted"
-                                  >
-                                    {col.label}
-                                  </th>
-                                ))}
+                    {isExpanded ? (
+                      <div className={styles.detailScroller}>
+                        <table className={styles.detailTable}>
+                          <thead>
+                            <tr>
+                              {DETAIL_DISPLAY_COLUMNS.map((col) => (
+                                <th key={col.key}>{col.label}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {period.details.length === 0 ? (
+                              <tr>
+                                <td colSpan={detailColCount} className={styles.mutedValue}>
+                                  无 SKU 明细
+                                </td>
                               </tr>
-                            </thead>
-                            <tbody>
-                              {period.details.length === 0 ? (
-                                <tr>
-                                  <td
-                                    colSpan={detailColCount}
-                                    className="px-3 py-4 text-center text-muted-foreground"
-                                  >
-                                    无 SKU 明细
-                                  </td>
+                            ) : (
+                              period.details.map((detail, dIdx) => (
+                                <tr key={dIdx}>
+                                  {DETAIL_DISPLAY_COLUMNS.map((col) => (
+                                    <td key={col.key}>{renderCell(detail[col.key], col.fmt)}</td>
+                                  ))}
                                 </tr>
-                              ) : (
-                                period.details.map((detail, dIdx) => (
-                                  <tr
-                                    key={dIdx}
-                                    className="border-b border-term-border hover:bg-term-hover"
-                                  >
-                                    {DETAIL_DISPLAY_COLUMNS.map((col) => (
-                                      <td
-                                        key={col.key}
-                                        className="px-3 py-1.5 text-right whitespace-nowrap"
-                                      >
-                                        {renderCell(detail[col.key], col.fmt)}
-                                      </td>
-                                    ))}
-                                  </tr>
-                                ))
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </TermPanel>
-      )}
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : null}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </WarmPanel>
+      ) : null}
     </div>
   )
 }

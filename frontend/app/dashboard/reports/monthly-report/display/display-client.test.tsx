@@ -13,6 +13,11 @@ import { readSharedReportProjectId, writeSharedReportProjectId } from '../shared
 
 import { stableSession } from '@/test-utils/stable-mocks'
 
+const downloadBlobMock = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/download-blob', () => ({
+  downloadBlob: downloadBlobMock,
+}))
+
 // ── next/navigation：可控的 URL search param 存储 ────────────────────────────
 // useUrlParam 从 useSearchParams 读、经 router.replace 写。这里用一个进程内
 // URLSearchParams 模拟"已落定的 URL"（project/fromMonth/toMonth 都有值），
@@ -64,6 +69,10 @@ vi.mock('@/components/terminal/terminal-header-slot', () => ({
     headerCapture.refreshHandler = handler
     headerCapture.refreshLoading = opts?.loading
     return { setLoading: vi.fn() }
+  },
+  usePrimaryFilterSlot: (node: ReactNode) => {
+    headerCapture.slotNode = node
+    return null
   },
   useHeaderSlot: (node: ReactNode) => {
     headerCapture.slotNode = node
@@ -122,6 +131,23 @@ function makePayload(months: string[]): FinancialSeriesResponse {
   }
 }
 
+function makeEmptyPayload(): FinancialSeriesResponse {
+  return {
+    project_id: 1,
+    project_name: '铨富',
+    start_month: '2025-08',
+    end_month: '2026-07',
+    rows: [],
+    trend: {
+      income_total_sum: 0,
+      expense_total_sum: 0,
+      amazon_pay_back_sum: 0,
+      net_amount_sum: 0,
+      points: [],
+    },
+  }
+}
+
 function jsonResponse(payload: unknown) {
   return {
     ok: true,
@@ -136,9 +162,21 @@ let financialPayload: FinancialSeriesResponse
 // 模拟 financial-series 接口网络延迟：>0 时让陈旧缓存回放的状态先 commit，
 // 再让最新响应到达（真实复现 stale-while-revalidate 的两段式时序）。
 let financialDelayMs = 0
+let financialError: string | null = null
 
 const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
   const url = String(input)
+  if (url.includes('/monthly-reports/financial-series/accounting-detail/export')) {
+    return {
+      ok: true,
+      status: 200,
+      blob: async () => new Blob(['accounting-detail']),
+      text: async () => '',
+      headers: new Headers({
+        'Content-Disposition': "attachment; filename*=UTF-8''accounting-2026-06.xlsx",
+      }),
+    } as unknown as Response
+  }
   if (url.includes('/monthly-reports/financial-series/accounting-detail')) {
     return jsonResponse({
       project_id: 1,
@@ -151,6 +189,15 @@ const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const payload = financialPayload
     if (financialDelayMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, financialDelayMs))
+    }
+    if (financialError) {
+      return {
+        ok: false,
+        status: 500,
+        json: async () => ({ detail: financialError }),
+        text: async () => JSON.stringify({ detail: financialError }),
+        headers: new Headers(),
+      } as unknown as Response
     }
     // 与后端一致：按请求窗口过滤行，窗口外的月份不进入序列
     const qs = new URLSearchParams(url.includes('?') ? url.split('?')[1] : '')
@@ -184,6 +231,8 @@ beforeEach(() => {
   nav.setParams('project=1&fromMonth=2025-08&toMonth=2026-07')
   financialPayload = makePayload(['2026-05', '2026-06'])
   financialDelayMs = 0
+  financialError = null
+  downloadBlobMock.mockReset()
 })
 
 afterEach(() => {
@@ -379,7 +428,7 @@ describe('月份窗口 URL 参数（fromMonth/toMonth/monthRange）', () => {
 })
 
 describe('BLF-962 头部插槽契约', () => {
-  it('正文不再渲染筛选控件与刷新按钮，店铺/国家/起止月份注册进头部插槽', async () => {
+  it('正文不再渲染筛选控件与刷新按钮，Warm 店铺/国家/起止月份注册进主筛选插槽', async () => {
     render(<DisplayTab />)
     await screen.findByRole('tab', { name: '月度明细' })
     expect(headerCapture.slotNode).not.toBeNull()
@@ -394,10 +443,91 @@ describe('BLF-962 头部插槽契约', () => {
     // 单独渲染插槽节点：店铺 / 国家 / 起止月份 4 个控件确实都在插槽内容里
     //（已选中具体值时渲染选中文本而非 placeholder：店铺=铨富、国家=美国站、月份=yyyy-MM）
     render(<>{headerCapture.slotNode}</>)
+    expect(document.querySelector('[data-warm-header-filters="true"]')).toBeInTheDocument()
+    expect(screen.getByText('店铺')).toBeInTheDocument()
+    expect(screen.getByText('国家')).toBeInTheDocument()
     expect(await screen.findByText('铨富')).toBeInTheDocument()
     expect(screen.getByText('美国站 (US)')).toBeInTheDocument()
     expect(screen.getByText('2025-08')).toBeInTheDocument()
     expect(screen.getByText('2026-07')).toBeInTheDocument()
+  })
+})
+
+describe('Warm Ledger 页面表面与状态', () => {
+  it('首屏使用 Warm 页面/分析区/表格滚动容器', async () => {
+    render(<DisplayTab />)
+
+    await screen.findByRole('tab', { name: '月度明细' })
+    expect(screen.getByTestId('monthly-display-page')).toHaveAttribute(
+      'data-warm-monthly-display',
+      'true'
+    )
+    expect(screen.getByRole('region', { name: '月度财务分析' })).toHaveAttribute(
+      'data-warm-surface',
+      'true'
+    )
+    const table = await screen.findByRole('table', { name: '月度财务汇总表' })
+    expect(table.parentElement).toHaveAttribute('data-monthly-table-scroll', 'true')
+  })
+
+  it('首屏加载只显示加载状态，不提前渲染 0 或空态', async () => {
+    financialDelayMs = 120
+    render(<DisplayTab />)
+
+    const status = await screen.findByRole('status', { name: '财务数据加载状态' })
+    expect(status).toHaveTextContent('正在加载财务数据')
+    expect(screen.queryByText('当前筛选条件暂无财务数据')).not.toBeInTheDocument()
+    expect(screen.queryByText('$0.00')).not.toBeInTheDocument()
+  })
+
+  it('请求失败只显示错误状态，不与真实空态同时出现', async () => {
+    financialError = '财务数据加载失败'
+    render(<DisplayTab />)
+
+    const alert = await screen.findByRole('alert', { name: '财务数据请求失败' })
+    expect(alert).toHaveTextContent('财务数据加载失败')
+    expect(screen.queryByText('当前筛选条件暂无财务数据')).not.toBeInTheDocument()
+  })
+
+  it('请求成功但无数据时显示真实空态且 KPI 不伪装成 0', async () => {
+    financialPayload = makeEmptyPayload()
+    render(<DisplayTab />)
+
+    expect(await screen.findByText('当前筛选条件暂无财务数据')).toBeInTheDocument()
+    const incomeKpi = screen.getByText('收入合计').parentElement
+    expect(incomeKpi).toHaveTextContent('—')
+    expect(incomeKpi).not.toHaveTextContent('$0.00')
+  })
+})
+
+describe('双导出动作契约', () => {
+  it('财务分析按所选窗口导出，月度明细按单月请求独立工作簿', async () => {
+    const user = userEvent.setup()
+    render(<DisplayTab />)
+
+    await user.click(await screen.findByRole('button', { name: '导出财务分析' }))
+    await waitFor(() => expect(downloadBlobMock).toHaveBeenCalledTimes(1), {
+      timeout: 5_000,
+    })
+    const financialFilename = downloadBlobMock.mock.calls[0]?.[1]
+    expect(String(financialFilename)).toContain('月度财务汇总分析-2026年6月.xlsx')
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).includes('/accounting-detail/export'))
+    ).toBe(false)
+
+    await switchToAccountingTab()
+    await waitForMonthInSelect('2026年6月')
+    await user.click(screen.getByRole('button', { name: '导出核算明细' }))
+    await waitFor(() => expect(downloadBlobMock).toHaveBeenCalledTimes(2))
+
+    const exportCall = fetchMock.mock.calls.find(([url]) =>
+      String(url).includes('/accounting-detail/export')
+    )
+    expect(exportCall).toBeTruthy()
+    const exportUrl = new URL(String(exportCall?.[0]), 'http://localhost')
+    expect(exportUrl.searchParams.get('project_id')).toBe('1')
+    expect(exportUrl.searchParams.get('country')).toBe('US')
+    expect(exportUrl.searchParams.get('report_month')).toBe('2026-06')
   })
 })
 

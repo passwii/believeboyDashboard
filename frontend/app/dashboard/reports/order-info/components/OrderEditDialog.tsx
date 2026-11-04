@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { Loader2, Save, Truck } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
 import { DatePicker, formatDateInputValue, parseDateInputValue } from '@/components/ui/date-picker'
 import {
   Dialog,
@@ -13,9 +12,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { useNotifications } from '@/components/notifications'
 import { normalizeErrorMessage } from '@/lib/error-utils'
+import { cn } from '@/lib/utils'
+import styles from '../order-info-warm.module.css'
 
 /**
  * FBM 订单补录/编辑 Dialog
@@ -161,13 +161,16 @@ export function OrderEditDialog(props: OrderEditDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => !submitting && onOpenChange(v)}>
-      <DialogContent className="max-w-xl">
+      <DialogContent
+        className={cn('warm-ledger', styles.dialog)}
+        data-warm-order-dialog="true"
+      >
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Truck className="h-4 w-4" />
+          <DialogTitle className={styles.dialogTitle}>
+            <Truck className={styles.dialogTitleIcon} />
             编辑 FBM 订单 · 物流信息
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className={styles.dialogDescription}>
             订单号 <span className="font-mono text-xs">{order.amazon_order_id}</span> · 店铺{' '}
             {order.project_name}
             {order.sku ? ` · SKU ${order.sku}` : ''}
@@ -175,72 +178,91 @@ export function OrderEditDialog(props: OrderEditDialogProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 py-2">
-          <div className="grid gap-2">
-            <label className="text-xs font-medium text-muted-foreground">物流商（Carrier）</label>
-            <Input
+        <div className={styles.dialogFields}>
+          <div className={styles.dialogField}>
+            <label htmlFor="order-info-carrier" className={styles.fieldLabel}>物流商（Carrier）</label>
+            <input
+              id="order-info-carrier"
               value={form.carrier}
               onChange={(e) => handleFieldChange('carrier', e.target.value)}
               placeholder="例如 UPS / USPS / FedEx / DHL / 顺丰"
               disabled={submitting}
               maxLength={64}
               autoComplete="off"
+              className={styles.dialogInput}
             />
           </div>
 
-          <div className="grid gap-2">
-            <label className="text-xs font-medium text-muted-foreground">
+          <div className={styles.dialogField}>
+            <label htmlFor="order-info-tracking-no" className={styles.fieldLabel}>
               物流单号（Tracking No.）
             </label>
-            <Input
+            <input
+              id="order-info-tracking-no"
               value={form.tracking_no}
               onChange={(e) => handleFieldChange('tracking_no', e.target.value)}
               placeholder="例如 1Z999AA10123456784"
               disabled={submitting}
               maxLength={128}
               autoComplete="off"
+              className={styles.dialogInput}
             />
           </div>
 
-          <div className="grid gap-2">
-            <label className="text-xs font-medium text-muted-foreground">
+          <div className={styles.dialogField}>
+            <label className={styles.dateFieldLabel}>
               发货时间（Shipped At · 北京时间）
+              <DatePicker
+                mode="single"
+                value={parseDateInputValue(form.shipped_at)}
+                onChange={(date) => handleFieldChange('shipped_at', formatDateInputValue(date))}
+                placeholder="选择发货日期"
+                className={styles.dateTrigger}
+                popoverClassName={cn('warm-ledger', styles.datePopover)}
+              />
             </label>
-            <DatePicker
-              mode="single"
-              value={parseDateInputValue(form.shipped_at)}
-              onChange={(date) => handleFieldChange('shipped_at', formatDateInputValue(date))}
-              placeholder="选择发货日期"
-            />
           </div>
 
-          <div className="grid gap-2">
-            <label className="text-xs font-medium text-muted-foreground">
+          <div className={styles.dialogField}>
+            <label htmlFor="order-info-updated-by" className={styles.fieldLabel}>
               操作人（Updated By）
             </label>
-            <Input
+            <input
+              id="order-info-updated-by"
               value={form.updated_by}
               onChange={(e) => handleFieldChange('updated_by', e.target.value)}
               placeholder={defaultUpdatedBy ?? '填写操作人姓名'}
               disabled={submitting}
               maxLength={64}
               autoComplete="off"
+              className={styles.dialogInput}
             />
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
+        <DialogFooter className={styles.dialogFooter}>
+          <button
+            type="button"
+            className={styles.dialogCancelButton}
+            onClick={() => onOpenChange(false)}
+            disabled={submitting}
+          >
             取消
-          </Button>
-          <Button onClick={() => void handleSubmit()} disabled={submitting} className="gap-1">
+          </button>
+          <button
+            type="button"
+            className={styles.dialogSaveButton}
+            onClick={() => void handleSubmit()}
+            disabled={submitting}
+            aria-busy={submitting}
+          >
             {submitting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className={styles.dialogSpinner} />
             ) : (
-              <Save className="h-4 w-4" />
+              <Save className={styles.dialogButtonIcon} />
             )}
             保存
-          </Button>
+          </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

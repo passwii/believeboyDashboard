@@ -1,58 +1,28 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  AreaChartCard,
+  Area,
+  CartesianGrid,
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  XAxis,
+  YAxis,
   type ChartConfig,
 } from '@/components/charts'
-import {
-  TrendingUp,
-  TrendingDown,
-  Wallet,
-  Eye,
-  EyeOff,
-  Download,
-  Loader2,
-  RefreshCw,
-} from 'lucide-react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import type { KeyboardEvent } from 'react'
+import { Download, Eye, EyeOff, RefreshCw } from 'lucide-react'
 import { useSession } from 'next-auth/react'
+import { AreaChart } from 'recharts'
 
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import {
-  DataCard,
-  DataCardHeader,
-  DataCardContent,
-  DataTableCard,
-  DataTableCardHeader,
-  DataTableCardBody,
-  DataTableCardStatBar,
-} from '@/components/ui/data-card'
+import { WarmButton, WarmSelect } from '@/components/dashboard-v2/warm-ledger/controls'
 import { logClientOperation } from '@/lib/operation-audit'
 import {
   MonthPicker,
   formatMonthInputValue,
   parseMonthInputValue,
 } from '@/components/ui/date-picker'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
-import { BarSkeleton } from '@/components/ui/table-skeleton'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableFooter,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { getClientCache, setClientCache } from '@/lib/client-cache'
 import { resolveProjectCommissionUsd } from '@/lib/commission'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
@@ -68,19 +38,13 @@ import {
   type ReportUploadCountry,
 } from '@/components/report-upload/types'
 import { VAT_COUNTRIES } from '@/lib/console-constants'
-import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
-import {
-  HeaderSlotSelect,
-  TERM_HEADER_TRIGGER,
-  TERM_HEADER_W_MD,
-  TERM_HEADER_W_SM,
-} from '@/components/terminal/header-filter-suite'
 import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
 import {
   useHeaderRefresh,
-  useHeaderSlot,
   useMobileFilterStrip,
+  usePrimaryFilterSlot,
 } from '@/components/terminal/terminal-header-slot'
+import styles from './display-warm.module.css'
 
 export type ProjectOption = {
   id: number | null
@@ -179,6 +143,11 @@ type FinancialAccountingDetailResponse = {
 
 type FinancialViewTab = 'financial' | 'accounting'
 
+const FINANCIAL_VIEW_TABS: ReadonlyArray<{ value: FinancialViewTab; label: string }> = [
+  { value: 'financial', label: '月度汇总' },
+  { value: 'accounting', label: '月度明细' },
+]
+
 const API_BASE = '/api/backend'
 const FINANCIAL_SERIES_CACHE_TTL_MS = 3 * 60 * 1000
 const EXCHANGE_RATE_CACHE_TTL_MS = 30 * 60 * 1000
@@ -219,11 +188,11 @@ function oneYearAgoMonthString(): string {
 const chartConfig = {
   income_sales: {
     label: '销售额',
-    color: 'hsl(var(--chart-2))',
+    color: 'var(--warm-ledger-color-accent)',
   },
   income_refund: {
     label: '退款',
-    color: 'hsl(var(--destructive))',
+    color: 'var(--warm-ledger-color-negative)',
   },
 } satisfies ChartConfig
 
@@ -824,6 +793,8 @@ export default function DisplayTab() {
     income_refund: true,
   })
   const [activeTab, setActiveTab] = useState<FinancialViewTab>('financial')
+  const tabIdBase = useId()
+  const [warmPortalContainer, setWarmPortalContainer] = useState<HTMLElement | null>(null)
   const [accountingMonth, setAccountingMonth] = useState('')
   // 月份是否由用户在下拉框里显式挑选过。自动默认（含首屏加载、刷新/重算后
   // 的重新落位）不算显式选择——只有显式选择才允许在数据更新后停留在原月份，
@@ -833,6 +804,10 @@ export default function DisplayTab() {
   const [accountingLoading, setAccountingLoading] = useState(false)
   const [accountingExporting, setAccountingExporting] = useState(false)
   const [accountingError, setAccountingError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setWarmPortalContainer(document.getElementById('warm-ledger-portal-root'))
+  }, [])
 
   // BEL-43: derive the accounting detail Tab header label from the
   // first row's backend-stamped currency_code when available, otherwise
@@ -1181,7 +1156,7 @@ export default function DisplayTab() {
     } finally {
       setAccountingExporting(false)
     }
-  }, [accountingMonth, projectId, country, projects, data])
+  }, [accountingMonth, projectId, country])
 
   useEffect(() => {
     if (sessionStatus === 'loading') return
@@ -1843,7 +1818,37 @@ export default function DisplayTab() {
     startMonth,
     currencySymbol,
   ])
-  const showSkeleton = loading && !data
+  const hasFinancialRows = Boolean(data && data.rows.length > 0)
+  const showInitialLoading =
+    !projectLoadError &&
+    !error &&
+    !data &&
+    (projectsLoading || loading || sessionStatus === 'loading' || Boolean(projectId))
+  const showNoVisibleProjects =
+    !projectLoadError && !projectsLoading && projects.length === 0 && !projectId
+  const showFinancialEmpty =
+    !showInitialLoading && !showNoVisibleProjects && !projectLoadError && !error && !hasFinancialRows
+  const activeTabId = `${tabIdBase}-${activeTab}-tab`
+  const activePanelId = `${tabIdBase}-panel`
+  const handleFinancialTabKeyDown = (
+    event: KeyboardEvent<HTMLButtonElement>,
+    currentIndex: number
+  ) => {
+    let nextIndex: number | null = null
+    if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % FINANCIAL_VIEW_TABS.length
+    if (event.key === 'ArrowLeft') {
+      nextIndex =
+        (currentIndex - 1 + FINANCIAL_VIEW_TABS.length) % FINANCIAL_VIEW_TABS.length
+    }
+    if (event.key === 'Home') nextIndex = 0
+    if (event.key === 'End') nextIndex = FINANCIAL_VIEW_TABS.length - 1
+    if (nextIndex === null) return
+    event.preventDefault()
+    setActiveTab(FINANCIAL_VIEW_TABS[nextIndex].value)
+    const nextTab = document.getElementById(`${tabIdBase}-${FINANCIAL_VIEW_TABS[nextIndex].value}-tab`)
+    nextTab?.focus()
+  }
+
   // —— BLF-962 · head 插槽（display 试点，确立 generate / reconcile 复用模式）——
   // 刷新语义与原「财务分析」RefreshButton 一致：当前筛选条件下强刷（跳缓存）。
   useHeaderRefresh(() => loadFinancialSeries({ force: true }), { loading })
@@ -1855,40 +1860,56 @@ export default function DisplayTab() {
     .filter((project) => project.id !== null)
     .map((project) => ({ value: String(project.id), label: project.name }))
   const headerFilterControls = (
-    <>
-      <HeaderSlotSelect
+    <div className={styles.headerFilters} data-warm-header-filters="true">
+      <WarmSelect
+        id="monthly-report-project-filter"
+        label="店铺"
         value={projectId}
         onChange={setProjectId}
         options={projectSlotOptions}
         placeholder={projectsLoading ? '项目加载中…' : '请选择店铺'}
         disabled={projectsLoading || projects.length === 0}
-        widthClass={TERM_HEADER_W_MD}
-        title="店铺筛选"
+        className={styles.projectFilter}
       />
-      <HeaderSlotSelect
+      <WarmSelect
+        id="monthly-report-country-filter"
+        label="国家"
         value={country}
         onChange={(value) => setCountry(value as ReportUploadCountry)}
         options={[...DISPLAY_COUNTRY_SLOT_OPTIONS]}
-        widthClass={TERM_HEADER_W_SM}
-        title="国家站点筛选"
+        className={styles.countryFilter}
       />
-      <MonthPicker
-        value={parseMonthInputValue(startMonth)}
-        onChange={handleStartMonthChange}
-        placeholder="开始月份"
-        className={cn(TERM_HEADER_TRIGGER, TERM_HEADER_W_SM, 'justify-start px-2 text-left')}
-      />
-      <MonthPicker
-        value={parseMonthInputValue(endMonth)}
-        onChange={handleEndMonthChange}
-        placeholder="结束月份"
-        className={cn(TERM_HEADER_TRIGGER, TERM_HEADER_W_SM, 'justify-start px-2 text-left')}
-      />
-    </>
+      <div className={styles.monthRangeFilter} role="group" aria-label="月度范围">
+        <div className={styles.monthField} role="group" aria-label="开始月份">
+          <span className={styles.monthRangeLabel} aria-hidden="true">
+            起
+          </span>
+          <MonthPicker
+            value={parseMonthInputValue(startMonth)}
+            onChange={handleStartMonthChange}
+            placeholder="开始月份"
+            className={styles.dateTrigger}
+            portalContainer={warmPortalContainer}
+            popoverClassName={cn(styles.datePopover, 'warm-ledger__date-picker-content')}
+          />
+        </div>
+        <div className={styles.monthField} role="group" aria-label="结束月份">
+          <span className={styles.monthRangeLabel} aria-hidden="true">
+            止
+          </span>
+          <MonthPicker
+            value={parseMonthInputValue(endMonth)}
+            onChange={handleEndMonthChange}
+            placeholder="结束月份"
+            className={styles.dateTrigger}
+            portalContainer={warmPortalContainer}
+            popoverClassName={cn(styles.datePopover, 'warm-ledger__date-picker-content')}
+          />
+        </div>
+      </div>
+    </div>
   )
-  const headerSlotPortal = useHeaderSlot(
-    <HeaderFilterControls isMobileView={false} controls={headerFilterControls} />
-  )
+  const headerSlotPortal = usePrimaryFilterSlot(headerFilterControls)
 
   // 移动端：筛选控件下迁为正文顶部可折叠筛选条（短控件 1/2，起止月份占整行）。
   const mobileProjectLabel =
@@ -1901,28 +1922,32 @@ export default function DisplayTab() {
       summary={mobileFilterSummary}
       controls={
         <>
-          <HeaderSlotSelect
+          <WarmSelect
+            id="monthly-report-project-filter-mobile"
+            label="店铺"
             value={projectId}
             onChange={setProjectId}
             options={projectSlotOptions}
             placeholder={projectsLoading ? '项目加载中…' : '请选择店铺'}
             disabled={projectsLoading || projects.length === 0}
-            widthClass={TERM_HEADER_W_MD}
-            title="店铺筛选"
+            className={styles.mobileFilterControl}
           />
-          <HeaderSlotSelect
+          <WarmSelect
+            id="monthly-report-country-filter-mobile"
+            label="国家"
             value={country}
             onChange={(value) => setCountry(value as ReportUploadCountry)}
             options={[...DISPLAY_COUNTRY_SLOT_OPTIONS]}
-            widthClass={TERM_HEADER_W_SM}
-            title="国家站点筛选"
+            className={styles.mobileFilterControl}
           />
           <MobileFilterWide>
             <MonthPicker
               value={parseMonthInputValue(startMonth)}
               onChange={handleStartMonthChange}
               placeholder="开始月份"
-              className="h-10 w-full"
+              className={styles.dateTrigger}
+              portalContainer={warmPortalContainer}
+              popoverClassName={cn(styles.datePopover, 'warm-ledger__date-picker-content')}
             />
           </MobileFilterWide>
           <MobileFilterWide>
@@ -1930,7 +1955,9 @@ export default function DisplayTab() {
               value={parseMonthInputValue(endMonth)}
               onChange={handleEndMonthChange}
               placeholder="结束月份"
-              className="h-10 w-full"
+              className={styles.dateTrigger}
+              portalContainer={warmPortalContainer}
+              popoverClassName={cn(styles.datePopover, 'warm-ledger__date-picker-content')}
             />
           </MobileFilterWide>
         </>
@@ -1939,418 +1966,489 @@ export default function DisplayTab() {
   )
 
   return (
-    <div className="min-w-0 w-full space-y-6 overflow-x-hidden">
+    <div
+      className={styles.page}
+      data-testid="monthly-display-page"
+      data-warm-monthly-display="true"
+    >
       {headerSlotPortal}
       {/* 移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
       {mobileFilterStrip}
       {projectLoadError ? (
-        <div className="rounded-none border border-term-neg/40 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
-          {projectLoadError}
+        <div className={styles.alert} role="alert" aria-label="店铺列表请求失败">
+          <strong>店铺列表请求失败</strong>
+          <span>{projectLoadError}</span>
         </div>
       ) : null}
       {error ? (
-        <div className="rounded-none border border-term-neg/40 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
-          {error}
+        <div className={styles.alert} role="alert" aria-label="财务数据请求失败">
+          <strong>财务数据请求失败</strong>
+          <span>{error}</span>
         </div>
       ) : null}
       {accountingError ? (
-        <div className="rounded-none border border-term-neg/40 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
-          {accountingError}
+        <div className={styles.alert} role="alert" aria-label="月度明细请求失败">
+          <strong>月度明细请求失败</strong>
+          <span>{accountingError}</span>
         </div>
       ) : null}
 
-      <DataTableCard>
-        <DataTableCardStatBar
-          className="border-b border-term-border bg-term-raised"
-          items={[
+      <section
+        className={styles.analysis}
+        aria-label="月度财务分析"
+        data-warm-surface="true"
+        aria-busy={showInitialLoading || undefined}
+      >
+        <div className={styles.kpiGrid}>
+          {[
             {
               label: '收入合计',
-              value: data
-                ? formatCurrency(data.trend.income_total_sum, currencySymbol)
-                : `${currencySymbol}0.00`,
-              highlight: true,
+              value: hasFinancialRows
+                ? formatCurrency(data!.trend.income_total_sum, currencySymbol)
+                : '—',
+              primary: true,
             },
             {
               label: '支出合计',
-              value: data
-                ? formatCurrency(data.trend.expense_total_sum, currencySymbol)
-                : `${currencySymbol}0.00`,
+              value: hasFinancialRows
+                ? formatCurrency(data!.trend.expense_total_sum, currencySymbol)
+                : '—',
+              primary: false,
             },
             {
               label: '亚马逊返款',
-              value: data
-                ? formatCurrency(data.trend.amazon_pay_back_sum, currencySymbol)
-                : `${currencySymbol}0.00`,
+              value: hasFinancialRows
+                ? formatCurrency(data!.trend.amazon_pay_back_sum, currencySymbol)
+                : '—',
+              primary: false,
             },
-          ]}
-        />
-      </DataTableCard>
+          ].map((item) => (
+            <article key={item.label} className={styles.kpi}>
+              <h2 className={styles.kpiLabel}>{item.label}</h2>
+              {showInitialLoading ? (
+                <span className={styles.kpiSkeleton} aria-hidden="true" />
+              ) : (
+                <p className={styles.kpiValue} data-primary={item.primary ? 'true' : undefined}>
+                  {item.value}
+                </p>
+              )}
+            </article>
+          ))}
+        </div>
+        {showInitialLoading ? (
+          <p className={styles.loadingState} role="status" aria-label="财务数据加载状态">
+            正在加载财务数据…
+          </p>
+        ) : null}
+      </section>
 
-      {/* 优化后的图表 - 使用 AreaChart 和渐变 */}
-      <DataCard className="animate-enter">
-        <DataCardHeader
-          title="月度趋势"
-          badge={<p className="dashboard-kicker">财务趋势</p>}
-          action={
-            <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
+      {showInitialLoading || hasFinancialRows ? (
+        <section className={styles.panel} aria-labelledby="monthly-trend-title">
+          <header className={styles.panelHeader}>
+            <div>
+              <h2 id="monthly-trend-title" className={styles.panelTitle}>
+                月度趋势
+              </h2>
+              {loading && data ? (
+                <p className={styles.inlineStatus} role="status">
+                  趋势更新中…
+                </p>
+              ) : null}
+            </div>
+            <div className={styles.seriesControls} aria-label="趋势系列">
               <button
                 type="button"
+                className={styles.seriesToggle}
+                aria-pressed={visibleLines.income_sales}
+                data-series="sales"
                 onClick={() =>
                   setVisibleLines((prev) => ({
                     ...prev,
                     income_sales: !prev.income_sales,
                   }))
                 }
-                className={`flex items-center gap-1.5 rounded-none border px-2 py-1 font-mono text-[11px] font-medium transition-colors ${
-                  visibleLines.income_sales
-                    ? 'border-term-pos/40 bg-term-pos/10 text-term-pos'
-                    : 'border-term-border bg-term-panel text-term-faint line-through'
-                }`}
               >
                 {visibleLines.income_sales ? (
-                  <Eye className="h-3 w-3" />
+                  <Eye aria-hidden="true" />
                 ) : (
-                  <EyeOff className="h-3 w-3" />
+                  <EyeOff aria-hidden="true" />
                 )}
-                <span
-                  className="h-2 w-2 rounded-none"
-                  style={{ backgroundColor: 'hsl(var(--chart-2))' }}
-                />
+                <span className={styles.seriesSwatch} data-series="sales" aria-hidden="true" />
                 销售额
               </button>
               <button
                 type="button"
+                className={styles.seriesToggle}
+                aria-pressed={visibleLines.income_refund}
+                data-series="refund"
                 onClick={() =>
                   setVisibleLines((prev) => ({
                     ...prev,
                     income_refund: !prev.income_refund,
                   }))
                 }
-                className={`flex items-center gap-1.5 rounded-none border px-2 py-1 font-mono text-[11px] font-medium transition-colors ${
-                  visibleLines.income_refund
-                    ? 'border-term-neg/40 bg-term-neg/10 text-term-neg'
-                    : 'border-term-border bg-term-panel text-term-faint line-through'
-                }`}
               >
                 {visibleLines.income_refund ? (
-                  <Eye className="h-3 w-3" />
+                  <Eye aria-hidden="true" />
                 ) : (
-                  <EyeOff className="h-3 w-3" />
+                  <EyeOff aria-hidden="true" />
                 )}
-                <span
-                  className="h-2 w-2 rounded-none"
-                  style={{ backgroundColor: 'hsl(var(--destructive))' }}
-                />
+                <span className={styles.seriesSwatch} data-series="refund" aria-hidden="true" />
                 退款
               </button>
             </div>
-          }
-        />
-        <DataCardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
-          {loading && data ? (
-            <div className="mb-4 inline-flex rounded-none border border-term-border bg-term-raised px-2 py-1 font-mono text-[11px] text-term-muted">
-              趋势图更新中...
-            </div>
-          ) : null}
-          {showSkeleton ? (
-            <Skeleton className="h-[320px] w-full" />
-          ) : trendPoints.length > 0 ? (
-            <AreaChartCard
-              data={trendPoints}
-              xKey="month_label"
-              config={chartConfig}
-              className="aspect-auto h-[320px] w-full"
-              yTickFormatter={formatCompactCurrency}
-              showLegend={false}
-              tooltipFormatter={(value, name) => {
-                const nameMap: Record<string, string> = {
-                  income_sales: '销售额',
-                  income_refund: '退款',
-                }
-                const displayName = nameMap[name] ?? name
-                return (
-                  <div className="flex items-center justify-between gap-4">
-                    <span className="text-muted-foreground">{displayName}</span>
-                    <span className="font-medium">
-                      {formatCurrency(Number(value), currencySymbol)}
-                    </span>
-                  </div>
-                )
-              }}
-              series={[
-                ...(visibleLines.income_refund
-                  ? [{ dataKey: 'income_refund', name: '退款' }]
-                  : []),
-                ...(visibleLines.income_sales
-                  ? [{ dataKey: 'income_sales', name: '销售额' }]
-                  : []),
-              ]}
-            />
-          ) : (
-            <div className="rounded-none border border-dashed border-term-border px-4 py-10 text-center font-mono text-xs text-term-faint">
-              暂无趋势数据
-            </div>
-          )}
-        </DataCardContent>
-      </DataCard>
-
-      <DataTableCard className="animate-enter">
-        <DataTableCardHeader className="flex flex-wrap items-start justify-between gap-3 px-6 py-4">
-          <div>
-            <p className="dashboard-kicker">操作台账</p>
-            <div className="text-base font-semibold text-foreground">
-              {activeTab === 'financial' ? '月度汇总' : '月度明细'}
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {activeTab === 'financial'
-                ? data
-                  ? `${data.project_name} · ${formatMonth(data.start_month)} 至 ${formatMonth(data.end_month)}`
-                  : '按月展示收入/支出结构与返款'
-                : accountingMonth
-                  ? `报表核算 · ${formatMonth(accountingMonth)}`
-                  : '请选择有源报表的月份查看月度明细'}
-            </p>
+          </header>
+          <div className={styles.chartBody}>
+            {showInitialLoading ? (
+              <div className={styles.chartSkeleton} aria-hidden="true" />
+            ) : trendPoints.length > 0 ? (
+              <ChartContainer
+                config={chartConfig}
+                className={styles.chart}
+                aria-label={`月度趋势，销售额与退款，${formatMonth(startMonth)}至${formatMonth(endMonth)}`}
+              >
+                <AreaChart
+                  accessibilityLayer
+                  data={trendPoints}
+                  margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+                >
+                  <CartesianGrid
+                    stroke="var(--warm-ledger-color-chart-grid)"
+                    vertical={false}
+                  />
+                  <XAxis
+                    dataKey="month_label"
+                    axisLine={false}
+                    tickLine={false}
+                    tickMargin={8}
+                    interval={0}
+                    minTickGap={24}
+                    tick={{
+                      fontSize: 11,
+                      fontFamily: 'var(--warm-ledger-font-mono)',
+                      fill: 'var(--warm-ledger-color-text-muted)',
+                    }}
+                  />
+                  <YAxis
+                    width={56}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(value) => formatCompactCurrency(Number(value))}
+                    tick={{
+                      fontSize: 11,
+                      fontFamily: 'var(--warm-ledger-font-mono)',
+                      fill: 'var(--warm-ledger-color-text-muted)',
+                    }}
+                  />
+                  <ChartTooltip
+                    cursor={{
+                      stroke: 'var(--warm-ledger-color-hairline-strong)',
+                      strokeDasharray: '4 4',
+                    }}
+                    content={
+                      <ChartTooltipContent
+                        className={styles.tooltip}
+                        formatter={(value, name) => {
+                          const nameMap: Record<string, string> = {
+                            income_sales: '销售额',
+                            income_refund: '退款',
+                          }
+                          const displayName = nameMap[String(name)] ?? String(name)
+                          return (
+                            <div className={styles.tooltipRow}>
+                              <span>{displayName}</span>
+                              <span>{formatCurrency(Number(value), currencySymbol)}</span>
+                            </div>
+                          )
+                        }}
+                      />
+                    }
+                  />
+                  {visibleLines.income_refund ? (
+                    <Area
+                      type="monotone"
+                      dataKey="income_refund"
+                      name="退款"
+                      stroke="var(--warm-ledger-color-negative)"
+                      fill="var(--warm-ledger-color-negative)"
+                      fillOpacity={0.06}
+                      strokeWidth={2}
+                      isAnimationActive={false}
+                    />
+                  ) : null}
+                  {visibleLines.income_sales ? (
+                    <Area
+                      type="monotone"
+                      dataKey="income_sales"
+                      name="销售额"
+                      stroke="var(--warm-ledger-color-accent)"
+                      fill="var(--warm-ledger-color-accent-area)"
+                      fillOpacity={1}
+                      strokeWidth={2}
+                      isAnimationActive={false}
+                    />
+                  ) : null}
+                </AreaChart>
+              </ChartContainer>
+            ) : null}
           </div>
-          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+        </section>
+      ) : null}
+
+      <section className={styles.panel} aria-label="月度财务表格">
+        <header className={styles.ledgerHeader}>
+          <div className={styles.tabList} role="tablist" aria-label="月度报表视图">
+            {FINANCIAL_VIEW_TABS.map((tab, index) => (
+              <button
+                key={tab.value}
+                id={`${tabIdBase}-${tab.value}-tab`}
+                type="button"
+                role="tab"
+                className={styles.tab}
+                aria-selected={activeTab === tab.value}
+                aria-controls={activePanelId}
+                tabIndex={activeTab === tab.value ? 0 : -1}
+                onClick={() => setActiveTab(tab.value)}
+                onKeyDown={(event) => handleFinancialTabKeyDown(event, index)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <div className={styles.ledgerActions}>
             {activeTab === 'accounting' ? (
               <>
-                <Select
+                <WarmSelect
+                  id="monthly-report-accounting-month"
+                  label="核算月份"
                   value={accountingMonth}
-                  onValueChange={(month) => {
+                  onChange={(month) => {
                     accountingMonthUserPickedRef.current = true
                     setAccountingMonth(month)
                   }}
+                  options={accountingMonthOptions.map((month) => ({
+                    value: month,
+                    label: formatMonth(month),
+                  }))}
+                  placeholder="请选择月份"
                   disabled={accountingMonthOptions.length === 0}
-                >
-                  <SelectTrigger className="h-8 w-[190px] border-term-border bg-term-bg">
-                    <SelectValue placeholder="请选择月份" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {accountingMonthOptions.map((month) => (
-                      <SelectItem key={month} value={month}>
-                        {formatMonth(month)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
+                  className={styles.monthSelect}
+                />
+                <WarmButton
                   type="button"
-                  variant="outline"
-                  className="h-8"
                   onClick={() => void loadAccountingDetail()}
-                  disabled={accountingLoading || !accountingMonth}
+                  loading={accountingLoading}
+                  loadingLabel="正在刷新月度明细"
+                  disabled={!accountingMonth}
+                  className={styles.actionButton}
                 >
-                  {accountingLoading ? '加载中...' : '刷新核算明细'}
-                </Button>
-                <Button
+                  <RefreshCw aria-hidden="true" />
+                  刷新月度明细
+                </WarmButton>
+                <WarmButton
                   type="button"
-                  variant="outline"
-                  className="h-8"
                   onClick={() => void exportAccountingDetail()}
-                  disabled={
-                    accountingExporting || !accountingMonth || accountingMonthOptions.length === 0
-                  }
+                  loading={accountingExporting}
+                  loadingLabel="正在导出月度明细"
+                  disabled={!accountingMonth || accountingMonthOptions.length === 0}
+                  className={styles.actionButton}
                 >
-                  {accountingExporting ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Download className="mr-2 h-4 w-4" />
-                  )}
-                  导出 Excel
-                </Button>
+                  <Download aria-hidden="true" />
+                  导出核算明细
+                </WarmButton>
               </>
             ) : (
               <>
-                <Button
+                <WarmButton
                   type="button"
-                  variant="outline"
-                  className="h-8"
                   onClick={() => void exportFinancialAnalysis()}
-                  disabled={exporting || !data || detailExportRows.length === 0}
+                  loading={exporting}
+                  loadingLabel="正在导出财务分析"
+                  disabled={!data || detailExportRows.length === 0}
+                  className={styles.actionButton}
                 >
-                  {exporting ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Download className="mr-2 h-4 w-4" />
-                  )}
-                  导出 Excel
-                </Button>
-                <Button
+                  <Download aria-hidden="true" />
+                  导出财务分析
+                </WarmButton>
+                <WarmButton
                   type="button"
-                  variant="outline"
-                  className="h-8"
                   onClick={() => void recalculateFinancialSeries()}
-                  disabled={recalculating || !data || data.rows.length === 0}
+                  loading={recalculating}
+                  loadingLabel="正在重新核算"
+                  disabled={!data || data.rows.length === 0}
+                  className={styles.actionButton}
                 >
-                  {recalculating ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                  )}
+                  <RefreshCw aria-hidden="true" />
                   重新核算
-                </Button>
+                </WarmButton>
               </>
             )}
-            <Tabs
-              value={activeTab}
-              onValueChange={(value) => setActiveTab(value as FinancialViewTab)}
-              className="shrink-0"
-            >
-              <TabsList variant="term" className="w-fit justify-start">
-                <TabsTrigger value="financial" variant="term">
-                  月度汇总
-                </TabsTrigger>
-                <TabsTrigger value="accounting" variant="term">
-                  月度明细
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
           </div>
-        </DataTableCardHeader>
-        <DataTableCardBody>
+        </header>
+        <div
+          className={styles.panelBody}
+          id={activePanelId}
+          role="tabpanel"
+          aria-labelledby={activeTabId}
+          aria-busy={
+            (activeTab === 'financial' ? showInitialLoading || loading : accountingLoading) ||
+            undefined
+          }
+        >
           {activeTab === 'financial' ? (
             <>
               {loading && data ? (
-                <div className="mb-4 inline-flex rounded-none border border-term-border bg-term-raised px-2 py-1 font-mono text-[11px] text-term-muted">
-                  财务明细更新中...
-                </div>
+                <p className={styles.inlineStatus} role="status">
+                  财务明细更新中…
+                </p>
               ) : null}
-              {showSkeleton ? (
-                <BarSkeleton rows={5} />
-              ) : data && data.rows.length > 0 ? (
-                <Table
-                  containerClassName="w-full max-w-full overflow-x-auto"
-                  className={`w-max ${isAdmin ? 'min-w-[2500px]' : 'min-w-[2100px]'} table-fixed text-xs`}
+              {showInitialLoading ? (
+                <div className={styles.tableSkeleton} aria-hidden="true">
+                  {Array.from({ length: 6 }).map((_, index) => (
+                    <span key={index} />
+                  ))}
+                </div>
+              ) : hasFinancialRows ? (
+                <div
+                  className={styles.tableScroller}
+                  data-monthly-table-scroll="true"
+                  tabIndex={0}
+                  role="region"
+                  aria-label="月度财务汇总表滚动区域"
                 >
-                  <TableHeader>
-                    <TableRow className="bg-term-panel/30 hover:bg-term-panel/30">
-                      <TableHead
+                  <table
+                    className={cn(styles.table, isAdmin ? styles.tableAdmin : styles.tableStandard)}
+                    aria-label="月度财务汇总表"
+                  >
+                  <thead>
+                    <tr>
+                      <th
                         rowSpan={2}
-                        className="sticky z-40 border-r border-term-border bg-term-raised px-2 py-2 text-center font-mono text-xs text-term-muted"
+                        className={cn(styles.tableHead, styles.stickyHead)}
                         style={{ left: 0, minWidth: MONTH_STICKY_WIDTH }}
                       >
                         年/月度
-                      </TableHead>
-                      <TableHead
+                      </th>
+                      <th
                         colSpan={4}
-                        className="border-r bg-emerald-100 px-2 py-2 text-center text-foreground dark:bg-emerald-900/80 dark:text-emerald-100"
+                        className={cn(styles.tableHead, styles.groupHead, styles.incomeGroupHead)}
                       >
                         平台-收入 Income
-                      </TableHead>
-                      <TableHead
+                      </th>
+                      <th
                         colSpan={6}
-                        className="border-r bg-term-warn/15 px-2 py-2 text-center text-foreground"
+                        className={cn(styles.tableHead, styles.groupHead, styles.expenseGroupHead)}
                       >
                         平台-支出 Expense
-                      </TableHead>
-                      <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                      </th>
+                      <th rowSpan={2}>
                         收入合计
-                      </TableHead>
-                      <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                      </th>
+                      <th rowSpan={2}>
                         支出合计
-                      </TableHead>
+                      </th>
                       {showVatColumn ? (
-                        <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                        <th rowSpan={2}>
                           VAT
-                        </TableHead>
+                        </th>
                       ) : null}
-                      <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                      <th rowSpan={2}>
                         亚马逊回款
-                      </TableHead>
-                      <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                      </th>
+                      <th rowSpan={2}>
                         信用卡扣款
-                      </TableHead>
+                      </th>
                       {isAdmin ? (
                         <>
-                          <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                          <th rowSpan={2}>
                             测评费用RMB
-                          </TableHead>
-                          <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                          </th>
+                          <th rowSpan={2}>
                             垫付其他RMB
-                          </TableHead>
-                          <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                          </th>
+                          <th rowSpan={2}>
                             运营佣金RMB
-                          </TableHead>
-                          <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                          </th>
+                          <th rowSpan={2}>
                             应付总计RMB
-                          </TableHead>
-                          <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                          </th>
+                          <th rowSpan={2}>
                             汇率
-                          </TableHead>
+                          </th>
                         </>
                       ) : null}
-                      <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                      <th rowSpan={2}>
                         平台占比
-                      </TableHead>
-                      <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                      </th>
+                      <th rowSpan={2}>
                         配送占比
-                      </TableHead>
-                      <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                      </th>
+                      <th rowSpan={2}>
                         仓储占比
-                      </TableHead>
-                      <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                      </th>
+                      <th rowSpan={2}>
                         服务占比
-                      </TableHead>
-                      <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                      </th>
+                      <th rowSpan={2}>
                         广告占比
-                      </TableHead>
-                      <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                      </th>
+                      <th rowSpan={2}>
                         退款率
-                      </TableHead>
-                      <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                      </th>
+                      <th rowSpan={2}>
                         回款率
-                      </TableHead>
-                      <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                      </th>
+                      <th rowSpan={2}>
                         FOB成本
-                      </TableHead>
-                      <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                      </th>
+                      <th rowSpan={2}>
                         头程成本
-                      </TableHead>
-                      <TableHead rowSpan={2} className="border-r px-2 py-2 text-center">
+                      </th>
+                      <th rowSpan={2}>
                         净利润RMB
-                      </TableHead>
-                      <TableHead rowSpan={2} className="px-2 py-2 text-center">
+                      </th>
+                      <th rowSpan={2}>
                         净利润{currencyLabel}
-                      </TableHead>
-                      <TableHead rowSpan={2} className="px-2 py-2 text-center">
+                      </th>
+                      <th rowSpan={2}>
                         净利率
-                      </TableHead>
-                    </TableRow>
-                    <TableRow className="bg-term-panel/20 hover:bg-term-panel/20">
-                      <TableHead className="border-r bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900/80 dark:text-emerald-100">
+                      </th>
+                    </tr>
+                    <tr>
+                      <th className={styles.incomeGroupCell}>
                         销售额
-                      </TableHead>
-                      <TableHead className="border-r bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900/80 dark:text-emerald-100">
+                      </th>
+                      <th className={styles.incomeGroupCell}>
                         退款
-                      </TableHead>
-                      <TableHead className="border-r bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900/80 dark:text-emerald-100">
+                      </th>
+                      <th className={styles.incomeGroupCell}>
                         赔偿
-                      </TableHead>
-                      <TableHead className="border-r bg-emerald-100 px-2 py-1.5 text-center dark:bg-emerald-900/80 dark:text-emerald-100">
+                      </th>
+                      <th className={styles.incomeGroupCell}>
                         其他收入
-                      </TableHead>
-                      <TableHead className="border-r bg-term-warn/10 px-2 py-1.5 text-center">
+                      </th>
+                      <th className={styles.expenseGroupCell}>
                         平台费
-                      </TableHead>
-                      <TableHead className="border-r bg-term-warn/10 px-2 py-1.5 text-center">
+                      </th>
+                      <th className={styles.expenseGroupCell}>
                         配送费
-                      </TableHead>
-                      <TableHead className="border-r bg-term-warn/10 px-2 py-1.5 text-center">
+                      </th>
+                      <th className={styles.expenseGroupCell}>
                         仓储费
-                      </TableHead>
-                      <TableHead className="border-r bg-term-warn/10 px-2 py-1.5 text-center">
+                      </th>
+                      <th className={styles.expenseGroupCell}>
                         服务费
-                      </TableHead>
-                      <TableHead className="border-r bg-term-warn/10 px-2 py-1.5 text-center">
+                      </th>
+                      <th className={styles.expenseGroupCell}>
                         广告费
-                      </TableHead>
-                      <TableHead className="border-r bg-term-warn/10 px-2 py-1.5 text-center">
+                      </th>
+                      <th className={styles.expenseGroupCell}>
                         其他费用
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.rows.map((row) => {
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data!.rows.map((row) => {
                       const exchangeRate = exchangeRateByMonth[row.report_month] ?? 0
                       const creditCard = row.credit_card_deduction_usd
                       const evaluationFeeRmb = 0
@@ -2367,7 +2465,6 @@ export default function DisplayTab() {
                         evaluationFeeRmb + prepaymentOtherRmb + operationCommissionRmb
                       const netProfitRmb = calculateNetProfitRmb(row, exchangeRate)
                       const netProfitUsd = calculateNetProfitUsd(row, exchangeRate)
-                      const rowBg = !row.has_source_report ? 'bg-term-panel' : 'bg-term-panel'
                       const platformRatio = toPositiveRatio(
                         row.expense_selling_fee,
                         row.income_total
@@ -2390,317 +2487,320 @@ export default function DisplayTab() {
                       const netProfitRate = toSignedRatio(netProfitUsd, row.income_total)
 
                       return (
-                        <TableRow
+                        <tr
                           key={row.report_month}
-                          className={!row.has_source_report ? 'bg-term-panel/20' : undefined}
+                          className={!row.has_source_report ? styles.missingSourceRow : undefined}
                         >
-                          <TableCell
-                            className={`sticky z-20 border-r border-term-border px-2 py-1.5 font-mono text-xs font-medium ${rowBg}`}
+                          <td
+                            className={cn(styles.textCell, styles.stickyCell)}
                             style={{ left: 0, minWidth: MONTH_STICKY_WIDTH }}
                           >
-                            <div className="flex items-center justify-between gap-1">
-                              <span className="whitespace-nowrap">
-                                {formatMonth(row.report_month)}
-                              </span>
+                            <div className={styles.monthCell}>
+                              <span>{formatMonth(row.report_month)}</span>
                               {!row.has_source_report ? (
-                                <Badge
-                                  variant="outline"
-                                  className="h-4 whitespace-nowrap rounded-sm border-term-warn/30 bg-term-warn/10 px-1 text-[9px] leading-none text-term-warn"
-                                >
-                                  无
-                                </Badge>
+                                <span className={styles.missingSourceBadge}>无</span>
                               ) : null}
                             </div>
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                          </td>
+                          <td className={styles.numberCell}>
                             {formatCurrency(resolveDisplaySales(row), currencySymbol)}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                          </td>
+                          <td className={styles.numberCell}>
                             {formatCurrency(row.income_refund, currencySymbol)}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                          </td>
+                          <td className={styles.numberCell}>
                             {formatCurrency(row.income_adjustment, currencySymbol)}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                          </td>
+                          <td className={styles.numberCell}>
                             {formatCurrency(row.income_other, currencySymbol)}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                          </td>
+                          <td className={styles.numberCell}>
                             {formatCurrency(row.expense_selling_fee, currencySymbol)}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                          </td>
+                          <td className={styles.numberCell}>
                             {formatCurrency(row.expense_fba_fee, currencySymbol)}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                          </td>
+                          <td className={styles.numberCell}>
                             {formatCurrency(row.expense_inventory_fee, currencySymbol)}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                          </td>
+                          <td className={styles.numberCell}>
                             {formatCurrency(row.expense_service_fee, currencySymbol)}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                          </td>
+                          <td className={styles.numberCell}>
                             {formatCurrency(row.expense_advertising, currencySymbol)}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                          </td>
+                          <td className={styles.numberCell}>
                             {formatCurrency(row.expense_other_fees, currencySymbol)}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right font-semibold tabular-nums">
+                          </td>
+                          <td className={cn(styles.numberCell, styles.emphasisCell)}>
                             {formatCurrency(row.income_total, currencySymbol)}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right font-semibold tabular-nums">
+                          </td>
+                          <td className={cn(styles.numberCell, styles.emphasisCell)}>
                             {formatCurrency(row.expense_total, currencySymbol)}
-                          </TableCell>
+                          </td>
                           {showVatColumn ? (
-                            <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                            <td className={styles.numberCell}>
                               {formatCurrency(Math.abs(row.income_vat_total ?? 0), currencySymbol)}
-                            </TableCell>
+                            </td>
                           ) : null}
-                          <TableCell className="border-r px-2 py-1.5 text-right font-semibold tabular-nums">
+                          <td className={cn(styles.numberCell, styles.emphasisCell)}>
                             {formatCurrency(row.amazon_pay_back, currencySymbol)}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                          </td>
+                          <td className={styles.numberCell}>
                             {formatCurrency(creditCard, currencySymbol)}
-                          </TableCell>
+                          </td>
                           {isAdmin ? (
                             <>
-                              <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                              <td className={styles.numberCell}>
                                 {formatRmb(evaluationFeeRmb)}
-                              </TableCell>
-                              <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                              </td>
+                              <td className={styles.numberCell}>
                                 {formatRmb(prepaymentOtherRmb)}
-                              </TableCell>
-                              <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                              </td>
+                              <td className={styles.numberCell}>
                                 {disableCommission ? '-' : formatRmb(operationCommissionRmb)}
-                              </TableCell>
-                              <TableCell className="border-r px-2 py-1.5 text-right font-semibold tabular-nums">
+                              </td>
+                              <td className={cn(styles.numberCell, styles.emphasisCell)}>
                                 {disableCommission ? '-' : formatRmb(payableTotalRmb)}
-                              </TableCell>
-                              <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                              </td>
+                              <td className={styles.numberCell}>
                                 {formatRate(exchangeRate)}
-                              </TableCell>
+                              </td>
                             </>
                           ) : null}
-                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                          <td className={styles.numberCell}>
                             {formatRatio(platformRatio)}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                          </td>
+                          <td className={styles.numberCell}>
                             {formatRatio(deliveryRatio)}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                          </td>
+                          <td className={styles.numberCell}>
                             {formatRatio(storageRatio)}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                          </td>
+                          <td className={styles.numberCell}>
                             {formatRatio(serviceRatio)}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                          </td>
+                          <td className={styles.numberCell}>
                             {formatRatio(adRatio)}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                          </td>
+                          <td className={styles.numberCell}>
                             {formatRatio(refundRatio)}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                          </td>
+                          <td className={styles.numberCell}>
                             {formatSignedRatio(paybackRatio)}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                          </td>
+                          <td className={styles.numberCell}>
                             {formatRmb(row.fob_cost_rmb)}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                          </td>
+                          <td className={styles.numberCell}>
                             {formatRmb(row.first_leg_cost_rmb)}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right font-semibold tabular-nums">
+                          </td>
+                          <td className={cn(styles.numberCell, styles.emphasisCell)}>
                             {formatRmb(netProfitRmb)}
-                          </TableCell>
-                          <TableCell className="px-2 py-1.5 text-right font-semibold tabular-nums">
+                          </td>
+                          <td className={cn(styles.numberCellNoBorder, styles.emphasisCell)}>
                             {formatCurrency(netProfitUsd, currencySymbol)}
-                          </TableCell>
-                          <TableCell className="px-2 py-1.5 text-right font-semibold tabular-nums">
+                          </td>
+                          <td className={cn(styles.numberCellNoBorder, styles.emphasisCell)}>
                             {formatSignedRatio(netProfitRate)}
-                          </TableCell>
-                        </TableRow>
+                          </td>
+                        </tr>
                       )
                     })}
-                  </TableBody>
-                  <TableFooter>
-                    <TableRow className="bg-term-panel font-semibold hover:bg-term-panel">
-                      <TableCell
-                        className="sticky z-30 border-r border-border bg-term-panel px-2 py-2"
+                  </tbody>
+                  <tfoot>
+                    <tr className={styles.footerRow}>
+                      <td
+                        className={cn(styles.textCell, styles.stickyCell, styles.footerCell)}
                         style={{ left: 0, minWidth: MONTH_STICKY_WIDTH }}
                       >
                         合计
-                      </TableCell>
-                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                      </td>
+                      <td className={cn(styles.numberCell, styles.footerCell)}>
                         {formatCurrency(totals.income_sales, currencySymbol)}
-                      </TableCell>
-                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                      </td>
+                      <td className={cn(styles.numberCell, styles.footerCell)}>
                         {formatCurrency(totals.income_refund, currencySymbol)}
-                      </TableCell>
-                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                      </td>
+                      <td className={cn(styles.numberCell, styles.footerCell)}>
                         {formatCurrency(totals.income_adjustment, currencySymbol)}
-                      </TableCell>
-                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                      </td>
+                      <td className={cn(styles.numberCell, styles.footerCell)}>
                         {formatCurrency(totals.income_other, currencySymbol)}
-                      </TableCell>
-                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                      </td>
+                      <td className={cn(styles.numberCell, styles.footerCell)}>
                         {formatCurrency(totals.expense_selling_fee, currencySymbol)}
-                      </TableCell>
-                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                      </td>
+                      <td className={cn(styles.numberCell, styles.footerCell)}>
                         {formatCurrency(totals.expense_fba_fee, currencySymbol)}
-                      </TableCell>
-                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                      </td>
+                      <td className={cn(styles.numberCell, styles.footerCell)}>
                         {formatCurrency(totals.expense_inventory_fee, currencySymbol)}
-                      </TableCell>
-                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                      </td>
+                      <td className={cn(styles.numberCell, styles.footerCell)}>
                         {formatCurrency(totals.expense_service_fee, currencySymbol)}
-                      </TableCell>
-                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                      </td>
+                      <td className={cn(styles.numberCell, styles.footerCell)}>
                         {formatCurrency(totals.expense_advertising, currencySymbol)}
-                      </TableCell>
-                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                      </td>
+                      <td className={cn(styles.numberCell, styles.footerCell)}>
                         {formatCurrency(totals.expense_other_fees, currencySymbol)}
-                      </TableCell>
-                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                      </td>
+                      <td className={cn(styles.numberCell, styles.footerCell)}>
                         {formatCurrency(totals.income_total, currencySymbol)}
-                      </TableCell>
-                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                      </td>
+                      <td className={cn(styles.numberCell, styles.footerCell)}>
                         {formatCurrency(totals.expense_total, currencySymbol)}
-                      </TableCell>
+                      </td>
                       {showVatColumn ? (
-                        <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                        <td className={cn(styles.numberCell, styles.footerCell)}>
                           {formatCurrency(totals.income_vat_total ?? 0, currencySymbol)}
-                        </TableCell>
+                        </td>
                       ) : null}
-                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                      <td className={cn(styles.numberCell, styles.footerCell)}>
                         {formatCurrency(totals.amazon_pay_back, currencySymbol)}
-                      </TableCell>
-                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                      </td>
+                      <td className={cn(styles.numberCell, styles.footerCell)}>
                         {formatCurrency(totals.credit_card_deduction_usd, currencySymbol)}
-                      </TableCell>
+                      </td>
                       {isAdmin ? (
                         <>
-                          <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                          <td className={cn(styles.numberCell, styles.footerCell)}>
                             {formatRmb(totals.evaluation_fee_rmb)}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                          </td>
+                          <td className={cn(styles.numberCell, styles.footerCell)}>
                             {formatRmb(totals.prepayment_other_rmb)}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                          </td>
+                          <td className={cn(styles.numberCell, styles.footerCell)}>
                             {disableCommission ? '-' : formatRmb(totals.operation_commission_rmb)}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                          </td>
+                          <td className={cn(styles.numberCell, styles.footerCell)}>
                             {disableCommission ? '-' : formatRmb(totals.payable_total_rmb)}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                          </td>
+                          <td className={cn(styles.numberCell, styles.footerCell)}>
                             {formatRate(
                               totals.exchange_rate_count > 0
                                 ? totals.exchange_rate_sum / totals.exchange_rate_count
                                 : 0
                             )}
-                          </TableCell>
+                          </td>
                         </>
                       ) : null}
-                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                      <td className={cn(styles.numberCell, styles.footerCell)}>
                         {formatRatio(
                           toPositiveRatio(totals.expense_selling_fee, totals.income_total)
                         )}
-                      </TableCell>
-                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                      </td>
+                      <td className={cn(styles.numberCell, styles.footerCell)}>
                         {formatRatio(toPositiveRatio(totals.expense_fba_fee, totals.income_total))}
-                      </TableCell>
-                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                      </td>
+                      <td className={cn(styles.numberCell, styles.footerCell)}>
                         {formatRatio(
                           toPositiveRatio(totals.expense_inventory_fee, totals.income_total)
                         )}
-                      </TableCell>
-                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                      </td>
+                      <td className={cn(styles.numberCell, styles.footerCell)}>
                         {formatRatio(
                           toPositiveRatio(totals.expense_service_fee, totals.income_total)
                         )}
-                      </TableCell>
-                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                      </td>
+                      <td className={cn(styles.numberCell, styles.footerCell)}>
                         {formatRatio(
                           toPositiveRatio(totals.expense_advertising, totals.income_total)
                         )}
-                      </TableCell>
-                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                      </td>
+                      <td className={cn(styles.numberCell, styles.footerCell)}>
                         {formatRatio(toPositiveRatio(totals.income_refund, totals.income_sales))}
-                      </TableCell>
-                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                      </td>
+                      <td className={cn(styles.numberCell, styles.footerCell)}>
                         {formatSignedRatio(
                           toSignedRatio(totals.amazon_pay_back, totals.income_total)
                         )}
-                      </TableCell>
-                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                      </td>
+                      <td className={cn(styles.numberCell, styles.footerCell)}>
                         {formatRmb(totals.fob_cost_rmb)}
-                      </TableCell>
-                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                      </td>
+                      <td className={cn(styles.numberCell, styles.footerCell)}>
                         {formatRmb(totals.first_leg_cost_rmb)}
-                      </TableCell>
-                      <TableCell className="border-r px-2 py-2 text-right tabular-nums">
+                      </td>
+                      <td className={cn(styles.numberCell, styles.footerCell)}>
                         {formatRmb(totals.net_profit_rmb)}
-                      </TableCell>
-                      <TableCell className="px-2 py-2 text-right tabular-nums">
+                      </td>
+                      <td className={cn(styles.numberCellNoBorder, styles.footerCell)}>
                         {formatCurrency(totals.net_profit_usd, currencySymbol)}
-                      </TableCell>
-                      <TableCell className="px-2 py-2 text-right tabular-nums">
+                      </td>
+                      <td className={cn(styles.numberCellNoBorder, styles.footerCell)}>
                         {formatSignedRatio(
                           toSignedRatio(totals.net_profit_usd, totals.income_total)
                         )}
-                      </TableCell>
-                    </TableRow>
-                  </TableFooter>
-                </Table>
-              ) : (
-                <div className="rounded-none border border-dashed border-term-border px-4 py-10 text-center font-mono text-xs text-term-faint">
-                  当前筛选条件暂无财务数据
+                      </td>
+                    </tr>
+                  </tfoot>
+                  </table>
                 </div>
-              )}
+              ) : showNoVisibleProjects ? (
+                <div className={styles.emptyState}>当前账号没有可见店铺</div>
+              ) : showFinancialEmpty ? (
+                <div className={styles.emptyState}>当前筛选条件暂无财务数据</div>
+              ) : null}
             </>
           ) : (
             <>
               {accountingLoading && accountingRows.length > 0 ? (
-                <div className="mb-4 inline-flex rounded-none border border-term-border bg-term-raised px-2 py-1 font-mono text-[11px] text-term-muted">
-                  月度明细更新中...
-                </div>
+                <p className={styles.inlineStatus} role="status">
+                  月度明细更新中…
+                </p>
               ) : null}
               {accountingLoading && accountingRows.length === 0 ? (
-                <div className="space-y-3">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Skeleton key={i} className="h-8 w-full" />
-                  ))}
-                </div>
+                <>
+                  <p className={styles.loadingState} role="status">
+                    正在加载月度明细…
+                  </p>
+                  <div className={styles.tableSkeleton} aria-hidden="true">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <span key={i} />
+                    ))}
+                  </div>
+                </>
               ) : accountingMonth && accountingRows.length > 0 ? (
-                <Table
-                  containerClassName="w-full max-w-full overflow-x-auto"
-                  className="w-max min-w-[1400px] table-fixed text-xs"
+                <div
+                  className={styles.tableScroller}
+                  data-monthly-table-scroll="true"
+                  tabIndex={0}
+                  role="region"
+                  aria-label="月度明细表滚动区域"
                 >
-                  <TableHeader>
-                    <TableRow className="bg-term-panel/30 hover:bg-term-panel/30">
-                      <TableHead
-                        colSpan={4}
-                        className="border-r bg-emerald-100 px-2 py-2 text-center dark:bg-emerald-900/80 dark:text-emerald-100"
-                      >
+                  <table
+                    className={cn(styles.table, styles.tableAccounting)}
+                    aria-label="月度明细表"
+                  >
+                  <thead>
+                    <tr>
+                      <th colSpan={4} className={styles.incomeGroupCell}>
                         Income（收入）
-                      </TableHead>
-                      <TableHead className="border-r px-2 py-2 text-center" />
-                      <TableHead colSpan={4} className="bg-term-warn/15 px-2 py-2 text-center">
+                      </th>
+                      <th />
+                      <th colSpan={4} className={cn(styles.groupHead, styles.expenseGroupHead)}>
                         Expense（支出）
-                      </TableHead>
-                    </TableRow>
-                    <TableRow className="bg-term-panel/20 hover:bg-term-panel/20">
-                      <TableHead className="border-r px-2 py-1.5 text-center">Income</TableHead>
-                      <TableHead className="border-r px-2 py-1.5 text-center">收入</TableHead>
-                      <TableHead className="border-r px-2 py-1.5 text-center">
+                      </th>
+                    </tr>
+                    <tr>
+                      <th>Income</th>
+                      <th>收入</th>
+                      <th>
                         In金额（{accountingCurrencyLabel}）
-                      </TableHead>
-                      <TableHead className="border-r px-2 py-1.5 text-center">In源表</TableHead>
-                      <TableHead className="border-r px-2 py-1.5 text-center" />
-                      <TableHead className="border-r px-2 py-1.5 text-center">Expense</TableHead>
-                      <TableHead className="border-r px-2 py-1.5 text-center">支出</TableHead>
-                      <TableHead className="border-r px-2 py-1.5 text-center">
+                      </th>
+                      <th>In源表</th>
+                      <th />
+                      <th>Expense</th>
+                      <th>支出</th>
+                      <th>
                         Ex金额（{accountingCurrencyLabel}）
-                      </TableHead>
-                      <TableHead className="px-2 py-1.5 text-center">Ex源表</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
+                      </th>
+                      <th>Ex源表</th>
+                    </tr>
+                  </thead>
+                  <tbody>
                     {accountingRows.map((row, index) => {
                       // BEL-43: prefer the backend-stamped currency code;
                       // fall back to the country-based switch for legacy
@@ -2719,92 +2819,90 @@ export default function DisplayTab() {
                       const rowKind = row.kind ?? 'detail'
                       if (rowKind === 'spacer') {
                         return (
-                          <TableRow
+                          <tr
                             key={`spacer-${index}`}
-                            className="h-2 bg-term-panel/30 hover:bg-term-panel/30"
+                            className={styles.spacerRow}
                             aria-hidden="true"
                           >
-                            <TableCell colSpan={9} className="border-0 p-0" />
-                          </TableRow>
+                            <td colSpan={9} className={styles.spacerCell} />
+                          </tr>
                         )
                       }
                       if (rowKind === 'total') {
                         return (
-                          <TableRow
-                            key={`total-${index}`}
-                            className="border-t-2 border-slate-400 font-semibold hover:bg-transparent"
-                          >
-                            <TableCell className="border-r bg-emerald-100 px-2 py-2 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100">
+                          <tr key={`total-${index}`} className={styles.totalRow}>
+                            <td className={styles.incomeGroupCell}>
                               {row.income_en}
-                            </TableCell>
-                            <TableCell className="border-r bg-emerald-100 px-2 py-2 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100">
+                            </td>
+                            <td className={styles.incomeGroupCell}>
                               {row.income_zh}
-                            </TableCell>
-                            <TableCell className="border-r bg-emerald-100 px-2 py-2 text-right tabular-nums text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100">
+                            </td>
+                            <td className={cn(styles.incomeGroupCell, styles.numberCell)}>
                               {formatCurrency(row.income_amount_usd, rowCurrencySymbol)}
-                            </TableCell>
-                            <TableCell className="border-r bg-emerald-100 px-2 py-2 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100">
+                            </td>
+                            <td className={styles.incomeGroupCell}>
                               {row.income_source || '\u00A0'}
-                            </TableCell>
-                            <TableCell className="border-r border-term-border bg-term-raised px-2 py-2 text-center font-mono text-xs text-term-muted">
+                            </td>
+                            <td className={styles.dividerCell}>
                               |
-                            </TableCell>
-                            <TableCell className="border-r bg-term-neg/10 px-2 py-2 text-term-neg">
+                            </td>
+                            <td className={styles.expenseGroupCell}>
                               {row.expense_en}
-                            </TableCell>
-                            <TableCell className="border-r bg-term-neg/10 px-2 py-2 text-term-neg">
+                            </td>
+                            <td className={styles.expenseGroupCell}>
                               {row.expense_zh}
-                            </TableCell>
-                            <TableCell className="border-r bg-term-neg/10 px-2 py-2 text-right tabular-nums text-term-neg">
+                            </td>
+                            <td className={cn(styles.expenseGroupCell, styles.numberCell)}>
                               {formatCurrency(row.expense_amount_usd, rowCurrencySymbol)}
-                            </TableCell>
-                            <TableCell className="bg-term-neg/10 px-2 py-2 text-term-neg">
+                            </td>
+                            <td className={cn(styles.expenseGroupCell, styles.textCellNoBorder)}>
                               {row.expense_source || '\u00A0'}
-                            </TableCell>
-                          </TableRow>
+                            </td>
+                          </tr>
                         )
                       }
                       return (
-                        <TableRow key={`${row.income_en}-${row.expense_en}-${index}`}>
-                          <TableCell className="border-r px-2 py-1.5">
+                        <tr key={`${row.income_en}-${row.expense_en}-${index}`}>
+                          <td className={styles.textCell}>
                             {row.income_en || '-'}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-1.5">
+                          </td>
+                          <td className={styles.textCell}>
                             {row.income_zh || '-'}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                          </td>
+                          <td className={styles.numberCell}>
                             {formatCurrency(row.income_amount_usd, rowCurrencySymbol)}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-1.5">
+                          </td>
+                          <td className={styles.textCell}>
                             {row.income_source || '-'}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-center text-muted-foreground">
+                          </td>
+                          <td className={styles.dividerCell}>
                             |
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-1.5">
+                          </td>
+                          <td className={styles.textCell}>
                             {row.expense_en || '-'}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-1.5">
+                          </td>
+                          <td className={styles.textCell}>
                             {row.expense_zh || '-'}
-                          </TableCell>
-                          <TableCell className="border-r px-2 py-1.5 text-right tabular-nums">
+                          </td>
+                          <td className={styles.numberCell}>
                             {formatCurrency(row.expense_amount_usd, rowCurrencySymbol)}
-                          </TableCell>
-                          <TableCell className="px-2 py-1.5">{row.expense_source || '-'}</TableCell>
-                        </TableRow>
+                          </td>
+                          <td className={styles.textCellNoBorder}>{row.expense_source || '-'}</td>
+                        </tr>
                       )
                     })}
-                  </TableBody>
-                </Table>
-              ) : (
-                <div className="rounded-none border border-dashed border-term-border px-4 py-10 text-center font-mono text-xs text-term-faint">
+                  </tbody>
+                  </table>
+                </div>
+              ) : !accountingError && !error ? (
+                <div className={styles.emptyState}>
                   {accountingMonth ? '当前月份暂无月度明细' : '请选择有源报表月份查看月度明细'}
                 </div>
-              )}
+              ) : null}
             </>
           )}
-        </DataTableCardBody>
-      </DataTableCard>
+        </div>
+      </section>
     </div>
   )
 }

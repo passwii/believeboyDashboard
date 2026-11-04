@@ -1,6 +1,6 @@
 # 组件级设计阶段
 
-> 状态：等待整页视觉方向确认后启动。
+> 状态：V4 Warm Ledger 已投入生产；后续组件晋升以真实第二消费者为前提。
 >
 > 原则：组件级设计只写本目录，不改 `frontend/`，不改全局 `--term-*`。
 
@@ -10,10 +10,10 @@
 
 每个 batch 固定交付：
 
-- `spec.md`：用途、真实复用证据、API/内容契约、状态与响应式。
+- `spec.md`：用途、真实复用证据、API/内容契约、状态与桌面契约。
 - `states.html`：可交互状态画廊。
 - `assets/`：断点截图。
-- 自检：键盘、focus、长内容、loading、empty、error、mobile。
+- 自检：键盘、focus、长内容、loading、empty、error、desktop geometry。
 
 ## 启动条件
 
@@ -26,4 +26,4 @@
 
 - `registry.md`：组件清单、复用级别、真实验证证据。
 - `plan.md`：B0–B7 批次、依赖与验收。
-- `rollout.md`：生产推广顺序、flag、页面批次和 GPT Luna Agent Team。
+- `rollout.md`：生产推广顺序、flag、页面批次，以及 DeepSeek Max 实施 / Luna Max 审阅分工。

@@ -16,39 +16,27 @@ import {
 } from 'lucide-react'
 
 import {
-  TermBody,
-  TermCell,
-  TermHead,
-  TermRow,
-  TermTable,
-  TermTHead,
-} from '@/components/terminal/term-table'
-import { Checkbox } from '@/components/ui/checkbox'
-import {
   formatDateInputValue as formatPickerDateInputValue,
   getTodayInTimezone,
   parseDateInputValue,
 } from '@/components/ui/date-picker'
-import { EmptyTableState } from '@/components/ui/empty-state'
-import { MultiSelect, type Option } from '@/components/ui/multi-select'
-import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { buildBackendClientHeaders } from '@/lib/backend-auth'
 import { pickSessionDisplayName } from '@/lib/auth/display-name'
 import {
   getOrderStatusLabel,
   getOrderStatusTone,
-  ORDER_STATUS_TONE_PILL_CLASS,
   type OrderStatusTone,
 } from '@/lib/order-status'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { getCountryLabel } from '@/lib/country'
 import { useNotifications } from '@/components/notifications'
 import { useTerminalGlobalFilter } from '@/components/terminal/global-filter-context'
-import { TERM_BUTTON, TERM_INPUT, TERM_TRIGGER } from '@/components/terminal/term-controls'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { normalizeErrorMessage, parseResponseError } from '@/lib/error-utils'
 import { OrderEditDialog, type OrderEditResponsePayload } from './components/OrderEditDialog'
+import { OrderInfoMultiSelect, type Option } from './components/OrderInfoMultiSelect'
+import styles from './order-info-warm.module.css'
 
 // ======================== 类型 ========================
 
@@ -126,10 +114,6 @@ const DEFAULT_PROJECT_VALUE = '__all__'
 /** 表格列数（含行选择列）——骨架屏 / 空态 colSpan 用 */
 const COLUMN_COUNT = 13
 
-/** 页面内工具按钮基类；与 V3 Terminal h-9 控件保持同档。 */
-const TERM_BODY_BUTTON =
-  'flex h-9 shrink-0 items-center gap-1 rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs leading-5 text-term-muted shadow-none transition-colors hover:border-term-border-strong hover:text-term-text active:bg-term-raised focus-visible:outline-none focus-visible:border-term-border-strong disabled:cursor-not-allowed disabled:opacity-50'
-
 // ======================== 工具函数 ========================
 
 function formatBeijingTime(isoUtc: string | null | undefined): string {
@@ -172,23 +156,54 @@ function defaultLast7Days(): { from: string; to: string } {
   }
 }
 
-/** 终端状态 pill：18px 高、方角、1px 语义色边界（禁投影）。
- * tone 映射与 pill class 已提炼为公共导出（BLF-927）：lib/order-status.ts */
+const ORDER_STATUS_TONE_CLASS: Record<OrderStatusTone, string> = {
+  pos: styles.statusPositive,
+  warn: styles.statusWarning,
+  neg: styles.statusNegative,
+  muted: styles.statusMuted,
+}
+
 function StatusPill({ label, tone }: { label: string; tone: OrderStatusTone }) {
   return (
     <span
-      className={cn(
-        'inline-flex h-[18px] items-center whitespace-nowrap border px-1 font-mono text-[10px] leading-none',
-        ORDER_STATUS_TONE_PILL_CLASS[tone]
-      )}
+      className={cn(styles.statusPill, ORDER_STATUS_TONE_CLASS[tone])}
+      data-order-status-tone={tone}
     >
       {label}
     </span>
   )
 }
 
-function fulfillmentTone(label: string): 'accent' | 'muted' {
-  return label.startsWith('FBA') ? 'accent' : 'muted'
+type OrderCheckboxProps = {
+  checked: boolean | 'indeterminate'
+  onCheckedChange: (checked: boolean) => void
+  ariaLabel: string
+  disabled?: boolean
+}
+
+function OrderCheckbox({
+  checked,
+  onCheckedChange,
+  ariaLabel,
+  disabled,
+}: OrderCheckboxProps) {
+  const ref = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = checked === 'indeterminate'
+  }, [checked])
+
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      checked={checked === true}
+      onChange={(event) => onCheckedChange(event.target.checked)}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      className={styles.checkbox}
+    />
+  )
 }
 
 function fmtAmount(n: number): string {
@@ -825,10 +840,10 @@ function OrderInfoPageInner() {
     }
   }
 
-  // 排序指示符：终端风格文字箭头（激活列 accent 色）
+  // 排序指示符：激活列使用 Warm Ledger accent 色
   const sortIndicator = (key: SortKey) =>
     sortKey === key ? (
-      <span className="ml-0.5 text-term-accent">{sortDir === 'asc' ? '▲' : '▼'}</span>
+      <span className={styles.sortIndicator}>{sortDir === 'asc' ? '▲' : '▼'}</span>
     ) : null
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / PAGE_SIZE)), [total])
@@ -853,24 +868,24 @@ function OrderInfoPageInner() {
   // 页面专属筛选：按属性和精确查找两组展示在订单面板内。
   const pageFilterSelects = (
     <>
-      <MultiSelect
-        className={cn(TERM_TRIGGER, 'w-full min-w-0')}
+      <OrderInfoMultiSelect
+        className="w-full min-w-0"
         options={filterOptions?.fulfillment_channels ?? []}
         selected={fulfillmentChannels}
         onChange={setFulfillmentChannels}
         onOpen={ensureFilterOptions}
         placeholder={filterOptionsLoading ? '类型 · 加载中…' : filterOptionsError ? '类型 · 加载失败，点开重试' : '类型 · FBA/FBM'}
       />
-      <MultiSelect
-        className={cn(TERM_TRIGGER, 'w-full min-w-0')}
+      <OrderInfoMultiSelect
+        className="w-full min-w-0"
         options={filterOptions?.order_statuses ?? []}
         selected={orderStatuses}
         onChange={setOrderStatuses}
         onOpen={ensureFilterOptions}
         placeholder={filterOptionsLoading ? '状态 · 加载中…' : filterOptionsError ? '状态 · 加载失败，点开重试' : '状态 · 全部'}
       />
-      <MultiSelect
-        className={cn(TERM_TRIGGER, 'w-full min-w-0')}
+      <OrderInfoMultiSelect
+        className="w-full min-w-0"
         options={filterOptions?.currencies ?? []}
         selected={currencies}
         onChange={setCurrencies}
@@ -885,16 +900,16 @@ function OrderInfoPageInner() {
     { label: '按 SKU 搜索', placeholder: 'SKU', value: skuKeyword, onChange: setSkuKeyword },
     { label: '按 ASIN 搜索', placeholder: 'ASIN', value: asinKeyword, onChange: setAsinKeyword },
   ].map(({ label, placeholder, value, onChange }) => (
-    <div key={label} className={cn('min-w-0', label === '按订单号搜索' && 'col-span-2 sm:col-span-1')}>
-      <label className="relative block min-w-0">
+    <div key={label} className={styles.searchField}>
+      <label className={styles.searchLabel}>
         <span className="sr-only">{label}</span>
-        <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-term-faint" aria-hidden />
+        <Search className={styles.searchIcon} aria-hidden />
         <input
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           title={label}
-          className={cn(TERM_INPUT, 'w-full min-w-0 pl-7 pr-2 text-xs')}
+          className={styles.searchInput}
         />
       </label>
     </div>
@@ -907,16 +922,16 @@ function OrderInfoPageInner() {
      * 文档（main 滚动容器）不出现滚动条，工具栏 + 底部聚合条 pinned，
      * 只有表格区独立滚动（sticky 表头 + 内部 overflow-auto）。
      */
-    <div className="flex h-full min-h-0 flex-col gap-2">
-      {/* 全局错误条（终端 warn/neg 样式） */}
+    <div className={cn(styles.page, 'flex h-full min-h-0 flex-col')}>
+      {/* 全局错误条 */}
       {errorMessage && (
         <div
           role="alert"
-          className="flex shrink-0 items-center gap-2 border border-term-neg/50 bg-term-neg/10 px-2 py-1 font-mono text-xs text-term-neg"
+          className={cn(styles.errorAlert, styles.errorDanger)}
         >
-          <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
-          <span className="truncate" title={errorMessage}>
-            ERR · {errorMessage}
+          <AlertCircle className={styles.alertIcon} aria-hidden />
+          <span className={styles.alertMessage} title={errorMessage}>
+            数据加载失败 · {errorMessage}
           </span>
         </div>
       )}
@@ -925,10 +940,10 @@ function OrderInfoPageInner() {
         <div
           role="alert"
           aria-live="polite"
-          className="flex shrink-0 items-center gap-2 border border-term-warn/50 bg-term-warn/10 px-2 py-1 font-mono text-xs text-term-warn"
+          className={cn(styles.errorAlert, styles.errorWarning)}
         >
-          <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden />
-          <span className="min-w-0 flex-1">
+          <AlertCircle className={styles.alertIcon} aria-hidden />
+          <span className={styles.alertMessage}>
             {projectSelectionExplicit
               ? '店铺列表加载失败；仍按你明确选择的项目范围查询。'
               : '店铺列表加载失败，已暂停订单查询以避免默认查询全部店铺。'}
@@ -937,7 +952,7 @@ function OrderInfoPageInner() {
             type="button"
             onClick={handleRetryProjectList}
             disabled={projectListLoading}
-            className="shrink-0 border border-term-warn/60 px-2 py-0.5 text-term-warn hover:bg-term-warn/10 disabled:opacity-50"
+            className={styles.alertAction}
             aria-label="重试店铺列表"
           >
             {projectListLoading ? '重试中…' : '重试'}
@@ -950,12 +965,12 @@ function OrderInfoPageInner() {
         <div
           role="alert"
           aria-live="polite"
-          className="flex shrink-0 items-start gap-2 border border-term-warn/50 bg-term-warn/10 px-2 py-1 font-mono text-xs text-term-warn"
+          className={cn(styles.errorAlert, styles.errorWarning, styles.alertTop)}
         >
-          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-          <div className="space-y-0.5 leading-relaxed">
+          <AlertCircle className={cn(styles.alertIcon, styles.alertIconTop)} aria-hidden />
+          <div className={styles.alertBody}>
             <div>当前账号未关联任何店铺</div>
-            <div className="text-term-muted">
+            <div className={styles.alertSecondary}>
               本页订单数据已按账号权限过滤——你的姓名未出现在任何店铺的「主运营」或「运营助理」字段里。请联系管理员补录后访问。
             </div>
           </div>
@@ -964,28 +979,26 @@ function OrderInfoPageInner() {
 
       {/* ====== 高密度订单大表面板：筛选区常驻，表格区独立滚动 ====== */}
       <section
-        className="flex min-h-0 flex-1 flex-col border border-term-border bg-term-panel"
+        className={cn(styles.panel, 'flex min-h-0 flex-1 flex-col')}
         aria-label="订单信息"
+        data-warm-order-info="true"
       >
         {/* 面板标题条 */}
-        <header className="flex h-9 shrink-0 items-center gap-2 border-b border-term-border pl-2 pr-1.5">
-          <h2 className="font-mono text-xs font-semibold uppercase tracking-wider text-term-muted">
-            订单信息 <span className="text-term-faint">ORDER INFO</span>
+        <header className={styles.panelHeader}>
+          <h2 className={styles.panelTitle}>
+            订单信息
           </h2>
-          <span className="font-mono text-[11px] tabular-nums text-term-faint">
-            {total.toLocaleString('zh-CN')} rows
-          </span>
           <button
             type="button"
             onClick={() => void handleExport()}
             disabled={exporting || loading || ((projectListLoading || projectListError) && !projectSelectionExplicit)}
-            className={cn(TERM_BODY_BUTTON, 'ml-auto')}
+            className={styles.toolbarButton}
             title="按当前筛选条件导出 CSV"
           >
             {exporting ? (
-              <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+              <Loader2 className={styles.spinner} aria-hidden />
             ) : (
-              <ArrowDownToLine className="h-3 w-3" aria-hidden />
+              <ArrowDownToLine className={styles.buttonIcon} aria-hidden />
             )}
             导出 CSV
           </button>
@@ -994,81 +1007,103 @@ function OrderInfoPageInner() {
         <div
           role="group"
           aria-label="订单筛选"
-          className="shrink-0 border-b border-term-border bg-term-panel px-2 py-2"
+          className={styles.filters}
         >
-          <div className="grid gap-2 border-b border-term-border pb-2 lg:grid-cols-[5.5rem_minmax(0,1fr)] lg:items-center">
-            <span className="font-mono text-[10px] leading-4 text-term-muted">订单属性</span>
-            <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className={styles.filterRow}>
+            <span className={styles.filterLabel}>订单属性</span>
+            <div className={styles.primaryFilterControls}>
               {pageFilterSelects}
               <button
                 type="button"
                 onClick={handleResetFilters}
                 disabled={loading}
-                className={cn(TERM_BUTTON, 'w-full justify-center px-2')}
+                className={styles.resetButton}
                 title="清空订单筛选条件"
               >
-                <X className="h-3 w-3" aria-hidden />
+                <X className={styles.buttonIcon} aria-hidden />
                 清空订单筛选
               </button>
             </div>
           </div>
-          <div className="grid gap-2 pt-2 lg:grid-cols-[5.5rem_minmax(0,1fr)] lg:items-center">
-            <span className="font-mono text-[10px] leading-4 text-term-muted">订单查找</span>
-            <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3">{pageFilterSearches}</div>
+          <div className={cn(styles.filterRow, styles.searchFilterRow)}>
+            <span className={styles.filterLabel}>订单查找</span>
+            <div className={styles.searchFilterControls}>{pageFilterSearches}</div>
           </div>
         </div>
 
         {/* 表格独立滚动区（sticky 表头依赖此滚动容器） */}
-        <div className="min-h-0 flex-1 overflow-auto overscroll-contain term-scroll">
-          <TermTable className="min-w-[1560px]" aria-label="订单列表">
-            <TermTHead>
-              <TermRow>
-                <TermHead className="w-8 px-2">
-                  <Checkbox
+        <div
+          className={styles.tableScroller}
+          data-order-info-table-scroll="true"
+          aria-busy={loading && !hasCurrentData}
+        >
+          <table
+            className={styles.table}
+            aria-label="订单列表"
+            data-order-info-table-min-width="1560"
+            data-order-info-numeric="true"
+          >
+            <thead className={styles.tableHead}>
+              <tr>
+                <th scope="col" className={cn(styles.tableHeaderCell, styles.selectionCell)}>
+                  <OrderCheckbox
                     checked={items.length > 0 ? (allPageSelected ? true : pageSelectedCount > 0 ? 'indeterminate' : false) : false}
                     onCheckedChange={(checked) => toggleAllPageSelected(checked === true)}
                     disabled={items.length === 0}
-                    aria-label={allPageSelected ? '取消全选本页' : '全选本页'}
-                    className="h-3.5 w-3.5 translate-y-px rounded-none border-term-border-strong data-[state=checked]:border-term-accent"
+                    ariaLabel={allPageSelected ? '取消全选本页' : '全选本页'}
                   />
-                </TermHead>
-                <TermHead>下单时间</TermHead>
-                <TermHead>订单号</TermHead>
-                <TermHead>SKU / ASIN</TermHead>
-                <TermHead>产品</TermHead>
-                <TermHead numeric className="cursor-pointer select-none" onClick={() => handleSort('quantity')}>
-                  数量{sortIndicator('quantity')}
-                </TermHead>
-                <TermHead numeric className="cursor-pointer select-none" onClick={() => handleSort('item_price')}>
-                  金额{sortIndicator('item_price')}
-                </TermHead>
-                <TermHead>收货地</TermHead>
-                <TermHead>店铺</TermHead>
-                <TermHead>类型</TermHead>
-                <TermHead>状态</TermHead>
-                <TermHead>物流</TermHead>
-                <TermHead numeric>操作</TermHead>
-              </TermRow>
-            </TermTHead>
-            <TermBody>
+                </th>
+                <th scope="col" className={styles.tableHeaderCell}>下单时间</th>
+                <th scope="col" className={styles.tableHeaderCell}>订单号</th>
+                <th scope="col" className={styles.tableHeaderCell}>SKU / ASIN</th>
+                <th scope="col" className={styles.tableHeaderCell}>产品</th>
+                <th
+                  scope="col"
+                  className={cn(styles.tableHeaderCell, styles.tableHeaderNumeric)}
+                  data-numeric="true"
+                  aria-sort={sortKey === 'quantity' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                >
+                  <button type="button" className={styles.sortButton} onClick={() => handleSort('quantity')}>
+                    数量{sortIndicator('quantity')}
+                  </button>
+                </th>
+                <th
+                  scope="col"
+                  className={cn(styles.tableHeaderCell, styles.tableHeaderNumeric)}
+                  data-numeric="true"
+                  aria-sort={sortKey === 'item_price' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                >
+                  <button type="button" className={styles.sortButton} onClick={() => handleSort('item_price')}>
+                    金额{sortIndicator('item_price')}
+                  </button>
+                </th>
+                <th scope="col" className={styles.tableHeaderCell}>收货地</th>
+                <th scope="col" className={styles.tableHeaderCell}>店铺</th>
+                <th scope="col" className={styles.tableHeaderCell}>类型</th>
+                <th scope="col" className={styles.tableHeaderCell}>状态</th>
+                <th scope="col" className={styles.tableHeaderCell}>物流</th>
+                <th scope="col" className={cn(styles.tableHeaderCell, styles.tableHeaderNumeric)} data-numeric="true">操作</th>
+              </tr>
+            </thead>
+            <tbody>
               {loading && !hasCurrentData ? (
                 <SkeletonRows />
               ) : projectListError && !projectSelectionExplicit ? (
-                <EmptyTableState
-                  colSpan={COLUMN_COUNT}
-                  message="店铺列表加载失败 — 已暂停订单查询，请重试"
-                  className="bg-term-panel font-mono text-xs text-term-warn"
-                />
+                <tr>
+                  <td colSpan={COLUMN_COUNT} className={cn(styles.tableState, styles.stateWarning)}>
+                    店铺列表加载失败 — 已暂停订单查询，请重试
+                  </td>
+                </tr>
               ) : errorMessage && !hasCurrentData ? (
-                <EmptyTableState
-                  colSpan={COLUMN_COUNT}
-                  message={`加载失败：${errorMessage} — 可点击工具栏「刷新」重试`}
-                  className="bg-term-panel font-mono text-xs text-term-neg"
-                />
+                <tr>
+                  <td colSpan={COLUMN_COUNT} className={cn(styles.tableState, styles.stateError)}>
+                    加载失败：{errorMessage} — 可点击工具栏「刷新」重试
+                  </td>
+                </tr>
               ) : items.length === 0 ? (
-                <EmptyTableState
-                  colSpan={COLUMN_COUNT}
-                  message={
+                <tr>
+                  <td colSpan={COLUMN_COUNT} className={cn(styles.tableState, styles.stateEmpty)}>
+                    {
                     // 三档优先级：
                     // 1) 账号未关联任何店铺（filterOptions 已加载完成、projects 为空）
                     // 2) 当前筛选条件下无订单
@@ -1087,9 +1122,9 @@ function OrderInfoPageInner() {
                           dateTo
                         ? '当前筛选条件下无订单 — 可调整条件或点击「清空订单筛选」重置订单条件'
                         : '暂无订单数据 — 等待新的销售报告上传后重试'
-                  }
-                  className="bg-term-panel font-mono text-xs"
-                />
+                    }
+                  </td>
+                </tr>
               ) : (
                 items.map((item, index) => {
                   const fullAddress = [
@@ -1101,41 +1136,42 @@ function OrderInfoPageInner() {
                     .filter(Boolean)
                     .join(', ')
                   const isFbm = item.fulfillment_channel === 'Merchant'
-                  // 斑马纹：偶数行叠 raised 层级色（#1a1a1e）；hover 时被 term-hover 覆盖
-                  const zebra = index % 2 === 1 ? 'bg-term-raised' : undefined
                   const totalAmount = item.item_price + item.shipping_price
                   return (
-                    <TermRow key={item.id} className={zebra} aria-label={`订单 ${item.amazon_order_id} · ${item.project_name} · ${item.fulfillment_label}`}>
-                      <TermCell className="px-2">
-                        <Checkbox
+                    <tr
+                      key={item.id}
+                      className={cn(styles.tableRow, index % 2 === 1 && styles.tableRowAlt)}
+                      aria-label={`订单 ${item.amazon_order_id} · ${item.project_name} · ${item.fulfillment_label}`}
+                    >
+                      <td className={cn(styles.tableCell, styles.selectionCell)}>
+                        <OrderCheckbox
                           checked={selectedIds.has(item.id)}
                           onCheckedChange={(checked) => toggleRowSelected(item.id, checked === true)}
-                          aria-label={`选中订单 ${item.amazon_order_id}`}
-                          className="h-3.5 w-3.5 translate-y-px rounded-none border-term-border-strong data-[state=checked]:border-term-accent"
+                          ariaLabel={`选中订单 ${item.amazon_order_id}`}
                         />
-                      </TermCell>
-                      <TermCell tone="muted">
-                        <div className="flex flex-col leading-tight">
+                      </td>
+                      <td className={cn(styles.tableCell, styles.tableCellMuted)}>
+                        <div className={styles.cellStack}>
                           <span>{formatBeijingTime(item.purchase_at_utc)}</span>
-                          <span className="text-term-faint">PT {formatLocalDate(item.purchase_at_pt)}</span>
+                          <span className={styles.tableCellFaint}>PT {formatLocalDate(item.purchase_at_pt)}</span>
                         </div>
-                      </TermCell>
-                      <TermCell>
-                        <div className="flex items-center gap-1">
+                      </td>
+                      <td className={styles.tableCell}>
+                        <div className={styles.inlineControl}>
                           <span title={`订单号 ${item.amazon_order_id}`}>{item.amazon_order_id}</span>
                           <button
                             type="button"
                             onClick={() => void handleCopyOrderId(item.amazon_order_id)}
-                            className="inline-flex h-5 w-5 items-center justify-center text-term-faint transition-colors hover:text-term-text focus:outline-none focus:ring-1 focus:ring-term-accent"
+                            className={styles.copyButton}
                             aria-label={`复制订单号 ${item.amazon_order_id}`}
                             title="复制订单号"
                           >
-                            <Copy className="h-3 w-3" aria-hidden />
+                            <Copy aria-hidden />
                           </button>
                         </div>
-                      </TermCell>
-                      <TermCell>
-                        <div className="flex flex-col leading-tight">
+                      </td>
+                      <td className={styles.tableCell}>
+                        <div className={styles.cellStack}>
                           {item.sku ? (
                             <Link
                               href={(() => {
@@ -1145,13 +1181,13 @@ function OrderInfoPageInner() {
                                 if (item.asin) params.set('asin', item.asin)
                                 return `/dashboard/operations/sku-info?${params.toString()}`
                               })()}
-                              className="hover:text-term-accent hover:underline"
+                              className={styles.tableLink}
                               title="跳转到 SKU 信息页面（带入项目 + SKU + ASIN）"
                             >
                               {item.sku}
                             </Link>
                           ) : (
-                            <span className="text-term-faint">—</span>
+                            <span className={styles.tableCellFaint}>—</span>
                           )}
                           {item.asin ? (
                             <Link
@@ -1162,35 +1198,34 @@ function OrderInfoPageInner() {
                                 params.set('asin', item.asin)
                                 return `/dashboard/operations/sku-info?${params.toString()}`
                               })()}
-                              className="text-term-muted hover:text-term-accent hover:underline"
+                              className={cn(styles.tableLink, styles.tableLinkMuted)}
                               title="跳转到 SKU 信息页面（按 ASIN 查询）"
                             >
                               ASIN {item.asin}
                             </Link>
                           ) : (
-                            <span className="text-term-faint">ASIN —</span>
+                            <span className={styles.tableCellFaint}>ASIN —</span>
                           )}
                         </div>
-                      </TermCell>
-                      <TermCell className="max-w-[260px]">
+                      </td>
+                      <td className={cn(styles.tableCell, styles.productCell)}>
                         <span className="line-clamp-2 whitespace-normal" title={item.product_name ?? ''}>
                           {item.product_name ?? '—'}
                         </span>
-                      </TermCell>
-                      <TermCell numeric className="tabular-nums">{item.quantity}</TermCell>
-                      <TermCell numeric className="tabular-nums">
-                        <div className="flex flex-col leading-tight">
+                      </td>
+                      <td className={cn(styles.tableCell, styles.tableCellNumeric)} data-numeric="true">{item.quantity}</td>
+                      <td className={cn(styles.tableCell, styles.tableCellNumeric)} data-numeric="true">
+                        <div className={styles.cellStack}>
                           <span>
                             {fmtAmount(totalAmount)} {item.currency ?? ''}
                           </span>
                           {item.shipping_price > 0 && (
-                            <span className="text-term-faint">+ 运费 {fmtAmount(item.shipping_price)}</span>
+                            <span className={styles.tableCellFaint}>+ 运费 {fmtAmount(item.shipping_price)}</span>
                           )}
                         </div>
-                      </TermCell>
-                      <TermCell
-                        tone="muted"
-                        className="max-w-[200px]"
+                      </td>
+                      <td
+                        className={cn(styles.tableCell, styles.tableCellMuted, styles.addressCell)}
                         title={
                           fullAddress
                             ? `${fullAddress} · 服务等级：${item.ship_service_level ?? '—'} · 数据源：source_file #${item.source_file_id}`
@@ -1198,118 +1233,118 @@ function OrderInfoPageInner() {
                         }
                       >
                         <span className="line-clamp-1 whitespace-normal">{fullAddress || '—'}</span>
-                      </TermCell>
-                      <TermCell>
+                      </td>
+                      <td className={styles.tableCell}>
                         <Link
                           href={`/dashboard/system/project-info?configure=${item.project_id}`}
-                          className="inline-flex items-center gap-1 hover:text-term-accent hover:underline"
+                          className={cn(styles.tableLink, styles.inlineControl)}
                           title={`跳转到「${item.project_name}」的项目设置`}
                         >
                           {item.project_name}
-                          <ExternalLink className="h-3 w-3 text-term-faint" aria-hidden />
+                          <ExternalLink className={styles.externalLinkIcon} aria-hidden />
                         </Link>
                         {item.brand_name && (
-                          <div className="text-term-faint">{item.brand_name}</div>
+                          <div className={styles.tableCellFaint}>{item.brand_name}</div>
                         )}
-                      </TermCell>
-                      <TermCell>
+                      </td>
+                      <td className={styles.tableCell}>
                         <span
                           className={cn(
-                            'font-medium',
-                            fulfillmentTone(item.fulfillment_label) === 'accent'
-                              ? 'text-term-accent'
-                              : 'text-term-muted'
+                            styles.fulfillmentLabel,
+                            item.fulfillment_label.startsWith('FBA')
+                              ? styles.fulfillmentAccent
+                              : styles.fulfillmentMuted
                           )}
                         >
                           {item.fulfillment_label}
                         </span>
-                      </TermCell>
-                      <TermCell>
+                      </td>
+                      <td className={styles.tableCell}>
                         <StatusPill
                           label={getOrderStatusLabel(item.order_status)}
                           tone={getOrderStatusTone(item.order_status)}
                         />
-                      </TermCell>
-                      <TermCell tone="muted">
+                      </td>
+                      <td className={cn(styles.tableCell, styles.tableCellMuted)}>
                         {isFbm ? (
-                          <div className="flex flex-col leading-tight" aria-label="FBM 物流信息">
-                            {item.carrier && <span className="text-term-text">{item.carrier}</span>}
+                          <div className={styles.cellStack} aria-label="FBM 物流信息">
+                            {item.carrier && <span className={styles.tableCellStrong}>{item.carrier}</span>}
                             {item.tracking_no && (
-                              <span className="text-term-muted" title={item.tracking_no}>
+                              <span className={styles.tableCellMuted} title={item.tracking_no}>
                                 {item.tracking_no.length > 14
                                   ? `${item.tracking_no.slice(0, 14)}…`
                                   : item.tracking_no}
                               </span>
                             )}
                             {item.shipped_at && (
-                              <span className="text-term-faint">发货 {formatLocalDate(item.shipped_at)}</span>
+                              <span className={styles.tableCellFaint}>发货 {formatLocalDate(item.shipped_at)}</span>
                             )}
                             {!item.carrier && !item.tracking_no && !item.shipped_at && (
-                              <span className="italic text-term-faint">未填写</span>
+                              <span className={cn(styles.tableCellFaint, styles.emptyLogistics)}>未填写</span>
                             )}
                           </div>
                         ) : (
-                          <span className="text-term-faint">—</span>
+                          <span className={styles.tableCellFaint}>—</span>
                         )}
-                      </TermCell>
-                      <TermCell numeric>
+                      </td>
+                      <td className={cn(styles.tableCell, styles.tableCellNumeric)} data-numeric="true">
                         {isFbm ? (
                           <button
                             type="button"
                             onClick={() => handleOpenEditDialog(item)}
                             disabled={loading}
-                            className="inline-flex items-center gap-1 font-mono text-xs text-term-accent transition-colors hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                            className={styles.editButton}
                             title="编辑 FBM 物流信息"
                             aria-label={`编辑订单 ${item.amazon_order_id} 的物流信息`}
                           >
-                            <Pencil className="h-3 w-3" aria-hidden />
+                            <Pencil aria-hidden />
                             编辑
                           </button>
                         ) : (
-                          <span className="text-term-faint">—</span>
+                          <span className={styles.tableCellFaint}>—</span>
                         )}
-                      </TermCell>
-                    </TermRow>
+                      </td>
+                    </tr>
                   )
                 })
               )}
-            </TermBody>
-          </TermTable>
+            </tbody>
+          </table>
         </div>
       </section>
 
       {/* ====== 底部 pinned 聚合分页条：总单量 / 总金额 / 选中态合计 + 翻页 ====== */}
-      <footer className="flex h-8 shrink-0 items-center gap-3 border border-term-border bg-term-raised px-2 font-mono text-sm tabular-nums text-term-muted">
-        <span>
-          Σ 单量 <span className="text-term-text">{currentStats ? currentStats.total_orders.toLocaleString('zh-CN') : '—'}</span>
+      <footer className={styles.summary} data-warm-order-summary="true">
+        <span className={styles.summaryMetric}>
+          Σ 单量 <span className={styles.summaryValue}>{currentStats ? currentStats.total_orders.toLocaleString('zh-CN') : '—'}</span>
         </span>
-        <span>
+        <span className={styles.summaryMetric}>
           Σ 金额{' '}
-          <span className="text-term-text">
+          <span className={styles.summaryValue}>
             {currentStats ? `${fmtAmount(currentStats.total_amount)} ${currentStats.currency ?? ''}` : '—'}
           </span>
         </span>
-        <span className="hidden lg:inline">
-          FBA <span className="text-term-text">{currentStats ? currentStats.fba_count.toLocaleString('zh-CN') : '—'}</span>
+        <span className={styles.summaryMetric}>
+          FBA <span className={styles.summaryValue}>{currentStats ? currentStats.fba_count.toLocaleString('zh-CN') : '—'}</span>
           {' / '}
-          FBM <span className="text-term-text">{currentStats ? currentStats.fbm_count.toLocaleString('zh-CN') : '—'}</span>
+          FBM <span className={styles.summaryValue}>{currentStats ? currentStats.fbm_count.toLocaleString('zh-CN') : '—'}</span>
         </span>
         {selectedAgg.count > 0 && (
-          <span className="border border-term-accent/40 bg-term-accent/10 px-1.5 py-0.5 text-term-accent">
+          <span className={styles.selectedSummary}>
             已选 {selectedAgg.count} 行 · Σ 金额 {fmtAmount(selectedAgg.amount)} · Σ 数量{' '}
             {selectedAgg.quantity.toLocaleString('zh-CN')}
           </span>
         )}
-        <span className="ml-auto flex items-center gap-2">
+        <span className={styles.pager}>
           <span>
-            共 <span className="text-term-text">{total.toLocaleString('zh-CN')}</span> 行 · 第{' '}
-            <span className="text-term-text">{page}</span>/{totalPages} 页 · 每页 {PAGE_SIZE}
+            共 <span className={styles.summaryValue}>{total.toLocaleString('zh-CN')}</span> 行 · 第{' '}
+            <span className={styles.summaryValue}>{page}</span>/{totalPages} 页 · 每页 {PAGE_SIZE}
           </span>
           <button
             type="button"
             disabled={page <= 1 || loading}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
-            className="flex h-5 items-center border border-term-border bg-term-panel px-1.5 text-[11px] transition-colors hover:border-term-border-strong hover:text-term-text disabled:cursor-not-allowed disabled:opacity-40"
+            className={styles.pagerButton}
             aria-label="上一页"
           >
             ◀ 上一页
@@ -1318,7 +1353,7 @@ function OrderInfoPageInner() {
             type="button"
             disabled={page >= totalPages || loading}
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            className="flex h-5 items-center border border-term-border bg-term-panel px-1.5 text-[11px] transition-colors hover:border-term-border-strong hover:text-term-text disabled:cursor-not-allowed disabled:opacity-40"
+            className={styles.pagerButton}
             aria-label="下一页"
           >
             下一页 ▶
@@ -1368,13 +1403,18 @@ function SkeletonRows({ rows = 12 }: { rows?: number }) {
   return (
     <>
       {Array.from({ length: rows }).map((_, rowIndex) => (
-        <tr key={`order-skeleton-${rowIndex}`} className="border-b border-term-border">
-          <td colSpan={COLUMN_COUNT} className="h-8 px-2 align-middle">
-            <Skeleton
+        <tr key={`order-skeleton-${rowIndex}`} className={styles.skeletonRow}>
+          <td colSpan={COLUMN_COUNT} className={styles.skeletonCell}>
+            <span
               className={cn(
-                'h-3 rounded-none',
-                rowIndex % 3 === 0 ? 'w-1/2' : rowIndex % 3 === 1 ? 'w-2/3' : 'w-1/3'
+                styles.skeletonBar,
+                rowIndex % 3 === 0
+                  ? styles.skeletonBarWide
+                  : rowIndex % 3 === 1
+                    ? styles.skeletonBarMedium
+                    : styles.skeletonBarShort
               )}
+              data-warm-order-skeleton="true"
             />
           </td>
         </tr>

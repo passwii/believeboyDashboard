@@ -8,9 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import ManualCalculationPanel from './components/manual-calculation-panel'
 import MonthlySkuAnalysisPanel from './components/monthly-sku-analysis-panel'
 import ProductAnalysisPanel from './components/product-analysis-panel'
+import styles from './product-analysis-warm.module.css'
 
-// BLF-883 全局统一：Tab 条一律走 variant="term"（h-8 / 零圆角 / 1px 边界 /
-// 激活态 term-raised + accent 发光指示条），并为每个 tab 前置 icon。
 const TAB_ITEMS = [
   { value: 'product-analysis', label: '产品分析核算', icon: Calculator },
   { value: 'manual', label: '手动核算', icon: PenLine },
@@ -24,30 +23,30 @@ export default function ProductAnalysisPage() {
   )
 
   return (
-    <div className="space-y-3">
+    <div className={styles.page} data-warm-product-analysis="true">
       <Tabs
         value={activeTab}
         onValueChange={(v) => setActiveTab(v as typeof activeTab)}
-        className="space-y-3"
+        className={styles.tabs}
       >
-        <TabsList variant="term" className="w-fit justify-start">
+        <TabsList className={styles.tabList} data-warm-tablist="true">
           {TAB_ITEMS.map(({ value, label, icon: Icon }) => (
-            <TabsTrigger key={value} value={value} variant="term">
+            <TabsTrigger key={value} value={value} className={styles.tab}>
               <Icon aria-hidden />
               {label}
             </TabsTrigger>
           ))}
         </TabsList>
 
-        <TabsContent value="product-analysis" className="space-y-0">
+        <TabsContent value="product-analysis" className={styles.tabContent}>
           <ProductAnalysisPanel session={session} />
         </TabsContent>
 
-        <TabsContent value="manual" className="space-y-0">
+        <TabsContent value="manual" className={styles.tabContent}>
           <ManualCalculationPanel />
         </TabsContent>
 
-        <TabsContent value="monthly-sku" className="space-y-0">
+        <TabsContent value="monthly-sku" className={styles.tabContent}>
           <MonthlySkuAnalysisPanel />
         </TabsContent>
       </Tabs>

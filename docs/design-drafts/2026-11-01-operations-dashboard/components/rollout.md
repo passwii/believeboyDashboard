@@ -4,7 +4,14 @@
 >
 > 范围：先 `/dashboard`，再按业务类目逐页推广。
 >
-> 原则：页面先行，组件后置晋升；V3 Terminal 继续服务其他路由。
+> 原则：页面先行，组件后置晋升；V4 Warm Ledger 是现行设计，V3 Terminal 仅继续服务未迁移路由。
+
+## V4 current baseline (2026-11-04)
+
+- V4 Warm Ledger replaces V3 Terminal as the current design authority. New migration work must follow `frontend/docs/design-spec.md` §0.4 and `components/foundations/spec.md`.
+- V4 operations and business page migration is desktop-only. Do not add phone/tablet or multi-breakpoint page adaptation, and do not validate phone viewports in migration acceptance.
+- The floating window uses equal 8px outer gutters on all four sides, fills the remaining desktop viewport, and retains its rounded shape.
+- Page-specific UI remains local. Promote a Warm component only after a second real page has the same visual, state, and interaction contract.
 
 ## C1 Warm scope extension (2026-11-01)
 
@@ -171,10 +178,10 @@ Damon 已确认生产直接使用新设计，不设 feature flag：
 
 | 批次 | 类目 | 代表页面 | 进入条件 |
 | --- | --- | --- | --- |
-| D0 | Dashboard 基准 | `/dashboard` | **已完成（2026-11-01）**：数据层拆分、Warm shell、真实 API、响应式与交互门禁通过 |
+| D0 | Dashboard 基准 | `/dashboard` | **已完成（2026-11-01）**：数据层拆分、Warm shell、真实 API 与交互门禁通过；2026-11-04 起按 V4 desktop geometry 维护 |
 | C1 | 运营分析 | `daily-analysis`、`portfolio-overview`、`inventory-analysis` | 已完成（2026-11-02；最终 Luna max review PASS） |
 | C2 | 运营执行 / 库存 | `inventory-ledger`、`shipping-plan`、`shipment-management`、`sku-info` | **已完成（2026-11-04）**：27 Vitest files / 199 tests、build、focused ESLint、78/78 Playwright、最终独立 review PASS；授权/技术 follow-ups 保留 |
-| C3 | 报表 / 订单 | `order-info`、`product-analysis`、`monthly-report/display` | 表格与导出契约稳定后开始；本 C2 closeout 不进入 C3 |
+| C3 | 报表 / 订单 | `order-info`、`product-analysis`、`monthly-report/display` | **已完成（2026-11-04）**：三条精确路由、1440×900 desktop acceptance、全量 Vitest 基线对账、lint/build 完成；前三次 Luna review 的 P2 均已修复，第六轮 Luna/max 最终门禁 PASS；无组件晋升 |
 | C4 | 广告 | `ad-analysis/overview`、`ad-data` | 图表 / 筛选契约已验证 |
 | C5 | 财务 | `platform-revenue`、`exchange-rate`、`commission-management` | 账期、币种、汇总口径明确 |
 | C6 | CRM | `crm/dashboard`、`customers`、`follow-ups`、`tasks` | 页面壳稳定；CRM 状态不并入订单状态 |
@@ -191,23 +198,23 @@ Damon 已确认生产直接使用新设计，不设 feature flag：
 7. `/dashboard/reports/product-analysis`
 8. `/dashboard/reports/monthly-report/display`
 
-## 7. GPT Luna Agent Team
+## 7. DeepSeek Max implementation + Luna Max review
 
-所有实现与审阅 Agent 统一使用 `believeboy/GPT-6-Luna` + `max` reasoning。
+自 2026-11-04 起，新任务的实现 Agent 统一使用 `believeboy/DeepSeek-V4.1-Flash` + `max` reasoning；最终独立 Reviewer 使用 `believeboy/GPT-6-Luna` + `max` reasoning。Luna 非常适合做独立代码、契约、视觉与风险审阅，但不再承担实施。历史批次记录保留原模型事实。
 
-不按任务难度降档，A0–A7 与 R1 全部采用 max think。
+不按任务难度降档，A0–A7 与 R1 全部采用 max think。R1 必须是独立只读审阅，不能复用实现 Agent 的会话判断。
 
-| Agent | 推理档 | 写作用域 | 交付 |
+| Agent | 模型 / 推理档 | 写作用域 | 交付 |
 | --- | --- | --- | --- |
-| A0 设计系统 | max | `components/` 设计文档、Warm token 契约 | foundations、状态矩阵、目录冻结 |
-| A1 Shell | max | 新增 Warm shell/sidebar/topbar 与 Warm controls wrapper 文件 | 外壳、导航、focus trap、共享控件、token 使用 |
-| A2 指标 | max | 新增 metric/diagnostic 文件 | MetricStrip、DiagnosticStrip；只消费 A1 controls |
-| A3 图表 | max | 新增 sales-trend 文件 | 曲线、图例、轴、摘要；只消费 A1 controls |
-| A4 表格 | max | 新增 rank/daily-ledger 文件 | 排行、日明细；只消费 A1 controls |
-| A5 订单流 | max | 新增 order-flow wrapper | 订单展开、移动 Sheet；默认收起，只消费 A1 controls |
-| A6 集成 | max | `app/dashboard/page.tsx`、必要 layout 与 integration contracts | 共享 props types、数据接线、整页 QA |
-| A7 类目试点 | max | 仅分配的单页面目录 | C1 页面试点 |
-| R1 审阅 | max | 只读 | 规范、代码、视觉、a11y review |
+| A0 设计系统 | DeepSeek / max | `components/` 设计文档、Warm token 契约 | foundations、状态矩阵、目录冻结 |
+| A1 Shell | DeepSeek / max | 新增 Warm shell/sidebar/topbar 与 Warm controls wrapper 文件 | 外壳、导航、focus trap、共享控件、token 使用 |
+| A2 指标 | DeepSeek / max | 新增 metric/diagnostic 文件 | MetricStrip、DiagnosticStrip；只消费 A1 controls |
+| A3 图表 | DeepSeek / max | 新增 sales-trend 文件 | 曲线、图例、轴、摘要；只消费 A1 controls |
+| A4 表格 | DeepSeek / max | 新增 rank/daily-ledger 文件 | 排行、日明细；只消费 A1 controls |
+| A5 订单流 | DeepSeek / max | 新增 order-flow wrapper | 订单展开、移动 Sheet；默认收起，只消费 A1 controls |
+| A6 集成 | DeepSeek / max | `app/dashboard/page.tsx`、必要 layout 与 integration contracts | 共享 props types、数据接线、整页 QA |
+| A7 类目试点 | DeepSeek / max | 仅分配的单页面目录 | C1 页面试点 |
+| R1 审阅 | Luna / max | 只读 | 规范、代码、视觉、a11y review |
 
 ### 并行边界
 
@@ -252,8 +259,9 @@ A1 owns Warm controls wrapper and Dashboard token consumption. A2–A5 may work 
 - 真实数据，无硬编码业务值。
 - 项目 / 日期 / 站点筛选口径与旧页一致。
 - Loading / Empty / Error 可区分。
-- 1440、1280×600、1024、821、820、460、390、320。
+- V4 页面迁移仅验收 `1440×900` desktop；共享外壳既有的移动逻辑保持原样，不纳入 V4 页面验收，也不新增手机 / 多断点适配。
 - 无页面级横向溢出。
+- 桌面浮窗四边为等宽 8px 外沿，窗口填满扣除外沿后的可用视口。
 - 键盘 focus、Esc、焦点恢复。
 - 颜色不是唯一语义。
 - reduced motion 生效。
@@ -306,3 +314,23 @@ A1 owns Warm controls wrapper and Dashboard token consumption. A2–A5 may work 
 - Promote a page-local component only after a second real route demonstrates the same behavior and accessibility contract. Keep unproven controls and layouts local during the next category audits.
 - **Next stage after this C2 closeout:** C3 orders and reports (`order-info`, `product-analysis`, `monthly-report/display`). Run/extend the documented contract audits, confirm product/security scope, then implement only after a separate kickoff.
 - Stage handoff and detailed Task 6 closeout are recorded in [`2026-11-03-warm-ledger-c2-stage-checkpoint.md`](../../../superpowers/plans/2026-11-02-warm-ledger-c2/2026-11-03-warm-ledger-c2-stage-checkpoint.md).
+
+## 14. C3 Task 5 desktop acceptance closeout (2026-11-04; final review PASS)
+
+- C3 uses the exact routes `/dashboard/reports/order-info`, `/dashboard/reports/product-analysis`, and `/dashboard/reports/monthly-report/display`. All other report routes remain on `TerminalShell`.
+- Desktop shell geometry is uncapped at `1440×900`: the rounded window measures `1424×884`, with equal 8px gutters on top/right/bottom/left and the existing 22px radius. The mobile rules remain unchanged.
+- Focused shell Vitest passed: 1 file / 14 tests. The new geometry assertion was observed RED against the `1840px` / `960px` caps before the CSS change, then passed.
+- Focused Playwright passed: 3 desktop cases passed at `1440×900`; the 3 mobile-project cases were explicitly skipped as out of C3 scope. Order Info covered global scope, local filters, pagination, CSV payload, and the FBM edit dialog. Product Analysis covered all three tabs, mocked recognition/commit/run/preview requests, and all three downloads. Monthly Display covered project/country/month URL changes, both tabs, financial and accounting-detail exports, and recalculation. Every `/api/**` request was intercepted; the audit reported no unhandled request.
+- The first local Playwright attempt found port `3200` occupied. The accepted run used `PLAYWRIGHT_PORT=4315` with the same self-contained fixture configuration.
+- Full `pnpm test` ran once: 299 files / 2339 tests, with 297 files / 2334 tests passing and 5 tests failing across `inventory-analysis-client.test.tsx` and `portfolio-overview-client.test.tsx`. A detached `origin/main` run at `7e78063d2ff106da12182f6ecb094cf9a24c58e8` reproduced the same 2 files / 5 tests and messages, so these are documented baseline failures, not C3 regressions.
+- `pnpm lint` passed with 0 errors and 15 existing warnings, including the known `display-client.tsx:884` hook-dependency warning. `pnpm build` passed. Build emitted the existing workspace-root, Turbopack NFT trace, and stale Browserslist warnings. `git diff --check` passed.
+- Browser acceptance emitted existing page warnings for Radix Select controlled/uncontrolled transitions and duplicate upload-card keys during recognition; they did not fail any assertion and were not changed in this visual/integration task.
+- The first independent Luna/max C3 review identified two P2 findings after this checkpoint: Order Info still retained V3 Terminal visuals through local token aliases, zero-radius rules, Terminal table/control classes, and Terminal status styling; the rollout also marked C3 complete before the review gate closed.
+- The second Luna/max C3 re-review confirmed only one remaining P2: when a Product Analysis report type has multiple candidate files, `ReportStatusCard` renders its shared `SelectContent` through a Radix portal outside `.statusCards`. The existing Warm overrides could not reach that portal, and the C3 Playwright matrix uploaded only one file per type, so the menu retained shared Terminal classes and zero radius unexercised.
+- The second-review remediation is complete. `ReportStatusCard` accepts an optional, backward-compatible content-class hook for both candidate-file and project select portals; the two Product Analysis Warm panels pass a page-local Warm Ledger class. The menu and options use Warm panel/raised surfaces, Warm radii, Warm text/hover states, and sans typography without changing shared Select defaults or other consumers.
+- The C3 browser matrix now mocks two business-report candidates and asserts the opened Product Analysis menu's computed Warm surfaces, 10px content radius, 6px option radius, Warm hover colors, and non-mono typography. Targeted Product Analysis Vitest passed 5 files / 16 tests; the desktop C3 Playwright matrix passed 3/3 on `PLAYWRIGHT_PORT=4315`; changed-file ESLint and `git diff --check` passed.
+- The third Luna/max C3 re-review confirmed one remaining P2 in Order Info: `OrderInfoMultiSelect` exposed a focusable `role="combobox"` trigger, but Enter, Space, and ArrowDown did not open its popover. The local trigger-only key handler now opens the popover and focuses the search input; nested chip-remove Enter/Space still remove their chip without opening the menu. Direct component tests cover all required keys and observed RED before implementation.
+- The requested Order Info Vitest suite passed 3 files / 42 tests. Changed-file ESLint, `git diff --check`, and the Order Info production residue scan (no `--term-*`, `term-*`, or `rounded-none`) passed. The C3 desktop Playwright matrix passed 3/3 on `PLAYWRIGHT_PORT=4315`, with the 3 mobile-project cases skipped as out of scope.
+- The fourth Luna/max re-review found no remaining code defect and reported only stale Task 5 checklist state. The technical checklist was reconciled.
+- Luna/max round six then completed the final gate with **PASS and no findings**. C3 is complete.
+- Existing behavioral/security follow-ups remain separate and are not represented as fixed by this UI migration.
