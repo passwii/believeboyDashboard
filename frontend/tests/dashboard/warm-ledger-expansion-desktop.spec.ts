@@ -160,6 +160,20 @@ async function expectDesktopWindowGeometry(page: Page) {
 }
 
 test.describe('V4 Warm Ledger desktop expansion matrix', () => {
+  test('Office presentation mode bypasses the Warm app frame', async ({ page, context }) => {
+    await page.setViewportSize(VIEWPORT)
+    await addBLF611FixtureAuth(context)
+    await installApiFixtures(page)
+
+    const response = await page.goto(
+      '/dashboard/ai/digital-employees/office?mode=presentation',
+      { waitUntil: 'domcontentloaded' }
+    )
+    expect(response?.ok()).toBe(true)
+    await expect(page.locator('[data-office-presentation="true"]')).toBeVisible()
+    await expect(page.locator('.warm-ledger__app-window')).toHaveCount(0)
+  })
+
   test('all C5-C7 routes keep the compact desktop canvas', async ({ page, context }) => {
     test.setTimeout(360_000)
     await page.setViewportSize(VIEWPORT)
