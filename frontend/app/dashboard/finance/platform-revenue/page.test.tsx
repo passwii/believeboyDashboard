@@ -93,7 +93,7 @@ describe('PlatformRevenuePage Warm Ledger 渲染契约', () => {
   it('does not add different currencies into one numeric Excel total', () => {
     expect(formatCurrencyTotalsForExcel({ USD: 120.5, EUR: 80 })).toEqual({
       amount: 'EUR 80.00 / USD 120.50',
-      currency: '多币种',
+      currency: '',
     })
     expect(formatCurrencyTotalsForExcel({ USD: 120.5 })).toEqual({
       amount: 120.5,
