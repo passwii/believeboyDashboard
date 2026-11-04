@@ -2,6 +2,7 @@
 
 import { InsightMarkdown } from '@/components/insight'
 
+import styles from '../insights-warm.module.css'
 import { ChartCodeBlock, LEGACY_CHART_LANGUAGES } from './chart-code-block'
 
 /**
@@ -23,19 +24,17 @@ export function LegacyReportCard({
   return (
     <div
       id="ai-insight-export-root"
-      className="max-w-full min-w-0 overflow-hidden rounded-none border border-term-border bg-term-panel"
+      className={styles.reportRoot}
+      data-warm-insight-report
     >
-      <div className="border-b border-term-border bg-term-raised px-4 py-2">
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="rounded-full border border-border/70 bg-background/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-term-faint">
-            AI Insight Report
-          </span>
-        </div>
+      <div className={styles.reportHeader}>
+        <span className={styles.reportBadge}>AI Insight Report</span>
       </div>
-      <div className="px-6 py-6 sm:px-8">
+      <div className={styles.reportBody}>
         <InsightMarkdown
           content={content}
           state="final"
+          appearance="warm"
           chartLanguages={LEGACY_CHART_LANGUAGES}
           renderChartBlock={(block) => (
             <ChartCodeBlock

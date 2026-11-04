@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Check, Copy, Loader2, Pencil, Save, X } from 'lucide-react'
 
+import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
 import { InsightMarkdown } from '@/components/insight'
-import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Textarea } from '@/components/ui/textarea'
+import styles from './ai-ad-analysis-warm.module.css'
 import { DimensionPanel, type DimensionCoverage } from './dimension-panel'
 
 export interface InsightDetail {
@@ -130,87 +130,92 @@ export function ViewDialog({ open, onOpenChange, insightId, onUpdated }: ViewDia
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <div className="flex items-center justify-between">
+      <DialogContent className={styles.dialogContent}>
+        <DialogHeader className={styles.dialogHeader}>
+          <div className="flex items-center justify-between gap-4">
             <div className="min-w-0 flex-1">
-              <DialogTitle className="truncate">{insight?.title ?? '加载中...'}</DialogTitle>
+              <DialogTitle className={`${styles.dialogTitle} truncate`}>
+                {insight?.title ?? '加载中...'}
+              </DialogTitle>
               {insight && (
-                <p className="mt-0.5 text-xs text-muted-foreground">
+                <p className={styles.dialogMeta}>
                   {insight.project_name} · {insight.country} · {insight.date_range_start} ~{' '}
                   {insight.date_range_end}
                 </p>
               )}
             </div>
-            <div className="flex items-center gap-2 shrink-0 ml-4">
+            <div className={styles.dialogActions}>
               {insight && !editing && (
                 <>
-                  <Button variant="outline" size="sm" onClick={handleCopy}>
+                  <WarmButton type="button" variant="secondary" onClick={handleCopy}>
                     {copied ? (
                       <>
-                        <Check className="mr-1 h-3.5 w-3.5 text-emerald-500" />
+                        <Check aria-hidden />
                         已复制
                       </>
                     ) : (
                       <>
-                        <Copy className="mr-1 h-3.5 w-3.5" />
+                        <Copy aria-hidden />
                         复制
                       </>
                     )}
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={handleEdit}>
-                    <Pencil className="mr-1 h-3.5 w-3.5" />
+                  </WarmButton>
+                  <WarmButton type="button" variant="secondary" onClick={handleEdit}>
+                    <Pencil aria-hidden />
                     编辑
-                  </Button>
+                  </WarmButton>
                 </>
               )}
               {editing && (
                 <>
-                  <Button
-                    variant="outline"
-                    size="sm"
+                  <WarmButton
+                    type="button"
+                    variant="secondary"
                     onClick={() => setEditing(false)}
                     disabled={saving}
                   >
-                    <X className="mr-1 h-3.5 w-3.5" />
+                    <X aria-hidden />
                     取消
-                  </Button>
-                  <Button size="sm" onClick={handleSave} disabled={saving}>
-                    {saving ? (
-                      <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Save className="mr-1 h-3.5 w-3.5" />
-                    )}
+                  </WarmButton>
+                  <WarmButton
+                    type="button"
+                    variant="primary"
+                    onClick={handleSave}
+                    loading={saving}
+                    loadingLabel="正在保存广告分析"
+                  >
+                    {!saving && <Save aria-hidden />}
                     保存
-                  </Button>
+                  </WarmButton>
                 </>
               )}
             </div>
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-1">
+        <div className={styles.dialogBody}>
           {loading && (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <div className={styles.loadingState} role="status">
+              <Loader2 className="animate-spin" aria-hidden />
             </div>
           )}
 
           {error && (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+            <div className={styles.dialogError} role="alert">
               {error}
             </div>
           )}
 
           {insight && !editing && (
-            <div className="space-y-3">
+            <div className={styles.detailStack}>
               {dimensionCoverage && (
                 <DimensionPanel coverage={dimensionCoverage} defaultExpanded={false} />
               )}
-              <div className="rounded-md border bg-card p-5">
+              <div className={styles.detailContent}>
                 <InsightMarkdown
                   content={insight.content}
                   state="final"
+                  appearance="warm"
                   exportFileName={`${insight.title || '广告分析'}.md`}
                 />
               </div>
@@ -218,10 +223,10 @@ export function ViewDialog({ open, onOpenChange, insightId, onUpdated }: ViewDia
           )}
 
           {editing && (
-            <Textarea
+            <textarea
               value={editContent}
               onChange={(e) => setEditContent(e.target.value)}
-              className="min-h-[400px] font-mono text-sm"
+              className={styles.textarea}
               placeholder="Markdown 内容..."
             />
           )}

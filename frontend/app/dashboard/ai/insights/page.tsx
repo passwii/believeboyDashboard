@@ -11,7 +11,6 @@ import { useSearchParams } from 'next/navigation'
 import { DateRange } from 'react-day-picker'
 import {
   Bot,
-  ChevronDown,
   Check,
   Eye,
   Image as ImageIcon,
@@ -28,8 +27,14 @@ import { useSession } from 'next-auth/react'
 import { Clock } from 'lucide-react'
 
 import { ScheduleList, ScheduleDialog } from '@/components/dashboard/ai-insights'
+import {
+  WarmBadge,
+  WarmButton,
+  WarmIconButton,
+  WarmSelect,
+  type WarmBadgeTone,
+} from '@/components/dashboard-v2/warm-ledger/controls'
 import { InsightStreamPanel, type InsightChartBlock } from '@/components/insight'
-import { TermPanel } from '@/components/terminal/term-panel'
 
 import { ChartCodeBlock, LEGACY_CHART_LANGUAGES } from './_components/chart-code-block'
 import { chartSvgRegistry } from './_components/chart-svg-registry'
@@ -37,38 +42,14 @@ import { LEGACY_SUB_STATUS_LABELS } from './_components/legacy-insight-compat'
 import { GenerationProgress } from './_components/generation-progress'
 import { LegacyReportCard } from './_components/legacy-report-card'
 import { useLegacyInsightStream } from './_components/use-legacy-insight-stream'
+import styles from './insights-warm.module.css'
 
-import { Button } from '@/components/ui/button'
 import {
   DateRangePicker,
   COUNTRY_TIMEZONE_MAP,
   getTodayInTimezone,
 } from '@/components/ui/date-picker'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { parseResponseError } from '@/lib/error-utils'
 import { pickSessionDisplayName } from '@/lib/auth/display-name'
 import { ensureConfigLoaded } from '@/lib/api/ai-chat-config-store'
@@ -143,6 +124,20 @@ function lastSevenDaysRange(country: string) {
   const end = today
   const start = addDays(end, -6)
   return { from: start, to: end }
+}
+
+function insightStatusTone(status: string): WarmBadgeTone {
+  if (status === 'completed') return 'positive'
+  if (status === 'failed') return 'negative'
+  if (status === 'pending' || status === 'generating') return 'accent'
+  return 'neutral'
+}
+
+function insightStatusLabel(insight: InsightItem): string {
+  if (insight.status === 'completed') return '已完成'
+  if (insight.status === 'failed') return '失败'
+  if (insight.status === 'pending') return '排队中'
+  return LEGACY_SUB_STATUS_LABELS[insight.sub_status ?? ''] ?? '生成中'
 }
 
 export default function AIInsightsPage() {
@@ -532,7 +527,7 @@ export default function AIInsightsPage() {
           return
         }
 
-        toPng(dataUrl, { backgroundColor: '#ffffff', pixelRatio: 2, cacheBust: true })
+        toPng(dataUrl, { backgroundColor: '#242525', pixelRatio: 2, cacheBust: true })
           .then((url) => {
             const periodLabel =
               viewingInsight?.insight_type === 'monthly' ? '上个月总结' : '上周总结'
@@ -686,367 +681,280 @@ export default function AIInsightsPage() {
   }
 
   const selectedProjectName = projects.find((p) => p.id === selectedProjectId)?.name || ''
+  const projectOptions = [
+    { value: 'all', label: '全部项目' },
+    ...projects
+      .filter((project): project is ProjectOption & { id: number } => project.id !== null)
+      .map((project) => ({ value: String(project.id), label: project.name })),
+  ]
+  const modelOptions = Array.from(new Set(modelConfig?.models ?? [])).map((model) => ({
+    value: model,
+    label: model,
+  }))
 
   return (
-    <div className="space-y-6">
+    <div className={styles.page} data-warm-insights>
       {/* Tab Bar: 洞察记录 / 定时生成 */}
-      <div className="flex h-9 w-fit items-center gap-1 rounded-none border border-term-border bg-term-bg px-1">
+      <div className={styles.tabs} role="tablist" aria-label="洞察视图">
         <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'insights'}
+          aria-controls="insights-panel"
+          data-active={activeTab === 'insights'}
           onClick={() => setActiveTab('insights')}
-          className={cn(
-            'flex h-7 items-center gap-2 rounded-none px-3 font-mono text-xs transition-colors',
-            activeTab === 'insights'
-              ? 'border border-term-border bg-term-raised text-term-text'
-              : 'border border-transparent text-term-muted hover:bg-term-hover hover:text-term-text'
-          )}
+          className={styles.tab}
         >
-          <Sparkles className="h-4 w-4" />
+          <Sparkles aria-hidden />
           洞察记录
         </button>
         <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'schedules'}
+          aria-controls="schedules-panel"
+          data-active={activeTab === 'schedules'}
           onClick={() => setActiveTab('schedules')}
-          className={cn(
-            'flex h-7 items-center gap-2 rounded-none px-3 font-mono text-xs transition-colors',
-            activeTab === 'schedules'
-              ? 'border border-term-border bg-term-raised text-term-text'
-              : 'border border-transparent text-term-muted hover:bg-term-hover hover:text-term-text'
-          )}
+          className={styles.tab}
         >
-          <Clock className="h-4 w-4" />
+          <Clock aria-hidden />
           定时生成
         </button>
       </div>
 
       {/* Scheduled Generation Tab */}
       {activeTab === 'schedules' && (
-        <div className="space-y-4">
-          {/* Header with "New Schedule" button */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold">定时任务管理</h2>
-              <p className="text-sm text-muted-foreground">
-                配置定时任务，自动在指定时间生成 AI Insight 报告
-              </p>
+        <section id="schedules-panel" role="tabpanel" className={styles.panel}>
+          <header className={styles.panelHeader}>
+            <h2 className={styles.panelTitle}>定时任务管理</h2>
+            <div className={styles.panelActions}>
+              <WarmButton
+                type="button"
+                variant="primary"
+                onClick={() => {
+                  setEditingSchedule(null)
+                  setScheduleDialogOpen(true)
+                }}
+              >
+                <Sparkles aria-hidden />
+                新建定时任务
+              </WarmButton>
             </div>
-            <Button
-              onClick={() => {
-                setEditingSchedule(null)
-                setScheduleDialogOpen(true)
-              }}
-              className="w-full sm:w-auto"
-            >
-              <Sparkles className="mr-2 h-4 w-4" />
-              新建定时任务
-            </Button>
+          </header>
+          <div className={styles.panelBody}>
+            <div className={styles.scheduleSurface}>
+              <ScheduleList
+                onEdit={(schedule) => {
+                  setEditingSchedule(schedule)
+                  setScheduleDialogOpen(true)
+                }}
+                onRefresh={() => setScheduleRefreshTrigger((n) => n + 1)}
+                isRefreshing={scheduleRefreshTrigger > 0}
+              />
+            </div>
           </div>
-
-          {/* Schedule List */}
-          <ScheduleList
-            onEdit={(schedule) => {
-              setEditingSchedule(schedule)
-              setScheduleDialogOpen(true)
-            }}
-            onRefresh={() => setScheduleRefreshTrigger((n) => n + 1)}
-            isRefreshing={scheduleRefreshTrigger > 0}
-          />
-        </div>
+        </section>
       )}
 
       {/* Insights Tab */}
       {activeTab === 'insights' && (
-        <>
-          <TermPanel title="生成 AI 洞察" bodyClassName="space-y-4 p-4">
-              <div className="grid grid-cols-2 gap-2.5 lg:flex lg:flex-wrap lg:items-center lg:gap-3">
-                {isLoadingProjects ? (
-                  <Skeleton className="h-10 w-[180px]" />
-                ) : (
-                  <>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="h-8 w-full justify-between rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text shadow-none lg:w-[180px]"
-                        >
-                          {selectedProjectId === 'all'
-                            ? '全部项目'
-                            : (projects.find((p) => p.id === selectedProjectId)?.name ??
-                              '选择项目')}
-                          <ChevronDown className="h-4 w-4 opacity-50" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" className="w-[180px]">
-                        <DropdownMenuItem
-                          key="all"
-                          onClick={() => setSelectedProjectId('all')}
-                          className={cn(selectedProjectId === 'all' && 'bg-term-hover text-term-text')}
-                        >
-                          全部项目
-                        </DropdownMenuItem>
-                        {projects.map((p) => (
-                          <DropdownMenuItem
-                            key={p.id}
-                            onClick={() => p.id !== null && setSelectedProjectId(p.id)}
-                            className={cn(selectedProjectId === p.id && 'bg-term-hover text-term-text')}
-                          >
-                            {p.name}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    {selectedProjectId !== 'all' && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-fit rounded-none px-2 font-mono text-xs text-term-muted hover:text-term-text"
-                        onClick={() => {
-                          window.location.href = `/dashboard/system/project-info?configure=${selectedProjectId}`
-                        }}
-                        title="配置项目背景"
-                      >
-                        <Settings className="h-4 w-4 mr-1.5" />
-                        配置背景
-                      </Button>
-                    )}
-                  </>
-                )}
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="h-8 w-full justify-between rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text shadow-none lg:w-[140px]"
-                    >
-                      {COUNTRY_OPTIONS.find((c) => c.value === selectedCountry)?.label ||
-                        '国家站点'}
-                      <ChevronDown className="h-4 w-4 opacity-50" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-[140px]">
-                    {COUNTRY_OPTIONS.map((c) => (
-                      <DropdownMenuItem
-                        key={c.value}
-                        onClick={() => setSelectedCountry(c.value)}
-                        className={cn(selectedCountry === c.value && 'bg-term-hover text-term-text')}
-                      >
-                        {c.label}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="h-8 w-full justify-between rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text shadow-none lg:w-[120px]"
-                    >
-                      {INSIGHT_TYPE_OPTIONS.find((t) => t.value === insightType)?.label || '类型'}
-                      <ChevronDown className="h-4 w-4 opacity-50" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-[120px]">
-                    {INSIGHT_TYPE_OPTIONS.map((t) => (
-                      <DropdownMenuItem
-                        key={t.value}
-                        onClick={() => setInsightType(t.value)}
-                        className={cn(insightType === t.value && 'bg-term-hover text-term-text')}
-                      >
-                        {t.label}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                <Select
-                  value={selectedModel}
-                  onValueChange={setSelectedModel}
-                  disabled={isLoadingModelConfig || isGenerating || !modelConfig?.models.length}
-                >
-                  <SelectTrigger className="h-8 w-full rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text shadow-none lg:w-[220px]">
-                    <SelectValue
-                      placeholder={isLoadingModelConfig ? '加载模型中...' : '选择模型'}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(modelConfig?.premiumModels.length || 0) > 0 && (
-                      <SelectGroup>
-                        <SelectLabel>高级模型</SelectLabel>
-                        {modelConfig?.premiumModels.map((model) => (
-                          <SelectItem key={model} value={model}>
-                            {model}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    )}
-                    {(modelConfig?.basicModels.length || 0) > 0 && (
-                      <SelectGroup>
-                        <SelectLabel>基础模型</SelectLabel>
-                        {modelConfig?.basicModels.map((model) => (
-                          <SelectItem key={model} value={model}>
-                            {model}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    )}
-                    {modelConfig?.models
-                      .filter(
-                        (model) =>
-                          !modelConfig.premiumModels.includes(model) &&
-                          !modelConfig.basicModels.includes(model)
-                      )
-                      .map((model) => (
-                        <SelectItem key={model} value={model}>
-                          {model}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-
-                <DateRangePicker
-                  value={dateRange}
-                  onChange={setDateRange}
-                  className="h-8 w-full lg:w-[240px]"
-                  timezone={COUNTRY_TIMEZONE_MAP[selectedCountry]}
-                />
-                <Button
-                  onClick={() => void handleGenerate()}
-                  disabled={
-                    !selectedProjectId ||
-                    selectedProjectId === 'all' ||
-                    !dateRange?.from ||
-                    !dateRange?.to ||
-                    isGenerating
-                  }
-                  className="h-8 col-span-2 gap-2 w-full rounded-none font-mono text-xs lg:col-span-1 lg:w-auto"
-                >
-                  {isGenerating ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+        <div id="insights-panel" role="tabpanel" className={styles.stack}>
+          <section className={styles.panel}>
+            <header className={styles.panelHeader}>
+              <h2 className={styles.panelTitle}>生成 AI 洞察</h2>
+            </header>
+            <div className={styles.panelBody}>
+              <div className={styles.filters}>
+                <div className={styles.projectField}>
+                  {isLoadingProjects ? (
+                    <div className={styles.skeletonBlock} aria-label="正在加载项目" />
                   ) : (
-                    <Bot className="h-4 w-4" />
+                    <WarmSelect
+                      id="insight-project"
+                      label="项目"
+                      value={String(selectedProjectId)}
+                      options={projectOptions}
+                      onChange={(value) =>
+                        setSelectedProjectId(value === 'all' ? 'all' : Number(value))
+                      }
+                      placeholder="选择项目"
+                    />
                   )}
-                  {isGenerating ? '生成中...' : '生成洞察'}
-                </Button>
+                  {selectedProjectId !== 'all' && (
+                    <WarmButton
+                      type="button"
+                      variant="quiet"
+                      onClick={() => {
+                        window.location.href = `/dashboard/system/project-info?configure=${selectedProjectId}`
+                      }}
+                      title="配置项目背景"
+                    >
+                      <Settings aria-hidden />
+                      配置背景
+                    </WarmButton>
+                  )}
+                </div>
+
+                <WarmSelect
+                  id="insight-country"
+                  label="国家站点"
+                  value={selectedCountry}
+                  options={COUNTRY_OPTIONS}
+                  onChange={setSelectedCountry}
+                />
+
+                <WarmSelect
+                  id="insight-type"
+                  label="洞察类型"
+                  value={insightType}
+                  options={INSIGHT_TYPE_OPTIONS}
+                  onChange={setInsightType}
+                />
+
+                <div className={styles.field}>
+                  <span className={styles.fieldLabel}>日期范围</span>
+                  <DateRangePicker
+                    value={dateRange}
+                    onChange={setDateRange}
+                    className={styles.dateTrigger}
+                    popoverClassName={styles.datePopover}
+                    timezone={COUNTRY_TIMEZONE_MAP[selectedCountry]}
+                  />
+                </div>
+
+                <WarmSelect
+                  id="insight-model"
+                  label="模型"
+                  value={selectedModel}
+                  options={modelOptions}
+                  onChange={setSelectedModel}
+                  placeholder={isLoadingModelConfig ? '加载模型中...' : '选择模型'}
+                  disabled={
+                    isLoadingModelConfig || isGenerating || !modelConfig?.models.length
+                  }
+                />
+
+                <div className={styles.generateAction}>
+                  <WarmButton
+                    type="button"
+                    variant="primary"
+                    loading={isGenerating}
+                    loadingLabel="正在生成洞察"
+                    onClick={() => void handleGenerate()}
+                    disabled={
+                      !selectedProjectId ||
+                      selectedProjectId === 'all' ||
+                      !dateRange?.from ||
+                      !dateRange?.to
+                    }
+                  >
+                    {isGenerating ? <Loader2 aria-hidden /> : <Bot aria-hidden />}
+                    {isGenerating ? '生成中...' : '生成洞察'}
+                  </WarmButton>
+                </div>
               </div>
 
-              <p className="text-sm text-term-muted">
+              <p className={styles.helperText}>
                 选择项目、日期范围和洞察类型，系统将基于该时间段内的销售、广告、库存等数据生成 AI
                 经营洞察报告。 生成任务在后台运行，可以切换到其他页面，稍后再来查看结果。
               </p>
-          </TermPanel>
+            </div>
+          </section>
 
-          <TermPanel title="洞察记录" bodyClassName="p-4">
+          <section className={styles.panel}>
+            <header className={styles.panelHeader}>
+              <h2 className={styles.panelTitle}>洞察记录</h2>
+            </header>
+            <div className={cn(styles.panelBody, styles.panelBodyFlush)}>
               {isLoadingInsights ? (
-                <div className="space-y-2">
+                <div className={styles.loadingRows} aria-busy="true" aria-label="正在加载洞察记录">
                   {[1, 2, 3].map((i) => (
-                    <Skeleton key={i} className="h-12 w-full" />
+                    <div key={i} className={styles.loadingRow} />
                   ))}
                 </div>
               ) : insights.length === 0 ? (
-                <div className="flex h-24 flex-col items-center justify-center gap-2 rounded-none border border-dashed border-term-border bg-term-bg text-center">
-                  <p className="text-sm text-term-faint">
-                    在左侧选择项目和时间范围，然后点击「生成洞察」按钮
-                  </p>
+                <div className={styles.emptyState}>
+                  在左侧选择项目和时间范围，然后点击「生成洞察」按钮
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[300px]">标题</TableHead>
-                      <TableHead>项目</TableHead>
-                      <TableHead>国家</TableHead>
-                      <TableHead>类型</TableHead>
-                      <TableHead>日期范围</TableHead>
-                      <TableHead>状态</TableHead>
-                      <TableHead>生成时间</TableHead>
-                      <TableHead className="w-[100px]">操作</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {insights.map((insight) => (
-                      <TableRow
-                        key={insight.id}
-                        className={cn(
-                          'cursor-pointer',
-                          insight.status === 'generating' && 'opacity-70'
-                        )}
-                        onClick={() => void handleViewInsight(insight.id)}
-                      >
-                        <TableCell className="font-medium whitespace-nowrap max-w-[300px] truncate">
-                          {insight.status === 'generating' || insight.status === 'pending' ? (
-                            <span className="flex items-center gap-2">
-                              <span className="h-2 w-2 rounded-none bg-term-warn animate-pulse" />
-                              <span className="text-muted-foreground">
+                <div className={styles.tableScroller}>
+                  <table className={styles.dataTable}>
+                    <thead>
+                      <tr>
+                        <th>标题</th>
+                        <th>项目</th>
+                        <th>国家</th>
+                        <th>类型</th>
+                        <th>日期范围</th>
+                        <th>状态</th>
+                        <th>生成时间</th>
+                        <th>操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {insights.map((insight) => (
+                        <tr
+                          key={insight.id}
+                          data-clickable="true"
+                          onClick={() => void handleViewInsight(insight.id)}
+                        >
+                          <td className={styles.titleCell}>
+                            {insight.status === 'generating' || insight.status === 'pending' ? (
+                              <span className={styles.busyTitle}>
+                                <span className={styles.busyDot} aria-hidden />
                                 {LEGACY_SUB_STATUS_LABELS[insight.sub_status ?? ''] ?? '生成中'}
                               </span>
-                            </span>
-                          ) : (
-                            insight.title
-                          )}
-                        </TableCell>
-                        <TableCell>{insight.project_name}</TableCell>
-                        <TableCell>{insight.country}</TableCell>
-                        <TableCell>
-                          <span className="rounded-none border border-term-border px-1.5 py-0.5 font-mono text-[11px] text-term-muted">
-                            {INSIGHT_TYPE_OPTIONS.find((t) => t.value === insight.insight_type)
-                              ?.label || insight.insight_type}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-sm whitespace-nowrap">
-                          {formatDate(insight.date_range_start)} ~{' '}
-                          {formatDate(insight.date_range_end)}
-                        </TableCell>
-                        <TableCell>
-                          <span
-                            className={cn(
-                              'rounded-none border px-1.5 py-0.5 font-mono text-[11px]',
-                              insight.status === 'completed'
-                                ? 'border-term-pos/40 text-term-pos'
-                                : insight.status === 'failed'
-                                  ? 'border-term-neg/40 text-term-neg'
-                                  : insight.status === 'pending'
-                                    ? 'border-term-accent/40 text-term-accent animate-pulse'
-                                    : 'border-term-warn/40 text-term-warn animate-pulse'
+                            ) : (
+                              <span className={styles.titleText}>{insight.title}</span>
                             )}
-                          >
-                            {insight.status === 'completed'
-                              ? '已完成'
-                              : insight.status === 'failed'
-                                ? '失败'
-                                : insight.status === 'pending'
-                                  ? '排队中'
-                                  : (LEGACY_SUB_STATUS_LABELS[insight.sub_status ?? ''] ?? '生成中')}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {formatDateTime(insight.created_at)}
-                        </TableCell>
-                        <TableCell onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-9 w-9 sm:h-8 sm:w-8"
-                              disabled={insight.status === 'generating'}
-                              onClick={() => void handleViewInsight(insight.id)}
-                            >
-                              <Eye className="h-4 w-4 text-muted-foreground" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-9 w-9 sm:h-8 sm:w-8"
-                              onClick={() => void handleDelete(insight.id)}
-                            >
-                              <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                          </td>
+                          <td className={styles.projectCell}>{insight.project_name}</td>
+                          <td>{insight.country}</td>
+                          <td>
+                            <WarmBadge tone="neutral">
+                              {INSIGHT_TYPE_OPTIONS.find((t) => t.value === insight.insight_type)
+                                ?.label || insight.insight_type}
+                            </WarmBadge>
+                          </td>
+                          <td className={styles.numericCell}>
+                            {formatDate(insight.date_range_start)} ~{' '}
+                            {formatDate(insight.date_range_end)}
+                          </td>
+                          <td>
+                            <WarmBadge tone={insightStatusTone(insight.status)}>
+                              {insightStatusLabel(insight)}
+                            </WarmBadge>
+                          </td>
+                          <td className={styles.numericCell}>
+                            {formatDateTime(insight.created_at)}
+                          </td>
+                          <td onClick={(event) => event.stopPropagation()}>
+                            <div className={styles.actions}>
+                              <WarmIconButton
+                                type="button"
+                                aria-label="查看洞察"
+                                disabled={insight.status === 'generating'}
+                                onClick={() => void handleViewInsight(insight.id)}
+                              >
+                                <Eye />
+                              </WarmIconButton>
+                              <WarmIconButton
+                                type="button"
+                                aria-label="删除洞察"
+                                onClick={() => void handleDelete(insight.id)}
+                              >
+                                <Trash2 />
+                              </WarmIconButton>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
-          </TermPanel>
+            </div>
+          </section>
 
           {/* Live generation progress dialog */}
           {/* Use suppressHydrationWarning to handle SSR/CSR mismatch from Radix UI Dialog */}
@@ -1059,19 +967,20 @@ export default function AIInsightsPage() {
             <DialogContent
               aria-describedby="insight-generation-dialog-description"
               suppressHydrationWarning
-              className="max-h-[80vh] max-w-4xl overflow-y-auto"
+              className={cn(styles.dialogContent, styles.dialogContentMedium)}
             >
-              <span id="insight-generation-dialog-description" className="sr-only">
+              <span id="insight-generation-dialog-description" className={styles.srOnly}>
                 AI洞察报告生成进度对话框
               </span>
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <Bot className="h-5 w-5" />
+              <DialogHeader className={styles.dialogHeader}>
+                <DialogTitle className={styles.dialogTitle}>
+                  <Bot aria-hidden />
                   {selectedProjectName} - AI 洞察报告
                 </DialogTitle>
               </DialogHeader>
               <div className="mt-4">
                 <InsightStreamPanel
+                  appearance="warm"
                   status={generationStream.state.status}
                   statusLabel={generationStream.state.label}
                   error={generationStream.error}
@@ -1087,28 +996,29 @@ export default function AIInsightsPage() {
                     ),
                     afterContent:
                       generationStream.finished && generationStream.content.trim() ? (
-                        <div className="flex items-center justify-end gap-2 border-t pt-4">
-                          <Button
-                            variant="outline"
-                            size="sm"
+                        <div className={styles.dialogActions}>
+                          <WarmButton
+                            type="button"
+                            variant="secondary"
                             onClick={() => {
                               setInsightDialogOpen(false)
                               if (generatingId !== null) void handleViewInsight(generatingId)
                             }}
                           >
-                            <Pencil className="mr-1.5 h-4 w-4" />
+                            <Pencil aria-hidden />
                             查看并编辑
-                          </Button>
-                          <Button
-                            size="sm"
+                          </WarmButton>
+                          <WarmButton
+                            type="button"
+                            variant="primary"
                             onClick={() => {
                               setInsightDialogOpen(false)
                               void loadInsights()
                             }}
                           >
-                            <Check className="mr-1.5 h-4 w-4" />
+                            <Check aria-hidden />
                             完成
-                          </Button>
+                          </WarmButton>
                         </div>
                       ) : null,
                   }}
@@ -1132,33 +1042,33 @@ export default function AIInsightsPage() {
               aria-describedby="insight-view-dialog-description"
               suppressHydrationWarning
               className={cn(
-                'max-h-[80vh] overflow-y-auto overflow-x-auto',
-                isEditingDetail ? 'max-w-[1350px]' : isViewLive ? 'max-w-6xl' : 'max-w-[675px]'
+                styles.dialogContent,
+                isEditingDetail ? styles.dialogContentWide : styles.dialogContentMedium
               )}
             >
-              <span id="insight-view-dialog-description" className="sr-only">
+              <span id="insight-view-dialog-description" className={styles.srOnly}>
                 洞察详情查看对话框
               </span>
-              <DialogHeader>
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+              <DialogHeader className={styles.dialogHeader}>
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
-                    <DialogTitle className="flex items-center gap-2">
+                    <DialogTitle className={styles.dialogTitle}>
                       {isViewLive ? (
                         <>
-                          <Loader2 className="h-5 w-5 animate-spin text-term-accent" />
+                          <Loader2 className="animate-spin" aria-hidden />
                           {viewingInsight?.sub_status === 'queued'
                             ? '排队中...'
                             : '正在生成洞察...'}
                         </>
                       ) : (
                         <>
-                          <Eye className="h-5 w-5" />
+                          <Eye aria-hidden />
                           {viewingInsight?.title ?? '洞察详情'}
                         </>
                       )}
                     </DialogTitle>
                     {viewingInsight && (
-                      <p className="text-sm text-muted-foreground font-normal">
+                      <p className={styles.dialogMeta}>
                         {viewingInsight.project_name} ·{' '}
                         {COUNTRY_OPTIONS.find((c) => c.value === viewingInsight.country)?.label} ·{' '}
                         {formatDate(viewingInsight.date_range_start)} ~{' '}
@@ -1174,19 +1084,19 @@ export default function AIInsightsPage() {
 
                   {/* Live / Retry button */}
                   {isViewLive && (
-                    <div className="flex shrink-0 items-center gap-2">
-                      <div className="flex items-center gap-1.5 rounded-none border border-term-accent/40 px-1.5 py-0.5 font-mono text-xs text-term-accent">
-                        <Loader2 className="h-3 w-3 animate-spin" />
+                    <div className={styles.dialogActions}>
+                      <div className={styles.liveState}>
+                        <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
                         实时生成中
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
+                      <WarmButton
+                        type="button"
+                        variant="secondary"
                         onClick={() => viewingInsight && void handleRetryInsight(viewingInsight.id)}
                       >
-                        <Sparkles className="mr-1.5 h-4 w-4" />
+                        <Sparkles aria-hidden />
                         重试
-                      </Button>
+                      </WarmButton>
                     </div>
                   )}
 
@@ -1195,105 +1105,102 @@ export default function AIInsightsPage() {
                   viewingInsight?.status === 'completed' &&
                   viewingInsight?.content &&
                   !isEditingDetail ? (
-                    <div className="flex shrink-0 items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={handleStartEditingDetail}>
-                        <Pencil className="mr-1.5 h-4 w-4" />
-                        手动编辑
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => void handleExportPng()}
-                        disabled={isExporting}
+                    <div className={styles.dialogActions}>
+                      <WarmButton
+                        type="button"
+                        variant="secondary"
+                        onClick={handleStartEditingDetail}
                       >
-                        {isExporting ? (
-                          <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                        ) : (
-                          <ImageIcon className="mr-1.5 h-4 w-4" />
-                        )}
+                        <Pencil aria-hidden />
+                        手动编辑
+                      </WarmButton>
+                      <WarmButton
+                        type="button"
+                        variant="secondary"
+                        loading={isExporting}
+                        loadingLabel="正在导出图片"
+                        onClick={() => void handleExportPng()}
+                      >
+                        {!isExporting && <ImageIcon aria-hidden />}
                         导出图片
-                      </Button>
+                      </WarmButton>
                     </div>
                   ) : null}
 
                   {/* Failed insight — retry */}
                   {!isLoadingDetail && viewingInsight?.status === 'failed' ? (
-                    <div className="flex shrink-0 items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
+                    <div className={styles.dialogActions}>
+                      <WarmButton
+                        type="button"
+                        variant="secondary"
                         onClick={() => viewingInsight && void handleRetryInsight(viewingInsight.id)}
                       >
-                        <Sparkles className="mr-1.5 h-4 w-4" />
+                        <Sparkles aria-hidden />
                         重新生成
-                      </Button>
+                      </WarmButton>
                     </div>
                   ) : null}
                 </div>
               </DialogHeader>
               <div className="mt-4">
                 {isLoadingDetail ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin text-term-accent" />
-                    <span className="ml-3 text-muted-foreground">正在加载洞察内容...</span>
+                  <div className={styles.loadingState} role="status">
+                    <Loader2 className="animate-spin" aria-hidden />
+                    <span>正在加载洞察内容...</span>
                   </div>
                 ) : isEditingDetail ? (
-                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-2" style={{ height: '70vh' }}>
-                    <div className="flex flex-col overflow-y-auto rounded-none border border-term-border bg-term-bg">
-                      <div className="sticky top-0 z-10 border-b border-term-border bg-term-bg px-4 py-2.5">
-                        <p className="text-xs font-semibold uppercase tracking-wider text-term-faint">
-                          预览
-                        </p>
+                  <div className={styles.editorGrid} style={{ height: '70vh' }}>
+                    <div className={styles.editorPane}>
+                      <div className={styles.editorPaneHeader}>
+                        <p className={styles.fieldLabel}>预览</p>
                       </div>
-                      <div className="flex-1 overflow-y-auto px-4 py-4">
+                      <div className={styles.editorPaneBody}>
                         <LegacyReportCard
                           content={editingContent}
                           collectChartSvgs={collectChartSvgs}
                         />
                       </div>
                     </div>
-                    <div className="flex flex-col gap-3 min-h-0">
-                      <div className="shrink-0 flex flex-col gap-3 rounded-none border border-term-border bg-term-bg px-4 py-3 text-sm text-term-muted sm:flex-row sm:items-center sm:justify-between">
+                    <div className={styles.editorPane}>
+                      <div className={styles.editorToolbar}>
                         <span>
                           直接编辑 Markdown 内容，支持表格、
-                          <code className="text-foreground">lineChart</code> /
-                          <code className="text-foreground">pieChart</code> 代码块实时预览。
+                          <code>lineChart</code> / <code>pieChart</code> 代码块实时预览。
                         </span>
-                        <div className="flex items-center gap-2 sm:ml-4 shrink-0">
-                          <Button
-                            variant="outline"
-                            size="sm"
+                        <div className={styles.dialogActions}>
+                          <WarmButton
+                            type="button"
+                            variant="secondary"
                             onClick={handleCancelEditingDetail}
                             disabled={isSavingDetail}
                           >
-                            <X className="mr-1.5 h-4 w-4" />
+                            <X aria-hidden />
                             取消
-                          </Button>
-                          <Button
-                            size="sm"
+                          </WarmButton>
+                          <WarmButton
+                            type="button"
+                            variant="primary"
+                            loading={isSavingDetail}
+                            loadingLabel="正在保存洞察"
                             onClick={() => void handleSaveDetail()}
-                            disabled={isSavingDetail}
                           >
-                            {isSavingDetail ? (
-                              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                            ) : (
-                              <Save className="mr-1.5 h-4 w-4" />
-                            )}
+                            {!isSavingDetail && <Save aria-hidden />}
                             保存
-                          </Button>
+                          </WarmButton>
                         </div>
                       </div>
                       <textarea
                         value={editingContent}
                         onChange={(e) => setEditingContent(e.target.value)}
                         spellCheck={false}
-                        className="flex-1 w-full resize-none rounded-none border border-term-border bg-term-panel px-4 py-4 font-mono text-sm leading-6 text-term-text outline-none transition focus:border-term-border-strong"
+                        className={styles.editorInput}
                         placeholder="在此编辑 Markdown 内容..."
                       />
                     </div>
                   </div>
                 ) : isViewLive ? (
                   <InsightStreamPanel
+                    appearance="warm"
                     status={viewStream.state.status}
                     statusLabel={viewStream.state.label}
                     error={viewStream.error}
@@ -1319,16 +1226,17 @@ export default function AIInsightsPage() {
                     exportFileName={`${viewingInsight.project_name}-洞察报告.md`}
                   />
                 ) : viewingInsight?.error_message ? (
-                  <div className="rounded-none border border-term-neg/40 bg-term-neg/5 px-4 py-3 text-sm text-term-neg">
-                    生成失败：{viewingInsight.error_message}
+                  <div className={styles.errorState} role="alert">
+                    <span>生成失败</span>
+                    <span>{viewingInsight.error_message}</span>
                   </div>
                 ) : (
-                  <p className="text-muted-foreground text-center py-8">暂无内容</p>
+                  <p className={styles.emptyState}>暂无内容</p>
                 )}
               </div>
             </DialogContent>
           </Dialog>
-        </>
+        </div>
       )}
 
       {/* Schedule Dialog - rendered outside tab conditionals so it works from any tab */}
