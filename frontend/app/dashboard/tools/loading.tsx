@@ -1,5 +1,5 @@
-import { SimplePageLoading } from '@/components/dashboard/page-skeletons'
+import { ToolsLoading } from './_components'
 
-export default function ToolsLoading() {
-  return <SimplePageLoading />
+export default function ToolsLoadingRoute() {
+  return <ToolsLoading />
 }

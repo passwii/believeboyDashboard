@@ -1,0 +1,141 @@
+.uploadZone {
+  min-width: 0;
+}
+
+.uploadZone :global(div:has(> input[type='file'])) {
+  display: grid;
+  min-width: 0;
+  gap: var(--warm-ledger-space-3);
+}
+
+.uploadZone :global(div:has(> input[type='file']) > div:first-child) {
+  align-items: stretch;
+  gap: var(--warm-ledger-space-3);
+}
+
+.uploadZone :global(div:has(> input[type='file']) > div:first-child > button) {
+  min-height: var(--warm-ledger-control-height);
+  padding: 0 var(--warm-ledger-space-3);
+  color: var(--warm-ledger-color-text-soft);
+  font-family: var(--warm-ledger-font-sans);
+  font-size: var(--warm-ledger-font-size-control);
+  font-weight: var(--warm-ledger-font-weight-medium);
+  background: var(--warm-ledger-color-panel-strong);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline-strong);
+  border-radius: var(--warm-ledger-radius-control);
+  box-shadow: var(--warm-ledger-highlight-rest);
+  transition:
+    color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease),
+    background-color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease),
+    border-color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease),
+    box-shadow var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease),
+    transform var(--warm-ledger-motion-duration-press) var(--warm-ledger-motion-ease);
+}
+
+.uploadZone :global(div:has(> input[type='file']) > div:first-child > button:hover:not(:disabled)) {
+  color: var(--warm-ledger-color-text);
+  background: var(--warm-ledger-color-raised-hover);
+  border-color: var(--warm-ledger-color-hairline-strong);
+  box-shadow: var(--warm-ledger-highlight-hover);
+}
+
+.uploadZone :global(div:has(> input[type='file']) > div:first-child > button:active:not(:disabled)) {
+  box-shadow: var(--warm-ledger-highlight-pressed);
+  transform: translateY(var(--warm-ledger-motion-distance-press));
+}
+
+.uploadZone :global(div:has(> input[type='file']) > div:first-child > button:focus-visible) {
+  outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color);
+  outline-offset: var(--warm-ledger-focus-offset);
+}
+
+.uploadZone :global(div:has(> input[type='file']) > div:first-child > button:disabled) {
+  color: var(--warm-ledger-color-text-muted);
+  cursor: not-allowed;
+}
+
+.uploadZone :global(div:has(> input[type='file']) > div:first-child > div) {
+  min-height: 64px;
+  padding: var(--warm-ledger-space-4);
+  color: var(--warm-ledger-color-text-muted);
+  background: var(--warm-ledger-color-panel-strong);
+  border: var(--warm-ledger-border-width) dashed var(--warm-ledger-color-hairline-strong);
+  border-radius: var(--warm-ledger-radius-control);
+  box-shadow: var(--warm-ledger-highlight-rest);
+  transition:
+    color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease),
+    background-color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease),
+    border-color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease);
+}
+
+.uploadZone :global(div:has(> input[type='file']) > div:first-child > div:hover) {
+  color: var(--warm-ledger-color-text-soft);
+  background: var(--warm-ledger-color-raised);
+  border-color: var(--warm-ledger-color-hairline-strong);
+}
+
+.uploadZone :global(div:has(> input[type='file']) > div:first-child > div[class*='accent']) {
+  color: var(--warm-ledger-color-text);
+  background: var(--warm-ledger-color-accent-soft);
+  border-color: var(--warm-ledger-color-accent);
+}
+
+.uploadZone :global(div:has(> input[type='file']) > div:first-child > div p) {
+  color: inherit;
+  font-family: var(--warm-ledger-font-sans);
+  font-size: var(--warm-ledger-font-size-control);
+  font-weight: var(--warm-ledger-font-weight-regular);
+  letter-spacing: 0;
+  line-height: var(--warm-ledger-line-height-body);
+  text-transform: none;
+}
+
+.uploadZone :global(div:has(> input[type='file']) > div:first-child > div span) {
+  color: inherit;
+  font-weight: inherit;
+}
+
+.uploadZone :global(div:has(> input[type='file']) > div:has(> svg):not(:first-child)) {
+  color: var(--warm-ledger-color-negative);
+  font-family: var(--warm-ledger-font-sans);
+  background: var(--warm-ledger-color-panel);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-negative);
+  border-radius: var(--warm-ledger-radius-inner);
+}
+
+.uploadZone :global(div:has(> input[type='file']) > div:has(> button[aria-label='清除预览'])) {
+  position: relative;
+  padding: var(--warm-ledger-space-3);
+  color: var(--warm-ledger-color-text-soft);
+  background: var(--warm-ledger-color-panel-strong);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-control);
+}
+
+.uploadZone :global(div:has(> input[type='file']) > div:has(> button[aria-label='清除预览']) > button) {
+  color: var(--warm-ledger-color-text-muted);
+  background: var(--warm-ledger-color-raised);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-inner);
+}
+
+.uploadZone :global(div:has(> input[type='file']) > div:has(> button[aria-label='清除预览']) > button:hover) {
+  color: var(--warm-ledger-color-text);
+  background: var(--warm-ledger-color-raised-hover);
+  border-color: var(--warm-ledger-color-hairline-strong);
+}
+
+.uploadZone :global(div:has(> input[type='file']) > div:has(> button[aria-label='清除预览']) > button:focus-visible) {
+  outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color);
+  outline-offset: var(--warm-ledger-focus-offset);
+}
+
+.uploadZone :global(div:has(> input[type='file']) > div:has(> button[aria-label='清除预览']) img) {
+  border-radius: var(--warm-ledger-radius-inner);
+}
+
+.uploadZone :global(div:has(> input[type='file']) > div:has(> button[aria-label='清除预览']) span) {
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-mono);
+  font-size: var(--warm-ledger-font-size-label);
+}
