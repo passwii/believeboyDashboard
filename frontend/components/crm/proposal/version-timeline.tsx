@@ -1,15 +1,17 @@
 'use client'
 
-import { useState } from 'react'
-import { Download, Eye, Loader2, Upload } from 'lucide-react'
+import { Download, Eye, Upload } from 'lucide-react'
 
-import { TERM_BUTTON } from '@/components/crm/term-shared'
+import { WarmCrmState, WarmCrmStatusPill } from '@/components/dashboard-v2/warm-ledger/crm'
+import { WarmIconButton } from '@/components/dashboard-v2/warm-ledger/controls'
 import { cn } from '@/lib/utils'
 import {
   formatFileSize,
   proposalFileFormat,
   type ProposalVersion,
 } from '@/lib/crm/types'
+
+import styles from './proposal-warm.module.css'
 
 /** 上传 accept（HTML / PDF）——由 types 统一维护，避免两处口径漂移。 */
 export { PROPOSAL_ACCEPT } from '@/lib/crm/types'
@@ -40,10 +42,10 @@ export function ProposalVersionTimeline({
   className,
 }: ProposalVersionTimelineProps) {
   if (versions.length === 0) {
-    return <div className="px-2 py-6 text-center font-mono text-xs text-term-faint">暂无版本</div>
+    return <WarmCrmState kind="empty" title="暂无版本" />
   }
   return (
-    <ol className={cn('flex flex-col gap-1', className)} data-testid="proposal-version-timeline">
+    <ol className={cn(styles.timeline, className)} data-testid="proposal-version-timeline">
       {versions.map((v) => {
         const isSelected = v.versionNo === selectedVersionNo
         const format = proposalFileFormat(v)
@@ -51,77 +53,61 @@ export function ProposalVersionTimeline({
           <li
             key={v.id}
             data-testid={`proposal-version-${v.versionNo}`}
-            className={cn(
-              'flex flex-wrap items-center gap-x-2 gap-y-1 border px-2 py-1.5',
-              isSelected
-                ? 'border-term-border-strong bg-term-raised'
-                : 'border-term-border bg-term-panel'
-            )}
+            className={cn(styles.versionRow, isSelected && styles.versionRowSelected)}
           >
             <button
               type="button"
               data-testid={`proposal-version-select-${v.versionNo}`}
               onClick={() => onSelect(v.versionNo)}
-              className="flex min-w-0 flex-1 items-center gap-2 text-left"
+              className={styles.versionSelect}
               aria-current={isSelected}
             >
-              <span className="shrink-0 font-mono text-xs text-term-text">v{v.versionNo}</span>
+              <span className={styles.versionNo}>v{v.versionNo}</span>
               {v.versionNo === currentVersionNo ? (
-                <span className="shrink-0 border border-current/30 px-1 font-mono text-[10px] text-term-pos">
-                  当前
-                </span>
+                <WarmCrmStatusPill tone="positive">当前</WarmCrmStatusPill>
               ) : null}
-              <span className="min-w-0 truncate text-xs text-term-muted" title={v.changeNote ?? v.originalFilename}>
+              <span
+                className={styles.versionNote}
+                title={v.changeNote ?? v.originalFilename}
+              >
                 {v.changeNote || v.originalFilename}
               </span>
               {format === 'pdf' ? (
-                <span className="shrink-0 border border-current/30 px-1 font-mono text-[10px] text-term-muted">
-                  PDF
-                </span>
+                <WarmCrmStatusPill>PDF</WarmCrmStatusPill>
               ) : null}
-              <span className="ml-auto shrink-0 font-mono text-[11px] text-term-faint">
-                {formatFileSize(v.fileSize)}
-              </span>
+              <span className={styles.versionSize}>{formatFileSize(v.fileSize)}</span>
             </button>
 
-            <span className="shrink-0 font-mono text-[11px] text-term-faint">
+            <span className={styles.versionTime}>
               {new Date(v.createdAt).toLocaleString('zh-CN', { hour12: false })}
             </span>
 
-            <button
-              type="button"
-              onClick={() => onSelect(v.versionNo)}
-              className={cn(TERM_BUTTON, 'h-7 px-1.5')}
-              aria-label={`预览 v${v.versionNo}`}
-              title="预览"
-            >
-              <Eye className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => onDownload(v.versionNo)}
-              disabled={downloadingVersionNo === v.versionNo}
-              className={cn(TERM_BUTTON, 'h-7 px-1.5')}
-              aria-label={`下载 v${v.versionNo}`}
-              title={format === 'pdf' ? '下载 PDF' : '下载（适配版）'}
-            >
-              {downloadingVersionNo === v.versionNo ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Download className="h-3.5 w-3.5" />
-              )}
-            </button>
-            {format === 'html' ? (
-              <button
-                type="button"
-                onClick={() => onDownload(v.versionNo, { raw: true })}
-                className={cn(TERM_BUTTON, 'h-7 px-1.5')}
-                aria-label={`下载 v${v.versionNo} 原始版`}
-                title="下载原始上传版"
+            <span className={styles.versionActions}>
+              <WarmIconButton
+                onClick={() => onSelect(v.versionNo)}
+                aria-label={`预览 v${v.versionNo}`}
+                title="预览"
               >
-                <Upload className="h-3.5 w-3.5 rotate-180" />
-              </button>
-            ) : null}
+                <Eye aria-hidden="true" />
+              </WarmIconButton>
+              <WarmIconButton
+                onClick={() => onDownload(v.versionNo)}
+                loading={downloadingVersionNo === v.versionNo}
+                aria-label={`下载 v${v.versionNo}`}
+                title={format === 'pdf' ? '下载 PDF' : '下载（适配版）'}
+              >
+                <Download aria-hidden="true" />
+              </WarmIconButton>
+              {format === 'html' ? (
+                <WarmIconButton
+                  onClick={() => onDownload(v.versionNo, { raw: true })}
+                  aria-label={`下载 v${v.versionNo} 原始版`}
+                  title="下载原始上传版"
+                >
+                  <Upload aria-hidden="true" />
+                </WarmIconButton>
+              ) : null}
+            </span>
           </li>
         )
       })}

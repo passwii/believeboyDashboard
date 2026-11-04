@@ -4,6 +4,7 @@ export { CustomerProposals, type CustomerProposalsProps } from './customer-propo
 export {
   ProposalStatusPill,
   ProposalTypePill,
+  PROPOSAL_STATUS_TONE,
   PROPOSAL_STATUS_TERM,
 } from './pill'
 export {

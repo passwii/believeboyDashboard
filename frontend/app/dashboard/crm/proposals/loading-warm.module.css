@@ -1,0 +1,28 @@
+.loadingPage[data-warm-crm-page] {
+  height: calc(100vh - 132px);
+  min-height: 620px;
+}
+
+.toolbarSkeleton {
+  display: flex;
+  min-height: var(--warm-ledger-control-height);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--warm-ledger-space-2);
+}
+
+.controlSkeleton,
+.actionSkeleton {
+  display: block;
+  height: var(--warm-ledger-control-height);
+  background: var(--warm-ledger-color-raised);
+  border-radius: var(--warm-ledger-radius-control);
+}
+
+.controlSkeleton {
+  width: 480px;
+}
+
+.actionSkeleton {
+  width: 220px;
+}

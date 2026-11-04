@@ -1,0 +1,27 @@
+.loadingPage[data-warm-crm-page] {
+  display: grid;
+  height: calc(100vh - 132px);
+  min-height: 620px;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: var(--warm-ledger-space-4);
+}
+
+.loadingSidebar {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: var(--warm-ledger-space-4);
+}
+
+.infoSkeleton {
+  min-height: 240px;
+}
+
+.versionsSkeleton {
+  min-height: 0;
+  flex: 1;
+}
+
+.previewSkeleton {
+  min-height: 0;
+}
