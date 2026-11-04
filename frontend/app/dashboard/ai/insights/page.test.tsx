@@ -163,4 +163,31 @@ describe('AiInsightsPage 模型配置懒加载（BEL-424）', () => {
       ).toBe(true)
     )
   })
+
+  it('Tab 使用 roving focus 并支持方向键、Home 与 End 切换', async () => {
+    const user = userEvent.setup()
+    render(<AiInsightsPage />)
+
+    const insightsTab = screen.getByRole('tab', { name: '洞察记录' })
+    const schedulesTab = screen.getByRole('tab', { name: '定时生成' })
+
+    expect(insightsTab).toHaveAttribute('tabindex', '0')
+    expect(schedulesTab).toHaveAttribute('tabindex', '-1')
+    expect(document.getElementById('insights-panel')).toBeInTheDocument()
+    expect(document.getElementById('schedules-panel')).toBeInTheDocument()
+
+    insightsTab.focus()
+    await user.keyboard('{ArrowRight}')
+    expect(schedulesTab).toHaveFocus()
+    expect(schedulesTab).toHaveAttribute('aria-selected', 'true')
+    expect(insightsTab).toHaveAttribute('tabindex', '-1')
+
+    await user.keyboard('{Home}')
+    expect(insightsTab).toHaveFocus()
+    expect(insightsTab).toHaveAttribute('aria-selected', 'true')
+
+    await user.keyboard('{End}')
+    expect(schedulesTab).toHaveFocus()
+    expect(schedulesTab).toHaveAttribute('aria-selected', 'true')
+  })
 })

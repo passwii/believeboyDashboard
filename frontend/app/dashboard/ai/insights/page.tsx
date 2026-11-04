@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
 } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { DateRange } from 'react-day-picker'
@@ -63,6 +64,10 @@ type ProjectOption = {
   id: number | null
   name: string
 }
+
+type InsightTab = 'insights' | 'schedules'
+
+const INSIGHT_TABS: ReadonlyArray<InsightTab> = ['insights', 'schedules']
 
 type InsightItem = {
   id: number
@@ -177,7 +182,11 @@ export default function AIInsightsPage() {
   const [selectedModel, setSelectedModel] = useState('')
 
   // Schedule-related state
-  const [activeTab, setActiveTab] = useState<'insights' | 'schedules'>('insights')
+  const [activeTab, setActiveTab] = useState<InsightTab>('insights')
+  const tabRefs = useRef<Record<InsightTab, HTMLButtonElement | null>>({
+    insights: null,
+    schedules: null,
+  })
   const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false)
   const [editingSchedule, setEditingSchedule] = useState<any>(null)
   const [scheduleRefreshTrigger, setScheduleRefreshTrigger] = useState(0)
@@ -692,29 +701,58 @@ export default function AIInsightsPage() {
     label: model,
   }))
 
+  const handleTabKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    const currentIndex = INSIGHT_TABS.indexOf(activeTab)
+    let nextIndex: number | null = null
+
+    if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % INSIGHT_TABS.length
+    else if (event.key === 'ArrowLeft') {
+      nextIndex = (currentIndex - 1 + INSIGHT_TABS.length) % INSIGHT_TABS.length
+    } else if (event.key === 'Home') nextIndex = 0
+    else if (event.key === 'End') nextIndex = INSIGHT_TABS.length - 1
+
+    if (nextIndex === null) return
+    event.preventDefault()
+    const nextTab = INSIGHT_TABS[nextIndex]
+    setActiveTab(nextTab)
+    tabRefs.current[nextTab]?.focus()
+  }
+
   return (
     <div className={styles.page} data-warm-insights>
       {/* Tab Bar: 洞察记录 / 定时生成 */}
       <div className={styles.tabs} role="tablist" aria-label="洞察视图">
         <button
+          ref={(node) => {
+            tabRefs.current.insights = node
+          }}
+          id="insights-tab"
           type="button"
           role="tab"
           aria-selected={activeTab === 'insights'}
           aria-controls="insights-panel"
+          tabIndex={activeTab === 'insights' ? 0 : -1}
           data-active={activeTab === 'insights'}
           onClick={() => setActiveTab('insights')}
+          onKeyDown={handleTabKeyDown}
           className={styles.tab}
         >
           <Sparkles aria-hidden />
           洞察记录
         </button>
         <button
+          ref={(node) => {
+            tabRefs.current.schedules = node
+          }}
+          id="schedules-tab"
           type="button"
           role="tab"
           aria-selected={activeTab === 'schedules'}
           aria-controls="schedules-panel"
+          tabIndex={activeTab === 'schedules' ? 0 : -1}
           data-active={activeTab === 'schedules'}
           onClick={() => setActiveTab('schedules')}
+          onKeyDown={handleTabKeyDown}
           className={styles.tab}
         >
           <Clock aria-hidden />
@@ -723,8 +761,13 @@ export default function AIInsightsPage() {
       </div>
 
       {/* Scheduled Generation Tab */}
-      {activeTab === 'schedules' && (
-        <section id="schedules-panel" role="tabpanel" className={styles.panel}>
+      {activeTab === 'schedules' ? (
+        <section
+          id="schedules-panel"
+          role="tabpanel"
+          aria-labelledby="schedules-tab"
+          className={styles.panel}
+        >
           <header className={styles.panelHeader}>
             <h2 className={styles.panelTitle}>定时任务管理</h2>
             <div className={styles.panelActions}>
@@ -754,11 +797,23 @@ export default function AIInsightsPage() {
             </div>
           </div>
         </section>
+      ) : (
+        <section
+          id="schedules-panel"
+          role="tabpanel"
+          aria-labelledby="schedules-tab"
+          hidden
+        />
       )}
 
       {/* Insights Tab */}
-      {activeTab === 'insights' && (
-        <div id="insights-panel" role="tabpanel" className={styles.stack}>
+      {activeTab === 'insights' ? (
+        <div
+          id="insights-panel"
+          role="tabpanel"
+          aria-labelledby="insights-tab"
+          className={styles.stack}
+        >
           <section className={styles.panel}>
             <header className={styles.panelHeader}>
               <h2 className={styles.panelTitle}>生成 AI 洞察</h2>
@@ -1237,6 +1292,8 @@ export default function AIInsightsPage() {
             </DialogContent>
           </Dialog>
         </div>
+      ) : (
+        <div id="insights-panel" role="tabpanel" aria-labelledby="insights-tab" hidden />
       )}
 
       {/* Schedule Dialog - rendered outside tab conditionals so it works from any tab */}

@@ -9,8 +9,10 @@ import {
 } from '@/components/dashboard-v2/warm-ledger/shell/warm-ledger-route-frame'
 
 let mockPathname = '/dashboard'
+let mockSearchParams = new URLSearchParams()
 vi.mock('next/navigation', () => ({
   usePathname: () => mockPathname,
+  useSearchParams: () => mockSearchParams,
 }))
 vi.mock('next-auth/react', () => ({
   useSession: () => stableSession({ user: { name: 't' } }),
@@ -30,6 +32,17 @@ vi.mock('@/components/terminal/terminal-shell', () => ({
 vi.mock('@/components/dashboard/search-command', () => ({
   SearchCommand: () => <div data-testid="search-command" />,
 }))
+vi.mock('@/components/dashboard-v2/warm-ledger/shell/warm-ledger-route-frame', async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import('@/components/dashboard-v2/warm-ledger/shell/warm-ledger-route-frame')
+  >()
+  return {
+    ...actual,
+    WarmLedgerRouteFrame: ({ children }: { children: React.ReactNode }) => (
+      <div data-testid="warm-ledger-frame">{children}</div>
+    ),
+  }
+})
 
 import DashboardLayout from './layout'
 
@@ -84,6 +97,7 @@ const WARM_ROUTE_CASES = [
 describe('DashboardLayout shell routing', () => {
   beforeEach(() => {
     mockPathname = '/dashboard'
+    mockSearchParams = new URLSearchParams()
   })
 
   it('bypasses TerminalShell only for the exact /dashboard route', () => {
@@ -111,6 +125,29 @@ describe('DashboardLayout shell routing', () => {
     expect(screen.getByTestId('terminal-shell')).toBeInTheDocument()
     expect(screen.getByTestId('child')).toBeInTheDocument()
     expect(screen.queryByTestId('search-command')).not.toBeInTheDocument()
+  })
+
+  it('keeps Office normal mode Warm but renders presentation mode outside the shell', () => {
+    const officePath = '/dashboard/ai/digital-employees/office'
+
+    mockPathname = officePath
+    const normal = render(
+      <DashboardLayout>
+        <div data-testid="child">office</div>
+      </DashboardLayout>,
+    )
+    expect(screen.getByTestId('warm-ledger-frame')).toBeInTheDocument()
+    expect(screen.queryByTestId('terminal-shell')).not.toBeInTheDocument()
+    normal.unmount()
+
+    mockSearchParams = new URLSearchParams('mode=presentation')
+    render(
+      <DashboardLayout>
+        <div data-testid="child">presentation</div>
+      </DashboardLayout>,
+    )
+    expect(screen.getByTestId('terminal-shell')).toBeInTheDocument()
+    expect(screen.queryByTestId('warm-ledger-frame')).not.toBeInTheDocument()
   })
 
   it('warms only the three exact C3 report routes and uses their sidebar titles', () => {
