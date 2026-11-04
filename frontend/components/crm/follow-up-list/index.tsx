@@ -1,26 +1,28 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { AlertCircle, CalendarClock, ChevronRight, Inbox } from 'lucide-react'
+import { AlertCircle, CalendarClock, ChevronRight } from 'lucide-react'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import { useCrmDataScope } from '@/hooks/use-crm-data-scope'
 import { useCrmUsers } from '@/hooks/use-crm-users'
 import { useNotifications } from '@/components/notifications'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import {
+  WarmCrmSection,
+  WarmCrmState,
+  WarmCrmStatusPill,
+} from '@/components/dashboard-v2/warm-ledger/crm'
+import { WarmBadge, WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
 import { CrmOverviewDrawer } from '../crm-overview-drawer'
 import { CrmLeadForm } from '../crm-lead-form'
 import { CUSTOMER_FIELD_DEFS } from '@/lib/crm/field-defs/customer'
 import { LEAD_FIELD_DEFS } from '@/lib/crm/field-defs/lead'
-import {
-  CUSTOMER_STATUS_COLORS,
-  CUSTOMER_STATUS_LABELS,
-} from '@/lib/crm/enums/customer.enum'
-import { LEAD_STATUS_COLORS, LEAD_STATUS_LABELS } from '@/lib/crm/enums/lead.enum'
+import { CUSTOMER_STATUS_LABELS } from '@/lib/crm/enums/customer.enum'
+import { LEAD_STATUS_LABELS } from '@/lib/crm/enums/lead.enum'
 import type { Customer, FollowUpGroups, FollowUpItem, Lead } from '@/lib/crm/types'
 import type { LeadInput } from '@/lib/crm/types/lead'
+
+import styles from './follow-up-list-warm.module.css'
 
 type GroupKey = 'overdue' | 'today' | 'thisWeek'
 
@@ -42,10 +44,10 @@ function formatNextFollow(iso: string, group: GroupKey): string {
   return `${WEEKDAYS[d.getDay()]} ${hm}`
 }
 
-const GROUPS: Array<{ key: GroupKey; label: string; accent: string }> = [
-  { key: 'overdue', label: '逾期未跟进', accent: 'text-term-neg' },
-  { key: 'today', label: '今日待跟进', accent: 'text-term-warn' },
-  { key: 'thisWeek', label: '本周待跟进', accent: 'text-term-muted' },
+const GROUPS: Array<{ key: GroupKey; label: string; tone: 'negative' | 'accent' | 'neutral' }> = [
+  { key: 'overdue', label: '逾期未跟进', tone: 'negative' },
+  { key: 'today', label: '今日待跟进', tone: 'accent' },
+  { key: 'thisWeek', label: '本周待跟进', tone: 'neutral' },
 ]
 
 export function CrmFollowUpList() {
@@ -149,32 +151,28 @@ export function CrmFollowUpList() {
   }, [activeLead, client, notify])
 
   if (loading && !groups) {
-    return <div className="py-16 text-center font-mono text-xs text-term-faint">加载中…</div>
+    return <WarmCrmState kind="loading" title="加载中…" />
   }
   if (error && !groups) {
-    return (
-      <div
-        role="alert"
-        className="border border-term-neg/50 bg-term-neg/10 px-2 py-1 font-mono text-xs text-term-neg"
-      >
-        ERR · {error}
-      </div>
-    )
+    return <WarmCrmState kind="error" title="待跟进加载失败" detail={error} />
   }
   if (!groups || groups.totalCount === 0) {
     return (
-      <div className="flex flex-col items-center gap-2 py-20 text-term-faint" aria-busy={loading}>
-        {error && <p role="alert" className="font-mono text-xs text-term-neg">刷新失败：{error}</p>}
-        <Inbox className="h-10 w-10" />
-        <p className="font-mono text-xs">暂无待跟进，太棒了</p>
+      <div className={styles.page} aria-busy={loading}>
+        {error ? (
+          <div role="alert" className={styles.alert}>
+            刷新失败：{error}
+          </div>
+        ) : null}
+        <WarmCrmState kind="empty" title="暂无待跟进，太棒了" />
       </div>
     )
   }
 
   return (
-    <div className="flex min-w-0 flex-col gap-3" aria-busy={loading}>
+    <div className={styles.page} aria-busy={loading}>
       {error && (
-        <div role="alert" className="font-mono text-xs text-term-neg">
+        <div role="alert" className={styles.alert}>
           刷新失败：{error}
         </div>
       )}
@@ -182,27 +180,29 @@ export function CrmFollowUpList() {
         const items = groups[g.key]
         if (items.length === 0) return null
         return (
-          <section key={g.key}>
-            <div className="mb-1.5 flex items-center gap-1.5">
-              {g.key === 'overdue' ? (
-                <AlertCircle className="h-4 w-4 text-term-neg" strokeWidth={1.75} />
-              ) : (
-                <CalendarClock className={`h-4 w-4 ${g.accent}`} strokeWidth={1.75} />
-              )}
-              <h2 className={`font-mono text-xs uppercase tracking-wider ${g.accent}`}>
-                {g.label}
-              </h2>
-              <span
-                className={cn(
-                  'border border-term-border bg-term-panel px-1 font-mono text-xs tabular-nums',
-                  g.key === 'overdue' ? 'text-term-neg' : 'text-term-muted'
+          <WarmCrmSection
+            key={g.key}
+            className={styles.group}
+            data-warm-crm-follow-group
+            data-tone={g.tone}
+            title={
+              <span className={styles.groupTitle}>
+                {g.key === 'overdue' ? (
+                  <AlertCircle className={styles.groupIcon} strokeWidth={1.75} />
+                ) : (
+                  <CalendarClock className={styles.groupIcon} strokeWidth={1.75} />
                 )}
-              >
-                {items.length}
+                <span className={styles.groupTitleText}>{g.label}</span>
               </span>
-            </div>
-            {/* BLF-837：分组列表零圆角 + term 边界 */}
-            <div className="divide-y divide-term-border border border-term-border">
+            }
+            actions={
+              <WarmBadge tone={g.tone === 'negative' ? 'negative' : g.tone === 'accent' ? 'accent' : 'neutral'}>
+                {items.length}
+              </WarmBadge>
+            }
+            bodyClassName={styles.sectionBody}
+          >
+            <div className={styles.list}>
               {items.map((item) => (
                 <FollowUpRow
                   key={`${item.entityType}-${item.entityId}`}
@@ -212,7 +212,7 @@ export function CrmFollowUpList() {
                 />
               ))}
             </div>
-          </section>
+          </WarmCrmSection>
         )
       })}
 
@@ -226,9 +226,9 @@ export function CrmFollowUpList() {
           fields={CUSTOMER_FIELD_DEFS}
           title={activeCustomer.name}
           headerExtra={
-            <Badge variant="secondary" className={CUSTOMER_STATUS_COLORS[activeCustomer.status]}>
+            <WarmCrmStatusPill>
               {CUSTOMER_STATUS_LABELS[activeCustomer.status]}
-            </Badge>
+            </WarmCrmStatusPill>
           }
           users={users}
           loadFollows={(et, id) => client.listFollows(et, id)}
@@ -247,15 +247,15 @@ export function CrmFollowUpList() {
           title={activeLead.name}
           actions={
             activeLead.status !== 'converted' && activeLead.status !== 'discarded' ? (
-              <Button size="sm" onClick={handleConvert}>
+              <WarmButton variant="primary" onClick={handleConvert}>
                 转为客户
-              </Button>
+              </WarmButton>
             ) : undefined
           }
           headerExtra={
-            <Badge variant="secondary" className={LEAD_STATUS_COLORS[activeLead.status]}>
+            <WarmCrmStatusPill>
               {LEAD_STATUS_LABELS[activeLead.status]}
-            </Badge>
+            </WarmCrmStatusPill>
           }
           users={users}
           loadFollows={(et, id) => client.listFollows(et, id)}
@@ -289,51 +289,41 @@ function FollowUpRow({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-term-hover"
+      className={styles.row}
     >
-      <span
-        className={cn(
-          'shrink-0 border px-1 font-mono text-[11px]',
-          isCustomer ? 'border-term-accent/40 text-term-accent' : 'border-term-border text-term-muted'
-        )}
+      <WarmCrmStatusPill
+        className={`${styles.kind} ${isCustomer ? styles.kindCustomer : ''}`}
+        tone={isCustomer ? 'accent' : 'neutral'}
       >
         {isCustomer ? '客户' : '线索'}
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          <span className="truncate text-sm font-medium text-term-text">{item.name}</span>
+      </WarmCrmStatusPill>
+      <div className={styles.main}>
+        <div className={styles.titleLine}>
+          <span className={styles.name}>{item.name}</span>
           {isCustomer && item.rating && (
-            <span
-              className={cn(
-                'shrink-0 border border-term-border px-1 font-mono text-[11px]',
-                (item.rating as string) === 'A' ? 'text-term-accent' : 'text-term-muted'
-              )}
-            >
+            <WarmCrmStatusPill tone={(item.rating as string) === 'A' ? 'accent' : 'neutral'}>
               {item.rating}
-            </span>
+            </WarmCrmStatusPill>
           )}
           {item.subtitle && (
-            <span className="truncate text-xs text-term-faint">{item.subtitle}</span>
+            <span className={styles.subtitle}>{item.subtitle}</span>
           )}
         </div>
         {item.lastFollowContent && (
-          <p className="mt-0.5 truncate text-xs text-term-faint">上次：{item.lastFollowContent}</p>
+          <p className={styles.lastFollow}>上次：{item.lastFollowContent}</p>
         )}
       </div>
-      <div className="flex shrink-0 flex-col items-end gap-0.5">
+      <div className={styles.meta}>
         <span
-          className={cn(
-            'font-mono text-xs tabular-nums',
-            group === 'overdue' ? 'font-medium text-term-neg' : 'text-term-muted'
-          )}
+          className={`${styles.nextFollow} ${group === 'overdue' ? styles.nextFollowOverdue : ''}`}
         >
           {formatNextFollow(item.nextFollowAt, group)}
         </span>
         {item.ownerName && (
-          <span className="font-mono text-xs text-term-faint">{item.ownerName}</span>
+          <span className={styles.owner}>{item.ownerName}</span>
         )}
       </div>
-      <ChevronRight className="h-4 w-4 shrink-0 text-term-faint" strokeWidth={1.75} />
+      <ChevronRight className={styles.chevron} strokeWidth={1.75} />
     </button>
   )
 }

@@ -19,7 +19,19 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyTableState } from '@/components/ui/empty-state'
 import { ErrorState } from '@/components/ui/error-state'
 import { TermEnumPill, TERM_SELECT_NATIVE } from '@/components/crm/term-shared'
+import {
+  WarmCrmState,
+  WarmCrmStatusPill,
+  WarmCrmTableFrame,
+  WarmCrmTableScroller,
+} from '@/components/dashboard-v2/warm-ledger/crm'
+import {
+  WarmButton,
+  type WarmBadgeTone,
+} from '@/components/dashboard-v2/warm-ledger/controls'
 import { cn } from '@/lib/utils'
+
+import warmStyles from './crm-table-warm.module.css'
 
 /**
  * P5-4: 从 table.filters 反推 select 当前应显示的 value。
@@ -35,7 +47,21 @@ function _filterSelectValue(
   return String((cond as { field: string; op: 'eq'; value: unknown }).value)
 }
 
-function formatCell<T>(value: unknown, row: T, column: CrmColumnDef<T>): React.ReactNode {
+const TERM_TO_WARM_TONE: Record<string, WarmBadgeTone> = {
+  pos: 'positive',
+  neg: 'negative',
+  warn: 'accent',
+  accent: 'accent',
+  info: 'neutral',
+  muted: 'neutral',
+}
+
+function formatCell<T>(
+  value: unknown,
+  row: T,
+  column: CrmColumnDef<T>,
+  visual: 'terminal' | 'warm'
+): React.ReactNode {
   if (column.render) {
     return column.render(value as T[keyof T], row)
   }
@@ -59,8 +85,15 @@ function formatCell<T>(value: unknown, row: T, column: CrmColumnDef<T>): React.R
       const map = column.enumMap ?? {}
       const entry = map[String(value)]
       if (entry) {
-        // BLF-837：列定义带 tone 时走终端单色 pill；否则回退旧彩色胶囊（弹窗等非终端场景）
+        // 列定义带 tone 时按当前视觉体系渲染语义胶囊。
         if (entry.tone) {
+          if (visual === 'warm') {
+            return (
+              <WarmCrmStatusPill tone={TERM_TO_WARM_TONE[entry.tone] ?? 'neutral'}>
+                {entry.label}
+              </WarmCrmStatusPill>
+            )
+          }
           return (
             <TermEnumPill tone={entry.tone} title={entry.label}>
               {entry.label}
@@ -92,15 +125,24 @@ function SortIcon({ active, order }: { active: boolean; order?: 'asc' | 'desc' }
   return <ArrowUp className="ml-1 inline h-3 w-3" aria-hidden="true" data-testid="sort-asc" />
 }
 
-function PageJump({ totalPages, onJump }: { totalPages: number; onJump: (p: number) => void }) {
+function PageJump({
+  totalPages,
+  onJump,
+  visual,
+}: {
+  totalPages: number
+  onJump: (p: number) => void
+  visual: 'terminal' | 'warm'
+}) {
   const [val, setVal] = useState('')
+  const isWarm = visual === 'warm'
   const commit = () => {
     const n = Number.parseInt(val, 10)
     if (Number.isFinite(n) && n >= 1 && n <= totalPages) onJump(n)
     setVal('')
   }
   return (
-    <span className="ml-1 flex items-center gap-1">
+    <span className={cn('ml-1 flex items-center gap-1', isWarm && warmStyles.pageJump)}>
       <input
         type="number"
         min={1}
@@ -111,17 +153,28 @@ function PageJump({ totalPages, onJump }: { totalPages: number; onJump: (p: numb
           if (e.key === 'Enter') commit()
         }}
         aria-label="跳转到页码"
-        className="h-9 w-14 rounded-none border border-term-border bg-term-bg px-1 font-mono text-sm tabular-nums text-term-text focus:border-term-border-strong focus:outline-none"
+        className={cn(
+          'h-9 w-14 rounded-none border border-term-border bg-term-bg px-1 font-mono text-sm tabular-nums text-term-text focus:border-term-border-strong focus:outline-none',
+          isWarm && warmStyles.pageJumpInput
+        )}
         placeholder="页码"
       />
-      <Button variant="outline" size="sm" onClick={commit} disabled={!val} className="rounded-none border-term-border bg-term-panel font-mono text-xs text-term-muted hover:text-term-text">
-        跳
-      </Button>
+      {isWarm ? (
+        <WarmButton onClick={commit} disabled={!val}>
+          跳
+        </WarmButton>
+      ) : (
+        <Button variant="outline" size="sm" onClick={commit} disabled={!val} className="rounded-none border-term-border bg-term-panel font-mono text-xs text-term-muted hover:text-term-text">
+          跳
+        </Button>
+      )}
     </span>
   )
 }
 
 export function CrmTable<T extends { id?: string | number }>({
+  visual = 'terminal',
+  tableAriaLabel = 'CRM 数据表格',
   queryKey,
   fetchPage,
   columns,
@@ -138,6 +191,7 @@ export function CrmTable<T extends { id?: string | number }>({
   searchable = false,
   searchPlaceholder,
 }: CrmTableProps<T>) {
+  const isWarm = visual === 'warm'
   const table = useCrmTable<T>({
     queryKey,
     fetchPage,
@@ -206,24 +260,60 @@ export function CrmTable<T extends { id?: string | number }>({
 
   // loading skeleton
   if (table.loading && table.data === undefined) {
-    return (
+    const loadingState = (
       <div
-        className="space-y-2 rounded-none"
+        className={cn('space-y-2 rounded-none', isWarm && warmStyles.loading)}
         role="status"
         aria-busy="true"
         aria-label="表格加载中"
         data-testid="crm-table-skeleton"
       >
-        {refreshBridge}
-        {Array.from({ length: 5 }).map((_, i) => (
-          <Skeleton key={i} className="h-10 w-full" />
-        ))}
+        {Array.from({ length: 5 }).map((_, i) =>
+          isWarm ? (
+            <span aria-hidden="true" className={warmStyles.loadingBar} key={i} />
+          ) : (
+            <Skeleton key={i} className="h-10 w-full" />
+          )
+        )}
       </div>
+    )
+
+    if (isWarm) {
+      return (
+        <WarmCrmTableFrame className={warmStyles.frame}>
+          {refreshBridge}
+          {loadingState}
+        </WarmCrmTableFrame>
+      )
+    }
+
+    return (
+      <>
+        {refreshBridge}
+        {loadingState}
+      </>
     )
   }
 
   // error
   if (table.error && table.data === undefined) {
+    if (isWarm) {
+      return (
+        <WarmCrmTableFrame className={warmStyles.frame}>
+          {refreshBridge}
+          <WarmCrmState
+            kind="error"
+            title="加载失败"
+            detail={table.error.message}
+            action={
+              <WarmButton onClick={() => void table.refresh()}>
+                重试
+              </WarmButton>
+            }
+          />
+        </WarmCrmTableFrame>
+      )
+    }
     return (
       <>
         {refreshBridge}
@@ -233,176 +323,264 @@ export function CrmTable<T extends { id?: string | number }>({
   }
 
   const totalPages = Math.max(1, Math.ceil(table.total / table.pageSize))
+  const paginationButton = (
+    label: string,
+    icon: React.ReactNode,
+    disabled: boolean,
+    onClick: () => void
+  ) =>
+    isWarm ? (
+      <WarmButton aria-label={label} disabled={disabled} onClick={onClick}>
+        {icon}
+      </WarmButton>
+    ) : (
+      <Button
+        variant="outline"
+        size="sm"
+        className="rounded-none border-term-border bg-term-panel font-mono text-xs text-term-muted hover:text-term-text"
+        disabled={disabled}
+        onClick={onClick}
+        aria-label={label}
+      >
+        {icon}
+      </Button>
+    )
 
-  return (
-    <div className="flex h-full flex-col" aria-busy={table.loading}>
+  const footer =
+    table.total > 0 ? (
+      <div
+        className={cn(
+          'mt-1.5 flex flex-wrap items-center justify-between gap-1.5 font-mono text-xs text-term-muted',
+          isWarm && warmStyles.footer
+        )}
+      >
+        <div className={cn('flex items-center gap-3', isWarm && warmStyles.footerMeta)}>
+          <span className="tabular-nums">共 {table.total} 条</span>
+          <label className="flex items-center gap-1">
+            每页
+            <select
+              aria-label="每页条数"
+              value={table.pageSize}
+              onChange={(e) => table.setPageSize(Number(e.target.value))}
+              className={cn(TERM_SELECT_NATIVE, isWarm && warmStyles.select)}
+            >
+              {[20, 50, 100].map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className={cn('flex items-center gap-1', isWarm && warmStyles.pager)}>
+          {paginationButton(
+            '首页',
+            <ChevronsLeft className="h-4 w-4" />,
+            table.page <= 1,
+            () => table.setPage(1)
+          )}
+          {paginationButton(
+            '上一页',
+            <ChevronLeft className="h-4 w-4" />,
+            table.page <= 1,
+            () => table.setPage(table.page - 1)
+          )}
+          <span className="px-1 tabular-nums">
+            第 {table.page} / {totalPages} 页
+          </span>
+          {paginationButton(
+            '下一页',
+            <ChevronRight className="h-4 w-4" />,
+            table.page >= totalPages,
+            () => table.setPage(table.page + 1)
+          )}
+          {paginationButton(
+            '末页',
+            <ChevronsRight className="h-4 w-4" />,
+            table.page >= totalPages,
+            () => table.setPage(totalPages)
+          )}
+          {totalPages > 1 && (
+            <PageJump totalPages={totalPages} onJump={table.setPage} visual={visual} />
+          )}
+        </div>
+      </div>
+    ) : null
+
+  const toolbar =
+    searchable || filterFields.length > 0 ? (
+      <div
+        className={cn(
+          'mb-1.5 grid grid-cols-2 items-end gap-2 md:flex md:flex-wrap md:items-center md:gap-1.5',
+          isWarm && warmStyles.toolbar
+        )}
+      >
+        {searchable && (
+          <div className="col-span-2 md:col-span-1">
+            <CrmSearchInput
+              value={table.keyword}
+              onChange={table.setKeyword}
+              placeholder={searchPlaceholder}
+              visual={visual}
+            />
+          </div>
+        )}
+        {filterFields.map((f) => (
+          <label
+            key={f.key}
+            className={cn(
+              'flex flex-col gap-1 text-xs md:flex-row md:items-center md:gap-1.5',
+              isWarm && warmStyles.filterLabel
+            )}
+          >
+            <span className="font-mono uppercase tracking-wider text-term-muted">{f.label}</span>
+            <select
+              aria-label={f.label}
+              className={cn(TERM_SELECT_NATIVE, isWarm && warmStyles.select)}
+              value={_filterSelectValue(table.filters, f.field ?? f.key)}
+              onChange={(e) => handleFilterChange(f.field ?? f.key, e.target.value)}
+            >
+              <option value="">全部</option>
+              {(f.options ?? []).map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
+      </div>
+    ) : null
+
+  const tableElement = (
+    <Table
+      className={cn(
+        'border-collapse font-mono text-xs tabular-nums',
+        isWarm
+          ? warmStyles.table
+          : '[&_td]:h-9 [&_td]:border-term-border [&_td]:px-2 [&_td]:py-0 [&_td]:text-xs [&_td]:text-term-text [&_th]:h-9 [&_th]:rounded-none [&_th]:border-b [&_th]:border-term-border [&_th]:border-r-0 [&_th]:bg-term-raised [&_th]:px-2 [&_th]:py-0 [&_th]:font-mono [&_th]:text-xs [&_th]:normal-case [&_th]:tracking-normal [&_th]:text-term-muted [&_tr:hover]:bg-term-hover [&_tr]:border-b-0 data-[state=selected]:bg-term-raised'
+      )}
+    >
+      <TableHeader className={isWarm ? undefined : STICKY_TOP_ROW}>
+        <TableRow>
+          {selectable && (
+            <TableHead className="w-10">
+              <Checkbox
+                checked={allSelected}
+                onCheckedChange={toggleAll}
+                aria-label="全选当前页"
+                data-state={
+                  allSelected ? 'checked' : someSelected ? 'indeterminate' : 'unchecked'
+                }
+              />
+            </TableHead>
+          )}
+          {columns.map((col) => (
+            <TableHead
+              key={String(col.key)}
+              style={col.width ? { width: col.width } : undefined}
+              className={col.headerClassName}
+              data-sort={
+                col.sortable
+                  ? table.sortBy === col.key
+                    ? (table.sortOrder ?? 'none')
+                    : 'none'
+                  : undefined
+              }
+            >
+              {col.sortable ? (
+                <button
+                  type="button"
+                  className="inline-flex items-center text-left font-mono uppercase tracking-wider hover:text-term-text"
+                  onClick={() => table.toggleSort(String(col.key))}
+                >
+                  {col.title}
+                  <SortIcon active={table.sortBy === col.key} order={table.sortOrder} />
+                </button>
+              ) : (
+                col.title
+              )}
+            </TableHead>
+          ))}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {(table.data ?? []).length === 0 ? (
+          <EmptyTableState colSpan={columns.length + (selectable ? 1 : 0)} message={emptyText} />
+        ) : (
+          (table.data ?? []).map((row) => {
+            const id = String(row[rowKey])
+            const isSelected = selectedIds.includes(id)
+            return (
+              <TableRow
+                key={id}
+                data-state={isSelected ? 'selected' : undefined}
+                className={cn(onRowClick && (isWarm ? warmStyles.row : 'cursor-pointer'))}
+                onClick={(e) => {
+                  // 避免 checkbox 点击冒泡触发 onRowClick
+                  const target = e.target as HTMLElement
+                  if (target.closest('[data-no-row-click]')) return
+                  onRowClick?.(row)
+                }}
+              >
+                {selectable && (
+                  <TableCell className="w-10" data-no-row-click>
+                    <Checkbox
+                      checked={isSelected}
+                      onCheckedChange={() => toggleRow(id)}
+                      aria-label={`选择 ${id}`}
+                    />
+                  </TableCell>
+                )}
+                {columns.map((col) => (
+                  <TableCell key={String(col.key)} className={col.className}>
+                    {formatCell(row[col.key], row, col, visual)}
+                  </TableCell>
+                ))}
+              </TableRow>
+            )
+          })
+        )}
+      </TableBody>
+    </Table>
+  )
+
+  const content = (
+    <>
       {refreshBridge}
       {table.error && (
-        <div role="alert" className="mb-2 font-mono text-xs text-term-neg">
+        <div
+          role="alert"
+          className={cn('mb-2 font-mono text-xs text-term-neg', isWarm && warmStyles.alert)}
+        >
           刷新失败：{table.error.message}
         </div>
       )}
-      {(searchable || filterFields.length > 0) && (
-        // 移动规则 2/8：手机 2 列网格内联标签；桌面 md+ 恢复横向 flex 排列（终端控件规格）
-        <div className="mb-1.5 grid grid-cols-2 items-end gap-2 md:flex md:flex-wrap md:items-center md:gap-1.5">
-          {searchable && (
-            <div className="col-span-2 md:col-span-1">
-              <CrmSearchInput
-                value={table.keyword}
-                onChange={table.setKeyword}
-                placeholder={searchPlaceholder}
-              />
-            </div>
-          )}
-          {filterFields.map((f) => (
-            <label
-              key={f.key}
-              className="flex flex-col gap-1 text-xs md:flex-row md:items-center md:gap-1.5"
-            >
-              <span className="font-mono uppercase tracking-wider text-term-muted">{f.label}</span>
-              <select
-                aria-label={f.label}
-                className={TERM_SELECT_NATIVE}
-                value={_filterSelectValue(table.filters, f.field ?? f.key)}
-                onChange={(e) => handleFilterChange(f.field ?? f.key, e.target.value)}
-              >
-                <option value="">全部</option>
-                {(f.options ?? []).map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ))}
-        </div>
+      {toolbar}
+      {isWarm ? (
+        <WarmCrmTableScroller ariaLabel={tableAriaLabel} interactiveRows={Boolean(onRowClick)}>
+          {tableElement}
+        </WarmCrmTableScroller>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-auto border border-term-border">{tableElement}</div>
       )}
-      {/* BLF-837：表格容器零圆角 + term 边界；行高密度由单元格覆盖类控制 */}
-      <div className="min-h-0 flex-1 overflow-auto border border-term-border">
-        <Table className="border-collapse font-mono text-xs tabular-nums [&_td]:h-9 [&_td]:border-term-border [&_td]:px-2 [&_td]:py-0 [&_td]:text-xs [&_td]:text-term-text [&_th]:h-9 [&_th]:rounded-none [&_th]:border-b [&_th]:border-term-border [&_th]:border-r-0 [&_th]:bg-term-raised [&_th]:px-2 [&_th]:py-0 [&_th]:font-mono [&_th]:text-xs [&_th]:normal-case [&_th]:tracking-normal [&_th]:text-term-muted [&_tr:hover]:bg-term-hover [&_tr]:border-b-0 data-[state=selected]:bg-term-raised">
-          <TableHeader className={STICKY_TOP_ROW}>
-            <TableRow>
-              {selectable && (
-                <TableHead className="w-10">
-                  <Checkbox
-                    checked={allSelected}
-                    onCheckedChange={toggleAll}
-                    aria-label="全选当前页"
-                    data-state={
-                      allSelected ? 'checked' : someSelected ? 'indeterminate' : 'unchecked'
-                    }
-                  />
-                </TableHead>
-              )}
-              {columns.map((col) => (
-                <TableHead
-                  key={String(col.key)}
-                  style={col.width ? { width: col.width } : undefined}
-                  className={col.headerClassName}                  data-sort={
-                    col.sortable
-                      ? table.sortBy === col.key
-                        ? (table.sortOrder ?? 'none')
-                        : 'none'
-                      : undefined
-                  }
-                >
-                  {col.sortable ? (
-                    <button
-                      type="button"
-                      className="inline-flex items-center text-left font-mono uppercase tracking-wider hover:text-term-text"
-                      onClick={() => table.toggleSort(String(col.key))}
-                    >
-                      {col.title}
-                      <SortIcon active={table.sortBy === col.key} order={table.sortOrder} />
-                    </button>
-                  ) : (
-                    col.title
-                  )}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {(table.data ?? []).length === 0 ? (
-              <EmptyTableState colSpan={columns.length + (selectable ? 1 : 0)} message={emptyText} />
-            ) : (
-              (table.data ?? []).map((row) => {
-                const id = String(row[rowKey])
-                const isSelected = selectedIds.includes(id)
-                return (
-                  <TableRow
-                    key={id}
-                    data-state={isSelected ? 'selected' : undefined}
-                    className={cn(onRowClick && 'cursor-pointer')}                    onClick={(e) => {
-                      // 避免 checkbox 点击冒泡触发 onRowClick
-                      const target = e.target as HTMLElement
-                      if (target.closest('[data-no-row-click]')) return
-                      onRowClick?.(row)
-                    }}
-                  >
-                    {selectable && (
-                      <TableCell className="w-10" data-no-row-click>
-                        <Checkbox
-                          checked={isSelected}
-                          onCheckedChange={() => toggleRow(id)}
-                          aria-label={`选择 ${id}`}
-                        />
-                      </TableCell>
-                    )}
-                    {columns.map((col) => (
-                      <TableCell key={String(col.key)} className={col.className}>
-                        {formatCell(row[col.key], row, col)}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                )
-              })
-            )}
-          </TableBody>
-        </Table>
-      </div>
+    </>
+  )
 
-      {table.total > 0 && (
-        <div className="mt-1.5 flex flex-wrap items-center justify-between gap-1.5 font-mono text-xs text-term-muted">
-          <div className="flex items-center gap-3">
-            <span className="tabular-nums">共 {table.total} 条</span>
-            <label className="flex items-center gap-1">
-              每页
-              <select
-                aria-label="每页条数"
-                value={table.pageSize}
-                onChange={(e) => table.setPageSize(Number(e.target.value))}
-                className={TERM_SELECT_NATIVE}
-              >
-                {[20, 50, 100].map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <div className="flex items-center gap-1">
-            {/* 移动规则 5：分页按钮触摸目标 ≥44px */}
-            <Button variant="outline" size="sm" className="max-md:min-h-[44px] max-md:min-w-[44px] rounded-none border-term-border bg-term-panel font-mono text-xs text-term-muted hover:text-term-text" disabled={table.page <= 1} onClick={() => table.setPage(1)} aria-label="首页">
-              <ChevronsLeft className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="sm" className="max-md:min-h-[44px] max-md:min-w-[44px] rounded-none border-term-border bg-term-panel font-mono text-xs text-term-muted hover:text-term-text" disabled={table.page <= 1} onClick={() => table.setPage(table.page - 1)} aria-label="上一页">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="px-1 tabular-nums">
-              第 {table.page} / {totalPages} 页
-            </span>
-            <Button variant="outline" size="sm" className="max-md:min-h-[44px] max-md:min-w-[44px] rounded-none border-term-border bg-term-panel font-mono text-xs text-term-muted hover:text-term-text" disabled={table.page >= totalPages} onClick={() => table.setPage(table.page + 1)} aria-label="下一页">
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="sm" className="max-md:min-h-[44px] max-md:min-w-[44px] rounded-none border-term-border bg-term-panel font-mono text-xs text-term-muted hover:text-term-text" disabled={table.page >= totalPages} onClick={() => table.setPage(totalPages)} aria-label="末页">
-              <ChevronsRight className="h-4 w-4" />
-            </Button>
-            {totalPages > 1 && <PageJump totalPages={totalPages} onJump={table.setPage} />}
-          </div>
+  if (isWarm) {
+    return (
+      <WarmCrmTableFrame className={warmStyles.frame} footer={footer}>
+        <div className="flex min-h-0 flex-1 flex-col" aria-busy={table.loading}>
+          {content}
         </div>
-      )}
+      </WarmCrmTableFrame>
+    )
+  }
+
+  return (
+    <div className="flex h-full flex-col" aria-busy={table.loading}>
+      {content}
+      {footer}
     </div>
   )
 }

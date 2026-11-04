@@ -2,16 +2,8 @@
 
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import {
   Form,
   FormControl,
@@ -21,6 +13,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { CrmUserSelect } from '@/components/crm/crm-user-select'
+import { WarmButton, WarmSelect } from '@/components/dashboard-v2/warm-ledger/controls'
 import {
   CUSTOMER_RATING_LABELS,
   CUSTOMER_SOURCE_LABELS,
@@ -29,6 +22,8 @@ import {
 import type { User } from '@/lib/crm/types/user'
 import type { CustomerInput } from '@/lib/crm/types/customer'
 import { customerSchema, type CustomerFormValues } from './schemas/customer.schema'
+
+import styles from './crm-form-create-warm.module.css'
 
 export interface CrmFormCreateProps {
   users: User[]
@@ -90,42 +85,37 @@ export function CrmFormCreate({
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(handleSubmit)} className={styles.form}>
         <FormField
           control={form.control}
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>客户名 *</FormLabel>
+              <FormLabel className={styles.label}>客户名 *</FormLabel>
               <FormControl>
-                <Input {...field} />
+                <Input {...field} className={styles.input} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className={styles.grid}>
           <FormField
             control={form.control}
             name="rating"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>等级</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {Object.entries(CUSTOMER_RATING_LABELS).map(([v, l]) => (
-                      <SelectItem key={v} value={v}>
-                        {l}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <WarmSelect
+                  id="customer-rating"
+                  label="等级"
+                  value={field.value}
+                  options={Object.entries(CUSTOMER_RATING_LABELS).map(([value, label]) => ({
+                    value,
+                    label,
+                  }))}
+                  onChange={field.onChange}
+                />
                 <FormMessage />
               </FormItem>
             )}
@@ -135,21 +125,16 @@ export function CrmFormCreate({
             name="status"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>状态</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {Object.entries(CUSTOMER_STATUS_LABELS).map(([v, l]) => (
-                      <SelectItem key={v} value={v}>
-                        {l}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <WarmSelect
+                  id="customer-status"
+                  label="状态"
+                  value={field.value}
+                  options={Object.entries(CUSTOMER_STATUS_LABELS).map(([value, label]) => ({
+                    value,
+                    label,
+                  }))}
+                  onChange={field.onChange}
+                />
                 <FormMessage />
               </FormItem>
             )}
@@ -161,21 +146,16 @@ export function CrmFormCreate({
           name="source"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>来源</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {Object.entries(CUSTOMER_SOURCE_LABELS).map(([v, l]) => (
-                    <SelectItem key={v} value={v}>
-                      {l}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <WarmSelect
+                id="customer-source"
+                label="来源"
+                value={field.value}
+                options={Object.entries(CUSTOMER_SOURCE_LABELS).map(([value, label]) => ({
+                  value,
+                  label,
+                }))}
+                onChange={field.onChange}
+              />
               <FormMessage />
             </FormItem>
           )}
@@ -186,24 +166,30 @@ export function CrmFormCreate({
           name="ownerId"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>负责人</FormLabel>
+              <FormLabel className={styles.label}>负责人</FormLabel>
               <FormControl>
-                <CrmUserSelect users={users} value={field.value} onChange={field.onChange} />
+                <CrmUserSelect
+                  users={users}
+                  value={field.value}
+                  onChange={field.onChange}
+                  className={styles.trigger}
+                  visual="warm"
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className={styles.grid}>
           <FormField
             control={form.control}
             name="contactName"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>联系人</FormLabel>
+                <FormLabel className={styles.label}>联系人</FormLabel>
                 <FormControl>
-                  <Input {...field} value={field.value ?? ''} />
+                  <Input {...field} value={field.value ?? ''} className={styles.input} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -214,9 +200,9 @@ export function CrmFormCreate({
             name="contactPhone"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>联系电话</FormLabel>
+                <FormLabel className={styles.label}>联系电话</FormLabel>
                 <FormControl>
-                  <Input {...field} value={field.value ?? ''} />
+                  <Input {...field} value={field.value ?? ''} className={styles.input} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -229,9 +215,9 @@ export function CrmFormCreate({
           name="contactEmail"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>联系邮箱</FormLabel>
+              <FormLabel className={styles.label}>联系邮箱</FormLabel>
               <FormControl>
-                <Input {...field} value={field.value ?? ''} />
+                <Input {...field} value={field.value ?? ''} className={styles.input} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -243,9 +229,9 @@ export function CrmFormCreate({
           name="industry"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>行业</FormLabel>
+              <FormLabel className={styles.label}>行业</FormLabel>
               <FormControl>
-                <Input {...field} value={field.value ?? ''} />
+                <Input {...field} value={field.value ?? ''} className={styles.input} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -257,9 +243,9 @@ export function CrmFormCreate({
           name="address"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>地址</FormLabel>
+              <FormLabel className={styles.label}>地址</FormLabel>
               <FormControl>
-                <Input {...field} value={field.value ?? ''} />
+                <Input {...field} value={field.value ?? ''} className={styles.input} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -271,19 +257,29 @@ export function CrmFormCreate({
           name="remark"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>备注</FormLabel>
+              <FormLabel className={styles.label}>备注</FormLabel>
               <FormControl>
-                <Textarea {...field} value={field.value ?? ''} rows={3} />
+                <Textarea
+                  {...field}
+                  value={field.value ?? ''}
+                  rows={3}
+                  className={styles.textarea}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
 
-        <div className="flex justify-end gap-2 pt-2">
-          <Button type="submit" disabled={form.formState.isSubmitting}>
+        <div className={styles.actions}>
+          <WarmButton
+            type="submit"
+            variant="primary"
+            loading={form.formState.isSubmitting}
+            loadingLabel="正在保存客户"
+          >
             {form.formState.isSubmitting ? '保存中…' : submitText}
-          </Button>
+          </WarmButton>
         </div>
       </form>
     </Form>

@@ -31,6 +31,10 @@ export interface FilterFieldDef {
 }
 
 export interface CrmTableProps<T> {
+  /** Visual system for the existing table behavior. Defaults to the legacy terminal surface. */
+  visual?: 'terminal' | 'warm'
+  /** Accessible name for the Warm table scroll region. */
+  tableAriaLabel?: string
   queryKey: string
   fetchPage: (params: ListParams) => Promise<Paginated<T>>
   columns: CrmColumnDef<T>[]

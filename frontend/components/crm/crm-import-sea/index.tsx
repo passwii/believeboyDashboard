@@ -2,16 +2,18 @@
 
 import { useMemo, useState } from 'react'
 import { ClipboardPaste, Download, FileUp, Upload } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { WarmCrmRecordDrawer } from '@/components/dashboard-v2/warm-ledger/crm'
+import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
 import { useCrmClient } from '@/lib/crm/api/crm-client-provider'
 import { useNotifications } from '@/components/notifications'
 import type { CustomerSeaImportRow, CustomerSeaImportResult } from '@/lib/crm/types'
 import { parseTsv, rowsFromGrid, validateRows } from './parse'
 import { downloadFailureDetail, downloadImportTemplate } from './template'
 import type { ImportStep, RowIssue } from './types'
+
+import styles from './crm-import-sea-warm.module.css'
 
 export interface CrmImportSeaProps {
   open: boolean
@@ -91,53 +93,50 @@ export function CrmImportSea({ open, onOpenChange, onImported }: CrmImportSeaPro
   }
 
   return (
-    <Sheet
+    <WarmCrmRecordDrawer
       open={open}
       onOpenChange={(o) => {
         onOpenChange(o)
         if (!o) reset()
       }}
+      title="导入客户到公海"
     >
-      <SheetContent className="w-full gap-0 p-0 sm:max-w-2xl">
-        <SheetHeader className="border-b border-border/60 px-5 py-4">
-          <SheetTitle>导入客户到公海</SheetTitle>
-        </SheetHeader>
-
-        <div className="flex-1 overflow-y-auto px-5 py-4">
+        <div className={styles.body}>
           {step === 'input' && (
             <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm text-muted-foreground">
+              <div className={styles.intro}>
+                <p className={styles.introText}>
                   粘贴 Excel 复制的内容，或上传 .xlsx 文件。导入的客户进入公海，全员可领取。
                 </p>
-                <Button variant="outline" size="sm" onClick={() => void downloadImportTemplate()}>
-                  <Download className="mr-1 h-4 w-4" /> 下载模板
-                </Button>
+                <WarmButton onClick={() => void downloadImportTemplate()}>
+                  <Download className="h-4 w-4" aria-hidden="true" /> 下载模板
+                </WarmButton>
               </div>
               <Tabs defaultValue="paste">
-                <TabsList variant="term" className="grid h-auto w-full grid-cols-2">
-                  <TabsTrigger value="paste" variant="term">
+                <TabsList className={styles.tabsList}>
+                  <TabsTrigger value="paste" className={styles.tab}>
                     <ClipboardPaste aria-hidden />
                     粘贴
                   </TabsTrigger>
-                  <TabsTrigger value="upload" variant="term">
+                  <TabsTrigger value="upload" className={styles.tab}>
                     <FileUp aria-hidden />
                     上传 Excel
                   </TabsTrigger>
                 </TabsList>
-                <TabsContent value="paste" className="space-y-3">
+                <TabsContent value="paste" className={styles.content}>
                   <Textarea
                     rows={8}
                     value={pasteText}
                     onChange={(e) => setPasteText(e.target.value)}
                     placeholder="从 Excel 复制若干行（含表头「客户名」等）粘贴到此处…"
+                    className={styles.textarea}
                   />
-                  <Button onClick={() => applyGrid(parseTsv(pasteText))} disabled={!pasteText.trim()}>
+                  <WarmButton variant="primary" onClick={() => applyGrid(parseTsv(pasteText))} disabled={!pasteText.trim()}>
                     下一步
-                  </Button>
+                  </WarmButton>
                 </TabsContent>
-                <TabsContent value="upload" className="space-y-3">
-                  <label className="flex cursor-pointer flex-col items-center gap-2 rounded-md border border-dashed border-border p-8 text-sm text-muted-foreground hover:bg-muted/40">
+                <TabsContent value="upload" className={styles.content}>
+                  <label className={styles.upload}>
                     <Upload className="h-6 w-6" />
                     <span>点击选择 .xlsx / .xls 文件</span>
                     <input
@@ -153,7 +152,7 @@ export function CrmImportSea({ open, onOpenChange, onImported }: CrmImportSeaPro
                 </TabsContent>
               </Tabs>
               {missingName && (
-                <p className="text-sm text-term-neg" role="alert">
+                <p className={styles.errorText} role="alert">
                   缺少「客户名」列，无法解析，请检查表头。
                 </p>
               )}
@@ -165,12 +164,12 @@ export function CrmImportSea({ open, onOpenChange, onImported }: CrmImportSeaPro
               <p className="text-sm">
                 共 {rows.length} 行 · {errorRows.size} 行有误
                 {errorRows.size > 0 && (
-                  <span className="ml-1 text-muted-foreground">（确认导入将跳过错误行）</span>
+                  <span className={styles.mutedText}>（确认导入将跳过错误行）</span>
                 )}
               </p>
-              <div className="max-h-80 overflow-auto rounded-md border border-border/60">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-muted/60">
+              <div className={styles.preview}>
+                <table>
+                  <thead>
                     <tr>
                       <th className="px-2 py-1 text-left">#</th>
                       <th className="px-2 py-1 text-left">客户名</th>
@@ -186,26 +185,26 @@ export function CrmImportSea({ open, onOpenChange, onImported }: CrmImportSeaPro
                       const err = rowIssues.find((x) => x.level === 'error')
                       const warn = rowIssues.find((x) => x.level === 'warn')
                       return (
-                        <tr key={i} className={err ? 'bg-term-neg/5' : undefined}>
-                          <td className="px-2 py-1 text-muted-foreground">{i + 1}</td>
+                        <tr key={i} className={err ? styles.rowError : undefined}>
+                          <td className={styles.mutedText}>{i + 1}</td>
                           <td className="px-2 py-1">
-                            {r.name || <span className="text-term-neg">（空）</span>}
+                            {r.name || <span className={styles.errorText}>（空）</span>}
                           </td>
                           <td className="px-2 py-1">{r.rating ?? '-'}</td>
                           <td className="px-2 py-1">{r.contactName ?? '-'}</td>
                           <td className="px-2 py-1">
                             {err ? (
-                              <span className="text-term-neg">{err.message}</span>
+                              <span className={styles.errorText}>{err.message}</span>
                             ) : warn ? (
-                              <span className="text-term-warn">{warn.message}</span>
+                              <span className={styles.warningText}>{warn.message}</span>
                             ) : (
-                              <span className="text-emerald-600">✓</span>
+                              <span className={styles.successText}>✓</span>
                             )}
                           </td>
                           <td className="px-2 py-1">
                             <button
                               type="button"
-                              className="text-xs text-muted-foreground hover:text-term-neg"
+                              className={styles.remove}
                               onClick={() => removeRow(i)}
                             >
                               删除
@@ -217,48 +216,46 @@ export function CrmImportSea({ open, onOpenChange, onImported }: CrmImportSeaPro
                   </tbody>
                 </table>
               </div>
-              <div className="flex justify-between">
-                <Button variant="outline" onClick={() => setStep('input')}>
+              <div className={styles.actions}>
+                <WarmButton onClick={() => setStep('input')}>
                   返回
-                </Button>
-                <Button onClick={() => void handleConfirm()} disabled={submitting || validRows.length === 0}>
+                </WarmButton>
+                <WarmButton variant="primary" onClick={() => void handleConfirm()} disabled={submitting || validRows.length === 0}>
                   {submitting ? '导入中…' : `确认导入（${validRows.length}）`}
-                </Button>
+                </WarmButton>
               </div>
             </div>
           )}
 
           {step === 'result' && result && (
             <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <FileUp className="h-5 w-5 text-emerald-600" />
+              <div className={styles.result}>
+                <FileUp className={styles.resultIcon} />
                 <p className="text-sm">
                   成功 {result.created} · 跳过 {result.skippedDupes}（已存在）· 失败 {result.failed.length}
                 </p>
               </div>
               {result.failed.length > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
+                <WarmButton
                   onClick={() => void downloadFailureDetail(result.failed, rows)}
                 >
-                  <Download className="mr-1 h-4 w-4" /> 下载失败明细
-                </Button>
+                  <Download className="h-4 w-4" aria-hidden="true" /> 下载失败明细
+                </WarmButton>
               )}
-              <div className="flex justify-end">
-                <Button
+              <div className={styles.actions}>
+                <WarmButton
+                  variant="primary"
                   onClick={() => {
                     reset()
                     onOpenChange(false)
                   }}
                 >
                   完成
-                </Button>
+                </WarmButton>
               </div>
             </div>
           )}
         </div>
-      </SheetContent>
-    </Sheet>
+    </WarmCrmRecordDrawer>
   )
 }

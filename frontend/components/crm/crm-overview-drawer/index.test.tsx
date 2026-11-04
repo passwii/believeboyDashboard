@@ -59,6 +59,10 @@ function renderDrawer(extra?: { actions?: React.ReactNode }) {
 describe('CrmOverviewDrawer', () => {
   it('详情 tab 渲染字段', () => {
     renderDrawer()
+    expect(screen.getByRole('dialog', { name: '测试客户' })).toHaveAttribute(
+      'data-warm-crm-record-drawer'
+    )
+    expect(screen.getByRole('tablist')).toHaveAttribute('data-warm-crm-tabs')
     // "测试客户" 同时出现在标题与 name 字段值
     expect(screen.getAllByText('测试客户').length).toBeGreaterThanOrEqual(2)
   })

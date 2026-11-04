@@ -29,6 +29,7 @@ describe('CrmFormCreate 来源下拉', () => {
 
     // 选中后填必填项并提交，断言 payload 用的是 self_developed
     const nameInput = screen.getByLabelText(/客户名/)
+    expect(screen.getByRole('button', { name: /保存/ })).toHaveClass('warm-ledger__button')
     await user.clear(nameInput)
     await user.type(nameInput, '甲公司')
     await user.click(screen.getByRole('button', { name: /保存/ }))
