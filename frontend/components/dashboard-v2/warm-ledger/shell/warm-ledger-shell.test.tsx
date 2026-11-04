@@ -304,7 +304,11 @@ describe('WarmLedgerRouteFrame', () => {
 
     const filters = await screen.findByRole('group', { name: '全局筛选' })
     const probe = screen.getByTestId('global-filter-probe')
-    await waitFor(() => expect(probe).toHaveTextContent(/^\|US\|/))
+    await waitFor(() => {
+      expect(probe).toHaveTextContent(
+        /^11\|ALL\|\d{4}-\d{2}-\d{2}\|\d{4}-\d{2}-\d{2}$/
+      )
+    })
     const projectSelect = within(filters).getByRole('combobox', { name: '项目筛选' })
     const countrySelect = within(filters).getByRole('combobox', { name: '站点筛选' })
     const dateSelect = container.querySelector<HTMLButtonElement>(
@@ -314,10 +318,12 @@ describe('WarmLedgerRouteFrame', () => {
     expect(projectSelect).toBeInTheDocument()
     expect(countrySelect).toBeInTheDocument()
     expect(dateSelect).toBeInTheDocument()
+    expect(projectSelect).toHaveTextContent('项目一')
+    expect(countrySelect).toHaveTextContent('全部站点')
 
     await user.click(projectSelect)
     await user.click(await screen.findByRole('option', { name: '项目二' }))
-    await waitFor(() => expect(probe).toHaveTextContent(/^12\|US\|/))
+    await waitFor(() => expect(probe).toHaveTextContent(/^12\|ALL\|/))
 
     for (const [code, label] of [
       ['ALL', '全部站点'],

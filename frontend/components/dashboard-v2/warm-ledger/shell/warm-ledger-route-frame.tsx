@@ -261,6 +261,11 @@ function DailyAnalysisGlobalFilters() {
 
 function OrderInfoGlobalFilters() {
   const globalFilter = useTerminalGlobalFilter()
+  const {
+    projectId: globalProjectId,
+    ready: filtersReady,
+    syncDailyAnalysisFilters,
+  } = globalFilter
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null)
   const { projects, loading, error, refetch } = useManagedProjects()
   const [retryRequested, setRetryRequested] = useState(false)
@@ -298,6 +303,40 @@ function OrderInfoGlobalFilters() {
   const timezone = COUNTRY_TIMEZONE_MAP[
     globalFilter.country === 'ALL' ? 'US' : globalFilter.country
   ] ?? COUNTRY_TIMEZONE_MAP.US
+
+  useEffect(() => {
+    if (!filtersReady || globalProjectId || loading || error) return
+
+    const params = new URLSearchParams(window.location.search)
+    const pageProjectId = params.get('project_id')
+    const projectId = pageProjectId && pageProjectId !== '__all__'
+      ? pageProjectId
+      : String(validProjects[0]?.id ?? '')
+    if (!projectId) return
+
+    const defaultRange = defaultGlobalDateRange(COUNTRY_TIMEZONE_MAP.US)
+    const dateFrom = params.get('date_from')
+    const dateTo = params.get('date_to')
+    const pageRange = dateFrom && dateTo
+      ? { dateFrom, dateTo }
+      : defaultRange
+
+    syncDailyAnalysisFilters(
+      {
+        projectId,
+        country: 'ALL',
+        ...pageRange,
+      },
+      { projectId, country: 'ALL' }
+    )
+  }, [
+    error,
+    filtersReady,
+    globalProjectId,
+    loading,
+    syncDailyAnalysisFilters,
+    validProjects,
+  ])
 
   const retryProjectList = useCallback(async () => {
     setRetryRequested(true)
