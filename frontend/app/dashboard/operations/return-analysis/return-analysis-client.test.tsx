@@ -377,6 +377,49 @@ describe('ReturnAnalysisClient header 化渲染契约（BLF-834 / operations hea
     expect(await screen.findByText('SKU-001')).toBeInTheDocument()
   })
 
+  it('Warm Ledger 契约：页面根、自身滚动表格与统计磁贴', async () => {
+    const { container } = render(<ReturnAnalysisClient />)
+    await screen.findByText('SKU-001')
+
+    const page = container.querySelector('[data-warm-page="return-analysis"]')
+    expect(page).not.toBeNull()
+    expect(container.querySelector('[data-warm-summary="return-analysis"]')).not.toBeNull()
+
+    const scroll = container.querySelector('[data-warm-table-scroll]')
+    expect(scroll).not.toBeNull()
+    expect(scroll?.querySelector('table')).not.toBeNull()
+    expect(scroll?.className).toMatch(/warm/i)
+  })
+
+  it('Warm Ledger 契约：图表面板使用 Warm 容器', async () => {
+    mockParams = { project: '1', country: 'US', tab: 'reason' }
+    const { container } = render(<ReturnAnalysisClient />)
+    expect(await screen.findByText('退货原因分析')).toBeInTheDocument()
+    expect(container.querySelector('[data-warm-chart="return-reasons"]')).not.toBeNull()
+  })
+
+  it('Warm Ledger 契约：空态与原始数据错误态带可识别状态标记', async () => {
+    vi.mocked(fetchOpsJsonCached).mockResolvedValueOnce(
+      returnPayload({ ranking_rows: [] }) as never
+    )
+    const { container, unmount } = render(<ReturnAnalysisClient />)
+    const empty = await screen.findByText('暂无退货排行数据')
+    expect(empty).toHaveAttribute('data-warm-state', 'empty')
+    expect(container.querySelector('[data-warm-page="return-analysis"]')).toHaveAttribute(
+      'data-warm-state',
+      'empty'
+    )
+
+    unmount()
+    rawShouldFail = true
+    mockParams = { project: '1', country: 'US', tab: 'raw' }
+    render(<ReturnAnalysisClient />)
+    expect(await screen.findByText('原始数据加载失败')).toHaveAttribute(
+      'data-warm-state',
+      'error'
+    )
+  })
+
   it('控制台卡片已移除：无「控制台」文案，导出按钮位于工作区卡头', async () => {
     render(<ReturnAnalysisClient />)
     await screen.findByText('SKU-001')
@@ -414,18 +457,18 @@ describe('ReturnAnalysisClient header 化渲染契约（BLF-834 / operations hea
     expect(screen.queryByRole('button', { name: '刷新' })).not.toBeInTheDocument()
   })
 
-  it('整体退货率语义色：>8% 走 term-neg', async () => {
+  it('整体退货率语义色：>8% 使用 Warm negative', async () => {
     render(<ReturnAnalysisClient />)
     await screen.findByText('整体退货率')
-    // 8.4% > 8 → term-neg
+    // 8.4% > 8 → Warm negative
     const rateEl = screen.getByText('8.4%')
-    expect(rateEl.className).toMatch(/term-neg/)
+    expect(rateEl.className).toMatch(/warm-ledger-color-negative/)
   })
 
   it('无旧风格残留：面板零圆角、term 边界', async () => {
     const { container } = render(<ReturnAnalysisClient />)
     await screen.findByText('SKU-001')
-    // 旧 rounded-lg / rounded-xl 卡片壳已收口为 rounded-none + term 边界
+    // 旧 rounded-lg / rounded-xl 卡片壳已收口为页面本地 Warm 面板
     expect(container.querySelector('.rounded-lg')).toBeNull()
     expect(container.querySelector('.rounded-xl')).toBeNull()
   })

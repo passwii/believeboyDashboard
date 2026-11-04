@@ -166,6 +166,43 @@ describe('SeasonalReplenishmentClient header 化渲染契约（operations header
     expect(screen.getByText('口径说明')).toBeInTheDocument()
   })
 
+  it('Warm Ledger 契约：页面根、统计区与自身滚动表格', async () => {
+    const { container } = render(<SeasonalReplenishmentClient />)
+    await screen.findAllByText('SKU-001')
+
+    const page = container.querySelector('[data-warm-page="seasonal-replenishment"]')
+    expect(page).not.toBeNull()
+    expect(page).toHaveAttribute('data-warm-state', 'ready')
+    expect(container.querySelector('[data-warm-summary="seasonal-replenishment"]')).not.toBeNull()
+
+    const scroll = container.querySelector('[data-warm-table-scroll]')
+    expect(scroll).not.toBeNull()
+    expect(scroll?.querySelector('table')).not.toBeNull()
+    expect(scroll?.className).toMatch(/warm/i)
+  })
+
+  it('Warm Ledger 契约：loading 与 empty 状态标记', async () => {
+    let resolveAnalysis: ((value: unknown) => void) | undefined
+    vi.mocked(fetchOpsJsonCached).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveAnalysis = resolve
+        })
+    )
+
+    const { container } = render(<SeasonalReplenishmentClient />)
+    const page = container.querySelector('[data-warm-page="seasonal-replenishment"]')
+    await vi.waitFor(() => expect(resolveAnalysis).toBeTypeOf('function'))
+    expect(page).toHaveAttribute('data-warm-state', 'loading')
+
+    resolveAnalysis?.(seasonalPayload({ items: [], total: 0 }))
+    expect(await screen.findByText('当前筛选条件下没有可分析的 SKU。')).toHaveAttribute(
+      'data-warm-state',
+      'empty'
+    )
+    expect(page).toHaveAttribute('data-warm-state', 'empty')
+  })
+
   it('5 个筛选控件注册进头部插槽（portal 节点非空）', async () => {
     render(<SeasonalReplenishmentClient />)
     await screen.findAllByText('SKU-001')

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
+import type { ComponentProps } from 'react'
 import { DateRange } from 'react-day-picker'
 import {
   Boxes,
@@ -30,7 +31,6 @@ import {
 import type { Worksheet } from 'exceljs'
 
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import {
   ChartContainer,
   ChartTooltip,
@@ -83,6 +83,8 @@ import { downloadBlob } from '@/lib/download-blob'
 import { useSmoothRefresh } from '@/hooks/use-smooth-refresh'
 import { RefreshProgressBar } from '@/components/ui/refresh-progress-bar'
 import { RAW_DISPLAY_LIMIT, RETURN_RAW_COLUMNS, type ReturnRawRow } from './return-raw-columns'
+import styles from './return-analysis-warm.module.css'
+import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
 
 const API_BASE = '/api/backend/api/v1'
 
@@ -316,11 +318,11 @@ const TAB_ICONS: Record<ViewTab, LucideIcon> = {
 }
 
 const REASON_COLORS = [
-  'hsl(var(--chart-1))',
-  'hsl(var(--chart-2))',
-  'hsl(var(--chart-3))',
-  'hsl(var(--chart-4))',
-  'hsl(var(--chart-5))',
+  'var(--warm-ledger-color-accent)',
+  'var(--warm-ledger-color-accent-strong)',
+  'var(--warm-ledger-color-positive)',
+  'var(--warm-ledger-color-negative)',
+  'var(--warm-ledger-color-text-muted)',
 ]
 
 /** 统计磁贴：终端规格（1px 边界、mono label、tabular 数值、语义色） */
@@ -336,31 +338,47 @@ function SummaryTile({
   valueClassName?: string
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-0.5 border border-term-border bg-term-panel px-2 py-1.5">
-      <span className="truncate font-mono text-xs uppercase tracking-wider text-term-muted">
-        {label}
-      </span>
+    <div className={styles.summaryTile}>
+      <span className={styles.summaryLabel}>{label}</span>
       <span
-        className={cn(
-          'truncate font-mono text-base leading-6 tabular-nums text-term-text',
-          valueClassName
-        )}
+        className={cn(styles.summaryValue, valueClassName)}
         title={value}
       >
         {value}
       </span>
-      {sub && (
-        <span className="truncate font-mono text-[11px] leading-4 text-term-faint">{sub}</span>
-      )}
+      {sub && <span className={styles.summarySub}>{sub}</span>}
     </div>
   )
 }
 
 /** 整体退货率语义色：>8% 红 / >3% 黄 / 其余绿（与原控制台口径一致） */
 function returnRateTone(rate: number): string {
-  if (rate > 8) return 'text-term-neg'
-  if (rate > 3) return 'text-term-warn'
-  return 'text-emerald-600 dark:text-emerald-400'
+  if (rate > 8) return 'text-[var(--warm-ledger-color-negative)]'
+  if (rate > 3) return 'text-[var(--warm-ledger-color-accent)]'
+  return 'text-[var(--warm-ledger-color-positive)]'
+}
+
+function WarmTable({
+  className,
+  containerClassName,
+  children,
+  ...props
+}: ComponentProps<typeof Table>) {
+  return (
+    <div
+      className={cn(styles.tableScroll, 'warm-ledger-table-scroll', containerClassName)}
+      data-warm-table-scroll="return-analysis"
+      tabIndex={0}
+    >
+      <Table
+        {...props}
+        containerClassName="overflow-visible"
+        className={cn(styles.table, className)}
+      >
+        {children}
+      </Table>
+    </div>
+  )
 }
 
 export default function ReturnAnalysisPage() {
@@ -414,6 +432,12 @@ export default function ReturnAnalysisPage() {
   const rawRequestSeqRef = useRef(0)
 
   const { showSkeleton, isRefreshing } = useSmoothRefresh({ loading, hasData: !!data })
+  const warmState =
+    projectsLoading || (loading && !data)
+      ? 'loading'
+      : !data || (activeTab === 'rankings' && data.ranking_rows.length === 0)
+        ? 'empty'
+        : 'ready'
 
   // 主分析请求失败（data 为空且不在加载中）时原始 Tab 没有可依赖的周期数据：
   // 给诚实空态，而不是让 tbody 永远停在 skeleton。
@@ -923,14 +947,15 @@ export default function ReturnAnalysisPage() {
   )
 
   const chartConfig = {
-    return_count: { label: '退货量', color: 'hsl(var(--chart-1))' },
-    total_quantity: { label: '退货件数', color: 'hsl(var(--chart-2))' },
-    percentage: { label: '占比', color: 'hsl(var(--chart-3))' },
-    return_rate: { label: '退货率(%)', color: 'hsl(var(--chart-1))' },
+    sales_quantity: { label: '销售数量', color: 'var(--warm-ledger-color-text-soft)' },
+    return_count: { label: '退货量', color: 'var(--warm-ledger-color-accent)' },
+    total_quantity: { label: '退货件数', color: 'var(--warm-ledger-color-accent-strong)' },
+    percentage: { label: '占比', color: 'var(--warm-ledger-color-positive)' },
+    return_rate: { label: '退货率(%)', color: 'var(--warm-ledger-color-negative)' },
   } satisfies ChartConfig
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className={styles.page} data-warm-page="return-analysis" data-warm-state={warmState}>
       {/* Header 化：筛选控件已上移 Top Header 中段插槽，页面仅渲染 portal 宿主 */}
       {headerSlotPortal}
       {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
@@ -938,7 +963,7 @@ export default function ReturnAnalysisPage() {
 
       {/* 统计磁贴条（原控制台 Summary Stats，终端规格） */}
       {data && (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+        <div className={styles.summaryGrid} data-warm-summary="return-analysis">
           <SummaryTile label="退货单数" value={data.summary.total_returns.toLocaleString()} />
           <SummaryTile label="退货总量" value={data.summary.total_quantity.toLocaleString()} />
           <SummaryTile
@@ -965,10 +990,10 @@ export default function ReturnAnalysisPage() {
       <Tabs
         value={activeTab}
         onValueChange={(value) => setActiveTab(value as ViewTab)}
-        className="w-full space-y-4"
+        className={styles.tabsBar}
       >
         <TabsMotionGroup id="return-analysis-tabs">
-          <TabsList variant="term" className="grid h-auto w-full grid-cols-4 lg:grid-cols-8">
+          <TabsList>
             {VIEW_TAB_ORDER.map((tab) => {
               const Icon = TAB_ICONS[tab]
               return (
@@ -977,7 +1002,6 @@ export default function ReturnAnalysisPage() {
                   value={tab}
                   activeValue={activeTab}
                   layoutId="return-analysis-tab-indicator"
-                  variant="term"
                 >
                   <Icon aria-hidden />
                   {TAB_LABELS[tab]}
@@ -986,13 +1010,12 @@ export default function ReturnAnalysisPage() {
             })}
           </TabsList>
         </TabsMotionGroup>
-        <DataTableCard className="relative">
-          <DataTableCardHeader className="flex flex-wrap items-center justify-between gap-2 px-4 pb-3 pt-4 sm:px-6">
-            <div className="text-sm font-semibold text-foreground sm:text-base">退货分析工作区</div>
-            <Button
+        <DataTableCard className={styles.workspacePanel}>
+          <DataTableCardHeader>
+            <div className={styles.workspaceTitle}>退货分析工作区</div>
+            <WarmButton
               type="button"
-              variant="outline"
-              size="sm"
+              variant="secondary"
               onClick={() => void handleExportExcel()}
               disabled={exporting || loading || !data}
               className="h-10 w-full px-3 sm:w-auto sm:px-4"
@@ -1003,13 +1026,13 @@ export default function ReturnAnalysisPage() {
                 <Download className="mr-1.5 h-4 w-4" />
               )}
               导出 Excel
-            </Button>
+            </WarmButton>
           </DataTableCardHeader>
           <DataTableCardBody>
             <DirectionalTabTransition value={activeTab} order={VIEW_TAB_ORDER}>
               <TabsContent forceMount value={activeTab} className="m-0">
                 {activeTab === 'rankings' && (
-                  <Table containerClassName="bg-[hsl(var(--surface-panel))]/94" tableLayout="fixed">
+                  <WarmTable containerClassName="bg-[var(--warm-ledger-color-panel)]" tableLayout="fixed">
                     <ColGroup
                       columns={[
                         { width: 112 },
@@ -1066,34 +1089,34 @@ export default function ReturnAnalysisPage() {
                         Array.from({ length: 5 }).map((_, i) => (
                           <TableRow key={i}>
                             <TableCell>
-                              <div className="h-4 w-20 animate-pulse rounded bg-muted" />
+                              <div className="h-4 w-20 animate-pulse rounded bg-[var(--warm-ledger-color-raised)]" />
                             </TableCell>
                             <TableCell>
-                              <div className="h-4 w-28 animate-pulse rounded bg-muted" />
+                              <div className="h-4 w-28 animate-pulse rounded bg-[var(--warm-ledger-color-raised)]" />
                             </TableCell>
                             <TableCell>
-                              <div className="h-4 w-16 animate-pulse rounded bg-muted" />
+                              <div className="h-4 w-16 animate-pulse rounded bg-[var(--warm-ledger-color-raised)]" />
                             </TableCell>
                             <TableCell className="text-right">
-                              <div className="ml-auto h-4 w-16 animate-pulse rounded bg-muted" />
+                              <div className="ml-auto h-4 w-16 animate-pulse rounded bg-[var(--warm-ledger-color-raised)]" />
                             </TableCell>
                             <TableCell className="text-right">
-                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" />
+                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-[var(--warm-ledger-color-raised)]" />
                             </TableCell>
                             <TableCell className="text-right">
-                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" />
+                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-[var(--warm-ledger-color-raised)]" />
                             </TableCell>
                             <TableCell className="text-right">
-                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" />
+                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-[var(--warm-ledger-color-raised)]" />
                             </TableCell>
                             <TableCell className="text-right">
-                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" />
+                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-[var(--warm-ledger-color-raised)]" />
                             </TableCell>
                             <TableCell className="text-right">
-                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" />
+                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-[var(--warm-ledger-color-raised)]" />
                             </TableCell>
                             <TableCell className="text-right">
-                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-muted" />
+                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-[var(--warm-ledger-color-raised)]" />
                             </TableCell>
                           </TableRow>
                         ))
@@ -1101,10 +1124,10 @@ export default function ReturnAnalysisPage() {
                         data.ranking_rows.map((row) => (
                           <TableRow key={row.sku}>
                             <TableCell className="font-medium truncate">{row.sku}</TableCell>
-                            <TableCell className="truncate text-muted-foreground">
+                            <TableCell className="truncate text-[var(--warm-ledger-color-text-muted)]">
                               {row.product_name || '--'}
                             </TableCell>
-                            <TableCell className="text-muted-foreground">
+                            <TableCell className="text-[var(--warm-ledger-color-text-muted)]">
                               {row.asin || '--'}
                             </TableCell>
                             <TableCell className="text-right font-semibold">
@@ -1117,7 +1140,7 @@ export default function ReturnAnalysisPage() {
                               {row.sales_quantity.toLocaleString()}
                             </TableCell>
                             <TableCell
-                              className={`text-right font-semibold ${row.return_rate > 8 ? 'text-term-neg' : row.return_rate > 3 ? 'text-yellow-500' : 'text-green-500'}`}
+                              className={`text-right font-semibold ${row.return_rate > 8 ? 'text-[var(--warm-ledger-color-negative)]' : row.return_rate > 3 ? 'text-[var(--warm-ledger-color-accent)]' : 'text-[var(--warm-ledger-color-positive)]'}`}
                             >
                               {row.sales_quantity > 0 ? `${row.return_rate.toFixed(1)}%` : '--'}
                             </TableCell>
@@ -1126,10 +1149,10 @@ export default function ReturnAnalysisPage() {
                                 ? row.avg_return_cycle_days.toFixed(1)
                                 : '--'}
                             </TableCell>
-                            <TableCell className="text-right text-green-600">
+                            <TableCell className="text-right text-[var(--warm-ledger-color-positive)]">
                               {row.min_return_cycle_days != null ? row.min_return_cycle_days : '--'}
                             </TableCell>
-                            <TableCell className="text-right text-term-warn">
+                            <TableCell className="text-right text-[var(--warm-ledger-color-accent)]">
                               {row.max_return_cycle_days != null ? row.max_return_cycle_days : '--'}
                             </TableCell>
                           </TableRow>
@@ -1138,22 +1161,23 @@ export default function ReturnAnalysisPage() {
                         <TableRow>
                           <TableCell
                             colSpan={10}
-                            className="py-12 text-center text-muted-foreground"
+                            className="py-12 text-center text-[var(--warm-ledger-color-text-muted)]"
+                            data-warm-state="empty"
                           >
                             暂无退货排行数据
                           </TableCell>
                         </TableRow>
                       )}
                     </RefreshProgressBar>
-                  </Table>
+                  </WarmTable>
                 )}
 
                 {activeTab === 'reason' && (
                   <div className="space-y-4 p-4">
-                    <h3 className="text-base font-semibold">退货原因分析</h3>
+                    <h3 className={styles.sectionHeading}>退货原因分析</h3>
                     <div className="grid gap-4 lg:grid-cols-2">
                       {/* Table */}
-                      <Table containerClassName="bg-[hsl(var(--surface-panel))]/94">
+                      <WarmTable containerClassName="bg-[var(--warm-ledger-color-panel)]">
                         <TableHeader>
                           <TableRow>
                             <TableHead>退货原因</TableHead>
@@ -1173,7 +1197,7 @@ export default function ReturnAnalysisPage() {
                                 <TableCell className="text-right">
                                   {row.total_quantity.toLocaleString()}
                                 </TableCell>
-                                <TableCell className="text-right text-muted-foreground">
+                                <TableCell className="text-right text-[var(--warm-ledger-color-text-muted)]">
                                   {row.percentage}%
                                 </TableCell>
                               </TableRow>
@@ -1182,11 +1206,14 @@ export default function ReturnAnalysisPage() {
                             <EmptyTableState colSpan={3} message="暂无退货原因数据" />
                           )}
                         </RefreshProgressBar>
-                      </Table>
+                      </WarmTable>
 
                       {/* Pie Chart */}
                       {data?.reason_rows && data.reason_rows.length > 0 && (
-                        <div className="rounded-none border border-term-border bg-[hsl(var(--surface-soft))] p-2 sm:p-4">
+                        <div
+                          className={styles.chartPanel}
+                          data-warm-chart="return-reasons"
+                        >
                           <ChartContainer
                             config={chartConfig}
                             className="h-[240px] w-full sm:h-[300px]"
@@ -1218,9 +1245,12 @@ export default function ReturnAnalysisPage() {
 
                 {activeTab === 'trend' && (
                   <div className="space-y-4 p-4">
-                    <h3 className="text-base font-semibold">销售与退货趋势对比</h3>
+                    <h3 className={styles.sectionHeading}>销售与退货趋势对比</h3>
                     {data?.trend_rows && data.trend_rows.length > 0 ? (
-                      <div className="rounded-none border border-term-border bg-[hsl(var(--surface-soft))] p-1 sm:p-4">
+                      <div
+                        className={styles.chartPanel}
+                        data-warm-chart="return-trend"
+                      >
                         <ChartContainer
                           config={chartConfig}
                           className="h-[280px] w-full sm:h-[350px]"
@@ -1229,13 +1259,13 @@ export default function ReturnAnalysisPage() {
                             data={data.trend_rows}
                             margin={{ top: 12, right: 4, left: -12, bottom: 8 }}
                           >
-                            <CartesianGrid vertical={false} stroke="rgba(148,163,184,0.18)" />
+                            <CartesianGrid vertical={false} stroke="var(--warm-ledger-color-chart-grid)" />
                             <XAxis
                               dataKey="date"
                               axisLine={false}
                               tickLine={false}
                               tickMargin={8}
-                              tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                              tick={{ fontSize: 10, fill: 'var(--warm-ledger-color-text-muted)' }}
                               tickFormatter={(value) => {
                                 const [, month, day] = String(value).split('-')
                                 return `${month}/${day}`
@@ -1245,7 +1275,7 @@ export default function ReturnAnalysisPage() {
                               axisLine={false}
                               tickLine={false}
                               tickMargin={8}
-                              tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                              tick={{ fontSize: 10, fill: 'var(--warm-ledger-color-text-muted)' }}
                               yAxisId="left"
                               width={35}
                             />
@@ -1253,7 +1283,7 @@ export default function ReturnAnalysisPage() {
                               axisLine={false}
                               tickLine={false}
                               tickMargin={8}
-                              tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                              tick={{ fontSize: 10, fill: 'var(--warm-ledger-color-text-muted)' }}
                               yAxisId="right"
                               orientation="right"
                               tickFormatter={(value) => `${value}%`}
@@ -1298,17 +1328,17 @@ export default function ReturnAnalysisPage() {
                             />
                           </ComposedChart>
                         </ChartContainer>
-                        <div className="mt-2 flex flex-wrap gap-4 px-3 text-xs text-muted-foreground">
+                        <div className={styles.chartLegend}>
                           <span className="flex items-center gap-1.5">
-                            <span className="inline-block h-2.5 w-5 rounded-sm bg-[hsl(var(--chart-4))]" />
+                            <span className="inline-block h-2.5 w-5 rounded-sm bg-[var(--warm-ledger-color-text-soft)]" />
                             销售数量
                           </span>
                           <span className="flex items-center gap-1.5">
-                            <span className="inline-block h-2.5 w-5 rounded-sm bg-[hsl(var(--chart-1))]" />
+                            <span className="inline-block h-2.5 w-5 rounded-sm bg-[var(--warm-ledger-color-accent)]" />
                             退货单数
                           </span>
                           <span className="flex items-center gap-1.5">
-                            <span className="inline-block h-2.5 w-5 rounded-sm border-b-2 border-[hsl(var(--chart-1))]" />
+                            <span className="inline-block h-2.5 w-5 rounded-sm border-b-2 border-[color:var(--warm-ledger-color-accent)]" />
                             退货率（%）
                           </span>
                         </div>
@@ -1321,9 +1351,9 @@ export default function ReturnAnalysisPage() {
 
                 {activeTab === 'product-status' && (
                   <div className="space-y-4 p-4">
-                    <h3 className="text-base font-semibold">商品状态分布</h3>
+                    <h3 className={styles.sectionHeading}>商品状态分布</h3>
                     <div className="grid gap-4 lg:grid-cols-2">
-                      <Table containerClassName="bg-[hsl(var(--surface-panel))]/94">
+                      <WarmTable containerClassName="bg-[var(--warm-ledger-color-panel)]">
                         <TableHeader>
                           <TableRow>
                             <TableHead>商品状态</TableHead>
@@ -1347,7 +1377,7 @@ export default function ReturnAnalysisPage() {
                                 <TableCell className="text-right">
                                   {row.return_count.toLocaleString()}
                                 </TableCell>
-                                <TableCell className="text-right text-muted-foreground">
+                                <TableCell className="text-right text-[var(--warm-ledger-color-text-muted)]">
                                   {row.percentage}%
                                 </TableCell>
                               </TableRow>
@@ -1356,11 +1386,11 @@ export default function ReturnAnalysisPage() {
                             <EmptyTableState colSpan={3} message="暂无商品状态数据" />
                           )}
                         </RefreshProgressBar>
-                      </Table>
+                      </WarmTable>
 
                       {data?.disposition_rows && data.disposition_rows.length > 0 && (
-                        <div className="rounded-none border border-term-border bg-[hsl(var(--surface-soft))] p-4">
-                          <div className="text-sm text-muted-foreground text-center py-8">
+                        <div className={styles.subPanel}>
+                          <div className="text-sm text-[var(--warm-ledger-color-text-muted)] text-center py-8">
                             图表展示区域（可扩展）
                           </div>
                         </div>
@@ -1371,9 +1401,9 @@ export default function ReturnAnalysisPage() {
 
                 {activeTab === 'inventory-status' && (
                   <div className="space-y-4 p-4">
-                    <h3 className="text-base font-semibold">库存状态分布</h3>
+                    <h3 className={styles.sectionHeading}>库存状态分布</h3>
                     <div className="grid gap-4 lg:grid-cols-2">
-                      <Table containerClassName="bg-[hsl(var(--surface-panel))]/94">
+                      <WarmTable containerClassName="bg-[var(--warm-ledger-color-panel)]">
                         <TableHeader>
                           <TableRow>
                             <TableHead>库存状态</TableHead>
@@ -1397,7 +1427,7 @@ export default function ReturnAnalysisPage() {
                                 <TableCell className="text-right">
                                   {row.return_count.toLocaleString()}
                                 </TableCell>
-                                <TableCell className="text-right text-muted-foreground">
+                                <TableCell className="text-right text-[var(--warm-ledger-color-text-muted)]">
                                   {row.percentage}%
                                 </TableCell>
                               </TableRow>
@@ -1406,11 +1436,11 @@ export default function ReturnAnalysisPage() {
                             <EmptyTableState colSpan={3} message="暂无库存状态数据" />
                           )}
                         </RefreshProgressBar>
-                      </Table>
+                      </WarmTable>
 
                       {data?.status_rows && data.status_rows.length > 0 && (
-                        <div className="rounded-none border border-term-border bg-[hsl(var(--surface-soft))] p-4">
-                          <div className="text-sm text-muted-foreground text-center py-8">
+                        <div className={styles.subPanel}>
+                          <div className="text-sm text-[var(--warm-ledger-color-text-muted)] text-center py-8">
                             图表展示区域（可扩展）
                           </div>
                         </div>
@@ -1421,8 +1451,8 @@ export default function ReturnAnalysisPage() {
 
                 {activeTab === 'feedback' && (
                   <div className="space-y-4 p-4">
-                    <h3 className="text-base font-semibold">顾客反馈</h3>
-                    <Table containerClassName="bg-[hsl(var(--surface-panel))]/94">
+                    <h3 className={styles.sectionHeading}>顾客反馈</h3>
+                    <WarmTable containerClassName="bg-[var(--warm-ledger-color-panel)]">
                       <TableHeader>
                         <TableRow>
                           <TableHead>日期</TableHead>
@@ -1439,7 +1469,7 @@ export default function ReturnAnalysisPage() {
                         {data?.feedback_rows.length ? (
                           data.feedback_rows.slice(0, 50).map((row, index) => (
                             <TableRow key={`${row.order_id}-${index}`}>
-                              <TableCell className="text-muted-foreground">
+                              <TableCell className="text-[var(--warm-ledger-color-text-muted)]">
                                 {row.return_date}
                               </TableCell>
                               <TableCell className="font-medium">{row.sku}</TableCell>
@@ -1449,7 +1479,7 @@ export default function ReturnAnalysisPage() {
                                 </Badge>
                               </TableCell>
                               <TableCell
-                                className="max-w-[300px] truncate text-muted-foreground"
+                                className="max-w-[300px] truncate text-[var(--warm-ledger-color-text-muted)]"
                                 title={row.customer_comment}
                               >
                                 {row.customer_comment}
@@ -1460,43 +1490,47 @@ export default function ReturnAnalysisPage() {
                           <EmptyTableState colSpan={4} message="暂无顾客反馈数据" />
                         )}
                       </RefreshProgressBar>
-                    </Table>
+                    </WarmTable>
                   </div>
                 )}
 
                 {activeTab === 'raw' && (
                   <div className="space-y-4 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <h3 className="text-base font-semibold">亚马逊原始数据</h3>
-                      <span className="font-mono text-xs text-term-muted">
+                      <h3 className={styles.sectionHeading}>亚马逊原始数据</h3>
+                      <span className="font-mono text-xs text-[var(--warm-ledger-color-text-muted)]">
                         {rawRows
                           ? `${rawRows.start_date} 至 ${rawRows.end_date} · 共 ${rawRows.row_count.toLocaleString()} 条`
                           : '—'}
                       </span>
                     </div>
                     {rawRows && rawRows.row_count > RAW_DISPLAY_LIMIT && (
-                      <p className="font-mono text-xs text-term-warn">
+                      <p className="font-mono text-xs text-[var(--warm-ledger-color-accent)]">
                         页内仅展示前 {RAW_DISPLAY_LIMIT} 条，完整{' '}
                         {rawRows.row_count.toLocaleString()} 条请导出 Excel。
                       </p>
                     )}
                     {rawError ? (
-                      <div className="flex flex-wrap items-center gap-3 border border-term-border bg-term-panel px-3 py-2">
-                        <span className="text-sm text-term-neg">{rawError}</span>
-                        <Button
+                      <div className={styles.errorNotice} data-warm-state="error">
+                        <span
+                          className="text-sm text-[var(--warm-ledger-color-negative)]"
+                          data-warm-state="error"
+                        >
+                          {rawError}
+                        </span>
+                        <WarmButton
                           type="button"
-                          variant="outline"
-                          size="sm"
+                          variant="secondary"
                           onClick={() => void loadRawRows(true)}
                           disabled={rawLoading}
                         >
                           重试
-                        </Button>
+                        </WarmButton>
                       </div>
                     ) : (
-                      <Table
+                      <WarmTable
                         className="min-w-[2280px] table-auto text-xs"
-                        containerClassName="max-h-[560px] overflow-auto bg-[hsl(var(--surface-panel))]/94"
+                        containerClassName="max-h-[560px] overflow-auto bg-[var(--warm-ledger-color-panel)]"
                       >
                         <TableHeader>
                           <TableRow className={STICKY_TOP_ROW}>
@@ -1530,7 +1564,7 @@ export default function ReturnAnalysisPage() {
                                     <TableCell
                                       key={column.key}
                                       className={cn(
-                                        'text-term-muted',
+                                        'text-[var(--warm-ledger-color-text-muted)]',
                                         column.key === 'quantity' && 'text-right tabular-nums',
                                         column.truncate && 'max-w-[320px] truncate'
                                       )}
@@ -1549,7 +1583,7 @@ export default function ReturnAnalysisPage() {
                             />
                           )}
                         </RefreshProgressBar>
-                      </Table>
+                      </WarmTable>
                     )}
                   </div>
                 )}
@@ -1557,9 +1591,9 @@ export default function ReturnAnalysisPage() {
                 {activeTab === 'summary' && (
                   <div className="space-y-4 p-4">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-base font-semibold">退货分析总结</h3>
+                      <h3 className={styles.sectionHeading}>退货分析总结</h3>
                       {data && (
-                        <span className="text-xs text-muted-foreground">
+                        <span className="text-xs text-[var(--warm-ledger-color-text-muted)]">
                           {data.start_date} 至 {data.end_date}
                         </span>
                       )}
@@ -1575,7 +1609,7 @@ export default function ReturnAnalysisPage() {
                         {data?.summary_text ? (
                           <div className="space-y-4">
                             {/* Text Summary */}
-                            <div className="rounded-none border border-term-border bg-[hsl(var(--surface-soft))] p-5">
+                            <div className={styles.summaryText}>
                               <div className="prose prose-sm max-w-none dark:prose-invert whitespace-pre-wrap text-sm leading-relaxed">
                                 {data.summary_text.split('\n').map((line, i) => {
                                   if (!line.trim()) {
@@ -1600,14 +1634,14 @@ export default function ReturnAnalysisPage() {
                                     return (
                                       <p
                                         key={i}
-                                        className="font-semibold text-foreground mt-4 first:mt-0 mb-1"
+                                        className="font-semibold text-[var(--warm-ledger-color-text)] mt-4 first:mt-0 mb-1"
                                       >
                                         {line}
                                       </p>
                                     )
                                   }
                                   return (
-                                    <p key={i} className="text-muted-foreground my-0.5">
+                                    <p key={i} className="text-[var(--warm-ledger-color-text-muted)] my-0.5">
                                       {line}
                                     </p>
                                   )
@@ -1617,21 +1651,21 @@ export default function ReturnAnalysisPage() {
 
                             {/* Weekday Distribution */}
                             {data.weekday_rows && data.weekday_rows.length > 0 && (
-                              <div className="rounded-none border border-term-border bg-[hsl(var(--surface-soft))] p-4">
+                              <div className={styles.subPanel}>
                                 <h4 className="text-sm font-semibold mb-3">📅 星期退货分布</h4>
                                 <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
                                   {data.weekday_rows.map((row) => (
                                     <div
                                       key={row.weekday}
-                                      className="flex flex-col items-center rounded-none bg-[hsl(var(--surface-panel))] p-2"
+                                      className={styles.weekdayTile}
                                     >
-                                      <div className="text-xs text-muted-foreground">
+                                      <div className="text-xs text-[var(--warm-ledger-color-text-muted)]">
                                         {row.weekday_display}
                                       </div>
                                       <div className="text-lg font-semibold mt-1">
                                         {row.return_count}
                                       </div>
-                                      <div className="text-xs text-muted-foreground">
+                                      <div className="text-xs text-[var(--warm-ledger-color-text-muted)]">
                                         {row.percentage}%
                                       </div>
                                     </div>
@@ -1643,9 +1677,9 @@ export default function ReturnAnalysisPage() {
                             {/* Fulfillment Center Distribution */}
                             {data.fulfillment_center_rows &&
                               data.fulfillment_center_rows.length > 0 && (
-                                <div className="rounded-none border border-term-border bg-[hsl(var(--surface-soft))] p-4">
+                                <div className={styles.subPanel}>
                                   <h4 className="text-sm font-semibold mb-3">🏭 仓库退货分布</h4>
-                                  <Table containerClassName="bg-[hsl(var(--surface-panel))]/94">
+                                  <WarmTable containerClassName="bg-[var(--warm-ledger-color-panel)]">
                                     <TableHeader>
                                       <TableRow>
                                         <TableHead>仓库</TableHead>
@@ -1666,13 +1700,13 @@ export default function ReturnAnalysisPage() {
                                           <TableCell className="text-right">
                                             {row.quantity.toLocaleString()}
                                           </TableCell>
-                                          <TableCell className="text-right text-muted-foreground">
+                                          <TableCell className="text-right text-[var(--warm-ledger-color-text-muted)]">
                                             {row.percentage}%
                                           </TableCell>
                                         </TableRow>
                                       ))}
                                     </TableBody>
-                                  </Table>
+                                  </WarmTable>
                                 </div>
                               )}
                           </div>

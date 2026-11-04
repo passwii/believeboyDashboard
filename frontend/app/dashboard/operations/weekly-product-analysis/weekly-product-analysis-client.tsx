@@ -1,6 +1,14 @@
 'use client'
 
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type ComponentProps,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { Area, AreaChart, Bar, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from 'recharts'
 import { AlertTriangle, Download, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
@@ -9,7 +17,6 @@ import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-project'
 import { useMobile } from '@/lib/hooks/use-mobile'
 
-import { Button } from '@/components/ui/button'
 import { ErrorState } from '@/components/ui/error-state'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
@@ -65,6 +72,8 @@ import {
 } from '@/components/terminal/header-filter-suite'
 import { useHeaderRefresh, useHeaderSlot, useMobileFilterStrip } from '@/components/terminal/terminal-header-slot'
 import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
+import styles from './weekly-product-analysis-warm.module.css'
+import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
 
 type ProjectOption = {
   id: number | null
@@ -117,7 +126,7 @@ type PT1DetailsResponse = {
 }
 
 function WeeklyStatSkeleton() {
-  return <Skeleton className="h-[132px] w-full rounded-none" />
+  return <Skeleton className="h-[132px] w-full rounded-[var(--warm-ledger-radius-inner)]" />
 }
 
 function LoadingScrim({
@@ -128,7 +137,7 @@ function LoadingScrim({
   className?: string
 }) {
   return (
-    <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/78 backdrop-blur-[2px]">
+    <div className="absolute inset-0 z-20 flex items-center justify-center bg-[var(--warm-ledger-color-panel)] backdrop-blur-[2px]">
       <div className={className}>{children}</div>
     </div>
   )
@@ -161,8 +170,8 @@ const SUMMARY_COLUMN_GROUPS = [
   {
     title: '销售',
     columns: ['总销量', '总销售额', '页面浏览量', '总访客', '总转化'],
-    groupClass: 'bg-term-accent/15',
-    headClass: 'bg-term-accent/10',
+    groupClass: 'bg-[var(--warm-ledger-color-accent-soft)]',
+    headClass: 'bg-[var(--warm-ledger-color-panel)]',
   },
   {
     title: '推广流量',
@@ -179,14 +188,14 @@ const SUMMARY_COLUMN_GROUPS = [
       'ACOS',
       'SP占比',
     ],
-    groupClass: 'bg-orange-500/15',
-    headClass: 'bg-orange-500/10',
+    groupClass: 'bg-[var(--warm-ledger-color-panel-strong)]',
+    headClass: 'bg-[var(--warm-ledger-color-panel)]',
   },
   {
     title: '自然流量',
     columns: ['自然流量', '自然流量占比', '自然单', '自然单转化'],
-    groupClass: 'bg-emerald-500/15',
-    headClass: 'bg-emerald-500/10',
+    groupClass: 'bg-[var(--warm-ledger-color-panel-strong)]',
+    headClass: 'bg-[var(--warm-ledger-color-panel)]',
   },
   {
     title: '费用占比',
@@ -202,8 +211,8 @@ const SUMMARY_COLUMN_GROUPS = [
       '总成本',
       '总成本占比',
     ],
-    groupClass: 'bg-term-warn/15',
-    headClass: 'bg-term-warn/10',
+    groupClass: 'bg-[var(--warm-ledger-color-accent-soft)]',
+    headClass: 'bg-[var(--warm-ledger-color-panel)]',
   },
   {
     title: '财务结算',
@@ -217,8 +226,8 @@ const SUMMARY_COLUMN_GROUPS = [
       '利润',
       '利润率',
     ],
-    groupClass: 'bg-term-accent/15',
-    headClass: 'bg-term-accent/10',
+    groupClass: 'bg-[var(--warm-ledger-color-accent-soft)]',
+    headClass: 'bg-[var(--warm-ledger-color-panel)]',
   },
 ] as const
 
@@ -229,14 +238,14 @@ const DETAIL_COLUMN_GROUPS = [
   {
     title: '销售',
     columns: ['总销量', '总销售额', '页面浏览量', '总访客', '总转化'],
-    groupClass: 'bg-term-accent/15',
-    headClass: 'bg-term-accent/10',
+    groupClass: 'bg-[var(--warm-ledger-color-accent-soft)]',
+    headClass: 'bg-[var(--warm-ledger-color-panel)]',
   },
   {
     title: '库存',
     columns: ['库存'],
-    groupClass: 'bg-slate-500/15',
-    headClass: 'bg-slate-500/10',
+    groupClass: 'bg-[var(--warm-ledger-color-panel-strong)]',
+    headClass: 'bg-[var(--warm-ledger-color-panel)]',
   },
   {
     title: '推广流量',
@@ -253,14 +262,14 @@ const DETAIL_COLUMN_GROUPS = [
       'ACOS',
       'SP占比',
     ],
-    groupClass: 'bg-orange-500/15',
-    headClass: 'bg-orange-500/10',
+    groupClass: 'bg-[var(--warm-ledger-color-panel-strong)]',
+    headClass: 'bg-[var(--warm-ledger-color-panel)]',
   },
   {
     title: '自然流量',
     columns: ['自然流量', '自然流量占比', '自然单', '自然单转化'],
-    groupClass: 'bg-emerald-500/15',
-    headClass: 'bg-emerald-500/10',
+    groupClass: 'bg-[var(--warm-ledger-color-panel-strong)]',
+    headClass: 'bg-[var(--warm-ledger-color-panel)]',
   },
   {
     title: '费用占比',
@@ -276,8 +285,8 @@ const DETAIL_COLUMN_GROUPS = [
       '总成本',
       '总成本占比',
     ],
-    groupClass: 'bg-term-warn/15',
-    headClass: 'bg-term-warn/10',
+    groupClass: 'bg-[var(--warm-ledger-color-accent-soft)]',
+    headClass: 'bg-[var(--warm-ledger-color-panel)]',
   },
   {
     title: '财务结算',
@@ -291,8 +300,8 @@ const DETAIL_COLUMN_GROUPS = [
       '利润',
       '利润率',
     ],
-    groupClass: 'bg-term-accent/15',
-    headClass: 'bg-term-accent/10',
+    groupClass: 'bg-[var(--warm-ledger-color-accent-soft)]',
+    headClass: 'bg-[var(--warm-ledger-color-panel)]',
   },
 ] as const
 const DETAIL_BASE_COLUMNS = [
@@ -352,33 +361,56 @@ const DETAIL_STICKY_LEFT = [0, DETAIL_STICKY_COLUMN_WIDTHS[0]] as const
 const chartConfig = {
   sales_amount: {
     label: '销售额',
-    color: 'hsl(var(--chart-1))',
+    color: 'var(--warm-ledger-color-accent)',
   },
   units_sold: {
     label: '销量',
-    color: 'hsl(var(--chart-2))',
+    color: 'var(--warm-ledger-color-text-soft)',
   },
   ad_spend: {
     label: '广告花费',
-    color: 'hsl(var(--destructive))',
+    color: 'var(--warm-ledger-color-negative)',
   },
   ad_clicks: {
     label: '广告点击量',
-    color: 'hsl(var(--chart-4))',
+    color: 'var(--warm-ledger-color-accent-strong)',
   },
   organic_traffic: {
     label: '自然流量',
-    color: 'hsl(var(--chart-5))',
+    color: 'var(--warm-ledger-color-positive)',
   },
   acos: {
     label: 'ACOS',
-    color: 'hsl(var(--chart-3))',
+    color: 'var(--warm-ledger-color-accent)',
   },
   ctr: {
     label: '广告点击率',
-    color: 'hsl(var(--warning))',
+    color: 'var(--warm-ledger-color-negative)',
   },
 } satisfies ChartConfig
+
+function WarmTable({
+  className,
+  containerClassName,
+  children,
+  ...props
+}: ComponentProps<typeof Table>) {
+  return (
+    <div
+      className={cn(styles.tableScroll, 'warm-ledger-table-scroll', containerClassName)}
+      data-warm-table-scroll="weekly-product-analysis"
+      tabIndex={0}
+    >
+      <Table
+        {...props}
+        containerClassName="overflow-visible"
+        className={cn(styles.table, className)}
+      >
+        {children}
+      </Table>
+    </div>
+  )
+}
 
 function eightWeeksAgoMondayDateString(): string {
   const now = new Date()
@@ -1565,6 +1597,14 @@ export default function WeeklyProductAnalysisPage() {
   }, [detailRows, detailGroupMeta.extras])
   const showSummarySkeleton = loading && data.length === 0
   const showDetailsSkeleton = detailsLoading && detailRows.length === 0
+  const warmState =
+    projectLoadError || error
+      ? 'error'
+      : loading && data.length === 0
+        ? 'loading'
+        : data.length === 0
+          ? 'empty'
+          : 'ready'
 
   const exportWeeklyAnalysis = useCallback(async () => {
     const projectName = projects.find((item) => String(item.id) === projectId)?.name ?? '未命名店铺'
@@ -1830,7 +1870,11 @@ export default function WeeklyProductAnalysisPage() {
   )
 
   return (
-    <div className="w-full space-y-6">
+    <div
+      className={styles.page}
+      data-warm-page="weekly-product-analysis"
+      data-warm-state={warmState}
+    >
       {/* Header 化：筛选控件已上移 Top Header 中段插槽，页面仅渲染 portal 宿主 */}
       {headerSlotPortal}
       {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
@@ -1838,21 +1882,21 @@ export default function WeeklyProductAnalysisPage() {
 
       {/* 错误反馈：原由控制台卡片承载，控制台移除后保留为独立块（数据逻辑不变） */}
       {projectLoadError ? (
-        <div className="overflow-hidden rounded-none border border-term-border bg-term-panel text-term-text">
+        <div className={styles.errorNotice} data-warm-state="error">
           <div className="px-4 pb-4 pt-2">
             <ErrorState title="项目加载失败" message={projectLoadError} className="py-4" />
           </div>
         </div>
       ) : null}
       {error ? (
-        <div className="overflow-hidden rounded-none border border-term-border bg-term-panel text-term-text">
+        <div className={styles.errorNotice} data-warm-state="error">
           <div className="px-4 pb-4 pt-2">
             <ErrorState title="数据加载失败" message={error} className="py-4" />
           </div>
         </div>
       ) : null}
 
-      <div className="dashboard-surface overflow-hidden">
+      <div className={styles.trendPanel}>
         <DataCardHeader
           title="周度趋势"
           className="flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between"
@@ -1860,17 +1904,14 @@ export default function WeeklyProductAnalysisPage() {
             <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
               <button
                 type="button"
+                aria-pressed={visibleLines.sales_amount}
                 onClick={() =>
                   setVisibleLines((prev) => ({
                     ...prev,
                     sales_amount: !prev.sales_amount,
                   }))
                 }
-                className={`flex items-center gap-1.5 rounded-none border px-2.5 py-1.5 text-xs font-medium transition-all ${
-                  visibleLines.sales_amount
-                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-                    : 'border-border/70 bg-term-panel/70 text-muted-foreground line-through dark:border-border/80 dark:bg-term-raised'
-                }`}
+                className={styles.legendButton}
               >
                 {visibleLines.sales_amount ? (
                   <Eye className="h-3 w-3" />
@@ -1879,19 +1920,20 @@ export default function WeeklyProductAnalysisPage() {
                 )}
                 <span
                   className="h-2 w-2 rounded-full"
-                  style={{ backgroundColor: 'hsl(var(--chart-2))' }}
+                  style={{ backgroundColor: 'var(--warm-ledger-color-accent)' }}
                 />
                 销售额
               </button>
               <button
                 type="button"
+                aria-pressed={visibleLines.units_sold}
                 onClick={() =>
                   setVisibleLines((prev) => ({
                     ...prev,
                     units_sold: !prev.units_sold,
                   }))
                 }
-                className={`flex items-center gap-1.5 rounded-none border px-2.5 py-1.5 text-xs font-medium transition-all ${ visibleLines.units_sold ? 'border-term-accent/30 bg-term-accent/10 text-term-accent dark:text-term-accent' : 'border-border/70 bg-term-panel/70 text-muted-foreground line-through dark:border-border/80 dark:bg-term-raised' }`}
+                className={styles.legendButton}
               >
                 {visibleLines.units_sold ? (
                   <Eye className="h-3 w-3" />
@@ -1900,19 +1942,20 @@ export default function WeeklyProductAnalysisPage() {
                 )}
                 <span
                   className="h-2 w-2 rounded-full"
-                  style={{ backgroundColor: 'hsl(var(--primary))' }}
+                  style={{ backgroundColor: 'var(--warm-ledger-color-text-soft)' }}
                 />
                 销量
               </button>
               <button
                 type="button"
+                aria-pressed={visibleLines.ad_spend}
                 onClick={() =>
                   setVisibleLines((prev) => ({
                     ...prev,
                     ad_spend: !prev.ad_spend,
                   }))
                 }
-                className={`flex items-center gap-1.5 rounded-none border px-2.5 py-1.5 text-xs font-medium transition-all ${ visibleLines.ad_spend ? 'border-term-neg/30 bg-term-neg/10 text-term-neg dark:text-term-neg' : 'border-border/70 bg-term-panel/70 text-muted-foreground line-through dark:border-border/80 dark:bg-term-raised' }`}
+                className={styles.legendButton}
               >
                 {visibleLines.ad_spend ? (
                   <Eye className="h-3 w-3" />
@@ -1921,19 +1964,20 @@ export default function WeeklyProductAnalysisPage() {
                 )}
                 <span
                   className="h-2 w-2 rounded-full"
-                  style={{ backgroundColor: 'hsl(var(--destructive))' }}
+                  style={{ backgroundColor: 'var(--warm-ledger-color-negative)' }}
                 />
                 广告花费
               </button>
               <button
                 type="button"
+                aria-pressed={visibleLines.ad_clicks}
                 onClick={() =>
                   setVisibleLines((prev) => ({
                     ...prev,
                     ad_clicks: !prev.ad_clicks,
                   }))
                 }
-                className={`flex items-center gap-1.5 rounded-none border px-2.5 py-1.5 text-xs font-medium transition-all ${ visibleLines.ad_clicks ? 'border-term-accent/30 bg-term-accent/10 text-term-accent dark:text-term-accent' : 'border-border/70 bg-term-panel/70 text-muted-foreground line-through dark:border-border/80 dark:bg-term-raised' }`}
+                className={styles.legendButton}
               >
                 {visibleLines.ad_clicks ? (
                   <Eye className="h-3 w-3" />
@@ -1942,19 +1986,20 @@ export default function WeeklyProductAnalysisPage() {
                 )}
                 <span
                   className="h-2 w-2 rounded-full"
-                  style={{ backgroundColor: 'hsl(var(--chart-4))' }}
+                  style={{ backgroundColor: 'var(--warm-ledger-color-accent-strong)' }}
                 />
                 广告点击量
               </button>
               <button
                 type="button"
+                aria-pressed={visibleLines.organic_traffic}
                 onClick={() =>
                   setVisibleLines((prev) => ({
                     ...prev,
                     organic_traffic: !prev.organic_traffic,
                   }))
                 }
-                className={`flex items-center gap-1.5 rounded-none border px-2.5 py-1.5 text-xs font-medium transition-all ${ visibleLines.organic_traffic ? 'border-term-warn/30 bg-term-warn/10 text-term-warn dark:text-term-warn' : 'border-muted bg-muted/30 text-muted-foreground line-through' }`}
+                className={styles.legendButton}
               >
                 {visibleLines.organic_traffic ? (
                   <Eye className="h-3 w-3" />
@@ -1963,30 +2008,27 @@ export default function WeeklyProductAnalysisPage() {
                 )}
                 <span
                   className="h-2 w-2 rounded-full"
-                  style={{ backgroundColor: 'hsl(var(--chart-5))' }}
+                  style={{ backgroundColor: 'var(--warm-ledger-color-positive)' }}
                 />
                 自然流量
               </button>
               <button
                 type="button"
+                aria-pressed={visibleLines.acos}
                 onClick={() =>
                   setVisibleLines((prev) => ({
                     ...prev,
                     acos: !prev.acos,
                   }))
                 }
-                className={`flex items-center gap-1.5 rounded-none border px-2.5 py-1.5 text-xs font-medium transition-all ${
-                  visibleLines.acos
-                    ? 'border-chart-3/30 bg-chart-3/10 text-chart-3 dark:text-chart-3'
-                    : 'border-muted bg-muted/30 text-muted-foreground line-through'
-                }`}
+                className={styles.legendButton}
               >
                 {visibleLines.acos ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
                 <span
                   className="h-2 w-2 rounded-full"
                   style={{
-                    backgroundColor: 'hsl(var(--chart-3))',
-                    border: '2px dashed hsl(var(--chart-3))',
+                    backgroundColor: 'var(--warm-ledger-color-accent)',
+                    border: '2px dashed var(--warm-ledger-color-accent)',
                     background: 'transparent',
                   }}
                 />
@@ -1994,24 +2036,21 @@ export default function WeeklyProductAnalysisPage() {
               </button>
               <button
                 type="button"
+                aria-pressed={visibleLines.ctr}
                 onClick={() =>
                   setVisibleLines((prev) => ({
                     ...prev,
                     ctr: !prev.ctr,
                   }))
                 }
-                className={`flex items-center gap-1.5 rounded-none border px-2.5 py-1.5 text-xs font-medium transition-all ${
-                  visibleLines.ctr
-                    ? 'border-warning/30 bg-warning/10 text-warning dark:text-warning'
-                    : 'border-muted bg-muted/30 text-muted-foreground line-through'
-                }`}
+                className={styles.legendButton}
               >
                 {visibleLines.ctr ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
                 <span
                   className="h-2 w-2 rounded-full"
                   style={{
-                    backgroundColor: 'hsl(var(--warning))',
-                    border: '2px dashed hsl(var(--warning))',
+                    backgroundColor: 'var(--warm-ledger-color-negative)',
+                    border: '2px dashed var(--warm-ledger-color-negative)',
                     background: 'transparent',
                   }}
                 />
@@ -2021,7 +2060,7 @@ export default function WeeklyProductAnalysisPage() {
           }
         />
         <DataTableCardStatBar
-          className="border-b border-border/70 bg-term-raised"
+          className={styles.statBar}
           items={[
             {
               label: '销售额合计',
@@ -2034,14 +2073,14 @@ export default function WeeklyProductAnalysisPage() {
         />
         <div className="relative px-2 pt-4 sm:px-6 sm:pt-6">
           {loading && data.length > 0 ? (
-            <div className="mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+            <div className={styles.updateNotice}>
               趋势数据更新中...
             </div>
           ) : null}
           {showSummarySkeleton ? (
             <Skeleton className="h-[320px] w-full" />
           ) : trendPoints.length > 0 ? (
-            <div className="rounded-none bg-term-panel/82 p-3 sm:p-4">
+            <div className={styles.chartPanel} data-warm-chart="weekly-trend">
               <ChartContainer config={chartConfig} className="aspect-auto h-[320px] w-full">
                 <ComposedChart
                   accessibilityLayer
@@ -2054,7 +2093,7 @@ export default function WeeklyProductAnalysisPage() {
                 >
                   <CartesianGrid
                     vertical={false}
-                    stroke="rgba(148,163,184,0.18)"
+                    stroke="var(--warm-ledger-color-chart-grid)"
                     strokeDasharray="0"
                   />
                   <XAxis
@@ -2063,7 +2102,7 @@ export default function WeeklyProductAnalysisPage() {
                     axisLine={false}
                     tickMargin={10}
                     minTickGap={32}
-                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+                    tick={{ fill: 'var(--warm-ledger-color-text-muted)', fontSize: 11 }}
                   />
                   {/* 手机端隐藏双 Y 轴（规则：图表区域手机端优化），tooltip 仍可读精确值 */}
                   {!isMobile && (
@@ -2078,7 +2117,7 @@ export default function WeeklyProductAnalysisPage() {
                       tickLine={false}
                       axisLine={false}
                       tickMargin={8}
-                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
+                      tick={{ fill: 'var(--warm-ledger-color-text-muted)', fontSize: 10 }}
                       width={52}
                     />
                   )}
@@ -2092,7 +2131,7 @@ export default function WeeklyProductAnalysisPage() {
                       tickLine={false}
                       axisLine={false}
                       tickMargin={4}
-                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
+                      tick={{ fill: 'var(--warm-ledger-color-text-muted)', fontSize: 10 }}
                       width={40}
                     />
                   )}
@@ -2121,7 +2160,7 @@ export default function WeeklyProductAnalysisPage() {
                           const isPercentMetric = metricKey === 'acos' || metricKey === 'ctr'
                           return (
                             <div className="flex items-center justify-between gap-4">
-                              <span className="text-muted-foreground">{displayName}</span>
+                              <span className="text-[var(--warm-ledger-color-text-muted)]">{displayName}</span>
                               <span className="font-medium">
                                 {isCurrencyMetric
                                   ? formatCurrency(Number(value), country)
@@ -2225,43 +2264,43 @@ export default function WeeklyProductAnalysisPage() {
                 </ComposedChart>
               </ChartContainer>
               {/* Legend */}
-              <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+              <div className={styles.chartLegend}>
                 {visibleLines.sales_amount && (
-                  <div className="inline-flex items-center gap-1.5 rounded-full bg-background/72 px-2.5 py-1 text-xs">
-                    <span className="h-3 w-3 rounded-sm bg-[hsl(var(--chart-1))]" />
+                  <div className={styles.chartLegendItem}>
+                    <span className="h-3 w-3 rounded-sm bg-[var(--warm-ledger-color-accent)]" />
                     销售额
                   </div>
                 )}
                 {visibleLines.units_sold && (
-                  <div className="inline-flex items-center gap-1.5 rounded-full bg-background/72 px-2.5 py-1 text-xs">
-                    <span className="h-3 w-3 rounded-sm bg-[hsl(var(--chart-2))]" />
+                  <div className={styles.chartLegendItem}>
+                    <span className="h-3 w-3 rounded-sm bg-[var(--warm-ledger-color-text-soft)]" />
                     销量
                   </div>
                 )}
                 {visibleLines.ad_spend && (
-                  <div className="inline-flex items-center gap-1.5 rounded-full bg-background/72 px-2.5 py-1 text-xs">
-                    <span className="h-3 w-3 rounded-full bg-[hsl(var(--destructive))]" />
+                  <div className={styles.chartLegendItem}>
+                    <span className="h-3 w-3 rounded-full bg-[var(--warm-ledger-color-negative)]" />
                     广告花费
                   </div>
                 )}
                 {visibleLines.ad_clicks && (
-                  <div className="inline-flex items-center gap-1.5 rounded-full bg-background/72 px-2.5 py-1 text-xs">
-                    <span className="h-3 w-3 rounded-full bg-[hsl(var(--chart-4))]" />
+                  <div className={styles.chartLegendItem}>
+                    <span className="h-3 w-3 rounded-full bg-[var(--warm-ledger-color-accent-strong)]" />
                     广告点击量
                   </div>
                 )}
                 {visibleLines.organic_traffic && (
-                  <div className="inline-flex items-center gap-1.5 rounded-full bg-background/72 px-2.5 py-1 text-xs">
-                    <span className="h-3 w-3 rounded-full bg-[hsl(var(--chart-5))]" />
+                  <div className={styles.chartLegendItem}>
+                    <span className="h-3 w-3 rounded-full bg-[var(--warm-ledger-color-positive)]" />
                     自然流量
                   </div>
                 )}
                 {visibleLines.acos && (
-                  <div className="inline-flex items-center gap-1.5 rounded-full bg-background/72 px-2.5 py-1 text-xs">
+                  <div className={styles.chartLegendItem}>
                     <span
-                      className="h-3 w-3 rounded-full bg-[hsl(var(--chart-3))]"
+                      className="h-3 w-3 rounded-full bg-[var(--warm-ledger-color-accent)]"
                       style={{
-                        border: '2px dashed hsl(var(--chart-3))',
+                        border: '2px dashed var(--warm-ledger-color-accent)',
                         background: 'transparent',
                       }}
                     />
@@ -2269,11 +2308,11 @@ export default function WeeklyProductAnalysisPage() {
                   </div>
                 )}
                 {visibleLines.ctr && (
-                  <div className="inline-flex items-center gap-1.5 rounded-full bg-background/72 px-2.5 py-1 text-xs">
+                  <div className={styles.chartLegendItem}>
                     <span
-                      className="h-3 w-3 rounded-full bg-[hsl(var(--warning))]"
+                      className="h-3 w-3 rounded-full bg-[var(--warm-ledger-color-negative)]"
                       style={{
-                        border: '2px dashed hsl(var(--warning))',
+                        border: '2px dashed var(--warm-ledger-color-negative)',
                         background: 'transparent',
                       }}
                     />
@@ -2283,13 +2322,13 @@ export default function WeeklyProductAnalysisPage() {
               </div>
             </div>
           ) : (
-            <div className="rounded-none border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+            <div className={styles.emptyState} data-warm-state="empty">
               暂无趋势数据
             </div>
           )}
           {loading && trendPoints.length > 0 ? (
             <LoadingScrim className="w-full px-4">
-              <Skeleton className="h-[320px] w-full rounded-none" />
+              <Skeleton className="h-[320px] w-full rounded-[var(--warm-ledger-radius-inner)]" />
             </LoadingScrim>
           ) : null}
         </div>
@@ -2307,7 +2346,7 @@ export default function WeeklyProductAnalysisPage() {
       >
         {/* 骨架屏覆盖层：切换项目/国家时覆盖表格区域 */}
         {skeletonState === 'loading' && (
-          <div className="absolute inset-0 z-10 rounded-none border border-border/70 bg-background">
+          <div className={cn('absolute inset-0 z-10', styles.skeletonOverlay)}>
             <div className="space-y-4 p-6">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <Skeleton className="h-10 w-full" />
@@ -2319,11 +2358,10 @@ export default function WeeklyProductAnalysisPage() {
             </div>
           </div>
         )}
-        <DataTableCard className="animate-enter">
-          <DataTableCardHeader className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
+        <DataTableCard className={styles.tablePanel}>
+          <DataTableCardHeader>
             <div>
-              <div className="text-base font-semibold text-foreground">每周分析明细</div>
-              <p className="text-sm text-muted-foreground"></p>
+              <div className={styles.tableTitle}>每周分析明细</div>
             </div>
             <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
               {activeTab === 'details' ? (
@@ -2332,7 +2370,7 @@ export default function WeeklyProductAnalysisPage() {
                   onValueChange={setSelectedWeekId}
                   disabled={summaryRows.length === 0}
                 >
-                  <SelectTrigger className="h-10 w-full border-border/70 bg-term-panel shadow-none dark:border-border/85 dark:bg-term-overlay sm:w-[250px]">
+                  <SelectTrigger className="h-10 w-full border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] shadow-none dark:border-[color:var(--warm-ledger-color-hairline)] dark:bg-[var(--warm-ledger-color-raised)] sm:w-[250px]">
                     <SelectValue placeholder="选择周次" />
                   </SelectTrigger>
                   <SelectContent>
@@ -2350,7 +2388,7 @@ export default function WeeklyProductAnalysisPage() {
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <span className="ml-1.5 inline-block">
-                                    <AlertTriangle className="h-3.5 w-3.5 text-term-warn" />
+                                    <AlertTriangle className="h-3.5 w-3.5 text-[var(--warm-ledger-color-accent)]" />
                                   </span>
                                 </TooltipTrigger>
                                 <TooltipContent sideOffset={4}>
@@ -2365,9 +2403,9 @@ export default function WeeklyProductAnalysisPage() {
                   </SelectContent>
                 </Select>
               ) : null}
-              <Button
+              <WarmButton
                 type="button"
-                variant="outline"
+                variant="secondary"
                 className="h-9 min-h-[44px] sm:min-h-0"
                 onClick={() => void exportWeeklyAnalysis()}
                 disabled={exporting || summaryRows.length === 0}
@@ -2378,27 +2416,29 @@ export default function WeeklyProductAnalysisPage() {
                   <Download className="mr-2 h-4 w-4" />
                 )}
                 导出 Excel
-              </Button>
-              <Button
+              </WarmButton>
+              <WarmButton
                 type="button"
-                variant="outline"
+                variant="secondary"
                 className="h-9 min-h-[44px] sm:min-h-0"
                 onClick={() => void handleRecomputeHistory()}
                 disabled={recomputing || loading || !projectId}
               >
                 {recomputing ? '重新核算中...' : '重新核算'}
-              </Button>
-              <div className="inline-flex rounded-none border border-border/70 bg-muted/20 p-1 dark:border-border/80 dark:bg-term-raised">
+              </WarmButton>
+              <div className={styles.viewToggle}>
                 <button
                   type="button"
-                  className={`rounded px-3 py-1.5 text-xs font-medium transition ${activeTab === 'summary' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                  className={styles.viewToggleButton}
+                  aria-pressed={activeTab === 'summary'}
                   onClick={() => setActiveTab('summary')}
                 >
                   周汇总
                 </button>
                 <button
                   type="button"
-                  className={`rounded px-3 py-1.5 text-xs font-medium transition ${activeTab === 'details' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}
+                  className={styles.viewToggleButton}
+                  aria-pressed={activeTab === 'details'}
                   onClick={() => setActiveTab('details')}
                 >
                   SKU明细
@@ -2408,12 +2448,12 @@ export default function WeeklyProductAnalysisPage() {
           </DataTableCardHeader>
           <DataTableCardBody className="relative">
             {activeTab === 'summary' && loading && summaryRows.length > 0 ? (
-              <div className="mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+              <div className={styles.updateNotice}>
                 周汇总更新中...
               </div>
             ) : null}
             {activeTab === 'details' && detailsLoading && detailRows.length > 0 ? (
-              <div className="mb-4 inline-flex rounded-full border border-border/70 bg-background/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+              <div className={styles.updateNotice}>
                 SKU 明细更新中...
               </div>
             ) : null}
@@ -2421,23 +2461,23 @@ export default function WeeklyProductAnalysisPage() {
               showSummarySkeleton ? (
                 <BarSkeleton rows={5} />
               ) : summaryRows.length > 0 ? (
-                <Table
+                <WarmTable
                   containerClassName="w-full max-w-full overflow-x-auto"
                   className="w-max min-w-[4200px] table-fixed text-xs"
                 >
                   <TableHeader>
-                    <TableRow className="bg-muted/30 hover:bg-muted/30">
+                    <TableRow className="bg-[var(--warm-ledger-color-raised)] hover:bg-[var(--warm-ledger-color-raised)]">
                       <TableHead
                         ref={summaryWeekHeadRef}
                         rowSpan={2}
-                        className="sticky z-40 border-r border-border bg-muted px-2 py-2 text-center whitespace-nowrap"
+                        className="sticky z-40 border-r border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] px-2 py-2 text-center whitespace-nowrap"
                         style={{ left: 0 }}
                       >
                         周次
                       </TableHead>
                       <TableHead
                         rowSpan={2}
-                        className="sticky z-40 border-r border-border bg-muted px-2 py-2 text-center whitespace-nowrap"
+                        className="sticky z-40 border-r border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] px-2 py-2 text-center whitespace-nowrap"
                         style={{ left: summaryWeekColumnWidth }}
                       >
                         日期范围
@@ -2446,13 +2486,13 @@ export default function WeeklyProductAnalysisPage() {
                         <TableHead
                           key={group.title}
                           colSpan={group.columns.length}
-                          className={`border-r px-2 py-2 text-center text-foreground ${group.groupClass}`}
+                          className={`border-r px-2 py-2 text-center text-[var(--warm-ledger-color-text)] ${group.groupClass}`}
                         >
                           {group.title}
                         </TableHead>
                       ))}
                     </TableRow>
-                    <TableRow className="bg-muted/30">
+                    <TableRow className="bg-[var(--warm-ledger-color-raised)]">
                       {SUMMARY_COLUMN_GROUPS.flatMap((group) =>
                         group.columns.map((column) => (
                           <TableHead
@@ -2470,14 +2510,14 @@ export default function WeeklyProductAnalysisPage() {
                       {summaryRows.map((item, index) => {
                         const row = item.row
                         const { isPartial } = extractCompleteness(row)
-                        const rowBg = row.is_current ? 'bg-background' : 'bg-muted/20'
+                        const rowBg = row.is_current ? 'bg-[var(--warm-ledger-color-panel)]' : 'bg-[var(--warm-ledger-color-raised)]'
                         return (
                           <TableRow
                             key={row.id}
-                            className={!row.is_current ? 'bg-muted/15' : undefined}
+                            className={!row.is_current ? 'bg-[var(--warm-ledger-color-raised)]' : undefined}
                           >
                             <TableCell
-                              className={`sticky z-20 border-r border-border px-2 py-1.5 text-center font-medium whitespace-nowrap ${rowBg}`}
+                              className={`sticky z-20 border-r border-[color:var(--warm-ledger-color-hairline)] px-2 py-1.5 text-center font-medium whitespace-nowrap ${rowBg}`}
                               style={{ left: 0 }}
                             >
                               <span className="inline-flex items-center gap-1">
@@ -2486,7 +2526,7 @@ export default function WeeklyProductAnalysisPage() {
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <span className="inline-block">
-                                        <AlertTriangle className="h-3.5 w-3.5 text-term-warn" />
+                                        <AlertTriangle className="h-3.5 w-3.5 text-[var(--warm-ledger-color-accent)]" />
                                       </span>
                                     </TooltipTrigger>
                                     <TooltipContent sideOffset={4}>
@@ -2497,7 +2537,7 @@ export default function WeeklyProductAnalysisPage() {
                               </span>
                             </TableCell>
                             <TableCell
-                              className={`sticky z-20 border-r border-border px-2 py-1.5 text-center whitespace-nowrap ${rowBg}`}
+                              className={`sticky z-20 border-r border-[color:var(--warm-ledger-color-hairline)] px-2 py-1.5 text-center whitespace-nowrap ${rowBg}`}
                               style={{ left: summaryWeekColumnWidth }}
                             >
                               {formatDateRange(row.report_start_date, row.report_end_date)}
@@ -2516,15 +2556,15 @@ export default function WeeklyProductAnalysisPage() {
                     </TooltipProvider>
                   </TableBody>
                   <TableFooter>
-                    <TableRow className="bg-muted font-semibold hover:bg-muted">
+                    <TableRow className="bg-[var(--warm-ledger-color-raised)] font-semibold hover:bg-[var(--warm-ledger-color-raised)]">
                       <TableCell
-                        className="sticky z-30 border-r border-border bg-muted px-2 py-2 text-center whitespace-nowrap"
+                        className="sticky z-30 border-r border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] px-2 py-2 text-center whitespace-nowrap"
                         style={{ left: 0 }}
                       >
                         合计
                       </TableCell>
                       <TableCell
-                        className="sticky z-30 border-r border-border bg-muted px-2 py-2 text-center whitespace-nowrap"
+                        className="sticky z-30 border-r border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] px-2 py-2 text-center whitespace-nowrap"
                         style={{ left: summaryWeekColumnWidth }}
                       >
                         {summaryRows.length} 周
@@ -2539,28 +2579,28 @@ export default function WeeklyProductAnalysisPage() {
                       ))}
                     </TableRow>
                   </TableFooter>
-                </Table>
+                </WarmTable>
               ) : (
-                <div className="rounded-none border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+                <div className={styles.emptyState} data-warm-state="empty">
                   当前筛选条件暂无产品分析周汇总数据
                 </div>
               )
             ) : showDetailsSkeleton ? (
               <BarSkeleton rows={8} />
             ) : detailsError ? (
-              <div className="rounded-none border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <div className={styles.errorState} data-warm-state="error">
                 {detailsError}
               </div>
             ) : detailRows.length > 0 ? (
-              <Table
+              <WarmTable
                 containerClassName="w-full max-w-full overflow-x-auto"
                 className="w-max min-w-[3600px] table-fixed text-xs"
               >
                 <TableHeader>
-                  <TableRow className="bg-muted/30 hover:bg-muted/30">
+                  <TableRow className="bg-[var(--warm-ledger-color-raised)] hover:bg-[var(--warm-ledger-color-raised)]">
                     <TableHead
                       rowSpan={2}
-                      className="sticky z-40 border-r border-border bg-muted px-3 py-2 text-center whitespace-nowrap"
+                      className="sticky z-40 border-r border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] px-3 py-2 text-center whitespace-nowrap"
                       style={{
                         left: DETAIL_STICKY_LEFT[0],
                         minWidth: DETAIL_STICKY_COLUMN_WIDTHS[0],
@@ -2570,7 +2610,7 @@ export default function WeeklyProductAnalysisPage() {
                     </TableHead>
                     <TableHead
                       rowSpan={2}
-                      className="sticky z-40 border-r border-border bg-muted px-3 py-2 text-center whitespace-nowrap"
+                      className="sticky z-40 border-r border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] px-3 py-2 text-center whitespace-nowrap"
                       style={{
                         left: DETAIL_STICKY_LEFT[1],
                         minWidth: DETAIL_STICKY_COLUMN_WIDTHS[1],
@@ -2582,7 +2622,7 @@ export default function WeeklyProductAnalysisPage() {
                       <TableHead
                         key={group.title}
                         colSpan={group.columns.length}
-                        className={`border-r px-2 py-2 text-center text-foreground ${group.groupClass}`}
+                        className={`border-r px-2 py-2 text-center text-[var(--warm-ledger-color-text)] ${group.groupClass}`}
                       >
                         {group.title}
                       </TableHead>
@@ -2591,13 +2631,13 @@ export default function WeeklyProductAnalysisPage() {
                       <TableHead
                         key={`detail-extra-top-${column}`}
                         rowSpan={2}
-                        className="border-r px-2 py-2 text-center whitespace-nowrap bg-muted/20"
+                        className="border-r px-2 py-2 text-center whitespace-nowrap bg-[var(--warm-ledger-color-raised)]"
                       >
                         {column}
                       </TableHead>
                     ))}
                   </TableRow>
-                  <TableRow className="bg-muted/20 hover:bg-muted/20">
+                  <TableRow className="bg-[var(--warm-ledger-color-raised)] hover:bg-[var(--warm-ledger-color-raised)]">
                     {detailGroupMeta.groups.map((group) =>
                       group.columns.map((column) => (
                         <TableHead
@@ -2616,7 +2656,7 @@ export default function WeeklyProductAnalysisPage() {
                       {detailColumns.map((column) => (
                         <TableCell
                           key={`detail-${idx}-${column}`}
-                          className={`border-r px-2 py-1.5 tabular-nums whitespace-nowrap ${column === '日期' || column === 'SKU' ? 'sticky z-20 border-border bg-background text-left' : 'text-right'}`}
+                          className={`border-r px-2 py-1.5 tabular-nums whitespace-nowrap ${column === '日期' || column === 'SKU' ? 'sticky z-20 border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] text-left' : 'text-right'}`}
                           style={
                             column === '日期'
                               ? {
@@ -2638,13 +2678,13 @@ export default function WeeklyProductAnalysisPage() {
                   ))}
                 </TableBody>
                 <TableFooter>
-                  <TableRow className="bg-muted font-semibold hover:bg-muted">
+                  <TableRow className="bg-[var(--warm-ledger-color-raised)] font-semibold hover:bg-[var(--warm-ledger-color-raised)]">
                     {detailColumns.map((column) => {
                       if (column === '日期')
                         return (
                           <TableCell
                             key="detail-total-date"
-                            className="sticky z-30 border-r border-border bg-muted px-2 py-2 text-left"
+                            className="sticky z-30 border-r border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] px-2 py-2 text-left"
                             style={{
                               left: DETAIL_STICKY_LEFT[0],
                               minWidth: DETAIL_STICKY_COLUMN_WIDTHS[0],
@@ -2657,7 +2697,7 @@ export default function WeeklyProductAnalysisPage() {
                         return (
                           <TableCell
                             key="detail-total-sku"
-                            className="sticky z-30 border-r border-border bg-muted px-2 py-2 text-left"
+                            className="sticky z-30 border-r border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] px-2 py-2 text-left"
                             style={{
                               left: DETAIL_STICKY_LEFT[1],
                               minWidth: DETAIL_STICKY_COLUMN_WIDTHS[1],
@@ -2689,9 +2729,9 @@ export default function WeeklyProductAnalysisPage() {
                     })}
                   </TableRow>
                 </TableFooter>
-              </Table>
+              </WarmTable>
             ) : (
-              <div className="rounded-none border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+              <div className={styles.emptyState} data-warm-state="empty">
                 当前周次暂无 SKU明细 数据
               </div>
             )}

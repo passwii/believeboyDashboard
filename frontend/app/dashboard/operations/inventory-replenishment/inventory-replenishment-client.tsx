@@ -16,7 +16,6 @@ import { useSession } from 'next-auth/react'
 import dynamic from 'next/dynamic'
 
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import {
@@ -65,6 +64,8 @@ import { EditSnapshotDialog } from '@/components/dashboard/inventory-replenishme
 import type { SnapshotOption } from '@/components/dashboard/inventory-replenishment/snapshot-selector'
 import { CockpitOverview } from '@/components/dashboard/inventory-replenishment/cockpit/cockpit-overview'
 import { DecisionCockpit } from '@/components/dashboard/inventory-replenishment/cockpit/decision-cockpit'
+import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
+import styles from './inventory-replenishment-warm.module.css'
 
 // recharts 强依赖 window/document，必须 ssr:false 才能从 inventory 页面 bundle 拆出 recharts 主体
 // 日历视图只在切到「日历」Tab 时才需要，dynamic 化后默认 Tab 切换不会拉 recharts
@@ -76,12 +77,12 @@ const LazyCalendarView = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="bg-term-panel space-y-3 rounded-none p-4">
+      <div className="bg-[var(--warm-ledger-color-panel)] space-y-3 rounded-[var(--warm-ledger-radius-inner)] p-4">
         <div className="flex items-center justify-between">
           <Skeleton className="h-5 w-32" />
           <Skeleton className="h-10 w-24" />
         </div>
-        <Skeleton className="h-[400px] w-full rounded-none" />
+        <Skeleton className="h-[400px] w-full rounded-[var(--warm-ledger-radius-inner)]" />
       </div>
     ),
   }
@@ -279,44 +280,44 @@ function riskMeta(riskStatus: string): { label: string; className: string } {
     长期断货: {
       label: '长期断货',
       className:
-        'border-rose-300 bg-rose-200 text-rose-800 dark:border-rose-900 dark:bg-rose-950/70 dark:text-rose-200',
+        'border-[color:var(--warm-ledger-color-negative)] bg-[var(--warm-ledger-color-panel)] text-[var(--warm-ledger-color-negative)]',
     },
     短期断货: {
       label: '短期断货',
       className:
-        'border-orange-200 bg-orange-100 text-orange-700 dark:border-orange-900/80 dark:bg-orange-950/50 dark:text-orange-300',
+        'border-[color:var(--warm-ledger-color-accent)] bg-[var(--warm-ledger-color-panel)] text-[var(--warm-ledger-color-accent)]',
     },
     断货风险: {
       label: '断货风险',
       className:
-        'border-rose-200 bg-rose-100 text-rose-700 dark:border-rose-900/80 dark:bg-rose-950/50 dark:text-rose-300',
+        'border-[color:var(--warm-ledger-color-negative)] bg-[var(--warm-ledger-color-panel)] text-[var(--warm-ledger-color-negative)]',
     },
     健康库存: {
       label: '健康库存',
       className:
-        'border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-900/80 dark:bg-emerald-950/50 dark:text-emerald-300',
+        'border-[color:var(--warm-ledger-color-positive)] bg-[var(--warm-ledger-color-panel)] text-[var(--warm-ledger-color-positive)]',
     },
     滞销: {
       label: '滞销',
       className:
-        'border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900/80 dark:bg-amber-950/50 dark:text-amber-300',
+        'border-[color:var(--warm-ledger-color-accent)] bg-[var(--warm-ledger-color-panel)] text-[var(--warm-ledger-color-accent)]',
     },
     严重滞销: {
       label: '严重滞销',
       className:
-        'border-fuchsia-200 bg-fuchsia-100 text-fuchsia-700 dark:border-fuchsia-900/80 dark:bg-fuchsia-950/50 dark:text-fuchsia-300',
+        'border-[color:var(--warm-ledger-color-negative)] bg-[var(--warm-ledger-color-panel)] text-[var(--warm-ledger-color-negative)]',
     },
     待补数据: {
       label: '待补数据',
       className:
-        'border-term-border bg-term-raised text-term-muted dark:border-term-border dark:bg-term-raised dark:text-term-text/72',
+        'border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] text-[var(--warm-ledger-color-text-muted)] dark:border-[color:var(--warm-ledger-color-hairline)] dark:bg-[var(--warm-ledger-color-raised)] dark:text-[var(--warm-ledger-color-text-soft)]',
     },
   }
   return (
     map[riskStatus] || {
       label: riskStatus,
       className:
-        'border-term-border bg-term-raised text-term-muted dark:border-term-border dark:bg-term-raised dark:text-term-text/72',
+        'border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] text-[var(--warm-ledger-color-text-muted)] dark:border-[color:var(--warm-ledger-color-hairline)] dark:bg-[var(--warm-ledger-color-raised)] dark:text-[var(--warm-ledger-color-text-soft)]',
     }
   )
 }
@@ -327,34 +328,34 @@ function stateMeta(state: string | undefined): { label: string; className: strin
     critical: {
       label: '危险',
       className:
-        'border-rose-300 bg-rose-100 text-rose-700 dark:border-rose-900/80 dark:bg-rose-950/50 dark:text-rose-300',
+        'border-[color:var(--warm-ledger-color-negative)] bg-[var(--warm-ledger-color-panel)] text-[var(--warm-ledger-color-negative)]',
     },
     deteriorating: {
       label: '趋势转差',
       className:
-        'border-orange-200 bg-orange-100 text-orange-700 dark:border-orange-900/80 dark:bg-orange-950/50 dark:text-orange-300',
+        'border-[color:var(--warm-ledger-color-accent)] bg-[var(--warm-ledger-color-panel)] text-[var(--warm-ledger-color-accent)]',
     },
     watch: {
       label: '关注',
       className:
-        'border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900/80 dark:bg-amber-950/50 dark:text-amber-300',
+        'border-[color:var(--warm-ledger-color-accent)] bg-[var(--warm-ledger-color-panel)] text-[var(--warm-ledger-color-accent)]',
     },
     healthy: {
       label: '健康',
       className:
-        'border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-900/80 dark:bg-emerald-950/50 dark:text-emerald-300',
+        'border-[color:var(--warm-ledger-color-positive)] bg-[var(--warm-ledger-color-panel)] text-[var(--warm-ledger-color-positive)]',
     },
     unknown: {
       label: '数据缺失',
       className:
-        'border-term-border bg-term-raised text-term-muted dark:border-term-border dark:bg-term-raised dark:text-term-text/72',
+        'border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] text-[var(--warm-ledger-color-text-muted)] dark:border-[color:var(--warm-ledger-color-hairline)] dark:bg-[var(--warm-ledger-color-raised)] dark:text-[var(--warm-ledger-color-text-soft)]',
     },
   }
   return (
     map[state ?? ''] || {
       label: state ?? '—',
       className:
-        'border-term-border bg-term-raised text-term-muted dark:border-term-border dark:bg-term-raised dark:text-term-text/72',
+        'border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] text-[var(--warm-ledger-color-text-muted)] dark:border-[color:var(--warm-ledger-color-hairline)] dark:bg-[var(--warm-ledger-color-raised)] dark:text-[var(--warm-ledger-color-text-soft)]',
     }
   )
 }
@@ -364,39 +365,39 @@ function actionMeta(action: string | undefined): { label: string; className: str
     REPLENISH_NOW: {
       label: '紧急补货',
       className:
-        'border-rose-300 bg-rose-100 text-rose-700 dark:border-rose-900/80 dark:bg-rose-950/50 dark:text-rose-300',
+        'border-[color:var(--warm-ledger-color-negative)] bg-[var(--warm-ledger-color-panel)] text-[var(--warm-ledger-color-negative)]',
     },
     REPLENISH_NORMAL: {
       label: '按计划补货',
       className:
-        'border-sky-200 bg-sky-100 text-sky-700 dark:border-sky-900/80 dark:bg-sky-950/50 dark:text-sky-300',
+        'border-[color:var(--warm-ledger-color-accent)] bg-[var(--warm-ledger-color-panel)] text-[var(--warm-ledger-color-accent)]',
     },
     HOLD: {
       label: '暂停补货',
       className:
-        'border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900/80 dark:bg-amber-950/50 dark:text-amber-300',
+        'border-[color:var(--warm-ledger-color-accent)] bg-[var(--warm-ledger-color-panel)] text-[var(--warm-ledger-color-accent)]',
     },
     REDUCE_PRICE: {
       label: '降价清货',
       className:
-        'border-orange-200 bg-orange-100 text-orange-700 dark:border-orange-900/80 dark:bg-orange-950/50 dark:text-orange-300',
+        'border-[color:var(--warm-ledger-color-accent)] bg-[var(--warm-ledger-color-panel)] text-[var(--warm-ledger-color-accent)]',
     },
     REMOVE: {
       label: '创建移除订单',
       className:
-        'border-fuchsia-200 bg-fuchsia-100 text-fuchsia-700 dark:border-fuchsia-900/80 dark:bg-fuchsia-950/50 dark:text-fuchsia-300',
+        'border-[color:var(--warm-ledger-color-negative)] bg-[var(--warm-ledger-color-panel)] text-[var(--warm-ledger-color-negative)]',
     },
     NO_ACTION: {
       label: '不动',
       className:
-        'border-term-border bg-term-raised text-term-muted dark:border-term-border dark:bg-term-raised dark:text-term-text/72',
+        'border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] text-[var(--warm-ledger-color-text-muted)] dark:border-[color:var(--warm-ledger-color-hairline)] dark:bg-[var(--warm-ledger-color-raised)] dark:text-[var(--warm-ledger-color-text-soft)]',
     },
   }
   return (
     map[action ?? ''] || {
       label: action ?? '—',
       className:
-        'border-term-border bg-term-raised text-term-muted dark:border-term-border dark:bg-term-raised dark:text-term-text/72',
+        'border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] text-[var(--warm-ledger-color-text-muted)] dark:border-[color:var(--warm-ledger-color-hairline)] dark:bg-[var(--warm-ledger-color-raised)] dark:text-[var(--warm-ledger-color-text-soft)]',
     }
   )
 }
@@ -406,44 +407,44 @@ function shipmentStatusMeta(status: string): { label: string; className: string 
     draft: {
       label: '草稿',
       className:
-        'border border-term-border bg-term-raised text-term-muted dark:border-term-border dark:bg-term-raised dark:text-term-text/72',
+        'border border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] text-[var(--warm-ledger-color-text-muted)] dark:border-[color:var(--warm-ledger-color-hairline)] dark:bg-[var(--warm-ledger-color-raised)] dark:text-[var(--warm-ledger-color-text-soft)]',
     },
     preparing: {
       label: '备货中',
       className:
-        'border border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-900/80 dark:bg-amber-950/60 dark:text-amber-300',
+        'border border-[color:var(--warm-ledger-color-accent)] bg-[var(--warm-ledger-color-panel)] text-[var(--warm-ledger-color-accent)]',
     },
     in_transit: {
       label: '在途',
       className:
-        'border border-sky-200 bg-sky-100 text-sky-700 dark:border-sky-900/80 dark:bg-sky-950/60 dark:text-sky-300',
+        'border border-[color:var(--warm-ledger-color-accent)] bg-[var(--warm-ledger-color-panel)] text-[var(--warm-ledger-color-accent)]',
     },
     arrived_port: {
       label: '已到港',
       className:
-        'border border-cyan-200 bg-cyan-100 text-cyan-700 dark:border-cyan-900/80 dark:bg-cyan-950/60 dark:text-cyan-300',
+        'border border-[color:var(--warm-ledger-color-accent)] bg-[var(--warm-ledger-color-panel)] text-[var(--warm-ledger-color-accent)]',
     },
     inbound_processing: {
       label: '入仓处理中',
       className:
-        'border border-violet-200 bg-violet-100 text-violet-700 dark:border-violet-900/80 dark:bg-violet-950/60 dark:text-violet-300',
+        'border border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] text-[var(--warm-ledger-color-text-soft)]',
     },
     completed: {
       label: '完成',
       className:
-        'border border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-900/80 dark:bg-emerald-950/60 dark:text-emerald-300',
+        'border border-[color:var(--warm-ledger-color-positive)] bg-[var(--warm-ledger-color-panel)] text-[var(--warm-ledger-color-positive)]',
     },
     cancelled: {
       label: '已取消',
       className:
-        'border border-rose-200 bg-rose-100 text-rose-700 dark:border-rose-900/80 dark:bg-rose-950/60 dark:text-rose-300',
+        'border border-[color:var(--warm-ledger-color-negative)] bg-[var(--warm-ledger-color-panel)] text-[var(--warm-ledger-color-negative)]',
     },
   }
   return (
     map[status] || {
       label: status,
       className:
-        'border border-term-border bg-term-raised text-term-muted dark:border-term-border dark:bg-term-raised dark:text-term-text/72',
+        'border border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-raised)] text-[var(--warm-ledger-color-text-muted)] dark:border-[color:var(--warm-ledger-color-hairline)] dark:bg-[var(--warm-ledger-color-raised)] dark:text-[var(--warm-ledger-color-text-soft)]',
     }
   )
 }
@@ -531,6 +532,13 @@ export default function InventoryReplenishmentPage() {
       return true
     })
   }, [actionFilter, rows, stateFilter])
+
+  const warmState =
+    projectsLoading || (loading && filteredRows.length === 0)
+      ? 'loading'
+      : filteredRows.length === 0
+        ? 'empty'
+        : 'ready'
 
   const currentProjectId = useMemo(() => {
     const parsed = Number(projectId)
@@ -890,7 +898,7 @@ export default function InventoryReplenishmentPage() {
         widthClass={TERM_HEADER_W_MD}
         title="项目筛选"
       />
-      {/* 关键词输入：Input lg 档即 h-10 term 规格（rounded-none / term 边界 / mono），与 TERM_HEADER_TRIGGER 高度对齐（BLF-887 上档） */}
+      {/* 关键词输入：Input lg 档即 h-10 term 规格（rounded-[var(--warm-ledger-radius-inner)] / term 边界 / mono），与 TERM_HEADER_TRIGGER 高度对齐（BLF-887 上档） */}
       <Input
         size="lg"
         value={keyword}
@@ -1192,7 +1200,11 @@ export default function InventoryReplenishmentPage() {
   }
 
   return (
-    <div className="w-full space-y-6">
+    <div
+      className={styles.page}
+      data-warm-page="inventory-replenishment"
+      data-warm-state={warmState}
+    >
       {/* Header 化：4 个筛选控件（项目/关键词/站点/风险状态）已上移 Top Header 中段插槽，页面仅渲染 portal 宿主 */}
       {headerSlotPortal}
       {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
@@ -1200,9 +1212,9 @@ export default function InventoryReplenishmentPage() {
 
       {/* 原控制台内容收口：筛选控件已上移 header 插槽，「刷新重算」按钮已删（全局刷新唯一入口）；
           快照选择（含创建/编辑入口，偏重）与三段式指挥带保留正文 */}
-      <div className="bg-term-panel">
+      <div className={styles.commandSurface}>
         {/* SnapshotSelector 留正文：含创建/编辑入口，偏重，不上移 */}
-        <div className="flex flex-wrap items-center justify-end gap-2 border-b border-term-border bg-term-panel px-4 py-3">
+        <div className={styles.snapshotBar}>
           <SnapshotSelector
             projectId={currentProjectId}
             country={country}
@@ -1221,7 +1233,7 @@ export default function InventoryReplenishmentPage() {
         </div>
 
         {/* 统计条 → 三段式指挥带（BLF-491） */}
-        <div className="px-4 py-3">
+        <div className={styles.summarySurface} data-warm-summary="inventory-replenishment">
           <CockpitOverview
             rows={filteredRows}
             summary={summary}
@@ -1235,42 +1247,41 @@ export default function InventoryReplenishmentPage() {
       </div>
 
       <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'cockpit' | 'table' | 'calendar')}>
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <TabsList variant="term" className="w-fit justify-start">
-            <TabsTrigger value="cockpit" variant="term">
+        <div className={styles.tabsBar}>
+          <TabsList className="w-fit justify-start">
+            <TabsTrigger value="cockpit">
               <Gauge aria-hidden />
               决策工作台
             </TabsTrigger>
-            <TabsTrigger value="table" variant="term">
+            <TabsTrigger value="table">
               <LayoutGrid aria-hidden />
               表格视图
             </TabsTrigger>
-            <TabsTrigger value="calendar" variant="term">
+            <TabsTrigger value="calendar">
               <CalendarDays aria-hidden />
               日历视图
             </TabsTrigger>
           </TabsList>
           {viewMode !== 'calendar' && (
-            <Button
-              variant="outline"
-              size="sm"
+            <WarmButton
+              variant="secondary"
               className="h-10 px-3 sm:px-4 w-full sm:w-auto"
               disabled={loading || exporting || filteredRows.length === 0}
               onClick={() => void exportToExcel()}
             >
               <FileDown className="h-3.5 w-3.5" />
               {exporting ? '导出中...' : '导出 Excel'}
-            </Button>
+            </WarmButton>
           )}
         </div>
 
         <TabsContent value="cockpit">
           {!currentProjectId && !projectsLoading ? (
-            <div className="bg-term-panel px-6 py-16 text-center text-sm text-term-muted">
+            <div className={styles.stateNotice} data-warm-state="empty">
               请先选择项目。
             </div>
           ) : loading && filteredRows.length === 0 ? (
-            <div className="bg-term-panel space-y-3 p-6">
+            <div className={styles.loadingPanel} data-warm-state="loading">
               <Skeleton className="h-40 w-full" />
               <Skeleton className="h-40 w-full" />
             </div>
@@ -1299,160 +1310,165 @@ export default function InventoryReplenishmentPage() {
         <TabsContent value="table">
           {/* 共享的加载/空状态 */}
           {!currentProjectId && !projectsLoading ? (
-            <div className="bg-term-panel px-6 py-16 text-center text-sm text-term-muted">
+            <div className={styles.stateNotice} data-warm-state="empty">
               请先选择项目。
             </div>
           ) : loading && rows.length === 0 ? (
-            <div className="bg-term-panel space-y-3 p-6">
+            <div className={styles.loadingPanel} data-warm-state="loading">
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
             </div>
           ) : rows.length === 0 ? (
-            <div className="bg-term-panel px-6 py-16 text-center text-sm text-term-muted">
+            <div className={styles.stateNotice} data-warm-state="empty">
               当前筛选条件下没有可分析的 SKU。
             </div>
           ) : (
             <>
               {/* 桌面端：完整表格 */}
               <div className="hidden md:block">
-                <DataTableCard>
-                  <DataTableCardHeader className="px-4 py-3">
+                <DataTableCard className={styles.tablePanel}>
+                  <DataTableCardHeader>
                     <div className="space-y-1">
-                      <h3 className="text-base font-semibold text-term-text">SKU 补货主表</h3>
+                      <h3 className={styles.tableHeaderTitle}>SKU 补货主表</h3>
                     </div>
                   </DataTableCardHeader>
                   <DataTableCardBody>
                     <div className="relative">
                       {loading && rows.length > 0 ? (
-                        <div className="pointer-events-none absolute right-4 top-4 z-20 rounded-full border border-term-border bg-[hsl(var(--term-raised))/0.95] px-3 py-1 text-xs text-term-muted shadow-none backdrop-blur-sm dark:border-term-border dark:bg-[hsl(var(--term-raised))/0.96] dark:text-term-text/72">
+                        <div className={styles.updateNotice}>
                           补货主表更新中...
                         </div>
                       ) : null}
-                      <Table
-                        containerClassName="max-h-[72vh] overflow-auto border-t border-term-border bg-transparent dark:border-term-border rounded-none"
-                        className="min-w-[2050px] table-auto border-separate border-spacing-0 bg-transparent text-[13px]"
+                      <div
+                        className={cn(styles.tableScroll, 'warm-ledger-table-scroll')}
+                        data-warm-table-scroll="inventory-replenishment"
+                        tabIndex={0}
                       >
+                        <Table
+                          containerClassName="overflow-visible"
+                          className={styles.table}
+                        >
                         <TableHeader>
                           <TableRow className="bg-transparent">
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} ${STICKY_LEFT_HEAD_CELL} min-w-[132px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--warm-ledger-color-text-muted)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] ${STICKY_TOP_ROW} ${STICKY_LEFT_HEAD_CELL} min-w-[132px]`}
                             >
                               SKU
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[200px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--warm-ledger-color-text-muted)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] ${STICKY_TOP_ROW} min-w-[200px]`}
                             >
                               产品名称
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[96px] text-right`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--warm-ledger-color-text-muted)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] ${STICKY_TOP_ROW} min-w-[96px] text-right`}
                             >
                               店铺库存
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[88px] text-right`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--warm-ledger-color-text-muted)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] ${STICKY_TOP_ROW} min-w-[88px] text-right`}
                             >
                               在途
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[72px] text-right`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--warm-ledger-color-text-muted)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] ${STICKY_TOP_ROW} min-w-[72px] text-right`}
                             >
                               30D
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[72px] text-right`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--warm-ledger-color-text-muted)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] ${STICKY_TOP_ROW} min-w-[72px] text-right`}
                             >
                               14D
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[72px] text-right`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--warm-ledger-color-text-muted)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] ${STICKY_TOP_ROW} min-w-[72px] text-right`}
                             >
                               7D
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[72px] text-right`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--warm-ledger-color-text-muted)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] ${STICKY_TOP_ROW} min-w-[72px] text-right`}
                             >
                               3D
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[88px] text-right`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--warm-ledger-color-text-muted)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] ${STICKY_TOP_ROW} min-w-[88px] text-right`}
                             >
                               DMS
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[112px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--warm-ledger-color-text-muted)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] ${STICKY_TOP_ROW} min-w-[112px]`}
                             >
                               加权系数
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[100px] text-right`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--warm-ledger-color-text-muted)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] ${STICKY_TOP_ROW} min-w-[100px] text-right`}
                             >
                               加权DMS
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[100px] text-right`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--warm-ledger-color-text-muted)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] ${STICKY_TOP_ROW} min-w-[100px] text-right`}
                             >
                               可售天数
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[116px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--warm-ledger-color-text-muted)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] ${STICKY_TOP_ROW} min-w-[116px]`}
                             >
                               售卖截止
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[116px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--warm-ledger-color-text-muted)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] ${STICKY_TOP_ROW} min-w-[116px]`}
                             >
                               含在途截止
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[104px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--warm-ledger-color-text-muted)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] ${STICKY_TOP_ROW} min-w-[104px]`}
                             >
                               生产交货
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[104px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--warm-ledger-color-text-muted)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] ${STICKY_TOP_ROW} min-w-[104px]`}
                             >
                               运输时间
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[116px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--warm-ledger-color-text-muted)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] ${STICKY_TOP_ROW} min-w-[116px]`}
                             >
                               补货指令
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[116px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--warm-ledger-color-text-muted)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] ${STICKY_TOP_ROW} min-w-[116px]`}
                             >
                               建仓指令
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[116px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--warm-ledger-color-text-muted)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] ${STICKY_TOP_ROW} min-w-[116px]`}
                             >
                               发货指令
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[104px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--warm-ledger-color-text-muted)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] ${STICKY_TOP_ROW} min-w-[104px]`}
                             >
                               预计数量
                             </TableHead>
                             {/* v1.2: 三段式产物 */}
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[104px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--warm-ledger-color-text-muted)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] ${STICKY_TOP_ROW} min-w-[104px]`}
                             >
                               状态
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[116px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--warm-ledger-color-text-muted)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] ${STICKY_TOP_ROW} min-w-[116px]`}
                             >
                               行动
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[104px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--warm-ledger-color-text-muted)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] ${STICKY_TOP_ROW} min-w-[104px]`}
                             >
                               风险状态
                             </TableHead>
                             <TableHead
-                              className={`h-11 whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-term-muted last:border-r-0 dark:border-term-border dark:text-term-text/72 ${STICKY_TOP_ROW} min-w-[154px]`}
+                              className={`h-11 whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-[var(--warm-ledger-color-text-muted)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] ${STICKY_TOP_ROW} min-w-[154px]`}
                             >
                               操作
                             </TableHead>
@@ -1469,38 +1485,38 @@ export default function InventoryReplenishmentPage() {
                               return (
                                 <TableRow
                                   key={key}
-                                  className="group align-top odd:bg-term-panel even:bg-term-raised hover:bg-sky-50/80 dark:odd:bg-term-panel dark:even:bg-term-raised dark:hover:bg-sky-950/20"
+                                  className="group align-top odd:bg-[var(--warm-ledger-color-panel)] even:bg-[var(--warm-ledger-color-raised)] hover:bg-[var(--warm-ledger-color-raised)] dark:odd:bg-[var(--warm-ledger-color-panel)] dark:even:bg-[var(--warm-ledger-color-raised)] dark:hover:bg-[var(--warm-ledger-color-raised)]"
                                 >
                                   <TableCell
-                                    className={`whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 ${STICKY_LEFT_CELL_HOVER} font-medium`}
+                                    className={`whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] ${STICKY_LEFT_CELL_HOVER} font-medium`}
                                   >
                                     {row.sku}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 font-medium text-term-text">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] font-medium text-[var(--warm-ledger-color-text)]">
                                     {row.product_name || '--'}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] text-right">
                                     {formatInt(row.available_inventory)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] text-right">
                                     {formatInt(row.in_transit_quantity)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] text-right">
                                     {formatNumber(row.dms_30)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] text-right">
                                     {formatNumber(row.dms_14)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] text-right">
                                     {formatNumber(row.dms_7)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] text-right">
                                     {formatNumber(row.dms_3)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right font-medium text-term-text">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] text-right font-medium text-[var(--warm-ledger-color-text)]">
                                     {formatNumber(row.base_dms)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)]">
                                     {isSnapshotMode ? (
                                       <span>{formatNumber(row.safety_factor)}%</span>
                                     ) : (
@@ -1513,25 +1529,25 @@ export default function InventoryReplenishmentPage() {
                                               [key]: { ...edit, safety_factor: event.target.value },
                                             }))
                                           }
-                                          className="h-8 w-[72px] rounded-none border-term-border bg-term-panel shadow-none dark:border-term-border dark:bg-term-raised dark:text-term-text"
+                                          className="h-8 w-[72px] rounded-[var(--warm-ledger-radius-inner)] border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] shadow-none dark:border-[color:var(--warm-ledger-color-hairline)] dark:bg-[var(--warm-ledger-color-raised)] dark:text-[var(--warm-ledger-color-text)]"
                                         />
-                                        <span className="text-xs text-term-muted">%</span>
+                                        <span className="text-xs text-[var(--warm-ledger-color-text-muted)]">%</span>
                                       </div>
                                     )}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right font-medium text-term-text">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] text-right font-medium text-[var(--warm-ledger-color-text)]">
                                     {formatNumber(row.weighted_dms)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] text-right">
                                     {formatNumber(row.sellable_days)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)]">
                                     {formatDate(row.sellout_date)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)]">
                                     {formatDate(row.sellout_date_with_transit)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)]">
                                     {isSnapshotMode ? (
                                       <span>{row.production_lead_days}</span>
                                     ) : (
@@ -1546,11 +1562,11 @@ export default function InventoryReplenishmentPage() {
                                             },
                                           }))
                                         }
-                                        className="h-8 w-[72px] rounded-none border-term-border bg-term-panel shadow-none dark:border-term-border dark:bg-term-raised dark:text-term-text"
+                                        className="h-8 w-[72px] rounded-[var(--warm-ledger-radius-inner)] border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] shadow-none dark:border-[color:var(--warm-ledger-color-hairline)] dark:bg-[var(--warm-ledger-color-raised)] dark:text-[var(--warm-ledger-color-text)]"
                                       />
                                     )}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)]">
                                     {isSnapshotMode ? (
                                       <span>{row.shipping_days}</span>
                                     ) : (
@@ -1562,44 +1578,44 @@ export default function InventoryReplenishmentPage() {
                                             [key]: { ...edit, shipping_days: event.target.value },
                                           }))
                                         }
-                                        className="h-8 w-[72px] rounded-none border-term-border bg-term-panel shadow-none dark:border-term-border dark:bg-term-raised dark:text-term-text"
+                                        className="h-8 w-[72px] rounded-[var(--warm-ledger-radius-inner)] border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] shadow-none dark:border-[color:var(--warm-ledger-color-hairline)] dark:bg-[var(--warm-ledger-color-raised)] dark:text-[var(--warm-ledger-color-text)]"
                                       />
                                     )}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)]">
                                     {formatDate(row.replenishment_order_date)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)]">
                                     {formatDate(row.warehouse_entry_date)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)]">
                                     {formatDate(row.shipment_order_date)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right font-medium text-term-text">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] text-right font-medium text-[var(--warm-ledger-color-text)]">
                                     {formatInt(row.estimated_replenishment_quantity)}
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)]">
                                     <Badge variant="outline" className={invState.className}>
                                       {invState.label}
                                     </Badge>
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)]">
                                     <Badge variant="outline" className={action.className}>
                                       {action.label}
                                     </Badge>
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)]">
                                     <Badge variant="outline" className={risk.className}>
                                       {risk.label}
                                     </Badge>
                                   </TableCell>
-                                  <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80">
+                                  <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)]">
                                     <div className="flex flex-col gap-1.5">
                                       <div className="flex items-center gap-2">
                                         {!isSnapshotMode && (
-                                          <Button
-                                            size="sm"
-                                            className="h-8 gap-1.5 whitespace-nowrap px-2.5 text-xs dark:bg-term-raised dark:text-term-text"
+                                          <WarmButton
+                                            variant="secondary"
+                                            className="h-8 gap-1.5 whitespace-nowrap px-2.5 text-xs dark:bg-[var(--warm-ledger-color-raised)] dark:text-[var(--warm-ledger-color-text)]"
                                             onClick={() => void saveRow(row)}
                                             disabled={savingSku === key}
                                           >
@@ -1609,17 +1625,16 @@ export default function InventoryReplenishmentPage() {
                                               <Save className="mr-1.5 h-3.5 w-3.5" />
                                             )}
                                             保存
-                                          </Button>
+                                          </WarmButton>
                                         )}
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          className="h-8 gap-1.5 whitespace-nowrap px-2.5 text-xs dark:border-term-border dark:bg-term-raised dark:text-term-text"
+                                        <WarmButton
+                                          variant="secondary"
+                                          className="h-8 gap-1.5 whitespace-nowrap px-2.5 text-xs dark:border-[color:var(--warm-ledger-color-hairline)] dark:bg-[var(--warm-ledger-color-raised)] dark:text-[var(--warm-ledger-color-text)]"
                                           onClick={() => void openShipments(row)}
                                         >
                                           <Send className="h-3.5 w-3.5" />
                                           查看发货
-                                        </Button>
+                                        </WarmButton>
                                       </div>
                                     </div>
                                   </TableCell>
@@ -1628,59 +1643,60 @@ export default function InventoryReplenishmentPage() {
                             })}
                             <TableRow className="bg-muted/40 font-semibold">
                               <TableCell
-                                className={`whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 ${STICKY_LEFT_CELL_HOVER}`}
+                                className={`whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] ${STICKY_LEFT_CELL_HOVER}`}
                               >
                                 合计
                               </TableCell>
                               <TableCell
-                                className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80"
+                                className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)]"
                                 colSpan={1}
                               />
-                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
+                              <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] text-right">
                                 {formatInt(tableTotals.available_inventory)}
                               </TableCell>
-                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
+                              <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] text-right">
                                 {formatInt(tableTotals.in_transit_quantity)}
                               </TableCell>
-                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
+                              <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] text-right">
                                 {formatNumber(tableTotals.dms_30, 4)}
                               </TableCell>
-                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
+                              <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] text-right">
                                 {formatNumber(tableTotals.dms_14, 4)}
                               </TableCell>
-                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
+                              <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] text-right">
                                 {formatNumber(tableTotals.dms_7, 4)}
                               </TableCell>
-                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
+                              <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] text-right">
                                 {formatNumber(tableTotals.dms_3, 4)}
                               </TableCell>
-                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
+                              <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] text-right">
                                 {formatNumber(tableTotals.base_dms, 4)}
                               </TableCell>
-                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80" />
-                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
+                              <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)]" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] text-right">
                                 {formatNumber(tableTotals.weighted_dms)}
                               </TableCell>
-                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80" />
-                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80" />
-                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80" />
-                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80" />
-                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80" />
-                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80" />
-                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80" />
-                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80" />
-                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80 text-right">
+                              <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)]" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)]" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)]" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)]" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)]" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)]" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)]" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)]" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)] text-right">
                                 {formatInt(tableTotals.estimated_replenishment_quantity)}
                               </TableCell>
                               {/* v1.2: 状态 / 行动总计空位（不计算总计） */}
-                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80" />
-                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80" />
-                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80">{`SKU: ${formatInt(summary.sku_count)}`}</TableCell>
-                              <TableCell className="whitespace-nowrap border-b border-r border-term-border px-3 py-2.5 align-middle text-[13px] text-term-text/88 last:border-r-0 dark:border-term-border dark:text-term-text/80" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)]" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)]" />
+                              <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)]">{`SKU: ${formatInt(summary.sku_count)}`}</TableCell>
+                              <TableCell className="whitespace-nowrap border-b border-r border-[color:var(--warm-ledger-color-hairline)] px-3 py-2.5 align-middle text-[13px] text-[var(--warm-ledger-color-text)] last:border-r-0 dark:border-[color:var(--warm-ledger-color-hairline)] dark:text-[var(--warm-ledger-color-text-soft)]" />
                             </TableRow>
                           </>
                         </TableBody>
-                      </Table>
+                        </Table>
+                      </div>
                     </div>
                   </DataTableCardBody>
                 </DataTableCard>
@@ -1689,7 +1705,7 @@ export default function InventoryReplenishmentPage() {
               {/* 手机端：卡片列表 */}
               <div className="md:hidden space-y-3">
                 {loading && rows.length > 0 ? (
-                  <div className="text-center text-xs text-term-muted py-2">
+                  <div className="text-center text-xs text-[var(--warm-ledger-color-text-muted)] py-2">
                     补货主表更新中...
                   </div>
                 ) : null}
@@ -1700,11 +1716,11 @@ export default function InventoryReplenishmentPage() {
                   const invState = stateMeta(row.inventory_state)
                   const action = actionMeta(row.replenishment_action)
                   return (
-                    <div key={key} className="bg-term-panel p-4 space-y-3">
+                    <div key={key} className={cn(styles.mobileCard, 'space-y-3')}>
                       {/* 头部：SKU + 状态 + 行动 */}
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
-                          <span className="font-semibold text-sm text-term-text truncate">
+                          <span className="font-semibold text-sm text-[var(--warm-ledger-color-text)] truncate">
                             {row.sku}
                           </span>
                         </div>
@@ -1723,7 +1739,7 @@ export default function InventoryReplenishmentPage() {
 
                       {/* 产品名称 */}
                       {row.product_name && (
-                        <div className="text-xs text-term-muted">
+                        <div className="text-xs text-[var(--warm-ledger-color-text-muted)]">
                           产品名称: {row.product_name}
                         </div>
                       )}
@@ -1731,33 +1747,33 @@ export default function InventoryReplenishmentPage() {
                       {/* 核心数据 2 列网格 */}
                       <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                         <div>
-                          <span className="text-xs text-term-muted">店铺库存</span>
-                          <div className="font-medium text-term-text">
+                          <span className="text-xs text-[var(--warm-ledger-color-text-muted)]">店铺库存</span>
+                          <div className="font-medium text-[var(--warm-ledger-color-text)]">
                             {formatInt(row.available_inventory)}
                           </div>
                         </div>
                         <div>
-                          <span className="text-xs text-term-muted">在途</span>
-                          <div className="font-medium text-term-text">
+                          <span className="text-xs text-[var(--warm-ledger-color-text-muted)]">在途</span>
+                          <div className="font-medium text-[var(--warm-ledger-color-text)]">
                             {formatInt(row.in_transit_quantity)}
                           </div>
                         </div>
                         <div>
-                          <span className="text-xs text-term-muted">DMS (加权)</span>
-                          <div className="font-medium text-term-text">
+                          <span className="text-xs text-[var(--warm-ledger-color-text-muted)]">DMS (加权)</span>
+                          <div className="font-medium text-[var(--warm-ledger-color-text)]">
                             {formatNumber(row.weighted_dms)}
                           </div>
                         </div>
                         <div>
-                          <span className="text-xs text-term-muted">可售天数</span>
-                          <div className="font-medium text-term-text">
+                          <span className="text-xs text-[var(--warm-ledger-color-text-muted)]">可售天数</span>
+                          <div className="font-medium text-[var(--warm-ledger-color-text)]">
                             {formatNumber(row.sellable_days)}
                           </div>
                         </div>
                       </div>
 
                       {/* 日期信息 */}
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-term-muted">
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-[var(--warm-ledger-color-text-muted)]">
                         <div>售卖截止: {formatDate(row.sellout_date)}</div>
                         <div>含在途: {formatDate(row.sellout_date_with_transit)}</div>
                         <div>补货指令: {formatDate(row.replenishment_order_date)}</div>
@@ -1765,10 +1781,10 @@ export default function InventoryReplenishmentPage() {
                       </div>
 
                       {/* 可编辑字段 */}
-                      <div className="border-t border-term-border pt-3">
+                      <div className="border-t border-[color:var(--warm-ledger-color-hairline)] pt-3">
                         <div className="grid grid-cols-3 gap-2">
                           <div className="space-y-1">
-                            <div className="text-[11px] text-term-muted">生产交货</div>
+                            <div className="text-[11px] text-[var(--warm-ledger-color-text-muted)]">生产交货</div>
                             {isSnapshotMode ? (
                               <div className="h-8 flex items-center text-sm">
                                 {row.production_lead_days} 天
@@ -1782,12 +1798,12 @@ export default function InventoryReplenishmentPage() {
                                     [key]: { ...edit, production_lead_days: event.target.value },
                                   }))
                                 }
-                                className="h-8 text-xs rounded-none border-term-border bg-term-panel shadow-none dark:border-term-border dark:bg-term-raised dark:text-term-text"
+                                className="h-8 text-xs rounded-[var(--warm-ledger-radius-inner)] border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] shadow-none dark:border-[color:var(--warm-ledger-color-hairline)] dark:bg-[var(--warm-ledger-color-raised)] dark:text-[var(--warm-ledger-color-text)]"
                               />
                             )}
                           </div>
                           <div className="space-y-1">
-                            <div className="text-[11px] text-term-muted">运输时间</div>
+                            <div className="text-[11px] text-[var(--warm-ledger-color-text-muted)]">运输时间</div>
                             {isSnapshotMode ? (
                               <div className="h-8 flex items-center text-sm">
                                 {row.shipping_days} 天
@@ -1801,12 +1817,12 @@ export default function InventoryReplenishmentPage() {
                                     [key]: { ...edit, shipping_days: event.target.value },
                                   }))
                                 }
-                                className="h-8 text-xs rounded-none border-term-border bg-term-panel shadow-none dark:border-term-border dark:bg-term-raised dark:text-term-text"
+                                className="h-8 text-xs rounded-[var(--warm-ledger-radius-inner)] border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] shadow-none dark:border-[color:var(--warm-ledger-color-hairline)] dark:bg-[var(--warm-ledger-color-raised)] dark:text-[var(--warm-ledger-color-text)]"
                               />
                             )}
                           </div>
                           <div className="space-y-1">
-                            <div className="text-[11px] text-term-muted">加权系数</div>
+                            <div className="text-[11px] text-[var(--warm-ledger-color-text-muted)]">加权系数</div>
                             {isSnapshotMode ? (
                               <div className="h-8 flex items-center text-sm">
                                 {formatNumber(row.safety_factor)}%
@@ -1821,9 +1837,9 @@ export default function InventoryReplenishmentPage() {
                                       [key]: { ...edit, safety_factor: event.target.value },
                                     }))
                                   }
-                                  className="h-8 text-xs rounded-none border-term-border bg-term-panel shadow-none dark:border-term-border dark:bg-term-raised dark:text-term-text"
+                                  className="h-8 text-xs rounded-[var(--warm-ledger-radius-inner)] border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] shadow-none dark:border-[color:var(--warm-ledger-color-hairline)] dark:bg-[var(--warm-ledger-color-raised)] dark:text-[var(--warm-ledger-color-text)]"
                                 />
-                                <span className="text-xs text-term-muted">%</span>
+                                <span className="text-xs text-[var(--warm-ledger-color-text-muted)]">%</span>
                               </div>
                             )}
                           </div>
@@ -1833,8 +1849,8 @@ export default function InventoryReplenishmentPage() {
                       {/* 预计补货数量 */}
                       {row.estimated_replenishment_quantity !== null && (
                         <div className="text-sm">
-                          <span className="text-xs text-term-muted">预计补货数量: </span>
-                          <span className="font-medium text-term-text">
+                          <span className="text-xs text-[var(--warm-ledger-color-text-muted)]">预计补货数量: </span>
+                          <span className="font-medium text-[var(--warm-ledger-color-text)]">
                             {formatInt(row.estimated_replenishment_quantity)}
                           </span>
                         </div>
@@ -1843,9 +1859,9 @@ export default function InventoryReplenishmentPage() {
                       {/* 操作按钮 */}
                       <div className="flex gap-2 pt-1">
                         {!isSnapshotMode && (
-                          <Button
-                            size="sm"
-                            className="h-9 flex-1 gap-1.5 text-xs dark:bg-term-raised dark:text-term-text"
+                          <WarmButton
+                            variant="secondary"
+                            className="h-9 flex-1 gap-1.5 text-xs dark:bg-[var(--warm-ledger-color-raised)] dark:text-[var(--warm-ledger-color-text)]"
                             onClick={() => void saveRow(row)}
                             disabled={savingSku === key}
                           >
@@ -1855,20 +1871,19 @@ export default function InventoryReplenishmentPage() {
                               <Save className="h-3.5 w-3.5" />
                             )}
                             保存
-                          </Button>
+                          </WarmButton>
                         )}
-                        <Button
-                          size="sm"
-                          variant="outline"
+                        <WarmButton
+                          variant="secondary"
                           className={cn(
-                            'h-9 gap-1.5 text-xs dark:border-term-border dark:bg-term-raised dark:text-term-text',
+                            'h-9 gap-1.5 text-xs dark:border-[color:var(--warm-ledger-color-hairline)] dark:bg-[var(--warm-ledger-color-raised)] dark:text-[var(--warm-ledger-color-text)]',
                             isSnapshotMode ? 'w-full' : 'flex-1'
                           )}
                           onClick={() => void openShipments(row)}
                         >
                           <Send className="h-3.5 w-3.5" />
                           查看发货
-                        </Button>
+                        </WarmButton>
                       </div>
                     </div>
                   )
@@ -1886,13 +1901,13 @@ export default function InventoryReplenishmentPage() {
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent
           side="right"
-          className="w-full overflow-y-auto dark:border-term-border dark:bg-term-panel sm:max-w-2xl"
+          className={cn('w-full overflow-y-auto sm:max-w-2xl', styles.drawerSurface)}
         >
           <SheetHeader>
-            <SheetTitle className="dark:text-term-text">
+            <SheetTitle className="dark:text-[var(--warm-ledger-color-text)]">
               {selectedRow ? `${selectedRow.sku} 发货信息` : '发货信息'}
             </SheetTitle>
-            <SheetDescription className="dark:text-term-text/72">
+            <SheetDescription className="dark:text-[var(--warm-ledger-color-text-soft)]">
               在途数量口径包含 `in_transit`、`draft`。本抽屉只读展示；正式货件维护请前往货件管理，未落实的预计到货计划请前往发货规划。
             </SheetDescription>
           </SheetHeader>
@@ -1900,26 +1915,26 @@ export default function InventoryReplenishmentPage() {
           {selectedRow ? (
             <div className="mt-6 space-y-4">
               <div className="grid gap-3 md:grid-cols-3">
-                <Card className="border-term-border dark:border-term-border dark:bg-term-raised">
+                <Card className={styles.summaryCard}>
                   <CardContent className="pt-6">
-                    <div className="text-xs text-term-muted">SKU</div>
-                    <div className="mt-1 text-lg font-semibold text-term-text">
+                    <div className="text-xs text-[var(--warm-ledger-color-text-muted)]">SKU</div>
+                    <div className="mt-1 text-lg font-semibold text-[var(--warm-ledger-color-text)]">
                       {selectedRow.sku}
                     </div>
                   </CardContent>
                 </Card>
-                <Card className="border-term-border dark:border-term-border dark:bg-term-raised">
+                <Card className={styles.summaryCard}>
                   <CardContent className="pt-6">
-                    <div className="text-xs text-term-muted">店铺库存</div>
-                    <div className="mt-1 text-lg font-semibold text-term-text">
+                    <div className="text-xs text-[var(--warm-ledger-color-text-muted)]">店铺库存</div>
+                    <div className="mt-1 text-lg font-semibold text-[var(--warm-ledger-color-text)]">
                       {formatInt(selectedRow.available_inventory)}
                     </div>
                   </CardContent>
                 </Card>
-                <Card className="border-term-border dark:border-term-border dark:bg-term-raised">
+                <Card className={styles.summaryCard}>
                   <CardContent className="pt-6">
-                    <div className="text-xs text-term-muted">在途数量</div>
-                    <div className="mt-1 text-lg font-semibold text-term-text">
+                    <div className="text-xs text-[var(--warm-ledger-color-text-muted)]">在途数量</div>
+                    <div className="mt-1 text-lg font-semibold text-[var(--warm-ledger-color-text)]">
                       {formatInt(selectedRow.in_transit_quantity)}
                     </div>
                   </CardContent>
@@ -1932,7 +1947,7 @@ export default function InventoryReplenishmentPage() {
                   <Skeleton className="h-24 w-full" />
                 </div>
               ) : shipments.length === 0 ? (
-                <div className="rounded-none border border-dashed border-term-border px-4 py-10 text-center text-sm text-term-muted dark:border-term-border">
+                <div className={styles.stateNotice} data-warm-state="empty">
                   当前 SKU 暂无发货记录。
                 </div>
               ) : (
@@ -1942,17 +1957,17 @@ export default function InventoryReplenishmentPage() {
                     return (
                       <div
                         key={`${item.schedule_id}-${item.shipment_no}`}
-                        className="rounded-none border border-term-border bg-term-panel p-4 shadow-none dark:border-term-border dark:bg-term-raised dark:shadow-none"
+                        className={styles.shipmentCard}
                       >
                         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                           <div className="space-y-2">
                             <div className="flex items-center gap-2">
-                              <div className="font-semibold text-term-text">
+                              <div className="font-semibold text-[var(--warm-ledger-color-text)]">
                                 {item.shipment_no}
                               </div>
                               <Badge className={status.className}>{status.label}</Badge>
                             </div>
-                            <div className="grid gap-1 text-sm text-term-muted dark:text-term-text/80">
+                            <div className="grid gap-1 text-sm text-[var(--warm-ledger-color-text-muted)] dark:text-[var(--warm-ledger-color-text-soft)]">
                               <div>物流方式：{methodLabel(item.shipping_method)}</div>
                               <div>数量：{formatInt(item.quantity)}</div>
                               <div>ETD：{formatDate(item.etd_date)}</div>
@@ -1962,12 +1977,11 @@ export default function InventoryReplenishmentPage() {
                             </div>
                           </div>
                           <div className="space-y-3 text-right">
-                            <div className="text-xs text-term-muted">最近更新</div>
-                            <div className="text-sm text-term-text/80">{item.updated_at}</div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="dark:border-term-border dark:bg-term-raised dark:text-term-text"
+                            <div className="text-xs text-[var(--warm-ledger-color-text-muted)]">最近更新</div>
+                            <div className="text-sm text-[var(--warm-ledger-color-text-soft)]">{item.updated_at}</div>
+                            <WarmButton
+                              variant="secondary"
+                              className="dark:border-[color:var(--warm-ledger-color-hairline)] dark:bg-[var(--warm-ledger-color-raised)] dark:text-[var(--warm-ledger-color-text)]"
                               onClick={() => {
                                 const params = new URLSearchParams({
                                   shipment_no: item.shipment_no,
@@ -1982,11 +1996,11 @@ export default function InventoryReplenishmentPage() {
                             >
                               <Send className="mr-1.5 h-3.5 w-3.5" />
                               去管理
-                            </Button>
+                            </WarmButton>
                           </div>
                         </div>
                         {item.remark ? (
-                          <div className="mt-3 rounded-none bg-term-raised px-3 py-2 text-sm text-term-text/80 dark:bg-term-raised">
+                          <div className="mt-3 rounded-[var(--warm-ledger-radius-inner)] bg-[var(--warm-ledger-color-raised)] px-3 py-2 text-sm text-[var(--warm-ledger-color-text-soft)] dark:bg-[var(--warm-ledger-color-raised)]">
                             {item.remark}
                           </div>
                         ) : null}
@@ -2000,47 +2014,47 @@ export default function InventoryReplenishmentPage() {
         </SheetContent>
       </Sheet>
 
-      <div className="rounded-none border border-term-border bg-term-panel px-5 py-4 text-sm text-term-text/80 dark:border-term-border dark:bg-term-raised">
+      <div className={styles.callout}>
         <div className="flex items-start gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-none bg-term-panel text-term-muted shadow-none ring-1 ring-border/70 dark:bg-term-raised dark:text-term-text/72 dark:ring-border/80">
+          <div className={styles.calloutIcon}>
             <CalendarClock className="h-4 w-4" />
           </div>
           <div className="min-w-0 space-y-3">
             <div>
-              <div className="text-sm font-semibold text-term-text">口径说明</div>
+              <div className={styles.calloutHeader}>口径说明</div>
             </div>
-            <div className="grid gap-2">
-              <div className="rounded-none border border-term-border bg-term-panel/90 px-3 py-2.5 leading-6 dark:border-term-border dark:bg-term-raised/90">
-                <span className="mr-2 inline-flex rounded-none bg-term-raised px-2 py-0.5 text-xs font-medium text-term-text/80 dark:bg-term-raised">
+            <div className={styles.calloutGrid}>
+              <div className={styles.calloutItem}>
+                <span className={styles.calloutTag}>
                   风险状态
                 </span>
                 按 <code>含在途截止 - today</code> 判定；若销量数据缺失，则状态为待补数据。
               </div>
-              <div className="rounded-none border border-term-border bg-term-panel/90 px-3 py-2.5 leading-6 dark:border-term-border dark:bg-term-raised/90">
-                <span className="mr-2 inline-flex rounded-none bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-950/60 dark:text-violet-300">
+              <div className={styles.calloutItem}>
+                <span className={styles.calloutTag}>
                   预计数量
                 </span>
                 按 <code>(生产交货时间 + 运输时间) × 加权DMS</code>{' '}
                 计算；滞销与严重滞销状态不显示预计补货数量，其余状态在存在有效 <code>加权DMS</code>{' '}
                 时显示。
               </div>
-              <div className="rounded-none border border-term-border bg-term-panel/90 px-3 py-2.5 leading-6 dark:border-term-border dark:bg-term-raised/90">
-                <span className="mr-2 inline-flex rounded-none bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-950/60 dark:text-sky-300">
+              <div className={styles.calloutItem}>
+                <span className={styles.calloutTag}>
                   销量来源
                 </span>
                 近 <code>30D / 14D / 7D / 3D</code> 全部改为取 <code>sales_report</code> 明细，其中{' '}
                 <code>3D</code> 使用滞后 2 天窗口。
               </div>
-              <div className="rounded-none border border-term-border bg-term-panel/90 px-3 py-2.5 leading-6 dark:border-term-border dark:bg-term-raised/90">
-                <span className="mr-2 inline-flex rounded-none bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+              <div className={styles.calloutItem}>
+                <span className={styles.calloutTag}>
                   权重规则
                 </span>
                 默认按 <code>30D 10%</code>、<code>14D 30%</code>、<code>7D 30%</code>、
                 <code>3D 30%</code> 计算；若 <code>3D</code> 缺失，则其 <code>30%</code>{' '}
                 权重全部并给 <code>7D</code>。
               </div>
-              <div className="rounded-none border border-term-border bg-term-panel/90 px-3 py-2.5 leading-6 dark:border-term-border dark:bg-term-raised/90">
-                <span className="mr-2 inline-flex rounded-none bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
+              <div className={styles.calloutItem}>
+                <span className={styles.calloutTag}>
                   窗口示例
                 </span>
                 若今天是 <code>2026-03-09</code>，则 <code>3D</code> 取 <code>2026-03-05</code> 到{' '}

@@ -286,6 +286,54 @@ describe('WeeklyProductAnalysisClient header 化渲染契约（operations header
     expect(fetchCallsOf('/api/v1/product-analysis/weekly?')).toHaveLength(1)
   })
 
+  it('Warm Ledger 契约：页面根、趋势图表面板与自身滚动表格', async () => {
+    const { container } = render(<WeeklyProductAnalysisClient />)
+    await screen.findByText('2026-08-17 至 2026-08-23')
+
+    const page = container.querySelector('[data-warm-page="weekly-product-analysis"]')
+    expect(page).not.toBeNull()
+    expect(page).toHaveAttribute('data-warm-state', 'ready')
+    expect(container.querySelector('[data-warm-chart="weekly-trend"]')).not.toBeNull()
+
+    const scroll = container.querySelector('[data-warm-table-scroll]')
+    expect(scroll).not.toBeNull()
+    expect(scroll?.querySelector('table')).not.toBeNull()
+    expect(scroll?.className).toMatch(/warm/i)
+  })
+
+  it('Warm Ledger 契约：错误态与空态保留明确标记', async () => {
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/api/v1/product-analysis/weekly')) {
+        return Promise.resolve({
+          ok: false,
+          status: 500,
+          text: () => Promise.resolve('周汇总加载失败'),
+        } as unknown as Response)
+      }
+      return defaultFetchRouter(input)
+    })
+
+    const { unmount } = render(<WeeklyProductAnalysisClient />)
+    const error = await screen.findByText('数据加载失败')
+    expect(error.closest('[data-warm-state]')).toHaveAttribute('data-warm-state', 'error')
+
+    unmount()
+    fetchMock.mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/api/v1/product-analysis/weekly')) {
+        return Promise.resolve(jsonResponse([]))
+      }
+      return defaultFetchRouter(input)
+    })
+    const { container } = render(<WeeklyProductAnalysisClient />)
+    expect(await screen.findByText('当前筛选条件暂无产品分析周汇总数据')).toHaveAttribute(
+      'data-warm-state',
+      'empty'
+    )
+    expect(container.querySelector('[data-warm-page="weekly-product-analysis"]')).not.toBeNull()
+  })
+
   it('旧控制台已移除：无「控制台」文案、无 PageHeader 胶囊、无页内「刷新」按钮', async () => {
     render(<WeeklyProductAnalysisClient />)
     await screen.findByText('2026-08-17 至 2026-08-23')

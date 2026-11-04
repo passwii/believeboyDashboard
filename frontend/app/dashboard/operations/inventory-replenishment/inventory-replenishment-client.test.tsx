@@ -259,6 +259,51 @@ describe('补货分析页 header 化渲染契约（operations header migration B
     expect(screen.getByText('口径说明')).toBeInTheDocument()
   })
 
+  it('Warm Ledger 契约：页面根标记、桌面表格自身滚动与 loading/empty 状态', async () => {
+    let resolveAnalysis: ((value: unknown) => void) | undefined
+    vi.mocked(fetchOpsJsonCached).mockImplementationOnce(() =>
+      new Promise((resolve) => {
+        resolveAnalysis = resolve
+      })
+    )
+
+    const user = userEvent.setup()
+    const { container } = render(<InventoryReplenishmentPage />)
+    const page = container.querySelector('[data-warm-page="inventory-replenishment"]')
+    expect(page).not.toBeNull()
+
+    await vi.waitFor(() => expect(resolveAnalysis).toBeTypeOf('function'))
+    expect(page).toHaveAttribute('data-warm-state', 'loading')
+
+    resolveAnalysis?.({
+      ...analysisPayload(),
+      items: [],
+      total: 0,
+    })
+
+    await user.click(screen.getByRole('tab', { name: /表格视图/ }))
+    expect(await screen.findByText('当前筛选条件下没有可分析的 SKU。')).toHaveAttribute(
+      'data-warm-state',
+      'empty'
+    )
+    expect(page).toHaveAttribute('data-warm-state', 'empty')
+  })
+
+  it('Warm Ledger 契约：表格滚动容器只包裹自身且保留完整列', async () => {
+    const user = userEvent.setup()
+    const { container } = render(<InventoryReplenishmentPage />)
+    await screen.findByText('SKU-001')
+    await user.click(screen.getByRole('tab', { name: /表格视图/ }))
+
+    const scroll = await vi.waitFor(() => {
+      const node = container.querySelector('[data-warm-table-scroll]')
+      expect(node).not.toBeNull()
+      return node as HTMLElement
+    })
+    expect(scroll.querySelector('table')).not.toBeNull()
+    expect(scroll.className).toMatch(/warm/i)
+  })
+
   it('4 个筛选控件注册进头部插槽（项目/关键词/站点/风险状态），正文不再渲染', async () => {
     render(<InventoryReplenishmentPage />)
     await screen.findByText('SKU-001')
