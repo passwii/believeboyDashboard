@@ -129,7 +129,7 @@ function ProgressRow({
       <div className={styles.progressTrack}>
         <div
           className={styles.progressFill}
-          style={{ width: `${pct}%` }}
+          style={{ transform: `scaleX(${pct / 100})` }}
         />
       </div>
       <span className={styles.progressValue}>
@@ -375,7 +375,7 @@ function RpaStatusGrid({
               loading={statusLoading}
               loadingLabel="正在刷新报表状态"
             >
-              <Loader2 aria-hidden />
+              {statusLoading ? null : <Loader2 aria-hidden />}
             </WarmIconButton>
           </div>
         </div>
@@ -834,7 +834,7 @@ function AutoUploadContent({
           loadingLabel="正在上传全部文件"
           className="flex-1 sm:flex-none"
         >
-          <Upload aria-hidden />
+          {uploading ? null : <Upload aria-hidden />}
           {uploading ? '上传中...' : `上传全部 (${pendingCount})`}
         </WarmButton>
 
@@ -891,10 +891,12 @@ function AutoUploadContent({
                   <Upload className="h-5 w-5 text-[color:var(--warm-ledger-color-accent-strong)]" aria-hidden />
                 </div>
                 <div className="space-y-1">
-                  <p className="font-mono text-xs font-semibold uppercase tracking-wider text-[color:var(--warm-ledger-color-text)] sm:text-sm">
+                  <p className="font-sans text-xs font-semibold text-[color:var(--warm-ledger-color-text)] sm:text-sm">
                     拖拽文件到这里，或点击选择
                   </p>
-                  <p className="font-mono text-[11px] text-[color:var(--warm-ledger-color-text-faint)]">支持 .txt / .csv / .xlsx</p>
+                  <p className="font-sans text-[11px] text-[color:var(--warm-ledger-color-text-faint)]">
+                    支持 .txt / .csv / .xlsx
+                  </p>
                 </div>
               </label>
               {recognizing ? (

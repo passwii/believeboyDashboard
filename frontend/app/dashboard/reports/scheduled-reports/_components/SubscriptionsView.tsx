@@ -730,7 +730,13 @@ export default function SubscriptionsView({
                             <span className={styles.mutedCell}>已暂停</span>
                           )}
                         </td>
-                        <td className={cn(styles.mutedCell, styles.truncateCell)}>
+                        <td
+                          className={cn(
+                            styles.mutedCell,
+                            styles.truncateCell,
+                            styles.modelCell
+                          )}
+                        >
                           {sub.ai_model || '—'}
                         </td>
                         <td className={styles.actionsCell}>
@@ -832,7 +838,9 @@ export default function SubscriptionsView({
                       {sub.email || '未填写邮箱'}
                     </div>
                     {sub.ai_model ? (
-                      <div className={styles.mobileMeta}>AI: {sub.ai_model}</div>
+                          <div className={cn(styles.mobileMeta, styles.modelCell)}>
+                            AI: {sub.ai_model}
+                          </div>
                     ) : null}
                     {canManage ? (
                       <div className={styles.mobileActions}>

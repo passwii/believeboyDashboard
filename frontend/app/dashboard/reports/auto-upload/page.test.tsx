@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { readdirSync, readFileSync } from 'node:fs'
@@ -38,6 +38,14 @@ vi.mock('@/lib/project-client-cache', () => ({
 const SUMMARY_LABEL = '库存分类账 · 汇总视图（Summary）'
 const DETAIL_LABEL = '库存分类账 · 明细视图（Detail）'
 const AUTO_UPLOAD_SOURCE_ROOT = join(process.cwd(), 'app/dashboard/reports/auto-upload')
+const AUTO_UPLOAD_CSS = readFileSync(
+  join(AUTO_UPLOAD_SOURCE_ROOT, 'auto-upload-warm.module.css'),
+  'utf8'
+)
+const AUTO_UPLOAD_PAGE_SOURCE = readFileSync(
+  join(AUTO_UPLOAD_SOURCE_ROOT, 'page.tsx'),
+  'utf8'
+)
 const TERMINAL_VISUAL_RESIDUE = [
   { label: 'Terminal token', pattern: /--term-/g },
   { label: 'Terminal utility', pattern: /\bterm-[a-z0-9-]+/g },
@@ -189,6 +197,97 @@ describe('DATE_REQUIRED_REPORT_TYPES / isDateRequired', () => {
 })
 
 describe('AutoUploadPage 队列与状态矩阵渲染', () => {
+  it('进度条用 transform 动画，避免触发布局', () => {
+    expect(AUTO_UPLOAD_CSS).not.toMatch(/transition:\s*width/)
+    expect(cssBlock(AUTO_UPLOAD_CSS, '.progressFill')).toContain(
+      'transform-origin: left center'
+    )
+    expect(AUTO_UPLOAD_PAGE_SOURCE).toContain('transform: `scaleX(')
+  })
+
+  it('上传说明是普通 sans 文本，不使用 mono', async () => {
+    const user = userEvent.setup()
+    render(<AutoUploadPage />)
+    await user.click(screen.getByRole('tab', { name: '文件上传' }))
+
+    for (const text of ['拖拽文件到这里，或点击选择', '支持 .txt / .csv / .xlsx']) {
+      const element = screen.getByText(text)
+      expect(element.className).toContain('font-sans')
+      expect(element.className).not.toContain('font-mono')
+    }
+  })
+
+  it('上传中只保留 WarmButton spinner，不保留上传图标', async () => {
+    const user = userEvent.setup()
+    let resolveCommit!: () => void
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.includes('/rpa-reports/status')) return jsonResponse({ items: [] })
+        if (url.includes('/report-upload/recognize')) {
+          return jsonResponse({
+            ...RECOGNITION,
+            project_match: {
+              status: 'matched',
+              project_name: '测试项目',
+              candidate_projects: [],
+              matched_by: 'sku',
+              matched_values: ['MSKU-1'],
+              message: null,
+            },
+          })
+        }
+        if (url.includes('/report-upload/commit')) {
+          return await new Promise<Response>((resolve) => {
+            resolveCommit = () => resolve(jsonResponse({ status: 'persisted' }))
+          })
+        }
+        return jsonResponse({})
+      })
+    )
+
+    render(<AutoUploadPage />)
+    await user.click(screen.getByRole('tab', { name: '文件上传' }))
+    await user.upload(
+      screen.getByLabelText(/拖拽文件到这里/),
+      new File(['date,msku'], '库存分类账 2026-03一览视图.csv', { type: 'text/csv' })
+    )
+    await screen.findByText(`类型：${SUMMARY_LABEL}`)
+    await user.click(screen.getByRole('button', { name: /上传全部/ }))
+
+    const button = await screen.findByRole('button', { name: '正在上传全部文件' })
+    expect(button).toHaveAttribute('aria-busy', 'true')
+    expect(button.querySelector('svg')).toBeNull()
+    expect(button.querySelectorAll('.warm-ledger__loading-mark')).toHaveLength(1)
+
+    await act(async () => resolveCommit())
+    await waitFor(() => expect(button).not.toHaveAttribute('aria-busy'))
+  })
+
+  it('状态刷新中只保留 WarmIconButton spinner，不叠加子 Loader2', async () => {
+    let resolveStatus!: () => void
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).includes('/rpa-reports/status')) {
+          return await new Promise<Response>((resolve) => {
+            resolveStatus = () => resolve(jsonResponse({ items: [] }))
+          })
+        }
+        return jsonResponse({})
+      })
+    )
+
+    render(<AutoUploadPage />)
+    const button = await screen.findByRole('button', { name: '正在刷新报表状态' })
+    expect(button).toHaveAttribute('aria-busy', 'true')
+    expect(button.querySelector('svg')).toBeNull()
+    expect(button.querySelectorAll('.warm-ledger__loading-mark')).toHaveLength(1)
+
+    await act(async () => resolveStatus())
+  })
+
   it('使用 Warm Ledger 页面表面并保留桌面表格滚动容器', async () => {
     const { container } = render(<AutoUploadPage />)
 
@@ -322,3 +421,11 @@ describe('AutoUploadPage 队列与状态矩阵渲染', () => {
     ).toBeInTheDocument()
   })
 })
+
+function cssBlock(source: string, selector: string): string {
+  const start = source.indexOf(selector)
+  expect(start, `missing CSS selector: ${selector}`).toBeGreaterThanOrEqual(0)
+  const open = source.indexOf('{', start)
+  const close = source.indexOf('}', open)
+  return source.slice(open + 1, close)
+}
