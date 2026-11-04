@@ -96,6 +96,8 @@ Completed in `f92b469e` before the 2026-11-04 DeepSeek model-policy switch. Targ
 
 Task 3 and Task 4 have disjoint write scopes and may run in parallel after Task 2 is committed. Use separate worktrees and DeepSeek/max implementers; integrate both before the C3 browser matrix and consolidated review.
 
+Completed by DeepSeek/max in `dfb71319`; integrated as `c3ffb46c`. Targeted Vitest passed (5 files / 15 tests), RED preceded implementation, changed-file ESLint / mock-stability / `git diff --check` passed.
+
 **Files:**
 
 - Modify `frontend/app/dashboard/reports/product-analysis/page.tsx` and `page.test.tsx`.
@@ -113,12 +115,12 @@ Task 3 and Task 4 have disjoint write scopes and may run in parallel after Task 
 - Keep upload identity and pending file state local to each existing panel; do not consolidate data or callbacks across tabs.
 - Keep all business formulas, API request bodies, access checks, and existing export helper outputs unchanged. Record ratio-total and stale-site findings as separate follow-ups.
 
-- [ ] Expand `page.test.tsx` to exercise tab labels, selected state, and panel mount behavior without replacing its existing API/formula assertions.
-- [ ] Add focused component tests for each panel: date defaults, current filter/request behavior, required confirmation actions, write/dry-run request bodies, loading/error/empty states, and export calls.
-- [ ] Run `cd frontend && pnpm exec vitest run app/dashboard/reports/product-analysis/page.test.tsx app/dashboard/reports/product-analysis/components/product-analysis-panel.test.tsx app/dashboard/reports/product-analysis/components/manual-calculation-panel.test.tsx app/dashboard/reports/product-analysis/components/monthly-sku-analysis-panel.test.tsx lib/product-analysis-export.test.ts`.
-- [ ] Apply Warm CSS locally to the page tab strip, filters, result summary, SKU detail table, upload/recognition workflow, progress, empty/error states, and separate workbook actions. Retain any upload component markup and callbacks needed by non-Warm consumers.
-- [ ] Keep page styles desktop-only; do not add mobile or multi-breakpoint adaptations.
-- [ ] Re-run the same targeted Vitest command, changed-file ESLint, and `git diff --check`; commit only the Task 3 files and report the result for the consolidated C3 review.
+- [x] Expand `page.test.tsx` to exercise tab labels, selected state, and panel mount behavior without replacing its existing API/formula assertions.
+- [x] Add focused component tests for each panel: date defaults, current filter/request behavior, required confirmation actions, write/dry-run request bodies, loading/error/empty states, and export calls.
+- [x] Run `cd frontend && pnpm exec vitest run app/dashboard/reports/product-analysis/page.test.tsx app/dashboard/reports/product-analysis/components/product-analysis-panel.test.tsx app/dashboard/reports/product-analysis/components/manual-calculation-panel.test.tsx app/dashboard/reports/product-analysis/components/monthly-sku-analysis-panel.test.tsx lib/product-analysis-export.test.ts`.
+- [x] Apply Warm CSS locally to the page tab strip, filters, result summary, SKU detail table, upload/recognition workflow, progress, empty/error states, and separate workbook actions. Retain any upload component markup and callbacks needed by non-Warm consumers.
+- [x] Keep page styles desktop-only; do not add mobile or multi-breakpoint adaptations.
+- [x] Re-run the same targeted Vitest command, changed-file ESLint, and `git diff --check`; commit only the Task 3 files and report the result for the consolidated C3 review.
 
 ## Task 4: Monthly Report Display
 
