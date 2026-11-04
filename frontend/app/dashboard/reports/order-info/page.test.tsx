@@ -1,12 +1,14 @@
 import type { ReactNode } from 'react'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { stableSession } from '@/test-utils/stable-mocks'
 
 const projectListMock = vi.hoisted(() => vi.fn())
 const headerRefreshState = vi.hoisted(() => ({ handler: null as (() => void | Promise<void>) | null }))
+const globalFilterTestMode = vi.hoisted(() => ({ useRealProvider: false }))
+const serverNotificationRefresh = vi.hoisted(() => vi.fn())
 
 // BLF-819 review：用可控 mock 替换 useTerminalGlobalFilter，驱动头部→页面同步测试。
 // 默认值与真实 Provider 水合后的默认一致（ready + country=US + 近7天）。
@@ -26,23 +28,35 @@ vi.mock('@/components/terminal/global-filter-context', async (importOriginal) =>
   const actual = await importOriginal<
     typeof import('@/components/terminal/global-filter-context')
   >()
+  const RealProvider = actual.TerminalGlobalFilterProvider
   return {
     ...actual,
-    TerminalGlobalFilterProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
-    useTerminalGlobalFilter: () => gfValue,
+    TerminalGlobalFilterProvider: ({ children }: { children: ReactNode }) =>
+      globalFilterTestMode.useRealProvider
+        ? <RealProvider>{children}</RealProvider>
+        : <>{children}</>,
+    useTerminalGlobalFilter: () => globalFilterTestMode.useRealProvider
+      ? actual.useTerminalGlobalFilter()
+      : gfValue,
   }
 })
 
 // BLF-940：header slot / mobile strip / refresh 走 mock，避免挂载点缺失抛错。
 // 插槽内容直接渲染回页面正文（便于断言筛选控件存在性，生产环境 portal 进 head）。
-vi.mock('@/components/terminal/terminal-header-slot', () => ({
-  useHeaderRefresh: vi.fn((handler: () => void | Promise<void>) => {
-    headerRefreshState.handler = handler
-    return { setLoading: vi.fn() }
-  }),
-  useHeaderSlot: (node: React.ReactNode) => node,
-  useMobileFilterStrip: () => null,
-}))
+vi.mock('@/components/terminal/terminal-header-slot', async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import('@/components/terminal/terminal-header-slot')
+  >()
+  return {
+    ...actual,
+    useHeaderRefresh: vi.fn((handler: () => void | Promise<void>) => {
+      headerRefreshState.handler = handler
+      return { setLoading: vi.fn() }
+    }),
+    useHeaderSlot: (node: React.ReactNode) => node,
+    useMobileFilterStrip: () => null,
+  }
+})
 
 /** 测试内修改全局筛选态（模拟用户在头部操作）；bump 版本号让 mock 返回新引用触发重渲染 */
 let gfVersion = 0
@@ -75,10 +89,32 @@ vi.mock('next-auth/react', () => ({
   useSession: () => stableSession(),
 }))
 
+vi.mock('next/link', () => ({
+  default: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
+    href: string
+  }) => <a href={href} {...props}>{children}</a>,
+}))
+
+vi.mock('@/components/dashboard/route-loading-link', () => ({
+  RouteLoadingLink: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & {
+    href: string
+  }) => <a href={href} {...props}>{children}</a>,
+}))
+
 const notify = vi.fn()
 
 vi.mock('@/components/notifications', () => ({
   useNotifications: () => ({ notify }),
+  useServerNotifications: () => ({ unreadCount: 0, refresh: serverNotificationRefresh }),
+}))
+
+vi.mock('@/components/dashboard/search-command', () => ({
+  OPEN_SEARCH_EVENT: 'open-search',
+  SearchCommand: () => null,
+}))
+
+vi.mock('../../../../components/dashboard-v2/warm-ledger/shell/warm-notification-panel', () => ({
+  WarmNotificationPanel: () => null,
 }))
 
 vi.mock('@/lib/project-client-cache', () => ({
@@ -214,11 +250,18 @@ const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =
 
 vi.stubGlobal('fetch', fetchMock)
 
-import { TerminalGlobalFilterProvider } from '@/components/terminal/global-filter-context'
+import {
+  TerminalGlobalFilterProvider,
+  useTerminalGlobalFilter,
+} from '@/components/terminal/global-filter-context'
+import { WarmLedgerRouteFrame } from '@/components/dashboard-v2/warm-ledger/shell/warm-ledger-route-frame'
 import OrderInfoPage from './page'
 
 describe('订单信息页终端化（BLF-817）', () => {
   beforeEach(() => {
+    globalFilterTestMode.useRealProvider = false
+    window.localStorage.clear()
+    window.history.replaceState({}, '', '/dashboard/reports/order-info')
     vi.clearAllMocks()
     fetchMock.mockClear()
     fetchMock.mockImplementation(async () =>
@@ -239,6 +282,12 @@ describe('订单信息页终端化（BLF-817）', () => {
     )
     headerRefreshState.handler = null
     projectListMock.mockResolvedValue([{ id: 1, name: '店铺A' }])
+  })
+
+  afterEach(() => {
+    globalFilterTestMode.useRealProvider = false
+    window.localStorage.clear()
+    window.history.replaceState({}, '', '/dashboard/reports/order-info')
   })
 
   it('订单表使用实体 term 表头、规范数值列与选中态语义', async () => {
@@ -519,6 +568,71 @@ describe('订单信息页终端化（BLF-817）', () => {
     } finally {
       mockSearchParams.get = realGet
       mockSearchParams.getAll = realGetAll
+    }
+  })
+
+  it('Warm Order Info 深链项目/日期优先于已保存全局范围并同步首个 overview 请求', async () => {
+    const params = new URLSearchParams({
+      project_id: '3',
+      date_from: '2026-08-01',
+      date_to: '2026-08-05',
+    })
+    window.history.replaceState(
+      {},
+      '',
+      `/dashboard/reports/order-info?${params.toString()}`
+    )
+    window.localStorage.setItem(
+      'bb.terminal.global-filter',
+      JSON.stringify({
+        projectId: '99',
+        country: 'DE',
+        dateFrom: '2026-09-01',
+        dateTo: '2026-09-07',
+      })
+    )
+    mockSearchParams.get = vi.fn((key: string) => params.get(key))
+    mockSearchParams.getAll = vi.fn(() => [])
+    projectListMock.mockResolvedValue([
+      { id: 1, name: '店铺A' },
+      { id: 3, name: '店铺三' },
+    ])
+    globalFilterTestMode.useRealProvider = true
+
+    try {
+      render(
+        <WarmLedgerRouteFrame pathname="/dashboard/reports/order-info">
+          <>
+            <GlobalFilterProbe />
+            <OrderInfoPage />
+          </>
+        </WarmLedgerRouteFrame>
+      )
+
+      await screen.findByText('111-1111111-0000001')
+      const probe = screen.getByTestId('global-filter-probe')
+      await waitFor(() => {
+        expect(probe).toHaveTextContent('3|DE|2026-08-01|2026-08-05')
+      })
+      expect(screen.getByRole('combobox', { name: '项目筛选' })).toHaveTextContent('店铺三')
+      expect(screen.getByRole('combobox', { name: '站点筛选' })).toHaveTextContent(/DE/)
+      expect(document.querySelector('.warm-ledger__route-date-range')).toHaveTextContent(
+        '2026-08-01 ~ 2026-08-05'
+      )
+
+      const overviewRequests = fetchMock.mock.calls.filter(([url]) =>
+        String(url).includes('/order-info/overview')
+      )
+      expect(overviewRequests.length).toBeGreaterThan(0)
+      const firstOverviewUrl = String(overviewRequests[0]![0])
+      expect(firstOverviewUrl).toContain('project_ids=3')
+      expect(firstOverviewUrl).toContain('countries=DE')
+      expect(firstOverviewUrl).toContain('date_from=2026-08-01')
+      expect(firstOverviewUrl).toContain('date_to=2026-08-05')
+    } finally {
+      globalFilterTestMode.useRealProvider = false
+      mockSearchParams.get = vi.fn(() => null)
+      mockSearchParams.getAll = vi.fn(() => [])
     }
   })
 
@@ -1000,3 +1114,12 @@ describe('订单信息页终端化（BLF-817）', () => {
     }
   })
 })
+
+function GlobalFilterProbe() {
+  const { projectId, country, dateFrom, dateTo } = useTerminalGlobalFilter()
+  return (
+    <output data-testid="global-filter-probe">
+      {`${projectId}|${country}|${dateFrom}|${dateTo}`}
+    </output>
+  )
+}

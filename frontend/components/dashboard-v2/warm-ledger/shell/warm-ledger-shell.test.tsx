@@ -14,6 +14,7 @@ const shellMocks = vi.hoisted(() => ({
   refresh: vi.fn(),
   refreshNotifications: vi.fn(),
   refetchProjects: vi.fn(),
+  loadingProjects: false,
   projects: [
     { id: 11, name: '项目一' },
     { id: 12, name: '项目二' },
@@ -38,7 +39,7 @@ vi.mock('next/link', () => ({
 vi.mock('@/lib/hooks/use-managed-projects', () => ({
   useManagedProjects: () => ({
     projects: shellMocks.projects,
-    loading: false,
+    loading: shellMocks.loadingProjects,
     error: null,
     refetch: shellMocks.refetchProjects,
   }),
@@ -110,6 +111,11 @@ function installMatchMedia(initialMobile: boolean) {
 afterEach(() => {
   vi.unstubAllGlobals()
   shellMocks.pathname = '/dashboard'
+  shellMocks.loadingProjects = false
+  shellMocks.projects = [
+    { id: 11, name: '项目一' },
+    { id: 12, name: '项目二' },
+  ]
   window.localStorage.clear()
 })
 
@@ -340,6 +346,58 @@ describe('WarmLedgerRouteFrame', () => {
     await user.click(await screen.findByRole('button', { name: '近7天' }))
     await waitFor(() => {
       expect(probe).toHaveTextContent(/^12\|UK\|\d{4}-\d{2}-\d{2}\|\d{4}-\d{2}-\d{2}$/)
+    })
+  })
+
+  it('retains site/date changes made while projects load and seeds only the missing project', async () => {
+    installMatchMedia(false)
+    shellMocks.pathname = '/dashboard/reports/order-info'
+    shellMocks.loadingProjects = true
+    shellMocks.projects = []
+    const user = userEvent.setup()
+
+    const { container, rerender } = render(
+      <WarmLedgerRouteFrame pathname="/dashboard/reports/order-info">
+        <GlobalFilterProbe />
+      </WarmLedgerRouteFrame>
+    )
+
+    const filters = await screen.findByRole('group', { name: '全局筛选' })
+    const probe = screen.getByTestId('global-filter-probe')
+    const projectSelect = within(filters).getByRole('combobox', { name: '项目筛选' })
+    const countrySelect = within(filters).getByRole('combobox', { name: '站点筛选' })
+    const dateSelect = container.querySelector<HTMLButtonElement>(
+      '.warm-ledger__route-date-range'
+    )
+
+    expect(projectSelect).toBeDisabled()
+    expect(countrySelect).toBeEnabled()
+    expect(dateSelect).toBeEnabled()
+
+    await user.click(countrySelect)
+    await user.click(await screen.findByRole('option', { name: /\(DE\)$/ }))
+    await user.click(dateSelect!)
+    await user.click(await screen.findByRole('button', { name: '昨天' }))
+
+    const [projectBeforeLoad, countryBeforeLoad, dateFromBeforeLoad, dateToBeforeLoad] =
+      probe.textContent?.split('|') ?? []
+    expect(projectBeforeLoad).toBe('')
+    expect(countryBeforeLoad).toBe('DE')
+    expect(dateFromBeforeLoad).toBeTruthy()
+    expect(dateFromBeforeLoad).toBe(dateToBeforeLoad)
+
+    shellMocks.projects = [{ id: 11, name: '项目一' }]
+    shellMocks.loadingProjects = false
+    rerender(
+      <WarmLedgerRouteFrame pathname="/dashboard/reports/order-info">
+        <GlobalFilterProbe />
+      </WarmLedgerRouteFrame>
+    )
+
+    await waitFor(() => {
+      expect(probe).toHaveTextContent(
+        `11|DE|${dateFromBeforeLoad}|${dateToBeforeLoad}`
+      )
     })
   })
 })

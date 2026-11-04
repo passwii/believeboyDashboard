@@ -263,12 +263,19 @@ function OrderInfoGlobalFilters() {
   const globalFilter = useTerminalGlobalFilter()
   const {
     projectId: globalProjectId,
+    country: globalCountry,
+    dateFrom: globalDateFrom,
+    dateTo: globalDateTo,
     ready: filtersReady,
+    setProjectId,
     syncDailyAnalysisFilters,
   } = globalFilter
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null)
   const { projects, loading, error, refetch } = useManagedProjects()
   const [retryRequested, setRetryRequested] = useState(false)
+  const initialScopeAppliedRef = useRef(false)
+  const initialProjectSeededRef = useRef(false)
+  const userChangedFiltersRef = useRef({ country: false, date: false })
 
   useEffect(() => {
     setPortalContainer(document.getElementById('warm-ledger-portal-root'))
@@ -305,38 +312,91 @@ function OrderInfoGlobalFilters() {
   ] ?? COUNTRY_TIMEZONE_MAP.US
 
   useEffect(() => {
-    if (!filtersReady || globalProjectId || loading || error) return
+    if (!filtersReady || initialScopeAppliedRef.current) return
+    initialScopeAppliedRef.current = true
 
     const params = new URLSearchParams(window.location.search)
-    const pageProjectId = params.get('project_id')
-    const projectId = pageProjectId && pageProjectId !== '__all__'
-      ? pageProjectId
-      : String(validProjects[0]?.id ?? '')
-    if (!projectId) return
-
+    const rawPageProjectId = params.get('project_id')
+    const pageProjectId = rawPageProjectId && rawPageProjectId !== '__all__'
+      ? rawPageProjectId
+      : ''
+    const pageDateFrom = params.get('date_from')
+    const pageDateTo = params.get('date_to')
+    const hasPageDateRange = Boolean(pageDateFrom && pageDateTo)
     const defaultRange = defaultGlobalDateRange(COUNTRY_TIMEZONE_MAP.US)
-    const dateFrom = params.get('date_from')
-    const dateTo = params.get('date_to')
-    const pageRange = dateFrom && dateTo
-      ? { dateFrom, dateTo }
-      : defaultRange
+    const firstProjectId = !globalProjectId && !loading && !error
+      ? String(validProjects[0]?.id ?? '')
+      : ''
+    const projectId = pageProjectId || globalProjectId || firstProjectId
+    if (!globalProjectId && projectId) initialProjectSeededRef.current = true
+    const nextCountry = userChangedFiltersRef.current.country || globalProjectId
+      ? globalCountry
+      : 'ALL'
+    const nextDateFrom = userChangedFiltersRef.current.date
+      ? globalDateFrom
+      : hasPageDateRange
+        ? pageDateFrom!
+        : globalProjectId
+          ? globalDateFrom
+          : defaultRange.dateFrom
+    const nextDateTo = userChangedFiltersRef.current.date
+      ? globalDateTo
+      : hasPageDateRange
+        ? pageDateTo!
+        : globalProjectId
+          ? globalDateTo
+          : defaultRange.dateTo
+
+    if (
+      projectId === globalProjectId &&
+      nextCountry === globalCountry &&
+      nextDateFrom === globalDateFrom &&
+      nextDateTo === globalDateTo
+    ) return
 
     syncDailyAnalysisFilters(
       {
         projectId,
-        country: 'ALL',
-        ...pageRange,
+        country: nextCountry,
+        dateFrom: nextDateFrom,
+        dateTo: nextDateTo,
       },
-      { projectId, country: 'ALL' }
+      { projectId, country: nextCountry }
     )
   }, [
     error,
     filtersReady,
+    globalCountry,
+    globalDateFrom,
+    globalDateTo,
     globalProjectId,
     loading,
     syncDailyAnalysisFilters,
     validProjects,
   ])
+
+  useEffect(() => {
+    if (
+      !initialScopeAppliedRef.current ||
+      initialProjectSeededRef.current ||
+      !filtersReady ||
+      globalProjectId ||
+      loading ||
+      error
+    ) {
+      return
+    }
+
+    const params = new URLSearchParams(window.location.search)
+    const pageProjectId = params.get('project_id')
+    if (pageProjectId && pageProjectId !== '__all__') return
+
+    const firstProjectId = validProjects[0]?.id
+    if (firstProjectId) {
+      initialProjectSeededRef.current = true
+      setProjectId(String(firstProjectId))
+    }
+  }, [error, filtersReady, globalProjectId, loading, setProjectId, validProjects])
 
   const retryProjectList = useCallback(async () => {
     setRetryRequested(true)
@@ -383,13 +443,17 @@ function OrderInfoGlobalFilters() {
         label="站点筛选"
         value={globalFilter.country}
         options={GLOBAL_COUNTRY_OPTIONS}
-        onChange={globalFilter.setCountry}
+        onChange={(country) => {
+          userChangedFiltersRef.current.country = true
+          globalFilter.setCountry(country)
+        }}
         className="warm-ledger__route-country-select"
       />
       <DateRangePicker
         value={parseDateRangeInputValue(globalFilter.dateFrom, globalFilter.dateTo)}
         timezone={timezone}
         onChange={(range) => {
+          userChangedFiltersRef.current.date = true
           globalFilter.setDateRange(
             formatDateInputValue(range?.from),
             formatDateInputValue(range?.to)
