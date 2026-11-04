@@ -182,10 +182,16 @@ Damon 已确认生产直接使用新设计，不设 feature flag：
 | C1 | 运营分析 | `daily-analysis`、`portfolio-overview`、`inventory-analysis` | 已完成（2026-11-02；最终 Luna max review PASS） |
 | C2 | 运营执行 / 库存 | `inventory-ledger`、`shipping-plan`、`shipment-management`、`sku-info` | **已完成（2026-11-04）**：27 Vitest files / 199 tests、build、focused ESLint、78/78 Playwright、最终独立 review PASS；授权/技术 follow-ups 保留 |
 | C3 | 报表 / 订单 | `order-info`、`product-analysis`、`monthly-report/display` | **已完成（2026-11-04）**：三条精确路由、1440×900 desktop acceptance、全量 Vitest 基线对账、lint/build 完成；前三次 Luna review 的 P2 均已修复，第六轮 Luna/max 最终门禁 PASS；无组件晋升 |
-| C4 | 广告 | `ad-analysis/overview`、`ad-data` | 图表 / 筛选契约已验证 |
+| C4 | 广告 | `ad-analysis/*`、`ad-data` | **暂缓（2026-11-04）**：用户判断当前阶段价值不足，未启动实现；保留范围记录，不自动推进 |
 | C5 | 财务 | `platform-revenue`、`exchange-rate`、`commission-management` | 账期、币种、汇总口径明确 |
 | C6 | CRM | `crm/dashboard`、`customers`、`follow-ups`、`tasks` | 页面壳稳定；CRM 状态不并入订单状态 |
 | C7 | AI / 工具 / 系统 | `ai/*`、`tools/*`、`system/*` | 前面批次稳定；权限与操作安全单独评审 |
+
+Stage-order gate from 2026-11-04:
+
+- C4 is deferred by user decision and must not be started automatically.
+- From C5 onward, the main Agent must present the actual page/subroute count, proposed stage scope, shared-component dependencies, risks, and recommended order before creating implementation workspaces.
+- The user decides whether to keep or change the order. No stage starts until that decision is explicit.
 
 首批 8 页：
 
