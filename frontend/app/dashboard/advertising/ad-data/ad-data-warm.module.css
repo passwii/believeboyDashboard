@@ -1,0 +1,55 @@
+.layout {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-sans);
+}
+
+.loading {
+  display: grid;
+  gap: var(--warm-ledger-space-4);
+  width: 100%;
+  min-width: 0;
+}
+
+.filterSkeleton {
+  display: flex;
+  gap: var(--warm-ledger-space-2);
+  padding: var(--warm-ledger-space-4);
+  background: var(--warm-ledger-color-panel);
+  border: 1px solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-panel);
+}
+
+.filterSkeletonItem {
+  width: 150px;
+  height: var(--warm-ledger-control-height) !important;
+  background: var(--warm-ledger-color-panel-strong) !important;
+  border-radius: var(--warm-ledger-radius-control) !important;
+}
+
+.tableSkeleton {
+  display: grid;
+  gap: 1px;
+  padding: 1px;
+  overflow: hidden;
+  background: var(--warm-ledger-color-hairline);
+  border: 1px solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-panel);
+}
+
+.tableSkeletonHeader,
+.tableSkeletonRow {
+  background: var(--warm-ledger-color-panel-strong) !important;
+  border-radius: 0 !important;
+}
+
+.tableSkeletonHeader {
+  height: 44px !important;
+}
+
+.tableSkeletonRow {
+  height: 38px !important;
+}

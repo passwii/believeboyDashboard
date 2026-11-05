@@ -13,9 +13,6 @@ import {
   Search,
 } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
-import { EmptyState } from '@/components/ui/empty-state'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -24,25 +21,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  TermBody,
-  TermCell,
-  TermHead,
-  TermRow,
-  TermTHead,
-  TermTable,
-} from '@/components/terminal/term-table'
-import { TermPanel } from '@/components/terminal/term-panel'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 import { useAdClientRefreshKey } from '@/components/dashboard/ad-refresh'
+import {
+  WarmButton,
+  WarmSegmentedControl,
+} from '@/components/dashboard-v2/warm-ledger/controls'
 import {
   fetchAdRawCached,
   fetchAdUploadFilesCached,
@@ -58,6 +42,7 @@ import {
   type AdDataColumn,
   type AdDataReportType,
 } from '@/lib/ad-data'
+import styles from './ad-data-explorer.module.css'
 
 type RawRow = Record<string, unknown> & {
   id?: number
@@ -76,6 +61,11 @@ const PAGE_SIZE_OPTIONS = [50, 100, 200, 500]
 /** 数值列（int/money/percent/ratio）→ 等宽右对齐 */
 const isNumericCol = (col: AdDataColumn) =>
   col.format === 'int' || col.format === 'money' || col.format === 'percent' || col.format === 'ratio'
+
+const isDateCol = (col: AdDataColumn) => col.format === 'date'
+
+const isCodeCol = (col: AdDataColumn) =>
+  /(^|_)(id|asin|sku)(_|$)/i.test(col.key)
 
 export function AdDataExplorer() {
   const searchParams = useSearchParams()
@@ -302,31 +292,34 @@ export function AdDataExplorer() {
     URL.revokeObjectURL(url)
   }
 
-  if (!projectId) return <EmptyState rowHeight="lg" message="请先在上方选择项目。" />
-  if (availableLoading && availableTypes.length === 0)
-    return <EmptyState rowHeight="lg" message="正在加载已上传的广告报表..." />
+  if (!projectId) {
+    return <AdDataEmptyState message="请先在上方选择项目。" />
+  }
+  if (availableLoading && availableTypes.length === 0) {
+    return <AdDataEmptyState message="正在加载已上传的广告报表..." status />
+  }
 
   return (
-    <div className="flex min-w-0 flex-col gap-3">
-      {/* 控制条：报表类型选择 + 搜索 + 视图切换 + 导出（终端工具栏规格） */}
-      <div className="flex flex-col gap-3 border border-term-border bg-term-panel p-2 lg:flex-row lg:items-end lg:justify-between">
-        {/* BLF-611：手机端字段全宽单列（sm 起 2 列），lg+ 恢复横向 + 固定宽，桌面零回归 */}
-        <div
-          data-testid="ad-data-controls"
-          className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center lg:gap-3"
-        >
-          <div className="space-y-1.5" data-testid="ad-data-report-type-control">
-            <div className="font-mono text-xs uppercase tracking-wider text-term-muted">
-              报表类型
-            </div>
+    <div className={styles.page} data-warm-ad-data="true">
+      <section
+        className={styles.controls}
+        data-warm-ad-data-controls="true"
+        aria-label="广告数据控制"
+      >
+        <div className={styles.controlRow}>
+          <div className={styles.field} data-testid="ad-data-report-type-control">
+            <span className={styles.fieldLabel}>报表类型</span>
             <Select
               value={selectedReportType}
               onValueChange={(value) => setSelectedReportType(value)}
             >
-              <SelectTrigger className="h-8 w-full border-term-border bg-term-bg text-sm shadow-none lg:w-[15rem]">
+              <SelectTrigger
+                className={cn(styles.control, styles.reportSelect)}
+                aria-label="报表类型"
+              >
                 <SelectValue placeholder="选择报表类型" />
               </SelectTrigger>
-              <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
+              <SelectContent className={styles.selectContent}>
                 {AD_DATA_REPORT_TYPES.map((item) => {
                   const hasData = availableTypes.includes(item.reportType)
                   return (
@@ -334,17 +327,23 @@ export function AdDataExplorer() {
                       key={item.reportType}
                       value={item.reportType}
                       disabled={!hasData}
-                      className="rounded-none text-sm focus:bg-term-hover focus:text-term-text"
+                      className={styles.selectItem}
                     >
-                      <span className="flex items-center gap-2">
+                      <span
+                        className={
+                          hasData ? styles.optionAvailable : styles.optionUnavailable
+                        }
+                      >
                         {hasData ? (
-                          <Check className="h-3.5 w-3.5 text-term-pos" strokeWidth={1.75} />
+                          <Check aria-hidden />
                         ) : (
-                          <span className="h-3.5 w-3.5" />
+                          <span className={styles.optionPlaceholder} />
                         )}
-                        {item.label}
+                        <span>{item.label}</span>
                         {!hasData ? (
-                          <span className="text-xs text-term-faint">（暂无数据）</span>
+                          <span className={styles.optionUnavailableText}>
+                            （暂无数据）
+                          </span>
                         ) : null}
                       </span>
                     </SelectItem>
@@ -354,102 +353,74 @@ export function AdDataExplorer() {
             </Select>
           </div>
 
-          <div className="space-y-1.5">
-            <div className="font-mono text-xs uppercase tracking-wider text-term-muted">
-              搜索
-            </div>
-            <div className="relative">
-              <Search className="absolute left-2 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-term-faint" strokeWidth={1.75} />
+          <div className={styles.field}>
+            <span className={styles.fieldLabel}>搜索</span>
+            <div className={styles.searchWrap}>
+              <Search className={styles.searchIcon} aria-hidden />
               <Input
                 value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value)
+                onChange={(event) => {
+                  setSearch(event.target.value)
                   setPage(1)
                 }}
                 placeholder="按任意列内容过滤..."
-                className="h-8 w-full rounded-none border-term-border bg-term-bg pl-8 text-sm shadow-none focus-visible:ring-0 lg:w-[16rem]"
+                aria-label="搜索广告数据"
+                className={styles.searchInput}
               />
             </div>
           </div>
         </div>
 
-        {/* BLF-611：手机端视图切换与导出同行各占一半；lg 用 lg:contents 拆回行内联排，桌面零回归 */}
-        <div className="flex items-end gap-2 lg:contents">
-          <div className="flex-1 space-y-1.5 lg:flex-none">
-            <div className="font-mono text-xs uppercase tracking-wider text-term-muted">
-              视图
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Button
-                variant={mode === 'raw' ? 'default' : 'outline'}
-                size="sm"
-                className={cn(
-                  'h-8 flex-1 rounded-none border-term-border px-2 text-xs shadow-none lg:flex-none',
-                  mode !== 'raw' && 'bg-transparent text-term-muted hover:bg-term-hover hover:text-term-text'
-                )}
-                onClick={() => {
-                  setMode('raw')
-                  setPage(1)
-                }}
-              >
-                原始明细
-              </Button>
-              <Button
-                variant={mode === 'aggregate' ? 'default' : 'outline'}
-                size="sm"
-                className={cn(
-                  'h-8 flex-1 rounded-none border-term-border px-2 text-xs shadow-none lg:flex-none',
-                  mode !== 'aggregate' && 'bg-transparent text-term-muted hover:bg-term-hover hover:text-term-text'
-                )}
-                onClick={() => {
-                  setMode('aggregate')
-                  setPage(1)
-                }}
-              >
-                聚合
-              </Button>
-            </div>
+        <div className={styles.viewRow}>
+          <div className={styles.field}>
+            <span className={styles.fieldLabel}>视图</span>
+            <WarmSegmentedControl<'raw' | 'aggregate'>
+              value={mode}
+              options={[
+                { value: 'raw', label: '原始明细' },
+                { value: 'aggregate', label: '聚合' },
+              ]}
+              ariaLabel="数据视图"
+              onChange={(value) => {
+                setMode(value)
+                setPage(1)
+              }}
+            />
           </div>
-
-          <Button
-            variant="outline"
-            className="h-8 flex-1 gap-1.5 rounded-none border-term-border bg-transparent px-2 text-xs text-term-muted shadow-none hover:bg-term-hover hover:text-term-text lg:flex-none"
+          <WarmButton
+            variant="primary"
             onClick={handleExport}
             disabled={!config || sorted.length === 0}
+            aria-label="导出 CSV"
           >
-            <Download className="h-[18px] w-[18px]" strokeWidth={1.75} />
+            <Download aria-hidden />
             导出 CSV
-          </Button>
+          </WarmButton>
         </div>
-      </div>
+      </section>
 
-      {/* 状态 / 错误 / 空态（term 色系） */}
       {error ? (
-        <div
-          role="alert"
-          className="border border-term-neg/50 bg-term-neg/10 px-2 py-1 font-mono text-xs text-term-neg"
-        >
-          ERR · {error}
+        <div className={styles.errorBar} role="alert">
+          {error}
         </div>
       ) : null}
       {isLoading && rows.length > 0 ? (
-        <div
-          role="status"
-          aria-live="polite"
-          className="border border-term-border bg-term-panel px-2 py-1 font-mono text-xs text-term-muted"
-        >
+        <div className={styles.refreshBar} role="status" aria-live="polite">
           正在刷新广告明细…
         </div>
       ) : null}
       {isLoading && rows.length === 0 ? (
-        <div className="space-y-px border border-term-border bg-term-panel p-px">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="h-9 w-full rounded-none" />
+        <div
+          className={styles.skeletonStack}
+          data-warm-ad-data-skeleton="true"
+          aria-busy="true"
+        >
+          {Array.from({ length: 8 }).map((_, index) => (
+            <div key={index} className={styles.skeletonRow} aria-hidden />
           ))}
         </div>
       ) : !config || rows.length === 0 ? (
-        <EmptyState
-          rowHeight="lg"
+        <AdDataEmptyState
           message={
             selectedReportType && !availableTypes.includes(selectedReportType)
               ? '该报表类型在当前项目/国家下暂无成功入库的数据。'
@@ -458,93 +429,122 @@ export function AdDataExplorer() {
         />
       ) : (
         <>
-          {/* 概览统计：mono 行内元信息（替代 Badge 胶囊） */}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs tabular-nums text-term-muted">
-            <span>报表：{config.label}</span>
+          <div className={styles.summaryBar}>
+            <span className={styles.summaryText}>报表：{config.label}</span>
             {isAggregate ? (
-              <span>
-                聚合后 {baseRows.length.toLocaleString()} 行（合并自{' '}
-                {rows.length.toLocaleString()} 份明细）
+              <span className={styles.summaryText}>
+                聚合后 <span className={styles.summaryValue}>{baseRows.length.toLocaleString()}</span>{' '}
+                行（合并自 <span className={styles.summaryValue}>{rows.length.toLocaleString()}</span>{' '}
+                份明细）
               </span>
             ) : (
-              <span>服务端总行数：{totalRows.toLocaleString()}</span>
+              <span className={styles.summaryText}>
+                服务端总行数：
+                <span className={styles.summaryValue}>{totalRows.toLocaleString()}</span>
+              </span>
             )}
-            <span className="text-term-text">
-              第 {pageStart + 1}-{Math.min(pageStart + pageSize, sorted.length)} / 共{' '}
-              {sorted.length.toLocaleString()} 行
+            <span className={styles.summaryText}>
+              第{' '}
+              <span className={styles.summaryValue}>
+                {pageStart + 1}-{Math.min(pageStart + pageSize, sorted.length)}
+              </span>{' '}
+              / 共 <span className={styles.summaryValue}>{sorted.length.toLocaleString()}</span>{' '}
+              行
             </span>
             {!isAggregate && totalRows > sorted.length ? (
-              <span className="text-term-warn">
-                仅显示前 {sorted.length.toLocaleString()} 行（已达拉取上限）
+              <span className={styles.summaryWarning}>
+                仅显示前 <span className={styles.summaryValue}>{sorted.length.toLocaleString()}</span>{' '}
+                行（已达拉取上限）
               </span>
             ) : null}
           </div>
 
-          {/* 表格：TermPanel + TermTable，表头 sticky，滚动收口在面板内 */}
-          <TermPanel bodyClassName="min-h-0 overflow-hidden">
-            <div className="max-h-[calc(100vh-360px)] min-h-[240px] overflow-auto term-scroll">
-              <TermTable className="min-w-full">
-                <TermTHead>
-                  <TermRow className="hover:bg-transparent">
+          <section
+            className={styles.tablePanel}
+            aria-label={`${config.label}广告数据`}
+          >
+            <div
+              className={styles.tableScroller}
+              data-ad-data-table-scroll="true"
+            >
+              <table
+                className={styles.table}
+                aria-label={`${config.label}广告数据表`}
+              >
+                <thead>
+                  <tr>
                     {!isAggregate ? (
-                      <TermHead className="w-10" title="" />
+                      <th scope="col" className={cn(styles.headCell, styles.expandCell)}>
+                        <span className="sr-only">展开原始数据</span>
+                      </th>
                     ) : null}
-                    {displayColumns.map((col) => (
-                      <TermHead
-                        key={col.key}
-                        numeric={isNumericCol(col)}
-                        onClick={() => toggleSort(col.key)}
-                      >
-                        <span className="inline-flex items-center gap-1">
-                          {col.label}
-                          {sort?.key === col.key ? (
-                            sort.dir === 'asc' ? (
-                              <ArrowUp className="h-3 w-3" strokeWidth={1.75} />
+                    {displayColumns.map((col) => {
+                      const activeSort = sort?.key === col.key
+                      const ariaSort = activeSort
+                        ? sort.dir === 'asc'
+                          ? 'ascending'
+                          : 'descending'
+                        : 'none'
+                      return (
+                        <th
+                          key={col.key}
+                          scope="col"
+                          className={styles.headCell}
+                          data-numeric={isNumericCol(col) ? 'true' : undefined}
+                          aria-sort={ariaSort}
+                        >
+                          <button
+                            type="button"
+                            className={styles.sortButton}
+                            onClick={() => toggleSort(col.key)}
+                          >
+                            <span>{col.label}</span>
+                            {activeSort ? (
+                              sort.dir === 'asc' ? (
+                                <ArrowUp className={styles.sortIcon} aria-hidden />
+                              ) : (
+                                <ArrowDown className={styles.sortIcon} aria-hidden />
+                              )
                             ) : (
-                              <ArrowDown className="h-3 w-3" strokeWidth={1.75} />
-                            )
-                          ) : (
-                            <ArrowUpDown className="h-3 w-3 opacity-40" strokeWidth={1.75} />
-                          )}
-                        </span>
-                      </TermHead>
-                    ))}
-                  </TermRow>
-                </TermTHead>
-                <TermBody>
-                  {pageRows.map((row, idx) => {
-                    const rowId = typeof row.id === 'number' ? row.id : pageStart + idx
+                              <ArrowUpDown className={styles.sortIcon} aria-hidden />
+                            )}
+                          </button>
+                        </th>
+                      )
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageRows.map((row, index) => {
+                    const rowId = typeof row.id === 'number' ? row.id : pageStart + index
                     if (isAggregate) {
                       return (
-                        <TermRow key={rowId}>
+                        <tr key={rowId} className={styles.bodyRow}>
                           {displayColumns.map((col) => (
-                            <TermCell key={col.key} numeric={isNumericCol(col)}>
-                              {formatAdDataValue(row[col.key], col.format)}
-                            </TermCell>
+                            <AdDataCell key={col.key} column={col} value={row[col.key]} />
                           ))}
-                        </TermRow>
+                        </tr>
                       )
                     }
-                    const isOpen = expanded.has(rowId)
+
                     return (
                       <FragmentRow
                         key={rowId}
                         row={row}
                         rowId={rowId}
                         columns={displayColumns}
-                        isOpen={isOpen}
+                        isOpen={expanded.has(rowId)}
                         onToggle={() => toggleExpand(rowId)}
                       />
                     )
                   })}
-                </TermBody>
-              </TermTable>
+                </tbody>
+              </table>
             </div>
-          </TermPanel>
+          </section>
 
-          {/* 分页：终端工具条规格 */}
-          <div className="flex flex-wrap items-center justify-between gap-3 font-mono text-xs tabular-nums text-term-muted">
-            <div className="flex items-center gap-2">
+          <div className={styles.pagination}>
+            <div className={styles.pageSizeGroup}>
               <span>每页</span>
               <Select
                 value={String(pageSize)}
@@ -553,15 +553,18 @@ export function AdDataExplorer() {
                   setPage(1)
                 }}
               >
-                <SelectTrigger className="h-8 w-[5rem] rounded-none border-term-border bg-term-panel text-xs shadow-none">
+                <SelectTrigger
+                  className={cn(styles.control, styles.pageSizeSelect)}
+                  aria-label="每页行数"
+                >
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="rounded-none border-term-border bg-term-panel text-term-text">
+                <SelectContent className={styles.selectContent}>
                   {PAGE_SIZE_OPTIONS.map((size) => (
                     <SelectItem
                       key={size}
                       value={String(size)}
-                      className="rounded-none text-sm focus:bg-term-hover focus:text-term-text"
+                      className={styles.selectItem}
                     >
                       {size}
                     </SelectItem>
@@ -571,33 +574,65 @@ export function AdDataExplorer() {
               <span>行</span>
             </div>
 
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
+            <div className={styles.pagerGroup}>
+              <WarmButton
+                variant="secondary"
                 disabled={safePage <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="h-7 rounded-none border-term-border bg-transparent px-2 text-xs text-term-muted shadow-none hover:bg-term-hover hover:text-term-text"
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
               >
                 上一页
-              </Button>
-              <span className="text-term-text">
-                第 {safePage} / {totalPages} 页
+              </WarmButton>
+              <span>
+                第 <span className={styles.pageNumber}>{safePage}</span> /{' '}
+                <span className={styles.pageNumber}>{totalPages}</span> 页
               </span>
-              <Button
-                variant="outline"
-                size="sm"
+              <WarmButton
+                variant="secondary"
                 disabled={safePage >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="h-7 rounded-none border-term-border bg-transparent px-2 text-xs text-term-muted shadow-none hover:bg-term-hover hover:text-term-text"
+                onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
               >
                 下一页
-              </Button>
+              </WarmButton>
             </div>
           </div>
         </>
       )}
     </div>
+  )
+}
+
+function AdDataEmptyState({
+  message,
+  status = false,
+}: {
+  message: string
+  status?: boolean
+}) {
+  return (
+    <div
+      className={styles.emptyState}
+      data-warm-ad-data-empty="true"
+      role={status ? 'status' : undefined}
+    >
+      <p>{message}</p>
+    </div>
+  )
+}
+
+function AdDataCell({ column, value }: { column: AdDataColumn; value: unknown }) {
+  return (
+    <td
+      className={cn(
+        styles.dataCell,
+        isNumericCol(column) && styles.numericCell,
+        isDateCol(column) && styles.dateCell,
+        isCodeCol(column) && styles.codeCell
+      )}
+      data-numeric={isNumericCol(column) ? 'true' : undefined}
+      data-mono={isDateCol(column) || isCodeCol(column) ? 'true' : undefined}
+    >
+      {formatAdDataValue(value, column.format)}
+    </td>
   )
 }
 
@@ -616,38 +651,35 @@ function FragmentRow({
 }) {
   return (
     <>
-      <TermRow highlight={isOpen}>
-        <TermCell className="w-10 px-1">
+      <tr className={styles.bodyRow} data-expanded={isOpen ? 'true' : 'false'}>
+        <td className={cn(styles.dataCell, styles.expandCell)}>
           <button
             type="button"
             aria-label="展开原始数据"
+            aria-expanded={isOpen}
             onClick={onToggle}
-            className="flex h-6 w-6 items-center justify-center text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
+            className={styles.expandButton}
           >
             <ChevronRight
-              className={cn('h-[18px] w-[18px] transition-transform', isOpen && 'rotate-90')}
-              strokeWidth={1.75}
+              className={styles.expandIcon}
+              data-expanded={isOpen ? 'true' : 'false'}
+              aria-hidden
             />
           </button>
-        </TermCell>
-        {columns.map((col) => (
-          <TermCell key={col.key} numeric={isNumericCol(col)}>
-            {formatAdDataValue(row[col.key], col.format)}
-          </TermCell>
+        </td>
+        {columns.map((column) => (
+          <AdDataCell key={column.key} column={column} value={row[column.key]} />
         ))}
-      </TermRow>
+      </tr>
       {isOpen ? (
-        <TermRow highlight className="hover:bg-term-raised">
-          <TermCell />
-          <TermCell colSpan={columns.length}>
-            <p className="mb-1 font-mono text-xs uppercase tracking-wider text-term-faint">
-              原始上传数据（raw_row，未做解析的中文列）
-            </p>
-            <pre className="max-h-72 overflow-auto term-scroll border border-term-border bg-term-bg p-2 font-mono text-xs leading-5 text-term-text">
+        <tr className={styles.bodyRow} data-expanded="true">
+          <td colSpan={columns.length + 1} className={styles.rawCell}>
+            <span className={styles.rawLabel}>原始上传数据（raw_row，未做解析的中文列）</span>
+            <pre className={styles.rawPre}>
               {JSON.stringify(row.raw_row ?? {}, null, 2)}
             </pre>
-          </TermCell>
-        </TermRow>
+          </td>
+        </tr>
       ) : null}
     </>
   )

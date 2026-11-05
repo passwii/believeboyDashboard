@@ -1,32 +1,22 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import type { DateRange } from 'react-day-picker'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 
 import {
-  DateRangePicker,
-  COUNTRY_TIMEZONE_MAP,
-  formatDateInputValue,
-  parseDateRangeInputValue,
-} from '@/components/ui/date-picker'
-import {
-  HeaderSlotDateRange,
-  HeaderSlotSelect,
-  TERM_HEADER_W_MD,
-  TERM_HEADER_W_SM,
-} from '@/components/terminal/header-filter-suite'
-import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
-import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
-import { Skeleton } from '@/components/ui/skeleton'
-import {
-  useHeaderRefresh,
-  useHeaderSlot,
-  useMobileFilterStrip,
-} from '@/components/terminal/terminal-header-slot'
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { useHeaderRefresh, useHeaderSlot } from '@/components/terminal/terminal-header-slot'
 import { requestAdClientRefresh } from '@/components/dashboard/ad-refresh'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import { cn } from '@/lib/utils'
+
+import styles from './ad-data-explorer.module.css'
 
 type ProjectOption = {
   id: number
@@ -44,13 +34,6 @@ function buildHref(pathname: string, searchParams: URLSearchParams) {
   return qs ? `${pathname}?${qs}` : pathname
 }
 
-/**
- * BLF-887：广告数据页筛选上移 Top Header 中段插槽。
- *
- * Desktop: `HeaderFilterControls isMobileView={false}` + `useHeaderSlot`.
- * Mobile:  `useMobileFilterStrip` + `MobileFilterStrip`.
- * 全局刷新为唯一入口，页面不额外放置 RefreshButton。
- */
 export function AdDataTopFilters() {
   const { data: session } = useSession()
   const pathname = usePathname()
@@ -106,116 +89,85 @@ export function AdDataTopFilters() {
     router.replace(buildHref(pathname, next), { scroll: false })
   }
 
-  const updateDateRange = (range?: DateRange) => {
-    const next = new URLSearchParams(searchParams.toString())
-    const nextDateFrom = formatDateInputValue(range?.from)
-    const nextDateTo = formatDateInputValue(range?.to)
-    if (nextDateFrom) next.set('dateFrom', nextDateFrom)
-    else next.delete('dateFrom')
-    if (nextDateTo) next.set('dateTo', nextDateTo)
-    else next.delete('dateTo')
-    router.replace(buildHref(pathname, next), { scroll: false })
-  }
-
-  // 数据由已挂载的 explorer client effects 读取；RSC refresh 不会强制它们绕过缓存。
-  // 先清用户域缓存并通知数据 owner 重取，保留当前筛选、搜索与视图状态。
   useHeaderRefresh(() => {
     requestAdClientRefresh()
     router.refresh()
   })
 
-  // Desktop controls using shared HeaderSlot atoms
-  const desktopControls = (
-    <>
+  const controls = (
+    <div className={styles.headerFilters} data-warm-ad-data-filters="true">
       {projectsLoading ? (
-        <Skeleton className="h-10 w-full rounded-none md:w-[150px]" />
+        <div className={styles.headerSkeleton} aria-hidden />
       ) : (
-        <HeaderSlotSelect
+        <Select
           value={projectId}
-          onChange={(value) => updateSearchParam('projectId', value)}
-          options={projects.map((item) => ({ value: String(item.id), label: item.name }))}
-          placeholder="选择项目"
-          widthClass={TERM_HEADER_W_MD}
-          title="项目筛选"
-        />
+          onValueChange={(value) => updateSearchParam('projectId', value)}
+        >
+          <SelectTrigger className={styles.headerControl} aria-label="项目筛选">
+            <SelectValue placeholder="选择项目" />
+          </SelectTrigger>
+          <SelectContent className={styles.selectContent}>
+            {projects.map((project) => (
+              <SelectItem
+                key={project.id}
+                value={String(project.id)}
+                className={styles.selectItem}
+              >
+                {project.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       )}
 
-      <HeaderSlotSelect
+      <Select
         value={country}
-        onChange={(value) => updateSearchParam('country', value)}
-        options={COUNTRY_OPTIONS.map((item) => ({ value: item.value, label: item.label }))}
-        placeholder="选择国家站点"
-        widthClass={TERM_HEADER_W_SM}
-        title="站点筛选"
-      />
+        onValueChange={(value) => updateSearchParam('country', value)}
+      >
+        <SelectTrigger
+          className={cn(styles.headerControl, styles.headerCountry)}
+          aria-label="站点筛选"
+        >
+          <SelectValue placeholder="选择国家站点" />
+        </SelectTrigger>
+        <SelectContent className={styles.selectContent}>
+          {COUNTRY_OPTIONS.map((option) => (
+            <SelectItem
+              key={option.value}
+              value={option.value}
+              className={styles.selectItem}
+            >
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
-      <HeaderSlotDateRange
-        value={parseDateRangeInputValue(dateFrom, dateTo)}
-        onChange={updateDateRange}
-        timezone={COUNTRY_TIMEZONE_MAP[country]}
-        widthClass={TERM_HEADER_W_SM}
-      />
+      <div className={styles.headerDateRangeGroup}>
+        <input
+          type="date"
+          value={dateFrom}
+          onChange={(event) => updateSearchParam('dateFrom', event.target.value)}
+          className={styles.headerDateRange}
+          aria-label="开始日期"
+        />
+        <span aria-hidden>至</span>
+        <input
+          type="date"
+          value={dateTo}
+          onChange={(event) => updateSearchParam('dateTo', event.target.value)}
+          className={styles.headerDateRange}
+          aria-label="结束日期"
+        />
+      </div>
 
       {projectsError ? (
-        <div className="flex h-10 items-center gap-1.5 border border-term-neg/50 bg-term-neg/10 px-2 font-mono text-xs text-term-neg">
+        <div className={styles.headerError} role="alert">
           {projectsError}
         </div>
       ) : null}
-    </>
+    </div>
   )
 
-  const desktopSlot = useHeaderSlot(
-    <HeaderFilterControls isMobileView={false} controls={desktopControls} />
-  )
-
-  // Mobile filter strip
-  const mobileSummary = `${country} · ${dateFrom || ''} ~ ${dateTo || ''}`
-  const mobileControls = (
-    <>
-      <HeaderSlotDateRange
-        value={parseDateRangeInputValue(dateFrom, dateTo)}
-        onChange={updateDateRange}
-        timezone={COUNTRY_TIMEZONE_MAP[country]}
-        widthClass={TERM_HEADER_W_SM}
-      />
-      <MobileFilterWide>
-        {projectsLoading ? (
-          <Skeleton className="h-10 w-full rounded-none" />
-        ) : (
-          <HeaderSlotSelect
-            value={projectId}
-            onChange={(value) => updateSearchParam('projectId', value)}
-            options={projects.map((item) => ({ value: String(item.id), label: item.name }))}
-            placeholder="选择项目"
-            widthClass="w-full"
-          />
-        )}
-      </MobileFilterWide>
-      <MobileFilterWide>
-        <HeaderSlotSelect
-          value={country}
-          onChange={(value) => updateSearchParam('country', value)}
-          options={COUNTRY_OPTIONS.map((item) => ({ value: item.value, label: item.label }))}
-          placeholder="站点"
-          widthClass="w-full"
-        />
-      </MobileFilterWide>
-    </>
-  )
-  const mobileStrip = useMobileFilterStrip(
-    <MobileFilterStrip summary={mobileSummary} controls={mobileControls} />
-  )
-
-  return (
-    <>
-      {desktopSlot}
-      {mobileStrip}
-      {/* explorer 经 useSearchParams 消费同一份 URL 参数；路由 replace 已触发其重取 */}
-    </>
-  )
-}
-
-/** 占位桥：保留组件树形状，未来刷新逻辑扩展点 */
-function HiddenRefreshBridge() {
-  return null
+  return useHeaderSlot(controls)
 }

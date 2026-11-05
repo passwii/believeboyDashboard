@@ -1,6 +1,8 @@
 import { render, screen, cleanup, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { readdirSync, readFileSync } from 'node:fs'
+import { extname, join } from 'node:path'
 
 import { AdDataExplorer } from '@/components/dashboard/ad-data/ad-data-explorer'
 import { requestAdClientRefresh } from '@/components/dashboard/ad-refresh'
@@ -66,7 +68,7 @@ async function waitForTable() {
   await waitFor(
     () => {
       expect(document.querySelector('table')).toBeTruthy()
-      expect(document.querySelector('.u-skeleton-shimmer')).toBeNull()
+      expect(document.querySelector('[data-warm-ad-data-skeleton="true"]')).toBeNull()
     },
     { timeout: 5000 }
   )
@@ -74,7 +76,26 @@ async function waitForTable() {
 
 // ── tests ────────────────────────────────────────────────────────────────────
 
-describe('AdDataExplorer 终端化渲染契约（BLF-834）', () => {
+const AD_DATA_SOURCE_ROOTS = [
+  join(process.cwd(), 'app/dashboard/advertising/ad-data'),
+  join(process.cwd(), 'components/dashboard/ad-data'),
+]
+const TERMINAL_VISUAL_RESIDUE = [
+  { label: 'Terminal token', pattern: /--term-/g },
+  { label: 'Terminal utility', pattern: /\bterm-[a-z0-9-]+/g },
+  { label: 'Terminal zero-radius utility', pattern: /\brounded-none\b/g },
+]
+
+function collectSourceFiles(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name)
+    if (entry.isDirectory()) return collectSourceFiles(path)
+    if (entry.name.includes('.test.') || entry.name.includes('.spec.')) return []
+    return ['.css', '.ts', '.tsx'].includes(extname(entry.name)) ? [path] : []
+  })
+}
+
+describe('AdDataExplorer Warm Ledger 渲染契约', () => {
   beforeEach(() => {
     clearAdClientCaches()
     window.sessionStorage.clear()
@@ -89,18 +110,20 @@ describe('AdDataExplorer 终端化渲染契约（BLF-834）', () => {
     window.sessionStorage.clear()
   })
 
-  it('渲染 TermTable 数据行，数值列右对齐等宽', async () => {
+  it('渲染 Warm 数据页、独立表格滚动容器与数值语义', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
     mockFetchSequence(fetchMock)
 
-    render(<AdDataExplorer />)
+    const { container } = render(<AdDataExplorer />)
     await waitForTable()
 
-    // 数值列单元格带 numeric 右对齐类（TermCell numeric → text-right）
     const table = screen.getByRole('table')
-    const numericCells = Array.from(table.querySelectorAll('td.text-right'))
+    const numericCells = Array.from(table.querySelectorAll('td[data-numeric="true"]'))
     expect(numericCells.length).toBeGreaterThan(0)
     expect(numericCells.some((el) => el.textContent === '1,000')).toBe(true)
+    expect(numericCells[0]).toHaveAttribute('data-numeric', 'true')
+    expect(container.querySelector('[data-warm-ad-data="true"]')).toBeInTheDocument()
+    expect(table.parentElement).toHaveAttribute('data-ad-data-table-scroll', 'true')
   })
 
   it('控制条含报表类型 / 搜索 / 视图切换 / 导出，无旧 Card 胶囊残留', async () => {
@@ -110,6 +133,7 @@ describe('AdDataExplorer 终端化渲染契约（BLF-834）', () => {
     const { container } = render(<AdDataExplorer />)
     await waitForTable()
 
+    expect(container.querySelector('[data-warm-ad-data-controls="true"]')).toBeInTheDocument()
     expect(screen.getByText('报表类型')).toBeInTheDocument()
     expect(screen.getByText('原始明细')).toBeInTheDocument()
     expect(screen.getByText('聚合')).toBeInTheDocument()
@@ -118,6 +142,23 @@ describe('AdDataExplorer 终端化渲染契约（BLF-834）', () => {
     expect(container.querySelector('.dashboard-surface')).toBeNull()
     // 无阴影残留
     expect(container.querySelector('.shadow-md, .shadow-lg, .shadow-xl')).toBeNull()
+  })
+
+  it('源文件不重新引入 Terminal 视觉残留', () => {
+    const violations = AD_DATA_SOURCE_ROOTS.flatMap((root) =>
+      collectSourceFiles(root).flatMap((path) => {
+        const source = readFileSync(path, 'utf8')
+        return TERMINAL_VISUAL_RESIDUE.flatMap(({ label, pattern }) =>
+          Array.from(source.matchAll(pattern), (match) => ({
+            path,
+            label,
+            match: match[0],
+          }))
+        )
+      })
+    )
+
+    expect(violations).toEqual([])
   })
 
   it('点击表头切换排序不崩溃且视图切换可用', async () => {
