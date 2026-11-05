@@ -42,18 +42,18 @@ jobs:
              echo "=== matching directories ==="
              find /root /opt /srv -maxdepth 4 -type d \
                \( -iname "*believeboy*" -o -iname "*digital*project*management*" \) \
-               -print 2>/dev/null | while IFS= read -r path; do
-                 if [ -d "$path" ]; then
-                   bytes="$(du -sb "$path" 2>/dev/null | awk "{print \$1}")"
-                   human="$(du -sh "$path" 2>/dev/null | awk "{print \$1}")"
-                   if git -C "$path" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+               -print 2>/dev/null | while IFS= read -r matched_dir; do
+                 if [ -d "$matched_dir" ]; then
+                   bytes="$(du -sb "$matched_dir" 2>/dev/null | awk "{print \$1}")"
+                   human="$(du -sh "$matched_dir" 2>/dev/null | awk "{print \$1}")"
+                   if git -C "$matched_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
                      kind="git-checkout"
-                   elif [ -f "$path/docker-compose.yml" ] || [ -f "$path/compose.yml" ] || [ -f "$path/compose.yaml" ]; then
+                   elif [ -f "$matched_dir/docker-compose.yml" ] || [ -f "$matched_dir/compose.yml" ] || [ -f "$matched_dir/compose.yaml" ]; then
                      kind="compose-runtime"
                    else
                      kind="directory"
                    fi
-                   printf "%s\t%s\t%s\t%s\n" "$kind" "$human" "$bytes" "$path"
+                   printf "%s\t%s\t%s\t%s\n" "$kind" "$human" "$bytes" "$matched_dir"
                  fi
                done
              echo "=== compose projects ==="
