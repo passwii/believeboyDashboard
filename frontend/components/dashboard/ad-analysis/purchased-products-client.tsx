@@ -6,22 +6,22 @@ import { useSession } from 'next-auth/react'
 import { Boxes, ShoppingBasket } from 'lucide-react'
 
 import { AdAnalysisContextBanner } from '@/components/dashboard/ad-analysis/context-banner'
-import { TermPanel } from '@/components/terminal/term-panel'
-import { TermPill } from '@/components/terminal/term-controls'
-import { EmptyState } from '@/components/ui/empty-state'
-import { useAdClientRefreshKey } from '@/components/dashboard/ad-refresh'
-import { TermRefreshStatus } from '@/components/dashboard/ad-analysis/term-chrome'
-import { fetchAdAnalysisCached } from '@/lib/ad-client-cache'
-import { cn } from '@/lib/utils'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-
+  WarmErrorBar,
+  WarmEmptyState,
+  WarmPanel,
+  WarmPill,
+  WarmRefreshStatus,
+  WarmTable,
+  WarmBody,
+  WarmCell,
+  WarmHead,
+  WarmTHead,
+  WarmRow,
+  WarmNumber,
+} from './warm-analysis'
+import { useAdClientRefreshKey } from '@/components/dashboard/ad-refresh'
+import { fetchAdAnalysisCached } from '@/lib/ad-client-cache'
 
 type PurchasedProductItem = {
   purchased_asin: string
@@ -107,21 +107,17 @@ export function AdAnalysisPurchasedProductsClient() {
     }
   }, [campaignFilter, country, dateFrom, dateTo, projectId, querySignature, purchasedAsinFilter, session, skuFilter, status, refreshKey])
 
-  if (!projectId) return <EmptyState rowHeight="lg" message="请先选择项目。" />
-  if (isLoading && !data) return <EmptyState rowHeight="lg" message="正在加载已购买商品分析..." />
+  if (!projectId) return <WarmEmptyState rowHeight="lg" message="请先选择项目。" />
+  if (isLoading && !data) return <WarmEmptyState rowHeight="lg" message="正在加载已购买商品分析..." />
   if (error && !data) {
-    return (
-      <div className="border border-term-neg/50 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
-        ERR · {error}
-      </div>
-    )
+    return <WarmErrorBar message={error} />
   }
-  if (!data) return <EmptyState rowHeight="lg" message="当前没有已购买商品明细。" />
+  if (!data) return <WarmEmptyState rowHeight="lg" message="当前没有已购买商品明细。" />
   if (data.items.length === 0) {
     return (
       <>
-        <TermRefreshStatus loading={loading} error={error} hasData />
-        <EmptyState rowHeight="lg" message="当前没有已购买商品明细。" />
+        <WarmRefreshStatus loading={loading} error={error} hasData />
+        <WarmEmptyState rowHeight="lg" message="当前没有已购买商品明细。" />
       </>
     )
   }
@@ -139,15 +135,15 @@ export function AdAnalysisPurchasedProductsClient() {
   if (filteredItems.length === 0) {
     return (
       <>
-        <TermRefreshStatus loading={loading} error={error} hasData />
-        <EmptyState rowHeight="lg" message="当前筛选下没有匹配的关联购买明细。" />
+        <WarmRefreshStatus loading={loading} error={error} hasData />
+        <WarmEmptyState rowHeight="lg" message="当前筛选下没有匹配的关联购买明细。" />
       </>
     )
   }
 
   return (
-    <div className="flex min-w-0 flex-col gap-3">
-      <TermRefreshStatus loading={loading} error={error} hasData />
+    <div className="flex min-w-0 flex-col gap-3" data-warm-ad-analysis-page="purchased-products">
+      <WarmRefreshStatus loading={loading} error={error} hasData />
       <AdAnalysisContextBanner
         items={[
           ...(campaignFilter ? [{ label: '当前活动', value: campaignFilter }] : []),
@@ -156,84 +152,45 @@ export function AdAnalysisPurchasedProductsClient() {
         ]}
       />
 
-      <TermPanel title="活动层分析" bodyClassName="p-0">
+      <WarmPanel title="活动层分析" bodyClassName="p-0">
         <div className="flex items-center gap-1.5 px-2 py-1.5">
             <ShoppingBasket className="h-4 w-4 text-primary" />
           {/* 桌面端：完整表格 */}
-          <div className="hidden lg:block">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>关联 ASIN</TableHead>
-                  <TableHead>动作</TableHead>
-                  <TableHead>广告 SKU</TableHead>
-                  <TableHead>活动数</TableHead>
-                  <TableHead>Units</TableHead>
-                  <TableHead>Orders</TableHead>
-                  <TableHead>Sales</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+          <div>
+            <WarmTable>
+              <WarmTHead>
+                <WarmRow>
+                  <WarmHead>关联 ASIN</WarmHead>
+                  <WarmHead>动作</WarmHead>
+                  <WarmHead>广告 SKU</WarmHead>
+                  <WarmHead numeric>活动数</WarmHead>
+                  <WarmHead numeric>Units</WarmHead>
+                  <WarmHead numeric>Orders</WarmHead>
+                  <WarmHead numeric>Sales</WarmHead>
+                </WarmRow>
+              </WarmTHead>
+              <WarmBody>
                 {filteredItems.map((item) => (
-                  <TableRow key={`${item.purchased_asin}-${item.ad_sku}`}>
-                    <TableCell className="font-mono text-xs font-medium text-term-text">{item.purchased_asin}</TableCell>
-                    <TableCell>
-                      <TermPill tone="muted"><Boxes className="mr-1 h-3.5 w-3.5" />
+                  <WarmRow key={`${item.purchased_asin}-${item.ad_sku}`}>
+                    <WarmCell className="font-sans text-xs font-medium text-[var(--warm-ledger-color-text)]"><WarmNumber>{item.purchased_asin}</WarmNumber></WarmCell>
+                    <WarmCell>
+                      <WarmPill tone="muted"><Boxes className="mr-1 h-3.5 w-3.5" />
                         {item.action}
-                      </TermPill>
-                    </TableCell>
-                    <TableCell>{item.ad_sku}</TableCell>
-                    <TableCell>{item.campaign_count}</TableCell>
-                    <TableCell>{item.other_sku_units_7d}</TableCell>
-                    <TableCell>{item.other_sku_orders_7d}</TableCell>
-                    <TableCell>${item.other_sku_sales_7d.toFixed(2)}</TableCell>
-                  </TableRow>
+                      </WarmPill>
+                    </WarmCell>
+                    <WarmCell><WarmNumber>{item.ad_sku}</WarmNumber></WarmCell>
+                    <WarmCell numeric>{item.campaign_count}</WarmCell>
+                    <WarmCell numeric>{item.other_sku_units_7d}</WarmCell>
+                    <WarmCell numeric>{item.other_sku_orders_7d}</WarmCell>
+                    <WarmCell numeric>${item.other_sku_sales_7d.toFixed(2)}</WarmCell>
+                  </WarmRow>
                 ))}
-              </TableBody>
-            </Table>
+              </WarmBody>
+            </WarmTable>
           </div>
 
-          {/* 手机端：卡片列表 */}
-          <div className="lg:hidden space-y-3">
-            {filteredItems.map((item) => (
-              <div
-                key={`${item.purchased_asin}-${item.ad_sku}`}
-                className="rounded-none border border-term-border bg-term-panel p-3 space-y-2"
-              >
-                <div className="flex items-start justify-between gap-2 border-b border-term-border pb-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-sm">ASIN: {item.purchased_asin}</p>
-                    <p className="font-mono text-xs text-term-muted">广告 SKU: {item.ad_sku}</p>
-                  </div>
-                  <TermPill tone="info" className="shrink-0">
-                    <Boxes className="mr-1 h-3 w-3" />
-                    {item.action}
-                  </TermPill>
-                </div>
-
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                  <div>
-                    <span className="font-mono text-xs text-term-muted">活动数</span>
-                    <div className="font-mono text-xs font-medium text-term-text">{item.campaign_count}</div>
-                  </div>
-                  <div>
-                    <span className="font-mono text-xs text-term-muted">Units</span>
-                    <div className="font-mono text-xs font-medium text-term-text">{item.other_sku_units_7d}</div>
-                  </div>
-                  <div>
-                    <span className="font-mono text-xs text-term-muted">Orders</span>
-                    <div className="font-mono text-xs font-medium text-term-text">{item.other_sku_orders_7d}</div>
-                  </div>
-                  <div>
-                    <span className="font-mono text-xs text-term-muted">Sales</span>
-                    <div className="font-mono text-xs font-medium text-term-text">${item.other_sku_sales_7d.toFixed(2)}</div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
-      </TermPanel>
+      </WarmPanel>
     </div>
   )
 }

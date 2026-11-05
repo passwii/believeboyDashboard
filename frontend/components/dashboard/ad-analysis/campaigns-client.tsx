@@ -6,24 +6,24 @@ import { useSession } from 'next-auth/react'
 import { AdAnalysisContextBanner } from '@/components/dashboard/ad-analysis/context-banner'
 import { buildAnalysisDrillHref } from '@/components/dashboard/ad-analysis/drill'
 import { AdAnalysisDrillLinks } from '@/components/dashboard/ad-analysis/drill-links'
-import { Button } from '@/components/ui/button'
-import { TermPanel } from '@/components/terminal/term-panel'
-import { TermKpiTile, TermPill } from '@/components/terminal/term-controls'
-import { EmptyState } from '@/components/ui/empty-state'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { DeferredSection } from '@/components/dashboard/deferred-section'
+  WarmErrorBar,
+  WarmEmptyState,
+  WarmPanel,
+  WarmKpiTile,
+  WarmPill,
+  WarmTable,
+  WarmBody,
+  WarmCell,
+  WarmHead,
+  WarmTHead,
+  WarmRow,
+  WarmRefreshStatus,
+  WarmNumber,
+  WarmDeferredSection,
+} from './warm-analysis'
 import { useAdClientRefreshKey } from '@/components/dashboard/ad-refresh'
-import { TermRefreshStatus } from '@/components/dashboard/ad-analysis/term-chrome'
 import { fetchAdAnalysisCached } from '@/lib/ad-client-cache'
-import { cn } from '@/lib/utils'
-
 
 type CampaignItem = {
   campaign_name: string
@@ -156,21 +156,17 @@ export function AdAnalysisCampaignsClient() {
     }
   }, [campaignFilter, country, dateFrom, dateTo, placementFilter, projectId, querySignature, searchTermFilter, session, skuFilter, status, refreshKey])
 
-  if (!projectId) return <EmptyState rowHeight="lg" message="请先选择项目。" />
-  if (isLoading && !data) return <EmptyState rowHeight="lg" message="正在加载活动分析..." />
+  if (!projectId) return <WarmEmptyState rowHeight="lg" message="请先选择项目。" />
+  if (isLoading && !data) return <WarmEmptyState rowHeight="lg" message="正在加载活动分析..." />
   if (error && !data) {
-    return (
-      <div className="border border-term-neg/50 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
-        ERR · {error}
-      </div>
-    )
+    return <WarmErrorBar message={error} />
   }
-  if (!data) return <EmptyState rowHeight="lg" message="当前没有广告活动明细。" />
+  if (!data) return <WarmEmptyState rowHeight="lg" message="当前没有广告活动明细。" />
   if (data.items.length === 0) {
     return (
       <>
-        <TermRefreshStatus loading={isLoading} error={error} hasData />
-        <EmptyState rowHeight="lg" message="当前没有广告活动明细。" />
+        <WarmRefreshStatus loading={isLoading} error={error} hasData />
+        <WarmEmptyState rowHeight="lg" message="当前没有广告活动明细。" />
       </>
     )
   }
@@ -186,15 +182,15 @@ export function AdAnalysisCampaignsClient() {
   if (filteredItems.length === 0) {
     return (
       <>
-        <TermRefreshStatus loading={isLoading} error={error} hasData />
-        <EmptyState rowHeight="lg" message={`当前筛选下没有匹配“${campaignFilter}”的活动。`} />
+        <WarmRefreshStatus loading={isLoading} error={error} hasData />
+        <WarmEmptyState rowHeight="lg" message={`当前筛选下没有匹配“${campaignFilter}”的活动。`} />
       </>
     )
   }
 
   return (
-    <div className="flex min-w-0 flex-col gap-3">
-      <TermRefreshStatus loading={isLoading} error={error} hasData />
+    <div className="flex min-w-0 flex-col gap-3" data-warm-ad-analysis-page="campaigns">
+      <WarmRefreshStatus loading={isLoading} error={error} hasData />
       <AdAnalysisContextBanner
         items={[
           ...(campaignFilter ? [{ label: '当前活动', value: campaignFilter }] : []),
@@ -203,32 +199,32 @@ export function AdAnalysisCampaignsClient() {
           ...(placementFilter ? [{ label: '当前广告位', value: placementFilter }] : []),
         ]}
       />
-      {/* BLF-611：手机端汇总卡一行两个（总则 1）；数字降级防挤压；md+ 行为不变 */}
-      <div className="grid grid-cols-2 gap-2 xl:grid-cols-4" data-testid="campaign-summary-cards">
+      {/* 桌面端汇总卡固定四列，金额由 Warm 数字字体完整展示 */}
+      <div className="grid grid-cols-4 gap-2" data-testid="campaign-summary-cards">
         {data.summary_cards.map((card) => (
           <div key={card.label} data-testid="campaign-summary-card">
-            <TermKpiTile label={card.label} value={card.value} />
+            <WarmKpiTile label={card.label} value={card.value} />
           </div>
         ))}
       </div>
 
-      <DeferredSection fallbackHeight="h-[280px]" data-testid="campaigns-deferred-narrative">
-      <TermPanel title="活动层分析" bodyClassName="p-2">
+      <WarmDeferredSection fallbackHeight="h-[280px]" data-testid="campaigns-deferred-narrative">
+      <WarmPanel title="活动层分析" bodyClassName="p-2">
           <div className="space-y-1">
           {narrativeSections.map((section) => (
             <div
               key={section.title}
-              className="rounded-none border border-term-border bg-term-panel px-2 py-1.5"
+              className="rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] px-2 py-1.5"
             >
-              <p className="font-mono text-xs font-medium text-term-text">{section.title}</p>
-              <p className="mt-1 font-mono text-xs leading-5 text-term-muted">{section.summary}</p>
-              <div className="mt-1 space-y-0.5 font-mono text-xs text-term-faint">
+              <p className="font-sans text-xs font-medium text-[var(--warm-ledger-color-text)]">{section.title}</p>
+              <p className="mt-1 font-sans text-xs leading-5 text-[var(--warm-ledger-color-text-muted)]">{section.summary}</p>
+              <div className="mt-1 space-y-0.5 font-sans text-xs text-[var(--warm-ledger-color-text-faint)]">
                 {section.evidence.map((evidence) => (
                   <p key={evidence}>- {evidence}</p>
                 ))}
               </div>
               {section.action ? (
-                <p className="mt-1 font-mono text-xs leading-5 text-term-muted">动作：{section.action}</p>
+                <p className="mt-1 font-sans text-xs leading-5 text-[var(--warm-ledger-color-text-muted)]">动作：{section.action}</p>
               ) : null}
               <div className="mt-2">
                 <AdAnalysisDrillLinks
@@ -257,72 +253,72 @@ export function AdAnalysisCampaignsClient() {
             </div>
           ))}
         </div>
-      </TermPanel>
-      </DeferredSection>
+      </WarmPanel>
+      </WarmDeferredSection>
 
-      <DeferredSection fallbackHeight="h-[420px]" data-testid="campaigns-deferred-table">
-      <TermPanel title="活动分级" bodyClassName="p-0">
+      <WarmDeferredSection fallbackHeight="h-[420px]" data-testid="campaigns-deferred-table">
+      <WarmPanel title="活动分级" bodyClassName="p-0">
           {/* 桌面端：完整表格 */}
-          <div className="hidden lg:block">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>活动</TableHead>
-                  <TableHead>Grade</TableHead>
-                  <TableHead>类型</TableHead>
-                  <TableHead>Spend</TableHead>
-                  <TableHead>Sales</TableHead>
-                  <TableHead>预算缺口</TableHead>
-                  <TableHead>关联销售</TableHead>
-                  <TableHead>下一步</TableHead>
-                  <TableHead>ACOS</TableHead>
-                  <TableHead>下钻</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+          <div>
+            <WarmTable>
+              <WarmTHead>
+                <WarmRow>
+                  <WarmHead>活动</WarmHead>
+                  <WarmHead>Grade</WarmHead>
+                  <WarmHead>类型</WarmHead>
+                  <WarmHead numeric>Spend</WarmHead>
+                  <WarmHead numeric>Sales</WarmHead>
+                  <WarmHead numeric>预算缺口</WarmHead>
+                  <WarmHead numeric>关联销售</WarmHead>
+                  <WarmHead>下一步</WarmHead>
+                  <WarmHead numeric>ACOS</WarmHead>
+                  <WarmHead>下钻</WarmHead>
+                </WarmRow>
+              </WarmTHead>
+              <WarmBody>
                 {filteredItems.map((item) => (
-                  <TableRow key={item.campaign_name}>
-                    <TableCell className="align-top">
+                  <WarmRow key={item.campaign_name}>
+                    <WarmCell className="align-top">
                       <div className="space-y-1">
-                        <p className="font-mono text-xs font-medium text-term-text">{item.campaign_name}</p>
-                        <p className="font-mono text-xs text-term-muted">
+                        <p className="font-sans text-xs font-medium text-[var(--warm-ledger-color-text)]">{item.campaign_name}</p>
+                        <p className="font-sans text-xs text-[var(--warm-ledger-color-text-muted)]">
                           {item.status} / {item.bidding_strategy}
                         </p>
-                        <p className="font-mono text-xs text-term-muted">
+                        <p className="font-sans text-xs text-[var(--warm-ledger-color-text-muted)]">
                           CTR {(item.ctr * 100).toFixed(2)}% / 预算在线{' '}
                           {(item.budget_utilization_rate * 100).toFixed(2)}%
                         </p>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <TermPill tone="muted">{item.grade}
-                      </TermPill>
-                    </TableCell>
-                    <TableCell>{item.targeting_type}</TableCell>
-                    <TableCell>${item.spend.toFixed(2)}</TableCell>
-                    <TableCell>${item.sales_7d.toFixed(2)}</TableCell>
-                    <TableCell className="align-top">
+                    </WarmCell>
+                    <WarmCell>
+                      <WarmPill tone="muted">{item.grade}
+                      </WarmPill>
+                    </WarmCell>
+                    <WarmCell>{item.targeting_type}</WarmCell>
+                    <WarmCell numeric>${item.spend.toFixed(2)}</WarmCell>
+                    <WarmCell numeric>${item.sales_7d.toFixed(2)}</WarmCell>
+                    <WarmCell className="align-top">
                       <div className="space-y-1 text-sm">
-                        <p>${item.budget_gap.toFixed(2)}</p>
-                        <p className="font-mono text-xs text-term-muted">
-                          错失销售 ${item.missed_sales_max.toFixed(2)}
+                        <p><WarmNumber>${item.budget_gap.toFixed(2)}</WarmNumber></p>
+                        <p className="font-sans text-xs text-[var(--warm-ledger-color-text-muted)]">
+                          错失销售 <WarmNumber>${item.missed_sales_max.toFixed(2)}</WarmNumber>
                         </p>
                       </div>
-                    </TableCell>
-                    <TableCell className="align-top">
+                    </WarmCell>
+                    <WarmCell className="align-top">
                       <div className="space-y-1 text-sm">
-                        <p>${item.cross_sell_sales_7d.toFixed(2)}</p>
-                        <p className="font-mono text-xs text-term-muted">
-                          {item.cross_sell_orders_7d} 单
+                        <p><WarmNumber>${item.cross_sell_sales_7d.toFixed(2)}</WarmNumber></p>
+                        <p className="font-sans text-xs text-[var(--warm-ledger-color-text-muted)]">
+                          <WarmNumber>{item.cross_sell_orders_7d}</WarmNumber> 单
                         </p>
-                        <TermPill tone="muted">{item.cross_sell_action}</TermPill>
+                        <WarmPill tone="muted">{item.cross_sell_action}</WarmPill>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <TermPill tone="muted">{item.next_action}</TermPill>
-                    </TableCell>
-                    <TableCell>{(item.acos * 100).toFixed(2)}%</TableCell>
-                    <TableCell className="align-top">
+                    </WarmCell>
+                    <WarmCell>
+                      <WarmPill tone="muted">{item.next_action}</WarmPill>
+                    </WarmCell>
+                    <WarmCell numeric>{(item.acos * 100).toFixed(2)}%</WarmCell>
+                    <WarmCell className="align-top">
                       <AdAnalysisDrillLinks
                         links={[
                           {
@@ -375,137 +371,15 @@ export function AdAnalysisCampaignsClient() {
                           },
                         ]}
                       />
-                    </TableCell>
-                  </TableRow>
+                    </WarmCell>
+                  </WarmRow>
                 ))}
-              </TableBody>
-            </Table>
+              </WarmBody>
+            </WarmTable>
           </div>
 
-          {/* 手机端：卡片列表 */}
-          <div className="lg:hidden space-y-3">
-            {filteredItems.map((item) => (
-              <div
-                key={item.campaign_name}
-                data-testid="campaign-mobile-card"
-                className="rounded-none border border-term-border bg-term-panel p-3 space-y-2"
-              >
-                {/* 头部：活动名 + Grade */}
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-sm">{item.campaign_name}</p>
-                    <p className="font-mono text-xs text-term-muted">
-                      {item.status} / {item.bidding_strategy}
-                    </p>
-                    <p className="font-mono text-xs text-term-muted">
-                      CTR {(item.ctr * 100).toFixed(2)}% / 预算在线{' '}
-                      {(item.budget_utilization_rate * 100).toFixed(2)}%
-                    </p>
-                  </div>
-                  <TermPill tone="muted">{item.grade}</TermPill>
-                </div>
-
-                {/* 核心数据 2x3 网格 */}
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                  <div>
-                    <span className="font-mono text-xs text-term-muted">Spend</span>
-                    <div className="font-mono text-xs font-medium text-term-text">${item.spend.toFixed(2)}</div>
-                  </div>
-                  <div>
-                    <span className="font-mono text-xs text-term-muted">Sales</span>
-                    <div className="font-mono text-xs font-medium text-term-text">${item.sales_7d.toFixed(2)}</div>
-                  </div>
-                  <div>
-                    <span className="font-mono text-xs text-term-muted">ACOS</span>
-                    <div
-                      className={cn(
-                        'font-medium',
-                        item.acos > 0.3 ? 'text-term-neg' : 'text-term-pos'
-                      )}
-                    >
-                      {(item.acos * 100).toFixed(2)}%
-                    </div>
-                  </div>
-                  <div>
-                    <span className="font-mono text-xs text-term-muted">类型</span>
-                    <div className="text-xs">{item.targeting_type}</div>
-                  </div>
-                  <div>
-                    <span className="font-mono text-xs text-term-muted">预算缺口</span>
-                    <div className="font-medium text-term-warn">${item.budget_gap.toFixed(2)}</div>
-                  </div>
-                  <div>
-                    <span className="font-mono text-xs text-term-muted">关联销售</span>
-                    <div className="font-mono text-xs font-medium text-term-text">${item.cross_sell_sales_7d.toFixed(2)}</div>
-                  </div>
-                </div>
-
-                {/* 错失销售 */}
-                {item.missed_sales_max > 0 && (
-                  <div className="text-xs text-term-warn">
-                    错失销售: ${item.missed_sales_max.toFixed(2)}
-                  </div>
-                )}
-
-                {/* 操作按钮 */}
-                <div className="flex flex-wrap gap-2 pt-2 border-t border-term-border">
-                  <TermPill tone="muted">{item.next_action}</TermPill>
-                  <TermPill tone="muted">{item.cross_sell_action}</TermPill>
-                </div>
-
-                {/* 下钻链接 */}
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 min-h-[44px] text-xs"
-                    onClick={() => {
-                      const href = buildAnalysisDrillHref(
-                        'budget',
-                        { projectId, country, dateFrom, dateTo },
-                        { campaign: item.campaign_name }
-                      )
-                      if (href) window.location.href = href
-                    }}
-                  >
-                    预算
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 min-h-[44px] text-xs"
-                    onClick={() => {
-                      const href = buildAnalysisDrillHref(
-                        'products',
-                        { projectId, country, dateFrom, dateTo },
-                        { campaign: item.campaign_name }
-                      )
-                      if (href) window.location.href = href
-                    }}
-                  >
-                    SKU
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 min-h-[44px] text-xs"
-                    onClick={() => {
-                      const href = buildAnalysisDrillHref(
-                        'search-terms',
-                        { projectId, country, dateFrom, dateTo },
-                        { campaign: item.campaign_name }
-                      )
-                      if (href) window.location.href = href
-                    }}
-                  >
-                    搜索词
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-      </TermPanel>
-      </DeferredSection>
+      </WarmPanel>
+      </WarmDeferredSection>
     </div>
   )
 }

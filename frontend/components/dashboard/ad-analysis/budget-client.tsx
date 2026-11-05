@@ -8,23 +8,24 @@ import { BadgeDollarSign, Wallet } from 'lucide-react'
 import { AdAnalysisContextBanner } from '@/components/dashboard/ad-analysis/context-banner'
 import { buildAnalysisDrillHref } from '@/components/dashboard/ad-analysis/drill'
 import { AdAnalysisDrillLinks } from '@/components/dashboard/ad-analysis/drill-links'
-import { DeferredSection } from '@/components/dashboard/deferred-section'
-import { TermPanel } from '@/components/terminal/term-panel'
-import { TermKpiTile, TermPill } from '@/components/terminal/term-controls'
-import { Button } from '@/components/ui/button'
-import { EmptyState } from '@/components/ui/empty-state'
-import { useAdClientRefreshKey } from '@/components/dashboard/ad-refresh'
-import { TermRefreshStatus } from '@/components/dashboard/ad-analysis/term-chrome'
-import { fetchAdAnalysisCached } from '@/lib/ad-client-cache'
-import { cn } from '@/lib/utils'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+  WarmErrorBar,
+  WarmEmptyState,
+  WarmPanel,
+  WarmKpiTile,
+  WarmPill,
+  WarmRefreshStatus,
+  WarmTable,
+  WarmBody,
+  WarmCell,
+  WarmHead,
+  WarmTHead,
+  WarmRow,
+  WarmNumber,
+  WarmDeferredSection,
+} from './warm-analysis'
+import { useAdClientRefreshKey } from '@/components/dashboard/ad-refresh'
+import { fetchAdAnalysisCached } from '@/lib/ad-client-cache'
 
 type BudgetItem = {
   campaign_name: string
@@ -132,21 +133,17 @@ export function AdAnalysisBudgetClient() {
     }
   }, [campaignFilter, country, dateFrom, dateTo, projectId, querySignature, session, skuFilter, status, refreshKey])
 
-  if (!projectId) return <EmptyState rowHeight="lg" message="请先选择项目。" />
-  if (isLoading && !data) return <EmptyState rowHeight="lg" message="正在加载预算分析..." />
+  if (!projectId) return <WarmEmptyState rowHeight="lg" message="请先选择项目。" />
+  if (isLoading && !data) return <WarmEmptyState rowHeight="lg" message="正在加载预算分析..." />
   if (error && !data) {
-    return (
-      <div className="border border-term-neg/50 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
-        ERR · {error}
-      </div>
-    )
+    return <WarmErrorBar message={error} />
   }
-  if (!data) return <EmptyState rowHeight="lg" message="当前没有预算明细。" />
+  if (!data) return <WarmEmptyState rowHeight="lg" message="当前没有预算明细。" />
   if (data.items.length === 0) {
     return (
       <>
-        <TermRefreshStatus loading={loading} error={error} hasData />
-        <EmptyState rowHeight="lg" message="当前没有预算明细。" />
+        <WarmRefreshStatus loading={loading} error={error} hasData />
+        <WarmEmptyState rowHeight="lg" message="当前没有预算明细。" />
       </>
     )
   }
@@ -154,39 +151,39 @@ export function AdAnalysisBudgetClient() {
   const narrativeSections = data.narrative_sections ?? []
 
   return (
-    <div className="flex min-w-0 flex-col gap-3">
-      <TermRefreshStatus loading={loading} error={error} hasData />
+    <div className="flex min-w-0 flex-col gap-3" data-warm-ad-analysis-page="budget">
+      <WarmRefreshStatus loading={loading} error={error} hasData />
       <AdAnalysisContextBanner
         items={[
           ...(campaignFilter ? [{ label: '当前活动', value: campaignFilter }] : []),
           ...(skuFilter ? [{ label: '当前 SKU', value: skuFilter }] : []),
         ]}
       />
-      {/* BLF-611：手机端汇总卡一行两个（总则 1）；数字降级防挤压；md+ 行为不变 */}
-      <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+      {/* 桌面端汇总卡固定四列，金额由 Warm 数字字体完整展示 */}
+      <div className="grid grid-cols-4 gap-2">
         {data.summary_cards.map((card) => (
-          <TermKpiTile key={card.label} label={card.label} value={card.value} />
+          <WarmKpiTile key={card.label} label={card.label} value={card.value} />
         ))}
       </div>
 
       {/* BEL-421：非首屏区块 —— 叙述分析推迟到滚动接近时再挂载渲染 */}
-      <DeferredSection fallbackHeight="h-[280px]" data-testid="budget-deferred-narrative">
-      <TermPanel title="预算层分析" bodyClassName="p-2">
+      <WarmDeferredSection fallbackHeight="h-[280px]" data-testid="budget-deferred-narrative">
+      <WarmPanel title="预算层分析" bodyClassName="p-2">
           <div className="space-y-1">
           {narrativeSections.map((section) => (
             <div
               key={section.title}
-              className="rounded-none border border-term-border bg-term-panel px-2 py-1.5"
+              className="rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] px-2 py-1.5"
             >
-              <p className="font-mono text-xs font-medium text-term-text">{section.title}</p>
-              <p className="mt-1 font-mono text-xs leading-5 text-term-muted">{section.summary}</p>
-              <div className="mt-1 space-y-0.5 font-mono text-xs text-term-faint">
+              <p className="font-sans text-xs font-medium text-[var(--warm-ledger-color-text)]">{section.title}</p>
+              <p className="mt-1 font-sans text-xs leading-5 text-[var(--warm-ledger-color-text-muted)]">{section.summary}</p>
+              <div className="mt-1 space-y-0.5 font-sans text-xs text-[var(--warm-ledger-color-text-faint)]">
                 {section.evidence.map((evidence) => (
                   <p key={evidence}>- {evidence}</p>
                 ))}
               </div>
               {section.action ? (
-                <p className="mt-1 font-mono text-xs leading-5 text-term-muted">动作：{section.action}</p>
+                <p className="mt-1 font-sans text-xs leading-5 text-[var(--warm-ledger-color-text-muted)]">动作：{section.action}</p>
               ) : null}
               <div className="mt-2">
                 <AdAnalysisDrillLinks
@@ -213,55 +210,57 @@ export function AdAnalysisBudgetClient() {
             </div>
           ))}
         </div>
-      </TermPanel>
-      </DeferredSection>
+      </WarmPanel>
+      </WarmDeferredSection>
 
       {/* BEL-421：非首屏区块 —— 预算明细表推迟挂载 */}
-      <DeferredSection fallbackHeight="h-[420px]" data-testid="budget-deferred-table">
-      <TermPanel title="活动层分析" bodyClassName="p-0">
+      <WarmDeferredSection fallbackHeight="h-[420px]" data-testid="budget-deferred-table">
+      <WarmPanel title="活动层分析" bodyClassName="p-0">
         <div className="flex items-center gap-1.5 px-2 py-1.5">
             <Wallet className="h-4 w-4 text-primary" />
           {/* 桌面端：完整表格 */}
-          <div className="hidden lg:block">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>活动</TableHead>
-                  <TableHead>动作</TableHead>
-                  <TableHead>当前预算</TableHead>
-                  <TableHead>建议预算</TableHead>
-                  <TableHead>预算在线时间</TableHead>
-                  <TableHead>错失销售额</TableHead>
-                  <TableHead>下一步</TableHead>
-                  <TableHead>ACOS</TableHead>
-                  <TableHead>下钻</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+          <div>
+            <WarmTable>
+              <WarmTHead>
+                <WarmRow>
+                  <WarmHead>活动</WarmHead>
+                  <WarmHead>动作</WarmHead>
+                  <WarmHead numeric>当前预算</WarmHead>
+                  <WarmHead numeric>建议预算</WarmHead>
+                  <WarmHead numeric>预算在线时间</WarmHead>
+                  <WarmHead numeric>错失销售额</WarmHead>
+                  <WarmHead>下一步</WarmHead>
+                  <WarmHead numeric>ACOS</WarmHead>
+                  <WarmHead>下钻</WarmHead>
+                </WarmRow>
+              </WarmTHead>
+              <WarmBody>
                 {data.items.map((item) => (
-                  <TableRow key={item.campaign_name}>
-                    <TableCell className="align-top">
+                  <WarmRow key={item.campaign_name}>
+                    <WarmCell className="align-top">
                       <div className="space-y-1">
-                        <p className="font-mono text-xs font-medium text-term-text">{item.campaign_name}</p>
-                        <p className="font-mono text-xs text-term-muted">{item.status}</p>
+                        <p className="font-sans text-xs font-medium text-[var(--warm-ledger-color-text)]">{item.campaign_name}</p>
+                        <p className="font-sans text-xs text-[var(--warm-ledger-color-text-muted)]">{item.status}</p>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <TermPill tone="muted"><BadgeDollarSign className="mr-1 h-3.5 w-3.5" />
+                    </WarmCell>
+                    <WarmCell>
+                      <WarmPill tone="muted"><BadgeDollarSign className="mr-1 h-3.5 w-3.5" />
                         {item.action}
-                      </TermPill>
-                    </TableCell>
-                    <TableCell>${item.budget.toFixed(2)}</TableCell>
-                    <TableCell>${item.suggested_budget.toFixed(2)}</TableCell>
-                    <TableCell>{(item.budget_utilization_rate * 100).toFixed(2)}%</TableCell>
-                    <TableCell>
-                      ${item.missed_sales_min.toFixed(2)} - ${item.missed_sales_max.toFixed(2)}
-                    </TableCell>
-                    <TableCell className="max-w-[220px] text-sm text-muted-foreground">
+                      </WarmPill>
+                    </WarmCell>
+                    <WarmCell numeric>${item.budget.toFixed(2)}</WarmCell>
+                    <WarmCell numeric>${item.suggested_budget.toFixed(2)}</WarmCell>
+                    <WarmCell numeric>{(item.budget_utilization_rate * 100).toFixed(2)}%</WarmCell>
+                    <WarmCell>
+                      <WarmNumber>
+                        ${item.missed_sales_min.toFixed(2)} - ${item.missed_sales_max.toFixed(2)}
+                      </WarmNumber>
+                    </WarmCell>
+                    <WarmCell className="max-w-[220px] text-sm text-muted-foreground">
                       {item.next_step}
-                    </TableCell>
-                    <TableCell>{(item.acos * 100).toFixed(2)}%</TableCell>
-                    <TableCell className="align-top">
+                    </WarmCell>
+                    <WarmCell numeric>{(item.acos * 100).toFixed(2)}%</WarmCell>
+                    <WarmCell className="align-top">
                       <AdAnalysisDrillLinks
                         links={[
                           {
@@ -298,100 +297,16 @@ export function AdAnalysisBudgetClient() {
                           },
                         ]}
                       />
-                    </TableCell>
-                  </TableRow>
+                    </WarmCell>
+                  </WarmRow>
                 ))}
-              </TableBody>
-            </Table>
+              </WarmBody>
+            </WarmTable>
           </div>
 
-          {/* 手机端：卡片列表 */}
-          <div className="lg:hidden space-y-3">
-            {data.items.map((item) => (
-              <div key={item.campaign_name} className="rounded-none border border-term-border bg-term-panel p-3 space-y-2">
-                <div className="flex items-start justify-between gap-2 border-b border-term-border pb-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-sm">{item.campaign_name}</p>
-                    <p className="font-mono text-xs text-term-muted">{item.status}</p>
-                  </div>
-                  <TermPill tone="info">{item.action}</TermPill>
-                </div>
-
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                  <div>
-                    <span className="font-mono text-xs text-term-muted">当前预算</span>
-                    <div className="font-mono text-xs font-medium text-term-text">${item.budget.toFixed(2)}</div>
-                  </div>
-                  <div>
-                    <span className="font-mono text-xs text-term-muted">建议预算</span>
-                    <div className="font-mono text-xs font-medium text-term-text">${item.suggested_budget.toFixed(2)}</div>
-                  </div>
-                  <div>
-                    <span className="font-mono text-xs text-term-muted">预算在线</span>
-                    <div className="font-mono text-xs font-medium text-term-text">
-                      {(item.budget_utilization_rate * 100).toFixed(2)}%
-                    </div>
-                  </div>
-                  <div>
-                    <span className="font-mono text-xs text-term-muted">ACOS</span>
-                    <div
-                      className={cn(
-                        'font-medium',
-                        item.acos > 0.3 ? 'text-term-neg' : 'text-term-pos'
-                      )}
-                    >
-                      {(item.acos * 100).toFixed(2)}%
-                    </div>
-                  </div>
-                </div>
-
-                <div className="font-mono text-xs text-term-muted">
-                  错失销售: ${item.missed_sales_min.toFixed(2)} - $
-                  {item.missed_sales_max.toFixed(2)}
-                </div>
-
-                <div className="text-xs text-muted-foreground border-t border-term-border pt-2">
-                  下一步: {item.next_step}
-                </div>
-
-                <div className="flex gap-2 pt-2 border-t border-term-border">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 min-h-[44px] text-xs flex-1"
-                    onClick={() => {
-                      const href = buildAnalysisDrillHref(
-                        'campaigns',
-                        { projectId, country, dateFrom, dateTo },
-                        { campaign: item.campaign_name }
-                      )
-                      if (href) window.location.href = href
-                    }}
-                  >
-                    活动
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 min-h-[44px] text-xs flex-1"
-                    onClick={() => {
-                      const href = buildAnalysisDrillHref(
-                        'search-terms',
-                        { projectId, country, dateFrom, dateTo },
-                        { campaign: item.campaign_name }
-                      )
-                      if (href) window.location.href = href
-                    }}
-                  >
-                    搜索词
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
-      </TermPanel>
-      </DeferredSection>
+      </WarmPanel>
+      </WarmDeferredSection>
     </div>
   )
 }

@@ -182,9 +182,20 @@ describe('AdAnalysisOverviewClient mount 请求行为（BEL-421）', () => {
     // 下部明细数据网格面板存在且 sticky 表头可滚动
     await waitFor(() => expect(screen.getByLabelText('广告明细数据')).toBeTruthy())
     expect(screen.getByText('明细数据 DETAILS')).toBeTruthy()
+    expect(screen.getByRole('img', { name: '花费与销售额趋势' })).toBeTruthy()
+    expect(screen.getByRole('img', { name: '活动花费分布' })).toBeTruthy()
     // 明细行渲染：活动分组 + 日趋势分组
     await waitFor(() => expect(screen.getByText('CAM-A')).toBeTruthy())
     expect(screen.getAllByText('活动 CAMP').length).toBeGreaterThan(0)
     expect(screen.getAllByText('日趋势 DAILY').length).toBeGreaterThan(0)
+    const page = document.querySelector('[data-warm-ad-analysis-page="overview"]')
+    expect(page).not.toBeNull()
+    expect(page?.querySelector('[data-warm-table-scroll="true"]')).not.toBeNull()
+    for (const element of page?.querySelectorAll('*') ?? []) {
+      const className = element.getAttribute('class') ?? ''
+      expect(className).not.toContain('term-')
+      expect(className).not.toContain('rounded-none')
+      expect(className).not.toMatch(/(?:^|\s)font-mono(?=\s|$)/)
+    }
   })
 })

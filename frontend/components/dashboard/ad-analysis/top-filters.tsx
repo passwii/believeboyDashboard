@@ -1,25 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import type { DateRange } from 'react-day-picker'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 
 import {
-  COUNTRY_TIMEZONE_MAP,
-  formatDateInputValue,
-  parseDateRangeInputValue,
-} from '@/components/ui/date-picker'
-import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
-import {
-  HeaderSlotDateRange,
-  HeaderSlotSelect,
-  TERM_HEADER_W_MD,
-  TERM_HEADER_W_SM,
-  TERM_HEADER_W_XL,
-} from '@/components/terminal/header-filter-suite'
-import { TermPill } from '@/components/terminal/term-controls'
-import { Skeleton } from '@/components/ui/skeleton'
+  WarmPill,
+  WarmSkeleton,
+} from './warm-analysis'
 import {
   useHeaderRefresh,
   useHeaderSlot,
@@ -28,6 +16,7 @@ import {
 import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
 import { requestAdClientRefresh } from '@/components/dashboard/ad-refresh'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import styles from '@/app/dashboard/advertising/ad-analysis/ad-analysis-warm.module.css'
 
 type ProjectOption = {
   id: number
@@ -58,7 +47,7 @@ function buildHref(pathname: string, searchParams: URLSearchParams) {
 /**
  * BLF-889 · 广告分析页筛选上移 Top Header 中段插槽。
  *
- * Desktop: `HeaderFilterControls isMobileView={false}` + `useHeaderSlot`.
+ * Desktop: 页面本地 Warm 原生控件 + `useHeaderSlot`.
  * Mobile:  `useMobileFilterStrip` + `MobileFilterStrip` 渲染等价摘要与控件。
  * 全局刷新为唯一入口，页面不额外放置 RefreshButton。
  */
@@ -125,14 +114,10 @@ export function AdAnalysisTopFilters() {
     })
   }
 
-  const updateDateRange = (range?: DateRange) => {
+  const updateDate = (key: 'dateFrom' | 'dateTo', value: string) => {
     replaceSearchParams((next) => {
-      const nextDateFrom = formatDateInputValue(range?.from)
-      const nextDateTo = formatDateInputValue(range?.to)
-      if (nextDateFrom) next.set('dateFrom', nextDateFrom)
-      else next.delete('dateFrom')
-      if (nextDateTo) next.set('dateTo', nextDateTo)
-      else next.delete('dateTo')
+      if (value) next.set(key, value)
+      else next.delete(key)
     })
   }
 
@@ -149,49 +134,68 @@ export function AdAnalysisTopFilters() {
     router.refresh()
   })
 
-  // Desktop controls (fixed: isMobileView={false})
+  // Desktop controls
   const desktopControls = (
-    <>
+    <div className={styles.headerFilters} data-warm-header-filters="true">
       {projectsLoading ? (
-        <Skeleton className="h-10 w-full rounded-none md:w-[150px]" />
+        <WarmSkeleton className="h-10 w-[150px]" />
       ) : (
-        <HeaderSlotSelect
+        <select
+          aria-label="项目筛选"
+          className={styles.headerSelect}
           value={projectId}
-          onChange={(value) => updateSearchParam('projectId', value)}
-          options={projects.map((item) => ({ value: String(item.id), label: item.name }))}
-          placeholder="选择项目"
-          widthClass={TERM_HEADER_W_MD}
-          title="项目筛选"
-        />
+          onChange={(event) => updateSearchParam('projectId', event.target.value)}
+        >
+          <option value="">选择项目</option>
+          {projects.map((item) => (
+            <option key={item.id} value={String(item.id)}>
+              {item.name}
+            </option>
+          ))}
+        </select>
       )}
 
-      <HeaderSlotSelect
+      <select
+        aria-label="站点筛选"
+        className={styles.headerSelect}
         value={country}
-        onChange={(value) => updateSearchParam('country', value)}
-        options={COUNTRY_OPTIONS.map((item) => ({ value: item.value, label: item.label }))}
-        placeholder="选择站点"
-        widthClass={TERM_HEADER_W_SM}
-        title="站点筛选"
-      />
+        onChange={(event) => updateSearchParam('country', event.target.value)}
+      >
+        {COUNTRY_OPTIONS.map((item) => (
+          <option key={item.value} value={item.value}>
+            {item.label}
+          </option>
+        ))}
+      </select>
 
-      <HeaderSlotDateRange
-        value={parseDateRangeInputValue(dateFrom, dateTo)}
-        onChange={updateDateRange}
-        timezone={COUNTRY_TIMEZONE_MAP[country]}
-        widthClass={TERM_HEADER_W_XL}
-      />
+      <div className={styles.dateGroup}>
+        <input
+          type="date"
+          aria-label="开始日期"
+          className={styles.dateInput}
+          value={dateFrom}
+          onChange={(event) => updateDate('dateFrom', event.target.value)}
+        />
+        <input
+          type="date"
+          aria-label="结束日期"
+          className={styles.dateInput}
+          value={dateTo}
+          onChange={(event) => updateDate('dateTo', event.target.value)}
+        />
+      </div>
 
       {drillTokens.length > 0 && (
-        <div className="flex min-w-0 flex-nowrap items-center gap-1 overflow-hidden">
+        <div className={styles.headerFilters}>
           {drillTokens.map((item) => (
-            <TermPill key={item.key} tone="accent" className="shrink-0">
+            <WarmPill key={item.key} tone="accent" className="shrink-0">
               {item.label}：{item.value}
-            </TermPill>
+            </WarmPill>
           ))}
           <button
             type="button"
             onClick={clearDrillParams}
-            className="flex h-10 shrink-0 items-center rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs text-term-muted transition-colors hover:bg-term-hover hover:text-term-text"
+            className={styles.clearButton}
           >
             清空下钻
           </button>
@@ -199,48 +203,63 @@ export function AdAnalysisTopFilters() {
       )}
 
       {projectsError && (
-        <span className="flex h-10 shrink-0 items-center border border-term-neg/50 bg-term-neg/10 px-2 font-mono text-xs text-term-neg">
-          {projectsError}
-        </span>
+        <span className={styles.projectError}>{projectsError}</span>
       )}
-    </>
+    </div>
   )
 
-  const desktopSlot = useHeaderSlot(
-    <HeaderFilterControls isMobileView={false} controls={desktopControls} />
-  )
+  const desktopSlot = useHeaderSlot(desktopControls)
 
   // Mobile filter strip
   const mobileSummary = `${country} · ${dateFrom || ''} ~ ${dateTo || ''}`
   const mobileControls = (
     <>
-      <HeaderSlotDateRange
-        value={parseDateRangeInputValue(dateFrom, dateTo)}
-        onChange={updateDateRange}
-        timezone={COUNTRY_TIMEZONE_MAP[country]}
-        widthClass={TERM_HEADER_W_SM}
+      <input
+        type="date"
+        aria-label="开始日期"
+        className={styles.mobileControl}
+        value={dateFrom}
+        onChange={(event) => updateDate('dateFrom', event.target.value)}
+      />
+      <input
+        type="date"
+        aria-label="结束日期"
+        className={styles.mobileControl}
+        value={dateTo}
+        onChange={(event) => updateDate('dateTo', event.target.value)}
       />
       <MobileFilterWide>
         {projectsLoading ? (
-          <Skeleton className="h-10 w-full rounded-none" />
+          <WarmSkeleton className="h-10 w-full" />
         ) : (
-          <HeaderSlotSelect
+          <select
+            aria-label="项目筛选"
+            className={styles.mobileControl}
             value={projectId}
-            onChange={(value) => updateSearchParam('projectId', value)}
-            options={projects.map((item) => ({ value: String(item.id), label: item.name }))}
-            placeholder="选择项目"
-            widthClass="w-full"
-          />
+            onChange={(event) => updateSearchParam('projectId', event.target.value)}
+          >
+            <option value="">选择项目</option>
+            {projects.map((item) => (
+              <option key={item.id} value={String(item.id)}>
+                {item.name}
+              </option>
+            ))}
+          </select>
         )}
       </MobileFilterWide>
       <MobileFilterWide>
-        <HeaderSlotSelect
+        <select
+          aria-label="站点筛选"
+          className={styles.mobileControl}
           value={country}
-          onChange={(value) => updateSearchParam('country', value)}
-          options={COUNTRY_OPTIONS.map((item) => ({ value: item.value, label: item.label }))}
-          placeholder="站点"
-          widthClass="w-full"
-        />
+          onChange={(event) => updateSearchParam('country', event.target.value)}
+        >
+          {COUNTRY_OPTIONS.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
+        </select>
       </MobileFilterWide>
     </>
   )

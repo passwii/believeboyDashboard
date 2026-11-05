@@ -42,6 +42,7 @@ const cases: Array<{
   name: string
   endpoint: string
   marker: string
+  page: string
   Client: ComponentType
   payload: unknown
 }> = [
@@ -49,6 +50,7 @@ const cases: Array<{
     name: 'budget',
     endpoint: 'budget',
     marker: '旧预算活动',
+    page: 'budget',
     Client: AdAnalysisBudgetClient,
     payload: {
       ...common,
@@ -65,6 +67,7 @@ const cases: Array<{
     name: 'placements',
     endpoint: 'placements',
     marker: '旧广告位',
+    page: 'placements',
     Client: AdAnalysisPlacementsClient,
     payload: {
       ...common,
@@ -79,6 +82,7 @@ const cases: Array<{
     name: 'products',
     endpoint: 'products',
     marker: '旧推广 SKU',
+    page: 'products',
     Client: AdAnalysisProductsClient,
     payload: {
       ...common,
@@ -95,6 +99,7 @@ const cases: Array<{
     name: 'purchased-products',
     endpoint: 'purchased-products',
     marker: '旧关联 ASIN',
+    page: 'purchased-products',
     Client: AdAnalysisPurchasedProductsClient,
     payload: {
       project_id: 1,
@@ -109,6 +114,7 @@ const cases: Array<{
     name: 'search-terms',
     endpoint: 'search-terms',
     marker: '旧搜索词',
+    page: 'search-terms',
     Client: AdAnalysisSearchTermsClient,
     payload: {
       ...common,
@@ -124,6 +130,7 @@ const cases: Array<{
     name: 'targets',
     endpoint: 'targets',
     marker: '旧投放词',
+    page: 'targets',
     Client: AdAnalysisTargetsClient,
     payload: {
       ...common,
@@ -139,6 +146,7 @@ const cases: Array<{
     name: 'time-trend',
     endpoint: 'time-trend',
     marker: '2026-10-01',
+    page: 'time-trend',
     Client: AdAnalysisTimeTrendClient,
     payload: {
       project_id: 1,
@@ -151,6 +159,7 @@ const cases: Array<{
     name: 'traffic-quality',
     endpoint: 'traffic-quality',
     marker: '旧流量活动',
+    page: 'traffic-quality',
     Client: AdAnalysisTrafficQualityClient,
     payload: {
       ...common,
@@ -178,7 +187,7 @@ describe('广告分析 client 查询签名', () => {
     window.sessionStorage.clear()
   })
 
-  it.each(cases)('$name 查询变化后失败不残留旧范围数据', async ({ Client, endpoint, marker, payload }) => {
+  it.each(cases)('$name 查询变化后失败不残留旧范围数据', async ({ Client, endpoint, marker, page, payload }) => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
       const url = new URL(String(input), 'http://localhost')
       if (url.pathname.endsWith(`/api/v1/ad-analysis/${endpoint}`)) {
@@ -190,6 +199,15 @@ describe('广告分析 client 查询签名', () => {
 
     const view = render(<Client />)
     await waitFor(() => expect(screen.getAllByText(marker).length).toBeGreaterThan(0))
+    const host = document.querySelector(`[data-warm-ad-analysis-page="${page}"]`)
+    expect(host).not.toBeNull()
+    expect(host?.querySelector('[data-warm-table-scroll="true"]')).not.toBeNull()
+    for (const element of host?.querySelectorAll('*') ?? []) {
+      const className = element.getAttribute('class') ?? ''
+      expect(className).not.toContain('term-')
+      expect(className).not.toContain('rounded-none')
+      expect(className).not.toMatch(/(?:^|\s)font-mono(?=\s|$)/)
+    }
 
     mockSearchParams = new URLSearchParams('projectId=1&country=DE')
     view.rerender(<Client />)

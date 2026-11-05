@@ -2,12 +2,13 @@
 
 import { type ReactNode, Suspense } from 'react'
 
-import { AnalyticsContentLoading } from '@/components/dashboard/page-skeletons'
 import { AdAnalysisTabNav } from '@/components/dashboard/ad-analysis/tab-nav'
 import { AdAnalysisTopFilters } from '@/components/dashboard/ad-analysis/top-filters'
+import styles from './ad-analysis-warm.module.css'
+import { AdAnalysisWarmLoading } from './ad-analysis-loading'
 
 /**
- * BLF-818 · Pattern B 双轴分析画布（广告分析页终端化）。
+ * BLF-818 · Pattern B 双轴分析画布（广告分析页 V4 Warm Ledger）。
  *
  * 布局骨架：h-full 列框架钉死在 #main-content 高度内 ——
  *   h-9 子 Tab 栏 → 内容区（flex-1 独立滚动，各子页自行决定内部滚动策略）。
@@ -18,14 +19,14 @@ import { AdAnalysisTopFilters } from '@/components/dashboard/ad-analysis/top-fil
  */
 export default function AdAnalysisLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex h-full min-h-0 flex-col gap-1.5">
+    <div className={styles.layout} data-warm-ad-analysis="true">
       {/* BLF-889：筛选控件 portal 进 Top Header；此处仅渲染宿主 */}
       <AdAnalysisTopFilters />
-      <div className="shrink-0">
+      <div className={styles.tabRow}>
         <AdAnalysisTabNav />
       </div>
-      <div className="flex min-h-0 flex-1 flex-col">
-        <Suspense fallback={<AnalyticsContentLoading />}>{children}</Suspense>
+      <div className={styles.content}>
+        <Suspense fallback={<AdAnalysisWarmLoading />}>{children}</Suspense>
       </div>
     </div>
   )

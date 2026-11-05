@@ -9,25 +9,27 @@ import {
   CartesianGrid,
   Line,
   LineChart,
+  Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
 
-import { TermGridHeader, TermMetricTile, TermRefreshStatus } from '@/components/dashboard/ad-analysis/term-chrome'
 import {
-  TermBody,
-  TermCell,
-  TermHead,
-  TermRow,
-  TermTable,
-  TermTHead,
-} from '@/components/terminal/term-table'
-import { EmptyTableState } from '@/components/ui/empty-state'
-import { Skeleton } from '@/components/ui/skeleton'
+  WarmGridHeader,
+  WarmMetricTile,
+  WarmRefreshStatus,
+  WarmBody,
+  WarmCell,
+  WarmHead,
+  WarmNumber,
+  WarmRow,
+  WarmTable,
+  WarmTHead,
+  WarmEmptyTableState,
+  WarmSkeleton,
+} from './warm-analysis'
 import {
   ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
   type ChartConfig,
 } from '@/components/ui/chart'
 import { useAdClientRefreshKey } from '@/components/dashboard/ad-refresh'
@@ -49,7 +51,7 @@ import { AdAnalysisDrillLinks } from '@/components/dashboard/ad-analysis/drill-l
  *   │ 高消耗活动 / 高消耗 SKU / 浪费搜索词 / 近7日趋势 …     │
  *   └──────────────────────────────────────────────────────┘
  *
- * 数据获取逻辑不动（BEL-421 客户端缓存契约保持），仅视图层终端化。
+ * 数据获取逻辑不动（BEL-421 客户端缓存契约保持），仅迁移视图层到 V4 Warm Ledger。
  */
 
 type OverviewMetric = {
@@ -104,13 +106,54 @@ type OverviewResponse = {
 // ===== 图表配置（沿用 recharts + ui/chart，坐标轴/图例文字 11px mono）=====
 
 const TREND_CHART_CONFIG = {
-  spend: { label: '花费', color: 'var(--term-warn)' },
-  sales: { label: '销售额', color: 'var(--term-pos)' },
+  spend: { label: '花费', color: 'var(--warm-ledger-color-accent)' },
+  sales: { label: '销售额', color: 'var(--warm-ledger-color-positive)' },
 } satisfies ChartConfig
 
 const DISTRIBUTION_CHART_CONFIG = {
-  spend: { label: '花费', color: 'var(--term-accent)' },
+  spend: { label: '花费', color: 'var(--warm-ledger-color-accent)' },
 } satisfies ChartConfig
+
+type WarmTooltipPayload = {
+  color?: string
+  name?: string | number
+  value?: number | string
+}
+
+function WarmChartTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean
+  payload?: WarmTooltipPayload[]
+  label?: string | number
+}) {
+  if (!active || !payload?.length) return null
+
+  return (
+    <div className="min-w-[132px] rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline-strong)] bg-[var(--warm-ledger-color-panel)] px-2 py-1.5 font-sans text-xs shadow-[var(--warm-ledger-highlight-rest)]">
+      {label !== undefined ? <WarmNumber>{label}</WarmNumber> : null}
+      <div className="mt-1 grid gap-0.5">
+        {payload.map((item, index) => (
+          <div key={`${item.name}-${index}`} className="flex items-center gap-1.5">
+            <span
+              aria-hidden="true"
+              className="size-1.5 rounded-full"
+              style={{ backgroundColor: item.color }}
+            />
+            <span className="text-[var(--warm-ledger-color-text-muted)]">{item.name}</span>
+            <WarmNumber className="ml-auto text-[var(--warm-ledger-color-text)]">
+              {typeof item.value === 'number'
+                ? item.value.toLocaleString('zh-CN', { maximumFractionDigits: 2 })
+                : item.value}
+            </WarmNumber>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 /** KPI 磁贴取值顺序：优先核心四指标（花费/销售额/ACOS/ROAS），其余按后端顺序补齐 */
 const METRIC_LABEL_MAP: Record<string, { short: string }> = {
@@ -256,9 +299,9 @@ export function AdAnalysisOverviewClient() {
 
   if (!projectId) {
     return (
-      <section className="flex min-h-0 flex-1 flex-col border border-term-border bg-term-panel">
-        <TermGridHeader title="广告总览 AD OVERVIEW" />
-        <div className="flex flex-1 items-center justify-center font-mono text-xs text-term-muted">
+      <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--warm-ledger-radius-panel)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)]">
+        <WarmGridHeader title="广告总览 AD OVERVIEW" />
+        <div className="flex flex-1 items-center justify-center font-sans text-xs text-[var(--warm-ledger-color-text-muted)]">
           请先在顶部筛选区选择项目
         </div>
       </section>
@@ -268,20 +311,20 @@ export function AdAnalysisOverviewClient() {
   const metrics = data?.metrics ?? []
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-1.5">
-      <TermRefreshStatus loading={isLoading} error={error} hasData={Boolean(data)} />
+    <div className="flex min-h-0 flex-1 flex-col gap-1.5" data-warm-ad-analysis-page="overview">
+      <WarmRefreshStatus loading={isLoading} error={error} hasData={Boolean(data)} />
 
       {/* ===== KPI 等宽磁贴带（范围 3）：等宽网格 + 同比环比语义色 ===== */}
-      <div className="grid shrink-0 grid-cols-2 gap-1 sm:grid-cols-4 xl:grid-cols-8">
+      <div className="grid shrink-0 grid-cols-8 gap-1">
         {isLoading && metrics.length === 0
           ? Array.from({ length: 8 }).map((_, i) => (
-              <div key={`kpi-skeleton-${i}`} className="border border-term-border bg-term-panel px-2 py-1.5">
-                <Skeleton className="h-3 w-12 rounded-none" />
-                <Skeleton className="mt-1.5 h-5 w-20 rounded-none" />
+              <div key={`kpi-skeleton-${i}`} className="rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] px-2 py-1.5">
+                <WarmSkeleton className="h-3 w-12 rounded-[var(--warm-ledger-radius-inner)]" />
+                <WarmSkeleton className="mt-1.5 h-5 w-20 rounded-[var(--warm-ledger-radius-inner)]" />
               </div>
             ))
           : metrics.map((metric) => (
-              <TermMetricTile
+              <WarmMetricTile
                 key={metric.label}
                 label={metricShort(metric.label)}
                 value={metric.display_value}
@@ -292,22 +335,24 @@ export function AdAnalysisOverviewClient() {
       </div>
 
       {/* ===== 上部图表分割区（范围 1，约 40~45% 高度，容器内自适应） ===== */}
-      <div className="grid h-[38vh] max-h-[420px] min-h-[220px] shrink-0 grid-cols-1 gap-1 lg:grid-cols-2">
+      <div className="grid h-[38vh] max-h-[420px] min-h-[220px] shrink-0 grid-cols-2 gap-1">
         <ChartContainer
           config={TREND_CHART_CONFIG}
-          className="aspect-auto h-full w-full border border-term-border bg-term-panel"
+          role="img"
+          aria-label="花费与销售额趋势"
+          className="aspect-auto h-full w-full overflow-hidden rounded-[var(--warm-ledger-radius-panel)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)]"
         >
           <LineChart data={trendData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-            <CartesianGrid stroke="var(--term-border)" strokeDasharray="2 2" vertical={false} />
+            <CartesianGrid stroke="var(--warm-ledger-color-hairline)" strokeDasharray="2 2" vertical={false} />
             <XAxis
               dataKey="date"
-              tick={{ fontSize: 11, fontFamily: 'var(--font-mono, monospace)', fill: 'var(--term-muted)' }}
+              tick={{ fontSize: 11, fontFamily: 'var(--warm-ledger-font-mono)', fill: 'var(--warm-ledger-color-text-muted)' }}
               tickLine={false}
-              axisLine={{ stroke: 'var(--term-border-strong)' }}
+              axisLine={{ stroke: 'var(--warm-ledger-color-hairline-strong)' }}
             />
             <YAxis
               yAxisId="left"
-              tick={{ fontSize: 11, fontFamily: 'var(--font-mono, monospace)', fill: 'var(--term-muted)' }}
+              tick={{ fontSize: 11, fontFamily: 'var(--warm-ledger-font-mono)', fill: 'var(--warm-ledger-color-text-muted)' }}
               tickLine={false}
               axisLine={false}
               width={52}
@@ -316,18 +361,18 @@ export function AdAnalysisOverviewClient() {
             <YAxis
               yAxisId="right"
               orientation="right"
-              tick={{ fontSize: 11, fontFamily: 'var(--font-mono, monospace)', fill: 'var(--term-muted)' }}
+              tick={{ fontSize: 11, fontFamily: 'var(--warm-ledger-font-mono)', fill: 'var(--warm-ledger-color-text-muted)' }}
               tickLine={false}
               axisLine={false}
               width={44}
               tickFormatter={(v: number) => `$${v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v.toFixed(0)}`}
             />
-            <ChartTooltip content={<ChartTooltipContent />} />
+            <Tooltip content={<WarmChartTooltip />} />
             <Line
               yAxisId="left"
               type="monotone"
               dataKey="spend"
-              stroke="var(--term-warn)"
+              stroke="var(--warm-ledger-color-accent)"
               strokeWidth={1.5}
               dot={false}
               name="花费"
@@ -336,7 +381,7 @@ export function AdAnalysisOverviewClient() {
               yAxisId="right"
               type="monotone"
               dataKey="sales"
-              stroke="var(--term-pos)"
+              stroke="var(--warm-ledger-color-positive)"
               strokeWidth={1.5}
               dot={false}
               name="销售额"
@@ -346,65 +391,71 @@ export function AdAnalysisOverviewClient() {
 
         <ChartContainer
           config={DISTRIBUTION_CHART_CONFIG}
-          className="aspect-auto h-full w-full border border-term-border bg-term-panel"
+          role="img"
+          aria-label="活动花费分布"
+          className="aspect-auto h-full w-full overflow-hidden rounded-[var(--warm-ledger-radius-panel)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)]"
         >
           <BarChart data={distributionData} layout="vertical" margin={{ top: 4, right: 12, bottom: 0, left: 4 }}>
-            <CartesianGrid stroke="var(--term-border)" strokeDasharray="2 2" horizontal={false} />
+            <CartesianGrid stroke="var(--warm-ledger-color-hairline)" strokeDasharray="2 2" horizontal={false} />
             <XAxis
               type="number"
-              tick={{ fontSize: 11, fontFamily: 'var(--font-mono, monospace)', fill: 'var(--term-muted)' }}
+              tick={{ fontSize: 11, fontFamily: 'var(--warm-ledger-font-mono)', fill: 'var(--warm-ledger-color-text-muted)' }}
               tickLine={false}
-              axisLine={{ stroke: 'var(--term-border-strong)' }}
+              axisLine={{ stroke: 'var(--warm-ledger-color-hairline-strong)' }}
               tickFormatter={(v: number) => `$${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v.toFixed(0)}`}
             />
             <YAxis
               type="category"
               dataKey="name"
               width={96}
-              tick={{ fontSize: 11, fontFamily: 'var(--font-mono, monospace)', fill: 'var(--term-muted)' }}
+              tick={{ fontSize: 11, fontFamily: 'var(--warm-ledger-font-sans)', fill: 'var(--warm-ledger-color-text-muted)' }}
               tickLine={false}
               axisLine={false}
             />
-            <ChartTooltip content={<ChartTooltipContent />} />
-            <Bar dataKey="spend" fill="var(--term-accent)" name="花费" barSize={10} />
+            <Tooltip content={<WarmChartTooltip />} />
+            <Bar dataKey="spend" fill="var(--warm-ledger-color-accent)" name="花费" barSize={10} />
           </BarChart>
         </ChartContainer>
       </div>
 
-      {/* ===== 下部子 Tab 数据网格（范围 2）：TermPanel 密度规格 + sticky 表头独立滚动 ===== */}
-      <section className="flex min-h-0 flex-1 flex-col border border-term-border bg-term-panel" aria-label="广告明细数据">
-        <TermGridHeader
+      {/* ===== 下部子 Tab 数据网格（范围 2）：WarmPanel 密度规格 + sticky 表头独立滚动 ===== */}
+      <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--warm-ledger-radius-panel)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)]" aria-label="广告明细数据">
+        <WarmGridHeader
           title="明细数据 DETAILS"
           meta={data ? `${data.top_campaigns.length + data.top_products.length + data.top_waste_terms.length} groups` : undefined}
         />
-        <div className="min-h-0 flex-1 overflow-auto overscroll-contain term-scroll">
+        <div className="min-h-0 flex-1 overflow-auto overscroll-contain ">
           {isLoading && !data ? (
-            <SkeletonRows />
+            <WarmTable aria-label="广告总览明细加载中">
+              <WarmBody>
+                <WarmSkeletonRows />
+              </WarmBody>
+            </WarmTable>
           ) : data ? (
-            <TermTable aria-label="广告总览明细">
-              <TermTHead>
-                <TermRow>
-                  <TermHead>分组</TermHead>
-                  <TermHead>名称</TermHead>
-                  <TermHead numeric>Spend</TermHead>
-                  <TermHead numeric>Sales</TermHead>
-                  <TermHead numeric>Orders</TermHead>
-                  <TermHead numeric>ACOS</TermHead>
-                  <TermHead numeric>CPC</TermHead>
-                  <TermHead numeric>Clicks</TermHead>
-                  <TermHead>下钻</TermHead>
-                </TermRow>
-              </TermTHead>
-              <TermBody>
+            <WarmTable aria-label="广告总览明细">
+              <WarmTHead>
+                <WarmRow>
+                  <WarmHead>分组</WarmHead>
+                  <WarmHead>名称</WarmHead>
+                  <WarmHead numeric>Spend</WarmHead>
+                  <WarmHead numeric>Sales</WarmHead>
+                  <WarmHead numeric>Orders</WarmHead>
+                  <WarmHead numeric>ACOS</WarmHead>
+                  <WarmHead numeric>CPC</WarmHead>
+                  <WarmHead numeric>Clicks</WarmHead>
+                  <WarmHead>下钻</WarmHead>
+                </WarmRow>
+              </WarmTHead>
+              <WarmBody>
                 {data.top_campaigns.length === 0 &&
                 data.top_products.length === 0 &&
                 data.top_waste_terms.length === 0 &&
                 data.trend_summary.length === 0 &&
                 data.top_cross_sell_products.length === 0 ? (
-                  <EmptyTableState
+                  <WarmEmptyTableState
                     colSpan={9}
                     message="当前筛选条件下暂无广告明细 — 调整日期范围或等待报表上传"
-                    className="bg-term-panel font-mono text-xs"
+                    className="bg-[var(--warm-ledger-color-panel)] font-sans text-xs"
                   />
                 ) : (
                   <>
@@ -518,29 +569,33 @@ export function AdAnalysisOverviewClient() {
                     ))}
                   </>
                 )}
-              </TermBody>
-            </TermTable>
+              </WarmBody>
+            </WarmTable>
           ) : (
-            <EmptyTableState
-              colSpan={9}
-              message="当前还没有可展示的广告总览数据。"
-              className="bg-term-panel font-mono text-xs"
-            />
+            <WarmTable aria-label="广告总览明细">
+              <WarmBody>
+                <WarmEmptyTableState
+                  colSpan={9}
+                  message="当前还没有可展示的广告总览数据。"
+                  className="bg-[var(--warm-ledger-color-panel)] font-sans text-xs"
+                />
+              </WarmBody>
+            </WarmTable>
           )}
         </div>
       </section>
 
       {/* 风险提醒 / 结构化分析收进底部折叠区（保留原信息价值，不占首屏） */}
       {(data?.issue_cards.length ?? 0) > 0 && (
-        <details className="shrink-0 border border-term-border bg-term-panel font-mono text-xs">
-          <summary className="cursor-pointer select-none px-2 py-1 uppercase tracking-wider text-term-muted hover:text-term-text">
+        <details className="shrink-0 overflow-hidden rounded-[var(--warm-ledger-radius-panel)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] font-sans text-xs">
+          <summary className="cursor-pointer select-none px-2 py-1 uppercase tracking-wider text-[var(--warm-ledger-color-text-muted)] hover:text-[var(--warm-ledger-color-text)]">
             ⚠ 风险提醒 · {data?.issue_cards.length} 条
           </summary>
-          <ul className="space-y-1 border-t border-term-border px-2 py-1.5 text-term-text">
+          <ul className="space-y-1 border-t border-[var(--warm-ledger-color-hairline)] px-2 py-1.5 text-[var(--warm-ledger-color-text)]">
             {data?.issue_cards.map((issue, i) => (
               <li key={`${issue.title}-${i}`} className="leading-relaxed">
-                <span className="text-term-warn">[{issue.level}]</span> {issue.title}
-                <span className="text-term-muted"> — {issue.summary}</span>
+                <span className="text-[var(--warm-ledger-color-accent)]">[{issue.level}]</span> {issue.title}
+                <span className="text-[var(--warm-ledger-color-text-muted)]"> — {issue.summary}</span>
                 {buildDrillLabel(issue.drill_to) ? (
                   <AdAnalysisDrillLinks
                     links={[{ href: buildDrillHref(issue.drill_to), label: buildDrillLabel(issue.drill_to) }]}
@@ -585,48 +640,48 @@ function DetailRow({
   const hasAcos = sales > 0 && spend > 0
   const shownAcos = hasAcos ? acos : 0
   return (
-    <TermRow>
-      <TermCell tone="muted" className="whitespace-nowrap">
+    <WarmRow>
+      <WarmCell tone="muted" className="whitespace-nowrap">
         <span className="text-[11px]">{group}</span>
-      </TermCell>
-      <TermCell className="max-w-[280px]" title={name}>
+      </WarmCell>
+      <WarmCell className="max-w-[280px]" title={name}>
         <span className="line-clamp-1">{name}</span>
-      </TermCell>
-      <TermCell numeric>{spend > 0 ? fmt(spend) : <span className="text-term-faint">—</span>}</TermCell>
-      <TermCell numeric>{sales > 0 ? fmt(sales) : <span className="text-term-faint">—</span>}</TermCell>
-      <TermCell numeric>{orders > 0 ? orders.toLocaleString('zh-CN') : <span className="text-term-faint">—</span>}</TermCell>
-      <TermCell numeric>
+      </WarmCell>
+      <WarmCell numeric>{spend > 0 ? fmt(spend) : <span className="text-[var(--warm-ledger-color-text-faint)]">—</span>}</WarmCell>
+      <WarmCell numeric>{sales > 0 ? fmt(sales) : <span className="text-[var(--warm-ledger-color-text-faint)]">—</span>}</WarmCell>
+      <WarmCell numeric>{orders > 0 ? orders.toLocaleString('zh-CN') : <span className="text-[var(--warm-ledger-color-text-faint)]">—</span>}</WarmCell>
+      <WarmCell numeric>
         {hasAcos ? (
-          <span className={(shownAcos as number) > 0.3 ? 'text-term-neg' : 'text-term-pos'}>
+          <span className={(shownAcos as number) > 0.3 ? 'text-[var(--warm-ledger-color-negative)]' : 'text-[var(--warm-ledger-color-positive)]'}>
             {((shownAcos as number) * 100).toFixed(2)}%
           </span>
         ) : (
-          <span className="text-term-faint">—</span>
+          <span className="text-[var(--warm-ledger-color-text-faint)]">—</span>
         )}
-      </TermCell>
-      <TermCell numeric>{typeof cpc === 'number' && cpc > 0 ? fmt(cpc) : <span className="text-term-faint">—</span>}</TermCell>
-      <TermCell numeric>{typeof clicks === 'number' && clicks > 0 ? clicks.toLocaleString('zh-CN') : <span className="text-term-faint">—</span>}</TermCell>
-      <TermCell>
+      </WarmCell>
+      <WarmCell numeric>{typeof cpc === 'number' && cpc > 0 ? fmt(cpc) : <span className="text-[var(--warm-ledger-color-text-faint)]">—</span>}</WarmCell>
+      <WarmCell numeric>{typeof clicks === 'number' && clicks > 0 ? clicks.toLocaleString('zh-CN') : <span className="text-[var(--warm-ledger-color-text-faint)]">—</span>}</WarmCell>
+      <WarmCell>
         <AdAnalysisDrillLinks links={drillLinks} />
-      </TermCell>
-    </TermRow>
+      </WarmCell>
+    </WarmRow>
   )
 }
 
 /** 加载骨架：9 列占位、28px 行高对齐真实行高 */
-function SkeletonRows({ rows = 10 }: { rows?: number }) {
+function WarmSkeletonRows({ rows = 10 }: { rows?: number }) {
   return (
     <>
       {Array.from({ length: rows }).map((_, rowIndex) => (
-        <tr key={`overview-skeleton-${rowIndex}`} className="border-b border-term-border">
+        <tr key={`overview-skeleton-${rowIndex}`} className="border-b border-[var(--warm-ledger-color-hairline)]">
           <td colSpan={9} className="h-7 px-2 align-middle">
-            <Skeleton
+            <WarmSkeleton
               className={
                 rowIndex % 3 === 0
-                  ? 'h-3 w-1/2 rounded-none'
+                  ? 'h-3 w-1/2 rounded-[var(--warm-ledger-radius-inner)]'
                   : rowIndex % 3 === 1
-                    ? 'h-3 w-2/3 rounded-none'
-                    : 'h-3 w-1/3 rounded-none'
+                    ? 'h-3 w-2/3 rounded-[var(--warm-ledger-radius-inner)]'
+                    : 'h-3 w-1/3 rounded-[var(--warm-ledger-radius-inner)]'
               }
             />
           </td>
