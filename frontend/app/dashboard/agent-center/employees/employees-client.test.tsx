@@ -1,7 +1,11 @@
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
 import AgentEmployeesClient, { projectScopeText } from './employees-client'
+import AgentEmployeesLoading from './loading'
 import type { AgentApiKeyItem } from '@/lib/api/agent-key-admin'
 import type { EmployeeSummaryMap } from '@/lib/hooks/use-agent-employee-summary'
 
@@ -55,6 +59,17 @@ beforeEach(() => {
 })
 
 describe('AgentEmployeesClient 员工花名册(P3)', () => {
+  it('以 Warm 桌面表格面板呈现,保留只读花名册契约', async () => {
+    const { container } = render(<AgentEmployeesClient />)
+
+    expect(await screen.findByText('客服 1 号')).toBeInTheDocument()
+    expect(container.querySelector('[data-warm-agent-employees="true"]')).toBeInTheDocument()
+    expect(container.querySelector('[data-agent-employees-table-scroll] table')).toBeInTheDocument()
+    expect(container.querySelector('[class*="term-"]')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    expect(listAgentApiKeysMock).toHaveBeenCalledTimes(1)
+  })
+
   it('页面标题由 TerminalHeader 承载,不渲染重复 PageHeader', () => {
     render(<AgentEmployeesClient />)
 
@@ -137,5 +152,38 @@ describe('AgentEmployeesClient 员工花名册(P3)', () => {
     expect(projectScopeText('')).toBe('全部项目')
     expect(projectScopeText(null)).toBe('全部项目')
     expect(projectScopeText('1,2,3')).toBe('3 个项目')
+  })
+})
+
+describe('Agent Employees Warm styling contract', () => {
+  it('keeps the 8-column table geometry during the Warm loading state', () => {
+    const { container } = render(<AgentEmployeesLoading />)
+    const table = container.querySelector('table')
+
+    expect(container.querySelector('[data-warm-agent-employees-loading="true"]')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('正在加载 Agent 员工')
+    expect(table).toBeInTheDocument()
+    expect(table?.querySelectorAll('col')).toHaveLength(8)
+    expect(table?.querySelectorAll('thead th')).toHaveLength(8)
+
+    const rows = table?.querySelectorAll('tbody tr') ?? []
+    expect(rows).toHaveLength(7)
+    for (const row of rows) {
+      expect(row.querySelectorAll('td')).toHaveLength(8)
+    }
+  })
+
+  it('uses Warm tokens and a contained sticky table without Terminal aliases or breakpoints', () => {
+    const cssPath = join(__dirname, 'employees-warm.module.css')
+    const css = existsSync(cssPath) ? readFileSync(cssPath, 'utf8') : ''
+
+    expect(css).toContain('var(--warm-ledger-color-panel)')
+    expect(css).toContain('var(--warm-ledger-radius-panel)')
+    expect(css).toContain('var(--warm-ledger-font-variant-numeric)')
+    expect(css).toContain('position: sticky')
+    expect(css).toContain('overflow: auto')
+    expect(css).not.toContain('--term-')
+    expect(css).not.toContain('rounded-none')
+    expect(css).not.toContain('@media')
   })
 })

@@ -1,21 +1,9 @@
 'use client'
 
-import { Badge } from '@/components/ui/badge'
-import { EmptyState } from '@/components/ui/empty-state'
-import { Skeleton } from '@/components/ui/skeleton'
 import { type ReviewTarget } from '@/lib/review-tracking-api'
 import { cn } from '@/lib/utils'
+import styles from '../review-tracking-warm.module.css'
 
-/**
- * 目标选择区（阶段 C，BLF-1377）。
- *
- * 两类目标混排在同一列表但分组呈现：
- *  - `internal_group`：某项目下的内部评论共享组，代表 ASIN 由运营在 SKU 信息页维护；
- *  - `external_asin`：外部竞品 ASIN，没有 project，对所有运营可见。
- *
- * 运营账号只能看到自己可见项目下的内部目标；不可见目标后端直接 404，
- * 因此这里不做「全部项目」的假象——筛选项由页面根据 session 决定。
- */
 export interface TargetSelectorProps {
   targets: ReviewTarget[]
   loading?: boolean
@@ -39,31 +27,18 @@ function TargetCard({
       onClick={onSelect}
       aria-pressed={active}
       data-testid={`target-${target.id}`}
-      className={cn(
-        'w-full border px-3 py-2 text-left transition-colors',
-        active
-          ? 'border-term-border-strong bg-term-raised'
-          : 'border-term-border bg-term-panel hover:bg-term-hover'
-      )}
+      className={styles.targetCard}
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className="truncate font-mono text-[12px] font-semibold text-term-text">
-          {target.displayName}
-        </span>
-        {target.isActive ? null : (
-          <Badge variant="outline" className="shrink-0 border-term-border text-term-muted">
-            已停用
-          </Badge>
-        )}
-      </div>
-      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[10px] text-term-muted">
-        <span>{target.marketplace}</span>
-        <span aria-hidden>·</span>
-        <span>{target.asin || '代表 ASIN 未设置'}</span>
-      </div>
-      <div className="mt-0.5 truncate font-mono text-[10px] text-term-faint">
+      <span className={styles.targetCardTop}>
+        <span className={styles.targetName}>{target.displayName}</span>
+        {target.isActive ? null : <span className={styles.inactiveBadge}>已停用</span>}
+      </span>
+      <span className={styles.targetMeta}>
+        {target.marketplace} · {target.asin || '代表 ASIN 未设置'}
+      </span>
+      <span className={styles.targetKind}>
         {target.kindLabel} · {target.projectName}
-      </div>
+      </span>
     </button>
   )
 }
@@ -79,29 +54,30 @@ export function TargetSelector({
   const external = targets.filter((target) => target.kind === 'external_asin')
 
   return (
-    <div className={cn('space-y-3', className)} data-testid="target-selector">
-      <div className="flex items-center justify-between border-b border-term-border pb-2">
-        <h2 className="font-mono text-[11px] uppercase tracking-[0.16em] text-term-muted">追踪目标</h2>
-        <span className="font-mono text-[10px] text-term-faint">{targets.length} 个</span>
+    <div
+      className={cn(styles.targetSelector, className)}
+      data-testid="target-selector"
+    >
+      <div className={styles.targetSelectorHeader}>
+        <h2 className={styles.targetSelectorTitle}>追踪目标</h2>
+        <span className={styles.targetSelectorCount}>{targets.length} 个</span>
       </div>
 
       {loading ? (
-        <div className="space-y-2">
-          <Skeleton className="h-16 w-full rounded-none" />
-          <Skeleton className="h-16 w-full rounded-none" />
+        <div className={styles.targetGroups} role="status" aria-busy="true">
+          <span className={styles.targetSelectorCount}>正在加载追踪目标</span>
+          <div className={styles.skeletonCard} aria-hidden="true" />
+          <div className={styles.skeletonCard} aria-hidden="true" />
         </div>
       ) : targets.length === 0 ? (
-        <EmptyState
-          icon="database"
-          message="还没有追踪目标：内部共享组在 SKU 信息页配置，外部竞品可在本页登记；等待采集端接入后这里会出现目标。"
-        />
+        <div className={styles.emptyTarget} role="status">
+          还没有追踪目标：内部共享组在 SKU 信息页配置，外部竞品可在本页登记；等待采集端接入后这里会出现目标。
+        </div>
       ) : (
-        <div className="space-y-4">
+        <div className={styles.targetGroups}>
           {internal.length > 0 ? (
-            <section className="space-y-2" aria-label="内部共享组目标">
-              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-term-faint">
-                内部共享组 ({internal.length})
-              </p>
+            <section className={styles.targetGroup} aria-label="内部共享组目标">
+              <p className={styles.groupTitle}>内部共享组 ({internal.length})</p>
               {internal.map((target) => (
                 <TargetCard
                   key={target.id}
@@ -114,10 +90,8 @@ export function TargetSelector({
           ) : null}
 
           {external.length > 0 ? (
-            <section className="space-y-2" aria-label="外部竞品目标">
-              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-term-faint">
-                外部竞品 ({external.length})
-              </p>
+            <section className={styles.targetGroup} aria-label="外部竞品目标">
+              <p className={styles.groupTitle}>外部竞品 ({external.length})</p>
               {external.map((target) => (
                 <TargetCard
                   key={target.id}

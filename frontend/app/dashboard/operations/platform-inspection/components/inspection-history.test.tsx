@@ -48,9 +48,17 @@ vi.mock('@/lib/inspection-api', () => ({
 
 vi.mock('@/components/ui/sheet', () => ({
   Sheet: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SheetContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  SheetContent: ({
+    children,
+    ...props
+  }: { children: React.ReactNode } & Record<string, unknown>) => (
+    <div {...props}>{children}</div>
+  ),
   SheetHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SheetTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  SheetTitle: ({
+    children,
+    ...props
+  }: { children: React.ReactNode } & Record<string, unknown>) => <h2 {...props}>{children}</h2>,
 }))
 
 vi.mock('@/components/ui/image-preview-dialog', () => ({
@@ -64,13 +72,23 @@ beforeEach(() => {
 })
 
 describe('InspectionHistory health rating labels', () => {
+  it('renders the history table inside Warm scroll containment', async () => {
+    const { container } = render(<InspectionHistory periodId={10} />)
+
+    const page = await screen.findByTestId('inspection-history')
+    expect(page).toHaveAttribute('data-warm-inspection-history', 'true')
+    const table = await screen.findByRole('table')
+    expect(table.parentElement).toHaveAttribute('data-warm-table-scroll', 'true')
+    expect(container.querySelector('[class*="term-"]')).toBeNull()
+  })
+
   it('renders production AHR enums with shared Chinese labels and semantic colors', async () => {
     render(<InspectionHistory periodId={10} />)
 
     const criticalBadge = await screen.findByLabelText('AHR 危险')
     const healthyBadge = await screen.findByLabelText('AHR 健康')
 
-    expect(criticalBadge.querySelector('span')).toHaveClass('text-term-neg')
-    expect(healthyBadge.querySelector('span')).toHaveClass('text-emerald-700')
+    expect(criticalBadge).toHaveAttribute('data-tone', 'critical')
+    expect(healthyBadge).toHaveAttribute('data-tone', 'normal')
   })
 })

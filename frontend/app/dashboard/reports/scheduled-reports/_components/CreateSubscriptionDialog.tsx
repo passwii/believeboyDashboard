@@ -7,6 +7,7 @@ import { normalizeErrorMessage } from '@/lib/error-utils'
 import type { AIModelConfig, Frequency } from './types'
 import { SubscriptionForm } from './SubscriptionForm'
 import { sendTestEmail, createSubscription } from './api'
+import styles from '../scheduled-reports-warm.module.css'
 
 interface Props {
   open: boolean
@@ -91,7 +92,11 @@ export function CreateSubscriptionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[calc(100%-2rem)] rounded-none border-term-border bg-term-panel sm:max-w-[540px] md:max-w-2xl p-4">
+      <DialogContent
+        className={styles.dialogContent}
+        data-warm-ledger-dialog="true"
+        aria-describedby={undefined}
+      >
         <SubscriptionForm
           mode="create"
           formEmail={formEmail}

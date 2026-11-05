@@ -1,5 +1,5 @@
-import { TermKpiTile } from '@/components/terminal/term-controls'
 import type { LedgerSummary } from './types'
+import styles from '../scheduled-reports-warm.module.css'
 
 interface Props {
   summary: LedgerSummary | null
@@ -18,9 +18,12 @@ export function LedgerSummaryCards({ summary, loading }: Props) {
   ]
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+    <div className={styles.summaryGrid} aria-busy={loading || undefined}>
       {cards.map((card) => (
-        <TermKpiTile key={card.label} label={card.label} value={card.value} tone={card.tone} loading={loading} />
+        <div key={card.label} className={styles.summaryCard} data-tone={card.tone}>
+          <span className={styles.summaryLabel}>{card.label}</span>
+          <span className={styles.summaryValue}>{loading ? '—' : card.value}</span>
+        </div>
       ))}
     </div>
   )

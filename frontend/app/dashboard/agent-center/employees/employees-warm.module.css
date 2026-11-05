@@ -1,0 +1,293 @@
+.page {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--warm-ledger-space-4);
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-sans);
+  font-size: var(--warm-ledger-font-size-body);
+  line-height: var(--warm-ledger-line-height-body);
+}
+
+.panel {
+  min-width: 0;
+  overflow: hidden;
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-panel);
+  background: var(--warm-ledger-color-panel);
+  box-shadow: var(--warm-ledger-highlight-rest);
+}
+
+.panelHeader {
+  display: grid;
+  gap: var(--warm-ledger-space-1);
+  padding: var(--warm-ledger-space-4) var(--warm-ledger-space-5);
+  border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  background: var(--warm-ledger-color-panel-strong);
+}
+
+.panelTitle {
+  margin: 0;
+  color: var(--warm-ledger-color-text);
+  font-size: var(--warm-ledger-font-size-section);
+  font-weight: var(--warm-ledger-font-weight-medium);
+  line-height: var(--warm-ledger-line-height-body);
+}
+
+.panelDescription {
+  max-width: 760px;
+  margin: 0;
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-control);
+  line-height: var(--warm-ledger-line-height-body);
+}
+
+.tableScroll {
+  min-width: 0;
+  max-height: calc(100vh - 186px);
+  overflow: auto;
+  background: var(--warm-ledger-color-window);
+  scrollbar-color: var(--warm-ledger-color-raised-hover) transparent;
+}
+
+.tableScroll:focus-visible {
+  outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color);
+  outline-offset: calc(var(--warm-ledger-focus-offset) * -1);
+}
+
+.table {
+  width: 100%;
+  min-width: 1000px;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-sans);
+  font-size: var(--warm-ledger-font-size-control);
+  line-height: var(--warm-ledger-line-height-body);
+}
+
+.table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: 44px;
+  padding: var(--warm-ledger-space-2) var(--warm-ledger-space-3);
+  border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  background: var(--warm-ledger-color-panel-strong);
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-label);
+  font-weight: var(--warm-ledger-font-weight-medium);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.table td {
+  height: 56px;
+  padding: var(--warm-ledger-space-2) var(--warm-ledger-space-3);
+  border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  vertical-align: middle;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.colEmployee {
+  width: 188px;
+}
+
+.colAgentId {
+  width: 168px;
+}
+
+.colCapability {
+  width: auto;
+}
+
+.colProject {
+  width: 104px;
+}
+
+.colStatus {
+  width: 100px;
+}
+
+.colCalls {
+  width: 128px;
+}
+
+.colErrors {
+  width: 96px;
+}
+
+.colActivity {
+  width: 124px;
+}
+
+.employeeName {
+  color: var(--warm-ledger-color-text);
+  font-weight: var(--warm-ledger-font-weight-medium);
+  overflow-wrap: anywhere;
+}
+
+.secondaryText {
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-label);
+  overflow-wrap: anywhere;
+}
+
+.monoText {
+  color: var(--warm-ledger-color-text-soft);
+  font-family: var(--warm-ledger-font-mono);
+  font-size: var(--warm-ledger-font-size-label);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+  overflow-wrap: anywhere;
+}
+
+.numeric {
+  text-align: right;
+  font-family: var(--warm-ledger-font-mono);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+  white-space: nowrap;
+}
+
+.mutedValue {
+  color: var(--warm-ledger-color-text-muted);
+}
+
+.negativeValue {
+  color: var(--warm-ledger-color-negative);
+}
+
+.placeholder {
+  color: var(--warm-ledger-color-text-muted);
+}
+
+.statusBadge {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--warm-ledger-space-2);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-inner);
+  background: var(--warm-ledger-color-raised);
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-label);
+  line-height: var(--warm-ledger-line-height-tight);
+  white-space: nowrap;
+}
+
+.statusActive {
+  border-color: var(--warm-ledger-color-hairline-strong);
+  color: var(--warm-ledger-color-positive);
+}
+
+.statusExpired {
+  color: var(--warm-ledger-color-negative);
+}
+
+.freshness {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--warm-ledger-space-2);
+  color: var(--warm-ledger-color-text-muted);
+  font-family: var(--warm-ledger-font-mono);
+  font-size: var(--warm-ledger-font-size-label);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+  white-space: nowrap;
+}
+
+.freshnessDot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.freshnessPositive {
+  color: var(--warm-ledger-color-positive);
+}
+
+.freshnessAccent {
+  color: var(--warm-ledger-color-accent);
+}
+
+.freshnessMuted {
+  color: var(--warm-ledger-color-text-muted);
+}
+
+.loadingState {
+  display: grid;
+  gap: var(--warm-ledger-space-2);
+  padding: var(--warm-ledger-space-5);
+}
+
+.skeletonBar {
+  height: 32px;
+  border-radius: var(--warm-ledger-radius-inner);
+  background: var(--warm-ledger-color-raised);
+}
+
+.stateMessage {
+  margin: 0;
+  padding: var(--warm-ledger-space-8) var(--warm-ledger-space-5);
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-body);
+  text-align: center;
+}
+
+.errorMessage {
+  color: var(--warm-ledger-color-negative);
+}
+
+.emptyLink {
+  color: var(--warm-ledger-color-accent-strong);
+  text-decoration: underline;
+  text-underline-offset: var(--warm-ledger-space-1);
+}
+
+.emptyLink:focus-visible {
+  outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color);
+  outline-offset: var(--warm-ledger-focus-offset);
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.loadingHeader {
+  display: flex;
+  min-height: 76px;
+  align-items: center;
+  padding: var(--warm-ledger-space-4) var(--warm-ledger-space-5);
+  border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  background: var(--warm-ledger-color-panel-strong);
+}
+
+.skeletonTitle {
+  width: 120px;
+  height: 16px;
+}
+
+.skeletonHeaderBar {
+  display: block;
+  width: 100%;
+  height: 10px;
+}
+
+.skeletonCellBar {
+  display: block;
+  width: 76%;
+  height: 10px;
+}

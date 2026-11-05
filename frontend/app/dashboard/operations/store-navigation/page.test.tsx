@@ -57,11 +57,30 @@ afterEach(() => {
 })
 
 describe('StoreNavigationPage header 化契约（operations header migration Batch C）', () => {
+  it('使用 Warm Ledger 导航壳且不混用 Terminal 表面', async () => {
+    const { container } = render(<StoreNavigationPage />)
+
+    const page = await screen.findByTestId('store-navigation-warm-page')
+    expect(page).toHaveAttribute('data-warm-surface', 'warm-ledger')
+    expect(container.querySelector('[class*="term-"]')).toBeNull()
+  })
+
   it('渲染不崩溃：店铺卡片与统计出现', async () => {
     render(<StoreNavigationPage />)
     expect(await screen.findByText('店铺A')).toBeInTheDocument()
     expect(screen.getByText('店铺B')).toBeInTheDocument()
     expect(screen.getByText('店铺总数')).toBeInTheDocument()
+  })
+
+  it('保留真实店铺外链并对无链接店铺禁用跳转', async () => {
+    render(<StoreNavigationPage />)
+
+    const storeA = await screen.findByRole('link', { name: /店铺A/ })
+    const storeB = screen.getByRole('link', { name: /店铺B/ })
+    expect(storeA).toHaveAttribute('href', 'https://a.example.com')
+    expect(storeA).toHaveAttribute('target', '_blank')
+    expect(storeA).toHaveAttribute('rel', 'noreferrer')
+    expect(storeB).toHaveAttribute('href', '#')
   })
 
   it('初始加载不带 force（走缓存）', async () => {

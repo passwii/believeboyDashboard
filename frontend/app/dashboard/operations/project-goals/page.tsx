@@ -1,7 +1,19 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import {
+  forwardRef,
+  useEffect,
+  useState,
+  useCallback,
+  useRef,
+  type ButtonHTMLAttributes,
+  type ComponentPropsWithoutRef,
+  type HTMLAttributes,
+  type InputHTMLAttributes,
+  type ReactNode,
+} from 'react'
 import { useSearchParams } from 'next/navigation'
+import * as DialogPrimitive from '@radix-ui/react-dialog'
 import {
   Loader2,
   Plus,
@@ -12,13 +24,11 @@ import {
   Calendar,
   DollarSign,
   BarChart3,
+  X,
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 
-import { Button } from '@/components/ui/button'
-import { DataTableCard, DataTableCardHeader, DataTableCardBody } from '@/components/ui/data-card'
-import { TermPanel } from '@/components/terminal/term-panel'
-import { TERM_BUTTON, TermPill } from '@/components/terminal/term-controls'
+import { WarmBadge } from '@/components/dashboard-v2/warm-ledger/controls'
 import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
 import { MobileFilterStrip } from '@/components/terminal/mobile-filter-strip'
 import {
@@ -27,23 +37,6 @@ import {
   TERM_HEADER_W_SM,
 } from '@/components/terminal/header-filter-suite'
 import { useHeaderRefresh, useHeaderSlot, useMobileFilterStrip } from '@/components/terminal/terminal-header-slot'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { COUNTRY_TIMEZONE_MAP, getTodayInTimezone } from '@/components/ui/date-picker'
 import { GoalProgressRings, achievementPaceRatio } from '@/components/ui/goal-progress-rings'
@@ -53,6 +46,8 @@ import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-pro
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
 import { cn } from '@/lib/utils'
+
+import styles from './project-goals-warm.module.css'
 
 const API_BASE = '/api/backend/api/v1'
 
@@ -173,16 +168,14 @@ function CompletionBadge({
   rate: number
   monthStatus: 'past' | 'current' | 'future'
 }) {
-  // BLF-883 terminal UI：彩色胶囊底 → TermPill 单色语义 pill
   if (monthStatus === 'current') {
-    return <TermPill tone="accent">进行中</TermPill>
+    return <WarmBadge tone="accent">进行中</WarmBadge>
   }
   if (monthStatus === 'future') {
-    return <TermPill tone="muted">未开始</TermPill>
+    return <WarmBadge tone="neutral">未开始</WarmBadge>
   }
-  // past month
-  if (rate >= 1) return <TermPill tone="pos">达成</TermPill>
-  return <TermPill tone="warn">未达标</TermPill>
+  if (rate >= 1) return <WarmBadge tone="positive">达成</WarmBadge>
+  return <WarmBadge tone="negative">未达标</WarmBadge>
 }
 
 function ProgressBar({
@@ -196,17 +189,124 @@ function ProgressBar({
 }) {
   const pct = Math.min(value * 100, 100)
   const over = value > 1
-  // BLF-883 terminal UI：零圆角轨道 + term 语义色填充
   return (
-    <div className={cn('h-1.5 w-full overflow-hidden rounded-none bg-term-raised', className)}>
+    <div className={cn(styles.progressTrack, className)}>
       <div
         className={cn(
-          'h-full rounded-none transition-all duration-500',
-          over ? 'bg-term-pos' : isPastIncomplete ? 'bg-term-warn' : 'bg-term-accent'
+          styles.progressFill,
+          over
+            ? styles.progressPositive
+            : isPastIncomplete
+              ? styles.progressNegative
+              : styles.progressAccent
         )}
         style={{ width: `${pct}%` }}
       />
     </div>
+  )
+}
+
+function Button({
+  className,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      {...props}
+      type={props.type ?? 'button'}
+      className={[styles.button, className].filter(Boolean).join(' ')}
+    />
+  )
+}
+
+const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
+  function Input({ className, ...props }, ref) {
+    return (
+      <input
+        {...props}
+        ref={ref}
+        className={[styles.input, className].filter(Boolean).join(' ')}
+      />
+    )
+  }
+)
+
+const Dialog = DialogPrimitive.Root
+
+const DialogContent = forwardRef<
+  HTMLDivElement,
+  ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
+>(function DialogContent({ className, children, ...props }, ref) {
+  return (
+    <DialogPrimitive.Portal>
+      <DialogPrimitive.Overlay className={styles.dialogOverlay} />
+      <DialogPrimitive.Content
+        {...props}
+        ref={ref}
+        className={[styles.dialog, className].filter(Boolean).join(' ')}
+      >
+        {children}
+        <DialogPrimitive.Close className={styles.dialogClose} aria-label="关闭">
+          <X aria-hidden />
+        </DialogPrimitive.Close>
+      </DialogPrimitive.Content>
+    </DialogPrimitive.Portal>
+  )
+})
+
+function DialogHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div {...props} className={[styles.dialogHeader, className].filter(Boolean).join(' ')} />
+}
+
+function DialogFooter({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div {...props} className={[styles.dialogFooter, className].filter(Boolean).join(' ')} />
+}
+
+const DialogTitle = forwardRef<
+  HTMLHeadingElement,
+  ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
+>(function DialogTitle({ className, ...props }, ref) {
+  return (
+    <DialogPrimitive.Title
+      {...props}
+      ref={ref}
+      className={[styles.dialogTitle, className].filter(Boolean).join(' ')}
+    />
+  )
+})
+
+function Panel({
+  children,
+  className,
+}: {
+  children: ReactNode
+  className?: string
+}) {
+  return <section className={[styles.panel, className].filter(Boolean).join(' ')}>{children}</section>
+}
+
+function TablePanel({
+  title,
+  description,
+  action,
+  children,
+}: {
+  title: string
+  description: string
+  action?: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <section className={styles.tablePanel}>
+      <header className={styles.tableHeader}>
+        <div>
+          <h2>{title}</h2>
+          <p>{description}</p>
+        </div>
+        {action ? <div className={styles.tableAction}>{action}</div> : null}
+      </header>
+      {children}
+    </section>
   )
 }
 
@@ -536,227 +636,214 @@ export default function ProjectGoalsPage() {
   )
 
   return (
-    <div className="flex min-w-0 flex-col gap-3">
-      {/* Header 化：筛选控件已上移 Top Header 中段插槽，正文仅渲染 portal 宿主 */}
+    <main
+      className={styles.page}
+      data-testid="project-goals-warm-page"
+      data-warm-surface="warm-ledger"
+      aria-busy={loading}
+    >
       {headerSlotPortal}
-      {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
       {mobileFilterStrip}
 
       {!selectedProjectId ? (
-        <div className="flex h-48 items-center justify-center border border-dashed border-term-border bg-term-panel font-mono text-xs text-term-muted">
-          请选择项目以查看目标数据
-        </div>
+        <div className={styles.emptyState}>请选择项目以查看目标数据</div>
       ) : loading && !progressData ? (
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className={styles.loadingStack}>
+          <div className={styles.loadingGrid}>
             {[...Array(4)].map((_, i) => (
-              <Skeleton key={i} className="h-28 rounded-none sm:h-36" />
+              <div key={i} className={styles.skeletonMetric} />
             ))}
           </div>
-          <Skeleton className="h-48 rounded-none sm:h-64" />
+          <div className={styles.skeletonPanel} />
         </div>
       ) : (
-        <div className="flex flex-col gap-3">
-          {/* ── 实时目标进度：三环指标 + 明细条 ────────────────────────── */}
+        <div className={styles.contentStack}>
           {currentMonthProgress && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-term-accent" />
-                <h2 className="font-mono text-xs font-semibold uppercase tracking-wider text-term-muted">
-                  本月进度 · {currentMonthProgress.month_label}
-                </h2>
+            <section className={styles.progressSection}>
+              <div className={styles.sectionHeading}>
+                <BarChart3 aria-hidden />
+                <h2>本月进度 · {currentMonthProgress.month_label}</h2>
               </div>
 
-              <TermPanel bodyClassName="p-4">
-                <div className="space-y-5">
-                  <GoalProgressRings
-                    items={[
-                      {
-                        key: 'pace',
-                        label: '截止今日完成率',
-                        value: currentMonthProgress.completion_vs_daily,
-                        display: formatPercent(currentMonthProgress.completion_vs_daily),
-                        caption:
-                          currentMonthProgress.target_amount > 0
-                            ? `已完成 ${currencySymbol}${formatMoney(currentMonthProgress.achieved_amount)} / 应完成 ${currencySymbol}${formatMoney(currentMonthProgress.cumulative_daily_target)}`
-                            : '未设置本月目标',
-                        note:
-                          currentMonthProgress.target_amount > 0
-                            ? '当前完成 ÷ 按日摊派的累计目标'
+              <Panel className={styles.progressPanel}>
+                <GoalProgressRings
+                  items={[
+                    {
+                      key: 'pace',
+                      label: '截止今日完成率',
+                      value: currentMonthProgress.completion_vs_daily,
+                      display: formatPercent(currentMonthProgress.completion_vs_daily),
+                      caption:
+                        currentMonthProgress.target_amount > 0
+                          ? `已完成 ${currencySymbol}${formatMoney(currentMonthProgress.achieved_amount)} / 应完成 ${currencySymbol}${formatMoney(currentMonthProgress.cumulative_daily_target)}`
+                          : '未设置本月目标',
+                      note:
+                        currentMonthProgress.target_amount > 0
+                          ? '当前完成 ÷ 按日摊派的累计目标'
+                          : '前往「目标管理」设置月度目标',
+                      color: 'var(--warm-ledger-color-accent)',
+                    },
+                    {
+                      key: 'monthly',
+                      label: '实际月度进度',
+                      value: currentMonthProgress.completion_vs_monthly,
+                      display: formatPercent(currentMonthProgress.completion_vs_monthly),
+                      caption:
+                        currentMonthProgress.target_amount > 0
+                          ? `已完成 ${currencySymbol}${formatMoney(currentMonthProgress.achieved_amount)} / 目标 ${currencySymbol}${formatMoney(currentMonthProgress.target_amount)}`
+                          : '未设置本月目标',
+                      note:
+                        currentMonthProgress.target_amount > 0
+                          ? '占整月目标的实际比例'
+                          : '前往「目标管理」设置月度目标',
+                      color: 'var(--warm-ledger-color-positive)',
+                    },
+                    {
+                      key: 'pace_ratio',
+                      label: '达成速度',
+                      value: currentMonthPaceRatio ?? 0,
+                      display:
+                        currentMonthProgress.target_amount <= 0
+                          ? '未设置'
+                          : currentMonthPaceRatio === null
+                            ? '--'
+                            : currentMonthProgress.achieved_amount >=
+                                currentMonthProgress.target_amount
+                              ? '已达标'
+                              : formatPercent(currentMonthPaceRatio),
+                      caption:
+                        currentMonthProgress.target_amount > 0
+                          ? '当前日均 / 剩余所需日均'
+                          : '未设置本月目标',
+                      note:
+                        currentMonthProgress.target_amount > 0 &&
+                        currentMonthPaceRatio !== null
+                          ? '≥100% 表示按当前节奏可追平目标'
+                          : currentMonthProgress.target_amount > 0
+                            ? '当前日期口径无效'
                             : '前往「目标管理」设置月度目标',
-                        color: 'hsl(var(--chart-1))',
-                      },
-                      {
-                        key: 'monthly',
-                        label: '实际月度进度',
-                        value: currentMonthProgress.completion_vs_monthly,
-                        display: formatPercent(currentMonthProgress.completion_vs_monthly),
-                        caption:
-                          currentMonthProgress.target_amount > 0
-                            ? `已完成 ${currencySymbol}${formatMoney(currentMonthProgress.achieved_amount)} / 目标 ${currencySymbol}${formatMoney(currentMonthProgress.target_amount)}`
-                            : '未设置本月目标',
-                        note:
-                          currentMonthProgress.target_amount > 0
-                            ? '占整月目标的实际比例'
-                            : '前往「目标管理」设置月度目标',
-                        color: 'hsl(var(--chart-2))',
-                      },
-                      {
-                        key: 'pace_ratio',
-                        label: '达成速度',
-                        value: currentMonthPaceRatio ?? 0,
-                        display:
-                          currentMonthProgress.target_amount <= 0
-                            ? '未设置'
-                            : currentMonthPaceRatio === null
-                              ? '--'
-                              : currentMonthProgress.achieved_amount >=
-                                  currentMonthProgress.target_amount
-                                ? '已达标'
-                                : formatPercent(currentMonthPaceRatio),
-                        caption:
-                          currentMonthProgress.target_amount > 0
-                            ? '当前日均 / 剩余所需日均'
-                            : '未设置本月目标',
-                        note:
-                          currentMonthProgress.target_amount > 0 &&
-                          currentMonthPaceRatio !== null
-                            ? '≥100% 表示按当前节奏可追平目标'
-                            : currentMonthProgress.target_amount > 0
-                              ? '当前日期口径无效'
-                              : '前往「目标管理」设置月度目标',
-                        color: 'hsl(var(--chart-3))',
-                      },
-                    ]}
-                  />
+                      color: 'var(--warm-ledger-color-text-soft)',
+                    },
+                  ]}
+                />
 
-                  <div className="h-px bg-term-border" />
+                <div className={styles.progressDivider} />
 
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    <div className="rounded-none border border-term-border bg-term-raised px-3 py-2.5">
-                      <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider text-term-muted">
-                        <TrendingUp className="h-3.5 w-3.5" />
-                        年度完成率
-                      </div>
-                      {annualProgress ? (
-                        <>
-                          <p className="mt-1 text-lg font-semibold tabular-nums">
-                            {formatPercent(annualProgress.completion_rate)}
-                          </p>
-                          <p className="truncate text-[11px] text-term-faint">
-                            目标 {currencySymbol}
-                            {formatMoney(annualProgress.target_amount)}
-                          </p>
-                        </>
-                      ) : (
-                        <div className="mt-1 flex items-center justify-between gap-2">
-                          <span className="font-mono text-xs text-term-faint">未设置</span>
-                          <button
-                            type="button"
-                            onClick={() => openCreateDialog('annual')}
-                            className={TERM_BUTTON}
-                          >
-                            <Plus className="h-3 w-3" /> 设置
-                          </button>
-                        </div>
-                      )}
+                <div className={styles.metricGrid}>
+                  <div className={styles.metricTile}>
+                    <div className={styles.metricLabel}>
+                      <TrendingUp aria-hidden />
+                      年度完成率
                     </div>
-
-                    <div className="rounded-none border border-term-border bg-term-raised px-3 py-2.5">
-                      <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider text-term-muted">
-                        <DollarSign className="h-3.5 w-3.5" />
-                        本月已达成
+                    {annualProgress ? (
+                      <>
+                        <p className={styles.metricValue}>
+                          {formatPercent(annualProgress.completion_rate)}
+                        </p>
+                        <p className={styles.metricNote}>
+                          目标 {currencySymbol}
+                          {formatMoney(annualProgress.target_amount)}
+                        </p>
+                      </>
+                    ) : (
+                      <div className={styles.metricEmpty}>
+                        <span>未设置</span>
+                        <Button onClick={() => openCreateDialog('annual')}>
+                          <Plus aria-hidden /> 设置
+                        </Button>
                       </div>
-                      <p className="mt-1 text-lg font-semibold tabular-nums">
-                        {currencySymbol}{' '}
-                        {formatMoney(currentMonthProgress.achieved_amount)}
-                      </p>
-                      <p className="truncate text-[11px] text-term-faint">
-                        当月实际销售额（截至今日）
-                      </p>
-                    </div>
+                    )}
+                  </div>
 
-                    <div className="rounded-none border border-term-border bg-term-raised px-3 py-2.5">
-                      <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider text-term-muted">
-                        <Target className="h-3.5 w-3.5" />
-                        月度目标
-                      </div>
-                      {currentMonthProgress.target_amount > 0 ? (
-                        <>
-                          <p className="mt-1 text-lg font-semibold tabular-nums">
-                            {currencySymbol}{' '}
-                            {formatMoney(currentMonthProgress.target_amount)}
-                          </p>
-                          <p className="truncate text-[11px] text-term-faint">
-                            整月销售目标金额
-                          </p>
-                        </>
-                      ) : (
-                        <div className="mt-1 flex items-center justify-between gap-2">
-                          <span className="font-mono text-xs text-term-faint">未设置</span>
-                          <button
-                            type="button"
-                            onClick={() => handleTabChange('goals')}
-                            className={TERM_BUTTON}
-                          >
-                            <Plus className="h-3 w-3" /> 去设置
-                          </button>
-                        </div>
-                      )}
+                  <div className={styles.metricTile}>
+                    <div className={styles.metricLabel}>
+                      <DollarSign aria-hidden />
+                      本月已达成
                     </div>
+                    <p className={styles.metricValue}>
+                      {currencySymbol} {formatMoney(currentMonthProgress.achieved_amount)}
+                    </p>
+                    <p className={styles.metricNote}>当月实际销售额（截至今日）</p>
+                  </div>
 
-                    <div className="rounded-none border border-term-border bg-term-raised px-3 py-2.5">
-                      <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider text-term-muted">
-                        <Calendar className="h-3.5 w-3.5" />
-                        日目标
-                      </div>
-                      <p className="mt-1 text-lg font-semibold tabular-nums">
-                        {currencySymbol} {formatMoney(currentMonthProgress.daily_target)}
-                      </p>
-                      <p className="truncate text-[11px] text-term-faint">
-                        第 {currentMonthProgress.today_day} / {currentMonthProgress.days_in_month} 天
-                        · 目标 ÷ 天数
-                      </p>
+                  <div className={styles.metricTile}>
+                    <div className={styles.metricLabel}>
+                      <Target aria-hidden />
+                      月度目标
                     </div>
+                    {currentMonthProgress.target_amount > 0 ? (
+                      <>
+                        <p className={styles.metricValue}>
+                          {currencySymbol} {formatMoney(currentMonthProgress.target_amount)}
+                        </p>
+                        <p className={styles.metricNote}>整月销售目标金额</p>
+                      </>
+                    ) : (
+                      <div className={styles.metricEmpty}>
+                        <span>未设置</span>
+                        <Button onClick={() => handleTabChange('goals')}>
+                          <Plus aria-hidden /> 去设置
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={styles.metricTile}>
+                    <div className={styles.metricLabel}>
+                      <Calendar aria-hidden />
+                      日目标
+                    </div>
+                    <p className={styles.metricValue}>
+                      {currencySymbol} {formatMoney(currentMonthProgress.daily_target)}
+                    </p>
+                    <p className={styles.metricNote}>
+                      第 {currentMonthProgress.today_day} / {currentMonthProgress.days_in_month} 天
+                      · 目标 ÷ 天数
+                    </p>
                   </div>
                 </div>
-              </TermPanel>
-            </div>
+              </Panel>
+            </section>
           )}
 
-          {/* Tabs: Progress Table + Goal Management（BLF-883 全局统一 variant="term" + 前置 icon） */}
-          <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-            <TabsList variant="term" className="w-fit justify-start">
-              <TabsTrigger value="progress" variant="term">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className={styles.tabs}>
+            <TabsList className={styles.tabsList}>
+              <TabsTrigger value="progress" className={styles.tabTrigger}>
                 <BarChart3 aria-hidden />
                 进度概览
               </TabsTrigger>
-              <TabsTrigger value="goals" variant="term">
+              <TabsTrigger value="goals" className={styles.tabTrigger}>
                 <Target aria-hidden />
                 目标管理
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="progress" className="space-y-4">
-              {/* 12-Month Progress Table */}
-              <DataTableCard>
-                <DataTableCardHeader
-                  title="月度进度表"
-                  description={`${selectedYear} 年各月销售目标完成情况`}
-                />
-                <DataTableCardBody className="p-0">
-                  <Table className="table-fixed rounded-none">
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[12.5%]">月份</TableHead>
-                        <TableHead className="w-[12.5%] text-right">目标金额</TableHead>
-                        <TableHead className="w-[12.5%] text-right">已完成</TableHead>
-                        <TableHead className="w-[37.5%]">月度完成进度</TableHead>
-                        <TableHead className="w-[12.5%] text-center">状态</TableHead>
-                        <TableHead className="w-[12.5%] text-center">运营（包含助理）</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
+            <TabsContent value="progress" className={styles.tabContent}>
+              <TablePanel
+                title="月度进度表"
+                description={`${selectedYear} 年各月销售目标完成情况`}
+              >
+                <div className={styles.tableScroll} data-testid="project-goals-table-scroll">
+                  <table className={styles.table}>
+                    <colgroup>
+                      <col className={styles.colMonth} />
+                      <col className={styles.colMoney} />
+                      <col className={styles.colMoney} />
+                      <col className={styles.colProgress} />
+                      <col className={styles.colStatus} />
+                      <col className={styles.colOperators} />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th>月份</th>
+                        <th className={styles.alignRight}>目标金额</th>
+                        <th className={styles.alignRight}>已完成</th>
+                        <th>月度完成进度</th>
+                        <th className={styles.alignCenter}>状态</th>
+                        <th className={styles.alignCenter}>运营（包含助理）</th>
+                      </tr>
+                    </thead>
+                    <tbody>
                       {progressData?.monthly_progress.map((m) => {
                         const monthStatus: 'past' | 'current' | 'future' =
                           m.year < currentYear
@@ -771,39 +858,35 @@ export default function ProjectGoalsPage() {
                         const isPastIncomplete =
                           monthStatus === 'past' && m.completion_vs_monthly < 1
                         return (
-                          <TableRow
+                          <tr
                             key={m.month}
-                            className={
-                              m.month === currentMonth
-                                ? 'bg-term-raised'
-                                : ''
-                            }
+                            className={m.month === currentMonth ? styles.currentRow : undefined}
                           >
-                            <TableCell className="font-medium">
+                            <td className={styles.strongCell}>
                               {m.month === currentMonth ? (
-                                <span className="font-mono text-term-accent">
+                                <span className={styles.currentLabel}>
                                   {m.month_label}（本月）
                                 </span>
                               ) : (
                                 m.month_label
                               )}
-                            </TableCell>
-                            <TableCell className="text-right">
+                            </td>
+                            <td className={styles.numericCell}>
                               {m.target_amount > 0
                                 ? `${currencySymbol} ${formatMoney(m.target_amount)}`
                                 : '—'}
-                            </TableCell>
-                            <TableCell className="text-right">
+                            </td>
+                            <td className={styles.numericCell}>
                               {currencySymbol} {formatMoney(m.achieved_amount)}
-                            </TableCell>
-                            <TableCell>
+                            </td>
+                            <td>
                               {m.target_amount > 0 ? (
-                                <div className="space-y-1">
+                                <div className={styles.progressCell}>
                                   <ProgressBar
                                     value={m.completion_vs_monthly}
                                     isPastIncomplete={isPastIncomplete}
                                   />
-                                  <div className="flex justify-between text-xs text-muted-foreground">
+                                  <div className={styles.progressMeta}>
                                     <span>{formatPercent(m.completion_vs_monthly)}</span>
                                     <span>
                                       {currencySymbol} {formatMoney(m.achieved_amount)} /{' '}
@@ -812,54 +895,60 @@ export default function ProjectGoalsPage() {
                                   </div>
                                 </div>
                               ) : (
-                                <span className="text-muted-foreground">未设目标</span>
+                                <span className={styles.mutedText}>未设目标</span>
                               )}
-                            </TableCell>
-                            <TableCell className="text-center">
+                            </td>
+                            <td className={styles.alignCenter}>
                               {m.target_amount > 0 ? (
                                 <CompletionBadge
                                   rate={m.completion_vs_monthly}
                                   monthStatus={monthStatus}
                                 />
                               ) : null}
-                            </TableCell>
-                            <TableCell className="text-center">
+                            </td>
+                            <td className={styles.alignCenter}>
                               {getOperatorsDisplay(selectedProjectId, projects)}
-                            </TableCell>
-                          </TableRow>
+                            </td>
+                          </tr>
                         )
                       })}
-                    </TableBody>
-                  </Table>
-                </DataTableCardBody>
-              </DataTableCard>
+                    </tbody>
+                  </table>
+                </div>
+              </TablePanel>
             </TabsContent>
 
-            <TabsContent value="goals" className="space-y-4">
-              {/* Monthly Goals Table */}
-              <DataTableCard>
-                <DataTableCardHeader
-                  title="月度目标"
-                  description={`${selectedYear} 年各月销售目标（点击编辑或删除）`}
-                  action={
-                    <Button size="sm" onClick={() => openCreateDialog('monthly')}>
-                      <Plus className="mr-1 h-3 w-3" /> 新增月度目标
-                    </Button>
-                  }
-                />
-                <DataTableCardBody className="p-0">
-                  <Table className="table-fixed rounded-none">
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[12.5%]">月份</TableHead>
-                        <TableHead className="w-[12.5%] text-right">目标金额</TableHead>
-                        <TableHead className="w-[12.5%] text-right">已达成</TableHead>
-                        <TableHead className="w-[37.5%]">月度进度</TableHead>
-                        <TableHead className="w-[12.5%] text-center">状态</TableHead>
-                        <TableHead className="w-[12.5%] text-right">操作</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
+            <TabsContent value="goals" className={styles.tabContent}>
+              <TablePanel
+                title="月度目标"
+                description={`${selectedYear} 年各月销售目标（点击编辑或删除）`}
+                action={
+                  <Button onClick={() => openCreateDialog('monthly')}>
+                    <Plus aria-hidden /> 新增月度目标
+                  </Button>
+                }
+              >
+                <div className={styles.tableScroll} data-testid="project-goals-table-scroll">
+                  <table className={styles.table}>
+                    <colgroup>
+                      <col className={styles.colMonth} />
+                      <col className={styles.colMoney} />
+                      <col className={styles.colMoney} />
+                      <col className={styles.colProgress} />
+                      <col className={styles.colStatus} />
+                      <col className={styles.colActions} />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th>月份</th>
+                        <th className={styles.alignRight}>目标金额</th>
+                        <th className={styles.alignRight}>已达成</th>
+                        <th>月度进度</th>
+                        <th className={styles.alignCenter}>状态</th>
+                        <th className={styles.alignRight}>操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
                       {[...Array(12)].map((_, idx) => {
                         const month = idx + 1
                         const goal = goalsData.find(
@@ -883,17 +972,13 @@ export default function ProjectGoalsPage() {
                           monthStatus === 'past' &&
                           (progress ? progress.completion_vs_monthly < 1 : true)
                         return (
-                          <TableRow
+                          <tr
                             key={month}
-                            className={
-                              month === currentMonth
-                                ? 'bg-term-raised'
-                                : ''
-                            }
+                            className={month === currentMonth ? styles.currentRow : undefined}
                           >
-                            <TableCell className="font-medium">
+                            <td className={styles.strongCell}>
                               {month === currentMonth ? (
-                                <span className="font-mono text-term-accent">
+                                <span className={styles.currentLabel}>
                                   {selectedYear}年{MONTH_NAMES[idx]}（本月）
                                 </span>
                               ) : (
@@ -901,109 +986,108 @@ export default function ProjectGoalsPage() {
                                   {selectedYear}年{MONTH_NAMES[idx]}
                                 </span>
                               )}
-                            </TableCell>
-                            <TableCell className="text-right">
+                            </td>
+                            <td className={styles.numericCell}>
                               {hasGoal ? (
                                 `${currencySymbol} ${formatMoney(goal!.target_amount)}`
                               ) : (
-                                <span className="text-muted-foreground">—</span>
+                                <span className={styles.mutedText}>—</span>
                               )}
-                            </TableCell>
-                            <TableCell className="text-right">
+                            </td>
+                            <td className={styles.numericCell}>
                               {currencySymbol} {formatMoney(progress?.achieved_amount ?? 0)}
-                            </TableCell>
-                            <TableCell>
+                            </td>
+                            <td>
                               {hasGoal && goal!.target_amount > 0 && progress ? (
-                                <div className="space-y-1">
+                                <div className={styles.progressCell}>
                                   <ProgressBar
                                     value={progress.completion_vs_monthly}
                                     isPastIncomplete={isPastIncomplete}
                                   />
-                                  <div className="text-xs text-muted-foreground">
+                                  <div className={styles.progressMeta}>
                                     {formatPercent(progress.completion_vs_monthly)}
                                   </div>
                                 </div>
                               ) : (
-                                <span className="text-muted-foreground">—</span>
+                                <span className={styles.mutedText}>—</span>
                               )}
-                            </TableCell>
-                            <TableCell className="text-center">
+                            </td>
+                            <td className={styles.alignCenter}>
                               {hasGoal && progress ? (
                                 <CompletionBadge
                                   rate={progress.completion_vs_monthly}
                                   monthStatus={monthStatus}
                                 />
                               ) : null}
-                            </TableCell>
-                            <TableCell className="text-right">
+                            </td>
+                            <td>
                               {hasGoal ? (
-                                <div className="flex justify-end gap-1">
+                                <div className={styles.rowActions}>
                                   <Button
-                                    size="sm"
-                                    variant="ghost"
+                                    aria-label={`编辑${selectedYear}年${MONTH_NAMES[idx]}目标`}
                                     onClick={() => openEditDialog(goal!)}
-                                    className="h-7 px-2"
                                   >
-                                    <Pencil className="h-3 w-3" />
+                                    <Pencil aria-hidden />
                                   </Button>
                                   <Button
-                                    size="sm"
-                                    variant="ghost"
+                                    aria-label={`删除${selectedYear}年${MONTH_NAMES[idx]}目标`}
+                                    className={styles.dangerButton}
                                     onClick={() => handleDelete(goal!)}
-                                    className="h-7 px-2 text-destructive"
                                   >
-                                    <Trash2 className="h-3 w-3" />
+                                    <Trash2 aria-hidden />
                                   </Button>
                                 </div>
                               ) : (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => openCreateDialog('monthly', month)}
-                                  className="h-7 px-2"
-                                >
-                                  <Plus className="h-3 w-3" />
-                                </Button>
+                                <div className={styles.rowActions}>
+                                  <Button
+                                    aria-label={`设置${selectedYear}年${MONTH_NAMES[idx]}目标`}
+                                    onClick={() => openCreateDialog('monthly', month)}
+                                  >
+                                    <Plus aria-hidden />
+                                  </Button>
+                                </div>
                               )}
-                            </TableCell>
-                          </TableRow>
+                            </td>
+                          </tr>
                         )
                       })}
-                    </TableBody>
-                  </Table>
-                </DataTableCardBody>
-              </DataTableCard>
+                    </tbody>
+                  </table>
+                </div>
+              </TablePanel>
             </TabsContent>
           </Tabs>
         </div>
       )}
 
-      {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent aria-describedby="goal-dialog-description">
+        <DialogContent
+          className={styles.dialog}
+          aria-describedby="goal-dialog-description"
+        >
           <span id="goal-dialog-description" className="sr-only">
             新增或编辑目标对话框
           </span>
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className={styles.dialogTitle}>
               {editingGoal
                 ? '编辑目标'
                 : `新增 ${formData.goal_type === 'monthly' ? '月度' : '年度'}目标`}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
+          <div className={styles.dialogBody}>
+            <div className={styles.field}>
+              <label className={styles.label}>
                 {formData.goal_type === 'monthly' ? '目标月份' : '目标年份'}
               </label>
-              <div className="rounded-md bg-muted/50 px-3 py-2 text-sm">
+              <div className={styles.readOnlyValue}>
                 {formData.goal_type === 'monthly'
                   ? `${selectedYear} 年 ${formData.period_month} 月`
                   : `${selectedYear} 年`}
               </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
+            <div className={styles.field}>
+              <label className={styles.label}>
                 目标金额（{currencySymbol} {currency}）
               </label>
               <Input
@@ -1014,22 +1098,22 @@ export default function ProjectGoalsPage() {
                 value={formData.target_amount}
                 onChange={(e) => setFormData((f) => ({ ...f, target_amount: e.target.value }))}
               />
-              <p className="text-xs text-muted-foreground">
+              <p className={styles.formHelp}>
                 填入该月/年度的销售目标金额（按站点原始货币）
               </p>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>
+          <DialogFooter className={styles.dialogFooter}>
+            <Button onClick={() => setDialogOpen(false)} disabled={saving}>
               取消
             </Button>
             <Button onClick={handleSave} disabled={saving || !formData.target_amount}>
-              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {saving ? <Loader2 aria-hidden className={styles.spinner} /> : null}
               保存
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </main>
   )
 }

@@ -1,26 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useSession } from 'next-auth/react'
 
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { DataTableCard, DataTableCardBody, DataTableCardHeader } from '@/components/ui/data-card'
-import { EmptyState } from '@/components/ui/empty-state'
-import { Skeleton } from '@/components/ui/skeleton'
-import {
-  DirectionalTabTransition,
-  SlidingTabsTrigger,
-  TabsMotionGroup,
-} from '@/components/ui/tab-motion'
-import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
-import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import { WarmButton, WarmSelect } from '@/components/dashboard-v2/warm-ledger/controls'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
-import {
-  HeaderProjectSelect,
-  HeaderSlotSelect,
-  TERM_HEADER_W_SM,
-} from '@/components/terminal/header-filter-suite'
 import {
   useHeaderRefresh,
   useHeaderSlot,
@@ -52,6 +37,7 @@ import { ExternalTargetsPanel } from './components/external-targets-panel'
 import { RatingTrendPanel } from './components/rating-trend-panel'
 import { ReviewsTable } from './components/reviews-table'
 import { TargetSelector } from './components/target-selector'
+import styles from './review-tracking-warm.module.css'
 
 /**
  * 评论追踪运营页（阶段 C，BLF-1377）。
@@ -66,7 +52,6 @@ const REVIEW_PAGE_SIZE = 50
 const RUN_PAGE_SIZE = 20
 
 type PageTab = 'trend' | 'reviews' | 'health' | 'external'
-const TAB_ORDER: PageTab[] = ['trend', 'reviews', 'health', 'external']
 
 type ManagedProject = { id?: number | null; name: string }
 
@@ -438,36 +423,61 @@ export default function ReviewTrackingClient() {
   )
 
   // ── Header 插槽（桌面 / 移动） ──
+  const projectFilterOptions = useMemo(
+    () => [
+      { value: 'all', label: '全部项目' },
+      ...projects
+        .filter((project): project is { id: number; name: string } => typeof project.id === 'number')
+        .map((project) => ({ value: String(project.id), label: project.name })),
+    ],
+    [projects]
+  )
+
   const filters = (
-    <>
-      <HeaderProjectSelect value={projectId} onChange={setProjectId} />
-      <HeaderSlotSelect
+    <div
+      className={styles.headerFilters}
+      data-testid="review-tracking-header-filters"
+      data-warm-header-filters="true"
+    >
+      <WarmSelect
+        id="review-tracking-project-filter"
+        label="项目"
+        value={projectId}
+        onChange={setProjectId}
+        options={projectFilterOptions}
+        placeholder={sessionStatus === 'loading' ? '项目加载中…' : '项目'}
+        disabled={sessionStatus === 'loading'}
+        className={styles.projectFilter}
+      />
+      <WarmSelect
+        id="review-tracking-marketplace-filter"
+        label="站点"
         value={marketplace}
         onChange={setMarketplace}
-        widthClass={TERM_HEADER_W_SM}
-        title="站点筛选"
         options={[
           { value: 'ALL', label: '全部站点' },
           { value: 'US', label: '美国站 (US)' },
           { value: 'DE', label: '德国站 (DE)' },
           { value: 'UK', label: '英国站 (UK)' },
         ]}
+        className={styles.marketplaceFilter}
       />
-      <HeaderSlotSelect
+      <WarmSelect
+        id="review-tracking-status-filter"
+        label="目标状态"
         value={targetStatus}
         onChange={setTargetStatus}
-        widthClass={TERM_HEADER_W_SM}
-        title="目标状态"
         options={[
           { value: 'active', label: '仅启用' },
           { value: 'inactive', label: '仅停用' },
           { value: 'all', label: '全部状态' },
         ]}
+        className={styles.statusFilter}
       />
-    </>
+    </div>
   )
 
-  const desktopSlot = useHeaderSlot(<HeaderFilterControls isMobileView={false} controls={filters} />)
+  const desktopSlot = useHeaderSlot(filters)
   const mobileStrip = useMobileFilterStrip(
     <MobileFilterStrip
       summary={`${projectId === 'all' ? '全部项目' : (projectNameById.get(Number(projectId)) ?? projectId)} · ${
@@ -482,16 +492,14 @@ export default function ReviewTrackingClient() {
       <>
         {desktopSlot}
         {mobileStrip}
-        <div className="w-full">
-          <DataTableCard>
-            <DataTableCardBody>
-              <EmptyState
-                icon="file"
-                message={`${permission.title}：${permission.message}`}
-                className="py-20"
-              />
-            </DataTableCardBody>
-          </DataTableCard>
+        <div
+          className={styles.page}
+          data-testid="review-tracking-page"
+          data-warm-review-tracking="true"
+        >
+          <div className={styles.permission} role="status">
+            {permission.title}：{permission.message}
+          </div>
         </div>
       </>
     )
@@ -501,8 +509,12 @@ export default function ReviewTrackingClient() {
     <>
       {desktopSlot}
       {mobileStrip}
-      <div className="w-full space-y-4">
-        <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
+      <div
+        className={styles.page}
+        data-testid="review-tracking-page"
+        data-warm-review-tracking="true"
+      >
+        <div className={styles.layout}>
           <aside>
             <TargetSelector
               targets={targets}
@@ -512,175 +524,174 @@ export default function ReviewTrackingClient() {
             />
           </aside>
 
-          <section className="min-w-0 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="min-w-0">
-                <h1 className="truncate font-mono text-sm font-semibold text-term-text">
+          <section className={styles.main}>
+            <header className={styles.targetHeader}>
+              <div className={styles.targetHeading}>
+                <h1 className={styles.targetTitle}>
                   {selectedTarget ? selectedTarget.displayName : '未选择目标'}
                 </h1>
                 {selectedTarget ? (
-                  <p className="mt-0.5 font-mono text-[10px] text-term-muted">
+                  <p className={styles.targetSubtitle}>
                     {selectedTarget.kindLabel} · {selectedTarget.marketplace} ·{' '}
                     {selectedTarget.asin || '代表 ASIN 未设置'} · {selectedTarget.projectName}
                   </p>
                 ) : null}
               </div>
               {selectedTarget ? (
-                <Badge variant="outline" className="border-term-border text-term-muted">
+                <span
+                  className={styles.statusBadge}
+                  data-tone={selectedTarget.isActive ? 'positive' : 'muted'}
+                >
                   {selectedTarget.isActive ? '启用中' : '已停用'}
-                </Badge>
+                </span>
               ) : null}
-            </div>
+            </header>
 
             <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as PageTab)}>
-              <TabsMotionGroup id="review-tracking-tabs">
-                <TabsList variant="term" className="w-fit max-w-full justify-start">
-                  <SlidingTabsTrigger
-                    value="trend"
-                    activeValue={activeTab}
-                    layoutId="review-tracking-tab-indicator"
-                    variant="term"
-                  >
-                    评分趋势
-                  </SlidingTabsTrigger>
-                  <SlidingTabsTrigger
-                    value="reviews"
-                    activeValue={activeTab}
-                    layoutId="review-tracking-tab-indicator"
-                    variant="term"
-                  >
-                    评论明细
-                  </SlidingTabsTrigger>
-                  <SlidingTabsTrigger
-                    value="health"
-                    activeValue={activeTab}
-                    layoutId="review-tracking-tab-indicator"
-                    variant="term"
-                  >
-                    采集健康度
-                  </SlidingTabsTrigger>
-                  <SlidingTabsTrigger
-                    value="external"
-                    activeValue={activeTab}
-                    layoutId="review-tracking-tab-indicator"
-                    variant="term"
-                  >
-                    外部竞品
-                  </SlidingTabsTrigger>
-                </TabsList>
-              </TabsMotionGroup>
+              <TabsList className={styles.tabsList}>
+                <TabsTrigger value="trend">评分趋势</TabsTrigger>
+                <TabsTrigger value="reviews">评论明细</TabsTrigger>
+                <TabsTrigger value="health">采集健康度</TabsTrigger>
+                <TabsTrigger value="external">外部竞品</TabsTrigger>
+              </TabsList>
 
-              <DirectionalTabTransition value={activeTab} order={TAB_ORDER}>
-                <TabsContent forceMount value={activeTab}>
-                  {activeTab === 'trend' ? (
-                    <DataTableCard>
-                      <DataTableCardHeader
-                        title="评分趋势"
-                        description="每个业务日期一条快照；同日重试只更新当天，不在图上重复出现"
-                      />
-                      <DataTableCardBody>
-                        {selectedTargetId === null ? (
-                          <EmptyState icon="database" message="请先在左侧选择一个追踪目标" className="py-16" />
-                        ) : snapshotsLoading ? (
-                          <Skeleton className="h-[300px] w-full rounded-none" />
-                        ) : snapshots.length === 0 ? (
-                          <EmptyState
-                            icon="database"
-                            message="还没有评分快照（等待采集端接入）；采集上线后这里会按天积累历史。"
-                            className="py-16"
-                          />
-                        ) : (
-                          <RatingTrendPanel points={snapshots} />
-                        )}
-                      </DataTableCardBody>
-                    </DataTableCard>
-                  ) : null}
+              <TabsContent forceMount value={activeTab} className={styles.tabPanel}>
+                {activeTab === 'trend' ? (
+                  <Panel
+                    testId="review-tracking-panel"
+                    title="评分趋势"
+                    description="每个业务日期一条快照；同日重试只更新当天，不在图上重复出现"
+                  >
+                    {selectedTargetId === null ? (
+                      <EmptyPanel message="请先在左侧选择一个追踪目标" />
+                    ) : snapshotsLoading ? (
+                      <div className={styles.panelBody}>
+                        <div className={styles.loadingBlock} role="status" aria-busy="true">
+                          正在加载评分快照
+                        </div>
+                      </div>
+                    ) : snapshots.length === 0 ? (
+                      <EmptyPanel message="还没有评分快照（等待采集端接入）；采集上线后这里会按天积累历史。" />
+                    ) : (
+                      <RatingTrendPanel points={snapshots} />
+                    )}
+                  </Panel>
+                ) : null}
 
-                  {activeTab === 'reviews' ? (
-                    <DataTableCard>
-                      <DataTableCardHeader
-                        title="评论明细"
-                        description="按可见性筛选；正文可能是抓取当时的快照"
+                {activeTab === 'reviews' ? (
+                  <Panel
+                    title="评论明细"
+                    description="按可见性筛选；正文可能是抓取当时的快照"
+                  >
+                    {selectedTargetId === null ? (
+                      <EmptyPanel message="请先在左侧选择一个追踪目标" />
+                    ) : (
+                      <ReviewsTable
+                        rows={reviews}
+                        loading={reviewsLoading}
+                        hasMore={hasMorePage(reviews.length, REVIEW_PAGE_SIZE)}
+                        offset={reviewOffset}
+                        limit={REVIEW_PAGE_SIZE}
+                        visibility={visibility}
+                        onVisibilityChange={setVisibility}
+                        onPrevPage={() => {
+                          const next = Math.max(0, reviewOffset - REVIEW_PAGE_SIZE)
+                          setReviewOffset(next)
+                          void loadReviews(selectedTargetId, next, visibility)
+                        }}
+                        onNextPage={() => {
+                          if (!hasMorePage(reviews.length, REVIEW_PAGE_SIZE)) return
+                          const next = reviewOffset + REVIEW_PAGE_SIZE
+                          setReviewOffset(next)
+                          void loadReviews(selectedTargetId, next, visibility)
+                        }}
                       />
-                      <DataTableCardBody>
-                        {selectedTargetId === null ? (
-                          <EmptyState icon="database" message="请先在左侧选择一个追踪目标" className="py-16" />
-                        ) : (
-                          <ReviewsTable
-                            rows={reviews}
-                            loading={reviewsLoading}
-                            hasMore={hasMorePage(reviews.length, REVIEW_PAGE_SIZE)}
-                            offset={reviewOffset}
-                            limit={REVIEW_PAGE_SIZE}
-                            visibility={visibility}
-                            onVisibilityChange={setVisibility}
-                            onPrevPage={() => {
-                              const next = Math.max(0, reviewOffset - REVIEW_PAGE_SIZE)
-                              setReviewOffset(next)
-                              void loadReviews(selectedTargetId, next, visibility)
-                            }}
-                            onNextPage={() => {
-                              if (!hasMorePage(reviews.length, REVIEW_PAGE_SIZE)) return
-                              const next = reviewOffset + REVIEW_PAGE_SIZE
-                              setReviewOffset(next)
-                              void loadReviews(selectedTargetId, next, visibility)
-                            }}
-                          />
-                        )}
-                      </DataTableCardBody>
-                    </DataTableCard>
-                  ) : null}
+                    )}
+                  </Panel>
+                ) : null}
 
-                  {activeTab === 'health' ? (
-                    <DataTableCard>
-                      <DataTableCardHeader
-                        title="采集健康度"
-                        description="最近运行记录：区分「没取到」与「取到 0」"
-                      />
-                      <DataTableCardBody>
-                        {selectedTargetId === null ? (
-                          <EmptyState icon="database" message="请先在左侧选择一个追踪目标" className="py-16" />
-                        ) : runsLoading ? (
-                          <Skeleton className="h-[200px] w-full rounded-none" />
-                        ) : (
-                          <CrawlHealthPanel runs={runs} />
-                        )}
-                      </DataTableCardBody>
-                    </DataTableCard>
-                  ) : null}
+                {activeTab === 'health' ? (
+                  <Panel
+                    title="采集健康度"
+                    description="最近运行记录：区分「没取到」与「取到 0」"
+                  >
+                    {selectedTargetId === null ? (
+                      <EmptyPanel message="请先在左侧选择一个追踪目标" />
+                    ) : runsLoading ? (
+                      <div className={styles.panelBody}>
+                        <div className={styles.loadingBlock} role="status" aria-busy="true">
+                          正在加载采集记录
+                        </div>
+                      </div>
+                    ) : (
+                      <CrawlHealthPanel runs={runs} />
+                    )}
+                  </Panel>
+                ) : null}
 
-                  {activeTab === 'external' ? (
-                    <DataTableCard>
-                      <DataTableCardHeader
-                        title="外部竞品"
-                        description="临时登记竞品 ASIN 并关联店铺；不影响 SKU 主数据"
-                        action={
-                          externalLoading ? (
-                            <span className="font-mono text-[10px] text-term-muted">加载中…</span>
-                          ) : null
-                        }
-                      />
-                      <DataTableCardBody>
-                        <ExternalTargetsPanel
-                          targets={externalTargets}
-                          shopOptions={shopOptions}
-                          shopOptionsLoading={shopOptionsLoading}
-                          isAdmin={isAdmin}
-                          busy={writeBusy}
-                          onCreate={handleCreateExternal}
-                          onLink={handleLink}
-                          onUnlink={handleUnlink}
-                          onError={notifyWriteError}
-                        />
-                      </DataTableCardBody>
-                    </DataTableCard>
-                  ) : null}
-                </TabsContent>
-              </DirectionalTabTransition>
+                {activeTab === 'external' ? (
+                  <Panel
+                    title="外部竞品"
+                    description="临时登记竞品 ASIN 并关联店铺；不影响 SKU 主数据"
+                    action={
+                      externalLoading ? (
+                        <span className={styles.loadingInline}>加载中…</span>
+                      ) : null
+                    }
+                  >
+                    <ExternalTargetsPanel
+                      targets={externalTargets}
+                      shopOptions={shopOptions}
+                      shopOptionsLoading={shopOptionsLoading}
+                      isAdmin={isAdmin}
+                      busy={writeBusy}
+                      onCreate={handleCreateExternal}
+                      onLink={handleLink}
+                      onUnlink={handleUnlink}
+                      onError={notifyWriteError}
+                    />
+                  </Panel>
+                ) : null}
+              </TabsContent>
             </Tabs>
           </section>
         </div>
       </div>
     </>
+  )
+}
+
+function Panel({
+  title,
+  description,
+  action,
+  testId,
+  children,
+}: {
+  title: string
+  description: string
+  action?: ReactNode
+  testId?: string
+  children: ReactNode
+}) {
+  return (
+    <section className={styles.panel} data-testid={testId} data-warm-panel="true">
+      <header className={styles.panelHeader}>
+        <div className={styles.panelHeading}>
+          <h2 className={styles.panelTitle}>{title}</h2>
+          <p className={styles.panelDescription}>{description}</p>
+        </div>
+        {action}
+      </header>
+      <div className={styles.panelBody}>{children}</div>
+    </section>
+  )
+}
+
+function EmptyPanel({ message }: { message: string }) {
+  return (
+    <div className={styles.emptyPanel} role="status">
+      {message}
+    </div>
   )
 }

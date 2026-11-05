@@ -360,3 +360,22 @@ A1 owns Warm controls wrapper and Dashboard token consumption. A2–A5 may work 
 - Domain review remediation covered C5 finance error/export interactions, C6 loading/pagination/Audit surfaces, C7-AI Office/tabs/shared purity boundaries, and C7-Tools upload/Page Render acceptance.
 - Final whole-batch Luna/max review passed at `e5f3ee13` with no new or blocking findings. The P1 Commission/VAT scope risks, Exchange Rate single-field filtering, System Logs/Project Info consistency risks, and the remaining CRM/Tools/AI/security follow-ups stay explicitly out of the visual migration claim.
 - Full audit: [`2026-11-05-expansion-review-audit.md`](../../../superpowers/plans/2026-11-04-v4-warm-ledger-expansion/2026-11-05-expansion-review-audit.md).
+
+## 17. C8 shared route integration (2026-11-05)
+
+- The shared Warm frame now registers all 26 C8 exact routes: Reports 10, Operations 14, and Agent Center 2. Reports use `报表中心`; Operations and Agent Center use `运营`.
+- Route titles follow the page/tab heading and sidebar concept. Nested routes keep an owning sidebar target where applicable: monthly-report subroutes and the legacy reconciliation redirect use `财务月报`, the pricing-calculation root uses `新品核算`, scheduled-report tabs use `定时报告`, and the complaint detail list uses `客户消息`.
+- The desktop matrix now covers the 35 C5-C7 routes plus all 26 C8 routes at `1440x900`. The separate Office presentation exception remains in place.
+- TDD evidence: the route/shell metadata tests were observed failing before registration, then passed as `2 files / 27 tests`. The C8 desktop matrix was updated but not executed in this integration-only task; page migrations and the full 26-route browser matrix remain pending.
+- This task does not change page implementations, shared UI defaults, `frontend/lib/sidebar-config.ts`, or global CSS, and does not claim any page-level C8 migration is complete.
+
+## 18. C8 residual pages implementation gate (2026-11-05)
+
+- All 26 C8 routes are implemented at desktop-only `1440x900`: Reports 10, Operations 14, and Agent Center 2. `/dashboard/reports/report-reconciliation` remains a redirect alias to the monthly reconciliation route.
+- Six implementation agents worked on disjoint route groups. Independent Luna/max reviewers passed each domain after remediation; no implementation agent self-approved.
+- Remediation covered page-local Warm header filters, shop-calculation tables, scheduled-report focus/hover/fonts, complaint trend snapshots, screenshot upload contracts, loading/error/empty separation, chart colors, numeric typography, reduced motion, and Agent Center skeleton geometry.
+- Return Analysis now renders refresh progress through legal `tbody > tr > td > div` markup. This removes the hydration error caused by a `<div>` directly under `<table>` and keeps all shared UI components unchanged.
+- Full verification passed: `364 files / 2619 tests`; `pnpm lint` reported `0 errors / 11 existing warnings`; Next production build generated `97/97` static pages; `pnpm check:mocks`, `pnpm check:motion`, and `git diff --check` passed.
+- The combined desktop Playwright matrix passed all 61 C5-C8 routes at `1440x900`, including equal 8px stage insets, a 22px app-window radius, Warm shell/topbar visibility, no page-level horizontal overflow, and the Office presentation exception.
+- Existing finance, system, CRM, Tools, AI, and Security Track follow-ups remain open and are not claimed as fixed by this visual migration. C4 advertising remains deferred.
+- The independent Luna/max whole-batch gate passed at `f458441f`. Full evidence: [`2026-11-05-c8-review-audit.md`](../../../superpowers/plans/2026-11-05-v4-c8-residual-pages/2026-11-05-c8-review-audit.md).

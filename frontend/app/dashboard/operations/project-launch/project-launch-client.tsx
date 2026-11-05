@@ -4,7 +4,7 @@
  * 项目启动台（BLF-1234，设计稿 §7 前端 UX 契约）。
  *
  * 结构：左侧项目列表（窄屏换成项目选择器）+ 右侧项目详情；详情三个 Tab：
- * 概览 / 店铺启动 / 产品开发（`Tabs variant="term"`）。
+ * 概览 / 店铺启动 / 产品开发。
  *
  * 数据获取：`fetchManagedProjectsCached` 拿可见项目 + `/project-workflows/summary`
  * 一次批量拿流程概要，列表渲染不做逐项目请求；选中项目的详情按需拉取。
@@ -14,32 +14,27 @@
  * 并展示服务端错误（设计稿 §7「写失败保留上一次已保存状态」）。
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ButtonHTMLAttributes,
+  type InputHTMLAttributes,
+  type LabelHTMLAttributes,
+  type ReactNode,
+} from 'react'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { FolderOpen, Loader2, Plus } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from '@/components/ui/empty'
-import { ErrorState } from '@/components/ui/error-state'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   DirectionalTabTransition,
-  SlidingTabsTrigger,
   TabsMotionGroup,
 } from '@/components/ui/tab-motion'
-import { TermPanel } from '@/components/terminal/term-panel'
-import { TERM_BUTTON, TERM_SELECT_NATIVE } from '@/components/terminal/term-controls'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { isAdmin } from '@/lib/backend-auth'
 import type { ManagedProjectOption } from '@/lib/hooks/use-managed-projects'
@@ -71,6 +66,7 @@ import { hasActiveProjectWorkflow } from '@/lib/project-startup-status'
 
 import { CreateWorkflowDialog } from './create-workflow-dialog'
 import { WorkflowOverviewRow, WorkflowStatusPill, WorkflowTaskList } from './project-workflow-list'
+import styles from './project-launch-warm.module.css'
 
 const TABS = ['overview', 'store_launch', 'product_development'] as const
 type TabKey = (typeof TABS)[number]
@@ -83,6 +79,89 @@ const TAB_LABELS: Record<TabKey, string> = {
 
 function errorText(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback
+}
+
+type LocalButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: 'secondary' | 'term' | 'outline'
+  size?: 'sm'
+}
+
+function Button({ variant = 'secondary', size, className, ...props }: LocalButtonProps) {
+  return (
+    <button
+      {...props}
+      type={props.type ?? 'button'}
+      className={[
+        styles.button,
+        variant === 'term' || variant === 'outline' ? styles.buttonQuiet : '',
+        size === 'sm' ? styles.buttonCompact : '',
+        className,
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    />
+  )
+}
+
+const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
+  function Input({ className, ...props }, ref) {
+    return (
+      <input
+        {...props}
+        ref={ref}
+        className={[styles.input, className].filter(Boolean).join(' ')}
+      />
+    )
+  }
+)
+
+function Label({ className, ...props }: LabelHTMLAttributes<HTMLLabelElement>) {
+  return <label {...props} className={[styles.label, className].filter(Boolean).join(' ')} />
+}
+
+function Panel({
+  title,
+  className,
+  bodyClassName,
+  children,
+}: {
+  title?: string
+  className?: string
+  bodyClassName?: string
+  children: ReactNode
+}) {
+  return (
+    <section className={[styles.panel, className].filter(Boolean).join(' ')}>
+      {title ? (
+        <header className={styles.panelHeader}>
+          <h2>{title}</h2>
+        </header>
+      ) : null}
+      <div className={[styles.panelBody, bodyClassName].filter(Boolean).join(' ')}>{children}</div>
+    </section>
+  )
+}
+
+function InlineError({
+  title,
+  message,
+  onRetry,
+  testId,
+}: {
+  title: string
+  message: string
+  onRetry: () => void
+  testId?: string
+}) {
+  return (
+    <div className={styles.errorState} role="alert" data-testid={testId}>
+      <div>
+        <strong>{title}</strong>
+        <p>{message}</p>
+      </div>
+      <Button onClick={onRetry}>重试</Button>
+    </div>
+  )
 }
 
 export default function ProjectLaunchClient() {
@@ -386,29 +465,26 @@ export default function ProjectLaunchClient() {
           aria-current={active ? 'true' : undefined}
           onClick={() => setSelectedProjectId(project.id)}
           className={cn(
-            'flex w-full flex-col gap-1 rounded-none border border-transparent px-2 py-2 text-left transition-colors hover:bg-term-hover focus-visible:border-term-border-strong focus-visible:outline-none',
-            active && 'border-term-border bg-term-raised'
+            styles.projectRow,
+            active && styles.projectRowActive
           )}
         >
-          <span className="flex min-w-0 items-center gap-2">
-            <span className="truncate font-mono text-xs text-term-text">{project.name}</span>
+          <span className={styles.projectRowTop}>
+            <span className={styles.projectName}>{project.name}</span>
             {aggregate ? (
               <WorkflowStatusPill status={aggregate} className="ml-auto" />
             ) : (
-              <span className="ml-auto shrink-0 font-mono text-[11px] leading-4 text-term-faint">
+              <span className={styles.projectState}>
                 {PROJECT_NOT_STARTED_LABEL}
               </span>
             )}
           </span>
-          <span className="truncate font-mono text-[11px] leading-4 text-term-muted">
+          <span className={styles.projectMeta}>
             {WORKFLOW_KIND_LABELS.store_launch}：
             {storeLaunch ? formatWorkflowProgress(storeLaunch) : '未启用'}
           </span>
           {products.map((product) => (
-            <span
-              key={product.id}
-              className="truncate font-mono text-[11px] leading-4 text-term-muted"
-            >
+            <span key={product.id} className={styles.projectMeta}>
               {product.title}：{formatWorkflowProgress(product)}
             </span>
           ))}
@@ -421,14 +497,14 @@ export default function ProjectLaunchClient() {
     if (detailLoading) {
       return (
         <div className="space-y-2" data-testid="detail-loading">
-          <Skeleton className="h-9 w-full" />
-          <Skeleton className="h-9 w-full" />
+          <div className={styles.skeletonRow} />
+          <div className={styles.skeletonRow} />
         </div>
       )
     }
     if (detailError) {
       return (
-        <ErrorState
+        <InlineError
           title="项目流程加载失败"
           message={detailError}
           onRetry={() => selectedProjectId != null && void loadDetail(selectedProjectId)}
@@ -437,37 +513,33 @@ export default function ProjectLaunchClient() {
     }
     if (workflows.length === 0) {
       return (
-        <Empty data-testid="overview-empty">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <FolderOpen aria-hidden />
-            </EmptyMedia>
-            <EmptyTitle>{PROJECT_NOT_STARTED_LABEL}</EmptyTitle>
-            <EmptyDescription>
-              该项目还没有流程。到「店铺启动」或「产品开发」Tab 创建后即可在此查看进度。
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
+        <div className={styles.empty} data-testid="overview-empty">
+          <span className={styles.emptyIcon}>
+            <FolderOpen aria-hidden />
+          </span>
+          <strong>{PROJECT_NOT_STARTED_LABEL}</strong>
+          <p>该项目还没有流程。到「店铺启动」或「产品开发」Tab 创建后即可在此查看进度。</p>
+        </div>
       )
     }
 
     return (
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2 border border-term-border px-2 py-2">
-          <span className="font-mono text-xs text-term-muted">项目状态</span>
+      <div className={styles.stack}>
+        <div className={styles.statusStrip}>
+          <span className={styles.metaLabel}>项目状态</span>
           {projectStatus ? (
             <WorkflowStatusPill status={projectStatus} />
           ) : (
-            <span className="font-mono text-[11px] text-term-faint">
+            <span className={styles.projectState}>
               {PROJECT_NOT_STARTED_LABEL}
             </span>
           )}
-          <span className="ml-auto font-mono text-[11px] tabular-nums text-term-muted">
+          <span className={styles.statusSchedule}>
             项目排期 {selectedSummary?.schedule_start ?? '未排期'} ~ {selectedSummary?.schedule_end ?? '未排期'}
             {selectedSummary?.schedule_days == null ? '' : ` · ${selectedSummary.schedule_days} 天`}
           </span>
         </div>
-        <ul className="flex flex-col rounded-none border border-term-border">
+        <ul className={styles.overviewList}>
           {workflows.map((workflow) => (
             <WorkflowOverviewRow key={workflow.id} workflow={workflow} />
           ))}
@@ -480,14 +552,14 @@ export default function ProjectLaunchClient() {
     if (detailLoading) {
       return (
         <div className="space-y-2" data-testid="detail-loading">
-          <Skeleton className="h-9 w-full" />
-          <Skeleton className="h-9 w-full" />
+          <div className={styles.skeletonRow} />
+          <div className={styles.skeletonRow} />
         </div>
       )
     }
     if (detailError) {
       return (
-        <ErrorState
+        <InlineError
           title="项目流程加载失败"
           message={detailError}
           onRetry={() => selectedProjectId != null && void loadDetail(selectedProjectId)}
@@ -496,20 +568,17 @@ export default function ProjectLaunchClient() {
     }
     if (!storeLaunchWorkflow) {
       return (
-        <Empty data-testid="store-launch-empty">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <FolderOpen aria-hidden />
-            </EmptyMedia>
-            <EmptyTitle>尚未启用店铺启动流程</EmptyTitle>
-            <EmptyDescription>
-              每个项目可维护一条店铺启动流程（注册资料收集 → 收款账户 → 业务审核 →
-              品牌备案 → UPC 豁免 → 收款账户绑定验证）。
-            </EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent>
-            <div className="flex w-full max-w-sm flex-col gap-2 sm:flex-row sm:items-end">
-              <div className="min-w-0 flex-1 space-y-1 text-left">
+        <div className={styles.empty} data-testid="store-launch-empty">
+          <span className={styles.emptyIcon}>
+            <FolderOpen aria-hidden />
+          </span>
+          <strong>尚未启用店铺启动流程</strong>
+          <p>
+            每个项目可维护一条店铺启动流程（注册资料收集 → 收款账户 → 业务审核 →
+            品牌备案 → UPC 豁免 → 收款账户绑定验证）。
+          </p>
+          <div className={styles.emptyActions}>
+              <div className={styles.field}>
                 <Label htmlFor="store-launch-start-date">计划开始日期（可选）</Label>
                 <Input id="store-launch-start-date" type="date" value={storeLaunchStartDate} onChange={(event) => setStoreLaunchStartDate(event.target.value)} disabled={detailBusy} />
               </div>
@@ -522,18 +591,17 @@ export default function ProjectLaunchClient() {
                 <Plus aria-hidden />
                 启用店铺启动流程
               </Button>
-            </div>
-          </EmptyContent>
-        </Empty>
+          </div>
+        </div>
       )
     }
 
     return (
-      <div data-testid="store-launch-workflow" className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-xs text-term-text">{storeLaunchWorkflow.title}</span>
+      <div data-testid="store-launch-workflow" className={styles.stack}>
+        <div className={styles.workflowHeader}>
+          <span className={styles.workflowTitle}>{storeLaunchWorkflow.title}</span>
           <WorkflowStatusPill status={storeLaunchWorkflow.status} />
-          <span className="ml-auto font-mono text-[11px] tabular-nums text-term-muted">
+          <span className={styles.workflowProgress}>
             {formatWorkflowProgress(storeLaunchWorkflow)}
           </span>
         </div>
@@ -557,14 +625,14 @@ export default function ProjectLaunchClient() {
     if (detailLoading) {
       return (
         <div className="space-y-2" data-testid="detail-loading">
-          <Skeleton className="h-9 w-full" />
-          <Skeleton className="h-9 w-full" />
+          <div className={styles.skeletonRow} />
+          <div className={styles.skeletonRow} />
         </div>
       )
     }
     if (detailError) {
       return (
-        <ErrorState
+        <InlineError
           title="项目流程加载失败"
           message={detailError}
           onRetry={() => selectedProjectId != null && void loadDetail(selectedProjectId)}
@@ -573,14 +641,14 @@ export default function ProjectLaunchClient() {
     }
 
     return (
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="font-mono text-[11px] text-term-muted">
+      <div className={styles.stackLg}>
+        <div className={styles.productActions}>
+          <span className={styles.supportingText}>
             同一时间可并行推进多条产品流程，互不影响。
           </span>
           <Button
             type="button"
-            variant="term"
+            variant="secondary"
             data-testid="open-create-workflow"
             disabled={selectedProjectId == null}
             onClick={() => setDialogOpen(true)}
@@ -591,28 +659,24 @@ export default function ProjectLaunchClient() {
         </div>
 
         {productWorkflows.length === 0 ? (
-          <Empty data-testid="product-empty">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <FolderOpen aria-hidden />
-              </EmptyMedia>
-              <EmptyTitle>还没有产品开发流程</EmptyTitle>
-              <EmptyDescription>
-                选择产品模板（如「女士泳衣」）创建流程，任务清单会复制到本项目。
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
+          <div className={styles.empty} data-testid="product-empty">
+            <span className={styles.emptyIcon}>
+              <FolderOpen aria-hidden />
+            </span>
+            <strong>还没有产品开发流程</strong>
+            <p>选择产品模板（如「女士泳衣」）创建流程，任务清单会复制到本项目。</p>
+          </div>
         ) : (
           productWorkflows.map((workflow) => (
             <section
               key={workflow.id}
               data-testid={`product-workflow-${workflow.id}`}
-              className="flex flex-col gap-2"
+              className={styles.stack}
             >
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-mono text-xs text-term-text">{workflow.title}</span>
+              <div className={styles.workflowHeader}>
+                <span className={styles.workflowTitle}>{workflow.title}</span>
                 <WorkflowStatusPill status={workflow.status} />
-                <span className="ml-auto font-mono text-[11px] tabular-nums text-term-muted">
+                <span className={styles.workflowProgress}>
                   {formatWorkflowProgress(workflow)}
                 </span>
               </div>
@@ -639,16 +703,16 @@ export default function ProjectLaunchClient() {
     if (projectsLoading) {
       return (
         <div className="space-y-2 p-2" data-testid="projects-loading">
-          <Skeleton className="h-9 w-full" />
-          <Skeleton className="h-9 w-full" />
+          <div className={styles.skeletonRow} />
+          <div className={styles.skeletonRow} />
         </div>
       )
     }
 
     if (projectsError) {
       return (
-        <ErrorState
-          data-testid="projects-error-detail"
+        <InlineError
+          testId="projects-error-detail"
           title="项目列表加载失败"
           message={projectsError}
           onRetry={() => void loadProjectsAndSummary({ force: true })}
@@ -658,59 +722,51 @@ export default function ProjectLaunchClient() {
 
     if (noProjects) {
       return (
-        <Empty data-testid="no-projects">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <FolderOpen aria-hidden />
-            </EmptyMedia>
-            <EmptyTitle>没有可见项目</EmptyTitle>
-            <EmptyDescription>当前账号没有可管理的项目，请联系管理员确认项目权限。</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
+        <div className={styles.empty} data-testid="no-projects">
+          <span className={styles.emptyIcon}>
+            <FolderOpen aria-hidden />
+          </span>
+          <strong>没有可见项目</strong>
+          <p>当前账号没有可管理的项目，请联系管理员确认项目权限。</p>
+        </div>
       )
     }
 
     if (!selectedProject) {
       return (
-        <Empty data-testid="no-pending-projects">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <FolderOpen aria-hidden />
-            </EmptyMedia>
-            <EmptyTitle>暂无待启动项目</EmptyTitle>
-            <EmptyDescription>历史或已启动项目已收起，可展开查看全部项目。</EmptyDescription>
-          </EmptyHeader>
+        <div className={styles.empty} data-testid="no-pending-projects">
+          <span className={styles.emptyIcon}>
+            <FolderOpen aria-hidden />
+          </span>
+          <strong>暂无待启动项目</strong>
+          <p>历史或已启动项目已收起，可展开查看全部项目。</p>
           {archivedProjectCount > 0 ? (
-            <EmptyContent>
-              <Button type="button" variant="outline" onClick={() => setShowArchivedProjects(true)}>
-                显示历史/已启动项目（{archivedProjectCount}）
-              </Button>
-            </EmptyContent>
+            <Button type="button" variant="outline" onClick={() => setShowArchivedProjects(true)}>
+              显示历史/已启动项目（{archivedProjectCount}）
+            </Button>
           ) : null}
-        </Empty>
+        </div>
       )
     }
 
     return (
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabKey)}>
         <TabsMotionGroup id="project-launch-tabs">
-          <TabsList variant="term" className="w-fit justify-start">
+          <TabsList className={styles.tabsList}>
             {TABS.map((tab) => (
-              <SlidingTabsTrigger
+              <TabsTrigger
                 key={tab}
                 value={tab}
-                activeValue={activeTab}
-                layoutId="project-launch-tab-indicator"
-                variant="term"
+                className={styles.tabTrigger}
               >
                 {TAB_LABELS[tab]}
-              </SlidingTabsTrigger>
+              </TabsTrigger>
             ))}
           </TabsList>
         </TabsMotionGroup>
 
-        <DirectionalTabTransition value={activeTab} order={TABS} className="mt-2">
-          <TabsContent forceMount value={activeTab} className="mt-0">
+        <DirectionalTabTransition value={activeTab} order={TABS} className={styles.tabTransition}>
+          <TabsContent forceMount value={activeTab} className={styles.tabContent}>
             {activeTab === 'overview'
               ? renderOverview()
               : activeTab === 'store_launch'
@@ -723,17 +779,22 @@ export default function ProjectLaunchClient() {
   }
 
   return (
-    <div className="flex w-full flex-col gap-2" data-testid="project-launch">
+    <main
+      className={styles.page}
+      data-testid="project-launch-warm-page"
+      data-warm-surface="warm-ledger"
+      aria-busy={projectsLoading || refreshing}
+    >
       {/* 窄屏：项目选择器替代左侧列表 */}
-      <div className="flex flex-col gap-1 md:hidden">
-        <div className="flex items-center gap-2">
-          <label htmlFor="project-launch-picker" className="shrink-0 font-mono text-[11px] text-term-muted">
+      <div className={styles.mobilePicker}>
+        <div className={styles.mobilePickerRow}>
+          <Label htmlFor="project-launch-picker">
             项目
-          </label>
+          </Label>
           <select
             id="project-launch-picker"
             data-testid="project-picker"
-            className={`${TERM_SELECT_NATIVE} w-full`}
+            className={styles.select}
             value={selectedProjectId == null ? '' : String(selectedProjectId)}
             disabled={displayedProjects.length === 0}
             onChange={(event) => setSelectedProjectId(Number(event.target.value) || null)}
@@ -750,7 +811,7 @@ export default function ProjectLaunchClient() {
           <button
             type="button"
             data-testid="toggle-archived-projects-mobile"
-            className={`${TERM_BUTTON} self-end`}
+            className={styles.buttonQuiet}
             onClick={() => setShowArchivedProjects((value) => !value)}
           >
             {showArchivedProjects ? '收起历史/已启动项目' : `显示历史/已启动项目（${archivedProjectCount}）`}
@@ -758,68 +819,74 @@ export default function ProjectLaunchClient() {
         ) : null}
       </div>
 
-      {admin ? <div className="flex justify-end"><Button asChild variant="term" size="sm"><Link href="/dashboard/operations/project-launch/templates">流程模板管理</Link></Button></div> : null}
+      {admin ? (
+        <div className={styles.adminAction}>
+          <Link className={styles.button} href="/dashboard/operations/project-launch/templates">
+            流程模板管理
+          </Link>
+        </div>
+      ) : null}
 
-      <div className="flex min-w-0 flex-col gap-2 md:grid md:grid-cols-[260px_minmax(0,1fr)]">
+      <div className={styles.workspace}>
         {/* 桌面：左侧项目列表 */}
-        <TermPanel
+        <Panel
           title="项目"
-          className="hidden max-h-[calc(100vh-9rem)] md:flex"
-          bodyClassName="overflow-y-auto"
+          className={styles.projectPanel}
+          bodyClassName={styles.projectPanelBody}
         >
-          <div className="flex items-center justify-between border-b border-term-border px-2 py-1">
-            <span className="font-mono text-[11px] text-term-faint">
+          <div className={styles.projectListHeader}>
+            <span>
               {projectsLoading ? '加载中…' : `显示 ${displayedProjects.length} / ${projects.length} 个项目`}
             </span>
             {archivedProjectCount > 0 ? (
               <button
                 type="button"
                 data-testid="toggle-archived-projects"
-                className={`${TERM_BUTTON} ml-auto`}
+                className={styles.buttonQuiet}
                 onClick={() => setShowArchivedProjects((value) => !value)}
               >
                 {showArchivedProjects ? '收起历史/已启动项目' : `显示历史/已启动项目（${archivedProjectCount}）`}
               </button>
             ) : null}
             {refreshing ? (
-              <Loader2 aria-hidden className="h-3.5 w-3.5 animate-spin text-term-muted" />
+              <Loader2 aria-hidden className={styles.spinner} />
             ) : null}
           </div>
           {projectsError ? (
-            <ErrorState
+            <InlineError
               title="项目列表加载失败"
               message={projectsError}
               onRetry={() => void loadProjectsAndSummary({ force: true })}
             />
           ) : projectsLoading ? (
-            <div className="space-y-2 p-2">
-              <Skeleton className="h-9 w-full" />
-              <Skeleton className="h-9 w-full" />
-              <Skeleton className="h-9 w-full" />
+            <div className={styles.loadingStack}>
+              <div className={styles.skeletonRow} />
+              <div className={styles.skeletonRow} />
+              <div className={styles.skeletonRow} />
             </div>
           ) : (
-            <ul className="flex flex-col p-1">{displayedProjects.map(renderProjectRow)}</ul>
+            <ul className={styles.projectList}>{displayedProjects.map(renderProjectRow)}</ul>
           )}
-        </TermPanel>
+        </Panel>
 
         {/* 右侧：选中项目详情 */}
-        <TermPanel
+        <Panel
           title={selectedProject ? selectedProject.name : '项目详情'}
-          className="min-h-[320px]"
-          bodyClassName="p-2"
+          className={styles.detailPanel}
+          bodyClassName={styles.detailPanelBody}
         >
           {summaryError ? (
-            <div className="mb-2 flex flex-wrap items-center gap-2 border border-term-border px-2 py-1.5">
+            <div className={styles.errorBanner}>
               <span
                 role="alert"
                 data-testid="summary-error"
-                className="font-mono text-[11px] text-term-neg"
+                className={styles.errorText}
               >
                 {summaryError}
               </span>
               <button
                 type="button"
-                className={`${TERM_BUTTON} ml-auto`}
+                className={styles.buttonQuiet}
                 onClick={() => void refreshSummary()}
               >
                 重试
@@ -828,17 +895,17 @@ export default function ProjectLaunchClient() {
           ) : null}
 
           {mutationError ? (
-            <div className="mb-2 flex flex-wrap items-center gap-2 border border-term-border px-2 py-1.5">
+            <div className={styles.errorBanner}>
               <span
                 role="alert"
                 data-testid="mutation-error"
-                className="font-mono text-[11px] text-term-neg"
+                className={styles.errorText}
               >
                 {mutationError}
               </span>
               <button
                 type="button"
-                className={`${TERM_BUTTON} ml-auto`}
+                className={styles.buttonQuiet}
                 onClick={() => setMutationError(null)}
               >
                 关闭
@@ -847,7 +914,7 @@ export default function ProjectLaunchClient() {
           ) : null}
 
           {renderSelectedPane()}
-        </TermPanel>
+        </Panel>
       </div>
 
       {selectedProject ? (
@@ -863,6 +930,6 @@ export default function ProjectLaunchClient() {
           onSubmit={handleCreateWorkflow}
         />
       ) : null}
-    </div>
+    </main>
   )
 }

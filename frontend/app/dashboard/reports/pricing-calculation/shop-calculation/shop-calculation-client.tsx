@@ -5,7 +5,7 @@ import { Calculator, Download, Loader2, Search } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
-import { Button } from '@/components/ui/button'
+import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -40,16 +40,9 @@ import { useNotifications } from '@/components/notifications'
 import { getCountryLabel } from '@/lib/country'
 import { downloadBlob } from '@/lib/download-blob'
 import { useUrlParam } from '@/lib/hooks/use-url-param'
-import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
 import { MobileFilterStrip } from '@/components/terminal/mobile-filter-strip'
-import {
-  HeaderSlotSelect,
-  HeaderSlotInput,
-  TERM_HEADER_W_LG,
-  TERM_HEADER_W_SM,
-  TERM_HEADER_W_MD,
-} from '@/components/terminal/header-filter-suite'
 import { useHeaderSlot, useMobileFilterStrip } from '@/components/terminal/terminal-header-slot'
+import styles from '../pricing-calculation-warm.module.css'
 
 type StoreCountry = 'US' | 'DE' | 'UK'
 
@@ -180,8 +173,8 @@ export default function ShopCalculationPage() {
 
   useEffect(() => {
     const project = projects.find((p) => p.name === selectedProjectName)
-    setSelectedProjectId(project?.id ?? null)
-  }, [selectedProjectName, projects])
+    setProjectIdRaw(project?.id == null ? '' : String(project.id))
+  }, [selectedProjectName, projects, setProjectIdRaw])
 
   // Load stats when project / country / snapshot changes
   useEffect(() => {
@@ -275,37 +268,41 @@ export default function ShopCalculationPage() {
   // BLF-997 · 头部插槽：项目 / SKU 搜索 / 站点
   const countryOptions = COUNTRY_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label }))
   const headerSlotPortal = useHeaderSlot(
-    <HeaderFilterControls
-      isMobileView={false}
-      controls={
-        <>
-          <HeaderSlotSelect
-            value={selectedProjectName}
-            onChange={setSelectedProjectName}
-            options={projects.map((p) => ({ value: p.name, label: p.name }))}
-            placeholder="选择项目"
-            widthClass={TERM_HEADER_W_MD}
-            title="项目筛选"
-            disabled={projectsLoading}
-          />
-          <HeaderSlotInput
-            widthClass={TERM_HEADER_W_LG}
-            value={skuKeyword}
-            onChange={(e) => setSkuKeyword(e.target.value)}
-            placeholder="SKU / ASIN"
-            title="SKU 搜索"
-          />
-          <HeaderSlotSelect
-            value={selectedCountry}
-            onChange={(v) => setSelectedCountry(v as StoreCountry)}
-            options={countryOptions}
-            placeholder="选择站点"
-            widthClass={TERM_HEADER_W_SM}
-            title="站点筛选"
-          />
-        </>
-      }
-    />
+    <div className={styles.headerFilters} data-warm-header-filters="true">
+      <select
+        aria-label="项目筛选"
+        className={styles.headerProject}
+        value={selectedProjectName}
+        onChange={(event) => setSelectedProjectName(event.target.value)}
+        disabled={projectsLoading}
+      >
+        <option value="">选择项目</option>
+        {projects.map((project) => (
+          <option key={project.id} value={project.name}>
+            {project.name}
+          </option>
+        ))}
+      </select>
+      <input
+        className={styles.headerSku}
+        value={skuKeyword}
+        onChange={(event) => setSkuKeyword(event.target.value)}
+        placeholder="SKU / ASIN"
+        aria-label="SKU 搜索"
+      />
+      <select
+        aria-label="站点筛选"
+        className={styles.headerCountry}
+        value={selectedCountry}
+        onChange={(event) => setSelectedCountry(event.target.value as StoreCountry)}
+      >
+        {countryOptions.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </div>
   )
 
   const mobileFilterSummary = `${selectedProjectName || '选择项目'} · ${selectedCountry}${skuKeyword ? ` · SKU: ${skuKeyword}` : ''}`
@@ -314,30 +311,39 @@ export default function ShopCalculationPage() {
       summary={mobileFilterSummary}
       controls={
         <>
-          <HeaderSlotSelect
+          <select
+            aria-label="项目筛选"
+            className={styles.mobileHeaderControl}
             value={selectedProjectName}
-            onChange={setSelectedProjectName}
-            options={projects.map((p) => ({ value: p.name, label: p.name }))}
-            placeholder="选择项目"
-            widthClass={TERM_HEADER_W_MD}
-            title="项目筛选"
+            onChange={(event) => setSelectedProjectName(event.target.value)}
             disabled={projectsLoading}
-          />
-          <HeaderSlotInput
-            widthClass={TERM_HEADER_W_LG}
+          >
+            <option value="">选择项目</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.name}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+          <input
+            className={styles.mobileHeaderControl}
             value={skuKeyword}
-            onChange={(e) => setSkuKeyword(e.target.value)}
+            onChange={(event) => setSkuKeyword(event.target.value)}
             placeholder="SKU / ASIN"
-            title="SKU 搜索"
+            aria-label="SKU 搜索"
           />
-          <HeaderSlotSelect
+          <select
+            aria-label="站点筛选"
+            className={styles.mobileHeaderControl}
             value={selectedCountry}
-            onChange={(v) => setSelectedCountry(v as StoreCountry)}
-            options={countryOptions}
-            placeholder="选择站点"
-            widthClass={TERM_HEADER_W_SM}
-            title="站点筛选"
-          />
+            onChange={(event) => setSelectedCountry(event.target.value as StoreCountry)}
+          >
+            {countryOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </>
       }
     />
@@ -693,20 +699,18 @@ export default function ShopCalculationPage() {
   }
 
   return (
-    <div className="flex min-w-0 flex-col gap-3">
+    <div className={styles.page} data-warm-pricing-shop-calculation="true">
       {headerSlotPortal}
       {mobileFilterStripPortal}
       {/* Card 1: 控制台 */}
-      <div className="border border-term-border bg-term-panel p-3">
+      <section className={styles.console} aria-label="控制台" data-warm-surface="true">
             {/* Top Row: Icon + Title + Snapshot Selector */}
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-none border border-term-border bg-term-raised text-term-muted">
-                <Calculator className="h-5 w-5 text-[hsl(var(--primary))]" strokeWidth={2} />
+            <div className={styles.consoleHeader}>
+              <div className={styles.consoleIcon}>
+                <Calculator className={styles.consoleIconGlyph} strokeWidth={1.8} />
               </div>
-              <div className="min-w-0 flex-1">
-                <h1 className="text-[1.15rem] font-semibold tracking-tight text-foreground">
-                  控制台
-                </h1>
+              <div className={styles.consoleTitleWrap}>
+                <h2 className={styles.consoleTitle}>控制台</h2>
               </div>
               {/* 定价历史快照选择器（仿 inventory-replenishment 的 SnapshotSelector） */}
               <PricingSnapshotSelector
@@ -727,42 +731,42 @@ export default function ShopCalculationPage() {
             </div>
 
             {/* Divider */}
-            <div className="mt-4 mb-4 h-px bg-border/60" />
+            <div className={styles.consoleDivider} />
 
             {/* Bottom Row: Three Modules + Country Switch */}
             {/* 手机端：2列网格去除标签；平板+：横向排列 */}
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className={styles.consoleToolbar}>
               {/* Left: 项目 + 搜索 SKU + 导出 Excel */}
               {/* 手机: 2列网格；平板+: 3列网格 */}
-              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
+              <div className={styles.consoleFilters}>
 
 
                 {/* Module 3: 导出 Excel */}
-                <div className="flex min-w-0 flex-col gap-2">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden sm:block">
+                <div className={styles.toolbarModule}>
+                  <span className={styles.toolbarLabel}>
                     导出 Excel
                   </span>
-                  <Button
-                    variant="outline"
+                  <WarmButton
+                    variant="secondary"
                     onClick={handleExport}
                     disabled={exporting || !hasCalculatedRows}
-                    className="h-8 text-xs"
+                    className={styles.exportButton}
+                    loading={exporting}
+                    loadingLabel="正在导出店铺测算"
                   >
-                    {exporting ? (
-                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                    ) : (
+                    {!exporting && (
                       <Download className="mr-1.5 h-3.5 w-3.5" />
                     )}
                     导出 Excel
-                  </Button>
+                  </WarmButton>
                 </div>
               </div>
 
             </div>
-      </div>
+      </section>
 
       {/* Card 2: DataTableCard with Stats */}
-      <div className="animate-fade-slide-up">
+      <div className={styles.dataPanel}>
         <DataTableCard>
           <DataTableCardStatBar
             items={[
@@ -772,7 +776,7 @@ export default function ShopCalculationPage() {
                   <Skeleton className="h-6 w-8" />
                 ) : (
                   <RefreshProgressBar refreshing={isRefreshing}>
-                    <span className="text-sm font-semibold tabular-nums text-foreground">
+                    <span className={styles.statValue}>
                       {stats.total}
                     </span>
                   </RefreshProgressBar>
@@ -786,10 +790,10 @@ export default function ShopCalculationPage() {
                   <RefreshProgressBar refreshing={isRefreshing}>
                     <span
                       className={cn(
-                        'text-sm font-semibold tabular-nums',
+                        styles.statValue,
                         stats.calculated > 0
-                          ? 'text-emerald-600 dark:text-emerald-400'
-                          : 'text-foreground'
+                          ? styles.statusPositive
+                          : undefined
                       )}
                     >
                       {stats.calculated}
@@ -805,10 +809,10 @@ export default function ShopCalculationPage() {
                   <RefreshProgressBar refreshing={isRefreshing}>
                     <span
                       className={cn(
-                        'text-sm font-semibold tabular-nums',
+                        styles.statValue,
                         stats.profitable > 0
-                          ? 'text-emerald-600 dark:text-emerald-400'
-                          : 'text-foreground'
+                          ? styles.statusPositive
+                          : undefined
                       )}
                     >
                       {stats.profitable}
@@ -824,14 +828,14 @@ export default function ShopCalculationPage() {
                   <RefreshProgressBar refreshing={isRefreshing}>
                     <span
                       className={cn(
-                        'text-sm font-semibold tabular-nums',
+                        styles.statValue,
                         !hasCalculatedRows
-                          ? 'text-foreground'
+                          ? undefined
                           : stats.passRate >= 50
-                            ? 'text-emerald-600 dark:text-emerald-400'
+                            ? styles.statusPositive
                             : stats.passRate >= 25
-                              ? 'text-term-warn'
-                              : 'text-term-neg'
+                              ? styles.statusWarning
+                              : styles.statusNegative
                       )}
                     >
                       {hasCalculatedRows ? `${stats.passRate.toFixed(1)}%` : '—'}

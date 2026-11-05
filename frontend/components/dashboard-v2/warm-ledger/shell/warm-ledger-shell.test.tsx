@@ -7,7 +7,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { WarmLedgerShell } from './warm-ledger-shell'
 import { WarmLedgerTopbar } from './warm-ledger-topbar'
-import { WarmLedgerRouteFrame } from './warm-ledger-route-frame'
+import {
+  getWarmLedgerPageTitle,
+  getWarmLedgerRouteMeta,
+  isWarmLedgerRoute,
+  WarmLedgerRouteFrame,
+} from './warm-ledger-route-frame'
 import { useTerminalGlobalFilter } from '@/components/terminal/global-filter-context'
 
 const shellThemeCss = readFileSync(
@@ -122,6 +127,35 @@ const WARM_CURRENT_ROUTES = [
   ['/dashboard/system/logs', '/dashboard/system/logs'],
   ['/dashboard/system/operator-management', '/dashboard/system/operator-management'],
   ['/dashboard/system/project-info', '/dashboard/system/project-info'],
+] as const
+
+const WARM_C8_ROUTE_CASES = [
+  ['/dashboard/reports/auto-upload', '报表自动化', '报表中心'],
+  ['/dashboard/reports/monthly-report/generate', '制作报表', '报表中心'],
+  ['/dashboard/reports/monthly-report/reconcile', '报表核对', '报表中心'],
+  ['/dashboard/reports/pricing-calculation', '定价核算', '报表中心'],
+  ['/dashboard/reports/pricing-calculation/new-product', '新品核算', '报表中心'],
+  ['/dashboard/reports/pricing-calculation/shop-calculation', '店铺测算', '报表中心'],
+  ['/dashboard/reports/report-reconciliation', '报表核对', '报表中心'],
+  ['/dashboard/reports/scheduled-reports', '定时报告', '报表中心'],
+  ['/dashboard/reports/scheduled-reports/ledger', '调度记录', '报表中心'],
+  ['/dashboard/reports/scheduled-reports/subscriptions', '订阅管理', '报表中心'],
+  ['/dashboard/operations/complaint-center', '客户消息', '运营'],
+  ['/dashboard/operations/complaint-center/list', '客诉明细', '运营'],
+  ['/dashboard/operations/inventory-replenishment', '补货分析', '运营'],
+  ['/dashboard/operations/platform-inspection', '平台巡检', '运营'],
+  ['/dashboard/operations/project-goals', '项目目标', '运营'],
+  ['/dashboard/operations/project-launch', '项目启动台', '运营'],
+  ['/dashboard/operations/project-launch/templates', '流程模板管理', '运营'],
+  ['/dashboard/operations/research-analysis', '调研分析', '运营'],
+  ['/dashboard/operations/return-analysis', '退货分析', '运营'],
+  ['/dashboard/operations/review-tracking', '评论追踪', '运营'],
+  ['/dashboard/operations/seasonal-replenishment', '季节性补货分析', '运营'],
+  ['/dashboard/operations/site-navigation', '站点导航', '运营'],
+  ['/dashboard/operations/store-navigation', '店铺导航', '运营'],
+  ['/dashboard/operations/weekly-product-analysis', '按周产品分析', '运营'],
+  ['/dashboard/agent-center/overview', '数据流总览', '运营'],
+  ['/dashboard/agent-center/employees', 'Agent 员工', '运营'],
 ] as const
 
 const shellMocks = vi.hoisted(() => ({
@@ -400,6 +434,17 @@ describe('WarmLedgerShell', () => {
         'aria-current'
       )
       unmount()
+    }
+  })
+
+  it('recognizes every C8 residual route with its exact title and owning section', () => {
+    for (const [pathname, title, section] of WARM_C8_ROUTE_CASES) {
+      expect(isWarmLedgerRoute(pathname)).toBe(true)
+      expect(getWarmLedgerPageTitle(pathname)).toBe(title)
+      expect(getWarmLedgerRouteMeta(pathname)).toMatchObject({
+        title,
+        sectionLabel: section,
+      })
     }
   })
 

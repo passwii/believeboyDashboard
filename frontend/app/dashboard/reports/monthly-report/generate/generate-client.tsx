@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
 import {
   AlertCircle,
+  ChevronLeft,
+  ChevronRight,
   DatabaseZap,
   Download,
   FileSearch,
@@ -12,6 +14,10 @@ import {
   Upload,
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
+import {
+  WarmButton,
+  WarmIconButton,
+} from '@/components/dashboard-v2/warm-ledger/controls'
 
 type RecognizedFileType =
   | 'sales_report'
@@ -20,12 +26,6 @@ type RecognizedFileType =
   | 'payment_report'
   | 'monthly_summary_pdf'
   | 'unknown'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  formatMonthInputValue,
-  parseMonthInputValue,
-} from '@/components/ui/date-picker'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -44,19 +44,12 @@ import {
   DEFAULT_REPORT_UPLOAD_COUNTRY,
   type ReportUploadCountry,
 } from '@/components/report-upload/types'
-import { MonthNavigation } from '@/components/dashboard/console'
-import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
-import {
-  HeaderSlotSelect,
-  TERM_HEADER_TRIGGER,
-  TERM_HEADER_W_MD,
-  TERM_HEADER_W_SM,
-} from '@/components/terminal/header-filter-suite'
 import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
 import {
   useHeaderSlot,
   useMobileFilterStrip,
 } from '@/components/terminal/terminal-header-slot'
+import styles from './generate-warm.module.css'
 
 type UploadType = 'payment_report' | 'monthly_summary_pdf'
 type AssignedType = UploadType | 'skip'
@@ -164,6 +157,36 @@ function shiftMonth(value: string, delta: number) {
   return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`
 }
 
+function HeaderMonthControl({
+  value,
+  onChange,
+  onPrev,
+  onNext,
+}: {
+  value: string
+  onChange: (value: string) => void
+  onPrev: () => void
+  onNext: () => void
+}) {
+  return (
+    <div className={styles.headerMonth}>
+      <WarmIconButton type="button" aria-label="上一个月" onClick={onPrev}>
+        <ChevronLeft aria-hidden="true" />
+      </WarmIconButton>
+      <input
+        type="month"
+        aria-label="账期月份"
+        className={styles.headerMonthInput}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      <WarmIconButton type="button" aria-label="下一个月" onClick={onNext}>
+        <ChevronRight aria-hidden="true" />
+      </WarmIconButton>
+    </div>
+  )
+}
+
 function extractFilenameFromHeader(contentDisposition: string | null) {
   if (!contentDisposition) return null
   const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i)
@@ -221,15 +244,14 @@ function validateFile(type: UploadType, file: File): string | null {
 
 function getUploadMeta(state: UploadStateItem) {
   if (state.status === 'success')
-    return { text: '已上传', dot: 'bg-emerald-500', bar: 'bg-emerald-500' }
+    return { text: '已上传', tone: 'positive' as const }
   if (state.status === 'uploading')
-    return { text: '上传中', dot: 'bg-blue-500', bar: 'bg-blue-500' }
-  if (state.status === 'error') return { text: '上传失败', dot: 'bg-term-neg', bar: 'bg-term-neg' }
-  if (state.status === 'ready') return { text: '待上传', dot: 'bg-term-accent', bar: 'bg-term-accent' }
+    return { text: '上传中', tone: 'accent' as const }
+  if (state.status === 'error') return { text: '上传失败', tone: 'negative' as const }
+  if (state.status === 'ready') return { text: '待上传', tone: 'accent' as const }
   return {
     text: '未识别',
-    dot: 'bg-term-border',
-    bar: 'bg-term-border',
+    tone: 'neutral' as const,
   }
 }
 
@@ -453,17 +475,17 @@ export default function GenerateTab() {
   const hasProgressState = submitState.status !== 'idle' || jobProgress !== null
 
   const generationMeta = useMemo(() => {
-    if (submitState.status === 'success') return { label: '已完成', tone: 'text-emerald-600' }
-    if (submitState.status === 'submitting') return { label: '进行中', tone: 'text-blue-600' }
-    if (submitState.status === 'error') return { label: '异常', tone: 'text-term-neg' }
-    return { label: '未开始', tone: 'text-muted-foreground' }
+    if (submitState.status === 'success') return { label: '已完成', tone: 'positive' }
+    if (submitState.status === 'submitting') return { label: '进行中', tone: 'accent' }
+    if (submitState.status === 'error') return { label: '异常', tone: 'negative' }
+    return { label: '未开始', tone: 'neutral' }
   }, [submitState.status])
 
   const syncMeta = useMemo(() => {
-    if (persistenceSync.status === 'success') return { label: '已同步', tone: 'text-emerald-600' }
-    if (persistenceSync.status === 'running') return { label: '同步中', tone: 'text-blue-600' }
-    if (persistenceSync.status === 'failed') return { label: '失败', tone: 'text-term-warn' }
-    return { label: '待同步', tone: 'text-muted-foreground' }
+    if (persistenceSync.status === 'success') return { label: '已同步', tone: 'positive' }
+    if (persistenceSync.status === 'running') return { label: '同步中', tone: 'accent' }
+    if (persistenceSync.status === 'failed') return { label: '失败', tone: 'warning' }
+    return { label: '待同步', tone: 'neutral' }
   }, [persistenceSync.status])
 
   const addFiles = async (files: File[]) => {
@@ -860,48 +882,48 @@ export default function GenerateTab() {
   // 桌面端：项目 / 国家 / 账期月份三个控件 portal 进 Top Header 中段。
   // 项目沿用页面原生选项集（按名称 value）；国家沿用 US/DE/UK 三站集合
   //（与旧 CountrySelect 默认 options 一致）；账期月份保留前后月切换语义
-  //（handleShiftReportMonth），在插槽内用紧凑 MonthNavigation 变体呈现。
+  //（handleShiftReportMonth），在插槽内用页面本地 Warm 月份控件呈现。
   const projectSlotOptions = projects.map((project) => ({
     value: project.name,
     label: project.name,
   }))
-  const reportMonthDate = parseMonthInputValue(reportMonth)
   const headerFilterControls = (
-    <>
-      <HeaderSlotSelect
+    <div className={styles.headerFilters} data-warm-header-filters="true">
+      <select
+        aria-label="项目筛选"
+        className={styles.headerSelect}
         value={projectName}
-        onChange={setProjectName}
-        options={projectSlotOptions}
-        placeholder={projectsLoading ? '项目加载中…' : '请选择项目名称'}
+        onChange={(event) => setProjectName(event.target.value)}
         disabled={projectsLoading || projects.length === 0}
-        widthClass={TERM_HEADER_W_MD}
-        title="项目筛选"
-      />
-      <HeaderSlotSelect
+      >
+        <option value="">{projectsLoading ? '项目加载中…' : '请选择项目名称'}</option>
+        {projectSlotOptions.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <select
+        aria-label="国家站点筛选"
+        className={styles.headerSelect}
         value={country}
-        onChange={(value) => setCountry(value as CountryOption)}
-        options={[...GENERATE_COUNTRY_SLOT_OPTIONS]}
-        widthClass={TERM_HEADER_W_SM}
-        title="国家站点筛选"
-      />
-      <MonthNavigation
-        value={reportMonthDate}
-        onChange={(date) => setReportMonth(formatMonthInputValue(date))}
+        onChange={(event) => setCountry(event.target.value as CountryOption)}
+      >
+        {GENERATE_COUNTRY_SLOT_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <HeaderMonthControl
+        value={reportMonth}
+        onChange={setReportMonth}
         onPrev={() => handleShiftReportMonth(-1)}
         onNext={() => handleShiftReportMonth(1)}
-        showCurrentMonth={false}
-        monthLabel=""
-        className={cn(
-          TERM_HEADER_TRIGGER,
-          TERM_HEADER_W_MD,
-          '[&>button]:h-8 [&>button]:w-8 [&_span]:text-xs'
-        )}
       />
-    </>
+    </div>
   )
-  const headerSlotPortal = useHeaderSlot(
-    <HeaderFilterControls isMobileView={false} controls={headerFilterControls} />
-  )
+  const headerSlotPortal = useHeaderSlot(headerFilterControls)
 
   // 移动端：筛选控件下迁为正文顶部可折叠筛选条（短控件 1/2，月份占整行）。
   const mobileProjectLabel = projectName || '选择项目'
@@ -913,31 +935,38 @@ export default function GenerateTab() {
       summary={mobileFilterSummary}
       controls={
         <>
-          <HeaderSlotSelect
+          <select
+            aria-label="项目筛选"
+            className={styles.mobileHeaderSelect}
             value={projectName}
-            onChange={setProjectName}
-            options={projectSlotOptions}
-            placeholder={projectsLoading ? '项目加载中…' : '请选择项目名称'}
+            onChange={(event) => setProjectName(event.target.value)}
             disabled={projectsLoading || projects.length === 0}
-            widthClass={TERM_HEADER_W_MD}
-            title="项目筛选"
-          />
-          <HeaderSlotSelect
+          >
+            <option value="">{projectsLoading ? '项目加载中…' : '请选择项目名称'}</option>
+            {projectSlotOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="国家站点筛选"
+            className={styles.mobileHeaderSelect}
             value={country}
-            onChange={(value) => setCountry(value as CountryOption)}
-            options={[...GENERATE_COUNTRY_SLOT_OPTIONS]}
-            widthClass={TERM_HEADER_W_SM}
-            title="国家站点筛选"
-          />
+            onChange={(event) => setCountry(event.target.value as CountryOption)}
+          >
+            {GENERATE_COUNTRY_SLOT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
           <MobileFilterWide>
-            <MonthNavigation
-              value={reportMonthDate}
-              onChange={(date) => setReportMonth(formatMonthInputValue(date))}
+            <HeaderMonthControl
+              value={reportMonth}
+              onChange={setReportMonth}
               onPrev={() => handleShiftReportMonth(-1)}
               onNext={() => handleShiftReportMonth(1)}
-              showCurrentMonth={false}
-              monthLabel=""
-              className="h-10 w-full"
             />
           </MobileFilterWide>
         </>
@@ -946,71 +975,78 @@ export default function GenerateTab() {
   )
 
   return (
-    <div className="grid w-full gap-6 text-foreground xl:grid-cols-[minmax(0,1fr)_360px]">
+    <div className={styles.page} data-warm-monthly-generate="true">
       {headerSlotPortal}
       {/* 移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
       {mobileFilterStrip}
-      <div className="space-y-6">
-        <Card className="overflow-hidden rounded-none border-term-border bg-term-panel shadow-none">
-          <CardHeader>
-            <CardTitle className="text-lg">控制台</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+      <div className={styles.main}>
+        <section
+          className={styles.panel}
+          role="region"
+          aria-label="控制台"
+          data-warm-surface="true"
+        >
+          <div className={styles.panelHeader}>
+            <h2 className={styles.panelTitle}>控制台</h2>
+          </div>
+          <div className={styles.panelBody}>
             {!projectsLoading && !projectLoadError && projects.length === 0 ? (
-              <p className="text-xs text-muted-foreground">
-                暂无项目，请先到项目信息页面新增。
-              </p>
+              <p className={styles.mutedText}>暂无项目，请先到项目信息页面新增。</p>
             ) : null}
             {projectLoadError ? (
-              <p className="text-xs text-destructive">{projectLoadError}</p>
+              <p className={styles.errorText}>{projectLoadError}</p>
             ) : null}
 
-            <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
-              <div className="rounded-none border border-term-border bg-term-raised px-2 py-1.5">
-                <p className="text-xs text-muted-foreground">识别</p>
-                <p className="mt-1 text-sm font-semibold">
+            <div className={styles.metricGrid}>
+              <div className={styles.metric} data-warm-metric="true">
+                <p className={styles.metricLabel}>识别</p>
+                <p className={styles.metricValue}>
                   {recognizedCount}/{UPLOAD_TYPES.length}
                 </p>
               </div>
-              <div className="rounded-none border border-term-border bg-term-raised px-2 py-1.5">
-                <p className="text-xs text-muted-foreground">上传</p>
-                <p className="mt-1 text-sm font-semibold">
+              <div className={styles.metric} data-warm-metric="true">
+                <p className={styles.metricLabel}>上传</p>
+                <p className={styles.metricValue}>
                   {uploadedCount}/{UPLOAD_TYPES.length}
                 </p>
               </div>
-              <div className="rounded-none border border-term-border bg-term-raised px-2 py-1.5">
-                <p className="text-xs text-muted-foreground">表格生成</p>
-                <p className={cn('mt-1 text-sm font-semibold', generationMeta.tone)}>
+              <div className={styles.metric} data-warm-metric="true">
+                <p className={styles.metricLabel}>表格生成</p>
+                <p className={styles.metricValue} data-tone={generationMeta.tone}>
                   {generationMeta.label}
                 </p>
               </div>
-              <div className="rounded-none border border-term-border bg-term-raised px-2 py-1.5">
-                <p className="text-xs text-muted-foreground">数据同步</p>
-                <p className={cn('mt-1 text-sm font-semibold', syncMeta.tone)}>{syncMeta.label}</p>
+              <div className={styles.metric} data-warm-metric="true">
+                <p className={styles.metricLabel}>数据同步</p>
+                <p className={styles.metricValue} data-tone={syncMeta.tone}>
+                  {syncMeta.label}
+                </p>
               </div>
             </div>
 
             {formError ? (
-              <p className="rounded-none border border-term-neg/40 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
-                {formError}
-              </p>
+              <p className={styles.alert}>{formError}</p>
             ) : null}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
 
-        <Card className="overflow-hidden rounded-none border-term-border bg-term-panel shadow-none">
-          <CardHeader>
-            <CardTitle className="text-lg">文件识别与上传</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="grid gap-5 xl:grid-cols-[300px_1fr]">
+        <section
+          className={styles.panel}
+          role="region"
+          aria-label="文件识别与上传"
+          data-warm-surface="true"
+        >
+          <div className={styles.panelHeader}>
+            <h2 className={styles.panelTitle}>文件识别与上传</h2>
+          </div>
+          <div className={styles.panelBody}>
+            <div className={styles.uploadLayout}>
               <div
                 className={cn(
-                  'flex flex-col rounded-none border-2 border-dashed p-4 text-center transition-colors',
-                  dragActive
-                    ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-900/20'
-                    : 'border-term-border bg-term-raised'
+                  styles.dropZone,
+                  dragActive && styles.dropZoneActive
                 )}
+                data-active={dragActive ? 'true' : undefined}
                 style={{ minHeight: `${dropZoneHeight}px` }}
                 onDrop={(event) => void onDrop(event)}
                 onDragOver={(event) => {
@@ -1022,19 +1058,19 @@ export default function GenerateTab() {
                   setDragActive(false)
                 }}
               >
-                <p className="text-sm font-semibold text-foreground">拖拽文件到这里</p>
-                <p className="mt-1 text-xs text-muted-foreground">支持 csv/pdf 批量识别</p>
+                <p className={styles.dropTitle}>拖拽文件到这里</p>
+                <p className={styles.dropHint}>支持 csv/pdf 批量识别</p>
 
-                <div className="mt-auto space-y-2 pt-4">
-                  <Button
+                <div className={styles.dropActions}>
+                  <WarmButton
                     type="button"
-                    variant="outline"
-                    className="w-full"
+                    variant="secondary"
+                    className={styles.fullWidth}
                     onClick={() => document.getElementById('monthly-file-picker')?.click()}
                   >
                     <FileSearch className="mr-1 h-4 w-4" />
                     选择多个文件
-                  </Button>
+                  </WarmButton>
                   <Input
                     id="monthly-file-picker"
                     type="file"
@@ -1043,23 +1079,24 @@ export default function GenerateTab() {
                     className="hidden"
                     onChange={(event) => void addFiles(Array.from(event.target.files ?? []))}
                   />
-                  <Button
+                  <WarmButton
                     type="button"
-                    className="w-full"
+                    variant="primary"
+                    className={styles.fullWidth}
                     onClick={() => void uploadAllConfirmed()}
                     disabled={uploadBusy || mappingBusy || !projectName.trim()}
+                    loading={uploadBusy}
+                    loadingLabel="正在批量上传文件"
                   >
-                    {uploadBusy ? (
-                      <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                    ) : (
+                    {!uploadBusy && (
                       <Upload className="mr-1 h-4 w-4" />
                     )}
                     一键上传已匹配文件
-                  </Button>
+                  </WarmButton>
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div className={styles.uploadList}>
                 {UPLOAD_TYPES.map((type) => {
                   const state = uploadState[type]
                   const meta = getUploadMeta(state)
@@ -1067,82 +1104,73 @@ export default function GenerateTab() {
                   return (
                     <div
                       key={type}
-                      className="flex min-h-[120px] flex-col rounded-none border border-term-border bg-term-panel p-3"
+                      className={styles.uploadCard}
+                      data-tone={meta.tone}
                     >
-                      <div className="mb-2 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className={cn('h-2.5 w-2.5 rounded-none', meta.dot)} />
-                          <p className="text-sm font-semibold text-foreground">
-                            {TYPE_LABEL[type]}
-                          </p>
+                      <div className={styles.uploadCardHeader}>
+                        <div className={styles.statusLabel}>
+                          <span className={styles.statusDot} />
+                          <p className={styles.uploadCardTitle}>{TYPE_LABEL[type]}</p>
                         </div>
-                        <span className="text-xs text-muted-foreground">{meta.text}</span>
+                        <span className={styles.statusText}>{meta.text}</span>
                       </div>
 
-                      <div className="h-1 overflow-hidden rounded-none bg-term-raised">
+                      <div className={styles.progressTrack}>
                         <div
-                          className={cn(
-                            'h-full transition-all duration-[var(--duration-quick)]',
-                            matched
-                              ? meta.bar
-                              : 'bg-term-border dark:bg-term-border'
-                          )}
+                          className={styles.progressFill}
+                          data-complete={matched ? 'true' : 'false'}
                           style={{ width: matched ? '100%' : '28%' }}
                         />
                       </div>
 
-                      <div className="mt-auto flex items-end justify-between gap-3 pt-2">
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-xs text-muted-foreground">
+                      <div className={styles.uploadCardFooter}>
+                        <div className={styles.fileNameWrap}>
+                          <p className={styles.fileName}>
                             {state.selectedFile?.name ?? '等待识别或手动匹配'}
                           </p>
                           {state.error ? (
-                            <p className="mt-1 text-xs text-destructive">{state.error}</p>
+                            <p className={styles.errorText}>{state.error}</p>
                           ) : null}
                         </div>
-                        <Button
+                        <WarmButton
                           type="button"
-                          size="sm"
-                          variant="outline"
+                          variant="secondary"
+                          className={styles.compactButton}
                           onClick={() => void uploadType(type)}
                           disabled={
                             state.status === 'empty' ||
                             state.status === 'uploading' ||
                             !projectName.trim()
                           }
+                          loading={state.status === 'uploading'}
+                          loadingLabel="正在上传文件"
                         >
-                          {state.status === 'uploading' ? (
-                            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                          ) : (
+                          {state.status !== 'uploading' && (
                             <Upload className="mr-1 h-3.5 w-3.5" />
                           )}
                           上传
-                        </Button>
+                        </WarmButton>
                       </div>
                     </div>
                   )
                 })}
 
                 {manualMatchRows.length > 0 ? (
-                  <div className="rounded-none border border-term-accent/40 bg-term-accent/10 p-3">
-                    <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">
-                      手动匹配
-                    </p>
-                    <p className="mt-1 text-xs text-blue-700/80 dark:text-blue-200/80">
-                      以下文件识别失败，请手动指定类型。
-                    </p>
+                  <div className={styles.manualMatch}>
+                    <p className={styles.manualMatchTitle}>手动匹配</p>
+                    <p className={styles.manualMatchHint}>以下文件识别失败，请手动指定类型。</p>
 
-                    <div className="mt-3 space-y-2">
+                    <div className={styles.manualMatchList}>
                       {manualMatchRows.map((row) => (
                         <div
                           key={row.id}
-                          className="grid gap-2 rounded-none border border-term-accent/40 bg-term-panel p-2 md:grid-cols-[1fr_190px]"
+                          className={styles.manualMatchRow}
                         >
                           <div>
-                            <p className="truncate text-sm font-medium text-foreground">
+                            <p className={styles.manualFileName}>
                               {row.file.name}
                             </p>
-                            <p className="text-xs text-muted-foreground">{row.detectedReason}</p>
+                            <p className={styles.mutedText}>{row.detectedReason}</p>
                           </div>
                           <Select
                             value={row.assignedType}
@@ -1150,10 +1178,10 @@ export default function GenerateTab() {
                               changeAssignedType(row.id, value as AssignedType)
                             }
                           >
-                            <SelectTrigger>
+                            <SelectTrigger className={styles.selectTrigger}>
                               <SelectValue placeholder="手动选择类型" />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className={styles.selectContent}>
                               <SelectItem value="payment_report">交易明细 CSV</SelectItem>
                               <SelectItem value="monthly_summary_pdf">月度总结 PDF</SelectItem>
                               <SelectItem value="skip">跳过</SelectItem>
@@ -1166,36 +1194,42 @@ export default function GenerateTab() {
                 ) : null}
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       </div>
 
-      <Card className="h-fit rounded-none border-term-border bg-term-panel shadow-none xl:sticky xl:top-6">
-        <CardHeader>
-          <CardTitle className="text-lg">处理状态</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-3 rounded-none border border-term-border bg-term-raised p-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-sm font-medium">
+      <section
+        className={styles.sidePanel}
+        role="region"
+        aria-label="处理状态"
+        data-warm-surface="true"
+      >
+        <div className={styles.panelHeader}>
+          <h2 className={styles.panelTitle}>处理状态</h2>
+        </div>
+        <div className={styles.panelBody}>
+          <div className={styles.progressPanel}>
+            <div className={styles.progressHeader}>
+              <div className={styles.progressLabel}>
                 {submitState.status === 'submitting' ? (
-                  <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                  <Loader2 className={styles.spinner} />
                 ) : (
-                  <DatabaseZap className="h-4 w-4 text-muted-foreground" />
+                  <DatabaseZap className={styles.mutedIcon} />
                 )}
                 <span>{submitState.message || '等待生成任务'}</span>
               </div>
-              <span className="text-xs font-semibold text-muted-foreground">
+              <span className={styles.progressValue}>
                 {normalizeProgress(jobProgress?.progress ?? 0)}%
               </span>
             </div>
-            <div className="h-1 overflow-hidden rounded-none bg-term-raised">
+            <div className={styles.progressTrack}>
               <div
-                className="h-full bg-blue-500 transition-all duration-[var(--duration-very-slow)]"
+                className={styles.progressFill}
+                data-complete="true"
                 style={{ width: `${normalizeProgress(jobProgress?.progress ?? 0)}%` }}
               />
             </div>
-            <div className="space-y-2 text-sm">
+            <div className={styles.progressSteps}>
               {PROGRESS_STEP_LABELS.map((label, index) => {
                 const done =
                   hasProgressState &&
@@ -1203,32 +1237,17 @@ export default function GenerateTab() {
                 const active = hasProgressState && currentProgressStep === index && !done
                 const isLastStep = index === 4
                 return (
-                  <div key={label} className="flex items-center gap-2">
+                  <div key={label} className={styles.progressStep}>
                     <span
-                      className={cn(
-                        'h-2.5 w-2.5 rounded-none transition-colors',
-                        done
-                          ? 'bg-emerald-500'
-                          : active
-                            ? 'bg-blue-500'
-                            : 'bg-term-border dark:bg-term-border'
-                      )}
+                      className={styles.stepDot}
+                      data-state={done ? 'done' : active ? 'active' : 'pending'}
                     />
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={cn(
-                          'transition-colors',
-                          done
-                            ? 'text-emerald-700 dark:text-emerald-200'
-                            : active
-                              ? 'font-medium text-blue-700 dark:text-blue-200'
-                              : 'text-muted-foreground'
-                        )}
-                      >
+                    <div className={styles.stepLabelRow}>
+                      <span data-state={done ? 'done' : active ? 'active' : 'pending'}>
                         {label}
                       </span>
                       {isLastStep && done && submitState.filename && (
-                        <span className="text-emerald-600 dark:text-emerald-300 font-medium">
+                        <span className={styles.fileSuccess}>
                           ：{submitState.filename}
                         </span>
                       )}
@@ -1240,48 +1259,49 @@ export default function GenerateTab() {
           </div>
 
           {submitState.status === 'error' ? (
-            <div className="flex items-center gap-2 rounded-none border border-term-neg/40 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
+            <div className={styles.alert}>
               <AlertCircle className="h-4 w-4" />
               {submitState.message}
             </div>
           ) : null}
 
-          <div className="space-y-2 pt-2">
-            <Button
+          <div className={styles.actionStack}>
+            <WarmButton
               type="button"
-              variant="outline"
-              className="w-full"
+              variant="secondary"
+              className={styles.fullWidth}
               onClick={() => void retryDownload()}
               disabled={
                 !downloadTarget.endpoint ||
                 downloadTarget.downloading ||
                 submitState.status === 'submitting'
               }
+              loading={downloadTarget.downloading}
+              loadingLabel="正在下载报表"
             >
-              {downloadTarget.downloading ? (
-                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-              ) : (
+              {!downloadTarget.downloading && (
                 <Download className="mr-1 h-4 w-4" />
               )}
               下载报表
-            </Button>
+            </WarmButton>
 
-            <Button
+            <WarmButton
               type="button"
-              className="h-11 w-full bg-blue-600 hover:bg-blue-500"
+              variant="primary"
+              className={styles.fullWidth}
               onClick={() => void generateReport()}
               disabled={!canGenerate}
+              loading={submitState.status === 'submitting'}
+              loadingLabel="正在生成财务月报"
             >
-              {submitState.status === 'submitting' ? (
-                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-              ) : (
+              {submitState.status !== 'submitting' && (
                 <Sparkles className="mr-1 h-4 w-4" />
               )}
               生成财务月报
-            </Button>
+            </WarmButton>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
     </div>
   )
 }

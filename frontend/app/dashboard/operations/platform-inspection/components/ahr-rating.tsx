@@ -2,53 +2,42 @@
 
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+import styles from '../platform-inspection-warm.module.css'
 
 type AhrSeverity = 'normal' | 'warning' | 'critical'
 
 type AhrRatingPresentation = {
   label: string
   severity: AhrSeverity
-  background: string
-  text: string
-  border: string
+  ratingKey: string
 }
 
 const AHR_RATINGS: Record<string, AhrRatingPresentation> = {
   healthy: {
     label: '健康',
     severity: 'normal',
-    background: 'bg-emerald-50 dark:bg-emerald-950/40',
-    text: 'text-emerald-700 dark:text-emerald-400',
-    border: 'border-emerald-200 dark:border-emerald-800',
+    ratingKey: 'healthy',
   },
   good: {
     label: '良好',
     severity: 'normal',
-    background: 'bg-blue-50 dark:bg-blue-950/40',
-    text: 'text-blue-700 dark:text-blue-400',
-    border: 'border-blue-200 dark:border-blue-800',
+    ratingKey: 'good',
   },
   'at risk': {
     label: '预警',
     severity: 'warning',
-    background: 'bg-term-warn/[0.07]',
-    text: 'text-term-warn',
-    border: 'border-term-warn/30',
+    ratingKey: 'at-risk',
   },
   critical: {
     label: '危险',
     severity: 'critical',
-    background: 'bg-term-neg/[0.07]',
-    text: 'text-term-neg',
-    border: 'border-term-neg/30',
+    ratingKey: 'critical',
   },
 }
 
 const UNKNOWN_RATING: Omit<AhrRatingPresentation, 'label'> = {
   severity: 'normal',
-  background: 'bg-term-raised',
-  text: 'text-term-muted',
-  border: 'border-term-border',
+  ratingKey: 'unknown',
 }
 
 /** Resolve the backend's AHR enum without treating unknown values as a known status. */
@@ -77,21 +66,19 @@ export function AhrRatingBadge({
   const presentation = getAhrRatingPresentation(rating)
   const content: ReactNode = (
     <>
-      {showCode && <span className="text-xs font-medium text-muted-foreground">AHR</span>}
-      <span className={cn('font-semibold', compact ? 'text-xs' : 'text-sm', presentation.text)}>
-        {presentation.label}
-      </span>
+      {showCode && <span className={styles.ahrCode}>AHR</span>}
+      <span className={styles.ahrLabel}>{presentation.label}</span>
     </>
   )
 
   return (
     <span
       aria-label={`AHR ${presentation.label}`}
+      data-rating={presentation.ratingKey}
+      data-tone={presentation.severity}
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border',
-        compact ? 'px-2 py-0.5' : 'px-2.5 py-1',
-        presentation.background,
-        presentation.border,
+        styles.ahrBadge,
+        compact ? styles.ahrBadgeCompact : styles.ahrBadgeRegular,
         className
       )}
       title={rating}

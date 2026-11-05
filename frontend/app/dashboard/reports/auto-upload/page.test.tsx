@@ -1,6 +1,8 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { readdirSync, readFileSync } from 'node:fs'
+import { extname, join } from 'node:path'
 
 import { DATE_REQUIRED_REPORT_TYPES, isDateRequired } from '@/components/report-upload/types'
 import AutoUploadPage from './page'
@@ -35,6 +37,29 @@ vi.mock('@/lib/project-client-cache', () => ({
 
 const SUMMARY_LABEL = '库存分类账 · 汇总视图（Summary）'
 const DETAIL_LABEL = '库存分类账 · 明细视图（Detail）'
+const AUTO_UPLOAD_SOURCE_ROOT = join(process.cwd(), 'app/dashboard/reports/auto-upload')
+const AUTO_UPLOAD_CSS = readFileSync(
+  join(AUTO_UPLOAD_SOURCE_ROOT, 'auto-upload-warm.module.css'),
+  'utf8'
+)
+const AUTO_UPLOAD_PAGE_SOURCE = readFileSync(
+  join(AUTO_UPLOAD_SOURCE_ROOT, 'page.tsx'),
+  'utf8'
+)
+const TERMINAL_VISUAL_RESIDUE = [
+  { label: 'Terminal token', pattern: /--term-/g },
+  { label: 'Terminal utility', pattern: /\bterm-[a-z0-9-]+/g },
+  { label: 'Terminal zero-radius utility', pattern: /\brounded-none\b/g },
+]
+
+function collectSourceFiles(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name)
+    if (entry.isDirectory()) return collectSourceFiles(path)
+    if (entry.name.includes('.test.') || entry.name.includes('.spec.')) return []
+    return ['.css', '.ts', '.tsx'].includes(extname(entry.name)) ? [path] : []
+  })
+}
 
 function jsonResponse(payload: unknown) {
   return { ok: true, json: async () => payload } as Response
@@ -172,6 +197,154 @@ describe('DATE_REQUIRED_REPORT_TYPES / isDateRequired', () => {
 })
 
 describe('AutoUploadPage 队列与状态矩阵渲染', () => {
+  it('进度条用 transform 动画，避免触发布局', () => {
+    expect(AUTO_UPLOAD_CSS).not.toMatch(/transition:\s*width/)
+    expect(cssBlock(AUTO_UPLOAD_CSS, '.progressFill')).toContain(
+      'transform-origin: left center'
+    )
+    expect(AUTO_UPLOAD_PAGE_SOURCE).toContain('transform: `scaleX(')
+  })
+
+  it('项目筛选按钮不被 control 的强制视觉压住 hover/focus', () => {
+    const control = cssBlock(AUTO_UPLOAD_CSS, '.control')
+
+    expect(control).not.toMatch(/background:[^;]+!important/)
+    expect(control).not.toMatch(/border:[^;]+!important/)
+    expect(control).not.toMatch(/box-shadow:[^;]+!important/)
+    expect(cssBlock(AUTO_UPLOAD_CSS, '.projectFilter:hover:not(:disabled)')).toContain(
+      'background: var(--warm-ledger-color-raised-hover)'
+    )
+    expect(cssBlock(AUTO_UPLOAD_CSS, '.projectFilter:focus-visible')).toContain(
+      'outline:'
+    )
+  })
+
+  it('上传说明是普通 sans 文本，不使用 mono', async () => {
+    const user = userEvent.setup()
+    render(<AutoUploadPage />)
+    await user.click(screen.getByRole('tab', { name: '文件上传' }))
+
+    for (const text of ['拖拽文件到这里，或点击选择', '支持 .txt / .csv / .xlsx']) {
+      const element = screen.getByText(text)
+      expect(element.className).toContain('font-sans')
+      expect(element.className).not.toContain('font-mono')
+    }
+
+    expect(screen.getByRole('combobox', { name: '选择上传站点' })).toHaveClass('font-sans')
+    expect(screen.getByRole('combobox', { name: '选择上传站点' })).not.toHaveClass(
+      'font-mono'
+    )
+    expect(screen.getByText('本次识别文件')).toHaveClass('font-sans')
+    expect(screen.getByText('本次识别文件')).not.toHaveClass('font-mono')
+    expect(screen.getByText('暂无文件')).toHaveClass('font-sans')
+    expect(screen.getByText('暂无文件')).not.toHaveClass('font-mono')
+  })
+
+  it('上传中只保留 WarmButton spinner，不保留上传图标', async () => {
+    const user = userEvent.setup()
+    let resolveCommit!: () => void
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.includes('/rpa-reports/status')) return jsonResponse({ items: [] })
+        if (url.includes('/report-upload/recognize')) {
+          return jsonResponse({
+            ...RECOGNITION,
+            project_match: {
+              status: 'matched',
+              project_name: '测试项目',
+              candidate_projects: [],
+              matched_by: 'sku',
+              matched_values: ['MSKU-1'],
+              message: null,
+            },
+          })
+        }
+        if (url.includes('/report-upload/commit')) {
+          return await new Promise<Response>((resolve) => {
+            resolveCommit = () => resolve(jsonResponse({ status: 'persisted' }))
+          })
+        }
+        return jsonResponse({})
+      })
+    )
+
+    render(<AutoUploadPage />)
+    await user.click(screen.getByRole('tab', { name: '文件上传' }))
+    await user.upload(
+      screen.getByLabelText(/拖拽文件到这里/),
+      new File(['date,msku'], '库存分类账 2026-03一览视图.csv', { type: 'text/csv' })
+    )
+    await screen.findByText(`类型：${SUMMARY_LABEL}`)
+    await user.click(screen.getByRole('button', { name: /上传全部/ }))
+
+    const button = await screen.findByRole('button', { name: '正在上传全部文件' })
+    expect(button).toHaveAttribute('aria-busy', 'true')
+    expect(button.querySelector('svg')).toBeNull()
+    expect(button.querySelectorAll('.warm-ledger__loading-mark')).toHaveLength(1)
+
+    await act(async () => resolveCommit())
+    await waitFor(() => expect(button).not.toHaveAttribute('aria-busy'))
+  })
+
+  it('状态刷新中只保留 WarmIconButton spinner，不叠加子 Loader2', async () => {
+    let resolveStatus!: () => void
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).includes('/rpa-reports/status')) {
+          return await new Promise<Response>((resolve) => {
+            resolveStatus = () => resolve(jsonResponse({ items: [] }))
+          })
+        }
+        return jsonResponse({})
+      })
+    )
+
+    render(<AutoUploadPage />)
+    const button = await screen.findByRole('button', { name: '正在刷新报表状态' })
+    expect(button).toHaveAttribute('aria-busy', 'true')
+    expect(button.querySelector('svg')).toBeNull()
+    expect(button.querySelectorAll('.warm-ledger__loading-mark')).toHaveLength(1)
+
+    await act(async () => resolveStatus())
+  })
+
+  it('使用 Warm Ledger 页面表面并保留桌面表格滚动容器', async () => {
+    const { container } = render(<AutoUploadPage />)
+
+    await screen.findByText('销售')
+
+    expect(container.querySelector('[data-warm-auto-upload="true"]')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'RPA 报表状态' })).toHaveAttribute(
+      'data-warm-rpa-status',
+      'true'
+    )
+    expect(screen.getByTestId('rpa-status-scroll')).toHaveAttribute(
+      'data-auto-upload-status-scroll',
+      'true'
+    )
+    for (const tab of screen.getAllByRole('tab')) {
+      expect(tab.className).not.toMatch(/term-|rounded-none/)
+    }
+  })
+
+  it('源文件不重新引入 Terminal 视觉残留', () => {
+    const violations = collectSourceFiles(AUTO_UPLOAD_SOURCE_ROOT).flatMap((path) => {
+      const source = readFileSync(path, 'utf8')
+      return TERMINAL_VISUAL_RESIDUE.flatMap(({ label, pattern }) =>
+        Array.from(source.matchAll(pattern), (match) => ({
+          path,
+          label,
+          match: match[0],
+        }))
+      )
+    })
+
+    expect(violations).toEqual([])
+  })
+
   it('识别为 inventory_ledger_summary 时队列展示中文标签而非原始 key', async () => {
     const user = userEvent.setup()
     render(<AutoUploadPage />)
@@ -271,3 +444,11 @@ describe('AutoUploadPage 队列与状态矩阵渲染', () => {
     ).toBeInTheDocument()
   })
 })
+
+function cssBlock(source: string, selector: string): string {
+  const start = source.indexOf(selector)
+  expect(start, `missing CSS selector: ${selector}`).toBeGreaterThanOrEqual(0)
+  const open = source.indexOf('{', start)
+  const close = source.indexOf('}', open)
+  return source.slice(open + 1, close)
+}

@@ -100,6 +100,14 @@ afterEach(() => {
 })
 
 describe('项目启动台模板编辑器', () => {
+  it('使用 Warm Ledger 编辑器壳且不混用 Terminal 表面', async () => {
+    const { container } = render(<WorkflowTemplateEditor />)
+
+    const page = await screen.findByTestId('workflow-template-editor-warm-page')
+    expect(page).toHaveAttribute('data-warm-surface', 'warm-ledger')
+    await waitFor(() => expect(container.querySelector('[class*="term-"]')).toBeNull())
+  })
+
   it('非管理员显示无权限态且不请求模板数据', () => {
     sessionState.data = { user: { roleType: 'operator' } }
     render(<WorkflowTemplateEditor />)
@@ -123,6 +131,45 @@ describe('项目启动台模板编辑器', () => {
       sort_order: 0,
     }, expect.anything()))
     expect(await screen.findByRole('status')).toHaveTextContent('模板已保存')
+  })
+
+  it('普通标题与说明不套数值等宽字体，Key 等标识保留数值样式', async () => {
+    render(<WorkflowTemplateEditor />)
+
+    const catalogHeading = await screen.findByRole('heading', { name: '模板目录' })
+    expect(catalogHeading).not.toHaveClass('tabular-nums')
+    expect(screen.getByText('模板信息')).not.toHaveClass('tabular-nums')
+    expect(screen.getByText(/Key: store-launch-v1/)).toHaveAttribute('data-numeric', 'true')
+  })
+
+  it('附件文件名使用普通 sans，不套数值样式', async () => {
+    const detailWithAttachment: WorkflowTemplateDetail = {
+      ...DETAIL,
+      tasks: [
+        {
+          ...DETAIL.tasks[0],
+          attachments: [
+            {
+              id: 201,
+              filename: '供应商合同.pdf',
+              content_type: 'application/pdf',
+              file_size: 2048,
+              uploader: '运营A',
+              created_at: '2026-11-05T10:00:00Z',
+              origin: 'upload',
+            },
+          ],
+        },
+      ],
+    }
+    vi.mocked(fetchAdminTemplates).mockResolvedValue({ templates: [detailWithAttachment] })
+    vi.mocked(fetchAdminTemplate).mockResolvedValue(detailWithAttachment)
+
+    render(<WorkflowTemplateEditor />)
+
+    const filename = await screen.findByText('供应商合同.pdf')
+    expect(filename).not.toHaveAttribute('data-numeric')
+    expect(filename.className).not.toContain('numeric')
   })
 
   it('切换阶段前自动保存阶段字段和已有内容', async () => {

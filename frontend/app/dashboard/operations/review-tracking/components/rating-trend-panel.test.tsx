@@ -35,6 +35,14 @@ function point(overrides: Partial<RatingSnapshotPoint> = {}): RatingSnapshotPoin
 afterEach(cleanup)
 
 describe('RatingTrendPanel 指标区', () => {
+  it('uses a Warm panel marker without changing snapshot metrics', () => {
+    const { container } = render(<RatingTrendPanel points={[point()]} />)
+
+    expect(container.firstElementChild).toHaveAttribute('data-warm-rating-trend', 'true')
+    expect(container.querySelector('[class*="term-"]')).toBeNull()
+    expect(screen.getByText('4.3')).toBeInTheDocument()
+  })
+
   it('展示最近一次快照的平均分 / 评分数 / 评论数 / 采集状态', () => {
     render(<RatingTrendPanel points={[point()]} />)
 

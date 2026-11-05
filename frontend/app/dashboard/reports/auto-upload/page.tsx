@@ -15,7 +15,6 @@ import {
   Upload,
 } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   formatDateInputValue,
@@ -47,6 +46,10 @@ import { useSmoothRefresh } from '@/hooks/use-smooth-refresh'
 import { RefreshProgressBar } from '@/components/ui/refresh-progress-bar'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import {
+  WarmButton,
+  WarmIconButton,
+} from '@/components/dashboard-v2/warm-ledger/controls'
+import {
   REPORT_UPLOAD_COUNTRY_OPTIONS,
   getMultiCountryDisplay,
   getReportUploadCountryLabel,
@@ -56,6 +59,7 @@ import {
   type ReportUploadCountry,
 } from '@/components/report-upload/types'
 import { getUploadReportTypeLabel, REPORT_TYPES } from './report-type-labels'
+import styles from './auto-upload-warm.module.css'
 
 const API_BASE = '/api/backend'
 
@@ -106,9 +110,6 @@ type ProjectRow = {
   statuses: StatusCell[]
 }
 
-const TABLE_HEADER_HEIGHT_CLASS = 'h-[clamp(3.5rem,3.8vh,4.25rem)] min-h-14 max-h-[4.25rem]'
-const TABLE_ROW_HEIGHT_CLASS = 'h-[clamp(2.8rem,3.2vh,3.5rem)] min-h-[2.8rem] max-h-[3.5rem]'
-
 // ── Upload progress summary ──────────────────────────────────────────────────
 
 function ProgressRow({
@@ -123,15 +124,15 @@ function ProgressRow({
   pct: number
 }) {
   return (
-    <div className="flex items-center gap-2">
-      <span className="w-8 text-[11px] text-muted-foreground">{label}</span>
-      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-term-raised">
+    <div className={styles.progressRow}>
+      <span className={styles.progressLabel}>{label}</span>
+      <div className={styles.progressTrack}>
         <div
-          className="h-full rounded-full bg-term-accent transition-all duration-[var(--duration-very-slow)] ease-out"
-          style={{ width: `${pct}%` }}
+          className={styles.progressFill}
+          style={{ transform: `scaleX(${pct / 100})` }}
         />
       </div>
-      <span className="w-14 text-right text-[11px] tabular-nums text-muted-foreground">
+      <span className={styles.progressValue}>
         {done}/{total}
       </span>
     </div>
@@ -153,7 +154,7 @@ function UploadProgressSummary({
   const recPct = recognitionTotal === 0 ? 0 : Math.round((recognitionDone / recognitionTotal) * 100)
   const upPct = uploadTotal === 0 ? 0 : Math.round((uploadDone / uploadTotal) * 100)
   return (
-    <div className="space-y-1.5 pt-1.5">
+    <div className={styles.progressSummary}>
       <ProgressRow label="识别" done={recognitionDone} total={recognitionTotal} pct={recPct} />
       <ProgressRow label="上传" done={uploadDone} total={uploadTotal} pct={upPct} />
     </div>
@@ -256,222 +257,205 @@ function RpaStatusGrid({
   }, [selectedProjects])
 
   return (
-    <Card className="flex flex-1 flex-col overflow-hidden rounded-none border-term-border bg-term-panel shadow-none">
-      <CardHeader className="shrink-0 rounded-none border-b border-term-border bg-term-raised px-3 py-2.5">
-        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-none border border-term-border bg-term-panel text-term-muted">
-              <LayoutDashboard className="h-4 w-4" aria-hidden />
-            </div>
-            <CardTitle className="self-center font-mono text-xs font-semibold uppercase tracking-wider text-term-muted">
-              RPA 报表状态
-            </CardTitle>
+    <section
+      className={styles.panel}
+      role="region"
+      aria-label="RPA 报表状态"
+      data-warm-rpa-status="true"
+    >
+      <header className={styles.panelHeader}>
+        <div className={styles.panelTitleGroup}>
+          <span className={styles.panelIcon}>
+            <LayoutDashboard aria-hidden />
+          </span>
+          <h2 className={styles.panelTitle}>RPA 报表状态</h2>
+        </div>
+
+        <div className={styles.statusControls}>
+          <div className={styles.controlGroup}>
+            <DropdownMenu
+              onOpenChange={(open) => {
+                if (open) ensureProjects()
+              }}
+            >
+              <DropdownMenuTrigger asChild>
+                <WarmButton
+                  variant="secondary"
+                  className={cn(styles.control, styles.projectFilter)}
+                >
+                  {projectFilterLabel}
+                </WarmButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className={styles.dropdownContent}>
+                <DropdownMenuLabel className={styles.dropdownLabel}>项目筛选</DropdownMenuLabel>
+                <DropdownMenuSeparator className={styles.dropdownSeparator} />
+                <button
+                  type="button"
+                  className={styles.dropdownAll}
+                  onClick={() => setSelectedProjects([])}
+                >
+                  全部项目
+                </button>
+                <DropdownMenuSeparator className={styles.dropdownSeparator} />
+                {projectsRequested.current && projectsLoading ? (
+                  <div className={styles.dropdownStatus}>加载中…</div>
+                ) : null}
+                {projects.map((project) => (
+                  <DropdownMenuCheckboxItem
+                    key={project}
+                    checked={selectedProjects.includes(project)}
+                    className={styles.dropdownItem}
+                    onSelect={(event) => event.preventDefault()}
+                    onCheckedChange={(checked) => {
+                      setSelectedProjects((prev) => {
+                        if (checked) {
+                          return prev.includes(project) ? prev : [...prev, project]
+                        }
+                        return prev.filter((p) => p !== project)
+                      })
+                    }}
+                  >
+                    {project}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <Select value={country} onValueChange={onCountryChange}>
+              <SelectTrigger
+                className={cn(styles.control, styles.countrySelect)}
+                aria-label="选择站点"
+              >
+                <SelectValue placeholder="选择站点" />
+              </SelectTrigger>
+              <SelectContent className={styles.selectContent}>
+                {COUNTRY_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value} className={styles.selectItem}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          {/* Mobile: 2-column grid; lg+: horizontal row */}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:flex lg:flex-row lg:flex-wrap lg:items-center lg:gap-2">
-            {/* Row 1: 项目 + 站点 */}
-            <div className="contents lg:flex lg:items-center lg:gap-2">
-              <DropdownMenu
-                onOpenChange={(open) => {
-                  if (open) ensureProjects()
-                }}
-              >
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-9 w-full justify-start rounded-none border-term-border bg-term-bg text-left font-normal font-mono text-xs text-term-text sm:w-auto"
-                  >
-                    {projectFilterLabel}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-[280px]">
-                  <DropdownMenuLabel>项目筛选</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <button
-                    type="button"
-                    className="w-full rounded-sm px-2 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-                    onClick={() => setSelectedProjects([])}
-                  >
-                    全部项目
-                  </button>
-                  <DropdownMenuSeparator />
-                  {projectsRequested && projectsLoading && (
-                    <div className="px-2 py-1.5 text-sm text-muted-foreground">加载中…</div>
-                  )}
-                  {projects.map((project) => (
-                    <DropdownMenuCheckboxItem
-                      key={project}
-                      checked={selectedProjects.includes(project)}
-                      onSelect={(event) => event.preventDefault()}
-                      onCheckedChange={(checked) => {
-                        setSelectedProjects((prev) => {
-                          if (checked) {
-                            return prev.includes(project) ? prev : [...prev, project]
-                          }
-                          return prev.filter((p) => p !== project)
-                        })
-                      }}
-                    >
-                      {project}
-                    </DropdownMenuCheckboxItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
+          <div className={styles.dateGroup}>
+            <WarmIconButton
+              aria-label="前一天"
+              className={styles.iconButton}
+              onClick={() => setStatusDate((v) => shiftDateString(v, -1))}
+            >
+              <ChevronLeft aria-hidden />
+            </WarmIconButton>
+            <SimpleDatePicker
+              value={parseDateInputValue(statusDate)}
+              onChange={(date) => setStatusDate(formatDateInputValue(date))}
+              className={styles.datePicker}
+            />
+            <WarmIconButton
+              aria-label="后一天"
+              className={styles.iconButton}
+              onClick={() => setStatusDate((v) => shiftDateString(v, 1))}
+            >
+              <ChevronRight aria-hidden />
+            </WarmIconButton>
+          </div>
 
-              <Select value={country} onValueChange={onCountryChange}>
-                <SelectTrigger className="h-9 w-full rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text sm:w-[130px]">
-                  <SelectValue placeholder="选择站点" />
-                </SelectTrigger>
-                <SelectContent>
-                  {COUNTRY_OPTIONS.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Row 2: 日期导航 */}
-            <div className="contents lg:flex lg:items-center lg:gap-1">
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="h-9 w-9 shrink-0 rounded-none border-term-border bg-term-panel"
-                onClick={() => setStatusDate((v) => shiftDateString(v, -1))}
-              >
-                <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
-              </Button>
-              <SimpleDatePicker
-                value={parseDateInputValue(statusDate)}
-                onChange={(date) => setStatusDate(formatDateInputValue(date))}
-                className="h-9 w-full rounded-none border-term-border bg-term-bg font-mono text-xs sm:w-[160px]"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="h-9 w-9 shrink-0 rounded-none border-term-border bg-term-panel"
-                onClick={() => setStatusDate((v) => shiftDateString(v, 1))}
-              >
-                <ChevronRight className="h-3.5 w-3.5" aria-hidden />
-              </Button>
-            </div>
-
-            {/* Row 3: 今天 + 刷新 */}
-            <div className="contents lg:flex lg:items-center lg:gap-1">
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                className="h-9 rounded-none border border-term-border bg-term-panel px-2 font-mono text-xs text-term-muted hover:text-term-text"
-                onClick={() => setStatusDate(toLocalDateInputValue(undefined))}
-              >
-                今天
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="h-9 w-9 shrink-0 rounded-none border-term-border bg-term-panel"
-                onClick={() => void loadStatus()}
-                disabled={statusLoading}
-                title="刷新状态"
-              >
-                <Loader2 className={cn('h-3.5 w-3.5', statusLoading && 'animate-spin')} />
-              </Button>
-            </div>
+          <div className={styles.actionGroup}>
+            <WarmButton
+              variant="secondary"
+              className={styles.todayButton}
+              onClick={() => setStatusDate(toLocalDateInputValue(undefined))}
+            >
+              今天
+            </WarmButton>
+            <WarmIconButton
+              aria-label="刷新状态"
+              className={styles.iconButton}
+              onClick={() => void loadStatus()}
+              loading={statusLoading}
+              loadingLabel="正在刷新报表状态"
+            >
+              {statusLoading ? null : <Loader2 aria-hidden />}
+            </WarmIconButton>
           </div>
         </div>
-      </CardHeader>
+      </header>
 
-      <div className="flex min-h-0 flex-1 flex-col p-0 relative">
+      <div className={styles.panelBody}>
         {statusError ? (
-          <p className="border-b border-term-neg/40 bg-term-neg/10 py-2 pl-3 font-mono text-xs text-term-neg">{statusError}</p>
+          <p className={styles.errorBar} role="alert">
+            {statusError}
+          </p>
         ) : null}
 
         {showSkeleton ? (
-          <div className="flex min-h-0 flex-1 flex-col space-y-3">
-            <Skeleton className="h-8 w-full rounded-none shrink-0" />
-            <Skeleton className="flex-1 w-full rounded-none min-h-0" />
+          <div className={styles.statusSkeleton} aria-busy="true">
+            <Skeleton className={styles.skeletonHeader} />
+            <Skeleton className={styles.skeletonBody} />
           </div>
         ) : (
-          <RefreshProgressBar
-            refreshing={isRefreshing}
-            className="flex min-h-0 flex-1 flex-col overflow-auto"
-          >
+          <RefreshProgressBar refreshing={isRefreshing} className={styles.statusRefresh}>
             <div
-              className="grid min-w-max shrink-0"
-              style={{ gridTemplateColumns: `160px repeat(${REPORT_TYPES.length}, 96px)` }}
+              className={styles.statusScroller}
+              data-testid="rpa-status-scroll"
+              data-auto-upload-status-scroll="true"
             >
               <div
-                className={`sticky left-0 z-20 flex items-center border border-b-0 border-r border-term-border bg-term-raised px-2 ${TABLE_HEADER_HEIGHT_CLASS}`}
+                className={styles.statusGrid}
+                style={{ gridTemplateColumns: `160px repeat(${REPORT_TYPES.length}, 96px)` }}
               >
-                <span className="font-mono text-xs font-medium uppercase tracking-wider text-term-muted">
-                  项目
-                </span>
-              </div>
-              {REPORT_TYPES.map((rt, colIdx) => (
-                <div
-                  key={rt.key}
-                  className={`flex items-center justify-center border-b border-t border-term-border px-1 ${TABLE_HEADER_HEIGHT_CLASS}${colIdx < REPORT_TYPES.length - 1 ? ' border-r' : ''}`}
-                >
-                  <span className="text-center font-mono text-[11px] font-medium uppercase tracking-wider text-term-muted">
-                    {rt.label}
-                  </span>
+                <div className={cn(styles.statusHeaderCell, styles.statusCorner)}>
+                  <span>项目</span>
                 </div>
-              ))}
-            </div>
-
-            {filteredRows.length === 0 ? (
-              <div className="flex flex-1 flex-col items-center justify-center py-16">
-                <p className="text-base font-medium">{statusDate} 暂时没有可展示的报表状态</p>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  切换左右日期，或检查 RPA 是否已接入该日期的数据
-                </p>
-              </div>
-            ) : (
-              <div className="flex min-h-0 flex-1 flex-col min-w-max">
-                {filteredRows.map((row) => (
-                  <div
-                    key={row.project_id}
-                    className={`grid border border-t-0 border-term-border transition-colors hover:bg-term-hover ${TABLE_ROW_HEIGHT_CLASS}`}
-                    style={{ gridTemplateColumns: `160px repeat(${REPORT_TYPES.length}, 96px)` }}
-                  >
-                    <div className="sticky left-0 z-10 flex items-center border-r border-term-border bg-term-panel px-2">
-                      <span className="truncate font-mono text-xs text-term-text">{row.project_name}</span>
-                    </div>
-                    {REPORT_TYPES.map((rt, colIdx) => {
-                      const cell = row.statuses.find((s) => s.report_type === rt.key)
-                      const isUploaded = cell?.is_uploaded ?? false
-                      return (
-                        <div
-                          key={rt.key}
-                          className={`flex items-center justify-center border-term-border px-1 py-2.5${colIdx < REPORT_TYPES.length - 1 ? ' border-r' : ''}${
-                            isUploaded ? ' bg-term-pos/10' : ' bg-term-neg/10'
-                          }`}
-                        >
-                          {isUploaded ? (
-                            <CheckCircle2 className="h-4 w-4 text-term-pos" aria-hidden />
-                          ) : (
-                            <CircleX className="h-4 w-4 text-term-neg" aria-hidden />
-                          )}
-                        </div>
-                      )
-                    })}
+                {REPORT_TYPES.map((rt) => (
+                  <div key={rt.key} className={styles.statusHeaderCell}>
+                    <span>{rt.label}</span>
                   </div>
                 ))}
+
+                {filteredRows.length === 0 ? (
+                  <div className={styles.statusEmpty}>
+                    <p>{statusDate} 暂时没有可展示的报表状态</p>
+                    <p>切换左右日期，或检查 RPA 是否已接入该日期的数据</p>
+                  </div>
+                ) : (
+                  filteredRows.map((row) => (
+                    <div
+                      key={row.project_id}
+                      className={styles.statusRow}
+                      style={{ gridTemplateColumns: `160px repeat(${REPORT_TYPES.length}, 96px)` }}
+                    >
+                      <div className={styles.statusProjectCell}>
+                        <span title={row.project_name}>{row.project_name}</span>
+                      </div>
+                      {REPORT_TYPES.map((rt) => {
+                        const cell = row.statuses.find((s) => s.report_type === rt.key)
+                        const isUploaded = cell?.is_uploaded ?? false
+                        return (
+                          <div
+                            key={rt.key}
+                            className={styles.statusDataCell}
+                            role="img"
+                            data-state={isUploaded ? 'uploaded' : 'missing'}
+                            aria-label={`${row.project_name} ${rt.label}${isUploaded ? '已上传' : '未上传'}`}
+                          >
+                            {isUploaded ? (
+                              <CheckCircle2 aria-hidden />
+                            ) : (
+                              <CircleX aria-hidden />
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ))
+                )}
               </div>
-            )}
+            </div>
           </RefreshProgressBar>
         )}
       </div>
-    </Card>
+    </section>
   )
 }
 
@@ -826,11 +810,14 @@ function AutoUploadContent({
   ).length
 
   return (
-    <div className="flex flex-1 flex-col gap-4">
+    <div className="flex flex-1 flex-col gap-4" data-warm-upload-workspace="true">
       {/* Top controls：手机端 2 列网格（站点全宽一行 + 双按钮各半），sm+ 恢复横向 */}
       <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3">
         <Select value={country} onValueChange={(v) => onCountryChange(v as ReportUploadCountry)}>
-          <SelectTrigger className="col-span-2 h-10 w-full rounded-none border-term-border bg-term-bg font-mono text-xs text-term-text sm:col-span-1 sm:w-[150px]">
+          <SelectTrigger
+            className="col-span-2 h-10 w-full rounded-[var(--warm-ledger-radius-inner)] border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-window)] font-sans text-xs text-[color:var(--warm-ledger-color-text)] sm:col-span-1 sm:w-[150px]"
+            aria-label="选择上传站点"
+          >
             <SelectValue placeholder="选择站点" />
           </SelectTrigger>
           <SelectContent>
@@ -842,41 +829,39 @@ function AutoUploadContent({
           </SelectContent>
         </Select>
 
-        <Button onClick={handleUploadAll} disabled={pendingCount === 0 || uploading} className="flex-1 sm:flex-none">
-          {uploading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              上传中...
-            </>
-          ) : (
-            <>
-              <Upload className="mr-2 h-4 w-4" />
-              上传全部 ({pendingCount})
-            </>
-          )}
-        </Button>
+        <WarmButton
+          variant="primary"
+          onClick={handleUploadAll}
+          disabled={pendingCount === 0 || uploading}
+          loading={uploading}
+          loadingLabel="正在上传全部文件"
+          className="flex-1 sm:flex-none"
+        >
+          {uploading ? null : <Upload aria-hidden />}
+          {uploading ? '上传中...' : `上传全部 (${pendingCount})`}
+        </WarmButton>
 
-        <Button
-          variant="outline"
+        <WarmButton
+          variant="secondary"
           onClick={clearAll}
           disabled={queueItems.length === 0 || recognizing || uploading}
           className="flex-1 sm:flex-none"
         >
           清空列表
-        </Button>
+        </WarmButton>
       </div>
 
       {/* Dropzone + File list */}
       <div className="grid flex-1 gap-3 overflow-hidden lg:grid-cols-[1fr_2fr]">
         {/* Dropzone */}
-        <Card className="overflow-hidden rounded-none border-term-border bg-term-panel shadow-none">
+        <Card className="overflow-hidden rounded-[var(--warm-ledger-radius-panel)] border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] shadow-none">
           <CardContent className="flex h-full !px-3 !py-3">
             <div
               className={cn(
-                'relative flex w-full flex-col items-center justify-center rounded-none border border-dashed px-4 transition-[border-color,background-color] duration-[var(--duration-quick)]',
+                'relative flex w-full flex-col items-center justify-center rounded-[var(--warm-ledger-radius-inner)] border border-dashed px-4 transition-[border-color,background-color] duration-[var(--duration-quick)]',
                 dragActive
-                  ? 'border-term-accent/70 bg-term-accent/10'
-                  : 'border-term-border bg-term-raised'
+                  ? 'border-[color:color-mix(in_srgb,var(--warm-ledger-color-accent)_70%,transparent)] bg-[color-mix(in_srgb,var(--warm-ledger-color-accent)_10%,transparent)]'
+                  : 'border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)]'
               )}
               style={{ flex: 1 }}
               onDrop={(e) => {
@@ -905,14 +890,16 @@ function AutoUploadContent({
                 htmlFor="auto-upload-input"
                 className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-3 text-center"
               >
-                <div className="flex h-11 w-11 items-center justify-center rounded-none border border-term-border bg-term-panel text-term-muted">
-                  <Upload className="h-5 w-5 text-term-accent" aria-hidden />
+                <div className="flex h-11 w-11 items-center justify-center rounded-[var(--warm-ledger-radius-inner)] border border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] text-[color:var(--warm-ledger-color-text-muted)]">
+                  <Upload className="h-5 w-5 text-[color:var(--warm-ledger-color-accent-strong)]" aria-hidden />
                 </div>
                 <div className="space-y-1">
-                  <p className="font-mono text-xs font-semibold uppercase tracking-wider text-term-text sm:text-sm">
+                  <p className="font-sans text-xs font-semibold text-[color:var(--warm-ledger-color-text)] sm:text-sm">
                     拖拽文件到这里，或点击选择
                   </p>
-                  <p className="font-mono text-[11px] text-term-faint">支持 .txt / .csv / .xlsx</p>
+                  <p className="font-sans text-[11px] text-[color:var(--warm-ledger-color-text-faint)]">
+                    支持 .txt / .csv / .xlsx
+                  </p>
                 </div>
               </label>
               {recognizing ? (
@@ -926,18 +913,18 @@ function AutoUploadContent({
         </Card>
 
         {/* File list */}
-        <Card className="flex flex-col overflow-hidden rounded-none border-term-border bg-term-panel shadow-none">
-          <CardHeader className="rounded-none border-b border-term-border bg-term-raised px-3 pb-2.5 pt-3">
+        <Card className="flex flex-col overflow-hidden rounded-[var(--warm-ledger-radius-panel)] border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] shadow-none">
+          <CardHeader className="rounded-[var(--warm-ledger-radius-inner)] border-b border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] px-3 pb-2.5 pt-3">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="font-mono text-xs font-semibold uppercase tracking-wider text-term-muted">
+                <CardTitle className="font-sans text-xs font-semibold uppercase tracking-wider text-[color:var(--warm-ledger-color-text-muted)]">
                   本次识别文件
                 </CardTitle>
-                <CardDescription className="font-mono text-[11px] tabular-nums text-term-faint">
+                <CardDescription className="font-mono text-[11px] tabular-nums text-[color:var(--warm-ledger-color-text-faint)]">
                   {queueItems.length} 个文件
                 </CardDescription>
               </div>
-              {uploading ? <Loader2 className="h-4 w-4 animate-spin text-term-accent" aria-hidden /> : null}
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin text-[color:var(--warm-ledger-color-accent-strong)]" aria-hidden /> : null}
             </div>
             <UploadProgressSummary
               recognitionDone={recognitionStats.done}
@@ -950,7 +937,7 @@ function AutoUploadContent({
             <ScrollArea className="flex-1">
               <div className="space-y-2 p-3">
                 {queueItems.length === 0 ? (
-                  <div className="rounded-none border border-dashed border-term-border bg-term-raised px-4 py-8 text-center font-mono text-xs text-term-faint">
+                  <div className="rounded-[var(--warm-ledger-radius-inner)] border border-dashed border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] px-4 py-8 text-center font-sans text-xs text-[color:var(--warm-ledger-color-text-faint)]">
                     暂无文件
                   </div>
                 ) : null}
@@ -958,13 +945,13 @@ function AutoUploadContent({
                   <div
                     key={item.localId}
                     className={cn(
-                      'relative flex items-start justify-between gap-3 rounded-none border border-term-border bg-term-raised/85 px-3 py-2.5 transition-colors duration-[var(--duration-quick)]',
+                      'relative flex items-start justify-between gap-3 rounded-[var(--warm-ledger-radius-inner)] border border-[color:var(--warm-ledger-color-hairline)] bg-[color-mix(in_srgb,var(--warm-ledger-color-panel-strong)_85%,transparent)] px-3 py-2.5 transition-colors duration-[var(--duration-quick)]',
                       // 上传成功：整条 pos 覆盖
-                      item.fileCommitStatus === 'success' && 'border-term-pos/50 bg-term-pos/10',
+                      item.fileCommitStatus === 'success' && 'border-[color:color-mix(in_srgb,var(--warm-ledger-color-positive)_50%,transparent)] bg-[color-mix(in_srgb,var(--warm-ledger-color-positive)_10%,transparent)]',
                       // 保存中：accent
-                      item.fileCommitStatus === 'saving' && 'border-term-accent/40 bg-term-accent/10',
+                      item.fileCommitStatus === 'saving' && 'border-[color:color-mix(in_srgb,var(--warm-ledger-color-accent)_40%,transparent)] bg-[color-mix(in_srgb,var(--warm-ledger-color-accent)_10%,transparent)]',
                       // 识别错误：neg
-                      item.recognitionStatus === 'error' && 'border-term-neg/40 bg-term-neg/10'
+                      item.recognitionStatus === 'error' && 'border-[color:color-mix(in_srgb,var(--warm-ledger-color-negative)_40%,transparent)] bg-[color-mix(in_srgb,var(--warm-ledger-color-negative)_10%,transparent)]'
                     )}
                   >
                     <div className="min-w-0 flex-1 space-y-1">
@@ -979,7 +966,7 @@ function AutoUploadContent({
                       {item.fileCommitStatus === 'success' && item.rowsIngested != null ? (
                         <p className="text-xs text-muted-foreground">
                           入库：
-                          <span className="font-medium tabular-nums text-term-pos">
+                          <span className="font-medium tabular-nums text-[color:var(--warm-ledger-color-positive)]">
                             {item.rowsIngested.toLocaleString()}
                           </span>{' '}
                           行
@@ -990,7 +977,7 @@ function AutoUploadContent({
                           <p className="text-xs text-muted-foreground">
                             国家：
                             {item.isMultiCountry ? (
-                              <span className="font-medium text-term-accent">
+                              <span className="font-medium text-[color:var(--warm-ledger-color-accent-strong)]">
                                 {getMultiCountryDisplay(item.detectedCountries)} (自动拆分)
                               </span>
                             ) : item.detectedCountry ? (
@@ -1002,7 +989,7 @@ function AutoUploadContent({
                           {item.recognizedProject === '未匹配' ||
                           item.recognizedProject === null ? (
                             <div className="flex items-center gap-1.5">
-                              <span className="font-mono text-xs text-term-warn">
+                              <span className="font-sans text-xs text-[color:var(--warm-ledger-color-accent)]">
                                 项目：
                               </span>
                               <Select
@@ -1017,7 +1004,7 @@ function AutoUploadContent({
                                   )
                                 }}
                               >
-                                <SelectTrigger className="h-6 w-[140px] rounded-none border-term-border bg-term-bg px-1.5 py-0.5 font-mono text-xs">
+                                <SelectTrigger className="h-6 w-[140px] rounded-[var(--warm-ledger-radius-inner)] border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-window)] px-1.5 py-0.5 font-sans text-xs">
                                   <SelectValue placeholder="选择项目" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1065,7 +1052,7 @@ function AutoUploadContent({
                                           )
                                         )
                                       }}
-                                      className="-my-1 ml-1 rounded-none px-1.5 py-1 font-mono text-[10px] text-term-accent hover:bg-term-accent/10"
+                                      className="-my-1 ml-1 rounded-[var(--warm-ledger-radius-inner)] px-1.5 py-1 font-sans text-[10px] text-[color:var(--warm-ledger-color-accent-strong)] hover:bg-[color-mix(in_srgb,var(--warm-ledger-color-accent)_10%,transparent)]"
                                     >
                                       {item.userReportStartDate ? '取消' : '编辑'}
                                     </button>
@@ -1090,7 +1077,7 @@ function AutoUploadContent({
                                           )
                                         )
                                       }}
-                                      className="-my-1 ml-1 rounded-none px-1.5 py-1 font-mono text-[10px] text-term-accent hover:bg-term-accent/10"
+                                      className="-my-1 ml-1 rounded-[var(--warm-ledger-radius-inner)] px-1.5 py-1 font-sans text-[10px] text-[color:var(--warm-ledger-color-accent-strong)] hover:bg-[color-mix(in_srgb,var(--warm-ledger-color-accent)_10%,transparent)]"
                                     >
                                       {item.userReportDate ? '取消' : '编辑'}
                                     </button>
@@ -1100,7 +1087,7 @@ function AutoUploadContent({
                               {item.reportType === 'payment_report' &&
                               item.userReportStartDate !== null ? (
                                 <div className="flex items-center gap-1.5 pt-0.5">
-                                  <span className="font-mono text-[10px] text-term-warn">起：</span>
+                                  <span className="font-sans text-[10px] text-[color:var(--warm-ledger-color-accent)]">起：</span>
                                   <SimpleDatePicker
                                     value={parseDateInputValue(item.userReportStartDate || '')}
                                     onChange={(date) => {
@@ -1117,7 +1104,7 @@ function AutoUploadContent({
                                     }}
                                     className="h-6 w-[130px] text-xs"
                                   />
-                                  <span className="font-mono text-[10px] text-term-warn">止：</span>
+                                  <span className="font-sans text-[10px] text-[color:var(--warm-ledger-color-accent)]">止：</span>
                                   <SimpleDatePicker
                                     value={parseDateInputValue(item.userReportEndDate || '')}
                                     onChange={(date) => {
@@ -1138,7 +1125,7 @@ function AutoUploadContent({
                               ) : item.userReportDate !== null &&
                                 item.reportType !== 'payment_report' ? (
                                 <div className="flex items-center gap-1.5 pt-0.5">
-                                  <span className="font-mono text-[10px] text-term-warn">日期：</span>
+                                  <span className="font-sans text-[10px] text-[color:var(--warm-ledger-color-accent)]">日期：</span>
                                   <SimpleDatePicker
                                     value={parseDateInputValue(item.userReportDate || '')}
                                     onChange={(date) => {
@@ -1157,7 +1144,7 @@ function AutoUploadContent({
                             </div>
                           ) : isDateRequired(item.reportType) ? (
                             <div className="flex items-center gap-1.5">
-                              <span className="font-mono text-xs text-term-warn">
+                              <span className="font-sans text-xs text-[color:var(--warm-ledger-color-accent)]">
                                 {item.reportType === 'payment_report' ? '日期范围' : '日期'}：
                               </span>
                               {item.reportType === 'payment_report' ? (
@@ -1214,10 +1201,10 @@ function AutoUploadContent({
                             </div>
                           ) : null}
                           {item.error ? (
-                            <p className="font-mono text-xs text-term-neg">{item.error}</p>
+                            <p className="font-sans text-xs text-[color:var(--warm-ledger-color-negative)]">{item.error}</p>
                           ) : null}
                           {item.commitError ? (
-                            <p className="font-mono text-xs text-term-neg">
+                            <p className="font-sans text-xs text-[color:var(--warm-ledger-color-negative)]">
                               {item.commitError}
                             </p>
                           ) : null}
@@ -1226,23 +1213,21 @@ function AutoUploadContent({
                     </div>
                     <div className="flex items-center gap-1.5">
                       {item.fileCommitStatus === 'saving' ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-term-accent" aria-hidden />
+                        <Loader2 className="h-4 w-4 animate-spin text-[color:var(--warm-ledger-color-accent-strong)]" aria-hidden />
                       ) : null}
                       {item.fileCommitStatus === 'success' ? (
-                        <CheckCircle2 className="h-4 w-4 text-term-pos" aria-hidden />
+                        <CheckCircle2 className="h-4 w-4 text-[color:var(--warm-ledger-color-positive)]" aria-hidden />
                       ) : null}
                       {item.fileCommitStatus === 'error' ? (
-                        <CircleX className="h-4 w-4 text-term-neg" aria-hidden />
+                        <CircleX className="h-4 w-4 text-[color:var(--warm-ledger-color-negative)]" aria-hidden />
                       ) : null}
-                      <Button
-                        variant="ghost"
-                        size="icon"
+                      <WarmIconButton
                         onClick={() => removeItem(item.localId)}
-                         className="h-9 w-9 shrink-0 rounded-none border border-transparent text-term-muted hover:border-term-neg/50 hover:text-term-neg"
+                        aria-label={`移除 ${item.originalFileName}`}
+                        className="h-9 w-9 shrink-0"
                       >
-                        <CircleX className="h-4 w-4" />
-                        <span className="sr-only">移除</span>
-                      </Button>
+                        <CircleX className="h-4 w-4" aria-hidden />
+                      </WarmIconButton>
                     </div>
                   </div>
                 ))}
@@ -1283,15 +1268,21 @@ export default function AutoUploadPage() {
   useHeaderRefresh(refreshActiveTab, { loading: headerRefreshing })
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
-      {/* Tab switcher（BLF-883 全局统一：variant="term" + 前置 icon） */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'upload' | 'status')} className="flex min-h-0 flex-col gap-3 overflow-hidden">
-        <TabsList variant="term" className="w-fit justify-start">
-          <TabsTrigger value="upload" variant="term">
+    <div
+      className={cn(styles.page, 'flex h-full min-h-0 flex-col overflow-hidden')}
+      data-warm-auto-upload="true"
+    >
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => setActiveTab(v as 'upload' | 'status')}
+        className={styles.tabs}
+      >
+        <TabsList className={styles.tabList} data-warm-tablist="true">
+          <TabsTrigger value="upload" className={styles.tab}>
             <Upload aria-hidden />
             文件上传
           </TabsTrigger>
-          <TabsTrigger value="status" variant="term">
+          <TabsTrigger value="status" className={styles.tab}>
             <Activity aria-hidden />
             RPA 状态
           </TabsTrigger>
@@ -1307,12 +1298,12 @@ export default function AutoUploadPage() {
         </TabsContent>
         <TabsContent value="upload" className="min-h-0 flex-1 space-y-0 overflow-auto pb-2 sm:overflow-hidden">
           <Tabs value={uploadSubTab} onValueChange={(v) => setUploadSubTab(v as UploadEndpoint)} className="flex min-h-0 flex-col gap-3">
-            <TabsList variant="term" className="w-fit justify-start">
-              <TabsTrigger value="report-upload" variant="term">
+            <TabsList className={styles.tabList}>
+              <TabsTrigger value="report-upload" className={styles.tab}>
                 <FileSpreadsheet aria-hidden />
                 通用报表
               </TabsTrigger>
-              <TabsTrigger value="ad-upload" variant="term">
+              <TabsTrigger value="ad-upload" className={styles.tab}>
                 <Megaphone aria-hidden />
                 广告报表
               </TabsTrigger>

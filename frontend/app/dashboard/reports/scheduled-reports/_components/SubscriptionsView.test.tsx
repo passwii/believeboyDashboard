@@ -61,6 +61,7 @@ vi.mock('./EditSubscriptionDialog', () => ({
 import SubscriptionsView from './SubscriptionsView'
 import { ensureConfigLoaded } from '@/lib/api/ai-chat-config-store'
 import type { Subscription } from './types'
+import styles from '../scheduled-reports-warm.module.css'
 
 function makeSub(overrides: Partial<Subscription> & { id: number }): Subscription {
   return {
@@ -119,8 +120,9 @@ function installFetch(
 }
 
 async function renderView(onRefreshReady?: (refresh: () => Promise<void>) => void) {
-  render(<SubscriptionsView onRefreshReady={onRefreshReady} />)
+  const view = render(<SubscriptionsView onRefreshReady={onRefreshReady} />)
   await screen.findByRole('table', { name: '订阅列表' })
+  return view
 }
 
 /** 桌面表格内某邮箱那一行的勾选框（按邮箱限定，避免与手机卡片重名） */
@@ -174,6 +176,51 @@ describe('SubscriptionsView 批量操作（BLF-1032）', () => {
     await user.click(rowCheckbox('u2@example.com'))
 
     expect(bulkBar().getByText('已选 2 条')).toBeInTheDocument()
+  })
+
+  it('订阅面板与表格使用 Warm Ledger 本地表面，宽表在自身容器内滚动', async () => {
+    installFetch()
+    const { container } = await renderView()
+
+    expect(container.querySelector('[data-warm-scheduled-subscriptions="true"]')).toBeInTheDocument()
+    expect(screen.getByRole('table', { name: '订阅列表' }).parentElement).toHaveAttribute(
+      'data-scheduled-subscriptions-table-scroll',
+      'true'
+    )
+    expect(screen.getByRole('table', { name: '订阅列表' }).className).not.toMatch(
+      /term-|rounded-none/
+    )
+  })
+
+  it('普通国家与邮箱是 sans，发送时间和手机模型使用专用 mono 契约', async () => {
+    installFetch()
+    await renderView()
+
+    for (const email of screen.getAllByText('u1@example.com')) {
+      expect(email).toHaveClass('font-sans')
+      expect(email).not.toHaveClass('font-mono')
+    }
+    for (const country of screen.getAllByText('美国站')) {
+      expect(country).toHaveClass('font-sans')
+      expect(country).not.toHaveClass('font-mono')
+    }
+    const times = screen.getAllByText('09:00')
+    const desktopTimes = times.filter((time) => time.classList.contains(styles.timeCell))
+    const mobileTimes = times.filter((time) => time.classList.contains(styles.mobileTime))
+    expect(desktopTimes.length).toBeGreaterThan(0)
+    expect(mobileTimes.length).toBeGreaterThan(0)
+    expect(desktopTimes.length + mobileTimes.length).toBe(times.length)
+    for (const time of times) {
+      expect(time).toHaveAttribute('data-warm-value', 'time')
+      expect(time).not.toHaveClass('font-sans')
+    }
+
+    const mobileModels = screen.getAllByText('AI: gpt-5')
+    for (const model of mobileModels) {
+      expect(model).toHaveClass(styles.modelCell)
+      expect(model).toHaveAttribute('data-warm-value', 'model')
+      expect(model).not.toHaveClass('font-sans')
+    }
   })
 
   it('Head 刷新遇到 HTTP 错误时保留现有订阅并提示错误', async () => {

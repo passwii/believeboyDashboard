@@ -5,6 +5,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog'
 import type { AIModelConfig, Frequency, Subscription } from './types'
 import { SubscriptionForm } from './SubscriptionForm'
 import { sendTestEmail, updateSubscription } from './api'
+import styles from '../scheduled-reports-warm.module.css'
 
 interface Props {
   subscription: Subscription | null
@@ -117,7 +118,11 @@ export function EditSubscriptionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[calc(100%-2rem)] rounded-none border-term-border bg-term-panel sm:max-w-[540px] md:max-w-2xl p-4">
+      <DialogContent
+        className={styles.dialogContent}
+        data-warm-ledger-dialog="true"
+        aria-describedby={undefined}
+      >
         <SubscriptionForm
           mode="edit"
           formEmail={formEmail}

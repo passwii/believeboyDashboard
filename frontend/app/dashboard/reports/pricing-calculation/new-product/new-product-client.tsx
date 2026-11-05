@@ -20,9 +20,12 @@ import {
   X,
 } from 'lucide-react'
 
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  WarmBadge,
+  WarmButton,
+  WarmIconButton,
+  type WarmBadgeTone,
+} from '@/components/dashboard-v2/warm-ledger/controls'
 import {
   Pagination,
   PaginationContent,
@@ -31,14 +34,6 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from '@/components/ui/pagination'
-import {
-  DataCard,
-  DataCardContent,
-  DataCardHeader,
-  DataTableCard,
-  DataTableCardBody,
-  DataTableCardHeader,
-} from '@/components/ui/data-card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -81,15 +76,9 @@ import { useUrlParam } from '@/lib/hooks/use-url-param'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
 import { applyBorder, applyHeaderBorder } from '@/lib/excel-styles'
-import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
 import { MobileFilterStrip } from '@/components/terminal/mobile-filter-strip'
-import {
-  HeaderSlotInput,
-  HeaderSlotBadge,
-  TERM_HEADER_W_LG,
-  TERM_HEADER_W_MD,
-} from '@/components/terminal/header-filter-suite'
 import { useHeaderSlot, useMobileFilterStrip } from '@/components/terminal/terminal-header-slot'
+import styles from '../pricing-calculation-warm.module.css'
 
 const API_BASE = '/api/backend'
 const MAX_VISIBLE_RUNS = 12
@@ -152,7 +141,7 @@ function PricingFieldSkeleton() {
 
 function PricingRunCardSkeleton() {
   return (
-    <div className="min-h-[112px] rounded-none border border-term-border bg-term-raised p-3">
+    <div className={styles.runCardSkeleton}>
       <Skeleton className="h-3 w-20" />
       <Skeleton className="mt-3 h-4 w-28" />
       <div className="mt-3 flex gap-2">
@@ -730,47 +719,27 @@ function getCalculationTypeMeta(calculationType: PricingCalculationRunItem['calc
   if (calculationType === 'fbm_calc') {
     return {
       label: 'FBM测算',
-      badgeClassName:
-        'border-term-accent/30 bg-term-accent/10 text-term-accent',
-      cardClassName:
-        'border-term-accent/30 bg-term-accent/5 hover:border-term-accent/30 hover:bg-term-accent/5',
-      selectedClassName:
-        'border-term-accent/60 bg-term-accent/10',
+      tone: 'accent' as WarmBadgeTone,
     }
   }
 
   if (calculationType === 'cost_reverse') {
     return {
       label: '成本倒推',
-      badgeClassName:
-        'border-emerald-300 bg-emerald-100 text-emerald-900 dark:border-emerald-900/80 dark:bg-emerald-950/50 dark:text-emerald-200',
-      cardClassName:
-        'border-emerald-300 bg-emerald-50/80 hover:border-emerald-400 hover:bg-emerald-50 dark:border-emerald-900/70 dark:bg-emerald-950/25 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/40',
-      selectedClassName:
-        'border-term-pos/50 bg-term-pos/10',
+      tone: 'positive' as WarmBadgeTone,
     }
   }
 
   if (calculationType === 'profit_reverse') {
     return {
       label: '利润倒算',
-      badgeClassName:
-        'border-term-warn/30 bg-term-warn/10 text-term-warn',
-      cardClassName:
-        'border-term-warn/30 bg-term-warn/5 hover:border-term-warn/30 hover:bg-term-warn/5',
-      selectedClassName:
-        'border-term-warn/50 bg-term-warn/10',
+      tone: 'neutral' as WarmBadgeTone,
     }
   }
 
   return {
     label: '利润核算',
-    badgeClassName:
-      'border-term-accent/30 bg-term-accent/10 text-term-accent',
-    cardClassName:
-      'border-term-accent/30 bg-term-accent/5 hover:border-term-accent/30 hover:bg-term-accent/5',
-    selectedClassName:
-      'border-term-border-strong bg-term-raised',
+    tone: 'accent' as WarmBadgeTone,
   }
 }
 
@@ -1713,23 +1682,18 @@ export default function PricingCalculationPage() {
 
   // BLF-997 · 头部插槽：产品搜索 + 结果选择指示器
   const headerSlotPortal = useHeaderSlot(
-    <HeaderFilterControls
-      isMobileView={false}
-      controls={
-        <>
-          <HeaderSlotInput
-            widthClass={TERM_HEADER_W_LG}
-            value={productKeyword}
-            onChange={(e) => setProductKeyword(e.target.value)}
-            placeholder="搜索产品"
-            title="产品搜索"
-          />
-          <HeaderSlotBadge title="已选测算结果">
-            {selectedRunIds.length > 0 ? `${selectedRunIds.length} 个已选` : '下拉选择'}
-          </HeaderSlotBadge>
-        </>
-      }
-    />
+    <div className={styles.headerFilters} data-warm-header-filters="true">
+      <input
+        className={styles.headerInput}
+        value={productKeyword}
+        onChange={(event) => setProductKeyword(event.target.value)}
+        placeholder="搜索产品"
+        aria-label="产品搜索"
+      />
+      <WarmBadge className={styles.headerBadge} aria-label="已选测算结果">
+        {selectedRunIds.length > 0 ? `${selectedRunIds.length} 个已选` : '下拉选择'}
+      </WarmBadge>
+    </div>
   )
 
   const mobileFilterSummary = `${productKeyword ? `搜索: ${productKeyword}` : '产品搜索'} · ${selectedRunIds.length > 0 ? `${selectedRunIds.length} 个已选` : '未选择'}`
@@ -1738,16 +1702,16 @@ export default function PricingCalculationPage() {
       summary={mobileFilterSummary}
       controls={
         <>
-          <HeaderSlotInput
-            widthClass={TERM_HEADER_W_LG}
+          <input
+            className={styles.mobileHeaderInput}
             value={productKeyword}
-            onChange={(e) => setProductKeyword(e.target.value)}
+            onChange={(event) => setProductKeyword(event.target.value)}
             placeholder="搜索产品"
-            title="产品搜索"
+            aria-label="产品搜索"
           />
-          <HeaderSlotBadge title="已选测算结果">
+          <WarmBadge className={styles.headerBadge} aria-label="已选测算结果">
             {selectedRunIds.length > 0 ? `${selectedRunIds.length} 个已选` : '下拉选择'}
-          </HeaderSlotBadge>
+          </WarmBadge>
         </>
       }
     />
@@ -2395,28 +2359,28 @@ export default function PricingCalculationPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className={styles.page} data-warm-pricing-new-product="true">
       <>
         {headerSlotPortal}
         {mobileFilterStripPortal}
-        <div className="grid gap-4 grid-cols-1 xl:grid-cols-[520px_minmax(0,1fr)]">
-          <Card className="rounded-none border-term-border bg-term-panel shadow-none">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">测算输入</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form className="space-y-4" onSubmit={handleSubmit}>
+        <div className={styles.calculationGrid}>
+          <section className={styles.panel} aria-label="测算输入" data-warm-surface="true">
+            <div className={styles.panelHeader}>
+              <h2>测算输入</h2>
+            </div>
+            <div className={styles.panelBody}>
+              <form className={styles.formStack} onSubmit={handleSubmit}>
                 <Tabs
                   value={calculationMode}
                   onValueChange={(value) => setCalculationMode(value as CalculationMode)}
                 >
                   <TabsMotionGroup id="pricing-calculation-mode-tabs">
-                    <TabsList variant="term" className="grid w-full grid-cols-2 justify-start sm:grid-cols-4">
+                    <TabsList className={styles.modeTabList}>
                       <SlidingTabsTrigger
                         value="profit-calc"
                         activeValue={calculationMode}
                         layoutId="pricing-calculation-mode-indicator"
-                        variant="term"
+                        className={styles.modeTab}
                       >
                         <Calculator aria-hidden />
                         利润核算
@@ -2425,7 +2389,7 @@ export default function PricingCalculationPage() {
                         value="profit-reverse"
                         activeValue={calculationMode}
                         layoutId="pricing-calculation-mode-indicator"
-                        variant="term"
+                        className={styles.modeTab}
                       >
                         <Undo2 aria-hidden />
                         利润倒算
@@ -2434,7 +2398,7 @@ export default function PricingCalculationPage() {
                         value="cost-reverse"
                         activeValue={calculationMode}
                         layoutId="pricing-calculation-mode-indicator"
-                        variant="term"
+                        className={styles.modeTab}
                       >
                         <Coins aria-hidden />
                         成本倒推
@@ -2443,7 +2407,7 @@ export default function PricingCalculationPage() {
                         value="fbm-calc"
                         activeValue={calculationMode}
                         layoutId="pricing-calculation-mode-indicator"
-                        variant="term"
+                        className={styles.modeTab}
                       >
                         <Truck aria-hidden />
                         FBM测算
@@ -2453,9 +2417,9 @@ export default function PricingCalculationPage() {
                 </Tabs>
 
                 <DirectionalTabTransition value={calculationMode} order={CALCULATION_MODE_ORDER}>
-                  <div className="space-y-4">
+                  <div className={styles.formStack}>
                     {/* Row 1: 产品名称 + FOB/售价 */}
-                    <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
+                    <div className={styles.fieldRow}>
                       <Field label="产品名称">
                         <Input
                           value={form.product_name}
@@ -2498,7 +2462,7 @@ export default function PricingCalculationPage() {
                         maxLength={1000}
                       />
                     </Field>
-                    <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+                    <div className={styles.dimensionGrid}>
                       <Field label="长(cm)">
                         <Input
                           type="number"
@@ -2537,10 +2501,10 @@ export default function PricingCalculationPage() {
                       </Field>
                     </div>
 
-                    <div className="rounded-none border border-term-border bg-term-raised p-3">
+                    <div className={styles.raisedPanel}>
                       {calculationMode === 'fbm-calc' ? (
-                        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
-                          <div className="space-y-3">
+                        <div className={styles.fieldRow}>
+                          <div className={styles.fieldStack}>
                             <Field label="整柜数量">
                               <Input
                                 type="number"
@@ -2564,9 +2528,9 @@ export default function PricingCalculationPage() {
                               />
                             </Field>
                           </div>
-                          <div className="rounded-none border border-term-border bg-term-panel p-3">
-                            <p className="text-xs text-muted-foreground">单个产品头程(RMB)</p>
-                            <p className="mt-2 text-2xl font-semibold text-foreground">
+                          <div className={styles.insightCard}>
+                            <p className={styles.insightLabel}>单个产品头程(RMB)</p>
+                            <p className={styles.insightValue}>
                               {toNumber(form.full_container_quantity) > 0 &&
                               toNumber(form.full_container_price_rmb) > 0
                                 ? (
@@ -2575,14 +2539,14 @@ export default function PricingCalculationPage() {
                                   ).toFixed(2)
                                 : '0.00'}
                             </p>
-                            <p className="mt-1 text-xs text-muted-foreground">
+                            <p className={styles.insightHint}>
                               整柜价格 ÷ 整柜数量
                             </p>
                           </div>
                         </div>
                       ) : (
-                        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
-                          <div className="space-y-3">
+                        <div className={styles.fieldRow}>
+                          <div className={styles.fieldStack}>
                             <Field label="头程单价(RMB/kg)">
                               <Input
                                 type="number"
@@ -2594,24 +2558,24 @@ export default function PricingCalculationPage() {
                                 placeholder="请输入头程单价"
                               />
                             </Field>
-                            <p className="text-xs leading-5 text-muted-foreground">
+                            <p className={styles.helperText}>
                               实重 {formatMetric(toNumber(form.weight_kg), 3)} kg，体积重{' '}
                               {formatMetric(volumeWeightKg, 3)} kg，计费重{' '}
                               {formatMetric(chargeableWeightKg, 3)} kg。
                             </p>
                           </div>
-                          <div className="rounded-none border border-term-border bg-term-panel p-3">
-                            <p className="text-xs text-muted-foreground">头程成本(RMB)</p>
-                            <p className="mt-2 text-2xl font-semibold text-foreground">
+                          <div className={styles.insightCard}>
+                            <p className={styles.insightLabel}>头程成本(RMB)</p>
+                            <p className={styles.insightValue}>
                               {firstLegCostRmb.toFixed(2)}
                             </p>
-                            <p className="mt-1 text-xs text-muted-foreground">计费重 × 头程单价</p>
+                            <p className={styles.insightHint}>计费重 × 头程单价</p>
                           </div>
                         </div>
                       )}
                     </div>
 
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div className={styles.fieldGrid}>
                       {calculationMode === 'profit-calc' ? (
                         <Field label="售价(USD)">
                           <Input
@@ -2696,10 +2660,15 @@ export default function PricingCalculationPage() {
                       )}
                     </div>
 
-                    <Button type="submit" disabled={loading} className="h-8 w-full">
-                      {loading ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
+                    <WarmButton
+                      type="submit"
+                      variant="primary"
+                      disabled={loading}
+                      className={styles.fullWidth}
+                      loading={loading}
+                      loadingLabel="正在测算"
+                    >
+                      {!loading && (
                         <Calculator className="mr-2 h-4 w-4" />
                       )}
                       {calculationMode === 'profit-reverse'
@@ -2709,37 +2678,41 @@ export default function PricingCalculationPage() {
                           : calculationMode === 'fbm-calc'
                             ? 'FBM测算'
                             : '开始测算'}
-                    </Button>
+                    </WarmButton>
                   </div>
                 </DirectionalTabTransition>
               </form>
-            </CardContent>
-          </Card>
+            </div>
+          </section>
 
-          <div className="flex min-h-0 flex-1 flex-col gap-4 pb-4">
-            <Card className="rounded-none border-term-border bg-term-panel shadow-none">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg">控制台</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
+          <div className={styles.resultColumn}>
+            <section className={styles.panel} aria-label="控制台" data-warm-surface="true">
+              <div className={styles.panelHeader}>
+                <h2>控制台</h2>
+              </div>
+              <div className={cn(styles.panelBody, styles.compactPanelBody)}>
                 {/* 手机端：2列网格 | 桌面端：横向排列 */}
-                <div className="grid gap-3 grid-cols-1 sm:grid-cols-[140px_1fr_auto] md:flex md:flex-row md:items-end md:gap-3">
-                  <Field label="国家站点" className="md:min-w-[140px]">
-                    <div className="flex h-9 items-center text-sm">美国站 (US)</div>
+                <div className={styles.consoleControls}>
+                  <Field label="国家站点" className={styles.countryField}>
+                    <div className={styles.readOnlyControl}>美国站 (US)</div>
                   </Field>
-                  <Field label="测算结果" className="md:min-w-0 md:flex-1">
+                  <Field label="测算结果" className={styles.resultPickerField}>
                     <Popover open={runPickerOpen} onOpenChange={setRunPickerOpen}>
                       <PopoverTrigger asChild>
-                        <Button type="button" variant="outline" className="w-full justify-between">
+                        <WarmButton
+                          type="button"
+                          variant="secondary"
+                          className={styles.pickerTrigger}
+                        >
                           <span className="truncate">
                             {selectedRunIds.length > 0
                               ? `已选 ${selectedRunIds.length} 个`
                               : '下拉选择'}
                           </span>
                           <ChevronDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
-                        </Button>
+                        </WarmButton>
                       </PopoverTrigger>
-                      <PopoverContent align="start" className="w-[min(92vw,420px)] p-0">
+                      <PopoverContent align="start" className={styles.runPicker}>
                         <Command>
                           <CommandInput placeholder="在当前页内筛选（支持产品名/创建人）" />
                           <CommandList>
@@ -2760,14 +2733,7 @@ export default function PricingCalculationPage() {
                                     }}
                                     className="items-start gap-3 py-3"
                                   >
-                                    <span
-                                      className={cn(
-                                        'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border',
-                                        isSelected
-                                          ? 'border-primary bg-primary text-primary-foreground'
-                                          : 'border-term-border bg-term-panel'
-                                      )}
-                                    >
+                                    <span className={styles.checkbox} data-selected={isSelected}>
                                       {isSelected ? <Check className="h-3 w-3" /> : null}
                                     </span>
                                     <div className="min-w-0 flex-1">
@@ -2793,38 +2759,38 @@ export default function PricingCalculationPage() {
                       </PopoverContent>
                     </Popover>
                   </Field>
-                  <Button
+                  <WarmButton
                     type="button"
-                    variant="outline"
+                    variant="secondary"
                     onClick={() => setSelectedRunIds([])}
                     disabled={selectedRunIds.length === 0}
-                    className="h-10 md:self-end"
+                    className={styles.clearButton}
                   >
                     清空
-                  </Button>
+                  </WarmButton>
                 </div>
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <div className={styles.consoleMeta}>
                   <span>
                     共 {runsTotal} 条记录 · 当前第 {runsPage} 页 / 显示 {runs.length} 条
                   </span>
                   {productKeyword ? <span>关键词: {productKeyword}</span> : null}
                 </div>
                 {error ? (
-                  <div className="flex items-start gap-3 rounded-none border border-term-neg/40 bg-term-neg/10 p-3 font-mono text-xs text-term-neg">
+                  <div className={styles.errorBanner} role="alert">
                     <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                     <span>{error}</span>
                   </div>
                 ) : null}
-              </CardContent>
-            </Card>
+              </div>
+            </section>
 
-            <Card className="rounded-none border-term-border bg-term-panel shadow-none">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg">最近测算</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-1 flex-col px-6 pb-6 pt-0 md:px-7 md:pb-7 md:pt-0">
+            <section className={styles.panel} aria-label="最近测算" data-warm-surface="true">
+              <div className={styles.panelHeader}>
+                <h2>最近测算</h2>
+              </div>
+              <div className={styles.recentBody}>
                 <div
-                  className="grid flex-1 gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 overflow-y-auto content-start"
+                  className={styles.runGrid}
                   style={{ maxHeight: 'calc(100vh - 22rem)' }}
                 >
                   {runsLoading ? (
@@ -2835,7 +2801,7 @@ export default function PricingCalculationPage() {
                       <PricingRunCardSkeleton />
                     </>
                   ) : visibleRuns.length === 0 ? (
-                    <div className="rounded-none border border-dashed border-term-border px-4 py-6 font-mono text-xs text-term-faint">
+                    <div className={styles.runEmpty}>
                       {runs.length === 0 ? '暂无测算记录' : '没有匹配当前筛选条件的产品'}
                     </div>
                   ) : (
@@ -2860,24 +2826,18 @@ export default function PricingCalculationPage() {
                           }}
                           role="button"
                           tabIndex={0}
-                          className={cn(
-                            'group flex min-h-[110px] flex-col rounded-none border px-3 py-2 text-left transition-colors',
-                            isSelected ? typeMeta.selectedClassName : typeMeta.cardClassName
-                          )}
+                          className={styles.runCard}
+                          data-tone={typeMeta.tone}
+                          data-selected={isSelected ? 'true' : 'false'}
                         >
-                          <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2">
+                          <div className={styles.runCardHeader}>
                             <div className="flex min-w-0 items-center gap-1.5">
-                              <Badge
-                                className={cn(
-                                  'shrink-0 border px-2 py-0.5 text-[10px] font-medium',
-                                  typeMeta.badgeClassName
-                                )}
-                              >
+                              <WarmBadge tone={typeMeta.tone} className={styles.runTypeBadge}>
                                 {typeMeta.label}
-                              </Badge>
+                              </WarmBadge>
                             </div>
 
-                            <div className="flex min-w-0 items-center justify-center gap-1.5 text-[11px] text-muted-foreground">
+                            <div className={styles.runMeta}>
                               <span className="truncate" title={formatCompactDate(run.created_at)}>
                                 {formatRelativeTime(run.created_at)}
                               </span>
@@ -2899,58 +2859,53 @@ export default function PricingCalculationPage() {
                               className="flex shrink-0 items-center justify-end"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <Button
+                              <WarmIconButton
                                 type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 rounded-none text-term-faint opacity-80 transition hover:bg-term-neg/10 hover:text-term-neg group-hover:opacity-100"
+                                className={styles.deleteButton}
                                 disabled={deletingRunId === run.id}
+                                loading={deletingRunId === run.id}
+                                loadingLabel="正在删除测算记录"
                                 onClick={() => void handleDeleteRun(run.id)}
                                 title="删除此测算"
+                                aria-label="删除此测算"
                               >
-                                {deletingRunId === run.id ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
+                                {deletingRunId !== run.id && (
                                   <Trash2 className="h-3.5 w-3.5" />
                                 )}
-                              </Button>
+                              </WarmIconButton>
                             </div>
                           </div>
 
-                          <div className="mt-2 min-w-0 flex-1">
-                            <p className="line-clamp-2 text-sm font-semibold leading-5 text-foreground">
+                          <div className={styles.runTitleWrap}>
+                            <p className={styles.runTitle}>
                               {run.product_name}
                             </p>
                           </div>
 
-                          <div className="mt-2 grid grid-cols-3 gap-2 border-t border-term-border pt-2">
+                          <div className={styles.runMetrics}>
                             <div className="min-w-0">
-                              <p className="text-[11px] text-muted-foreground">价格</p>
-                              <p className="truncate text-sm font-semibold tabular-nums text-foreground">
+                              <p className={styles.runMetricLabel}>价格</p>
+                              <p className={styles.runMetricValue}>
                                 {formatCurrency(run.sale_price_usd)}
                               </p>
                             </div>
                             <div className="min-w-0">
-                              <p className="text-[11px] text-muted-foreground">利润</p>
+                              <p className={styles.runMetricLabel}>利润</p>
                               <p
                                 className={cn(
-                                  'truncate text-sm font-semibold tabular-nums',
-                                  isProfit
-                                    ? 'text-emerald-600 dark:text-emerald-400'
-                                    : 'text-term-neg'
+                                  styles.runMetricValue,
+                                  isProfit ? styles.statusPositive : styles.statusNegative
                                 )}
                               >
                                 {formatCurrency(run.profit.profit_usd)}
                               </p>
                             </div>
                             <div className="min-w-0">
-                              <p className="text-[11px] text-muted-foreground">利润率</p>
+                              <p className={styles.runMetricLabel}>利润率</p>
                               <p
                                 className={cn(
-                                  'truncate text-sm font-semibold tabular-nums',
-                                  isProfit
-                                    ? 'text-emerald-600 dark:text-emerald-400'
-                                    : 'text-term-neg'
+                                  styles.runMetricValue,
+                                  isProfit ? styles.statusPositive : styles.statusNegative
                                 )}
                               >
                                 {formatPercent(run.profit.profit_rate)}
@@ -3045,40 +3000,36 @@ export default function PricingCalculationPage() {
                       </Pagination>
                     )
                   })()}
-              </CardContent>
-            </Card>
+              </div>
+            </section>
           </div>
         </div>
 
-        <Card className="rounded-none border-term-border bg-term-panel shadow-none">
-          <CardHeader className="pb-3">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div className="space-y-1">
-                <CardTitle className="text-lg">测算对比矩阵</CardTitle>
-              </div>
-              <Button
+        <section className={styles.panel} aria-label="测算对比矩阵" data-warm-surface="true">
+          <div className={styles.panelHeader}>
+            <h2>测算对比矩阵</h2>
+            <WarmButton
                 type="button"
-                variant="outline"
+                variant="secondary"
                 onClick={() => void handleExportComparisonMatrix()}
                 disabled={selectedRuns.length === 0 || exporting}
+                loading={exporting}
+                loadingLabel="正在导出测算对比矩阵"
               >
-                {exporting ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
+                {!exporting && (
                   <Download className="mr-2 h-4 w-4" />
                 )}
                 导出 Excel
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
+            </WarmButton>
+          </div>
+          <div className={styles.comparisonBody}>
             <LazyComparisonTable
               sections={getComparisonSections() as any}
               runs={selectedRuns}
               formatCompactDate={formatCompactDate}
             />
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       </>
     </div>
   )

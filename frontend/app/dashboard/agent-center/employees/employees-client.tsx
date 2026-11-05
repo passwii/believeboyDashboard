@@ -3,17 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 
-import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { DataTableCard, DataTableCardHeader, DataTableCardBody } from '@/components/ui/data-card'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { listAgentApiKeys, type AgentApiKeyItem } from '@/lib/api/agent-key-admin'
 import { formatBusinessScope } from '@/lib/agent-domains'
@@ -22,6 +11,7 @@ import {
   type EmployeeSummaryMap,
 } from '@/lib/hooks/use-agent-employee-summary'
 import { formatRelativeTime, freshnessFor, type Freshness } from '@/lib/hooks/use-agent-domain-summary'
+import styles from './employees-warm.module.css'
 
 /**
  * Agent 中心 · 员工段(P3)。
@@ -40,9 +30,9 @@ function employeeStatus(item: AgentApiKeyItem): EmployeeStatus {
 }
 
 const STATUS_META: Record<EmployeeStatus, { label: string; className: string }> = {
-  active: { label: '激活', className: 'border-term-pos/40 text-term-pos' },
-  inactive: { label: '停用', className: 'text-term-faint' },
-  expired: { label: '已过期', className: 'text-term-warn' },
+  active: { label: '激活', className: styles.statusActive },
+  inactive: { label: '停用', className: '' },
+  expired: { label: '已过期', className: styles.statusExpired },
 }
 
 /** 纯函数:project_scope → 可读文案('*' = 全部项目;否则白名单计数) */
@@ -53,9 +43,9 @@ export function projectScopeText(scope: string | null | undefined): string {
 }
 
 const FRESHNESS_STYLE: Record<Freshness, string> = {
-  green: 'text-term-pos',
-  yellow: 'text-term-warn',
-  gray: 'text-term-faint',
+  green: styles.freshnessPositive,
+  yellow: styles.freshnessAccent,
+  gray: styles.freshnessMuted,
 }
 
 const STATUS_RANK: Record<EmployeeStatus, number> = { active: 0, inactive: 1, expired: 2 }
@@ -104,128 +94,142 @@ export default function AgentEmployeesClient() {
   }, [keys, summary.data])
 
   return (
-    <div className="w-full">
-      <DataTableCard>
-        <DataTableCardHeader
-          title="员工花名册"
-          description={
-            summary.status === 'ok'
+    <div className={styles.page} data-warm-agent-employees="true">
+      <section className={styles.panel} aria-labelledby="agent-employees-title">
+        <header className={styles.panelHeader}>
+          <h2 id="agent-employees-title" className={styles.panelTitle}>
+            员工花名册
+          </h2>
+          <p className={styles.panelDescription}>
+            {summary.status === 'ok'
               ? '调用量与错误数由 agent 访问审计按凭据聚合(最近 30 天)'
-              : '活动统计暂不可用；接入后展示最近 30 天'
-          }
-        />
-        <DataTableCardBody>
-          {keysStatus === 'loading' ? (
-            <div className="space-y-2 py-2">
-              <Skeleton className="h-8 w-full rounded-none" />
-              <Skeleton className="h-8 w-full rounded-none" />
-              <Skeleton className="h-8 w-full rounded-none" />
-            </div>
-          ) : keysStatus === 'error' ? (
-            <div className="py-8 text-center text-sm text-term-neg">凭据花名册加载失败,可点页头刷新重试。</div>
-          ) : rows.length === 0 ? (
-            <div className="py-8 text-center text-sm text-term-muted">
-              暂无 Agent 员工 —— 在{' '}
-              <Link
-                href="/dashboard/system/agent-management"
-                className="underline underline-offset-4 hover:text-term-accent"
-              >
-                Agent 接入管理
-              </Link>{' '}
-              创建凭据后自动出现。
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-[180px]">员工</TableHead>
-                  <TableHead className="w-[160px]">Agent ID</TableHead>
-                  <TableHead>能力域</TableHead>
-                  <TableHead className="w-[100px]">项目范围</TableHead>
-                  <TableHead className="w-[80px]">状态</TableHead>
-                  <TableHead className="w-[100px]">24h/30d 调用</TableHead>
-                  <TableHead className="w-[80px]">30d 错误</TableHead>
-                  <TableHead className="w-[120px]">最近活动</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+              : '活动统计暂不可用；接入后展示最近 30 天'}
+          </p>
+        </header>
+        {keysStatus === 'loading' ? (
+          <div className={styles.loadingState} role="status" aria-busy="true">
+            <span className={styles.visuallyHidden}>正在加载员工花名册</span>
+            <span className={styles.skeletonBar} aria-hidden="true" />
+            <span className={styles.skeletonBar} aria-hidden="true" />
+            <span className={styles.skeletonBar} aria-hidden="true" />
+          </div>
+        ) : keysStatus === 'error' ? (
+          <p className={`${styles.stateMessage} ${styles.errorMessage}`} role="alert">
+            凭据花名册加载失败,可点页头刷新重试。
+          </p>
+        ) : rows.length === 0 ? (
+          <p className={styles.stateMessage} role="status">
+            暂无 Agent 员工 —— 在{' '}
+            <Link href="/dashboard/system/agent-management" className={styles.emptyLink}>
+              Agent 接入管理
+            </Link>{' '}
+            创建凭据后自动出现。
+          </p>
+        ) : (
+          <div
+            className={styles.tableScroll}
+            data-agent-employees-table-scroll
+            role="region"
+            aria-labelledby="agent-employees-title"
+            tabIndex={0}
+          >
+            <table className={styles.table}>
+              <colgroup>
+                <col className={styles.colEmployee} />
+                <col className={styles.colAgentId} />
+                <col className={styles.colCapability} />
+                <col className={styles.colProject} />
+                <col className={styles.colStatus} />
+                <col className={styles.colCalls} />
+                <col className={styles.colErrors} />
+                <col className={styles.colActivity} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th scope="col">员工</th>
+                  <th scope="col">Agent ID</th>
+                  <th scope="col">能力域</th>
+                  <th scope="col">项目范围</th>
+                  <th scope="col">状态</th>
+                  <th scope="col">24h/30d 调用</th>
+                  <th scope="col">30d 错误</th>
+                  <th scope="col">最近活动</th>
+                </tr>
+              </thead>
+              <tbody>
                 {rows.map((item) => {
                   const status = employeeStatus(item)
                   const statusMeta = STATUS_META[status]
                   const row = summary.data?.[String(item.id)]
                   const lastActive = row?.last_active_at ?? item.last_used_at
                   return (
-                    <TableRow key={item.id}>
-                      <TableCell className="font-medium">{item.label}</TableCell>
-                      <TableCell>
+                    <tr key={item.id}>
+                      <td>
+                        <span className={styles.employeeName}>{item.label}</span>
+                      </td>
+                      <td>
                         {item.agent_id ? (
-                          <code className="font-mono text-xs text-term-muted">{item.agent_id}</code>
+                          <code className={styles.monoText}>{item.agent_id}</code>
                         ) : (
-                          <span className="text-xs text-term-faint">—（未绑定）</span>
+                          <span className={styles.secondaryText}>—（未绑定）</span>
                         )}
-                      </TableCell>
-                      <TableCell className="text-xs text-term-muted">
+                      </td>
+                      <td className={styles.secondaryText}>
                         {formatBusinessScope(item.business_scope)}
-                      </TableCell>
-                      <TableCell className="text-xs text-term-muted">
+                      </td>
+                      <td className={styles.secondaryText}>
                         {projectScopeText(item.project_scope)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={`rounded-none font-mono text-[11px] ${statusMeta.className}`}
-                        >
+                      </td>
+                      <td>
+                        <span className={`${styles.statusBadge} ${statusMeta.className}`}>
                           {statusMeta.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
+                        </span>
+                      </td>
+                      <td>
                         {row ? (
                           <span
-                            className="font-mono text-xs tabular-nums text-term-muted"
+                            className={`${styles.numeric} ${styles.mutedValue}`}
                             title={`写 24h:${row.writes_24h} · 写 30d:${row.writes_30d}`}
                           >
                             {row.calls_24h} / {row.calls_30d}
                           </span>
                         ) : summary.data ? (
-                          <span className="text-xs text-term-faint">30 天内无调用</span>
+                          <span className={styles.placeholder}>30 天内无调用</span>
                         ) : (
-                          <span className="text-term-faint">—</span>
+                          <span className={styles.placeholder}>—</span>
                         )}
-                      </TableCell>
-                      <TableCell>
+                      </td>
+                      <td>
                         {row ? (
                           <span
-                            className={`font-mono text-xs tabular-nums ${
-                              row.errors_30d > 0 ? 'text-term-neg' : 'text-term-muted'
-                            }`}
+                            className={`${styles.numeric} ${row.errors_30d > 0 ? styles.negativeValue : styles.mutedValue}`}
+                            data-tone={row.errors_30d > 0 ? 'negative' : 'muted'}
                           >
                             {row.errors_30d}
                           </span>
                         ) : summary.data ? (
-                          <span className="font-mono text-xs tabular-nums text-term-muted">0</span>
+                          <span className={`${styles.numeric} ${styles.mutedValue}`}>0</span>
                         ) : (
-                          <span className="text-term-faint">—</span>
+                          <span className={styles.placeholder}>—</span>
                         )}
-                      </TableCell>
-                      <TableCell>
-                        <span className="inline-flex items-center gap-1.5 whitespace-nowrap font-mono text-xs tabular-nums text-term-muted">
+                      </td>
+                      <td>
+                        <span className={styles.freshness}>
                           <span
                             aria-hidden
-                            className={FRESHNESS_STYLE[freshnessFor(lastActive)]}
-                          >
-                            ●
-                          </span>
-                          {formatRelativeTime(lastActive)}
+                            className={`${styles.freshnessDot} ${FRESHNESS_STYLE[freshnessFor(lastActive)]}`}
+                          />
+                          <span>{formatRelativeTime(lastActive)}</span>
                         </span>
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                    </tr>
                   )
                 })}
-              </TableBody>
-            </Table>
-          )}
-        </DataTableCardBody>
-      </DataTableCard>
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   )
 }

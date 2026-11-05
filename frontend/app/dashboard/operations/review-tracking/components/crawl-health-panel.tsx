@@ -1,32 +1,14 @@
 'use client'
 
-import { EmptyState } from '@/components/ui/empty-state'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { type CrawlRunRow, MISSING_VALUE } from '@/lib/review-tracking-api'
 import { cn } from '@/lib/utils'
+import styles from '../review-tracking-warm.module.css'
 
-/**
- * 采集健康度（阶段 C，BLF-1377）。
- *
- * 运行记录是**独立**于评分/评论的：同一业务日期重试会更新当天快照，但每次运行都留档。
- * 因此这里按 `started_at` 倒序展示最近运行，用来判断「这天的数据为什么缺」：
- *  - `is_complete_list=false` → 本次不是完整评论列表，不能据此判定评论疑似移除；
- *  - `reviews_seen=null` → 本次没取到评论数（不是 0）；
- *  - `ratings_captured=false` → 本次没取到评分，快照缺失；
- *  - `error_message` → 采集端返回的错误原因。
- */
 const TONE_CLASS = {
-  pos: 'text-term-pos',
-  warn: 'text-term-warn',
-  neg: 'text-term-neg',
-  muted: 'text-term-muted',
+  pos: styles.tonePositive,
+  warn: styles.toneAccent,
+  neg: styles.toneNegative,
+  muted: styles.toneMuted,
 } as const
 
 function formatTimestamp(value: string | null): string {
@@ -36,67 +18,70 @@ function formatTimestamp(value: string | null): string {
 
 export function CrawlHealthPanel({ runs }: { runs: CrawlRunRow[] }) {
   return (
-    <div className="space-y-3" data-testid="crawl-health-panel">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-[160px]">开始时间</TableHead>
-            <TableHead className="w-[90px]">状态</TableHead>
-            <TableHead className="w-[110px]">完整列表</TableHead>
-            <TableHead className="w-[90px] text-right">评论数</TableHead>
-            <TableHead className="w-[90px]">评分为</TableHead>
-            <TableHead className="w-[110px]">抓取 ASIN</TableHead>
-            <TableHead>错误</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {runs.map((run) => (
-            <TableRow key={run.id}>
-              <TableCell className="font-mono text-[12px] text-term-muted">
-                {formatTimestamp(run.startedAt)}
-              </TableCell>
-              <TableCell>
-                <span className={cn('font-mono text-[11px]', TONE_CLASS[run.statusTone])}>
-                  {run.statusLabel}
-                </span>
-              </TableCell>
-              <TableCell className="font-mono text-[11px]">
-                {run.isCompleteList ? (
-                  <span className="text-term-pos">完整</span>
-                ) : (
-                  <span className="text-term-warn">不完整</span>
-                )}
-              </TableCell>
-              <TableCell className="text-right font-mono text-[12px] tabular-nums text-term-muted">
-                {run.reviewsSeen === null ? MISSING_VALUE : run.reviewsSeen}
-              </TableCell>
-              <TableCell className="font-mono text-[11px]">
-                {run.ratingsCaptured ? (
-                  <span className="text-term-pos">已取到</span>
-                ) : (
-                  <span className="text-term-neg">未取到</span>
-                )}
-              </TableCell>
-              <TableCell className="font-mono text-[11px] text-term-muted">
-                {run.asinScraped || MISSING_VALUE}
-              </TableCell>
-              <TableCell className="max-w-[240px] truncate font-mono text-[11px] text-term-neg" title={run.errorMessage ?? ''}>
-                {run.errorMessage || MISSING_VALUE}
-              </TableCell>
-            </TableRow>
-          ))}
-          {runs.length === 0 ? (
-            <EmptyState
-              colSpan={7}
-              message="还没有采集运行记录（等待采集端接入）"
-            />
-          ) : null}
-        </TableBody>
-      </Table>
-      <p className="font-mono text-[10px] text-term-faint">
-        只有「完整列表」的成功运行才参与「连续 2 次未出现 → 疑似移除」判定；失败或不完整运行不改变评论状态。
-        同一天可以有多条运行记录，但快照只有一条。
-      </p>
+    <div data-testid="crawl-health-panel">
+      <div className={styles.tableScroll} data-warm-table-scroll="true">
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th>开始时间</th>
+              <th>状态</th>
+              <th>完整列表</th>
+              <th className={styles.numeric}>评论数</th>
+              <th>评分为</th>
+              <th>抓取 ASIN</th>
+              <th>错误</th>
+            </tr>
+          </thead>
+          <tbody>
+            {runs.map((run) => (
+              <tr key={run.id}>
+                <td className={styles.tableMeta}>{formatTimestamp(run.startedAt)}</td>
+                <td>
+                  <span
+                    className={cn(styles.statusText, TONE_CLASS[run.statusTone])}
+                  >
+                    {run.statusLabel}
+                  </span>
+                </td>
+                <td>
+                  {run.isCompleteList ? (
+                    <span className={styles.tonePositive}>完整</span>
+                  ) : (
+                    <span className={styles.toneAccent}>不完整</span>
+                  )}
+                </td>
+                <td className={cn(styles.numeric, styles.tableMeta)}>
+                  {run.reviewsSeen === null ? MISSING_VALUE : run.reviewsSeen}
+                </td>
+                <td>
+                  {run.ratingsCaptured ? (
+                    <span className={styles.tonePositive}>已取到</span>
+                  ) : (
+                    <span className={styles.toneNegative}>未取到</span>
+                  )}
+                </td>
+                <td className={styles.tableMeta}>{run.asinScraped || MISSING_VALUE}</td>
+                <td className={styles.toneNegative}>
+                  {run.errorMessage || MISSING_VALUE}
+                </td>
+              </tr>
+            ))}
+            {runs.length === 0 ? (
+              <tr>
+                <td colSpan={7} className={styles.emptyPanel}>
+                  还没有采集运行记录（等待采集端接入）
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+      <div className={styles.healthFootnote}>
+        <span className={styles.footnote}>
+          只有「完整列表」的成功运行才参与「连续 2 次未出现 → 疑似移除」判定；失败或不完整运行不改变评论状态。
+          同一天可以有多条运行记录，但快照只有一条。
+        </span>
+      </div>
     </div>
   )
 }

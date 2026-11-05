@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { act, render, screen, cleanup, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -320,7 +321,11 @@ vi.mock('@/lib/ops-client-cache', async (importOriginal) => {
   }
 })
 
-import ReturnAnalysisClient from './return-analysis-client'
+import ReturnAnalysisClient, {
+  RETURN_REASON_COLORS,
+  RETURN_REASON_SLICE_STROKE,
+  RETURN_REASON_SLICE_STROKE_WIDTH,
+} from './return-analysis-client'
 import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
 import { RAW_DISPLAY_LIMIT, RETURN_RAW_COLUMNS } from './return-raw-columns'
 
@@ -377,6 +382,117 @@ describe('ReturnAnalysisClient header 化渲染契约（BLF-834 / operations hea
     expect(await screen.findByText('SKU-001')).toBeInTheDocument()
   })
 
+  it('Warm Ledger 契约：页面根、自身滚动表格与统计磁贴', async () => {
+    const { container } = render(<ReturnAnalysisClient />)
+    await screen.findByText('SKU-001')
+
+    const page = container.querySelector('[data-warm-page="return-analysis"]')
+    expect(page).not.toBeNull()
+    expect(container.querySelector('[data-warm-summary="return-analysis"]')).not.toBeNull()
+
+    const scroll = container.querySelector('[data-warm-table-scroll]')
+    expect(scroll).not.toBeNull()
+    expect(scroll?.querySelector('table')).not.toBeNull()
+    expect(scroll?.className).toMatch(/warm/i)
+  })
+
+  it('Warm Ledger 契约：图表面板使用 Warm 容器', async () => {
+    mockParams = { project: '1', country: 'US', tab: 'reason' }
+    const { container } = render(<ReturnAnalysisClient />)
+    expect(await screen.findByText('退货原因分析')).toBeInTheDocument()
+    expect(container.querySelector('[data-warm-chart="return-reasons"]')).not.toBeNull()
+  })
+
+  it('主请求失败时显示独立 error 状态，不退化为 empty，且保留通知', async () => {
+    vi.mocked(fetchOpsJsonCached).mockRejectedValueOnce(new Error('退货服务不可用'))
+    const { container } = render(<ReturnAnalysisClient />)
+    const page = container.querySelector('[data-warm-page="return-analysis"]')
+
+    expect(await screen.findByText('退货数据加载失败')).toHaveAttribute(
+      'data-warm-state',
+      'error'
+    )
+    expect(page).toHaveAttribute('data-warm-state', 'error')
+    expect(screen.queryByText('暂无退货排行数据')).not.toBeInTheDocument()
+    expect(mockNotify).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'error', title: '退货数据加载失败' })
+    )
+  })
+
+  it('退货原因饼图使用中性分类色，不表达 positive/negative 语义', () => {
+    expect(RETURN_REASON_COLORS).toEqual([
+      '#f1ede5',
+      '#d8d0c4',
+      '#c2bbaf',
+      '#a9a297',
+      '#918a80',
+    ])
+    expect(new Set(RETURN_REASON_COLORS).size).toBe(5)
+
+    const channel = (value: number) => {
+      const normalized = value / 255
+      return normalized <= 0.04045
+        ? normalized / 12.92
+        : ((normalized + 0.055) / 1.055) ** 2.4
+    }
+    const luminance = (hex: string) => {
+      const [r, g, b] = hex.slice(1).match(/.{2}/g)!.map((part) => parseInt(part, 16))
+      return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+    }
+    const panelLuminance = luminance('#2b2c2b')
+    for (const color of RETURN_REASON_COLORS) {
+      const colorLuminance = luminance(color)
+      const contrast =
+        (Math.max(panelLuminance, colorLuminance) + 0.05) /
+        (Math.min(panelLuminance, colorLuminance) + 0.05)
+      expect(contrast).toBeGreaterThanOrEqual(4)
+    }
+
+    expect(RETURN_REASON_SLICE_STROKE).toBe('var(--warm-ledger-color-panel)')
+    expect(RETURN_REASON_SLICE_STROKE_WIDTH).toBe(2)
+  })
+
+  it('商品/库存状态有数据时不再渲染空图表占位，生产源不含占位文案', async () => {
+    const source = readFileSync(
+      'app/dashboard/operations/return-analysis/return-analysis-client.tsx',
+      'utf8'
+    )
+    expect(source).not.toContain('图表展示区域（可扩展）')
+
+    mockParams = { project: '1', country: 'US', tab: 'product-status' }
+    const first = render(<ReturnAnalysisClient />)
+    expect(await screen.findByText('客户损坏')).toBeInTheDocument()
+    expect(screen.queryByText('图表展示区域（可扩展）')).not.toBeInTheDocument()
+    first.unmount()
+
+    mockParams = { project: '1', country: 'US', tab: 'inventory-status' }
+    render(<ReturnAnalysisClient />)
+    expect(await screen.findByText('已退回库存')).toBeInTheDocument()
+    expect(screen.queryByText('图表展示区域（可扩展）')).not.toBeInTheDocument()
+  })
+
+  it('Warm Ledger 契约：空态与原始数据错误态带可识别状态标记', async () => {
+    vi.mocked(fetchOpsJsonCached).mockResolvedValueOnce(
+      returnPayload({ ranking_rows: [] }) as never
+    )
+    const { container, unmount } = render(<ReturnAnalysisClient />)
+    const empty = await screen.findByText('暂无退货排行数据')
+    expect(empty).toHaveAttribute('data-warm-state', 'empty')
+    expect(container.querySelector('[data-warm-page="return-analysis"]')).toHaveAttribute(
+      'data-warm-state',
+      'empty'
+    )
+
+    unmount()
+    rawShouldFail = true
+    mockParams = { project: '1', country: 'US', tab: 'raw' }
+    render(<ReturnAnalysisClient />)
+    expect(await screen.findByText('原始数据加载失败')).toHaveAttribute(
+      'data-warm-state',
+      'error'
+    )
+  })
+
   it('控制台卡片已移除：无「控制台」文案，导出按钮位于工作区卡头', async () => {
     render(<ReturnAnalysisClient />)
     await screen.findByText('SKU-001')
@@ -414,18 +530,18 @@ describe('ReturnAnalysisClient header 化渲染契约（BLF-834 / operations hea
     expect(screen.queryByRole('button', { name: '刷新' })).not.toBeInTheDocument()
   })
 
-  it('整体退货率语义色：>8% 走 term-neg', async () => {
+  it('整体退货率语义色：>8% 使用 Warm negative', async () => {
     render(<ReturnAnalysisClient />)
     await screen.findByText('整体退货率')
-    // 8.4% > 8 → term-neg
+    // 8.4% > 8 → Warm negative
     const rateEl = screen.getByText('8.4%')
-    expect(rateEl.className).toMatch(/term-neg/)
+    expect(rateEl.className).toMatch(/warm-ledger-color-negative/)
   })
 
   it('无旧风格残留：面板零圆角、term 边界', async () => {
     const { container } = render(<ReturnAnalysisClient />)
     await screen.findByText('SKU-001')
-    // 旧 rounded-lg / rounded-xl 卡片壳已收口为 rounded-none + term 边界
+    // 旧 rounded-lg / rounded-xl 卡片壳已收口为页面本地 Warm 面板
     expect(container.querySelector('.rounded-lg')).toBeNull()
     expect(container.querySelector('.rounded-xl')).toBeNull()
   })
@@ -457,6 +573,101 @@ describe('ReturnAnalysisClient header 化渲染契约（BLF-834 / operations hea
     // 放行请求后 loading 回落
     resolveFetch?.(returnPayload())
     await vi.waitFor(() => expect(capturedRefreshLoading).toBe(false))
+  })
+
+  it('刷新进度条位于合法 tbody 行内，table 直接子节点不含裸 div', async () => {
+    const { container } = render(<ReturnAnalysisClient />)
+    await screen.findByText('SKU-001')
+
+    let resolveFetch: ((value: unknown) => void) | undefined
+    vi.mocked(fetchOpsJsonCached).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFetch = resolve
+        })
+    )
+
+    await act(async () => {
+      capturedRefreshHandler?.()
+    })
+
+    const progressRow = await screen.findByTestId('refresh-progress-row')
+    const table = progressRow.closest('table')
+    expect(table).not.toBeNull()
+    expect(
+      Array.from(table!.children).some((child) => child.tagName.toLowerCase() === 'div')
+    ).toBe(false)
+    const progressBody = progressRow.parentElement
+    expect(progressBody?.tagName).toBe('TBODY')
+    expect(progressBody).toHaveAttribute('aria-busy', 'true')
+    expect(progressRow.querySelector('td[colspan="10"]')).not.toBeNull()
+
+    const track = progressRow.querySelector('[data-warm-progress]')
+    const indicator = screen.getByTestId('refresh-progress-indicator')
+    expect(track).toHaveClass('warm-ledger-table-progress-track')
+    expect(track).toHaveAttribute('data-warm-tone', 'accent')
+    expect(indicator).toHaveClass('warm-ledger-table-progress-bar')
+    expect(indicator).toHaveClass('animate-shimmer')
+
+    await act(async () => {
+      resolveFetch?.(returnPayload())
+    })
+    await vi.waitFor(() =>
+      expect(progressBody).not.toHaveAttribute('aria-busy', 'true')
+    )
+  })
+
+  it('首次加载提供 status 与 aria-busy，完成后移除；skeleton 不带动画', async () => {
+    let resolveFetch: ((value: unknown) => void) | undefined
+    vi.mocked(fetchOpsJsonCached).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFetch = resolve
+        })
+    )
+
+    const { container } = render(<ReturnAnalysisClient />)
+    expect(await screen.findByRole('status')).toHaveTextContent('正在加载退货分析数据')
+
+    const table = container.querySelector('[data-warm-table-scroll] table')
+    expect(table).not.toBeNull()
+    const busyBody = table?.querySelector('tbody[aria-busy="true"]')
+    expect(busyBody).not.toBeNull()
+    expect(container.querySelector('[data-warm-skeleton="static"]')).not.toBeNull()
+    expect(container.querySelector('.animate-pulse')).toBeNull()
+
+    await act(async () => {
+      resolveFetch?.(returnPayload())
+    })
+    await screen.findByText('SKU-001')
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(busyBody).not.toHaveAttribute('aria-busy', 'true')
+  })
+
+  it('Raw Tab 懒加载时 raw table aria-busy + status，完成后移除', async () => {
+    rawHoldPending = true
+    mockParams = { project: '1', country: 'US', tab: 'raw' }
+    const { container } = render(<ReturnAnalysisClient />)
+
+    expect(await screen.findByText('正在加载原始退货数据')).toHaveAttribute(
+      'role',
+      'status'
+    )
+    await vi.waitFor(() => expect(rawRequestCount).toBe(1))
+
+    const table = container.querySelector('[data-warm-table-scroll] table')
+    expect(table).not.toBeNull()
+    const busyBody = table?.querySelector('tbody[aria-busy="true"]')
+    expect(busyBody).not.toBeNull()
+    expect(container.querySelector('[data-warm-skeleton="static"]')).not.toBeNull()
+    expect(container.querySelector('.animate-pulse')).toBeNull()
+
+    await act(async () => {
+      rawReleasePending?.()
+    })
+    expect(await screen.findByText('ORDER-RAW-1')).toBeInTheDocument()
+    await vi.waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument())
+    expect(busyBody).not.toHaveAttribute('aria-busy', 'true')
   })
 
   it('空 ranking_rows 时展示空态占位而非崩溃', async () => {
@@ -602,12 +813,15 @@ describe('原始数据 Tab（原始行懒加载）', () => {
     expect(await screen.findByText('所选周期无原始退货数据')).toBeInTheDocument()
   })
 
-  it('主分析请求失败（data 为空）时展示诚实空态而非永久 skeleton', async () => {
+  it('主分析请求失败时展示独立错误态，且不触发原始行懒加载', async () => {
     vi.mocked(fetchOpsJsonCached).mockRejectedValueOnce(new Error('退货数据加载失败'))
     mockParams = { project: '1', country: 'US', tab: 'raw' }
     render(<ReturnAnalysisClient />)
 
-    expect(await screen.findByText('请先加载退货分析数据')).toBeInTheDocument()
+    expect(await screen.findByText('退货数据加载失败')).toHaveAttribute(
+      'data-warm-state',
+      'error'
+    )
     // data 为 null 时懒加载不会发原始行请求
     expect(rawRequestCount).toBe(0)
   })
