@@ -58,23 +58,35 @@ jobs:
             "$SSH_USER@$SSH_HOST" \
             "set -euo pipefail
              legacy_repo=/root/believeboyDashboard
-             test -d \"\$legacy_repo\"
-             test ! -L \"\$legacy_repo\"
-             test \"\$(realpath \"\$legacy_repo\")\" = /root/believeboyDashboard
-             test -f '$DEPLOY_PATH/.storage-migrated'
-             if [ -d \"\$legacy_repo/backend/storage\" ]; then
-               source_bytes=\"\$(du -sb \"\$legacy_repo/backend/storage\" | awk '{print \$1}')\"
-               target_bytes=\"\$(du -sb '$DEPLOY_PATH/backend-storage' | awk '{print \$1}')\"
-               source_files=\"\$(find \"\$legacy_repo/backend/storage\" -type f | wc -l | tr -d ' ')\"
-               target_files=\"\$(find '$DEPLOY_PATH/backend-storage' -type f | wc -l | tr -d ' ')\"
-               echo \"Legacy storage: bytes=\$source_bytes files=\$source_files\"
-               echo \"Runtime storage: bytes=\$target_bytes files=\$target_files\"
-               if ! diff -qr \"\$legacy_repo/backend/storage\" '$DEPLOY_PATH/backend-storage' > /tmp/dashboard-storage-diff.txt; then
-                 sed -n '1,40p' /tmp/dashboard-storage-diff.txt
-                 echo 'Storage differs; refusing to delete the legacy checkout.' >&2
-                 exit 1
+             if [ -d \"\$legacy_repo\" ]; then
+               test ! -L \"\$legacy_repo\"
+               test \"\$(realpath \"\$legacy_repo\")\" = /root/believeboyDashboard
+               test -f '$DEPLOY_PATH/.storage-migrated'
+               if [ -d \"\$legacy_repo/backend/storage\" ]; then
+                 source_bytes=\"\$(du -sb \"\$legacy_repo/backend/storage\" | awk '{print \$1}')\"
+                 target_bytes=\"\$(du -sb '$DEPLOY_PATH/backend-storage' | awk '{print \$1}')\"
+                 source_files=\"\$(find \"\$legacy_repo/backend/storage\" -type f | wc -l | tr -d ' ')\"
+                 target_files=\"\$(find '$DEPLOY_PATH/backend-storage' -type f | wc -l | tr -d ' ')\"
+                 echo \"Legacy storage: bytes=\$source_bytes files=\$source_files\"
+                 echo \"Runtime storage: bytes=\$target_bytes files=\$target_files\"
+                 if ! diff -qr \"\$legacy_repo/backend/storage\" '$DEPLOY_PATH/backend-storage' > /tmp/dashboard-storage-diff.txt; then
+                   sed -n '1,40p' /tmp/dashboard-storage-diff.txt
+                   echo 'Storage differs; refusing to delete the legacy checkout.' >&2
+                   exit 1
+                 fi
+                 rm -f /tmp/dashboard-storage-diff.txt
                fi
-               rm -f /tmp/dashboard-storage-diff.txt
+               echo 'Legacy checkout size before deletion:'
+               du -sh \"\$legacy_repo\"
+               du -s -B1 \"\$legacy_repo\"
+               echo 'Disk before:'
+               df -h / | tail -1
+               rm -rf -- \"\$legacy_repo\"
+               test ! -e \"\$legacy_repo\"
+               echo 'Disk after:'
+               df -h / | tail -1
+             else
+               echo 'Legacy checkout is already absent.'
              fi
              for service in believeboy-api believeboy-celery believeboy-celery-scheduled believeboy-beat; do
                if systemctl is-active --quiet \"\$service\"; then
@@ -82,16 +94,7 @@ jobs:
                  exit 1
                fi
                systemctl disable \"\$service\" >/dev/null 2>&1 || true
-             done
-             echo 'Legacy checkout size before deletion:'
-             du -sh \"\$legacy_repo\"
-             du -s -B1 \"\$legacy_repo\"
-             echo 'Disk before:'
-             df -h / | tail -1
-             rm -rf -- \"\$legacy_repo\"
-             test ! -e \"\$legacy_repo\"
-             echo 'Disk after:'
-             df -h / | tail -1"
+             done"
 
       - name: Verify after cleanup
         run: |
@@ -105,5 +108,8 @@ jobs:
             "$SSH_USER@$SSH_HOST" \
             "set -euo pipefail
              test ! -e /root/believeboyDashboard
-             cd '$DEPLOY_PATH'
-             docker compose ps"
+             for service in api web celery celery-scheduled beat; do
+               container_status=\"\$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \"believeboy-dashboard-\$service\")\"
+               echo \"\$service: \$container_status\"
+               test \"\$container_status\" = healthy
+             done"
