@@ -262,6 +262,9 @@
     );
   background-size: 200% 100%;
   border-radius: var(--warm-ledger-radius-inner);
+}
+
+.skeletonAnimated {
   animation: skeleton-shimmer var(--pulse-dur) var(--reveal-ease) infinite;
 }
 
@@ -368,7 +371,7 @@
     animation: none;
   }
 
-  .skeleton {
+  .skeletonAnimated {
     animation: none;
   }
 

@@ -200,13 +200,15 @@ export function WarmNumber({
 
 export function WarmSkeleton({
   className,
+  animate = true,
 }: {
   className?: string
+  animate?: boolean
 }) {
   return (
     <div
       aria-hidden="true"
-      className={cn(styles.skeleton, className)}
+      className={cn(styles.skeleton, animate && styles.skeletonAnimated, className)}
       data-warm-skeleton="true"
     />
   )
@@ -229,7 +231,7 @@ export function WarmDeferredSection({
     <div ref={ref} className={className} data-testid={testId}>
       <SkeletonReveal
         loading={!inView}
-        skeleton={<WarmSkeleton className={cn('w-full', fallbackHeight)} />}
+        skeleton={<WarmSkeleton animate={false} className={cn('w-full', fallbackHeight)} />}
       >
         {inView ? children : null}
       </SkeletonReveal>
