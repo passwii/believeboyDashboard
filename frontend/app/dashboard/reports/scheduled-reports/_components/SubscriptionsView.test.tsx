@@ -191,6 +191,23 @@ describe('SubscriptionsView 批量操作（BLF-1032）', () => {
     )
   })
 
+  it('移动卡片的国家与邮箱是 sans，发送时间保留 mono', async () => {
+    installFetch()
+    await renderView()
+
+    for (const email of screen.getAllByText('u1@example.com')) {
+      expect(email).toHaveClass('font-sans')
+      expect(email).not.toHaveClass('font-mono')
+    }
+    for (const country of screen.getAllByText('美国站')) {
+      expect(country).toHaveClass('font-sans')
+      expect(country).not.toHaveClass('font-mono')
+    }
+    for (const time of screen.getAllByText('09:00')) {
+      expect(time).toHaveClass('font-mono')
+    }
+  })
+
   it('Head 刷新遇到 HTTP 错误时保留现有订阅并提示错误', async () => {
     let listRequest = 0
     installFetch([], () => {

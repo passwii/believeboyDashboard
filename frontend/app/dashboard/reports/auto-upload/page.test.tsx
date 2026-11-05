@@ -205,6 +205,20 @@ describe('AutoUploadPage 队列与状态矩阵渲染', () => {
     expect(AUTO_UPLOAD_PAGE_SOURCE).toContain('transform: `scaleX(')
   })
 
+  it('项目筛选按钮不被 control 的强制视觉压住 hover/focus', () => {
+    const control = cssBlock(AUTO_UPLOAD_CSS, '.control')
+
+    expect(control).not.toMatch(/background:[^;]+!important/)
+    expect(control).not.toMatch(/border:[^;]+!important/)
+    expect(control).not.toMatch(/box-shadow:[^;]+!important/)
+    expect(cssBlock(AUTO_UPLOAD_CSS, '.projectFilter:hover:not(:disabled)')).toContain(
+      'background: var(--warm-ledger-color-raised-hover)'
+    )
+    expect(cssBlock(AUTO_UPLOAD_CSS, '.projectFilter:focus-visible')).toContain(
+      'outline:'
+    )
+  })
+
   it('上传说明是普通 sans 文本，不使用 mono', async () => {
     const user = userEvent.setup()
     render(<AutoUploadPage />)
@@ -215,6 +229,15 @@ describe('AutoUploadPage 队列与状态矩阵渲染', () => {
       expect(element.className).toContain('font-sans')
       expect(element.className).not.toContain('font-mono')
     }
+
+    expect(screen.getByRole('combobox', { name: '选择上传站点' })).toHaveClass('font-sans')
+    expect(screen.getByRole('combobox', { name: '选择上传站点' })).not.toHaveClass(
+      'font-mono'
+    )
+    expect(screen.getByText('本次识别文件')).toHaveClass('font-sans')
+    expect(screen.getByText('本次识别文件')).not.toHaveClass('font-mono')
+    expect(screen.getByText('暂无文件')).toHaveClass('font-sans')
+    expect(screen.getByText('暂无文件')).not.toHaveClass('font-mono')
   })
 
   it('上传中只保留 WarmButton spinner，不保留上传图标', async () => {

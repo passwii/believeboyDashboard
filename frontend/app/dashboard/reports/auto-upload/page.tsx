@@ -814,7 +814,10 @@ function AutoUploadContent({
       {/* Top controls：手机端 2 列网格（站点全宽一行 + 双按钮各半），sm+ 恢复横向 */}
       <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3">
         <Select value={country} onValueChange={(v) => onCountryChange(v as ReportUploadCountry)}>
-          <SelectTrigger className="col-span-2 h-10 w-full rounded-[var(--warm-ledger-radius-inner)] border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-window)] font-mono text-xs text-[color:var(--warm-ledger-color-text)] sm:col-span-1 sm:w-[150px]">
+          <SelectTrigger
+            className="col-span-2 h-10 w-full rounded-[var(--warm-ledger-radius-inner)] border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-window)] font-sans text-xs text-[color:var(--warm-ledger-color-text)] sm:col-span-1 sm:w-[150px]"
+            aria-label="选择上传站点"
+          >
             <SelectValue placeholder="选择站点" />
           </SelectTrigger>
           <SelectContent>
@@ -914,7 +917,7 @@ function AutoUploadContent({
           <CardHeader className="rounded-[var(--warm-ledger-radius-inner)] border-b border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] px-3 pb-2.5 pt-3">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="font-mono text-xs font-semibold uppercase tracking-wider text-[color:var(--warm-ledger-color-text-muted)]">
+                <CardTitle className="font-sans text-xs font-semibold uppercase tracking-wider text-[color:var(--warm-ledger-color-text-muted)]">
                   本次识别文件
                 </CardTitle>
                 <CardDescription className="font-mono text-[11px] tabular-nums text-[color:var(--warm-ledger-color-text-faint)]">
@@ -934,7 +937,7 @@ function AutoUploadContent({
             <ScrollArea className="flex-1">
               <div className="space-y-2 p-3">
                 {queueItems.length === 0 ? (
-                  <div className="rounded-[var(--warm-ledger-radius-inner)] border border-dashed border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] px-4 py-8 text-center font-mono text-xs text-[color:var(--warm-ledger-color-text-faint)]">
+                  <div className="rounded-[var(--warm-ledger-radius-inner)] border border-dashed border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] px-4 py-8 text-center font-sans text-xs text-[color:var(--warm-ledger-color-text-faint)]">
                     暂无文件
                   </div>
                 ) : null}
@@ -986,7 +989,7 @@ function AutoUploadContent({
                           {item.recognizedProject === '未匹配' ||
                           item.recognizedProject === null ? (
                             <div className="flex items-center gap-1.5">
-                              <span className="font-mono text-xs text-[color:var(--warm-ledger-color-accent)]">
+                              <span className="font-sans text-xs text-[color:var(--warm-ledger-color-accent)]">
                                 项目：
                               </span>
                               <Select
@@ -1001,7 +1004,7 @@ function AutoUploadContent({
                                   )
                                 }}
                               >
-                                <SelectTrigger className="h-6 w-[140px] rounded-[var(--warm-ledger-radius-inner)] border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-window)] px-1.5 py-0.5 font-mono text-xs">
+                                <SelectTrigger className="h-6 w-[140px] rounded-[var(--warm-ledger-radius-inner)] border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-window)] px-1.5 py-0.5 font-sans text-xs">
                                   <SelectValue placeholder="选择项目" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1049,7 +1052,7 @@ function AutoUploadContent({
                                           )
                                         )
                                       }}
-                                      className="-my-1 ml-1 rounded-[var(--warm-ledger-radius-inner)] px-1.5 py-1 font-mono text-[10px] text-[color:var(--warm-ledger-color-accent-strong)] hover:bg-[color-mix(in_srgb,var(--warm-ledger-color-accent)_10%,transparent)]"
+                                      className="-my-1 ml-1 rounded-[var(--warm-ledger-radius-inner)] px-1.5 py-1 font-sans text-[10px] text-[color:var(--warm-ledger-color-accent-strong)] hover:bg-[color-mix(in_srgb,var(--warm-ledger-color-accent)_10%,transparent)]"
                                     >
                                       {item.userReportStartDate ? '取消' : '编辑'}
                                     </button>
@@ -1074,7 +1077,7 @@ function AutoUploadContent({
                                           )
                                         )
                                       }}
-                                      className="-my-1 ml-1 rounded-[var(--warm-ledger-radius-inner)] px-1.5 py-1 font-mono text-[10px] text-[color:var(--warm-ledger-color-accent-strong)] hover:bg-[color-mix(in_srgb,var(--warm-ledger-color-accent)_10%,transparent)]"
+                                      className="-my-1 ml-1 rounded-[var(--warm-ledger-radius-inner)] px-1.5 py-1 font-sans text-[10px] text-[color:var(--warm-ledger-color-accent-strong)] hover:bg-[color-mix(in_srgb,var(--warm-ledger-color-accent)_10%,transparent)]"
                                     >
                                       {item.userReportDate ? '取消' : '编辑'}
                                     </button>
@@ -1084,7 +1087,7 @@ function AutoUploadContent({
                               {item.reportType === 'payment_report' &&
                               item.userReportStartDate !== null ? (
                                 <div className="flex items-center gap-1.5 pt-0.5">
-                                  <span className="font-mono text-[10px] text-[color:var(--warm-ledger-color-accent)]">起：</span>
+                                  <span className="font-sans text-[10px] text-[color:var(--warm-ledger-color-accent)]">起：</span>
                                   <SimpleDatePicker
                                     value={parseDateInputValue(item.userReportStartDate || '')}
                                     onChange={(date) => {
@@ -1101,7 +1104,7 @@ function AutoUploadContent({
                                     }}
                                     className="h-6 w-[130px] text-xs"
                                   />
-                                  <span className="font-mono text-[10px] text-[color:var(--warm-ledger-color-accent)]">止：</span>
+                                  <span className="font-sans text-[10px] text-[color:var(--warm-ledger-color-accent)]">止：</span>
                                   <SimpleDatePicker
                                     value={parseDateInputValue(item.userReportEndDate || '')}
                                     onChange={(date) => {
@@ -1122,7 +1125,7 @@ function AutoUploadContent({
                               ) : item.userReportDate !== null &&
                                 item.reportType !== 'payment_report' ? (
                                 <div className="flex items-center gap-1.5 pt-0.5">
-                                  <span className="font-mono text-[10px] text-[color:var(--warm-ledger-color-accent)]">日期：</span>
+                                  <span className="font-sans text-[10px] text-[color:var(--warm-ledger-color-accent)]">日期：</span>
                                   <SimpleDatePicker
                                     value={parseDateInputValue(item.userReportDate || '')}
                                     onChange={(date) => {
@@ -1141,7 +1144,7 @@ function AutoUploadContent({
                             </div>
                           ) : isDateRequired(item.reportType) ? (
                             <div className="flex items-center gap-1.5">
-                              <span className="font-mono text-xs text-[color:var(--warm-ledger-color-accent)]">
+                              <span className="font-sans text-xs text-[color:var(--warm-ledger-color-accent)]">
                                 {item.reportType === 'payment_report' ? '日期范围' : '日期'}：
                               </span>
                               {item.reportType === 'payment_report' ? (
@@ -1198,10 +1201,10 @@ function AutoUploadContent({
                             </div>
                           ) : null}
                           {item.error ? (
-                            <p className="font-mono text-xs text-[color:var(--warm-ledger-color-negative)]">{item.error}</p>
+                            <p className="font-sans text-xs text-[color:var(--warm-ledger-color-negative)]">{item.error}</p>
                           ) : null}
                           {item.commitError ? (
-                            <p className="font-mono text-xs text-[color:var(--warm-ledger-color-negative)]">
+                            <p className="font-sans text-xs text-[color:var(--warm-ledger-color-negative)]">
                               {item.commitError}
                             </p>
                           ) : null}

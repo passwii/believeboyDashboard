@@ -700,7 +700,7 @@ export default function SubscriptionsView({
                         <td title={full} className={styles.truncateCell}>
                           {display}
                         </td>
-                        <td className={styles.mutedCell}>
+                        <td className={cn(styles.mutedCell, 'font-sans')}>
                           {sub.country
                             .split(',')
                             .map((c) => c.trim())
@@ -714,12 +714,22 @@ export default function SubscriptionsView({
                             labels={FREQUENCY_LABELS}
                           />
                         </td>
-                        <td className={cn(styles.mutedCell, styles.numeric)}>
+                        <td
+                          className={cn(
+                            styles.mutedCell,
+                            styles.numeric,
+                            'font-mono'
+                          )}
+                        >
                           {formatDispatchText(sub)}
                         </td>
                         <td
                           title={sub.email || ''}
-                          className={cn(styles.mutedCell, styles.truncateCell)}
+                          className={cn(
+                            styles.mutedCell,
+                            styles.truncateCell,
+                            'font-sans'
+                          )}
                         >
                           {sub.email || '未填写'}
                         </td>
@@ -809,7 +819,13 @@ export default function SubscriptionsView({
                           <div className={styles.mobileTitle} title={full}>
                             {display}
                           </div>
-                          <div className={styles.mobileMeta}>
+                          <div
+                            className={cn(
+                              styles.mobileMeta,
+                              styles.mobileTime,
+                              'font-mono tabular-nums'
+                            )}
+                          >
                             {formatDispatchText(sub)}
                           </div>
                         </div>
@@ -826,7 +842,7 @@ export default function SubscriptionsView({
                         )}
                       </div>
                     </div>
-                    <div className={styles.mobileMeta}>
+                    <div className={cn(styles.mobileMeta, 'font-sans')}>
                       {sub.country
                         .split(',')
                         .map((c) => c.trim())
@@ -834,7 +850,10 @@ export default function SubscriptionsView({
                         .map(getCountryLabel)
                         .join(' · ')}
                     </div>
-                    <div className={cn(styles.mobileMeta, 'truncate')} title={sub.email || ''}>
+                    <div
+                      className={cn(styles.mobileMeta, 'truncate', 'font-sans')}
+                      title={sub.email || ''}
+                    >
                       {sub.email || '未填写邮箱'}
                     </div>
                     {sub.ai_model ? (

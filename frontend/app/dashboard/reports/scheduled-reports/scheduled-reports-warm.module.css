@@ -644,11 +644,15 @@
 .mobileMeta {
   overflow: hidden;
   color: var(--warm-ledger-color-text-muted);
-  font-family: var(--warm-ledger-font-mono);
+  font-family: var(--warm-ledger-font-sans);
   font-size: 11px;
-  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.mobileTime {
+  font-family: var(--warm-ledger-font-mono);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
 }
 
 .mobileActions {

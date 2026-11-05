@@ -160,6 +160,25 @@ describe('LedgerDetailDialog AI 摘要状态机（BLF-822）', () => {
     expect(dialog).toHaveAttribute('data-warm-ledger-dialog', 'true')
   })
 
+  it('邮箱、国家与项目范围使用 sans，日期标题保留 mono', () => {
+    renderDialog({
+      item: makeItem({
+        project_names: ['项目A'],
+        country: 'US',
+      }),
+    })
+
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByText('ops@example.com')).toHaveClass('font-sans')
+    for (const country of within(dialog).getAllByText('美国站')) {
+      expect(country).toHaveClass('font-sans')
+    }
+    expect(within(dialog).getByText('项目A')).toHaveClass('font-sans')
+    expect(within(dialog).getByRole('heading', { name: /2026-08-24/ })).toHaveClass(
+      'font-mono'
+    )
+  })
+
   it('pending 记录显示「生成 AI 摘要」按钮，点击回调 regenerate（带订阅预设模型）', async () => {
     const item = makeItem()
     const { onRegenerateAiSummary } = renderDialog({ item })

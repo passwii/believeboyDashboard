@@ -449,7 +449,7 @@ export default function LedgerView({
           </div>
 
           {ledgerError && (
-            <p className="border border-[color:color-mix(in_srgb,var(--warm-ledger-color-negative)_50%,transparent)] bg-[color-mix(in_srgb,var(--warm-ledger-color-negative)_10%,transparent)] px-2 py-1 font-mono text-xs text-[color:var(--warm-ledger-color-negative)]">
+            <p className="border border-[color:color-mix(in_srgb,var(--warm-ledger-color-negative)_50%,transparent)] bg-[color-mix(in_srgb,var(--warm-ledger-color-negative)_10%,transparent)] px-2 py-1 font-sans text-xs text-[color:var(--warm-ledger-color-negative)]">
               {ledgerError}
             </p>
           )}
@@ -478,7 +478,7 @@ export default function LedgerView({
             ) : ledgerItems.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-12 text-center">
                 <RotateCcw className="h-8 w-8 text-[color:var(--warm-ledger-color-text-faint)]" />
-                <span className="font-mono text-sm text-[color:var(--warm-ledger-color-text-muted)]">暂无台账记录</span>
+                <span className="font-sans text-sm text-[color:var(--warm-ledger-color-text-muted)]">暂无台账记录</span>
                 <span className="text-xs text-[color:var(--warm-ledger-color-text-faint)]">
                   调整筛选条件或点击「刷新台账」
                 </span>
@@ -524,7 +524,7 @@ export default function LedgerView({
             ) : ledgerItems.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <RotateCcw className="mb-2 h-8 w-8 text-[color:var(--warm-ledger-color-text-faint)]" />
-                <p className="font-mono text-sm text-[color:var(--warm-ledger-color-text-muted)]">暂无台账记录</p>
+                <p className="font-sans text-sm text-[color:var(--warm-ledger-color-text-muted)]">暂无台账记录</p>
               </div>
             ) : (
               ledgerItems.map((item) => {
@@ -569,14 +569,14 @@ export default function LedgerView({
                     <div className="flex items-center gap-2 mt-2">
                       <div className="ml-auto flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                         {summaryBusy ? (
-                          <span className="inline-flex items-center gap-1 font-mono text-[11px] text-[color:var(--warm-ledger-color-accent-strong)]">
+                          <span className="inline-flex items-center gap-1 font-sans text-[11px] text-[color:var(--warm-ledger-color-accent-strong)]">
                             <Loader2 className="h-3 w-3 animate-spin" />
                             生成中
                           </span>
                         ) : showSummaryAction ? (
                           <button
                             type="button"
-                            className="inline-flex h-7 items-center gap-1 px-2 font-mono text-[11px] text-[color:var(--warm-ledger-color-accent-strong)] transition-colors hover:bg-[var(--warm-ledger-color-raised-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+                            className="inline-flex h-7 items-center gap-1 px-2 font-sans text-[11px] text-[color:var(--warm-ledger-color-accent-strong)] transition-colors hover:bg-[var(--warm-ledger-color-raised-hover)] disabled:cursor-not-allowed disabled:opacity-60"
                             onClick={() => handleQuickRegenerateSummary(item)}
                           >
                             <Sparkles className="h-3 w-3" aria-hidden />

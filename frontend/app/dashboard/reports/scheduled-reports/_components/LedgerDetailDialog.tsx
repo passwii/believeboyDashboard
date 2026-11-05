@@ -202,11 +202,13 @@ export function LedgerDetailDialog({
                 <DialogTitle className="font-mono text-lg font-semibold tabular-nums tracking-tight text-[color:var(--warm-ledger-color-text)]">
                   {format(new Date(item.expected_at), 'yyyy-MM-dd · HH:mm')}
                 </DialogTitle>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs tabular-nums text-[color:var(--warm-ledger-color-text-muted)]">
-                  <span>{item.email}</span>
-                  <span>{FREQUENCY_LABELS[item.frequency]}</span>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-sans text-xs tabular-nums text-[color:var(--warm-ledger-color-text-muted)]">
+                  <span className="font-sans">{item.email}</span>
+                  <span className="font-sans">{FREQUENCY_LABELS[item.frequency]}</span>
                   {countryList.length > 0 && (
-                    <span>{countryList.map(getCountryLabel).join(' · ')}</span>
+                    <span className="font-sans">
+                      {countryList.map(getCountryLabel).join(' · ')}
+                    </span>
                   )}
                 </div>
               </DialogHeader>
@@ -214,11 +216,11 @@ export function LedgerDetailDialog({
               <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
                 {item.status === 'failed' && item.error_message && (
                   <div className="border border-[color:color-mix(in_srgb,var(--warm-ledger-color-negative)_40%,transparent)] bg-[color-mix(in_srgb,var(--warm-ledger-color-negative)_10%,transparent)] p-2">
-                    <div className="mb-1 flex items-center gap-2 font-mono text-xs font-medium text-[color:var(--warm-ledger-color-negative)]">
+                    <div className="mb-1 flex items-center gap-2 font-sans text-xs font-medium text-[color:var(--warm-ledger-color-negative)]">
                       <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
                       错误信息
                     </div>
-                    <div className="whitespace-pre-wrap font-mono text-xs text-[color:var(--warm-ledger-color-negative)]">
+                    <div className="whitespace-pre-wrap font-sans text-xs text-[color:var(--warm-ledger-color-negative)]">
                       {item.error_message}
                     </div>
                   </div>
@@ -226,9 +228,12 @@ export function LedgerDetailDialog({
 
                 <div>
                   <span className={styles.sectionLabel}>报告范围</span>
-                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 font-mono text-xs text-[color:var(--warm-ledger-color-text-muted)]">
+                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 font-sans text-xs text-[color:var(--warm-ledger-color-text-muted)]">
                     {visibleProjects.map((name, idx) => (
-                      <span key={`${name}-${idx}`} className="border border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] px-1.5 py-px">
+                      <span
+                        key={`${name}-${idx}`}
+                        className="border border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] px-1.5 py-px font-sans"
+                      >
                         {name}
                       </span>
                     ))}
@@ -252,7 +257,7 @@ export function LedgerDetailDialog({
                     )}
                   </div>
                   {countryList.length > 0 && (
-                    <div className="mt-2 font-mono text-xs tabular-nums text-[color:var(--warm-ledger-color-text-muted)]">
+                    <div className="mt-2 font-sans text-xs text-[color:var(--warm-ledger-color-text-muted)]">
                       {countryList.map(getCountryLabel).join(' · ')}
                     </div>
                   )}
@@ -279,7 +284,7 @@ export function LedgerDetailDialog({
                         </div>
                       </button>
                     ) : (
-                      <div className="flex min-h-[200px] items-center justify-center gap-2 rounded-[var(--warm-ledger-radius-inner)] border border-dashed border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] px-3 py-12 font-mono text-xs text-[color:var(--warm-ledger-color-text-faint)]">
+                      <div className="flex min-h-[200px] items-center justify-center gap-2 rounded-[var(--warm-ledger-radius-inner)] border border-dashed border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] px-3 py-12 font-sans text-xs text-[color:var(--warm-ledger-color-text-faint)]">
                         <ImageIcon className="h-4 w-4" aria-hidden />
                         暂无截图
                       </div>
@@ -296,7 +301,7 @@ export function LedgerDetailDialog({
                               <button
                                 type="button"
                                 disabled={regeneratingAiSummary || isLoadingModelConfig}
-                                className="flex items-center gap-1 font-mono text-[11px] text-[color:var(--warm-ledger-color-accent-strong)] hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+                                className="flex items-center gap-1 font-sans text-[11px] text-[color:var(--warm-ledger-color-accent-strong)] hover:underline disabled:cursor-not-allowed disabled:opacity-60"
                                 aria-label={summaryActionLabel}
                               >
                                 {regeneratingAiSummary ? (
@@ -434,7 +439,7 @@ export function LedgerDetailDialog({
                       contentClassName={styles.insightContent}
                       emptyState={
                         panel.state.status === 'failed' ? (
-                          <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-[var(--warm-ledger-radius-inner)] border border-[color:color-mix(in_srgb,var(--warm-ledger-color-negative)_40%,transparent)] bg-[color-mix(in_srgb,var(--warm-ledger-color-negative)_10%,transparent)] px-3 py-12 font-mono text-xs text-[color:var(--warm-ledger-color-negative)]">
+                          <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-[var(--warm-ledger-radius-inner)] border border-[color:color-mix(in_srgb,var(--warm-ledger-color-negative)_40%,transparent)] bg-[color-mix(in_srgb,var(--warm-ledger-color-negative)_10%,transparent)] px-3 py-12 font-sans text-xs text-[color:var(--warm-ledger-color-negative)]">
                             <AlertTriangle className="h-4 w-4" aria-hidden />
                             <span>
                               {runBound
@@ -448,7 +453,7 @@ export function LedgerDetailDialog({
                                 data-testid="regenerate-summary-retry"
                                 disabled={isLoadingModelConfig}
                                 onClick={() => onRegenerateAiSummary(item, fallbackModel || null)}
-                                className="mt-1 font-mono text-xs text-[color:var(--warm-ledger-color-negative)] hover:bg-[var(--warm-ledger-color-raised-hover)]"
+                                className="mt-1 font-sans text-xs text-[color:var(--warm-ledger-color-negative)] hover:bg-[var(--warm-ledger-color-raised-hover)]"
                               >
                                 <RotateCcw className="mr-1 h-3 w-3" aria-hidden />
                                 重新生成
@@ -456,7 +461,7 @@ export function LedgerDetailDialog({
                             )}
                           </div>
                         ) : panel.state.busy ? (
-                          <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-[var(--warm-ledger-radius-inner)] border border-[color:color-mix(in_srgb,var(--warm-ledger-color-accent)_40%,transparent)] bg-[color-mix(in_srgb,var(--warm-ledger-color-accent)_10%,transparent)] px-3 py-12 font-mono text-xs text-[color:var(--warm-ledger-color-accent-strong)]">
+                          <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-[var(--warm-ledger-radius-inner)] border border-[color:color-mix(in_srgb,var(--warm-ledger-color-accent)_40%,transparent)] bg-[color-mix(in_srgb,var(--warm-ledger-color-accent)_10%,transparent)] px-3 py-12 font-sans text-xs text-[color:var(--warm-ledger-color-accent-strong)]">
                             <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                             <span>正在为你生成摘要，稍候内容会出现在这里</span>
                             {canRegenerateSummary && (
@@ -465,7 +470,7 @@ export function LedgerDetailDialog({
                                 variant="ghost"
                                 disabled={regeneratingAiSummary}
                                 onClick={() => onRegenerateAiSummary(item, fallbackModel || null)}
-                                className="font-mono text-xs text-[color:var(--warm-ledger-color-accent-strong)] hover:bg-[var(--warm-ledger-color-raised-hover)]"
+                                className="font-sans text-xs text-[color:var(--warm-ledger-color-accent-strong)] hover:bg-[var(--warm-ledger-color-raised-hover)]"
                               >
                                 <RotateCcw className="mr-1 h-3 w-3" aria-hidden />
                                 打断并重新生成
@@ -473,7 +478,7 @@ export function LedgerDetailDialog({
                             )}
                           </div>
                         ) : panel.state.status === 'cancelled' ? (
-                          <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-[var(--warm-ledger-radius-inner)] border border-dashed border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] px-3 py-12 font-mono text-xs text-[color:var(--warm-ledger-color-text-faint)]">
+                          <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-[var(--warm-ledger-radius-inner)] border border-dashed border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] px-3 py-12 font-sans text-xs text-[color:var(--warm-ledger-color-text-faint)]">
                             <Square className="h-4 w-4" aria-hidden />
                             <span>本轮生成已取消</span>
                             {canRegenerateSummary && (
@@ -482,7 +487,7 @@ export function LedgerDetailDialog({
                                 variant="outline"
                                 disabled={isLoadingModelConfig}
                                 onClick={() => onRegenerateAiSummary(item, fallbackModel || null)}
-                                className="mt-1 font-mono text-xs text-[color:var(--warm-ledger-color-accent-strong)] hover:bg-[var(--warm-ledger-color-raised-hover)]"
+                                className="mt-1 font-sans text-xs text-[color:var(--warm-ledger-color-accent-strong)] hover:bg-[var(--warm-ledger-color-raised-hover)]"
                               >
                                 <Sparkles className="mr-1 h-3 w-3" aria-hidden />
                                 重新开始
@@ -492,7 +497,7 @@ export function LedgerDetailDialog({
                         ) : panel.state.status === 'queued' || panel.state.status === 'idle' ? (
                           // BLF-822：报告已发送但摘要尚未生成（后端不再自动生成），
                           // 主行动是手动触发一次生成。
-                          <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-[var(--warm-ledger-radius-inner)] border border-dashed border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] px-3 py-12 font-mono text-xs text-[color:var(--warm-ledger-color-text-faint)]">
+                          <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-[var(--warm-ledger-radius-inner)] border border-dashed border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] px-3 py-12 font-sans text-xs text-[color:var(--warm-ledger-color-text-faint)]">
                             <Sparkles className="h-4 w-4 text-[color:var(--warm-ledger-color-accent-strong)]" aria-hidden />
                             <span>报告已发送，尚未生成 AI 摘要</span>
                             {canRegenerateSummary && (
@@ -502,7 +507,7 @@ export function LedgerDetailDialog({
                                 data-testid="generate-summary-cta"
                                 disabled={isLoadingModelConfig}
                                 onClick={() => onRegenerateAiSummary(item, fallbackModel || null)}
-                                className="mt-1 font-mono text-xs text-[color:var(--warm-ledger-color-accent-strong)] hover:bg-[var(--warm-ledger-color-raised-hover)]"
+                                className="mt-1 font-sans text-xs text-[color:var(--warm-ledger-color-accent-strong)] hover:bg-[var(--warm-ledger-color-raised-hover)]"
                               >
                                 <Sparkles className="mr-1 h-3 w-3" aria-hidden />
                                 生成 AI 摘要
@@ -510,7 +515,7 @@ export function LedgerDetailDialog({
                             )}
                           </div>
                         ) : (
-                          <div className="flex min-h-[200px] items-center justify-center gap-2 rounded-[var(--warm-ledger-radius-inner)] border border-dashed border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] px-3 py-12 font-mono text-xs text-[color:var(--warm-ledger-color-text-faint)]">
+                          <div className="flex min-h-[200px] items-center justify-center gap-2 rounded-[var(--warm-ledger-radius-inner)] border border-dashed border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] px-3 py-12 font-sans text-xs text-[color:var(--warm-ledger-color-text-faint)]">
                             <FileText className="h-4 w-4" aria-hidden />
                             暂无 AI 文案
                           </div>
