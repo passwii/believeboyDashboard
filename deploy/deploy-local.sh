@@ -144,7 +144,6 @@ build_api() {
     --push \
     --build-arg "PIP_INDEX_URL=$PIP_INDEX_URL" \
     --tag "$API_IMAGE_NAME:$IMAGE_TAG" \
-    --tag "$API_IMAGE_NAME:latest" \
     --label "org.opencontainers.image.revision=$SHA" \
     --metadata-file "$TMP_DIR/api-meta.json" \
     --file "$ROOT/backend/Dockerfile" \
@@ -157,7 +156,6 @@ build_web() {
     --push \
     --secret id=nextauth_secret,src="$TMP_DIR/nextauth_secret" \
     --tag "$WEB_IMAGE_NAME:$IMAGE_TAG" \
-    --tag "$WEB_IMAGE_NAME:latest" \
     --label "org.opencontainers.image.revision=$SHA" \
     --metadata-file "$TMP_DIR/web-meta.json" \
     "$ROOT/frontend"

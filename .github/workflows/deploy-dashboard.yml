@@ -87,7 +87,6 @@ jobs:
           push: true
           tags: |
             ${{ env.API_IMAGE_NAME }}:sha-${{ github.sha }}
-            ${{ env.API_IMAGE_NAME }}:latest
           build-args: |
             PIP_INDEX_URL=https://pypi.org/simple
           cache-from: type=gha,scope=dashboard-api
@@ -104,7 +103,6 @@ jobs:
           push: true
           tags: |
             ${{ env.WEB_IMAGE_NAME }}:sha-${{ github.sha }}
-            ${{ env.WEB_IMAGE_NAME }}:latest
           secrets: |
             nextauth_secret=${{ secrets.NEXTAUTH_SECRET }}
           cache-from: type=gha,scope=dashboard-web

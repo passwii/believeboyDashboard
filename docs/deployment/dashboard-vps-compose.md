@@ -87,14 +87,16 @@ deploy/deploy-local.sh
 本地脚本依次执行：
 
 1. 校验最新 `origin/main`、Alembic 迁移图、前端 lint 和全量测试。
-2. 构建并推送 API、Web 两个 `linux/amd64` 镜像。
+2. 构建并推送 API、Web 两个 `linux/amd64` 镜像；只推送 commit SHA 标签，
+   不推送会被网络抖动阻断的 `latest` 标签。
 3. 从镜像 metadata 读取 digest。
 4. 首次切流时复制旧后端环境、storage 和 celerybeat 状态。
 5. 停止旧的四个 systemd 后端单元和旧前端容器。
 6. 同步 Compose/Web env，执行 `alembic upgrade head`。
 7. 启动统一 Compose，检查 API、Web、两个 Celery worker 与 beat。
 
-失败时本地脚本会重新启动旧 systemd 服务，并尝试恢复旧前端容器。
+失败时不会自动启动旧 systemd 服务或旧前端容器。修复后应继续前向部署，或按
+“回滚”章节人工恢复明确指定的版本。
 
 ## GitHub Actions 备用发布
 
