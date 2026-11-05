@@ -1044,6 +1044,9 @@ export default function AutoReconcileTab({
     reportId: number
     errorType: ReconcileErrorType
   } | null>(null)
+  const [rowDownloads, setRowDownloads] = useState<
+    Record<number, Partial<Record<'csv' | 'pdf', boolean>>>
+  >({})
 
   // Track if we should show upload panel (for re-upload flow)
   const [uploadTarget, setUploadTarget] = useState<'pdf' | 'csv' | null>(null)
@@ -1338,10 +1341,41 @@ export default function AutoReconcileTab({
 
   // Row-level fallback: download settlement CSV directly (no dialog needed)
   const handleRowDownloadCSV = useCallback(
-    (report: AvailableReport) => {
-      handleDownloadCSV(report.report_id, notify)
+    async (report: AvailableReport) => {
+      if (rowDownloads[report.report_id]?.csv) return
+      setRowDownloads((current) => ({
+        ...current,
+        [report.report_id]: { ...current[report.report_id], csv: true },
+      }))
+      try {
+        await handleDownloadCSV(report.report_id, notify)
+      } finally {
+        setRowDownloads((current) => ({
+          ...current,
+          [report.report_id]: { ...current[report.report_id], csv: false },
+        }))
+      }
     },
-    [notify]
+    [notify, rowDownloads]
+  )
+
+  const handleRowDownloadPDF = useCallback(
+    async (report: AvailableReport) => {
+      if (rowDownloads[report.report_id]?.pdf) return
+      setRowDownloads((current) => ({
+        ...current,
+        [report.report_id]: { ...current[report.report_id], pdf: true },
+      }))
+      try {
+        await handleDownloadPDF(report.report_id, notify)
+      } finally {
+        setRowDownloads((current) => ({
+          ...current,
+          [report.report_id]: { ...current[report.report_id], pdf: false },
+        }))
+      }
+    },
+    [notify, rowDownloads]
   )
 
   // Handle clear error
@@ -1447,17 +1481,24 @@ export default function AutoReconcileTab({
                             </div>
                           </td>
                           <td className={styles.centeredCell}>
-                            <div className={styles.rowActions}>
+                            <div
+                              className={styles.rowActions}
+                              onClick={(event) => event.stopPropagation()}
+                            >
                               <WarmButton
                                 variant="quiet"
                                 className={styles.rowAction}
                                 title="下载源 CSV"
                                 disabled={
-                                  !report.has_transaction_csv || !!report.transaction_csv_missing
+                                  !report.has_transaction_csv ||
+                                  !!report.transaction_csv_missing ||
+                                  Boolean(rowDownloads[report.report_id]?.csv)
                                 }
+                                loading={Boolean(rowDownloads[report.report_id]?.csv)}
+                                loadingLabel="正在下载 CSV"
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  handleRowDownloadCSV(report)
+                                  void handleRowDownloadCSV(report)
                                 }}
                               >
                                 <Table className="mr-1 h-4 w-4" />
@@ -1467,10 +1508,16 @@ export default function AutoReconcileTab({
                                 variant="quiet"
                                 className={styles.rowAction}
                                 title="下载 PDF"
-                                disabled={!report.has_summary_pdf || !!report.pdf_file_missing}
+                                disabled={
+                                  !report.has_summary_pdf ||
+                                  !!report.pdf_file_missing ||
+                                  Boolean(rowDownloads[report.report_id]?.pdf)
+                                }
+                                loading={Boolean(rowDownloads[report.report_id]?.pdf)}
+                                loadingLabel="正在下载 PDF"
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  handleDownloadPDF(report.report_id, notify)
+                                  void handleRowDownloadPDF(report)
                                 }}
                               >
                                 <FileText className="mr-1 h-4 w-4" />
