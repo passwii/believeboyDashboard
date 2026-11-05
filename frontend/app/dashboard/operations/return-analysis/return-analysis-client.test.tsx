@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { act, render, screen, cleanup, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -449,6 +450,25 @@ describe('ReturnAnalysisClient header 化渲染契约（BLF-834 / operations hea
 
     expect(RETURN_REASON_SLICE_STROKE).toBe('var(--warm-ledger-color-panel)')
     expect(RETURN_REASON_SLICE_STROKE_WIDTH).toBe(2)
+  })
+
+  it('商品/库存状态有数据时不再渲染空图表占位，生产源不含占位文案', async () => {
+    const source = readFileSync(
+      'app/dashboard/operations/return-analysis/return-analysis-client.tsx',
+      'utf8'
+    )
+    expect(source).not.toContain('图表展示区域（可扩展）')
+
+    mockParams = { project: '1', country: 'US', tab: 'product-status' }
+    const first = render(<ReturnAnalysisClient />)
+    expect(await screen.findByText('客户损坏')).toBeInTheDocument()
+    expect(screen.queryByText('图表展示区域（可扩展）')).not.toBeInTheDocument()
+    first.unmount()
+
+    mockParams = { project: '1', country: 'US', tab: 'inventory-status' }
+    render(<ReturnAnalysisClient />)
+    expect(await screen.findByText('已退回库存')).toBeInTheDocument()
+    expect(screen.queryByText('图表展示区域（可扩展）')).not.toBeInTheDocument()
   })
 
   it('Warm Ledger 契约：空态与原始数据错误态带可识别状态标记', async () => {

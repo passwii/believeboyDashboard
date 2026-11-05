@@ -1447,7 +1447,7 @@ export default function ReturnAnalysisPage() {
                 {activeTab === 'product-status' && (
                   <div className="space-y-4 p-4">
                     <h3 className={styles.sectionHeading}>商品状态分布</h3>
-                    <div className="grid gap-4 lg:grid-cols-2">
+                    <div>
                       <WarmTable containerClassName="bg-[var(--warm-ledger-color-panel)]">
                         <TableHeader>
                           <TableRow>
@@ -1478,14 +1478,6 @@ export default function ReturnAnalysisPage() {
                           )}
                         </WarmProgressTableBody>
                       </WarmTable>
-
-                      {data?.disposition_rows && data.disposition_rows.length > 0 && (
-                        <div className={styles.subPanel}>
-                          <div className="text-sm text-[var(--warm-ledger-color-text-muted)] text-center py-8">
-                            图表展示区域（可扩展）
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </div>
                 )}
@@ -1493,7 +1485,7 @@ export default function ReturnAnalysisPage() {
                 {activeTab === 'inventory-status' && (
                   <div className="space-y-4 p-4">
                     <h3 className={styles.sectionHeading}>库存状态分布</h3>
-                    <div className="grid gap-4 lg:grid-cols-2">
+                    <div>
                       <WarmTable containerClassName="bg-[var(--warm-ledger-color-panel)]">
                         <TableHeader>
                           <TableRow>
@@ -1524,14 +1516,6 @@ export default function ReturnAnalysisPage() {
                           )}
                         </WarmProgressTableBody>
                       </WarmTable>
-
-                      {data?.status_rows && data.status_rows.length > 0 && (
-                        <div className={styles.subPanel}>
-                          <div className="text-sm text-[var(--warm-ledger-color-text-muted)] text-center py-8">
-                            图表展示区域（可扩展）
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </div>
                 )}
