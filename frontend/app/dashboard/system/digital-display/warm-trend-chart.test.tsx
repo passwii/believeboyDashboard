@@ -45,7 +45,6 @@ describe('Digital Display Warm Trend Chart', () => {
   it('uses the supplied formatter in the Warm tooltip', () => {
     const payload: WarmChartTooltipEntry[] = [
       {
-        dataKey: 'sales_amount',
         name: '销售额',
         value: 1800,
         color: 'var(--warm-ledger-color-accent)',
@@ -57,13 +56,15 @@ describe('Digital Display Warm Trend Chart', () => {
         active
         label="2026-11-02"
         payload={payload}
-        formatter={(value) => `¥${value}`}
+        dataKeyMap={{ 销售额: 'sales_amount' }}
+        formatter={(value, name) => (name === 'sales_amount' ? `$${value}` : String(value))}
       />
     )
 
     expect(screen.getByTestId('digital-display-warm-chart-tooltip')).toHaveTextContent(
       '2026-11-02'
     )
-    expect(screen.getByTestId('digital-display-warm-chart-tooltip')).toHaveTextContent('¥1800')
+    expect(screen.getByTestId('digital-display-warm-chart-tooltip')).toHaveTextContent('$1800')
+    expect(screen.getByTestId('digital-display-warm-chart-tooltip')).toHaveTextContent('销售额')
   })
 })

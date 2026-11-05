@@ -38,11 +38,13 @@ export function WarmChartTooltip({
   label,
   payload,
   formatter,
+  dataKeyMap,
 }: {
   active?: boolean
   label?: unknown
   payload?: WarmChartTooltipEntry[]
   formatter?: (value: number | string, name: string) => ReactNode
+  dataKeyMap?: Record<string, string>
 }) {
   if (!active || !payload?.length) return null
 
@@ -56,6 +58,7 @@ export function WarmChartTooltip({
         {payload.map((item, index) => {
           const name = String(item.name ?? item.dataKey ?? 'value')
           const value = item.value ?? ''
+          const formatterKey = item.dataKey ?? dataKeyMap?.[name] ?? name
           return (
             <div key={`${name}-${index}`} className={styles.chartTooltipRow}>
               <span>
@@ -66,7 +69,7 @@ export function WarmChartTooltip({
                 />
                 {name}
               </span>
-              <strong>{formatter ? formatter(value, name) : value}</strong>
+              <strong>{formatter ? formatter(value, formatterKey) : value}</strong>
             </div>
           )
         })}
@@ -93,6 +96,12 @@ export function WarmTrendChart({
   tooltipFormatter?: (value: number | string, name: string) => ReactNode
 }) {
   const reactId = useId().replace(/[^a-zA-Z0-9_-]/g, '')
+  const dataKeyMap = Object.fromEntries(
+    series.map((item) => [
+      item.name ?? config[item.dataKey]?.label ?? item.dataKey,
+      item.dataKey,
+    ])
+  )
 
   return (
     <div
@@ -189,6 +198,7 @@ export function WarmTrendChart({
                   label={label}
                   payload={payload as unknown as WarmChartTooltipEntry[]}
                   formatter={tooltipFormatter}
+                  dataKeyMap={dataKeyMap}
                 />
               )}
             />

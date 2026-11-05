@@ -3,7 +3,10 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 
-import { isWarmLedgerRoute } from '@/components/dashboard-v2/warm-ledger/shell/warm-ledger-route-frame'
+import {
+  isWarmLedgerRoute,
+  isWarmLedgerStandaloneRoute,
+} from '@/components/dashboard-v2/warm-ledger/shell/warm-ledger-route-frame'
 
 const { fetchProjectOptionsCachedMock } = vi.hoisted(() => ({
   fetchProjectOptionsCachedMock: vi.fn(),
@@ -30,7 +33,8 @@ describe('DigitalDisplayPage exception', () => {
 
     const { container, unmount } = render(<DigitalDisplayPage />)
 
-    expect(isWarmLedgerRoute('/dashboard/system/digital-display')).toBe(false)
+    expect(isWarmLedgerRoute('/dashboard/system/digital-display')).toBe(true)
+    expect(isWarmLedgerStandaloneRoute('/dashboard/system/digital-display')).toBe(true)
     expect(container.firstElementChild).toHaveAttribute(
       'data-digital-display-exception',
       'true',
@@ -39,6 +43,7 @@ describe('DigitalDisplayPage exception', () => {
     expect(container.firstElementChild).toHaveClass('warm-ledger')
     expect(container.querySelector('[class*="term-"]')).toBeNull()
     expect(container.querySelector('.rounded-none')).toBeNull()
+    expect(container.querySelector('.warm-ledger__app-window')).toBeNull()
     await waitFor(() => expect(document.documentElement).toHaveClass('dark'))
     expect(requestFullscreen).toHaveBeenCalledTimes(1)
 
