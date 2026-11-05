@@ -1,12 +1,8 @@
 'use client'
 
-import { TermPanel } from '@/components/terminal/term-panel'
-import { TermPill } from '@/components/terminal/term-controls'
-import { cn } from '@/lib/utils'
 import {
   Bot,
   Calendar,
-  ChevronRight,
   Download,
   Globe,
   Layers3,
@@ -14,13 +10,17 @@ import {
   Settings2,
   Sidebar,
   Sparkles,
-  Zap,
   Wand2,
+  Zap,
 } from 'lucide-react'
+
+import { WarmBadge } from '@/components/dashboard-v2/warm-ledger/controls'
+
+import styles from './feature-updates-warm.module.css'
 
 const V7_FEATURES = [
   {
-    icon: <RefreshCw className="h-5 w-5" />,
+    icon: <RefreshCw aria-hidden="true" />,
     area: 'AI',
     title: '洞察重试机制上线',
     detail:
@@ -28,7 +28,7 @@ const V7_FEATURES = [
     tag: '智能重试',
   },
   {
-    icon: <Zap className="h-5 w-5" />,
+    icon: <Zap aria-hidden="true" />,
     area: 'AI',
     title: '实时流式预览',
     detail:
@@ -36,7 +36,7 @@ const V7_FEATURES = [
     tag: '实时响应',
   },
   {
-    icon: <Download className="h-5 w-5" />,
+    icon: <Download aria-hidden="true" />,
     area: 'AI',
     title: '洞察内容 PNG 导出',
     detail:
@@ -44,7 +44,7 @@ const V7_FEATURES = [
     tag: '多格式导出',
   },
   {
-    icon: <Globe className="h-5 w-5" />,
+    icon: <Globe aria-hidden="true" />,
     area: 'AI',
     title: '国家级别时区感知',
     detail:
@@ -52,7 +52,7 @@ const V7_FEATURES = [
     tag: '时区适配',
   },
   {
-    icon: <Settings2 className="h-5 w-5" />,
+    icon: <Settings2 aria-hidden="true" />,
     area: 'Data',
     title: 'SKU 成本按国家汇总修复',
     detail:
@@ -60,7 +60,7 @@ const V7_FEATURES = [
     tag: '数据治理',
   },
   {
-    icon: <Calendar className="h-5 w-5" />,
+    icon: <Calendar aria-hidden="true" />,
     area: 'Export',
     title: '店铺核算整数格式优化',
     detail:
@@ -68,7 +68,7 @@ const V7_FEATURES = [
     tag: '导出规范',
   },
   {
-    icon: <Sidebar className="h-5 w-5" />,
+    icon: <Sidebar aria-hidden="true" />,
     area: 'UI',
     title: '侧边栏布局重构',
     detail:
@@ -77,94 +77,87 @@ const V7_FEATURES = [
   },
 ]
 
+const V7_TAGS = ['AI 洞察增强', '实时流式预览', '洞察重试', 'PNG 导出', '国家时区感知', 'SKU 汇总修复']
+
+const V7_SUMMARY = [
+  { value: '4', label: 'AI 功能' },
+  { value: '2', label: '数据修复' },
+  { value: '1', label: '界面重构' },
+  { value: '7', label: '亮点总数' },
+]
+
 export default function FeatureUpdatesPage() {
   return (
-    <div className="space-y-3">
-      <TermPanel title="V7 版本正式发布" bodyClassName="p-5">
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <TermPill tone="accent">
-              <Sparkles className="mr-1 h-3 w-3" />最新版本
-            </TermPill>
-            <span className="font-mono text-lg font-bold tracking-tight text-term-text">V7</span>
-            <span className="font-mono text-xs text-term-muted">AI 洞悉</span>
-          </div>
-          <p className="max-w-3xl font-mono text-xs leading-5 text-term-muted">
-            AI 驱动的智能洞察阶段正式开启。通过深度整合 AI 能力，让数据转化为可执行的运营洞见。
-            本版本持续完善洞察重试机制、实时生成流式预览、图片导出与国家级时区感知，并修复 SKU
-            成本汇总与店铺核算导出的边界问题。
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {['AI 洞察增强', '实时流式预览', '洞察重试', 'PNG 导出', '国家时区感知', 'SKU 汇总修复'].map(
-              (tag) => (
-                <TermPill key={tag} tone="muted">
-                  {tag}
-                </TermPill>
-              )
-            )}
-          </div>
-        </div>
-      </TermPanel>
+    <div className={styles.page} data-warm-page="feature-updates">
+      <header className={styles.header}>
+        <h1 className={styles.pageTitle}>V7 版本正式发布</h1>
+        <WarmBadge tone="accent" className={styles.headerBadge}>
+          <Sparkles aria-hidden="true" />
+          最新版本
+        </WarmBadge>
+      </header>
 
-      <div className="grid gap-3 lg:grid-cols-2">
+      <section className={styles.introPanel} aria-labelledby="v7-intro-title">
+        <div className={styles.introHeading}>
+          <h2 id="v7-intro-title" className={styles.introTitle}>
+            V7
+          </h2>
+          <span className={styles.introArea}>AI 洞悉</span>
+        </div>
+        <p className={styles.introCopy}>
+          AI 驱动的智能洞察阶段正式开启。通过深度整合 AI 能力，让数据转化为可执行的运营洞见。
+          本版本持续完善洞察重试机制、实时生成流式预览、图片导出与国家级时区感知，并修复 SKU
+          成本汇总与店铺核算导出的边界问题。
+        </p>
+        <div className={styles.tagList}>
+          {V7_TAGS.map((tag) => (
+            <WarmBadge key={tag} tone="neutral">
+              {tag}
+            </WarmBadge>
+          ))}
+        </div>
+      </section>
+
+      <div className={styles.featureGrid}>
         {V7_FEATURES.map((feature) => (
-          <TermPanel key={feature.title} bodyClassName="p-4">
-            <div className="space-y-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center border border-term-border bg-term-bg text-term-accent">
-                    {feature.icon}
-                  </span>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-[11px] uppercase tracking-wider text-term-muted">
-                        {feature.area}
-                      </span>
-                      <TermPill tone="muted">{feature.tag}</TermPill>
-                    </div>
-                    <h3 className="font-mono text-sm font-semibold text-term-text">{feature.title}</h3>
-                  </div>
+          <article key={feature.title} className={styles.featureCard}>
+            <div className={styles.featureHeading}>
+              <span className={styles.featureIcon}>{feature.icon}</span>
+              <div className={styles.featureCopy}>
+                <div className={styles.featureMeta}>
+                  <span>{feature.area}</span>
+                  <WarmBadge tone="neutral">{feature.tag}</WarmBadge>
                 </div>
-                <ChevronRight className="h-4 w-4 shrink-0 text-term-faint" />
+                <h2 className={styles.featureTitle}>{feature.title}</h2>
               </div>
-              <p className="font-mono text-xs leading-5 text-term-muted">{feature.detail}</p>
             </div>
-          </TermPanel>
+            <p className={styles.featureDetail}>{feature.detail}</p>
+          </article>
         ))}
       </div>
 
-      <TermPanel title="V7 阶段总结" bodyClassName="p-4">
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Wand2 className="h-4 w-4 text-term-accent" />
-            <span className="font-mono text-xs text-term-muted">本阶段共完成 7 项核心能力升级</span>
-          </div>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-            {[
-              { n: '4', label: 'AI 功能' },
-              { n: '2', label: '数据修复' },
-              { n: '1', label: '界面重构' },
-              { n: '7', label: '亮点总数' },
-            ].map((it) => (
-              <div
-                key={it.label}
-                className="border border-term-border bg-term-bg p-3 text-center"
-              >
-                <div className="font-mono text-lg font-bold tabular-nums text-term-text">{it.n}</div>
-                <div className="font-mono text-[11px] uppercase tracking-wider text-term-muted">
-                  {it.label}
-                </div>
-              </div>
-            ))}
-          </div>
+      <section className={styles.summaryPanel} aria-labelledby="v7-summary-title">
+        <div className={styles.summaryHeading}>
+          <Wand2 aria-hidden="true" />
+          <h2 id="v7-summary-title" className={styles.summaryTitle}>
+            V7 阶段总结
+          </h2>
+          <span className={styles.summaryCopy}>本阶段共完成 7 项核心能力升级</span>
         </div>
-      </TermPanel>
+        <div className={styles.summaryGrid}>
+          {V7_SUMMARY.map((item) => (
+            <div key={item.label} className={styles.summaryMetric}>
+              <span className={styles.metricValue}>{item.value}</span>
+              <span className={styles.metricLabel}>{item.label}</span>
+            </div>
+          ))}
+        </div>
+      </section>
 
-      {/* Coming Soon Hint */}
-      <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
-        <Layers3 className="h-4 w-4" />
+      <div className={styles.comingSoon}>
+        <Layers3 aria-hidden="true" />
         <span>更多能力正在持续建设中，敬请期待</span>
-        <Bot className="h-4 w-4" />
+        <Bot aria-hidden="true" />
       </div>
     </div>
   )

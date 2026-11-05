@@ -1,27 +1,9 @@
 'use client'
 
 import * as React from 'react'
-import { Loader2, RefreshCw, Trash2, Upload } from 'lucide-react'
+import { RefreshCw, Trash2, Upload } from 'lucide-react'
 
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
 import { useNotifications } from '@/components/notifications'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { deleteAvatar, uploadAvatar } from '@/lib/client-api/profile-client'
@@ -30,6 +12,7 @@ import type { Profile } from '@/types/profile'
 
 import { ProfileAvatarDisplay } from './profile-avatar-display'
 import { ProfileAvatarSkeleton } from './profile-skeletons'
+import styles from '../profile-warm.module.css'
 
 const ACCEPTED_MIME = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
 const ACCEPTED_EXT_LABEL = 'PNG / JPG / WEBP / GIF'
@@ -53,13 +36,8 @@ export function ProfileAvatarTab({ profile, loading, onRefetch }: ProfileAvatarT
   const avatarUrl = profile?.avatar_url ?? null
   const userName = profile?.name ?? '当前用户'
 
-  const onPickFile = () => {
-    fileInputRef.current?.click()
-  }
-
   const onFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
-    // Always reset the input so the same file can be re-picked.
     event.target.value = ''
     if (!file) return
 
@@ -107,12 +85,10 @@ export function ProfileAvatarTab({ profile, loading, onRefetch }: ProfileAvatarT
     notify({ type: 'info', title: '正在重新获取头像...' })
   }
 
-  if (loading && !profile) {
-    return <ProfileAvatarSkeleton />
-  }
+  if (loading && !profile) return <ProfileAvatarSkeleton />
 
   return (
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-[200px_1fr]">
+    <div className={styles.avatarLayout}>
       <ProfileAvatarDisplay
         userId={userId}
         avatarUrl={avatarUrl}
@@ -120,134 +96,114 @@ export function ProfileAvatarTab({ profile, loading, onRefetch }: ProfileAvatarT
         refreshTick={refreshTick}
       />
 
-      <div className="space-y-4">
-        <div className="rounded-none border border-dashed border-border/60 bg-term-raised/20 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-sm font-medium">上传新头像</p>
-              <p className="mt-1 text-xs text-muted-foreground">
+      <div className={styles.avatarControls}>
+        <div className={styles.subPanel}>
+          <div className={styles.subPanelHeader}>
+            <div>
+              <p className={styles.subPanelTitle}>上传新头像</p>
+              <p className={styles.subPanelHint}>
                 支持 {ACCEPTED_EXT_LABEL} 格式，单张图片最大 {MAX_BYTES / 1024 / 1024}MB。
                 图片会保存到 Cloudflare R2，并自动在浏览器本地缓存以加速加载。
               </p>
             </div>
             {avatarUrl ? (
-              <div className="flex shrink-0 items-center gap-2 rounded-none border border-border/60 bg-background/60 p-1.5 pr-2 text-xs text-muted-foreground">
-                <Avatar className="h-6 w-6 rounded">
-                  <AvatarImage src={avatarUrl} alt="当前头像" />
-                  <AvatarFallback className="rounded text-[10px]">现</AvatarFallback>
-                </Avatar>
+              <div className={styles.currentAvatar}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={avatarUrl} alt="当前头像" className={styles.currentAvatarImage} />
                 <span>将替换当前</span>
               </div>
             ) : null}
           </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <TooltipProvider delayDuration={150}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button type="button" onClick={onPickFile} disabled={uploading || removing}>
-                    {uploading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Upload className="h-4 w-4" />
-                    )}
-                    {uploading ? '上传中...' : avatarUrl ? '替换头像' : '上传头像'}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  推荐尺寸 200×200px，PNG / JPG / WEBP / GIF，最大 5MB
-                </TooltipContent>
-              </Tooltip>
+          <div className={styles.buttonRow}>
+            <WarmButton
+              variant="primary"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading || removing}
+              loading={uploading}
+              loadingLabel="正在上传头像"
+            >
+              <Upload className="h-4 w-4" aria-hidden="true" />
+              {uploading ? '上传中...' : avatarUrl ? '替换头像' : '上传头像'}
+            </WarmButton>
 
-              {avatarUrl ? (
-                <>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={onRefresh}
-                        disabled={uploading || removing}
-                      >
-                        <RefreshCw className="h-4 w-4" />
-                        刷新
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>重新从 R2 下载头像，绕过浏览器缓存</TooltipContent>
-                  </Tooltip>
-
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => setConfirmRemoveOpen(true)}
-                        disabled={uploading || removing}
-                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        删除头像
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>恢复系统默认首字母头像</TooltipContent>
-                  </Tooltip>
-                </>
-              ) : null}
-            </TooltipProvider>
+            {avatarUrl ? (
+              <>
+                <WarmButton
+                  variant="secondary"
+                  onClick={onRefresh}
+                  disabled={uploading || removing}
+                >
+                  <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                  刷新
+                </WarmButton>
+                <WarmButton
+                  variant="quiet"
+                  onClick={() => setConfirmRemoveOpen(true)}
+                  disabled={uploading || removing}
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                  删除头像
+                </WarmButton>
+              </>
+            ) : null}
           </div>
           <input
             ref={fileInputRef}
             type="file"
             accept={ACCEPTED_MIME.join(',')}
-            className="hidden"
+            className={styles.hiddenInput}
             onChange={onFileChange}
           />
         </div>
 
-        <div className="rounded-none border border-border/40 bg-card/40 px-4 text-xs text-muted-foreground">
-          <Accordion type="single" collapsible>
-            <AccordionItem value="cache">
-              <AccordionTrigger>缓存说明</AccordionTrigger>
-              <AccordionContent>
-                <ul className="list-disc space-y-1 pl-4">
-                  <li>首次上传后，浏览器会自动从 R2 下载一次图片并存到本地 sessionStorage。</li>
-                  <li>下次刷新或重新打开页面时优先使用本地缓存，避免重复网络请求。</li>
-                  <li>关闭浏览器标签后本地缓存会被清空，再次访问会重新下载。</li>
-                  <li>上传新头像后会自动失效旧缓存，无需手动刷新。</li>
-                </ul>
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
-        </div>
+        <details className={styles.details}>
+          <summary>缓存说明</summary>
+          <ul>
+            <li>首次上传后，浏览器会自动从 R2 下载一次图片并存到本地 sessionStorage。</li>
+            <li>下次刷新或重新打开页面时优先使用本地缓存，避免重复网络请求。</li>
+            <li>关闭浏览器标签后本地缓存会被清空，再次访问会重新下载。</li>
+            <li>上传新头像后会自动失效旧缓存，无需手动刷新。</li>
+          </ul>
+        </details>
       </div>
 
-      <AlertDialog open={confirmRemoveOpen} onOpenChange={setConfirmRemoveOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>确认删除头像？</AlertDialogTitle>
-            <AlertDialogDescription>
+      {confirmRemoveOpen ? (
+        <div
+          className={styles.confirmPanel}
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="avatar-remove-title"
+          aria-describedby="avatar-remove-description"
+        >
+          <div>
+            <p id="avatar-remove-title" className={styles.confirmTitle}>
+              确认删除头像？
+            </p>
+            <p id="avatar-remove-description" className={styles.confirmDescription}>
               头像将被恢复为系统默认（首字母占位）。此操作不可撤销。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={removing}>取消</AlertDialogCancel>
-            <AlertDialogAction
+            </p>
+          </div>
+          <div className={styles.confirmActions}>
+            <WarmButton
+              variant="quiet"
+              onClick={() => setConfirmRemoveOpen(false)}
               disabled={removing}
-              onClick={(e) => {
-                e.preventDefault()
-                void doRemove()
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              autoFocus
             >
-              {removing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Trash2 className="h-4 w-4" />
-              )}
+              取消
+            </WarmButton>
+            <WarmButton
+              variant="primary"
+              onClick={() => void doRemove()}
+              loading={removing}
+              loadingLabel="正在删除头像"
+            >
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
               {removing ? '删除中...' : '确认删除'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </WarmButton>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

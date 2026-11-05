@@ -1,7 +1,11 @@
 'use client'
 
 import * as React from 'react'
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { X } from 'lucide-react'
+
+import { WarmIconButton } from '@/components/dashboard-v2/warm-ledger/controls'
+
+import styles from '../profile-warm.module.css'
 
 interface ProfileAvatarPreviewDialogProps {
   open: boolean
@@ -10,30 +14,46 @@ interface ProfileAvatarPreviewDialogProps {
   name: string
 }
 
-/**
- * Full-size avatar preview. Triggered by clicking the avatar frame on the
- * profile page; ESC / overlay-click / close button all dismiss.
- */
 export function ProfileAvatarPreviewDialog({
   open,
   onOpenChange,
   avatarUrl,
   name,
 }: ProfileAvatarPreviewDialogProps) {
+  React.useEffect(() => {
+    if (!open) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onOpenChange(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [open, onOpenChange])
+
+  if (!open || !avatarUrl) return null
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl border-0 bg-transparent p-0 shadow-none sm:max-w-3xl">
-        <DialogTitle className="sr-only">头像预览 — {name}</DialogTitle>
-        {avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={avatarUrl}
-            alt={`${name} 头像原图`}
-            loading="lazy"
-            className="mx-auto max-h-[85vh] w-auto rounded-2xl object-contain pb-[env(safe-area-inset-bottom)]"
-          />
-        ) : null}
-      </DialogContent>
-    </Dialog>
+    <div
+      className={styles.previewOverlay}
+      role="presentation"
+      onClick={() => onOpenChange(false)}
+    >
+      <div
+        className={styles.previewFrame}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`头像预览 — ${name}`}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <WarmIconButton
+          aria-label="关闭头像预览"
+          className={styles.previewClose}
+          onClick={() => onOpenChange(false)}
+        >
+          <X aria-hidden="true" />
+        </WarmIconButton>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={avatarUrl} alt={`${name} 头像原图`} className={styles.previewImage} />
+      </div>
+    </div>
   )
 }

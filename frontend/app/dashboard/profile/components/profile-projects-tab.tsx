@@ -5,43 +5,35 @@ import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { Crown, ExternalLink, ShieldCheck, UserCog } from 'lucide-react'
 
-import { Badge } from '@/components/ui/badge'
-import { DataTableCard, DataTableCardBody, DataTableCardHeader } from '@/components/ui/data-card'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { WarmBadge } from '@/components/dashboard-v2/warm-ledger/controls'
 import { useNotifications } from '@/components/notifications'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 
-import { ProfileProjectsCard } from './profile-projects-card'
 import { ProfileProjectsSkeleton } from './profile-skeletons'
 import {
   type ProjectItem,
-  TIER_BADGE_CLASS,
   deriveRole,
   formatCommission,
+  getTierTone,
 } from './profile-projects-tab-shared'
+import styles from '../profile-warm.module.css'
 
 interface ProfileProjectsTabProps {
-  /** 用于匹配项目 `project_operator` / `assistant_operator` 的姓名候选。
-   *
-   *  BLF-1441：匹配键就是 `user_accounts.full_name`（后端
-   *  `list_project_operator_options` 只返回它，`X-Operator` 也发它），
-   *  所以这里不再混入运营名 / 登录名——混进去会让「我的项目」和真实
-   *  鉴权口径对不上。由父组件从资料接口取，逻辑留在本 tab。 */
+  /** 项目匹配键是 user_accounts.full_name，与后端 X-Operator 口径一致。 */
   operatorNameCandidates: { fullName: string | null }
 }
 
-/** 把资料里的 `full_name` 转成项目匹配用的姓名列表（空 / 空白 → 空列表）。 */
 export function projectOwnerNames(fullName: string | null | undefined): string[] {
   const trimmed = fullName?.trim()
   return trimmed ? [trimmed] : []
+}
+
+function RoleIcon({ role }: { role: string }) {
+  if (role === '主运营') return <Crown className={styles.badgeIcon} aria-hidden="true" />
+  if (role === '助理运营') return <UserCog className={styles.badgeIcon} aria-hidden="true" />
+  if (role === '管理员') return <ShieldCheck className={styles.badgeIcon} aria-hidden="true" />
+  return null
 }
 
 export function ProfileProjectsTab({ operatorNameCandidates }: ProfileProjectsTabProps) {
@@ -61,8 +53,7 @@ export function ProfileProjectsTab({ operatorNameCandidates }: ProfileProjectsTa
     setError(null)
     fetchManagedProjectsCached<ProjectItem[]>(session, true)
       .then((data) => {
-        if (cancelled) return
-        setItems(data)
+        if (!cancelled) setItems(data)
       })
       .catch((err: unknown) => {
         if (cancelled) return
@@ -77,18 +68,14 @@ export function ProfileProjectsTab({ operatorNameCandidates }: ProfileProjectsTa
 
   if (error && !items) {
     return (
-      <div className="rounded-none border border-dashed border-destructive/40 bg-destructive/5 p-6 text-sm text-destructive">
+      <div className={styles.errorPanel} role="alert">
         {error}
       </div>
     )
   }
 
-  if (items === null) {
-    return <ProfileProjectsSkeleton />
-  }
+  if (items === null) return <ProfileProjectsSkeleton />
 
-  // Admin users see every project because the backend already returns the full
-  // list when ``X-Is-Admin`` is true.
   const isAdmin = session?.user?.roleType === 'admin'
   const visibleItems = isAdmin
     ? items
@@ -96,118 +83,86 @@ export function ProfileProjectsTab({ operatorNameCandidates }: ProfileProjectsTa
 
   if (visibleItems.length === 0) {
     return (
-      <div className="rounded-none border border-dashed border-border/60 bg-term-raised/20 p-8 text-center text-sm text-muted-foreground">
+      <div className={styles.emptyState}>
         暂无可管理的项目。如果你认为自己应该出现在这里，请联系管理员核对运营 / 助理运营名是否一致。
       </div>
     )
   }
 
-  const roleFor = (item: ProjectItem): string | null => {
-    return deriveRole(item, operatorNames)
-  }
-
-  const RoleBadge = ({ role }: { role: string }) => (
-    <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
-      {role === '主运营' && <Crown className="mr-1 h-3 w-3" />}
-      {role === '助理运营' && <UserCog className="mr-1 h-3 w-3" />}
-      {role === '管理员' && <ShieldCheck className="mr-1 h-3 w-3" />}
-      {role}
-    </Badge>
-  )
-
   return (
-    <div className="space-y-2">
-      <DataTableCard>
-        <DataTableCardHeader className="flex flex-wrap items-center justify-between gap-3">
-          <span className="text-sm font-semibold">项目列表</span>
-          <span className="text-xs text-muted-foreground">共 {visibleItems.length} 个项目</span>
-        </DataTableCardHeader>
-        <DataTableCardBody>
-          {/* Desktop */}
-          <div className="hidden md:block">
-            <div className="overflow-x-auto">
-              <Table className="min-w-[860px]">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="sticky left-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-                      项目名
-                    </TableHead>
-                    <TableHead>品牌</TableHead>
-                    <TableHead>店铺地址</TableHead>
-                    <TableHead>等级</TableHead>
-                    <TableHead>状态</TableHead>
-                    <TableHead>我的角色</TableHead>
-                    <TableHead>佣金比例</TableHead>
-                    <TableHead className="w-[80px]" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {visibleItems.map((item) => {
-                    const role = isAdmin ? '管理员' : roleFor(item)
-                    const tierClass = item.project_tier ? TIER_BADGE_CLASS[item.project_tier] : ''
-                    return (
-                      <TableRow key={item.id} className="transition-colors hover:bg-term-raised/40">
-                        <TableCell className="sticky left-0 z-10 bg-background/95 font-medium text-foreground backdrop-blur supports-[backdrop-filter]:bg-background/60">
-                          {item.name}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {item.brand_name || '—'}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {item.store_address || '—'}
-                        </TableCell>
-                        <TableCell>
-                          {item.project_tier ? (
-                            <Badge variant="outline" className={tierClass}>
-                              {item.project_tier}
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={item.is_active ? 'default' : 'secondary'}
-                            className={item.is_active ? '' : 'opacity-70'}
-                          >
-                            {item.is_active ? '启用' : '停用'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {role ? (
-                            <RoleBadge role={role} />
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {formatCommission(item.commission_basis, item.commission_rate)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Link
-                            href={`/dashboard/system/project-info?projectId=${item.id}`}
-                            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                          >
-                            查看
-                            <ExternalLink className="h-3 w-3" />
-                          </Link>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-
-          {/* Mobile */}
-          <ProfileProjectsCard items={visibleItems} isAdmin={isAdmin} roleFor={roleFor} />
-        </DataTableCardBody>
-      </DataTableCard>
+    <div className={styles.projectsArea}>
+      <div className={styles.projectsPanel}>
+        <div className={styles.projectsHeader}>
+          <span className={styles.projectsTitle}>项目列表</span>
+          <span className={styles.projectsCount}>共 {visibleItems.length} 个项目</span>
+        </div>
+        <div className={styles.tableScroll} data-warm-table-scroll>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>项目名</th>
+                <th>品牌</th>
+                <th>店铺地址</th>
+                <th>等级</th>
+                <th>状态</th>
+                <th>我的角色</th>
+                <th>佣金比例</th>
+                <th aria-label="操作" />
+              </tr>
+            </thead>
+            <tbody>
+              {visibleItems.map((item) => {
+                const role = isAdmin ? '管理员' : deriveRole(item, operatorNames)
+                return (
+                  <tr key={item.id}>
+                    <td>{item.name}</td>
+                    <td>{item.brand_name || '—'}</td>
+                    <td>{item.store_address || '—'}</td>
+                    <td>
+                      {item.project_tier ? (
+                        <WarmBadge tone={getTierTone(item.project_tier)}>
+                          {item.project_tier}
+                        </WarmBadge>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td>
+                      <WarmBadge tone={item.is_active ? 'positive' : 'neutral'}>
+                        {item.is_active ? '启用' : '停用'}
+                      </WarmBadge>
+                    </td>
+                    <td>
+                      {role ? (
+                        <WarmBadge tone="accent">
+                          <RoleIcon role={role} />
+                          {role}
+                        </WarmBadge>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td>{formatCommission(item.commission_basis, item.commission_rate)}</td>
+                    <td>
+                      <Link
+                        href={`/dashboard/system/project-info?projectId=${item.id}`}
+                        className={styles.tableLink}
+                      >
+                        查看
+                        <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                      </Link>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       {!isAdmin && operatorNames.length === 0 ? (
-        <p className="text-xs text-term-warn">
-          ⚠ 当前账号未设置姓名（full_name），无法匹配项目运营，列表为空。
+        <p className={styles.warning}>
+          当前账号未设置姓名（full_name），无法匹配项目运营，列表为空。
         </p>
       ) : null}
     </div>

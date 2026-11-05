@@ -1,40 +1,31 @@
 'use client'
 
-import { Skeleton } from '@/components/ui/skeleton'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { TableSkeletonRows } from '@/components/ui/table-skeleton'
+import styles from '../profile-warm.module.css'
+
+function SkeletonLine({ width }: { width: string }) {
+  return <span className={styles.skeletonLine} style={{ width }} aria-hidden="true" />
+}
 
 export function ProfileInfoSkeleton() {
   return (
-    <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-      <div className="space-y-2 md:col-span-2">
-        <Skeleton className="h-3 w-12" />
-        <Skeleton className="h-10 w-full" />
+    <div className={styles.form} aria-busy="true" aria-label="正在加载个人资料">
+      <div className={`${styles.field} ${styles.fieldFull}`}>
+        <SkeletonLine width="48px" />
+        <span className={`${styles.skeleton} ${styles.skeletonInput}`} aria-hidden="true" />
       </div>
-      <div className="space-y-2">
-        <Skeleton className="h-3 w-16" />
-        <Skeleton className="h-10 w-full" />
+      <div className={styles.field}>
+        <SkeletonLine width="64px" />
+        <span className={`${styles.skeleton} ${styles.skeletonInput}`} aria-hidden="true" />
       </div>
-      <div className="space-y-2">
-        <Skeleton className="h-3 w-16" />
-        <Skeleton className="h-10 w-full" />
+      <div className={styles.field}>
+        <SkeletonLine width="64px" />
+        <span className={`${styles.skeleton} ${styles.skeletonInput}`} aria-hidden="true" />
       </div>
-      <div className="space-y-2 md:col-span-2">
-        <Skeleton className="h-3 w-24" />
-        <Skeleton className="h-10 w-full" />
-      </div>
-      <div className="grid grid-cols-1 gap-4 md:col-span-2 md:grid-cols-3">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="rounded-none border border-term-border bg-term-raised p-3">
-            <Skeleton className="h-3 w-16" />
-            <Skeleton className="mt-2 h-5 w-24" />
+      <div className={styles.statsGrid}>
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div key={index} className={styles.statCard}>
+            <SkeletonLine width="64px" />
+            <span className={`${styles.skeleton} ${styles.skeletonLine} ${styles.skeletonMetric}`} aria-hidden="true" />
           </div>
         ))}
       </div>
@@ -44,26 +35,19 @@ export function ProfileInfoSkeleton() {
 
 export function ProfileAvatarSkeleton() {
   return (
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-[200px_1fr]">
-      <div className="flex flex-col items-center gap-3">
-        <Skeleton className="h-40 w-40 rounded-none" />
-        <Skeleton className="h-3 w-24" />
+    <div className={styles.avatarLayout} aria-busy="true" aria-label="正在加载头像设置">
+      <div className={styles.avatarColumn}>
+        <span className={`${styles.skeleton} ${styles.skeletonAvatar}`} aria-hidden="true" />
+        <SkeletonLine width="96px" />
       </div>
-      <div className="space-y-4">
-        <div className="rounded-none border border-term-border bg-term-raised p-4">
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="mt-2 h-3 w-full" />
-          <div className="mt-3 flex gap-2">
-            <Skeleton className="h-9 w-24" />
-            <Skeleton className="h-9 w-20" />
-            <Skeleton className="h-9 w-24" />
+      <div className={styles.avatarControls}>
+        <div className={styles.subPanel}>
+          <SkeletonLine width="96px" />
+          <span className={`${styles.skeleton} ${styles.skeletonLine} ${styles.skeletonWide}`} aria-hidden="true" />
+          <div className={styles.buttonRow}>
+            <span className={`${styles.skeleton} ${styles.skeletonButton}`} aria-hidden="true" />
+            <span className={`${styles.skeleton} ${styles.skeletonButton}`} aria-hidden="true" />
           </div>
-        </div>
-        <div className="rounded-none border border-term-border bg-term-panel p-4">
-          <Skeleton className="h-4 w-20" />
-          <Skeleton className="mt-2 h-3 w-full" />
-          <Skeleton className="mt-1 h-3 w-5/6" />
-          <Skeleton className="mt-1 h-3 w-4/6" />
         </div>
       </div>
     </div>
@@ -72,24 +56,15 @@ export function ProfileAvatarSkeleton() {
 
 export function ProfileProjectsSkeleton() {
   return (
-    <div className="overflow-hidden rounded-none border border-term-border">
-      <div className="bg-term-raised px-4 py-3">
-        <Skeleton className="h-3 w-32" />
+    <div className={styles.projectsPanel} aria-busy="true" aria-label="正在加载项目列表">
+      <div className={styles.projectsHeader}>
+        <SkeletonLine width="96px" />
       </div>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            {Array.from({ length: 7 }).map((_, i) => (
-              <TableHead key={i}>
-                <Skeleton className="h-3 w-16" />
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          <TableSkeletonRows columns={7} rows={5} />
-        </TableBody>
-      </Table>
+      <div className={styles.skeletonTable} aria-hidden="true">
+        {Array.from({ length: 5 }).map((_, index) => (
+          <span key={index} className={styles.skeletonTableRow} />
+        ))}
+      </div>
     </div>
   )
 }
