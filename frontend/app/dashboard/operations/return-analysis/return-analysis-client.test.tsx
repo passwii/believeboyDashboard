@@ -555,6 +555,43 @@ describe('ReturnAnalysisClient header 化渲染契约（BLF-834 / operations hea
     await vi.waitFor(() => expect(capturedRefreshLoading).toBe(false))
   })
 
+  it('刷新进度条位于合法 tbody 行内，table 直接子节点不含裸 div', async () => {
+    const { container } = render(<ReturnAnalysisClient />)
+    await screen.findByText('SKU-001')
+
+    let resolveFetch: ((value: unknown) => void) | undefined
+    vi.mocked(fetchOpsJsonCached).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFetch = resolve
+        })
+    )
+
+    await act(async () => {
+      capturedRefreshHandler?.()
+    })
+
+    const progressRow = await screen.findByTestId('refresh-progress-row')
+    const table = progressRow.closest('table')
+    expect(table).not.toBeNull()
+    expect(
+      Array.from(table!.children).some((child) => child.tagName.toLowerCase() === 'div')
+    ).toBe(false)
+    expect(progressRow.parentElement?.tagName).toBe('TBODY')
+    expect(progressRow.querySelector('td[colspan="10"]')).not.toBeNull()
+
+    const track = progressRow.querySelector('[data-warm-progress]')
+    const indicator = screen.getByTestId('refresh-progress-indicator')
+    expect(track).toHaveClass('warm-ledger-table-progress-track')
+    expect(track).toHaveAttribute('data-warm-tone', 'accent')
+    expect(indicator).toHaveClass('warm-ledger-table-progress-bar')
+    expect(indicator).toHaveClass('animate-shimmer')
+
+    await act(async () => {
+      resolveFetch?.(returnPayload())
+    })
+  })
+
   it('空 ranking_rows 时展示空态占位而非崩溃', async () => {
     vi.mocked(fetchOpsJsonCached).mockResolvedValueOnce(
       returnPayload({ ranking_rows: [] }) as never

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
-import type { ComponentProps } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import { DateRange } from 'react-day-picker'
 import {
   Boxes,
@@ -81,7 +81,6 @@ import { getCountryLabel } from '@/lib/country'
 import { cn } from '@/lib/utils'
 import { downloadBlob } from '@/lib/download-blob'
 import { useSmoothRefresh } from '@/hooks/use-smooth-refresh'
-import { RefreshProgressBar } from '@/components/ui/refresh-progress-bar'
 import { RAW_DISPLAY_LIMIT, RETURN_RAW_COLUMNS, type ReturnRawRow } from './return-raw-columns'
 import styles from './return-analysis-warm.module.css'
 import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
@@ -385,6 +384,73 @@ function WarmTable({
         {children}
       </Table>
     </div>
+  )
+}
+
+function WarmProgressTableBody({
+  refreshing,
+  colSpan,
+  children,
+}: {
+  refreshing: boolean
+  colSpan: number
+  children: ReactNode
+}) {
+  return (
+    <TableBody aria-busy={refreshing || undefined}>
+      {refreshing ? (
+        <TableRow
+          className={cn(styles.progressRow, 'warm-ledger-table-progress-row')}
+          data-testid="refresh-progress-row"
+          data-warm-progress-row="return-analysis"
+        >
+          <TableCell colSpan={colSpan} className={styles.progressCell}>
+            <WarmProgressIndicator />
+          </TableCell>
+        </TableRow>
+      ) : null}
+      {children}
+    </TableBody>
+  )
+}
+
+function WarmProgressIndicator() {
+  return (
+    <div
+      className={cn(styles.progressTrack, 'warm-ledger-table-progress-track')}
+      data-warm-progress="return-analysis"
+      data-warm-tone="accent"
+      role="progressbar"
+      aria-label="正在刷新退货分析数据"
+    >
+      <div
+        className={cn(
+          styles.progressBar,
+          'warm-ledger-table-progress-bar',
+          'animate-shimmer'
+        )}
+        data-testid="refresh-progress-indicator"
+      />
+    </div>
+  )
+}
+
+function WarmProgressRegion({
+  refreshing,
+  children,
+}: {
+  refreshing: boolean
+  children: ReactNode
+}) {
+  return (
+    <>
+      {refreshing ? (
+        <div className={styles.progressStandalone}>
+          <WarmProgressIndicator />
+        </div>
+      ) : null}
+      <div aria-busy={refreshing || undefined}>{children}</div>
+    </>
   )
 }
 
@@ -1108,10 +1174,9 @@ export default function ReturnAnalysisPage() {
                         <TableHead className="text-right">最慢</TableHead>
                       </TableRow>
                     </TableHeader>
-                    <RefreshProgressBar
+                    <WarmProgressTableBody
                       refreshing={isRefreshing}
-                      as="tbody"
-                      className="[&_tr:last-child]:border-b-0"
+                      colSpan={10}
                     >
                       {showSkeleton ? (
                         Array.from({ length: 5 }).map((_, i) => (
@@ -1196,7 +1261,7 @@ export default function ReturnAnalysisPage() {
                           </TableCell>
                         </TableRow>
                       )}
-                    </RefreshProgressBar>
+                    </WarmProgressTableBody>
                   </WarmTable>
                 )}
 
@@ -1213,11 +1278,7 @@ export default function ReturnAnalysisPage() {
                             <TableHead className="text-right">占比</TableHead>
                           </TableRow>
                         </TableHeader>
-                        <RefreshProgressBar
-                          refreshing={isRefreshing}
-                          as="tbody"
-                          className="[&_tr:last-child]:border-b-0"
-                        >
+                        <WarmProgressTableBody refreshing={isRefreshing} colSpan={3}>
                           {data?.reason_rows.length ? (
                             data.reason_rows.map((row) => (
                               <TableRow key={row.reason}>
@@ -1233,7 +1294,7 @@ export default function ReturnAnalysisPage() {
                           ) : (
                             <EmptyTableState colSpan={3} message="暂无退货原因数据" />
                           )}
-                        </RefreshProgressBar>
+                        </WarmProgressTableBody>
                       </WarmTable>
 
                       {/* Pie Chart */}
@@ -1395,11 +1456,7 @@ export default function ReturnAnalysisPage() {
                             <TableHead className="text-right">占比</TableHead>
                           </TableRow>
                         </TableHeader>
-                        <RefreshProgressBar
-                          refreshing={isRefreshing}
-                          as="tbody"
-                          className="[&_tr:last-child]:border-b-0"
-                        >
+                        <WarmProgressTableBody refreshing={isRefreshing} colSpan={3}>
                           {data?.disposition_rows.length ? (
                             data.disposition_rows.map((row) => (
                               <TableRow key={row.detailed_disposition}>
@@ -1419,7 +1476,7 @@ export default function ReturnAnalysisPage() {
                           ) : (
                             <EmptyTableState colSpan={3} message="暂无商品状态数据" />
                           )}
-                        </RefreshProgressBar>
+                        </WarmProgressTableBody>
                       </WarmTable>
 
                       {data?.disposition_rows && data.disposition_rows.length > 0 && (
@@ -1445,11 +1502,7 @@ export default function ReturnAnalysisPage() {
                             <TableHead className="text-right">占比</TableHead>
                           </TableRow>
                         </TableHeader>
-                        <RefreshProgressBar
-                          refreshing={isRefreshing}
-                          as="tbody"
-                          className="[&_tr:last-child]:border-b-0"
-                        >
+                        <WarmProgressTableBody refreshing={isRefreshing} colSpan={3}>
                           {data?.status_rows.length ? (
                             data.status_rows.map((row) => (
                               <TableRow key={row.status}>
@@ -1469,7 +1522,7 @@ export default function ReturnAnalysisPage() {
                           ) : (
                             <EmptyTableState colSpan={3} message="暂无库存状态数据" />
                           )}
-                        </RefreshProgressBar>
+                        </WarmProgressTableBody>
                       </WarmTable>
 
                       {data?.status_rows && data.status_rows.length > 0 && (
@@ -1495,11 +1548,7 @@ export default function ReturnAnalysisPage() {
                           <TableHead>顾客评论</TableHead>
                         </TableRow>
                       </TableHeader>
-                      <RefreshProgressBar
-                        refreshing={isRefreshing}
-                        as="tbody"
-                        className="[&_tr:last-child]:border-b-0"
-                      >
+                      <WarmProgressTableBody refreshing={isRefreshing} colSpan={4}>
                         {data?.feedback_rows.length ? (
                           data.feedback_rows.slice(0, 50).map((row, index) => (
                             <TableRow key={`${row.order_id}-${index}`}>
@@ -1523,7 +1572,7 @@ export default function ReturnAnalysisPage() {
                         ) : (
                           <EmptyTableState colSpan={4} message="暂无顾客反馈数据" />
                         )}
-                      </RefreshProgressBar>
+                      </WarmProgressTableBody>
                     </WarmTable>
                   </div>
                 )}
@@ -1575,10 +1624,9 @@ export default function ReturnAnalysisPage() {
                             ))}
                           </TableRow>
                         </TableHeader>
-                        <RefreshProgressBar
+                        <WarmProgressTableBody
                           refreshing={isRefreshing}
-                          as="tbody"
-                          className="[&_tr:last-child]:border-b-0"
+                          colSpan={RETURN_RAW_COLUMNS.length}
                         >
                           {rawNeedsMainData ? (
                             <EmptyTableState
@@ -1616,7 +1664,7 @@ export default function ReturnAnalysisPage() {
                               message="所选周期无原始退货数据"
                             />
                           )}
-                        </RefreshProgressBar>
+                        </WarmProgressTableBody>
                       </WarmTable>
                     )}
                   </div>
@@ -1639,7 +1687,7 @@ export default function ReturnAnalysisPage() {
                         ))}
                       </div>
                     ) : (
-                      <RefreshProgressBar refreshing={isRefreshing}>
+                      <WarmProgressRegion refreshing={isRefreshing}>
                         {data?.summary_text ? (
                           <div className="space-y-4">
                             {/* Text Summary */}
@@ -1747,7 +1795,7 @@ export default function ReturnAnalysisPage() {
                         ) : (
                           <EmptyTableState colSpan={1} message="暂无总结数据" />
                         )}
-                      </RefreshProgressBar>
+                      </WarmProgressRegion>
                     )}
                   </div>
                 )}

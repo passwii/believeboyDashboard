@@ -192,6 +192,40 @@
   background: var(--warm-ledger-color-raised);
 }
 
+.progressRow {
+  background: var(--warm-ledger-color-panel);
+}
+
+.progressCell {
+  height: 2px;
+  padding: 0;
+  border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+}
+
+.progressTrack {
+  width: 100%;
+  height: 2px;
+  overflow: hidden;
+  background: var(--warm-ledger-color-raised);
+}
+
+.progressBar {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    var(--warm-ledger-color-accent-soft),
+    var(--warm-ledger-color-accent),
+    var(--warm-ledger-color-accent-soft)
+  );
+}
+
+.progressStandalone {
+  margin-bottom: var(--warm-ledger-space-3);
+  overflow: hidden;
+  border-radius: 999px;
+}
+
 .chartPanel {
   min-width: 0;
   padding: var(--warm-ledger-space-3);
