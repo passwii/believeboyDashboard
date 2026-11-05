@@ -63,28 +63,12 @@ function OfficeOverview({
   const failed = employees.filter((employee) => employee.display_status === 'FAILED').length
   const todayTotal = employees.reduce((sum, employee) => sum + employee.today_done, 0)
 
-  if (presentation) {
-    return (
-      <div
-        className={
-          large
-            ? 'flex flex-wrap items-center gap-x-4 gap-y-1 text-lg text-muted-foreground'
-            : 'flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground'
-        }
-      >
-        <span>🟢 在岗 {working}</span>
-        {busy > 0 && <span>🔥 忙碌 {busy}</span>}
-        {pausing > 0 && <span>🍵 收尾 {pausing}</span>}
-        {idle > 0 && <span>💤 待命 {idle}</span>}
-        {offline > 0 && <span>🌙 离线 {offline}</span>}
-        {failed > 0 && <span className="text-destructive">⚠️ 失败 {failed}</span>}
-        <span className="border-l border-border pl-4">今日合计完成 {todayTotal} 件</span>
-      </div>
-    )
-  }
-
   return (
-    <section className={styles.panel} aria-label="虚拟办公室概览">
+    <section
+      className={`${styles.panel} ${presentation ? styles.overviewPresentation : ''}`}
+      aria-label="虚拟办公室概览"
+      data-presentation={presentation ? 'true' : undefined}
+    >
       <div className={styles.overview}>
         <div className={styles.overviewGroup}>
           <span className={styles.overviewItem} data-status="WORKING">
@@ -116,7 +100,11 @@ function OfficeOverview({
             </span>
           ) : null}
         </div>
-        <span className={styles.overviewToday}>今日合计完成 {todayTotal} 件</span>
+        <span
+          className={`${styles.overviewToday} ${large || presentation ? styles.overviewTodayLarge : ''}`}
+        >
+          今日合计完成 {todayTotal} 件
+        </span>
       </div>
     </section>
   )
@@ -171,51 +159,58 @@ export default function DigitalOfficePage() {
 
   if (isPresentation) {
     return (
-      <div
-        className="min-h-screen bg-background p-8 text-foreground"
+      <main
+        className={`${styles.presentationPage} warm-ledger`}
         data-office-presentation="true"
+        data-warm-surface="warm-ledger"
       >
-        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <header className={styles.presentationHeader}>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">虚拟办公室</h1>
-            <p className="mt-1 text-sm text-muted-foreground">{clock}</p>
+            <h1 className={styles.presentationTitle}>虚拟办公室</h1>
+            <p className={styles.presentationClock}>{clock}</p>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-muted-foreground">
+          <div className={styles.presentationControls}>
+            <span className={styles.presentationStatus}>
               {connected ? '🟢 实时同步中' : '🔌 连接中…'}
             </span>
             <button
+              type="button"
               onClick={exitPresentation}
-              className="min-h-[44px] rounded-none border border-term-border bg-term-bg px-3 py-1.5 font-mono text-xs text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text sm:min-h-[auto]"
+              className={styles.presentationExit}
             >
               ESC 退出
             </button>
           </div>
-        </div>
+        </header>
 
         {employees.length > 0 && (
-          <div className="mb-6">
+          <div className={styles.presentationOverview}>
             <OfficeOverview employees={employees} large presentation />
           </div>
         )}
 
         <OfficeChatterTicker feed={chatterFeed} presentation />
 
-        <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2 2xl:grid-cols-3">
+        <div className={styles.presentationGrid}>
           {sorted.map((employee) => (
-            <div key={employee.employee_id} className="scale-[1.02]">
+            <div key={employee.employee_id}>
               <OfficeBadge employee={employee} presentation />
             </div>
           ))}
         </div>
 
         <OfficeSpotlightToast feed={chatterFeed} presentation />
-      </div>
+      </main>
     )
   }
 
   return (
-    <div className={styles.officePage} data-warm-digital-office="true" aria-busy={refreshing || undefined}>
+    <div
+      className={`${styles.officePage} warm-ledger`}
+      data-warm-digital-office="true"
+      data-warm-surface="warm-ledger"
+      aria-busy={refreshing || undefined}
+    >
       <div className={styles.officeToolbar}>
         <span className={styles.connectionState}>
           <span
