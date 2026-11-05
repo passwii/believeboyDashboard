@@ -365,7 +365,7 @@ export function SecondaryHeaderSlotMount({
 /**
  * 移动端筛选条挂载点（正文顶部）。
  *
- * BLF-933 · Stage 1 基础设施：TerminalShell 在 main 顶部渲染此容器（`md:hidden`，
+ * BLF-933 · Stage 1 基础设施：Warm Ledger 路由框架在 main 顶部渲染此容器（`md:hidden`，
  * 仅 <768px 可见），页面在 `isMobile` 时经 `useMobileFilterStrip` portal 进此处，
  * 把筛选控件从 header 中段（`hidden md:flex` 的 HeaderSlotMount）下迁到正文顶部。
  */

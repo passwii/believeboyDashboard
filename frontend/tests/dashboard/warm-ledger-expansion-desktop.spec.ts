@@ -6,6 +6,16 @@ const VIEWPORT = { width: 1440, height: 900 } as const
 const STAGE_INSET = 8
 
 const WARM_ROUTES = [
+  '/dashboard/operations/daily-analysis',
+  '/dashboard/operations/portfolio-overview',
+  '/dashboard/operations/inventory-analysis',
+  '/dashboard/operations/inventory-ledger',
+  '/dashboard/operations/shipping-plan',
+  '/dashboard/operations/shipment-management',
+  '/dashboard/operations/sku-info',
+  '/dashboard/reports/order-info',
+  '/dashboard/reports/product-analysis',
+  '/dashboard/reports/monthly-report/display',
   '/dashboard/finance/platform-revenue',
   '/dashboard/finance/exchange-rate',
   '/dashboard/finance/vat-invoice',
@@ -20,6 +30,8 @@ const WARM_ROUTES = [
   '/dashboard/crm/tasks',
   '/dashboard/crm/audit',
   '/dashboard/crm/settings',
+  '/dashboard/crm',
+  '/dashboard/crm/workbench',
   '/dashboard/ai/insights',
   '/dashboard/ai/ad-analysis',
   '/dashboard/ai/inventory-health',
@@ -41,6 +53,7 @@ const WARM_ROUTES = [
   '/dashboard/system/logs',
   '/dashboard/system/operator-management',
   '/dashboard/system/project-info',
+  '/dashboard/finance/vat-invoices',
   '/dashboard/reports/auto-upload',
   '/dashboard/reports/monthly-report/generate',
   '/dashboard/reports/monthly-report/reconcile',
@@ -86,6 +99,10 @@ const WARM_ROUTES = [
 ] as const
 
 const REDIRECT_TARGETS: Partial<Record<(typeof WARM_ROUTES)[number], string>> = {
+  '/dashboard/crm': '/dashboard/crm/customers',
+  '/dashboard/crm/workbench': '/dashboard/crm/customers',
+  '/dashboard/finance/vat-invoices': '/dashboard/finance/vat-invoice',
+  '/dashboard/reports/pricing-calculation': '/dashboard/reports/pricing-calculation/new-product',
   '/dashboard/reports/report-reconciliation': '/dashboard/reports/monthly-report/reconcile',
   '/dashboard/advertising/ad-analysis': '/dashboard/advertising/ad-analysis/overview',
 }
@@ -206,6 +223,31 @@ function genericApiPayload(pathname: string) {
       has_next: false,
     }
   }
+  if (normalizedPath.endsWith('/inventory-analysis')) {
+    return {
+      project_id: 1,
+      project_name: 'V4 Fixture Store',
+      country: 'US',
+      report_date: '2026-11-05',
+      summary: {
+        sku_count: 0,
+        out_of_stock_count: 0,
+        aging_sku_count: 0,
+        over_aged_sku_count: 0,
+        total_available_qty: 0,
+        total_age_0_90_qty: 0,
+        total_age_91_180_qty: 0,
+        total_age_181_270_qty: 0,
+        total_age_271_365_qty: 0,
+        total_age_365_plus_qty: 0,
+        action_type_count: 0,
+      },
+      action_options: [],
+      items: [],
+      shipment_columns: [],
+      shipment_column_totals: {},
+    }
+  }
   if (normalizedPath.includes('/seasonal-replenishment-analysis')) {
     return {
       items: [],
@@ -269,6 +311,73 @@ function genericApiPayload(pathname: string) {
   }
   if (normalizedPath.includes('/product-analysis/weekly')) {
     return []
+  }
+  if (normalizedPath.includes('/api/v1/ad-analysis/')) {
+    const tab = normalizedPath.split('/').at(-1)
+    if (tab === 'overview') {
+      return {
+        project_id: 1,
+        country: 'US',
+        metrics: [],
+        issue_cards: [],
+        narrative_sections: [],
+        comparison: null,
+        top_campaigns: [],
+        top_products: [],
+        top_waste_terms: [],
+        trend_summary: [],
+        top_cross_sell_products: [],
+      }
+    }
+    if (tab === 'time-trend') {
+      return { project_id: 1, country: 'US', summary: [], comparison: null }
+    }
+    if (tab === 'purchased-products') {
+      return { project_id: 1, country: 'US', items: [] }
+    }
+    if (tab === 'products' || tab === 'targets') {
+      return { project_id: 1, country: 'US', summary_cards: [], items: [] }
+    }
+    return {
+      project_id: 1,
+      country: 'US',
+      summary_cards: [],
+      narrative_sections: [],
+      items: [],
+    }
+  }
+  if (normalizedPath.includes('/monthly-reports/financial-series')) {
+    return {
+      project_id: 1,
+      project_name: 'V4 Fixture Store',
+      start_month: '2026-01',
+      end_month: '2026-11',
+      rows: [],
+      trend: {
+        income_total_sum: 0,
+        expense_total_sum: 0,
+        amazon_pay_back_sum: 0,
+        net_amount_sum: 0,
+        points: [],
+      },
+    }
+  }
+  if (normalizedPath.endsWith('/api/ai-chat/conversations')) {
+    return []
+  }
+  if (normalizedPath.includes('/shipping-plan/shipment-history')) {
+    return {
+      project_id: 1,
+      country: 'US',
+      etd_from: '2025-11-01',
+      etd_to: '2026-11-05',
+      months: [],
+      sales_months: [],
+      missing_etd_shipment_count: 0,
+      missing_etd_quantity: 0,
+      included_statuses: [],
+      date_basis: 'ETD',
+    }
   }
   if (normalizedPath.includes('/notifications')) {
     return { items: [], unread_count: 0, unreadCount: 0 }
@@ -356,7 +465,19 @@ async function expectDesktopWindowGeometry(page: Page) {
     .toBe(true)
 }
 
-test.describe('V4 Warm Ledger desktop expansion matrix', () => {
+test.describe('V4 Warm Ledger dashboard desktop matrix', () => {
+  test('dashboard home keeps the compact desktop canvas', async ({ page, context }) => {
+    await page.setViewportSize(VIEWPORT)
+    await addBLF611FixtureAuth(context)
+    await installApiFixtures(page)
+
+    const response = await page.goto('/dashboard', { waitUntil: 'domcontentloaded' })
+    expect(response?.ok(), '/dashboard should return a successful document').toBe(true)
+    await expect(page.locator('.warm-ledger'), '/dashboard Warm surface').toBeVisible()
+    await expect(page.locator('.warm-ledger__app-window'), '/dashboard app window').toBeVisible()
+    await expectDesktopWindowGeometry(page)
+  })
+
   test('Office presentation mode bypasses the Warm app frame', async ({ page, context }) => {
     await page.setViewportSize(VIEWPORT)
     await addBLF611FixtureAuth(context)
@@ -371,7 +492,7 @@ test.describe('V4 Warm Ledger desktop expansion matrix', () => {
     await expect(page.locator('.warm-ledger__app-window')).toHaveCount(0)
   })
 
-  test('all C5-C8 routes keep the compact desktop canvas', async ({ page, context }) => {
+  test('all routed dashboard pages keep the compact desktop canvas', async ({ page, context }) => {
     test.setTimeout(480_000)
     await page.setViewportSize(VIEWPORT)
     await addBLF611FixtureAuth(context)
@@ -418,7 +539,7 @@ test.describe('V4 Warm Ledger desktop expansion matrix', () => {
     for (const route of STANDALONE_ROUTES) {
       const response = await page.goto(route, { waitUntil: 'domcontentloaded' })
       expect(response?.ok(), `${route} should return a successful document`).toBe(true)
-      await expect(page.locator('.warm-ledger'), `${route} Warm surface`).toBeVisible()
+      await expect(page.getByTestId('warm-standalone'), `${route} Warm surface`).toBeVisible()
       await expect(page.locator('.warm-ledger__app-window'), `${route} app window`).toHaveCount(0)
     }
   })

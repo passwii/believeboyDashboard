@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
  *
  * 三态配方（详见 docs/FRONTEND-DESIGN-SPEC.md §8.4）：
  * - 空态 → `EmptyState` / `EmptyTableState` / `EmptyChartState`（ui/empty-state.tsx）
- * - 加载 → `page-skeletons.tsx` / `table-skeleton.tsx` 骨架
+ * - 加载 → `warm-route-loading.tsx` / `table-skeleton.tsx` 骨架
  * - 错误 → 本组件（页面级 `ErrorState`，表格内 `ErrorState colSpan={n}`）
  *
  * 用法：

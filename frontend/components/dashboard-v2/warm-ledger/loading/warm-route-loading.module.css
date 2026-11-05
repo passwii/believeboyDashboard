@@ -2,6 +2,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--warm-ledger-space-4);
+  min-width: 0;
   color: var(--warm-ledger-color-text);
 }
 
@@ -27,18 +28,24 @@
   height: 32px;
 }
 
-.grid {
+.grid,
+.statGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--warm-ledger-space-3);
 }
 
-.card {
-  min-height: 132px;
-  padding: var(--warm-ledger-space-5);
+.card,
+.statCard,
+.tablePanel {
   border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
   border-radius: var(--warm-ledger-radius-panel, 18px);
   background: var(--warm-ledger-color-panel);
+}
+
+.card {
+  min-height: 132px;
+  padding: var(--warm-ledger-space-5);
 }
 
 .wideCard {
@@ -67,4 +74,57 @@
   width: 100%;
   height: 240px;
   border-radius: var(--warm-ledger-radius-panel, 18px);
+}
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.75fr) minmax(0, 1.5fr);
+  gap: var(--warm-ledger-space-4);
+}
+
+.rowBar {
+  width: 100%;
+  height: 44px;
+  margin-bottom: var(--warm-ledger-space-3);
+  border-radius: var(--warm-ledger-radius-control, 12px);
+}
+
+.detailPanelBar {
+  width: 100%;
+  height: 320px;
+  border-radius: var(--warm-ledger-radius-panel, 18px);
+}
+
+.tableLayout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--warm-ledger-space-4);
+  min-width: 0;
+}
+
+.statCard {
+  min-height: 112px;
+  padding: var(--warm-ledger-space-4);
+}
+
+.tablePanel {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.tableRow {
+  display: grid;
+  gap: var(--warm-ledger-space-3);
+  align-items: center;
+  padding: var(--warm-ledger-space-3) var(--warm-ledger-space-4);
+  border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+}
+
+.tableRow:last-child {
+  border-bottom: 0;
+}
+
+.cellBar {
+  width: 100%;
+  height: 12px;
 }

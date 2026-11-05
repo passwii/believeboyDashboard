@@ -52,7 +52,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     document.title = `${pageTitle} | BelieveBoy Dashboard`
   }, [pageTitle])
 
-  // 监听 TerminalShell 派发的登出事件
+  // 监听全局登出事件。
   useEffect(() => {
     const handler = () => {
       void signOut({ callbackUrl: buildLoginCallbackUrl(getCurrentPath()) })
