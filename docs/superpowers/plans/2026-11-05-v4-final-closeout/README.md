@@ -2,6 +2,8 @@
 
 Date: 2026-11-05
 
+Status: complete
+
 > Implementation agents use DeepSeek V4.1 Flash with max reasoning. Domain and final reviewers use Luna with max reasoning. Desktop acceptance is `1440x900`; do not add new page-level mobile behavior.
 
 ## Goal
@@ -66,3 +68,15 @@ These preserve full-screen behavior but must remove Terminal styling and must no
 - Full Vitest, lint, build, mocks/motion gates and range diff check.
 - Desktop Playwright matrix covers every dashboard route, with standalone presentation exceptions checked separately.
 - Final whole-batch Luna/max review.
+
+## Completion
+
+- Integration commit `1d51592b` registered the remaining routes and removed `frontend/components/terminal/terminal-shell.tsx` from the dashboard layout. `4fcb013f` added the header-slot provider required by standalone AI/Digital Display routes.
+- Domain implementations and remediations are recorded above. Final thresholds, constraints, and API contracts remain unchanged; documented security/data follow-ups remain separate.
+- Closeout commits `bf8357ec` and `57872e8c` removed every legacy route-level Terminal skeleton, added the shared static `WarmRouteLoading`, deleted the obsolete `page-skeletons.tsx` / `dashboard-page-loading.tsx` stack, and expanded the Playwright matrix to all page routes.
+- The home loading path now renders inside `WarmLedgerShell`, so `/dashboard` keeps the same Warm token scope and floating-window geometry during route transitions. All other paths reuse the layout-owned Warm route frame without nesting another shell.
+- `WarmRouteLoading` exposes a `role="status"` / `aria-live="polite"` loading announcement while its visual skeleton is hidden from assistive technology.
+- Every dashboard `page.tsx` is covered: 90 Warm framed route entries, 3 Warm standalone routes, `/dashboard` home, and the `office?mode=presentation` exception. Redirect aliases are explicitly followed and asserted.
+- Final verification: `374 files / 2631 tests` passed; `pnpm lint` passed with `0 errors / 8 existing warnings`; production build passed with `97/97` pages and Next TypeScript checks; the full desktop matrix passed `4/4` cases across all routes at `1440x900`.
+- The production-source scan finds no `TerminalShell` import, fallback, or rendered class. Remaining `term-*` references in older page-local adapter CSS target shared inner widgets and are not an alternate dashboard shell; no route can select the V3 shell.
+- Final Luna/max whole-batch gate returned **PASS** at `57872e8c`; both loading-scope findings were closed with no new findings.
