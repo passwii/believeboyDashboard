@@ -90,7 +90,9 @@ describe('AdAnalysisCampaignsClient Header refresh', () => {
     await waitFor(() => expect(screen.getByText('旧结果 $25.00')).toBeInTheDocument())
     const page = document.querySelector('[data-warm-ad-analysis-page="campaigns"]')
     expect(page).not.toBeNull()
-    expect(page?.querySelector('[data-warm-table-scroll="true"]')).not.toBeNull()
+    await waitFor(() => {
+      expect(page?.querySelector('[data-warm-table-scroll="true"]')).not.toBeNull()
+    })
     for (const element of page?.querySelectorAll('*') ?? []) {
       const className = element.getAttribute('class') ?? ''
       expect(className).not.toContain('term-')
