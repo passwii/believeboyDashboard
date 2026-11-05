@@ -1,0 +1,79 @@
+name: Audit VPS project runtime
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+    env:
+      SSH_HOST: ${{ secrets.VPS_HOST }}
+      SSH_USER: root
+
+    steps:
+      - name: Configure SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$VPS_SSH_KEY" > "$HOME/.ssh/believeboy-dashboard"
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/believeboy-dashboard" "$HOME/.ssh/known_hosts"
+
+      - name: Inspect directories, Compose, containers, and services
+        run: |
+          set -euo pipefail
+          ssh -i "$HOME/.ssh/believeboy-dashboard" \
+            -o IdentitiesOnly=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes \
+            "$SSH_USER@$SSH_HOST" \
+            'set -euo pipefail
+             echo "=== host ==="
+             hostname
+             date -Is
+             echo "=== matching directories ==="
+             find /root /opt /srv -maxdepth 4 -type d \
+               \( -iname "*believeboy*" -o -iname "*digital*project*management*" \) \
+               -print 2>/dev/null | while IFS= read -r path; do
+                 if [ -d "$path" ]; then
+                   bytes="$(du -sb "$path" 2>/dev/null | awk "{print \$1}")"
+                   human="$(du -sh "$path" 2>/dev/null | awk "{print \$1}")"
+                   if git -C "$path" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+                     kind="git-checkout"
+                   elif [ -f "$path/docker-compose.yml" ] || [ -f "$path/compose.yml" ] || [ -f "$path/compose.yaml" ]; then
+                     kind="compose-runtime"
+                   else
+                     kind="directory"
+                   fi
+                   printf "%s\t%s\t%s\t%s\n" "$kind" "$human" "$bytes" "$path"
+                 fi
+               done
+             echo "=== compose projects ==="
+             docker compose ls --all
+             echo "=== containers ==="
+             docker ps -a --format "{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}\t{{.Label \"com.docker.compose.project\"}}\t{{.Label \"com.docker.compose.service\"}}"
+             echo "=== related systemd units ==="
+             systemctl list-units --type=service --all --no-legend |
+               grep -iE "believeboy|guitar|digital|project" || true
+             echo "=== disk ==="
+             df -h / | tail -1'
+
+      - name: Probe public project endpoints
+        run: |
+          set -euo pipefail
+          for url in \
+            https://dash.believeboy.com/healthz \
+            https://dash-api.believeboy.com/api/v1/health/live \
+            https://guitar.believeboy.com \
+            https://oa.zikert.com; do
+            code="$(curl -L -sS --max-time 15 -o /dev/null -w '%{http_code}' "$url" || true)"
+            printf '%s\t%s\n' "$code" "$url"
+          done
