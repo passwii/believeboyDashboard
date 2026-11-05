@@ -216,6 +216,87 @@
   font-weight: var(--warm-ledger-font-weight-medium);
 }
 
+.chartFrame {
+  min-width: 0;
+}
+
+.chartLegend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--warm-ledger-space-4);
+  margin-bottom: var(--warm-ledger-space-3);
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-label);
+}
+
+.chartLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--warm-ledger-space-2);
+}
+
+.chartLegendSwatch,
+.chartTooltipSwatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 999px;
+}
+
+.chartCanvas {
+  width: 100%;
+  height: 280px;
+  min-width: 0;
+}
+
+.chartTooltip {
+  display: grid;
+  min-width: 156px;
+  gap: var(--warm-ledger-space-2);
+  padding: var(--warm-ledger-space-3);
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-sans);
+  font-size: var(--warm-ledger-font-size-label);
+  background: var(--warm-ledger-color-panel-strong);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline-strong);
+  border-radius: var(--warm-ledger-radius-inner);
+  box-shadow: var(--warm-ledger-shadow-window);
+}
+
+.chartTooltipLabel {
+  margin: 0;
+  color: var(--warm-ledger-color-text);
+  font-weight: var(--warm-ledger-font-weight-medium);
+}
+
+.chartTooltipRows {
+  display: grid;
+  gap: var(--warm-ledger-space-1);
+}
+
+.chartTooltipRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--warm-ledger-space-4);
+}
+
+.chartTooltipRow > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--warm-ledger-space-2);
+  color: var(--warm-ledger-color-text-muted);
+}
+
+.chartTooltipRow strong {
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-mono);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+  font-weight: var(--warm-ledger-font-weight-medium);
+}
+
 .detailGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

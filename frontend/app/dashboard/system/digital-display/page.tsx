@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Monitor, RefreshCw, X } from 'lucide-react'
-import { AreaChartCard } from '@/components/charts'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { fetchProjectOptionsCached } from '@/lib/project-client-cache'
 
 import styles from './digital-display-warm.module.css'
+import { WarmTrendChart } from './warm-trend-chart'
 
 interface SalesTrendItem {
   date: string
@@ -329,7 +329,7 @@ export default function DigitalDisplayPage() {
 
           <section className={styles.chartCard} aria-label="7日销售趋势">
             <h2 className={styles.chartTitle}>7日销售趋势</h2>
-            <AreaChartCard
+            <WarmTrendChart
               data={displayData.sales_trend as unknown as Array<Record<string, unknown>>}
               xKey="date"
               config={{
@@ -342,7 +342,6 @@ export default function DigitalDisplayPage() {
                   color: 'var(--warm-ledger-color-text-soft)',
                 },
               }}
-              className="h-[280px] w-full"
               yTickFormatter={fmtNum}
               tooltipFormatter={(value, name) => {
                 const numValue = Number(value)

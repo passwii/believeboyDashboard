@@ -1,4 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 
 import { isWarmLedgerRoute } from '@/components/dashboard-v2/warm-ledger/shell/warm-ledger-route-frame'
@@ -67,5 +69,15 @@ describe('DigitalDisplayPage exception', () => {
     await waitFor(() => expect(exitFullscreen).toHaveBeenCalled())
 
     unmount()
+  })
+
+  it('销售趋势使用页面本地 Warm chart，不引用共享 AreaChartCard 默认视觉', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'app/dashboard/system/digital-display/page.tsx'),
+      'utf8'
+    )
+
+    expect(source).toContain('WarmTrendChart')
+    expect(source).not.toContain('AreaChartCard')
   })
 })
