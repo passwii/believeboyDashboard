@@ -148,8 +148,16 @@ describe('AdDataExplorer Warm Ledger 渲染契约', () => {
     const violations = AD_DATA_SOURCE_ROOTS.flatMap((root) =>
       collectSourceFiles(root).flatMap((path) => {
         const source = readFileSync(path, 'utf8')
+        // CSS Module 中允许用 [class~='term-*'] / [class~='rounded-none']
+        // 精确覆盖共享日期弹层的内部终端类；其他位置仍禁止出现。
+        const scanSource = path.endsWith('.css')
+          ? source.replace(
+              /\[class~='(?:(?:[^']*term-[^']*)|rounded-none)'\]/g,
+              '[class~=warm-override]'
+            )
+          : source
         return TERMINAL_VISUAL_RESIDUE.flatMap(({ label, pattern }) =>
-          Array.from(source.matchAll(pattern), (match) => ({
+          Array.from(scanSource.matchAll(pattern), (match) => ({
             path,
             label,
             match: match[0],

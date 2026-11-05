@@ -180,7 +180,10 @@ export function AdDataTopFilters() {
       placeholder="选择日期范围"
       className={cn(styles.headerDateRangeTrigger, className)}
       portalContainer={portalContainer}
-      popoverClassName={styles.headerDatePopover}
+      popoverClassName={cn(
+        'warm-ledger__date-picker-content',
+        styles.headerDatePopover
+      )}
     />
   )
 

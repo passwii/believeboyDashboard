@@ -477,6 +477,45 @@
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.36), var(--warm-ledger-highlight-rest) !important;
 }
 
+.headerDatePopover :global([class~='rounded-none']) {
+  border-radius: var(--warm-ledger-radius-inner) !important;
+}
+
+.headerDatePopover :global([class~='border-term-border']),
+.headerDatePopover :global([class~='border-r']),
+.headerDatePopover :global([class~='border-b']),
+.headerDatePopover :global([class~='border-t']) {
+  border-color: var(--warm-ledger-color-hairline) !important;
+}
+
+.headerDatePopover :global([class~='bg-term-bg']) {
+  background-color: var(--warm-ledger-color-window) !important;
+}
+
+.headerDatePopover :global([class~='bg-term-panel']) {
+  background-color: var(--warm-ledger-color-panel) !important;
+}
+
+.headerDatePopover :global([class~='bg-term-raised']) {
+  background-color: var(--warm-ledger-color-raised) !important;
+}
+
+.headerDatePopover :global([class~='bg-term-hover']) {
+  background-color: var(--warm-ledger-color-raised-hover) !important;
+}
+
+.headerDatePopover :global([class~='text-term-text']) {
+  color: var(--warm-ledger-color-text) !important;
+}
+
+.headerDatePopover :global([class~='text-term-muted']) {
+  color: var(--warm-ledger-color-text-muted) !important;
+}
+
+.headerDatePopover :global([class~='text-term-faint']) {
+  color: var(--warm-ledger-color-text-faint) !important;
+}
+
 .mobileFilterStrip {
   background: var(--warm-ledger-color-panel) !important;
   border-color: var(--warm-ledger-color-hairline) !important;

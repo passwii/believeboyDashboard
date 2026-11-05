@@ -1,8 +1,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 import { stableSession } from '@/test-utils/stable-mocks'
+import styles from './ad-data-explorer.module.css'
 
 const routerMock = vi.hoisted(() => ({
   replace: vi.fn(),
@@ -50,6 +53,11 @@ vi.mock('@/components/terminal/terminal-header-slot', () => ({
 
 import { AdDataTopFilters } from './top-filters'
 
+const CSS_SOURCE = readFileSync(
+  join(process.cwd(), 'components/dashboard/ad-data/ad-data-explorer.module.css'),
+  'utf8'
+)
+
 describe('AdDataTopFilters Warm 筛选', () => {
   beforeEach(() => {
     routerMock.replace.mockClear()
@@ -94,6 +102,10 @@ describe('AdDataTopFilters Warm 筛选', () => {
       screen.getByRole('button', { name: '2026-10-29 ~ 2026-11-04' })
     )
 
+    const popover = document.querySelector('.warm-ledger__date-picker-content')
+    expect(popover).toBeInTheDocument()
+    expect(popover).toHaveClass(styles.headerDatePopover)
+    expect(popover?.className).toContain('warm-ledger__date-picker-content')
     expect(screen.getByText('近7天')).toBeInTheDocument()
     expect(screen.getByText('上个月')).toBeInTheDocument()
     expect(screen.getByText('本年度至今')).toBeInTheDocument()
@@ -102,6 +114,21 @@ describe('AdDataTopFilters Warm 筛选', () => {
     expect(routerMock.replace).toHaveBeenCalledWith(
       '/dashboard/advertising/ad-data?country=US&dateFrom=2026-10-01&dateTo=2026-10-31',
       { scroll: false }
+    )
+  })
+
+  it('日期弹层挂共享 Warm class，并由本地类覆盖内部 term/零圆角视觉', () => {
+    expect(CSS_SOURCE).toContain(
+      ".headerDatePopover :global([class~='rounded-none'])"
+    )
+    expect(CSS_SOURCE).toContain(
+      ".headerDatePopover :global([class~='border-term-border'])"
+    )
+    expect(CSS_SOURCE).toContain(
+      ".headerDatePopover :global([class~='bg-term-panel'])"
+    )
+    expect(CSS_SOURCE).toContain(
+      ".headerDatePopover :global([class~='text-term-text'])"
     )
   })
 
