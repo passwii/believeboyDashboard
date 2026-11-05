@@ -4,7 +4,7 @@ Date: 2026-11-05
 
 Branch: `feat/v4-c8-residual`
 
-Implementation head before documentation closeout: `52d47b734c5b`
+Final code head: `f458441f`
 
 ## Scope
 
@@ -47,7 +47,8 @@ C4 advertising remains deferred. AI Chat, Office presentation, Digital Display, 
 - Migrated inventory replenishment, return analysis, seasonal replenishment, and weekly product analysis.
 - Remediation covered loading/error/empty separation, forced cache bypass on retry, categorical chart colors, contrast, numeric typography, and the return-analysis refresh row.
 - The desktop matrix caught an invalid `<div>` directly under `<table>` from `RefreshProgressBar as="tbody"`. Return Analysis now uses page-local `tbody > tr > td > div` progress markup with Warm tokens and no shared UI change.
-- Luna/max domain review passed after remediation.
+- Return Analysis remediation also covers first-load and Raw Tab lazy-load `aria-busy`/status semantics plus static Warm skeletons. Empty “图表展示区域（可扩展）” placeholders were removed.
+- Luna/max domain and final gates passed after remediation.
 
 ### Operations: Workflow and Navigation
 
@@ -63,7 +64,7 @@ C4 advertising remains deferred. AI Chat, Office presentation, Digital Display, 
 
 ## Verification
 
-- Full Vitest: `364 files / 2616 tests` passed.
+- Full Vitest: `364 files / 2619 tests` passed.
 - `pnpm lint`: `0 errors / 11 existing warnings`.
 - `pnpm build`: passed; Next generated `97/97` static pages and TypeScript completed.
 - `pnpm check:mocks`: 364 test files scanned, 0 findings.
@@ -80,4 +81,4 @@ The visual migration does not claim fixes for the existing security/data finding
 
 ## Final Gate
 
-- [ ] Whole-batch independent Luna/max review passes.
+- [x] Whole-batch independent Luna/max review passed at `f458441f`.

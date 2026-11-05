@@ -190,7 +190,7 @@ Expected: PASS.
 - [x] Full Vitest has no new failures.
 - [x] `pnpm lint`, `pnpm build`, `pnpm check:mocks`, `pnpm check:motion`, and `git diff --check` pass.
 - [x] A 26-route desktop Playwright matrix passes at `1440x900`.
-- [ ] Final whole-batch Luna/max gate passes.
+- [x] Final whole-batch Luna/max gate passes.
 
 ## Residual Follow-Ups
 
