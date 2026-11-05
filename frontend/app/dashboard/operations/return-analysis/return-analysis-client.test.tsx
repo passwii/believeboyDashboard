@@ -644,6 +644,32 @@ describe('ReturnAnalysisClient header 化渲染契约（BLF-834 / operations hea
     expect(busyBody).not.toHaveAttribute('aria-busy', 'true')
   })
 
+  it('Raw Tab 懒加载时 raw table aria-busy + status，完成后移除', async () => {
+    rawHoldPending = true
+    mockParams = { project: '1', country: 'US', tab: 'raw' }
+    const { container } = render(<ReturnAnalysisClient />)
+
+    expect(await screen.findByText('正在加载原始退货数据')).toHaveAttribute(
+      'role',
+      'status'
+    )
+    await vi.waitFor(() => expect(rawRequestCount).toBe(1))
+
+    const table = container.querySelector('[data-warm-table-scroll] table')
+    expect(table).not.toBeNull()
+    const busyBody = table?.querySelector('tbody[aria-busy="true"]')
+    expect(busyBody).not.toBeNull()
+    expect(container.querySelector('[data-warm-skeleton="static"]')).not.toBeNull()
+    expect(container.querySelector('.animate-pulse')).toBeNull()
+
+    await act(async () => {
+      rawReleasePending?.()
+    })
+    expect(await screen.findByText('ORDER-RAW-1')).toBeInTheDocument()
+    await vi.waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument())
+    expect(busyBody).not.toHaveAttribute('aria-busy', 'true')
+  })
+
   it('空 ranking_rows 时展示空态占位而非崩溃', async () => {
     vi.mocked(fetchOpsJsonCached).mockResolvedValueOnce(
       returnPayload({ ranking_rows: [] }) as never

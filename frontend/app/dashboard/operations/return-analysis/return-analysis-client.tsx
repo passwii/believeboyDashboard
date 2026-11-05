@@ -522,6 +522,13 @@ export default function ReturnAnalysisPage() {
 
   // 主分析数据尚未成功返回时，原始 Tab 没有可依赖的周期数据。
   const rawNeedsMainData = !data && !loading && !rawRows && !rawError
+  const isRawTableLoading =
+    activeTab === 'raw' && !!data && !rawError && (rawLoading || !rawRows)
+  const loadingStatus = isInitialDataLoading
+    ? '正在加载退货分析数据'
+    : isRawTableLoading
+      ? '正在加载原始退货数据'
+      : null
 
   useEffect(() => {
     const loadProjects = async () => {
@@ -1044,9 +1051,9 @@ export default function ReturnAnalysisPage() {
       {headerSlotPortal}
       {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
       {mobileFilterStrip}
-      {isInitialDataLoading ? (
+      {loadingStatus ? (
         <p className={styles.visuallyHidden} role="status">
-          正在加载退货分析数据
+          {loadingStatus}
         </p>
       ) : null}
 
@@ -1638,7 +1645,7 @@ export default function ReturnAnalysisPage() {
                         </TableHeader>
                         <WarmProgressTableBody
                           refreshing={showRefreshProgress}
-                          busy={isInitialDataLoading}
+                          busy={isInitialDataLoading || isRawTableLoading}
                           colSpan={RETURN_RAW_COLUMNS.length}
                         >
                           {rawNeedsMainData ? (
