@@ -66,9 +66,10 @@ journalctl -u believeboy-api -f   # 实时日志
 
 ### 方式 1：`git deploy` alias（生产推荐）
 
-`git deploy` 是 `productEnvAgent/deploy.sh` 的 git alias，一次完成 push + 条件 deploy：
+`git deploy` 是 `productEnvAgent/deploy.sh` 的 git alias，一次完成 push + 本地镜像栈发布：
 
-- **触发条件**：当前必须在 `main` 分支；`origin/main..HEAD` 命中 `backend/` 才部署，纯前端/docs/配置改动只推代码（前端由 Vercel 自动部署）。
+- **行为**：当前必须在 `main` 分支；先跑 Alembic 图检查并 push，再执行 `deploy/deploy-local.sh` 构建 Web/API 双镜像并部署统一 Compose。
+- **只推代码**：`PUSH_ONLY=1 git deploy`。
 - **执行流程**：① 校验分支 → ② `git push origin main` → ③ 若命中 backend/，跑 `python productEnvAgent/deploy_vps.py --auto`。
 - **临时跳过 deploy**：`git push origin main`（直接 push，绕开 alias）。
 - **长期关闭**：`git config --unset alias.deploy`。

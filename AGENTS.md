@@ -34,15 +34,12 @@ git rev-list --left-right --count origin/main...HEAD  # 左侧计数为 0，才�
 
 ## Push / 部署规则（重要）
 
-- **用 `git deploy` 推送，部署由 GitHub Actions 执行**（2026-10-15 起，替代本地直连部署）：`git deploy` = 校验 main 分支 + `backend/` 改动时跑迁移图检查 + `git push origin main`；**VPS 部署交给 `.github/workflows/deploy-vps.yml`**（push 后自动跑 `python productEnvAgent/deploy_vps.py --auto`，runner 从公网 SSH `root@145.79.143.98` → `git pull --ff-only` → 停后台单元 → `alembic upgrade head` → 启回 worker/beat → 健康检查）。为什么搬走：本地 IP 可能被 fail2ban 拦、机器可能不在线，且 push 与部署解耦后天然串行（workflow 有 `concurrency: vps-deploy` 锁）。
-- **触发条件**：仅当本次 push 命中 `backend/` 路径才部署（workflow 用 `git diff --name-only $before $sha` 判定，与 `deploy.sh` 口径对齐）；纯前端 / docs / 配置改动只推代码、不碰 VPS（前端在 Vercel 自动部署）。
-- **必须从 main 分支跑**：脚本会检查 `symbolic-ref --short HEAD`，非 main 直接报错退出。
-- **为什么不用 pre-push hook**：pre-push 跑在 push 之前，要触发"push 后 deploy"就得 hook 自己 `git push --no-verify`，结果原始 push 还会再跑一次 → `remote rejected` 噪音。改用显式 `git deploy` 单一 push、可观察、无竞态。
-- **跳过本次部署**：commit message 带 `[skip ci]`（GitHub 内建跳过，workflow 整个不跑）。
-- **查看 / 手动触发 / 只预览**：`gh run list --workflow deploy-vps.yml --limit 3` / `gh workflow run deploy-vps.yml` / `gh workflow run deploy-vps.yml -f dry_run=true`。
-- **本地兜底部署（CI 不可用时）**：`LOCAL_DEPLOY=1 git deploy`，或直接 `python productEnvAgent/deploy_vps.py --auto`（需本机 SSH 可达 VPS）。
-- **deploy 失败怎么办**：代码已在 `origin/main` 但 VPS 未更新；workflow 失败会在 step summary 打出 bad-sha 与回滚命令，照 `productEnvAgent/ROLLBACK.md` 走回滚（`python productEnvAgent/rollback.py --bad-sha <sha> --auto --force`）。重推不会重触发（universe 无新 commit），必须用 `gh workflow run deploy-vps.yml` 重跑。
-- **新机器首次配置 alias / 缺 secret**：`git config alias.deploy '!bash productEnvAgent/deploy.sh'`；CI 侧 secret 为 `VPS_SSH_KEY` / `VPS_KNOWN_HOSTS` / `VPS_HOST`，设置方法见 [docs/REFERENCE.md](./docs/REFERENCE.md) §Git 提交与部署。
+- **本地主发布**：`git deploy` 要求 main 分支，先跑 Alembic 图检查并 `git push origin main`，随后执行 `deploy/deploy-local.sh`；本地构建 Web/API 两个 GHCR 镜像并在 VPS 启动统一 Compose。
+- **VPS 运行边界**：PostgreSQL、Redis、Caddy 是宿主机公共设施，不进入 Dashboard Compose。应用容器使用 `network_mode: host` 访问现有回环端口。
+- **GitHub Actions 仅备用**：`.github/workflows/deploy-dashboard.yml` 只能手动触发，ref 必须是 `main`；旧 `deploy-vps.yml` 和 systemd 自动部署已退役。
+- **只推代码**：`PUSH_ONLY=1 git deploy`。Actions 备用发布：`gh workflow run deploy-dashboard.yml --ref main`。
+- **回滚**：Web/API 镜像成对回滚；数据库 migration 不自动回滚，迁移必须保持向后兼容。运行手册见 `docs/deployment/dashboard-vps-compose.md`。
+- **新机器首次配置 alias / 缺 secret**：`git config alias.deploy '!bash productEnvAgent/deploy.sh'`；CI 侧 secret 为 `VPS_SSH_KEY` / `VPS_KNOWN_HOSTS` / `VPS_HOST` / `NEXTAUTH_SECRET`。
 
 ## 测试规则
 
@@ -53,7 +50,7 @@ git rev-list --left-right --count origin/main...HEAD  # 左侧计数为 0，才�
 | **T0** | 只改 `docs/`、注释或文案，且不改变运行行为 | 不跑 | 不跑 |
 | **T1** | 叶子改动：单个工具函数 / 单个组件，仅影响局部实现，未触发下方 T3 条件 | 目标文件（~8s） | `vitest run <该文件/目录>`（~10s） |
 | **T2** | 局部功能：新增端点 / 新页面，未触发下方 T3 条件 | 目标集 + 该目录回归 | Vitest 目标用例 + 该目录回归 + `pnpm lint` |
-| **T3** | 跨模块 / 高风险：公共 hook、schema、model、**迁移**、权限、共享 utils | **全量（单次；耗时以当次实测为准）+ 失败集对账** | 全量（BLF-1238 已修好：235 文件 / 1660 例 / **~43s**，同机满载约 2 分钟）+ lint；build 交 Vercel |
+| **T3** | 跨模块 / 高风险：公共 hook、schema、model、**迁移**、权限、共享 utils | **全量（单次；耗时以当次实测为准）+ 失败集对账** | 全量（BLF-1238 已修好：235 文件 / 1660 例 / **~43s**，同机满载约 2 分钟）+ lint + `pnpm build` |
 
 **判档优先级：** 表格场景用于初步归类；若与下方条件冲突，按更高档执行，命中任一 T3 条件即升 T3。三项条件是：① 改动跨模块复用的公共符号、共享契约或其行为（用 CodeGraph `callers` / `impact` 确认影响面）；② 改动迁移或权限逻辑；③ 改动 `app/core/config.py` 的配置字段 / 默认值，或 `app/models/*`、`app/schemas/*` 的字段、约束、序列化契约。仅注释 / 文案改动不因此升档。字段级改动对目标集不可见，因此相关行为改动必须全量验证。
 
@@ -63,7 +60,7 @@ git rev-list --left-right --count origin/main...HEAD  # 左侧计数为 0，才�
 - **mock 稳定性机械检查（BLF-1247）**：`cd frontend && pnpm check:mocks`——扫 `frontend/**/*.test.{ts,tsx}`，命中「mock 工厂里内联新建 `useSession.data` / `useNotifications.notify`」即 `exit 1` 并给 `file:line` + 修法（已接进 `pnpm test` 入口，命中则 vitest 不启动）。修法一律用 `frontend/test-utils/stable-mocks.ts` 的 `stableSession()` / `stableNotifications()`；**不要在脚本里加白名单放过**（判据自测在 `frontend/scripts/check-unstable-mocks.test.mjs`）。口径详见 [TESTING.md](./TESTING.md) §机械拦截。
 - **失败集对账（替代基线全量）**：PR 上全量只跑一次并记录失败项；仅对 main 上存在的失败用例文件，在相同命令 / 环境下对账一次，不再跑第二遍全量。PR 与 main 出现相同失败时，记录为既有失败，不误报为本次回归；新增用例无法在 main 对账，需单独复现。若失败不稳定，只定向重跑失败用例确认并记录；修复本次引入的问题，不用 `skip` / `xfail` 隐藏失败。
 - 后端没有 CI（`.github/workflows` 无后端任务），T3 的后端全量仍不能省。若遇到 [backend/tests/README.md](./backend/tests/README.md) 记录的 `PROD_DATABASE_URL` 导入期收集失败，视为测试收集阻塞、不能报全绿；记录具体错误并修复或隔离导入链后再确认覆盖。**不要用 `pytest -n auto`**：共享 `BLF_test` 上 autouse `TRUNCATE` 会让 worker 互相死锁（实测 225 failed / 155 errors）。
-- 命令：后端 `cd backend && pytest`（单个 `pytest tests/path::test_x`）；前端 `pnpm lint` / `pnpm build`（可交 Vercel）/ `vitest run <路径>`（Vitest，jsdom，已放开；`*.test.ts(x)` 放单元断言，组件用 `@testing-library/react`）。
+- 命令：后端 `cd backend && pytest`（单个 `pytest tests/path::test_x`）；前端 `pnpm lint` / `pnpm build` / `vitest run <路径>`（Vitest，jsdom，已放开；`*.test.ts(x)` 放单元断言，组件用 `@testing-library/react`）。
 - **本地数据库测试（BLF-472）**：前后端测试一律在本地完成、不依赖远程 VPS——本地 Postgres（端口 5432）常驻 `BLF`（生产快照，每日与生产拉取同步，数据完备，供集成 / 手动读写 / 真实数据验证）与 `BLF_test`（pytest 隔离库，`scripts/setup_test_db.py` 创建）。pytest 一律走 `BLF_test`，绝不写 `BLF`。详见 [TESTING.md](./TESTING.md)。
 - 新增失败立即修；确认是基线既有失败的，按上面的失败集对账规则记录，不误报为本次回归。新增问题修复并完成对应技术验证后，再走业务测试清单（交用户手动验）。
 

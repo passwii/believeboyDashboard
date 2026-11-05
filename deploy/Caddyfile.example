@@ -11,3 +11,12 @@ dash.believeboy.com {
 		flush_interval -1
 	}
 }
+
+dash-api.believeboy.com {
+	encode zstd gzip
+	header {
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+	reverse_proxy 127.0.0.1:8100
+}

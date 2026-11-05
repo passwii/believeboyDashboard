@@ -72,22 +72,25 @@ python run.py --once     # 单次扫描
 | `believeboy-celery-scheduled.service` | Celery worker（定时报告专用） | `-Q scheduled -c 2 --max-tasks-per-child=50`（Playwright 截图内存隔离） |
 | `believeboy-beat.service` | Celery beat（**必须单实例**） | `-A app.tasks.celery_beat_app beat`，`--schedule=/var/lib/believeboy/celerybeat-schedule` |
 
-> 本 VPS 只部署后端。前端在 Vercel / 外部平台，生产环境变量在平台 dashboard 配置（非 `frontend/.env.local`）。前端构建现已可在本地 / CI / VPS 跑（`pnpm -C frontend build`），但部署目标仍是外部平台。
+> Web、API、两个 Celery worker 与 beat 现在统一运行在 `/opt/believeboy-dashboard` 的 Docker Compose 栈中，使用 GHCR Web/API 双镜像。PostgreSQL、Redis、Caddy 仍是宿主机公共设施。部署细节见 [dashboard-vps-compose.md](./deployment/dashboard-vps-compose.md)。
 
-### 常见操作
+### 历史 systemd 单元（已退役，仅保留作短期回滚）
 ```bash
 systemctl status believeboy-api.service
-sudo systemctl restart believeboy-api.service   # 改 backend 代码必跑
 sudo journalctl -u believeboy-api.service -n 50 --no-pager
-curl -s -o /dev/null -w 'api %{http_code}\n' http://127.0.0.1:8100/docs
-# 改 backend 涉及 DB schema → 先 alembic upgrade head 再 restart
 ```
 
-### 为什么不要 `pkill uvicorn` / `pkill next`
-systemd 会拉起新进程但可能读旧代码 / 旧 `.env`、撞端口，进入 `activating (auto-restart)` 死循环。`systemctl restart` 按 unit 顺序 SIGTERM → 等 `TimeoutStopSec` → `ExecStart` 新进程，端口由 systemd 接管。
+生产检查：
+```bash
+cd /opt/believeboy-dashboard
+docker compose ps
+docker compose logs --tail=100 api web celery celery-scheduled beat
+curl -fsS http://127.0.0.1:8100/api/v1/health/live
+curl -fsS http://127.0.0.1:3200/healthz
+```
 
 ### Mac 本地开发（launchd）
-仓库根 `deploy/launchd/`（Mac 对应物；前端在 Vercel 不起 web）。**DB 现走本地生产快照**（`localhost:5432` 的 `BLF`，BEL-376 起常驻；详见 [TESTING.md](../../TESTING.md#本地生产快照库bel-376-集成--手动读写测试)），`backend/.env` 的 `DATABASE_URL` 已指向它；旧方案曾走远程 VPS（`145.79.143.98:5432`）。改代码一律 `deploy/launchd/bin/restart.sh`。
+仓库根 `deploy/launchd/` 是 Mac 本地开发对应物。**DB 现走本地生产快照**（`localhost:5432` 的 `BLF`，BEL-376 起常驻；详见 [TESTING.md](../../TESTING.md#本地生产快照库bel-376-集成--手动读写测试)），`backend/.env` 的 `DATABASE_URL` 已指向它。
 
 ### 已知坑
 - `ss -ltnp` 在沙箱看不到非自己用户的 socket，用 `journalctl -u <unit> -n 5` + `ps -ef | grep` 双确认。
@@ -191,13 +194,13 @@ cd backend && make lint   # 等价于 ruff check app tests scripts alembic --sta
 | **T0** | 只改 `docs/`、注释或文案，且不改变运行行为 | 不跑 | 不跑 |
 | **T1** | 叶子改动：单个工具函数 / 单个组件，仅影响局部实现，未触发 T3 条件 | 目标文件（~8s） | `vitest run <该文件/目录>`（~10s） |
 | **T2** | 局部功能：新增端点 / 新页面，未触发 T3 条件 | 目标集 + 该目录回归 | Vitest 目标用例 + 该目录回归 + `pnpm lint` |
-| **T3** | 跨模块 / 高风险：公共 hook、schema、model、**迁移**、权限、共享 utils | **全量（单次；耗时以当次实测为准）+ 失败集对账** | 全量（BLF-1238 已修好：235 文件 / 1660 例 / **~43s**，同机满载约 2 分钟）+ lint；build 交 Vercel |
+| **T3** | 跨模块 / 高风险：公共 hook、schema、model、**迁移**、权限、共享 utils | **全量（单次；耗时以当次实测为准）+ 失败集对账** | 全量（BLF-1238 已修好：235 文件 / 1660 例 / **~43s**，同机满载约 2 分钟）+ lint + `pnpm build` |
 
 **E2E 不按 T 档一刀切：** 涉及登录、权限隔离、NextAuth、前后端代理或关键跨服务用户流程时，跑对应 Playwright 用例；纯业务逻辑 / API 行为优先用 pytest 覆盖，不为凑档位盲目跑 E2E。运行前按入口文档准备测试数据库和前后端服务：前端见 [TESTING.md](../TESTING.md)，后端见 [agent_testing README](../backend/scripts/agent_testing/README.md)。前端命令：`cd frontend && pnpm test:ui -- tests/<area>/<name>.spec.ts`；后端 agent E2E：`cd backend && pytest scripts/agent_testing/<test_file>.py -v`。
 
 **为什么第 ③ 条旋钮要单列**：字段级改动对目标集天然不可见。BLF-1237 把 `avatar_max_bytes` 并进了上一行注释，`Settings` 丢字段、生产头像上传 500，而目标集 64 例全绿；且因 main 上同批用例本来就失败（R2 未配置），**失败集合一模一样，回归被完全掩盖**——只有全量跑才暴露。
 
-**前端铁律（BLF-1238 后更新）**：T1/T2 **优先带路径过滤**（`vitest run <路径>`），但**全量 `pnpm test` 已可裸跑**——235 文件 / 1660 例 / **~43s**（本机较空闲）～**~2 分钟**（同机其他 agent 满载，实测 59s / 79s / 124s），T3 才需要。`pnpm build`（30-90s）仍可交 Vercel，本地按需。判「挂住」不看绝对秒数，看是否在推进（见下条）。
+**前端铁律（BLF-1238 后更新）**：T1/T2 **优先带路径过滤**（`vitest run <路径>`），但**全量 `pnpm test` 已可裸跑**——235 文件 / 1660 例 / **~43s**（本机较空闲）～**~2 分钟**（同机其他 agent 满载，实测 59s / 79s / 124s），T3 才需要。`pnpm build` 在 T3 和镜像发布前必须通过。判「挂住」不看绝对秒数，看是否在推进（见下条）。
 
 **卡住判型（BLF-1238 教训）**：跑到 60s 仍无 `Test Files` 汇总 + 某 worker 长时间 100%+ CPU = 某文件**无限渲染循环**（不是「慢」）；`--testTimeout` / `vi.waitFor` 救不了（微任务链饿死计时器，表现为永久挂起而非超时失败）。二分与根因规则见 [TESTING.md](../TESTING.md) §前端单测。
 
@@ -208,7 +211,7 @@ cd backend && make lint   # 等价于 ruff check app tests scripts alembic --sta
 
 **不要用 `pytest -n auto`**：共享 `BLF_test` 上 `tests/api/crm/conftest.py` 的 autouse `TRUNCATE ... RESTART IDENTITY CASCADE` 会让 worker 互相死锁（`psycopg.errors.DeadlockDetected`，实测 225 failed / 155 errors）。曾有一次 10 worker 运行在 5 分 02 秒后因错误提前退出（380 例未完成）；该次结果不能作为有效全量耗时或性能对比。要用并行测试，先做每 worker 独立库，另开任务。
 
-- 前端命令：**按上表选要跑哪条，不是固定顺序**——`vitest run <路径>`（Vitest 单测，T1/T2 主力）、`pnpm lint`（2-5s，T2/T3）、`pnpm build`（30-90s，可交 Vercel）。
+- 前端命令：**按上表选要跑哪条，不是固定顺序**——`vitest run <路径>`（Vitest 单测，T1/T2 主力）、`pnpm lint`（2-5s，T2/T3）、`pnpm build`（T3 与镜像发布）。
 - 后端命令：`cd backend && pytest`（单个 `pytest tests/path/to/test_file.py::test_name`）。新增失败立即修；确认是基线既有失败的，按上面的失败集对账规则记录，不误报为本次回归。
 - 前端单元测试已放开：Vitest（jsdom，配置 `frontend/vitest.config.ts`），`*.test.ts(x)` 放单元断言，组件交互用 `@testing-library/react`；新建纯函数 / 工具模块优先补单测。
 
@@ -247,24 +250,12 @@ cd backend && make lint   # 等价于 ruff check app tests scripts alembic --sta
 
 ### Workflow
 - 推送前：按 §测试规则 的分级跑（**不默认全量**）；前端 T1/T2 优先带路径过滤，全量 `pnpm test` 已可裸跑（BLF-1238 已修，~43s 起）；后端 T3 才跑全量并做失败集对账。
-- 推送 + 部署（2026-10-15 起）：**用 `git deploy` 推送，部署由 GitHub Actions 执行**。
-  - `productEnvAgent/deploy.sh`（本地，`git deploy`）做两件事：① 校验在 main 分支；② `backend/` 改动时先跑 `backend/scripts/check_alembic.py` fail-fast，然后 `git push origin main`。**不再本地直连 SSH 部署**。
-  - `.github/workflows/deploy-vps.yml`（CI，push 到 main 后触发）做部署：先 `git diff --name-only ${{ github.event.before }} ${sha}` 判定是否命中 `backend/`（与 `deploy.sh` 同口径），命中才 runner 从公网 SSH `root@145.79.143.98` 跑 `python productEnvAgent/deploy_vps.py --auto`；`concurrency: vps-deploy` + `cancel-in-progress: false` 保证同一时间只有一条部署路径、排队不取消。
-  - 为什么搬出本地：本机 IP 可能被 fail2ban 拦、机器可能不在线；push 与部署解耦后，本地网络故障不会再造成"代码上了 main、VPS 未更新"。
-
-> **只推代码不部署 / 跳过本次部署**：commit message 带 `[skip ci]`（GitHub 内建跳过，workflow 整个不跑）。
-> - **查看进度 / 手动触发 / 只预览**：`gh run list --workflow deploy-vps.yml --limit 3` / `gh workflow run deploy-vps.yml` / `gh workflow run deploy-vps.yml -f dry_run=true`
-> - **本地兜底部署（CI 不可用时）**：`LOCAL_DEPLOY=1 git deploy`，或直接 `python productEnvAgent/deploy_vps.py --auto`（需本机 SSH 可达 VPS）
-> - **CI 需要的 secrets**（repo: `passwii/believeboyDashboard`）：`VPS_SSH_KEY`（能登录 root 的私钥，写到 runner 的 `~/.ssh/id_ed25519`，`deploy_vps.py` 走系统 ssh 默认私钥名）、`VPS_HOST`、`VPS_KNOWN_HOSTS`（不配则退化 TOFU）。设置：
->   ```bash
->   gh secret set VPS_HOST --repo passwii/believeboyDashboard --body 145.79.143.98
->   gh secret set VPS_SSH_KEY --repo passwii/believeboyDashboard < ~/.ssh/id_ed25519
->   gh secret set VPS_KNOWN_HOSTS --repo passwii/believeboyDashboard \
->     --body "$(ssh-keygen -F 145.79.143.98 | grep -v '^#')"
->   ```
->   建议后续改成 CI 专用密钥（并在 VPS 的 `authorized_keys` 加 `restrict` 选项）而不是个人密钥；轮换方式：把新公钥用一次 workflow 的 SSH 通道追加到 VPS，再替换 `VPS_SSH_KEY`。
-> - **部署失败怎么办**：workflow 在 step summary 打出 bad-sha 与回滚命令（因为 `productEnvAgent/logs/last-failed-deploy.json` 落在 runner 临时磁盘上，本地 `rollback.py --auto` 取不到），按 `productEnvAgent/ROLLBACK.md` 用 `--bad-sha <sha>` 回滚；重跑部署用 `gh workflow run deploy-vps.yml`。
-> - **新机器首次配置**：`git config alias.deploy '!bash productEnvAgent/deploy.sh'`
+- 推送 + 部署：`git deploy` 先校验 main、Alembic 图和 push，再执行 `deploy/deploy-local.sh`。
+- `deploy/deploy-local.sh` 构建并推送 `believeboydashboard-web` / `believeboydashboard-api`，使用镜像 digest 部署 `/opt/believeboy-dashboard/docker-compose.yml`。
+- PostgreSQL、Redis、Caddy 不进入 Compose；应用容器使用 host network 访问现有回环端口。
+- Actions 只作手动备用：`gh workflow run deploy-dashboard.yml --ref main`。
+- 只推代码：`PUSH_ONLY=1 git deploy`。
+- 回滚与故障处理见 [dashboard-vps-compose.md](./deployment/dashboard-vps-compose.md)。
 
 ### Key Conventions
 - **Projects API**：前端取项目列表用 `/api/v1/projects/manage`（非 `/api/v1/projects`）——`/manage` 按 `X-Operator` 过滤可见项目。

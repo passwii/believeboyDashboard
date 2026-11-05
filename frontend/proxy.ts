@@ -68,11 +68,6 @@ const SESSION_CHECK_TTL_MS = 60_000
 const BACKEND_FAILURE_THRESHOLD = 2
 const BACKEND_FAILURE_COOLDOWN_MS = 30_000
 
-const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_API_BASE_URL || 'http://localhost:8100'
-
-const API_KEY = process.env.BACKEND_API_KEY || ''
-
 function getFailureState(key: string): BackendFailureState {
   let s = _backendFailures.get(key)
   if (!s) {
@@ -179,6 +174,7 @@ async function checkSessionNotInvalidated(
 
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth/options'
+import { getBackendApiKey, getBackendBaseUrl } from '@/lib/server/backend-api'
 
 export const proxy = auth(async (request) => {
   const { pathname, search } = request.nextUrl
@@ -206,8 +202,8 @@ export const proxy = auth(async (request) => {
       user.id,
       user.email || '',
       user.sessionId,
-      BACKEND_URL,
-      API_KEY
+      getBackendBaseUrl(),
+      getBackendApiKey()
     )
     if (!sessionValid) {
       _sessionCheckCache.delete(`${user.id}:${user.sessionId || 'none'}`)

@@ -49,7 +49,18 @@ function trimTrailingSlash(value: string) {
 }
 
 export function getBackendBaseUrl() {
-  const base = process.env.BACKEND_API_BASE_URL || 'http://127.0.0.1:8100'
+  const base =
+    process.env.BACKEND_INTERNAL_URL ||
+    process.env.BACKEND_API_BASE_URL ||
+    'http://127.0.0.1:8100'
+  return trimTrailingSlash(base)
+}
+
+export function getBackendPublicBaseUrl() {
+  const base =
+    process.env.BACKEND_PUBLIC_API_BASE_URL ||
+    process.env.BACKEND_API_BASE_URL ||
+    ''
   return trimTrailingSlash(base)
 }
 

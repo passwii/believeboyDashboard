@@ -1,14 +1,14 @@
-name: Deploy dashboard frontend
+name: Deploy dashboard stack
 
-# Frontend production fallback. The primary release path is the local Mac:
-# frontend/deploy/deploy-local.sh builds and pushes the image, then asks the VPS
-# to pull it. This workflow uses the same image, Compose file, and remote script.
+# Manual fallback. The local Mac is the primary release path via
+# deploy/deploy-local.sh. Both paths build the same API/Web image pair and call
+# the same remote Compose script.
 
 on:
   workflow_dispatch:
 
 concurrency:
-  group: dashboard-frontend-deploy
+  group: believeboy-dashboard-stack
   cancel-in-progress: false
 
 permissions:
@@ -16,22 +16,32 @@ permissions:
   packages: write
 
 env:
-  IMAGE_NAME: ghcr.io/passwii/believeboydashboard
+  API_IMAGE_NAME: ghcr.io/passwii/believeboydashboard-api
+  WEB_IMAGE_NAME: ghcr.io/passwii/believeboydashboard-web
 
 jobs:
   deploy:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production
+    timeout-minutes: 45
     env:
+      SSH_HOST: ${{ secrets.VPS_HOST }}
       SSH_USER: root
       DEPLOY_PATH: /opt/believeboy-dashboard
-      APP_PORT: "3200"
       DOCKER_PLATFORM: linux/amd64
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Check Alembic migration graph
+        run: python backend/scripts/check_alembic.py
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -45,15 +55,15 @@ jobs:
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
 
-      - name: Install dependencies
+      - name: Install frontend dependencies
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
-      - name: Lint
+      - name: Lint frontend
         working-directory: frontend
         run: pnpm lint
 
-      - name: Test
+      - name: Test frontend
         working-directory: frontend
         run: pnpm test
 
@@ -67,89 +77,104 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract image metadata
-        id: meta
-        uses: docker/metadata-action@v5
+      - name: Build and push API
+        id: api
+        uses: docker/build-push-action@v6
         with:
-          images: ${{ env.IMAGE_NAME }}
+          context: .
+          file: backend/Dockerfile
+          platforms: ${{ env.DOCKER_PLATFORM }}
+          push: true
           tags: |
-            type=sha,format=long
-            type=raw,value=latest,enable={{is_default_branch}}
-          labels: |
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            ${{ env.API_IMAGE_NAME }}:sha-${{ github.sha }}
+            ${{ env.API_IMAGE_NAME }}:latest
+          build-args: |
+            PIP_INDEX_URL=https://pypi.org/simple
+          cache-from: type=gha,scope=dashboard-api
+          cache-to: type=gha,scope=dashboard-api,mode=max
+          provenance: false
 
-      - name: Build and push
+      - name: Build and push Web
+        id: web
         uses: docker/build-push-action@v6
         with:
           context: frontend
           file: frontend/Dockerfile
           platforms: ${{ env.DOCKER_PLATFORM }}
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: |
+            ${{ env.WEB_IMAGE_NAME }}:sha-${{ github.sha }}
+            ${{ env.WEB_IMAGE_NAME }}:latest
           secrets: |
             nextauth_secret=${{ secrets.NEXTAUTH_SECRET }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=dashboard-web
+          cache-to: type=gha,scope=dashboard-web,mode=max
+          provenance: false
 
       - name: Configure SSH
         env:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
           VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
-          VPS_HOST: ${{ secrets.VPS_HOST }}
         run: |
           set -euo pipefail
           test -n "$VPS_SSH_KEY"
           test -n "$VPS_KNOWN_HOSTS"
-          test -n "$VPS_HOST"
+          test -n "$SSH_HOST"
           install -m 700 -d "$HOME/.ssh"
           printf '%s\n' "$VPS_SSH_KEY" > "$HOME/.ssh/believeboy-dashboard"
           chmod 600 "$HOME/.ssh/believeboy-dashboard"
           printf '%s\n' "$VPS_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/known_hosts"
 
-      - name: Verify runtime environment exists
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
+      - name: Prepare runtime
         run: |
+          set -euo pipefail
           ssh -i "$HOME/.ssh/believeboy-dashboard" \
             -o IdentitiesOnly=yes \
             -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
             -o StrictHostKeyChecking=yes \
-            "$SSH_USER@$VPS_HOST" \
-            "test -f '$DEPLOY_PATH/app.env' || { echo 'Missing $DEPLOY_PATH/app.env; run the local first deployment once.' >&2; exit 1; }"
+            "$SSH_USER@$SSH_HOST" \
+            "set -euo pipefail
+             if systemctl is-active --quiet believeboy-api.service; then
+               echo 'Legacy believeboy-api.service is still active. Run the local cutover first.' >&2
+               exit 1
+             fi
+             test -f '$DEPLOY_PATH/backend.env'
+             test -f '$DEPLOY_PATH/web.env'
+             test -d '$DEPLOY_PATH/backend-storage'
+             sed -i 's#^AI_CHAT_PROVIDER_BASE_URL=.*#AI_CHAT_PROVIDER_BASE_URL=http://127.0.0.1:3100/v1#' '$DEPLOY_PATH/backend.env'
+             install -d -m 755 '$DEPLOY_PATH/celerybeat'
+             chown -R 10001:10001 '$DEPLOY_PATH/backend-storage' '$DEPLOY_PATH/celerybeat'"
 
       - name: Sync compose file
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
         run: |
           scp -i "$HOME/.ssh/believeboy-dashboard" \
             -o IdentitiesOnly=yes \
             -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
             -o StrictHostKeyChecking=yes \
-            frontend/deploy/docker-compose.yml \
-            "$SSH_USER@$VPS_HOST:$DEPLOY_PATH/docker-compose.yml"
+            deploy/docker-compose.yml \
+            "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/docker-compose.yml"
 
       - name: Deploy over SSH
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          IMAGE_TAG: sha-${{ github.sha }}
+          API_IMAGE: ${{ env.API_IMAGE_NAME }}@${{ steps.api.outputs.digest }}
+          WEB_IMAGE: ${{ env.WEB_IMAGE_NAME }}@${{ steps.web.outputs.digest }}
         run: |
+          set -euo pipefail
           ssh -i "$HOME/.ssh/believeboy-dashboard" \
             -o IdentitiesOnly=yes \
             -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
             -o StrictHostKeyChecking=yes \
-            "$SSH_USER@$VPS_HOST" \
-            "IMAGE_TAG='$IMAGE_TAG' DEPLOY_PATH='$DEPLOY_PATH' APP_PORT='$APP_PORT' bash -s" \
-            < frontend/deploy/deploy-remote.sh
+            "$SSH_USER@$SSH_HOST" \
+            "API_IMAGE='$API_IMAGE' WEB_IMAGE='$WEB_IMAGE' DEPLOY_PATH='$DEPLOY_PATH' bash -s" \
+            < deploy/deploy-remote.sh
 
       - name: External health check
         run: |
           set -euo pipefail
-          for attempt in $(seq 1 10); do
+          for attempt in $(seq 1 15); do
             if curl -fsS --max-time 10 https://dash.believeboy.com/healthz >/dev/null; then
-              echo "Frontend healthy after ${attempt} attempt(s)."
+              echo "Dashboard healthy after ${attempt} attempt(s)."
               exit 0
             fi
             sleep 2

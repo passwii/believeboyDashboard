@@ -1,5 +1,9 @@
 # 回滚操作手册（BLF-524）
 
+> 2026-11-05 起生产运行形态已切换为 Web/API/Celery/beat 的 GHCR + Docker Compose。
+> 日常回滚以 [dashboard-vps-compose.md](../docs/deployment/dashboard-vps-compose.md) 为准。
+> 本文仅用于短期 systemd fallback；`rollback.py` 不管理新的 Compose 镜像栈。
+
 生产合并即上线、无 staging：坏合并直接到生产。本文档定义**何时需要回滚、
 谁来触发、怎么执行、回滚后如何重试**，并说明迁移降级的风险约束（BEL-492）。
 

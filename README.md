@@ -64,8 +64,8 @@ BelieveBoy Dashboard 是一个**垂直领域的跨境电商运营工具**，旨�
 | **后端** | Alembic | 数据库迁移工具 |
 | **后端** | Celery | 分布式任务队列（broker 走 Redis） |
 | **数据库** | PostgreSQL | 强大的开源关系数据库 |
-| **部署** | Vercel | 前端部署平台 |
-| **部署** | Systemd | 后端服务管理（VPS） |
+| **部署** | GHCR + Docker Compose | Web/API/Celery/beat 统一应用镜像栈 |
+| **公共设施** | Caddy / PostgreSQL / Redis | VPS 宿主机共享服务 |
 
 ## 📂 项目结构
 

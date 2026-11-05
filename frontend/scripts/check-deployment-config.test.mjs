@@ -25,20 +25,47 @@ test('Docker build keeps the runtime secret out of image layers', async () => {
   assert.doesNotMatch(dockerfile, /ENV\s+NEXTAUTH_SECRET/)
 })
 
-test('VPS compose binds the app to loopback and loads runtime secrets from app.env', async () => {
-  const compose = await read('frontend/deploy/docker-compose.yml')
-  assert.match(compose, /127\.0\.0\.1:\$\{APP_PORT:-3200\}:3200/)
-  assert.match(compose, /env_file:\s*\n\s*- \.\/app\.env/)
-  assert.match(compose, /container_name: believeboy-dashboard/)
+test('VPS compose runs the application stack on host networking without absorbing shared infrastructure', async () => {
+  const compose = await read('deploy/docker-compose.yml')
+  for (const service of ['migrate', 'api', 'celery', 'celery-scheduled', 'beat', 'web']) {
+    assert.match(compose, new RegExp(`^  ${service}:`, 'm'))
+  }
+  assert.doesNotMatch(compose, /^  postgres:/m)
+  assert.doesNotMatch(compose, /^  redis:/m)
+  assert.equal((compose.match(/network_mode: host/g) ?? []).length, 6)
+  assert.match(compose, /API_IMAGE:\?API_IMAGE must be set/)
+  assert.match(compose, /WEB_IMAGE:\?WEB_IMAGE must be set/)
+  assert.match(compose, /believeboy-dashboard-api/)
+  assert.match(compose, /believeboy-dashboard-web/)
 })
 
-test('frontend deployment workflow is manual-only and publishes to GHCR', async () => {
-  const workflow = await read('.github/workflows/deploy-frontend.yml')
+test('API image contains the Playwright runtime without running as root', async () => {
+  const dockerfile = await read('backend/Dockerfile')
+  assert.match(dockerfile, /playwright install --with-deps --only-shell chromium/)
+  assert.match(dockerfile, /PLAYWRIGHT_BROWSERS_PATH=\/ms-playwright/)
+  assert.match(dockerfile, /USER app/)
+  assert.match(dockerfile, /id=believeboy-pip-cache/)
+})
+
+test('dashboard deployment workflow is manual-only and publishes both images', async () => {
+  const workflow = await read('.github/workflows/deploy-dashboard.yml')
   assert.match(workflow, /workflow_dispatch:/)
   assert.doesNotMatch(workflow, /^on:\s*\n\s+push:/m)
   assert.match(workflow, /packages:\s*write/)
-  assert.match(workflow, /ghcr\.io\/passwii\/believeboydashboard/)
+  assert.match(workflow, /ghcr\.io\/passwii\/believeboydashboard-api/)
+  assert.match(workflow, /ghcr\.io\/passwii\/believeboydashboard-web/)
   assert.match(workflow, /secrets\.NEXTAUTH_SECRET/)
+  assert.match(workflow, /steps\.api\.outputs\.digest/)
+  assert.match(workflow, /steps\.web\.outputs\.digest/)
+})
+
+test('server-side backend calls prefer loopback while browser metadata stays public', async () => {
+  const envExample = await read('deploy/web.env.example')
+  const backendApi = await read('frontend/lib/server/backend-api.ts')
+  assert.match(envExample, /^BACKEND_INTERNAL_URL=http:\/\/127\.0\.0\.1:8100$/m)
+  assert.match(envExample, /^BACKEND_PUBLIC_API_BASE_URL=https:\/\/dash-api\.believeboy\.com$/m)
+  assert.match(backendApi, /process\.env\.BACKEND_INTERNAL_URL/)
+  assert.match(backendApi, /process\.env\.BACKEND_PUBLIC_API_BASE_URL/)
 })
 
 test('deployment health endpoint is available outside the auth matcher', async () => {
