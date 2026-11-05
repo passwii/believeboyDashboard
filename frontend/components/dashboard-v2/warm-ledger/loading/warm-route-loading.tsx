@@ -25,13 +25,16 @@ export function WarmRouteLoading({
       aria-busy="true"
       aria-label={label}
     >
-      <div className={styles.toolbar}>
+      <span className="sr-only" role="status" aria-live="polite">
+        {label}
+      </span>
+      <div className={styles.toolbar} aria-hidden="true">
         <div className={`${styles.bar} ${styles.titleBar}`} />
         <div className={`${styles.bar} ${styles.actionBar}`} />
       </div>
 
       {variant === 'dashboard' ? (
-        <div className={styles.grid}>
+        <div className={styles.grid} aria-hidden="true">
           {Array.from({ length: 4 }).map((_, index) => (
             <div className={styles.card} key={`metric-${index}`}>
               <div className={`${styles.bar} ${styles.labelBar}`} />
@@ -49,7 +52,7 @@ export function WarmRouteLoading({
       ) : null}
 
       {variant === 'detail' ? (
-        <div className={styles.detailGrid}>
+        <div className={styles.detailGrid} aria-hidden="true">
           <div className={styles.card}>
             {Array.from({ length: 5 }).map((_, index) => (
               <div className={`${styles.bar} ${styles.rowBar}`} key={`left-${index}`} />
@@ -63,7 +66,7 @@ export function WarmRouteLoading({
       ) : null}
 
       {variant === 'table' ? (
-        <div className={styles.tableLayout}>
+        <div className={styles.tableLayout} aria-hidden="true">
           <div className={styles.statGrid}>
             {Array.from({ length: 4 }).map((_, index) => (
               <div className={styles.statCard} key={`stat-${index}`}>
