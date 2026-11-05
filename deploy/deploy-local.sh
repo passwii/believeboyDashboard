@@ -207,19 +207,17 @@ echo "Deploying API and Web..."
 if ! ssh "$DEPLOY_HOST" \
   "API_IMAGE='$API_IMAGE' WEB_IMAGE='$WEB_IMAGE' DEPLOY_PATH='$DEPLOY_PATH' bash -s" \
   < "$ROOT/deploy/deploy-remote.sh"; then
-  echo "Compose deployment failed; restoring legacy systemd services." >&2
-  ssh "$DEPLOY_HOST" "
-    systemctl start believeboy-api.service believeboy-celery.service believeboy-celery-scheduled.service believeboy-beat.service 2>/dev/null || true
-    if [ -f '$DEPLOY_PATH/legacy/docker-compose.yml' ] && [ -f '$DEPLOY_PATH/legacy/app.env' ]; then
-      cd '$DEPLOY_PATH/legacy'
-      IMAGE_TAG=latest APP_PORT=3200 docker compose up -d --no-build web 2>/dev/null || true
-    fi
-  "
+  echo "Compose deployment failed; legacy services will not be restored automatically." >&2
   exit 1
 fi
 
 for attempt in $(seq 1 15); do
   if curl -fsS --max-time 10 "$DOMAIN/healthz" >/dev/null; then
+    ssh "$DEPLOY_HOST" "
+      systemctl disable believeboy-api.service believeboy-celery.service \
+        believeboy-celery-scheduled.service believeboy-beat.service \
+        >/dev/null 2>&1 || true
+    "
     echo "Deployed $DOMAIN from $WEB_IMAGE"
     echo "Deployed API from $API_IMAGE"
     exit 0
