@@ -33,6 +33,9 @@ boto3==1.35.0
 # 升级前必须先在 VPS 上手动测试截图性能。
 playwright==1.52.0
 celery[redis]==5.4.0
+# Kombu 5.6 requires redis-py>=6.1, while Celery 5.4 supports redis-py<6.
+# Pin the last compatible Kombu release so the Redis transport can start.
+kombu==5.5.4
 
 # AI Chat Phase 1 — Pydantic AI 流式编排原生化（web_search 推迟 Phase 2）
 # 注：pydantic-ai 间接拉入 sse-starlette（要求 starlette>=1.0），

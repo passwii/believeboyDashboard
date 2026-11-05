@@ -236,6 +236,9 @@ jobs:
 
       - name: Diagnose deployment failure
         if: ${{ always() && (steps.deploy.outcome == 'failure' || steps.health.outcome == 'failure') }}
+        env:
+          API_IMAGE: ${{ env.API_IMAGE_NAME }}@${{ steps.api.outputs.digest }}
+          WEB_IMAGE: ${{ env.WEB_IMAGE_NAME }}@${{ steps.web.outputs.digest }}
         run: |
           set -euo pipefail
           ssh -i "$HOME/.ssh/believeboy-dashboard" \
