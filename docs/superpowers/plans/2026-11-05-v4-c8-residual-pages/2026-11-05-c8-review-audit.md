@@ -81,4 +81,3 @@ The visual migration does not claim fixes for the existing security/data finding
 ## Final Gate
 
 - [ ] Whole-batch independent Luna/max review passes.
-
