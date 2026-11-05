@@ -176,7 +176,7 @@ describe('ProjectGoalsPage 按 tab 懒加载（BEL-423）', () => {
 
     const page = await screen.findByTestId('project-goals-warm-page')
     expect(page).toHaveAttribute('data-warm-surface', 'warm-ledger')
-    expect(screen.getByTestId('project-goals-table-scroll')).toBeInTheDocument()
+    expect(await screen.findByTestId('project-goals-table-scroll')).toBeInTheDocument()
     expect(container.querySelector('[class*="term-"]')).toBeNull()
   })
 
