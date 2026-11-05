@@ -35,7 +35,19 @@ if [[ -n "$(git -C "$ROOT" ls-files --others --exclude-standard)" ]]; then
 fi
 
 echo "Fetching origin/main..."
-git -C "$ROOT" fetch --quiet origin main
+fetch_ok=0
+for attempt in 1 2 3 4 5; do
+  if git -C "$ROOT" -c http.version=HTTP/1.1 fetch --quiet origin main; then
+    fetch_ok=1
+    break
+  fi
+  echo "git fetch failed (attempt $attempt/5); retrying..." >&2
+  sleep 5
+done
+if (( fetch_ok == 0 )); then
+  echo "Unable to fetch origin/main after 5 attempts." >&2
+  exit 1
+fi
 
 SHA="$(git -C "$ROOT" rev-parse HEAD)"
 MAIN_SHA="$(git -C "$ROOT" rev-parse origin/main)"
