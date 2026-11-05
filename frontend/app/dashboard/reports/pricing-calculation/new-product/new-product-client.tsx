@@ -2863,13 +2863,13 @@ export default function PricingCalculationPage() {
                                 type="button"
                                 className={styles.deleteButton}
                                 disabled={deletingRunId === run.id}
+                                loading={deletingRunId === run.id}
+                                loadingLabel="正在删除测算记录"
                                 onClick={() => void handleDeleteRun(run.id)}
                                 title="删除此测算"
                                 aria-label="删除此测算"
                               >
-                                {deletingRunId === run.id ? (
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
+                                {deletingRunId !== run.id && (
                                   <Trash2 className="h-3.5 w-3.5" />
                                 )}
                               </WarmIconButton>

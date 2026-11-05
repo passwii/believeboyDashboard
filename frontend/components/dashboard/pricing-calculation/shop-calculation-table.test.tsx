@@ -175,6 +175,8 @@ describe('ShopCalculationTable Warm Ledger contract', () => {
 
     expect(css).toContain('var(--warm-ledger-color-panel)')
     expect(css).toContain('var(--warm-ledger-font-mono)')
+    expect(css).toContain("[class~='text-right']")
+    expect(css).toContain('font-variant-numeric: var(--warm-ledger-font-variant-numeric);')
     expect(css).toContain('position: sticky')
     expect(css).toContain('overflow: auto')
     expect(css).not.toContain('--term-')

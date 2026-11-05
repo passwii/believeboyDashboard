@@ -737,3 +737,11 @@
 .statusNegative {
   color: var(--warm-ledger-color-negative) !important;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .modeTab,
+  .runCard,
+  .deleteButton {
+    transition: none;
+  }
+}

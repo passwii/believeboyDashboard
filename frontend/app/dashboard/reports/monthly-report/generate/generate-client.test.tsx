@@ -189,6 +189,12 @@ describe('Warm Ledger 制作报表表面', () => {
     expectNonReducedMotionMediaQueries(css)
     expect(source).toContain('loading={submitState.status === \'submitting\'}')
     expect(source).toContain('loadingLabel="正在生成财务月报"')
+    expect(source).toContain('loading={uploadBusy}')
+    expect(source).toContain('loadingLabel="正在批量上传文件"')
+    expect(source).toContain("loading={state.status === 'uploading'}")
+    expect(source).toContain('loadingLabel="正在上传文件"')
+    expect(source).toContain('loading={downloadTarget.downloading}')
+    expect(source).toContain('loadingLabel="正在下载报表"')
   })
 })
 

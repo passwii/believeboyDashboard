@@ -57,7 +57,11 @@ describe('定价核算 Warm Ledger contract', () => {
     expect(css).toContain('var(--warm-ledger-radius-panel)')
     expect(css).toContain('overflow-x: auto')
     expect(css).not.toContain('--term-')
-    expect(css).not.toContain('@media')
+    expect(css).toContain('@media (prefers-reduced-motion: reduce)')
+    const queries = Array.from(css.matchAll(/@media\s*([^{]+)/g)).map((match) =>
+      match[1].trim()
+    )
+    expect(queries.every((query) => query === '(prefers-reduced-motion: reduce)')).toBe(true)
   })
 
   it('keeps financial values fully visible and error copy in the sans stack', () => {

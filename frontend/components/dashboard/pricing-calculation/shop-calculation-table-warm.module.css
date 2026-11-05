@@ -27,6 +27,12 @@
   white-space: nowrap;
 }
 
+.table th[class~='text-right'],
+.table td[class~='text-right'] {
+  font-family: var(--warm-ledger-font-mono);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+}
+
 .table th:last-child,
 .table td:last-child {
   border-right: 0;

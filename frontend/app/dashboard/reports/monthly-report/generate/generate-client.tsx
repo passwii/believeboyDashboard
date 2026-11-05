@@ -1085,10 +1085,10 @@ export default function GenerateTab() {
                     className={styles.fullWidth}
                     onClick={() => void uploadAllConfirmed()}
                     disabled={uploadBusy || mappingBusy || !projectName.trim()}
+                    loading={uploadBusy}
+                    loadingLabel="正在批量上传文件"
                   >
-                    {uploadBusy ? (
-                      <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                    ) : (
+                    {!uploadBusy && (
                       <Upload className="mr-1 h-4 w-4" />
                     )}
                     一键上传已匹配文件
@@ -1142,10 +1142,10 @@ export default function GenerateTab() {
                             state.status === 'uploading' ||
                             !projectName.trim()
                           }
+                          loading={state.status === 'uploading'}
+                          loadingLabel="正在上传文件"
                         >
-                          {state.status === 'uploading' ? (
-                            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-                          ) : (
+                          {state.status !== 'uploading' && (
                             <Upload className="mr-1 h-3.5 w-3.5" />
                           )}
                           上传
@@ -1276,10 +1276,10 @@ export default function GenerateTab() {
                 downloadTarget.downloading ||
                 submitState.status === 'submitting'
               }
+              loading={downloadTarget.downloading}
+              loadingLabel="正在下载报表"
             >
-              {downloadTarget.downloading ? (
-                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-              ) : (
+              {!downloadTarget.downloading && (
                 <Download className="mr-1 h-4 w-4" />
               )}
               下载报表

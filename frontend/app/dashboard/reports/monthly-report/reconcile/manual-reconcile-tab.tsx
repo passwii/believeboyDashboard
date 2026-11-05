@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckCircle2, XCircle, AlertCircle, Loader2, FileText, FileUp } from 'lucide-react'
+import { CheckCircle2, XCircle, AlertCircle, FileText, FileUp } from 'lucide-react'
 
 import { WarmBadge, WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
 import { useNotifications } from '@/components/notifications'
@@ -317,15 +317,10 @@ export default function ManualReconcileTab() {
               variant="primary"
               onClick={handleVerify}
               disabled={verifying || !excelFile || !pdfFile}
+              loading={verifying}
+              loadingLabel="正在核对报表"
             >
-              {verifying ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  核对中...
-                </>
-              ) : (
-                '开始核对'
-              )}
+              开始核对
             </WarmButton>
           </div>
         </div>

@@ -118,11 +118,15 @@ import NewProductClient from './new-product-client'
 
 let runsPayload: PricingCalculationRunItem[] = []
 let quoteDeferred: Promise<Response> | null = null
+let deleteDeferred: Promise<Response> | null = null
 
 const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
   const url = String(input)
   if (url.includes('/pricing-calculation/quote') && init?.method === 'POST') {
     if (quoteDeferred) return quoteDeferred
+  }
+  if (url.includes('/pricing-calculation/runs/') && init?.method === 'DELETE') {
+    if (deleteDeferred) return deleteDeferred
   }
   if (url.includes('/pricing-calculation/runs')) {
     return jsonResponse({
@@ -156,6 +160,7 @@ beforeEach(() => {
   headerCapture.slot = null
   runsPayload = []
   quoteDeferred = null
+  deleteDeferred = null
   vi.stubGlobal('fetch', fetchMock)
 })
 
@@ -264,6 +269,33 @@ describe('新品核算 Warm Ledger 页面', () => {
 
     await waitFor(() => expect(downloadBlobMock).toHaveBeenCalledTimes(1))
     expect(String(downloadBlobMock.mock.calls[0]?.[1])).toContain('测算对比矩阵')
+  })
+
+  it('exposes WarmIconButton delete loading state and DELETE contract', async () => {
+    runsPayload = [makeRun()]
+    let resolveDelete: (response: Response) => void = () => {}
+    deleteDeferred = new Promise<Response>((resolve) => {
+      resolveDelete = resolve
+    })
+    render(<NewProductClient />)
+
+    await screen.findByRole('button', { name: /测试产品/ })
+    fireEvent.click(screen.getByRole('button', { name: '删除此测算' }))
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/backend/api/v1/pricing-calculation/runs/91',
+        expect.objectContaining({ method: 'DELETE' })
+      )
+    })
+    const busyDelete = screen.getByRole('button', { name: '正在删除测算记录' })
+    expect(busyDelete).toHaveAttribute('aria-busy', 'true')
+    expect(busyDelete).toBeDisabled()
+
+    resolveDelete(jsonResponse({ ok: true }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: '删除此测算' })).not.toHaveAttribute('aria-busy')
+    )
   })
 })
 
