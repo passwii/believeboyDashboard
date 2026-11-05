@@ -115,15 +115,32 @@ chmod 600 "$TMP_DIR/app.env"
 
 IMAGE_TAG="sha-$SHA"
 echo "Building $IMAGE_NAME:$IMAGE_TAG for $PLATFORM..."
-docker buildx build \
-  --platform "$PLATFORM" \
-  --push \
-  --secret id=nextauth_secret,src="$TMP_DIR/nextauth_secret" \
-  --tag "$IMAGE_NAME:$IMAGE_TAG" \
-  --tag "$IMAGE_NAME:latest" \
-  --label "org.opencontainers.image.revision=$SHA" \
-  --label "org.opencontainers.image.source=https://github.com/passwii/believeboyDashboard" \
-  "$FRONTEND"
+build_image() {
+  docker buildx build \
+    --platform "$PLATFORM" \
+    --push \
+    --secret id=nextauth_secret,src="$TMP_DIR/nextauth_secret" \
+    --tag "$IMAGE_NAME:$IMAGE_TAG" \
+    --tag "$IMAGE_NAME:latest" \
+    --label "org.opencontainers.image.revision=$SHA" \
+    --label "org.opencontainers.image.source=https://github.com/passwii/believeboyDashboard" \
+    "$FRONTEND"
+}
+
+# GHCR occasionally resets the connection while pushing a secondary tag. The
+# immutable SHA tag may already be present, so a retry is cheap: BuildKit reuses
+# the completed layers and only retries the registry operation.
+for attempt in 1 2 3; do
+  if build_image; then
+    break
+  fi
+  if (( attempt == 3 )); then
+    echo "Image push failed after 3 attempts." >&2
+    exit 1
+  fi
+  echo "Image push failed (attempt $attempt/3); retrying..." >&2
+  sleep 5
+done
 
 echo "Syncing Compose and runtime environment to $DEPLOY_HOST:$DEPLOY_PATH..."
 ssh "$DEPLOY_HOST" "install -d -m 755 '$DEPLOY_PATH' && umask 077 && cat > '$DEPLOY_PATH/app.env'" \
