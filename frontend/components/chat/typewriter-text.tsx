@@ -4,6 +4,7 @@ import React from 'react'
 import type { TextSegment } from './types'
 import { useTypewriter } from './hooks/use-typewriter'
 import { RollingWord, HIGHLIGHT_WORD_CLASS } from './rolling-word'
+import styles from './warm-chat.module.css'
 
 export function TypewriterText({
   segments,
@@ -51,7 +52,7 @@ export function TypewriterText({
       })}
       {showCursor && (
         <span
-          className="inline-block w-[3px] h-[0.8em] bg-blue-400/80 ml-0.5 align-middle bb-cursor-blink"
+          className={`${styles.cursor} bb-cursor-blink`}
           aria-hidden
         />
       )}

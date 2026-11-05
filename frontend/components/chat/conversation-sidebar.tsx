@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { formatTokenCount } from '@/lib/format/token-count'
 import type { Conversation } from './types'
+import styles from './warm-chat.module.css'
 
 interface ConversationSidebarProps {
   conversations: Conversation[]
@@ -110,29 +111,25 @@ export function ConversationSidebar({
 
   return (
     <div
-      className="absolute inset-y-0 left-0 z-40 flex w-[min(86vw,280px)] flex-col border-r pointer-events-auto sm:w-[280px] bg-white border-slate-200 dark:border-white/[0.08] dark:bg-transparent"
+      className={`${styles.sidebar} absolute inset-y-0 left-0 z-40 flex w-[min(86vw,280px)] flex-col pointer-events-auto sm:w-[280px]`}
       style={{
-        // Light: clean white with subtle shadow; Dark: original gradient
-        background: undefined,
+        ['--sidebar-surface' as string]: 'var(--warm-ledger-color-sidebar)',
       }}
     >
-      {/* Light background via CSS — white in light, gradient in dark */}
-      <style>{`.conv-sidebar { background: white; } .dark .conv-sidebar { background: linear-gradient(180deg, #141416 0%, #111113 100%); }`}</style>
-      <div className="conv-sidebar absolute inset-0 pointer-events-none" aria-hidden />
       <div className="relative flex flex-col flex-1 min-h-0">
       {/* Header */}
-      <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-3 border-b border-slate-200 dark:border-white/[0.06]">
+      <div className={`${styles.sidebarHeader} flex items-center justify-between gap-3 px-4 pt-4 pb-3 border-b`}>
         <div className="min-w-0 flex-1 pr-3">
           <div className="flex items-center gap-2 min-w-0">
-            <History className="size-3.5 text-slate-400 dark:text-[#5a5a5f]" aria-hidden />
-            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-[#5a5a5f]">
+            <History className={styles.sidebarTitle} aria-hidden />
+            <span className={`${styles.sidebarTitle} text-xs font-semibold uppercase tracking-[0.2em]`}>
               对话历史
             </span>
-            <span className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium bg-slate-100 text-slate-500 dark:bg-white/[0.04] dark:text-[#5a5a5f]">
+            <span className={`${styles.sidebarBadge} shrink-0 px-2 py-0.5 text-[10px] font-medium`}>
               自动保存
             </span>
           </div>
-          <p className="mt-1 truncate text-[10px] leading-4 text-slate-400 dark:text-[#505056]">全部会话会自动保存</p>
+          <p className={`${styles.sidebarTitle} mt-1 truncate text-[10px] leading-4`}>全部会话会自动保存</p>
         </div>
         <div className="flex items-center gap-1.5">
           <button
@@ -143,7 +140,7 @@ export function ConversationSidebar({
                 gsap.fromTo(btn, { scale: 0.8 }, { scale: 1, duration: 0.3, ease: 'back.out(2)' })
               onCreate()
             }}
-            className="conv-new-btn flex items-center justify-center size-8 rounded-lg bg-slate-100 text-slate-500 hover:text-slate-900 hover:bg-slate-200 dark:bg-white/[0.06] dark:text-[#8a8a8f] dark:hover:text-white dark:hover:bg-white/[0.1] transition-all duration-[var(--duration-quick)] active:scale-95"
+            className={`${styles.iconButton} conv-new-btn size-8 active:scale-95`}
             aria-label="新建对话"
           >
             <Plus className="size-4" />
@@ -161,7 +158,7 @@ export function ConversationSidebar({
                   onComplete: onClose,
                 })
             }}
-            className="flex items-center justify-center size-8 rounded-lg text-slate-400 hover:text-slate-900 hover:bg-slate-100 dark:text-[#5a5a5f] dark:hover:text-white dark:hover:bg-white/[0.06] transition-all duration-[var(--duration-quick)] active:scale-95"
+            className={`${styles.iconButton} size-8 active:scale-95`}
             aria-label="关闭侧边栏"
           >
             <PanelLeftClose className="size-4" />
@@ -172,13 +169,13 @@ export function ConversationSidebar({
       {/* Search */}
       <div className="px-3 pt-3 pb-2">
         <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-slate-400 dark:text-[#5a5a5f] pointer-events-none" />
+          <Search className={`${styles.sidebarTitle} absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 pointer-events-none`} />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="搜索对话..."
-            className="w-full rounded-lg pl-8 pr-3 py-2.5 text-[13px] outline-none transition-colors bg-slate-50 border border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-blue-300 focus:bg-white dark:bg-white/[0.04] dark:border-white/[0.06] dark:text-white dark:placeholder:text-[#4a4a4f] dark:focus:border-white/[0.12] dark:focus:bg-white/[0.06]"
+            className={`${styles.sidebarSearch} w-full pl-8 pr-3 py-2.5 text-[13px] outline-none`}
           />
         </div>
       </div>
@@ -189,12 +186,12 @@ export function ConversationSidebar({
           <div className="flex flex-col items-center justify-center py-14 text-center px-4">
             {searchQuery ? (
               <>
-                <Search className="size-7 text-slate-300 dark:text-[#3a3a3f] mb-3" />
-                <p className="text-xs text-slate-500 dark:text-[#5a5a5f]">没有匹配的对话</p>
+                <Search className={`${styles.sidebarTitle} size-7 mb-3`} />
+                <p className={`${styles.sidebarTitle} text-xs`}>没有匹配的对话</p>
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="mt-2 text-xs transition-colors underline underline-offset-2 text-slate-500 hover:text-slate-900 decoration-slate-200 dark:text-[#5a5a5f] dark:hover:text-white dark:decoration-white/10"
+                  className={`${styles.sidebarTitle} mt-2 text-xs underline underline-offset-2`}
                 >
                   清除搜索
                 </button>
@@ -202,15 +199,15 @@ export function ConversationSidebar({
             ) : (
               <>
                 <div className="relative mb-4">
-                  <MessageSquare className="size-8 text-slate-300 dark:text-[#3a3a3f]" />
-                  <Sparkles className="size-3 text-blue-500/40 absolute -top-1 -right-1" />
+                  <MessageSquare className={`${styles.sidebarTitle} size-8`} />
+                  <Sparkles className={`${styles.chipAccent} size-3 absolute -top-1 -right-1`} />
                 </div>
-                <p className="text-sm font-medium text-slate-500 dark:text-[#6a6a6f]">还没有对话</p>
-                <p className="text-xs mt-1 mb-4 text-slate-400 dark:text-[#4a4a4f]">发送一条消息即可自动创建</p>
+                <p className={`${styles.sidebarTitle} text-sm font-medium`}>还没有对话</p>
+                <p className={`${styles.sidebarTitle} text-xs mt-1 mb-4`}>发送一条消息即可自动创建</p>
                 <button
                   type="button"
                   onClick={onCreate}
-                  className="flex items-center gap-1.5 rounded-lg bg-blue-50 border border-blue-200 px-3 py-2 text-xs font-medium text-blue-600 hover:bg-blue-100 hover:text-blue-700 dark:bg-blue-500/15 dark:border-blue-500/20 dark:text-blue-300 dark:hover:bg-blue-500/25 dark:hover:text-blue-200 transition-all duration-[var(--duration-quick)] active:scale-95"
+                  className={`${styles.chip} flex items-center gap-1.5 px-3 py-2 text-xs font-medium active:scale-95`}
                 >
                   <Plus className="size-3.5" />
                   开始新对话
@@ -238,8 +235,8 @@ export function ConversationSidebar({
             onMouseLeave={() => setHoveredId(null)}
             className={`group relative flex items-center gap-3 px-3 py-3 sm:py-2.5 rounded-xl cursor-pointer transition-all duration-[var(--duration-quick)] min-h-[44px] sm:min-h-[auto] ${
               activeId === conv.id
-                ? 'bg-slate-100 text-slate-900 dark:bg-white/[0.08] dark:text-white'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 dark:text-[#a0a0a5] dark:hover:text-white dark:hover:bg-white/[0.04]'
+                ? styles.conversationRowActive
+                : styles.conversationRow
             }`}
           >
             <MessageSquare className="size-4 shrink-0 opacity-60 mt-0.5 self-start" />
@@ -256,7 +253,7 @@ export function ConversationSidebar({
                     if (e.key === 'Escape') setEditingId(null)
                   }}
                   onClick={(e) => e.stopPropagation()}
-                  className="flex-1 min-w-0 rounded-md px-2 py-1.5 text-[13px] outline-none transition-colors bg-white border border-slate-200 text-slate-900 focus:border-blue-400 dark:bg-white/[0.06] dark:border-white/[0.12] dark:text-white dark:focus:border-[#1488fc]"
+                  className={`${styles.sidebarSearch} flex-1 min-w-0 px-2 py-1.5 text-[13px] outline-none`}
                 />
                 <button
                   type="button"
@@ -264,7 +261,7 @@ export function ConversationSidebar({
                     e.stopPropagation()
                     commitRename()
                   }}
-                  className="shrink-0 p-1.5 rounded-md text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-[#1488fc] dark:hover:text-[#4da6ff] dark:hover:bg-white/[0.08] transition-colors"
+                  className={`${styles.actionButton} ${styles.chipAccent} shrink-0 p-1.5`}
                   aria-label="确认重命名"
                 >
                   <Check className="size-3.5" />
@@ -275,7 +272,7 @@ export function ConversationSidebar({
                     e.stopPropagation()
                     setEditingId(null)
                   }}
-                  className="shrink-0 p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:text-[#5a5a5f] dark:hover:text-white dark:hover:bg-white/[0.08] transition-colors"
+                  className={`${styles.actionButton} shrink-0 p-1.5`}
                   aria-label="取消重命名"
                 >
                   <X className="size-3.5" />
@@ -286,7 +283,7 @@ export function ConversationSidebar({
                 <div className="flex-1 min-w-0">
                   <span className="block text-[13px] font-medium truncate pr-1">{conv.title}</span>
                   {(conv.messageCount > 0 || (conv.totalTokens ?? 0) > 0) && (
-                    <div className="mt-0.5 flex items-center gap-2 text-[10px] text-slate-400 dark:text-[#5a5a5f]">
+                    <div className={`${styles.sidebarTitle} mt-0.5 flex items-center gap-2 text-[10px]`}>
                       {(conv.totalTokens ?? 0) > 0 && (
                         <span
                           className="inline-flex items-center gap-0.5"
@@ -297,7 +294,7 @@ export function ConversationSidebar({
                         </span>
                       )}
                       {(conv.totalTokens ?? 0) > 0 && conv.messageCount > 0 && (
-                        <span className="text-slate-300 dark:text-[#3a3a3f]" aria-hidden>·</span>
+                        <span aria-hidden>·</span>
                       )}
                       {conv.messageCount > 0 && (
                         <span>{conv.messageCount} 条消息</span>
@@ -306,14 +303,14 @@ export function ConversationSidebar({
                   )}
                 </div>
                 {hoveredId === conv.id && (
-                  <div className="pointer-events-none absolute inset-y-1 right-1 flex items-center gap-0.5 rounded-md pl-6 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-150 bg-gradient-to-l from-white via-white to-transparent dark:from-[#141416] dark:via-[#141416]">
+                  <div className={`${styles.sidebarActionGradient} pointer-events-none absolute inset-y-1 right-1 flex items-center gap-0.5 pl-6 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-150`}>
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation()
                         startRename(conv)
                       }}
-                      className="pointer-events-auto p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:text-[#5a5a5f] dark:hover:text-white dark:hover:bg-white/[0.08] transition-colors"
+                      className={`${styles.actionButton} pointer-events-auto p-1.5`}
                       aria-label="重命名"
                     >
                       <Pencil className="size-3.5" />
@@ -324,7 +321,7 @@ export function ConversationSidebar({
                         e.stopPropagation()
                         handleDeleteWithAnimation(conv.id)
                       }}
-                      className="pointer-events-auto p-1.5 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 dark:text-[#5a5a5f] dark:hover:text-red-400 dark:hover:bg-red-400/[0.08] transition-colors"
+                      className={`${styles.actionButton} ${styles.dangerAction} pointer-events-auto p-1.5`}
                       aria-label="删除"
                     >
                       <Trash2 className="size-3.5" />
@@ -339,8 +336,8 @@ export function ConversationSidebar({
 
       {/* Footer */}
       {conversations.length > 0 && (
-        <div className="px-4 py-3 border-t border-slate-200 dark:border-white/[0.06]">
-          <p className="text-[10px] text-center text-slate-400 dark:text-[#3a3a3f]">{conversations.length} 个对话</p>
+        <div className={`${styles.sidebarFooter} px-4 py-3 border-t`}>
+          <p className={`${styles.sidebarTitle} text-[10px] text-center`}>{conversations.length} 个对话</p>
         </div>
       )}
       </div>

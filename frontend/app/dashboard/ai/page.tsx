@@ -1,12 +1,17 @@
 'use client'
 
 import { AIChatWindow } from '@/components/chat/ai-chat-window'
+import styles from '@/components/chat/warm-chat.module.css'
 import { MessageSquare } from 'lucide-react'
 import Link from 'next/link'
 
 export default function AiLandingPage() {
   return (
-    <div className="relative h-screen w-full supports-[height:100dvh]:h-dvh md:h-full">
+    <main
+      className={`${styles.page} warm-ledger relative h-screen w-full supports-[height:100dvh]:h-dvh md:h-full`}
+      data-testid="ai-landing-warm-page"
+      data-warm-surface="warm-ledger"
+    >
       <AIChatWindow
         title="让 AI"
         titleHighlight="助你"
@@ -19,12 +24,12 @@ export default function AiLandingPage() {
       <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-50">
         <Link
           href="/dashboard/ai/chat"
-          className="flex h-8 items-center gap-1.5 rounded-none border border-term-border bg-term-panel px-3 font-mono text-xs text-term-muted transition-colors hover:border-term-border-strong hover:text-term-text"
+          className={styles.entry}
         >
           <MessageSquare className="h-3.5 w-3.5" strokeWidth={1.75} />
           <span>进入 AI Chat</span>
         </Link>
       </div>
-    </div>
+    </main>
   )
 }

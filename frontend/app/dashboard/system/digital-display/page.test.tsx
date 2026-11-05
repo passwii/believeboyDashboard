@@ -1,4 +1,4 @@
-import { render, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { isWarmLedgerRoute } from '@/components/dashboard-v2/warm-ledger/shell/warm-ledger-route-frame'
@@ -33,11 +33,39 @@ describe('DigitalDisplayPage exception', () => {
       'data-digital-display-exception',
       'true',
     )
-    expect(container.firstElementChild).not.toHaveClass('warm-ledger')
+    expect(container.firstElementChild).toHaveAttribute('data-warm-surface', 'warm-ledger')
+    expect(container.firstElementChild).toHaveClass('warm-ledger')
+    expect(container.querySelector('[class*="term-"]')).toBeNull()
+    expect(container.querySelector('.rounded-none')).toBeNull()
     await waitFor(() => expect(document.documentElement).toHaveClass('dark'))
     expect(requestFullscreen).toHaveBeenCalledTimes(1)
 
     unmount()
     expect(document.documentElement).not.toHaveClass('dark')
+  })
+
+  it('Escape 与退出全屏按钮继续调用 Fullscreen API', async () => {
+    const exitFullscreen = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(document, 'fullscreenElement', {
+      configurable: true,
+      value: document.documentElement,
+    })
+    Object.defineProperty(document, 'exitFullscreen', {
+      configurable: true,
+      value: exitFullscreen,
+    })
+    fetchProjectOptionsCachedMock.mockResolvedValue({ items: [] })
+
+    const { unmount } = render(<DigitalDisplayPage />)
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() => expect(exitFullscreen).toHaveBeenCalled())
+    exitFullscreen.mockClear()
+
+    const button = await screen.findByRole('button', { name: /退出全屏/ })
+    fireEvent.click(button)
+    await waitFor(() => expect(exitFullscreen).toHaveBeenCalled())
+
+    unmount()
   })
 })

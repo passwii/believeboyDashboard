@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import gsap from 'gsap'
 import { useGSAP } from '@gsap/react'
+import styles from './warm-chat.module.css'
 
 /**
  * Shared visual treatment for the heading's highlighted word — the
@@ -10,8 +11,7 @@ import { useGSAP } from '@gsap/react'
  * pixel-identical so the typed word can morph into the roller with no
  * visual jump.
  */
-export const HIGHLIGHT_WORD_CLASS =
-  'inline-block italic bg-gradient-to-b from-[#0ea5e9] via-[#2563eb] to-[#1e40af] dark:from-[#4da5fc] dark:via-[#4da5fc] dark:to-white bg-clip-text text-transparent'
+export const HIGHLIGHT_WORD_CLASS = `inline-block ${styles.headingAccent}`
 
 /**
  * RollingWord — vertical slot-machine word carousel.

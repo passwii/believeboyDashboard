@@ -12,6 +12,7 @@ import {
 
 import { getPinnedModelMeta, OTHER_MODEL_DESCRIPTION, OTHER_MODEL_ICON } from './constants/models'
 import type { Model, ModelGroup } from './types'
+import styles from './warm-chat.module.css'
 
 /**
  * Build a `Model` record for a backend `modelId`.
@@ -276,7 +277,7 @@ export function ModelSelector({
       <button
         type="button"
         disabled
-        className="flex items-center gap-1 px-2 py-1.5 rounded-full text-[11px] sm:text-xs font-medium text-[#5a5a5f] cursor-not-allowed"
+        className={`${styles.toolButton} flex items-center gap-1 px-2 py-1.5 text-[11px] sm:text-xs font-medium cursor-not-allowed`}
         aria-label="模型不可用"
       >
         <Cpu className="size-4" />
@@ -313,9 +314,11 @@ export function ModelSelector({
             setIsOpen(true)
           }
         }}
-        className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-medium transition-all duration-[var(--duration-quick)] text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-[#8a8a8f] dark:hover:text-white dark:hover:bg-white/5 active:scale-95 touch-manipulation min-h-[44px] sm:min-h-[auto]"
+        className={`${styles.toolButton} flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 text-[11px] sm:text-xs font-medium active:scale-95 touch-manipulation`}
       >
-        {currentModelMeta?.icon ?? <Cpu className="size-4 text-slate-400" />}
+        {currentModelMeta?.icon ?? (
+          <Cpu className="size-4 text-[var(--warm-ledger-color-text-muted)]" />
+        )}
         <span className="hidden xs:inline">{currentModelMeta?.name ?? current}</span>
         <span className="xs:hidden">
           {currentModelMeta?.shortName ?? deriveShortName(current ?? '')}
@@ -341,9 +344,9 @@ export function ModelSelector({
               trigger top so opening the side panel doesn't shift it up or
               down — only the side panel grows upward as needed. */}
           <div className="absolute bottom-full left-0 mb-2 z-50 flex items-end gap-2 bb-anim-scale-in">
-            <div className="min-w-[260px] sm:min-w-[280px] max-h-[60vh] overflow-y-auto bg-white border border-slate-200 shadow-xl dark:bg-[#1a1a1e]/95 dark:border-white/10 dark:shadow-2xl dark:shadow-black/50 backdrop-blur-xl overscroll-contain">
+            <div className={`${styles.modelMenu} min-w-[260px] sm:min-w-[280px] max-h-[60vh] overflow-y-auto overscroll-contain`}>
               <div className="p-1.5">
-                <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#5a5a5f]">
+                <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider">
                   选择模型
                 </div>
                 {groups.map((group, gIdx) => (
@@ -379,20 +382,20 @@ export function ModelSelector({
                 aria-modal="false"
                 aria-label="其他模型"
                 data-side-panel="model-others"
-                className="w-[300px] max-w-[85vw] max-h-[60vh] bg-white border border-slate-200 shadow-xl dark:bg-[#1a1a1e]/95 dark:border-white/10 dark:shadow-2xl dark:shadow-black/50 backdrop-blur-xl flex flex-col pointer-events-auto"
+                className={`${styles.modelPanel} w-[300px] max-w-[85vw] max-h-[60vh] flex flex-col pointer-events-auto`}
                 style={{ opacity: 0 }}
               >
-                <div className="flex items-center justify-between px-3 py-2.5 border-b border-slate-200 dark:border-white/10">
+                <div className="flex items-center justify-between px-3 py-2.5 border-b border-[var(--warm-ledger-color-hairline)]">
                   <div>
-                    <div className="text-[10px] font-semibold uppercase tracking-wider text-[#5a5a5f]">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider">
                       {othersGroup.label}
                     </div>
-                    <div className="text-xs text-[#8a8a8f] mt-0.5">{otherModels.length} 个模型</div>
+                    <div className="text-xs mt-0.5">{otherModels.length} 个模型</div>
                   </div>
                   <button
                     type="button"
                     onClick={() => setDrawerOpen(false)}
-                    className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:text-[#8a8a8f] dark:hover:text-white dark:hover:bg-white/5 transition-colors touch-manipulation"
+                    className={`${styles.actionButton} p-1.5 touch-manipulation`}
                     aria-label="关闭"
                   >
                     <X className="size-4" />
@@ -455,7 +458,13 @@ function ModelGroupSection({
   const isOpen = isDesktop ? drawerOpen : othersExpanded
 
   return (
-    <div className={isFirst ? '' : 'mt-1 border-t border-slate-100 dark:border-white/5 pt-1'}>
+    <div
+      className={
+        isFirst
+          ? ''
+          : 'mt-1 border-t border-[var(--warm-ledger-color-hairline)] pt-1'
+      }
+    >
       {isCollapsible ? (
         <button
           type="button"
@@ -463,16 +472,16 @@ function ModelGroupSection({
           data-testid="model-selector-others-toggle"
           aria-expanded={isOpen}
           aria-controls={isDesktop ? undefined : 'model-selector-others'}
-          className="w-full flex items-center gap-2 px-2.5 py-2 sm:py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#5a5a5f] hover:text-[#8a8a8f] transition-colors touch-manipulation min-h-[36px]"
+          className="w-full flex items-center gap-2 px-2.5 py-2 sm:py-1.5 text-[10px] font-semibold uppercase tracking-wider touch-manipulation min-h-[36px]"
         >
           <ChevronRight ref={onChevronRef} className="size-3 flex-shrink-0" aria-hidden />
           <span className="flex-1 text-left">{group.label}</span>
-          <span className="text-[10px] font-normal normal-case text-[#5a5a5f]">
+          <span className="text-[10px] font-normal normal-case">
             {group.models.length}
           </span>
         </button>
       ) : (
-        <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#5a5a5f]">
+        <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider">
           {group.label}
         </div>
       )}
@@ -524,9 +533,7 @@ function ModelRow({
     <button
       type="button"
       onClick={() => onSelect(model.id)}
-      className={`w-full flex items-center gap-3 px-2.5 py-3 sm:py-2 rounded-lg text-left transition-all duration-150 touch-manipulation ${
-        isCurrent ? 'bg-slate-100 text-slate-900 dark:bg-white/10 dark:text-white' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-[#a0a0a5] dark:hover:bg-white/5 dark:hover:text-white'
-      }`}
+      className={`${styles.modelRow} ${isCurrent ? styles.modelRowActive : ''} w-full flex items-center gap-3 px-2.5 py-3 sm:py-2 text-left transition-all duration-150 touch-manipulation`}
     >
       <div className="flex-shrink-0">{model.icon}</div>
       <div className="flex-1 min-w-0">
@@ -534,21 +541,17 @@ function ModelRow({
           <span className="text-sm font-medium truncate">{model.name}</span>
           {badge && (
             <span
-              className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${
-                badge === 'Pro'
-                  ? 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300'
-                  : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'
-              }`}
+              className={`${styles.modelBadge} text-[10px] px-1.5 py-0.5 font-medium flex-shrink-0`}
             >
               {badge}
             </span>
           )}
         </div>
         {model.description && (
-          <span className="text-[11px] text-slate-500 dark:text-[#6a6a6f] line-clamp-1">{model.description}</span>
+          <span className="text-[11px] line-clamp-1">{model.description}</span>
         )}
       </div>
-      {isCurrent && <Check className="size-4 text-blue-500 dark:text-blue-400 flex-shrink-0" />}
+      {isCurrent && <Check className={`${styles.modelCheck} size-4 flex-shrink-0`} />}
     </button>
   )
 }
@@ -572,9 +575,7 @@ function DrawerModelRow({
     <button
       type="button"
       onClick={() => onSelect(model.id)}
-      className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left transition-all duration-150 ${
-        isCurrent ? 'bg-slate-100 text-slate-900 dark:bg-white/10 dark:text-white' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 dark:text-[#a0a0a5] dark:hover:bg-white/5 dark:hover:text-white'
-      }`}
+      className={`${styles.modelRow} ${isCurrent ? styles.modelRowActive : ''} w-full flex items-center gap-3 px-3 py-3 text-left transition-all duration-150`}
     >
       <div className="flex-shrink-0">{model.icon}</div>
       <div className="flex-1 min-w-0">
@@ -582,21 +583,17 @@ function DrawerModelRow({
           <span className="text-sm font-medium truncate">{model.name}</span>
           {badge && (
             <span
-              className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${
-                badge === 'Pro'
-                  ? 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300'
-                  : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'
-              }`}
+              className={`${styles.modelBadge} text-[10px] px-1.5 py-0.5 font-medium flex-shrink-0`}
             >
               {badge}
             </span>
           )}
         </div>
         {model.description && (
-          <span className="text-[11px] text-slate-500 dark:text-[#6a6a6f] line-clamp-1">{model.description}</span>
+          <span className="text-[11px] line-clamp-1">{model.description}</span>
         )}
       </div>
-      {isCurrent && <Check className="size-4 text-blue-500 dark:text-blue-400 flex-shrink-0" />}
+      {isCurrent && <Check className={`${styles.modelCheck} size-4 flex-shrink-0`} />}
     </button>
   )
 }

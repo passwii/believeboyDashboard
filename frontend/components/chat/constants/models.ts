@@ -26,14 +26,18 @@ export const PINNED_MODELS: Model[] = [
     name: 'Believeboy Nano',
     shortName: 'BN',
     description: '极速轻量',
-    icon: React.createElement(Zap, { className: 'size-4 text-blue-400' }),
+    icon: React.createElement(Zap, {
+      className: 'size-4 text-[var(--warm-ledger-color-accent)]',
+    }),
   },
   {
     id: 'MiniMax-M3',
     name: 'MiniMax M3',
     shortName: 'M3',
     description: '最强能力',
-    icon: React.createElement(Sparkles, { className: 'size-4 text-purple-400' }),
+    icon: React.createElement(Sparkles, {
+      className: 'size-4 text-[var(--warm-ledger-color-text-soft)]',
+    }),
     badge: 'Pro',
   },
   {
@@ -41,7 +45,9 @@ export const PINNED_MODELS: Model[] = [
     name: 'DeepSeek V4 Pro',
     shortName: 'D4P',
     description: '深度推理',
-    icon: React.createElement(Brain, { className: 'size-4 text-indigo-400' }),
+    icon: React.createElement(Brain, {
+      className: 'size-4 text-[var(--warm-ledger-color-accent-strong)]',
+    }),
     badge: 'Pro',
   },
   {
@@ -66,7 +72,9 @@ const PINNED_BY_ID: Map<string, Model> = new Map(
 )
 
 /** Display metadata for an un-pinned model — shared icon/color/description. */
-export const OTHER_MODEL_ICON = React.createElement(Cpu, { className: 'size-4 text-slate-400' })
+export const OTHER_MODEL_ICON = React.createElement(Cpu, {
+  className: 'size-4 text-[var(--warm-ledger-color-text-muted)]',
+})
 export const OTHER_MODEL_DESCRIPTION = '其他模型'
 
 /** Return curated metadata for a pinned model id, or `null` for "use generic". */

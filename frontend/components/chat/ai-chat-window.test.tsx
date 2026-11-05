@@ -101,6 +101,16 @@ describe('AIChatWindow Head 刷新', () => {
     getMessagesMock.mockResolvedValue([message(1, '旧消息')])
   })
 
+  it('根节点使用 Warm Ledger 全屏表面且不混用 Terminal 样式', async () => {
+    const { container } = render(<AIChatWindow />)
+
+    const root = await screen.findByTestId('ai-chat-window')
+    expect(root).toHaveAttribute('data-warm-surface', 'warm-ledger')
+    expect(root).toHaveClass('warm-ledger')
+    expect(container.querySelector('[class*="term-"]')).toBeNull()
+    expect(container.querySelector('.rounded-none')).toBeNull()
+  })
+
   it('重新请求会话、当前消息与 AI 配置，并保留当前对话', async () => {
     render(<AIChatWindow />)
     expect(await screen.findByText('旧消息')).toBeInTheDocument()
