@@ -60,12 +60,14 @@ function TableFrame({
   action,
   toolbar,
   footer,
+  limited = false,
   children,
 }: {
   title: string
   action?: React.ReactNode
   toolbar?: React.ReactNode
   footer?: React.ReactNode
+  limited?: boolean
   children: React.ReactNode
 }) {
   return (
@@ -75,7 +77,13 @@ function TableFrame({
         {action ? <div className={styles.tableFrameAction}>{action}</div> : null}
       </div>
       {toolbar ? <div className={styles.toolbar}>{toolbar}</div> : null}
-      <div className={styles.tableScroll} data-warm-table-scroll>
+      <div
+        className={[styles.tableScroll, limited ? styles.tableScrollLimited : '']
+          .filter(Boolean)
+          .join(' ')}
+        data-warm-table-scroll
+        data-limited={limited ? 'true' : undefined}
+      >
         <table className={styles.table}>{children}</table>
       </div>
       {footer ? <div className={styles.tableFooter}>{footer}</div> : null}
@@ -182,6 +190,7 @@ function BaselineDense() {
   return (
     <TableFrame
       title="发票列表"
+      limited
       toolbar={
         <>
           <label className={styles.searchField}>
@@ -265,6 +274,7 @@ function DirectionMotion() {
   return (
     <TableFrame
       title="发票列表"
+      limited
       action={
         <WarmButton variant="primary">
           新建发票

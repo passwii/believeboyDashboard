@@ -4,12 +4,27 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { stableSession } from '@/test-utils/stable-mocks'
 
+interface ProjectFixture {
+  id: number
+  name: string
+  brand_name: string | null
+  store_address: string | null
+  project_operator: string | null
+  assistant_operator: string | null
+  commission_basis: string | null
+  commission_rate: number | null
+  is_active: boolean
+  project_tier: string | null
+}
+
 const state = vi.hoisted(() => ({
   params: '',
   replace: vi.fn(),
   updateProfile: vi.fn(),
   uploadAvatar: vi.fn(),
   notify: vi.fn(),
+  projects: [] as ProjectFixture[],
+  avatarPreview: null as null | { objectUrl: string; fromCache: boolean },
 }))
 
 const profile = vi.hoisted(() => ({
@@ -56,11 +71,11 @@ vi.mock('@/lib/hooks/use-profile', () => ({
 }))
 
 vi.mock('@/lib/project-client-cache', () => ({
-  fetchManagedProjectsCached: vi.fn().mockResolvedValue([]),
+  fetchManagedProjectsCached: vi.fn(() => Promise.resolve(state.projects)),
 }))
 
 vi.mock('@/lib/user-avatar-cache', () => ({
-  loadUserAvatar: vi.fn().mockResolvedValue(null),
+  loadUserAvatar: vi.fn(() => Promise.resolve(state.avatarPreview)),
   invalidateUserAvatar: vi.fn(),
 }))
 
@@ -73,6 +88,9 @@ import ProfileClient from './profile-client'
 
 beforeEach(() => {
   state.params = ''
+  state.projects = []
+  state.avatarPreview = null
+  profile.avatar_url = null
   state.updateProfile.mockResolvedValue({
     ...profile,
     name: 'new-handle',
@@ -128,6 +146,35 @@ describe('Profile V4 Warm Ledger contract', () => {
     })
   })
 
+  it('tablist 使用 roving tabIndex，并支持方向键 / Home / End', async () => {
+    const user = userEvent.setup()
+    render(<ProfileClient />)
+
+    const infoTab = screen.getByRole('tab', { name: '资料设置' })
+    const avatarTab = screen.getByRole('tab', { name: '头像' })
+    const projectsTab = screen.getByRole('tab', { name: '我的项目' })
+
+    expect(infoTab).toHaveAttribute('tabindex', '0')
+    expect(avatarTab).toHaveAttribute('tabindex', '-1')
+    infoTab.focus()
+
+    await user.keyboard('{ArrowRight}')
+    expect(avatarTab).toHaveAttribute('aria-selected', 'true')
+    expect(avatarTab).toHaveAttribute('tabindex', '0')
+    expect(document.activeElement).toBe(avatarTab)
+
+    await user.keyboard('{End}')
+    expect(projectsTab).toHaveAttribute('aria-selected', 'true')
+    expect(document.activeElement).toBe(projectsTab)
+
+    await user.keyboard('{Home}')
+    expect(infoTab).toHaveAttribute('aria-selected', 'true')
+    expect(document.activeElement).toBe(infoTab)
+    expect(state.replace).toHaveBeenCalledWith('/dashboard/profile?tab=avatar', {
+      scroll: false,
+    })
+  })
+
   it('头像 tab 保留文件上传契约', async () => {
     const user = userEvent.setup()
     state.params = 'tab=avatar'
@@ -139,5 +186,61 @@ describe('Profile V4 Warm Ledger contract', () => {
     await user.upload(input as HTMLInputElement, file)
 
     await waitFor(() => expect(state.uploadAvatar).toHaveBeenCalledWith(file))
+  })
+
+  it('项目 tab 渲染真实项目行与项目信息链接', async () => {
+    state.params = 'tab=projects'
+    state.projects = [
+      {
+        id: 42,
+        name: '店铺甲',
+        brand_name: '品牌甲',
+        store_address: 'https://example.com/store',
+        project_operator: '纪亚伟',
+        assistant_operator: null,
+        commission_basis: 'sales_amount',
+        commission_rate: 0.05,
+        is_active: true,
+        project_tier: 'T1',
+      },
+    ]
+
+    render(<ProfileClient />)
+
+    expect(await screen.findByText('店铺甲')).toBeInTheDocument()
+    expect(screen.getByText('品牌甲')).toBeInTheDocument()
+    expect(screen.getByText('5.00% · 销售额')).toBeInTheDocument()
+    expect(screen.getByText('主运营')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '查看' })).toHaveAttribute(
+      'href',
+      '/dashboard/system/project-info?projectId=42'
+    )
+  })
+
+  it('头像预览与删除确认使用 Radix 焦点陷阱，并在关闭后恢复触发按钮', async () => {
+    const user = userEvent.setup()
+    state.params = 'tab=avatar'
+    profile.avatar_url = 'https://example.com/avatar.png'
+    state.avatarPreview = { objectUrl: 'blob:avatar-preview', fromCache: true }
+
+    render(<ProfileClient />)
+
+    const previewTrigger = await screen.findByRole('button', {
+      name: '查看 damon 头像原图',
+    })
+    await user.click(previewTrigger)
+    const previewDialog = screen.getByRole('dialog', { name: '头像预览 — damon' })
+    expect(previewDialog.contains(document.activeElement)).toBe(true)
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(document.activeElement).toBe(previewTrigger)
+
+    const deleteTrigger = screen.getByRole('button', { name: '删除头像' })
+    await user.click(deleteTrigger)
+    const deleteDialog = screen.getByRole('alertdialog', { name: '确认删除头像？' })
+    expect(deleteDialog.contains(document.activeElement)).toBe(true)
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(document.activeElement).toBe(deleteTrigger)
   })
 })

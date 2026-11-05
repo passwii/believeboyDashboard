@@ -297,11 +297,16 @@
   place-items: center;
   padding: var(--warm-ledger-space-8);
   background: var(--warm-ledger-color-scrim);
+  pointer-events: auto;
 }
 
 .previewFrame {
-  position: relative;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 81;
   display: grid;
+  width: min(880px, calc(100vw - 64px));
   max-width: min(880px, 100%);
   max-height: min(84vh, 100%);
   place-items: center;
@@ -310,6 +315,9 @@
   border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline-strong);
   border-radius: var(--warm-ledger-radius-panel);
   box-shadow: var(--warm-ledger-shadow-window);
+  font-family: var(--warm-ledger-font-sans);
+  pointer-events: auto;
+  transform: translate(-50%, -50%);
 }
 
 .previewClose {
@@ -324,6 +332,18 @@
   max-height: calc(84vh - 32px);
   object-fit: contain;
   border-radius: var(--warm-ledger-radius-inner);
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .avatarLabel {
@@ -396,17 +416,30 @@
   margin-top: var(--warm-ledger-space-3);
 }
 
-.confirmPanel {
-  display: flex;
-  grid-column: 1 / -1;
-  align-items: center;
-  justify-content: space-between;
+.confirmOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: var(--warm-ledger-color-scrim);
+  pointer-events: auto;
+}
+
+.confirmDialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 81;
+  display: grid;
+  width: min(440px, calc(100vw - 64px));
   gap: var(--warm-ledger-space-4);
-  padding: var(--warm-ledger-space-4);
-  margin-top: var(--warm-ledger-space-2);
+  padding: var(--warm-ledger-space-5);
   background: var(--warm-ledger-color-panel-strong);
   border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline-strong);
-  border-radius: var(--warm-ledger-radius-inner);
+  border-radius: var(--warm-ledger-radius-panel);
+  box-shadow: var(--warm-ledger-shadow-window);
+  font-family: var(--warm-ledger-font-sans);
+  pointer-events: auto;
+  transform: translate(-50%, -50%);
 }
 
 .confirmTitle {
@@ -417,14 +450,14 @@
 }
 
 .confirmDescription {
-  margin: var(--warm-ledger-space-1) 0 0;
+  margin: calc(-1 * var(--warm-ledger-space-2)) 0 0;
   color: var(--warm-ledger-color-text-muted);
   font-size: var(--warm-ledger-font-size-label);
 }
 
 .confirmActions {
   display: flex;
-  flex: 0 0 auto;
+  justify-content: flex-end;
   gap: var(--warm-ledger-space-2);
 }
 

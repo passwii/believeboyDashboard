@@ -25,6 +25,9 @@ describe('table-showcase 定稿页', () => {
     // mock 数据渲染（基线表格行）
     expect(screen.getAllByText(/INV-\d{4}/).length).toBeGreaterThan(0)
     expect(container.querySelectorAll('[data-warm-table-scroll]').length).toBeGreaterThanOrEqual(4)
+    expect(
+      container.querySelectorAll('[data-warm-table-scroll][data-limited="true"]')
+    ).toHaveLength(2)
   })
 
   it('生产源与样式不再引用 Terminal 或方角装饰', () => {
@@ -36,6 +39,7 @@ describe('table-showcase 定稿页', () => {
     expect(source).not.toMatch(/TermPanel|TermPill|term-|rounded-none/)
     expect(css).toContain('var(--warm-ledger-color-panel)')
     expect(css).toContain('var(--warm-ledger-radius-panel)')
+    expect(css).toContain('.searchField:focus-within')
     expect(css).not.toMatch(/term-|rounded-none/)
   })
 
@@ -43,9 +47,16 @@ describe('table-showcase 定稿页', () => {
     const user = userEvent.setup()
     render(<TableShowcasePage />)
 
-    const firstInvoice = screen.getByRole('button', { name: '发票号' })
-    await user.click(firstInvoice)
-    expect(screen.getByRole('button', { name: '发票号' })).toBeInTheDocument()
+    const amountSort = screen.getByRole('button', { name: '金额' })
+    const baselineTable = amountSort.closest('table')
+    expect(baselineTable).not.toBeNull()
+    const invoiceOrder = () =>
+      Array.from(baselineTable!.querySelectorAll('tbody tr')).map(
+        (row) => row.querySelector('td:nth-child(2)')?.textContent ?? ''
+      )
+    const beforeSort = invoiceOrder()
+    await user.click(amountSort)
+    expect(invoiceOrder()).not.toEqual(beforeSort)
 
     const choose = screen.getByRole('checkbox', { name: '选择 INV-2041' })
     await user.click(choose)

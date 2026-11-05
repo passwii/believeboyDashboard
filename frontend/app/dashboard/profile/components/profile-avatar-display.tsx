@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { Camera } from 'lucide-react'
 
 import { type CachedAvatar, loadUserAvatar } from '@/lib/user-avatar-cache'
@@ -57,32 +58,29 @@ export function ProfileAvatarDisplay({
 
   return (
     <div className={styles.avatarColumn}>
-      <button
-        type="button"
-        onClick={() => hasAvatar && setZoomedOpen(true)}
-        disabled={!hasAvatar}
-        aria-label={hasAvatar ? `查看 ${name} 头像原图` : '尚未上传头像'}
-        className={styles.avatarFrame}
-        data-has-avatar={hasAvatar ? 'true' : 'false'}
-      >
-        {previewSrc ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={previewSrc} alt="当前头像" className={styles.avatarImage} />
-        ) : (
-          <span className={styles.avatarFallback}>
-            <Camera className="h-12 w-12" aria-hidden="true" />
-          </span>
-        )}
-        {hasAvatar ? <span className={styles.avatarHover}>点击查看原图</span> : null}
-      </button>
+      <DialogPrimitive.Root open={zoomedOpen} onOpenChange={setZoomedOpen}>
+        <DialogPrimitive.Trigger asChild>
+          <button
+            type="button"
+            disabled={!hasAvatar}
+            aria-label={hasAvatar ? `查看 ${name} 头像原图` : '尚未上传头像'}
+            className={styles.avatarFrame}
+            data-has-avatar={hasAvatar ? 'true' : 'false'}
+          >
+            {previewSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={previewSrc} alt="当前头像" className={styles.avatarImage} />
+            ) : (
+              <span className={styles.avatarFallback}>
+                <Camera className="h-12 w-12" aria-hidden="true" />
+              </span>
+            )}
+            {hasAvatar ? <span className={styles.avatarHover}>点击查看原图</span> : null}
+          </button>
+        </DialogPrimitive.Trigger>
+        <ProfileAvatarPreviewDialog avatarUrl={avatarUrl} name={name} />
+      </DialogPrimitive.Root>
       <p className={styles.avatarLabel}>{label}</p>
-
-      <ProfileAvatarPreviewDialog
-        open={zoomedOpen}
-        onOpenChange={setZoomedOpen}
-        avatarUrl={avatarUrl}
-        name={name}
-      />
     </div>
   )
 }

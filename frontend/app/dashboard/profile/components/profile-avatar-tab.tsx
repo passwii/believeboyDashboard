@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import * as AlertDialogPrimitive from '@radix-ui/react-alert-dialog'
 import { RefreshCw, Trash2, Upload } from 'lucide-react'
 
 import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
@@ -30,11 +31,16 @@ export function ProfileAvatarTab({ profile, loading, onRefetch }: ProfileAvatarT
   const [removing, setRemoving] = React.useState(false)
   const [refreshTick, setRefreshTick] = React.useState(0)
   const [confirmRemoveOpen, setConfirmRemoveOpen] = React.useState(false)
+  const [portalContainer, setPortalContainer] = React.useState<HTMLElement | null>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 
   const userId = profile?.id ?? null
   const avatarUrl = profile?.avatar_url ?? null
   const userName = profile?.name ?? '当前用户'
+
+  React.useEffect(() => {
+    setPortalContainer(document.getElementById('warm-ledger-portal-root'))
+  }, [])
 
   const onFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -136,14 +142,49 @@ export function ProfileAvatarTab({ profile, loading, onRefetch }: ProfileAvatarT
                   <RefreshCw className="h-4 w-4" aria-hidden="true" />
                   刷新
                 </WarmButton>
-                <WarmButton
-                  variant="quiet"
-                  onClick={() => setConfirmRemoveOpen(true)}
-                  disabled={uploading || removing}
+                <AlertDialogPrimitive.Root
+                  open={confirmRemoveOpen}
+                  onOpenChange={setConfirmRemoveOpen}
                 >
-                  <Trash2 className="h-4 w-4" aria-hidden="true" />
-                  删除头像
-                </WarmButton>
+                  <AlertDialogPrimitive.Trigger asChild>
+                    <WarmButton variant="quiet" disabled={uploading || removing}>
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      删除头像
+                    </WarmButton>
+                  </AlertDialogPrimitive.Trigger>
+                  <AlertDialogPrimitive.Portal container={portalContainer}>
+                    <AlertDialogPrimitive.Overlay className={styles.confirmOverlay} />
+                    <AlertDialogPrimitive.Content className={styles.confirmDialog}>
+                      <AlertDialogPrimitive.Title className={styles.confirmTitle}>
+                        确认删除头像？
+                      </AlertDialogPrimitive.Title>
+                      <AlertDialogPrimitive.Description className={styles.confirmDescription}>
+                        头像将被恢复为系统默认（首字母占位）。此操作不可撤销。
+                      </AlertDialogPrimitive.Description>
+                      <div className={styles.confirmActions}>
+                        <AlertDialogPrimitive.Cancel asChild>
+                          <WarmButton variant="quiet" disabled={removing}>
+                            取消
+                          </WarmButton>
+                        </AlertDialogPrimitive.Cancel>
+                        <AlertDialogPrimitive.Action asChild>
+                          <WarmButton
+                            variant="primary"
+                            onClick={(event) => {
+                              event.preventDefault()
+                              void doRemove()
+                            }}
+                            loading={removing}
+                            loadingLabel="正在删除头像"
+                          >
+                            <Trash2 className="h-4 w-4" aria-hidden="true" />
+                            {removing ? '删除中...' : '确认删除'}
+                          </WarmButton>
+                        </AlertDialogPrimitive.Action>
+                      </div>
+                    </AlertDialogPrimitive.Content>
+                  </AlertDialogPrimitive.Portal>
+                </AlertDialogPrimitive.Root>
               </>
             ) : null}
           </div>
@@ -167,43 +208,6 @@ export function ProfileAvatarTab({ profile, loading, onRefetch }: ProfileAvatarT
         </details>
       </div>
 
-      {confirmRemoveOpen ? (
-        <div
-          className={styles.confirmPanel}
-          role="alertdialog"
-          aria-modal="true"
-          aria-labelledby="avatar-remove-title"
-          aria-describedby="avatar-remove-description"
-        >
-          <div>
-            <p id="avatar-remove-title" className={styles.confirmTitle}>
-              确认删除头像？
-            </p>
-            <p id="avatar-remove-description" className={styles.confirmDescription}>
-              头像将被恢复为系统默认（首字母占位）。此操作不可撤销。
-            </p>
-          </div>
-          <div className={styles.confirmActions}>
-            <WarmButton
-              variant="quiet"
-              onClick={() => setConfirmRemoveOpen(false)}
-              disabled={removing}
-              autoFocus
-            >
-              取消
-            </WarmButton>
-            <WarmButton
-              variant="primary"
-              onClick={() => void doRemove()}
-              loading={removing}
-              loadingLabel="正在删除头像"
-            >
-              <Trash2 className="h-4 w-4" aria-hidden="true" />
-              {removing ? '删除中...' : '确认删除'}
-            </WarmButton>
-          </div>
-        </div>
-      ) : null}
     </div>
   )
 }

@@ -30,6 +30,11 @@ export default function ProfileClient() {
   const requestedTab = searchParams.get('tab')
   const initialTab: ProfileTab = isProfileTab(requestedTab) ? requestedTab : 'info'
   const [tab, setTab] = React.useState<ProfileTab>(initialTab)
+  const tabRefs = React.useRef<Record<ProfileTab, HTMLButtonElement | null>>({
+    info: null,
+    avatar: null,
+    projects: null,
+  })
 
   React.useEffect(() => {
     setTab(initialTab)
@@ -51,6 +56,27 @@ export default function ProfileClient() {
     [router, searchParams]
   )
 
+  const onTabListKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const currentIndex = TAB_VALUES.indexOf(tab)
+    let nextIndex: number | null = null
+
+    if (event.key === 'ArrowRight') {
+      nextIndex = (currentIndex + 1) % TAB_VALUES.length
+    } else if (event.key === 'ArrowLeft') {
+      nextIndex = (currentIndex - 1 + TAB_VALUES.length) % TAB_VALUES.length
+    } else if (event.key === 'Home') {
+      nextIndex = 0
+    } else if (event.key === 'End') {
+      nextIndex = TAB_VALUES.length - 1
+    }
+
+    if (nextIndex === null) return
+    event.preventDefault()
+    const nextTab = TAB_VALUES[nextIndex]
+    onTabChange(nextTab)
+    tabRefs.current[nextTab]?.focus()
+  }
+
   return (
     <div className={styles.page} data-warm-page="profile">
       <header className={styles.header}>
@@ -63,35 +89,53 @@ export default function ProfileClient() {
       </header>
 
       <section className={styles.panel} aria-label="个人资料">
-        <div role="tablist" aria-label="资料分类" className={styles.tabList}>
+        <div
+          role="tablist"
+          aria-label="资料分类"
+          aria-orientation="horizontal"
+          className={styles.tabList}
+          onKeyDown={onTabListKeyDown}
+        >
           <button
+            ref={(node) => {
+              tabRefs.current.info = node
+            }}
             type="button"
             role="tab"
             id="profile-tab-info"
             aria-selected={tab === 'info'}
             aria-controls="profile-tabpanel"
+            tabIndex={tab === 'info' ? 0 : -1}
             onClick={() => onTabChange('info')}
           >
             <UserCog aria-hidden="true" />
             资料设置
           </button>
           <button
+            ref={(node) => {
+              tabRefs.current.avatar = node
+            }}
             type="button"
             role="tab"
             id="profile-tab-avatar"
             aria-selected={tab === 'avatar'}
             aria-controls="profile-tabpanel"
+            tabIndex={tab === 'avatar' ? 0 : -1}
             onClick={() => onTabChange('avatar')}
           >
             <ImageIcon aria-hidden="true" />
             头像
           </button>
           <button
+            ref={(node) => {
+              tabRefs.current.projects = node
+            }}
             type="button"
             role="tab"
             id="profile-tab-projects"
             aria-selected={tab === 'projects'}
             aria-controls="profile-tabpanel"
+            tabIndex={tab === 'projects' ? 0 : -1}
             onClick={() => onTabChange('projects')}
           >
             <FolderKanban aria-hidden="true" />

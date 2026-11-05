@@ -135,6 +135,14 @@
   outline: 0;
 }
 
+.searchField:focus-within {
+  color: var(--warm-ledger-color-text);
+  border-color: var(--warm-ledger-focus-color);
+  outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color);
+  outline-offset: var(--warm-ledger-focus-offset);
+  box-shadow: var(--warm-ledger-highlight-hover);
+}
+
 .selectionCount {
   color: var(--warm-ledger-color-text-muted);
   font-size: var(--warm-ledger-font-size-label);
@@ -143,11 +151,14 @@
 .tableScroll {
   width: 100%;
   min-width: 0;
-  max-height: 360px;
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-color: var(--warm-ledger-color-raised) var(--warm-ledger-color-window);
   scrollbar-width: thin;
+}
+
+.tableScrollLimited {
+  max-height: 360px;
 }
 
 .table {
