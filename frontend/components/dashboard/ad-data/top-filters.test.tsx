@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { stableSession } from '@/test-utils/stable-mocks'
 
@@ -39,6 +39,9 @@ vi.mock('@/components/dashboard/ad-refresh', () => ({
 
 vi.mock('@/components/terminal/terminal-header-slot', () => ({
   useHeaderSlot: (node: ReactNode) => <div data-testid="header-slot">{node}</div>,
+  useMobileFilterStrip: (node: ReactNode) => (
+    <div data-testid="mobile-slot">{node}</div>
+  ),
   useHeaderRefresh: (handler: () => void | Promise<void>) => {
     headerRefresh.handler = handler
     return { setLoading: vi.fn() }
@@ -53,6 +56,10 @@ describe('AdDataTopFilters Warm 筛选', () => {
     routerMock.refresh.mockClear()
     routerMock.push.mockClear()
     requestRefreshMock.mockClear()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('自动选择首个项目并保留 URL 筛选契约', async () => {
@@ -78,23 +85,34 @@ describe('AdDataTopFilters Warm 筛选', () => {
     expect(routerMock.refresh).toHaveBeenCalledTimes(1)
   })
 
-  it('日期输入继续写入 dateFrom/dateTo URL 契约', async () => {
+  it('恢复站点时区 date-range presets 并保留 URL 契约', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-11-04T12:00:00Z'))
     render(<AdDataTopFilters />)
 
-    fireEvent.change(await screen.findByLabelText('开始日期'), {
-      target: { value: '2026-01-01' },
-    })
-    fireEvent.change(screen.getByLabelText('结束日期'), {
-      target: { value: '2026-01-31' },
-    })
+    fireEvent.click(
+      screen.getByRole('button', { name: '2026-10-29 ~ 2026-11-04' })
+    )
 
+    expect(screen.getByText('近7天')).toBeInTheDocument()
+    expect(screen.getByText('上个月')).toBeInTheDocument()
+    expect(screen.getByText('本年度至今')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('上个月'))
     expect(routerMock.replace).toHaveBeenCalledWith(
-      '/dashboard/advertising/ad-data?country=US&dateFrom=2026-01-01',
+      '/dashboard/advertising/ad-data?country=US&dateFrom=2026-10-01&dateTo=2026-10-31',
       { scroll: false }
     )
-    expect(routerMock.replace).toHaveBeenCalledWith(
-      '/dashboard/advertising/ad-data?country=US&dateTo=2026-01-31',
-      { scroll: false }
-    )
+  })
+
+  it('注册移动筛选条，展开后项目/站点/日期筛选仍可用', async () => {
+    render(<AdDataTopFilters />)
+
+    expect(await screen.findByTestId('mobile-filter-strip')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '切换页面筛选' }))
+
+    expect(screen.getByRole('combobox', { name: '移动项目筛选' })).toBeInTheDocument()
+    expect(screen.getAllByRole('combobox', { name: '站点筛选' })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: /2026-/ })).toHaveLength(2)
   })
 })

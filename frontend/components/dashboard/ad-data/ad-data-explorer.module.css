@@ -453,8 +453,8 @@
   min-width: 128px;
 }
 
-.headerDateRange {
-  width: 136px;
+.headerDateRangeTrigger {
+  width: 238px;
   height: var(--warm-ledger-control-height) !important;
   padding: 0 var(--warm-ledger-space-3) !important;
   color: var(--warm-ledger-color-text) !important;
@@ -465,13 +465,43 @@
   border-radius: var(--warm-ledger-radius-control) !important;
 }
 
-.headerDateRangeGroup {
-  display: flex;
-  align-items: center;
-  gap: var(--warm-ledger-space-1);
+.headerDateRangeMobile {
+  width: 100%;
+}
+
+.headerDatePopover {
+  color: var(--warm-ledger-color-text) !important;
+  background: var(--warm-ledger-color-panel-strong) !important;
+  border: 1px solid var(--warm-ledger-color-hairline-strong) !important;
+  border-radius: var(--warm-ledger-radius-panel) !important;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.36), var(--warm-ledger-highlight-rest) !important;
+}
+
+.mobileFilterStrip {
+  background: var(--warm-ledger-color-panel) !important;
+  border-color: var(--warm-ledger-color-hairline) !important;
+}
+
+.mobileFilterStrip > button {
+  min-height: 44px;
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-sans);
+  background: var(--warm-ledger-color-panel) !important;
+  border-color: var(--warm-ledger-color-hairline) !important;
+}
+
+.mobileFilterStrip > button:hover {
+  background: var(--warm-ledger-color-panel-strong) !important;
+}
+
+.mobileFilterStrip > button > span:last-of-type {
   color: var(--warm-ledger-color-text-muted);
   font-family: var(--warm-ledger-font-sans);
-  font-size: var(--warm-ledger-font-size-label);
+}
+
+.mobileFilterStrip > div {
+  background: var(--warm-ledger-color-panel) !important;
+  border-color: var(--warm-ledger-color-hairline) !important;
 }
 
 .headerSkeleton {
