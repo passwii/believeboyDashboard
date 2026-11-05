@@ -191,7 +191,7 @@ describe('SubscriptionsView 批量操作（BLF-1032）', () => {
     )
   })
 
-  it('移动卡片的国家与邮箱是 sans，发送时间保留 mono', async () => {
+  it('普通国家与邮箱是 sans，发送时间和手机模型使用专用 mono 契约', async () => {
     installFetch()
     await renderView()
 
@@ -203,8 +203,16 @@ describe('SubscriptionsView 批量操作（BLF-1032）', () => {
       expect(country).toHaveClass('font-sans')
       expect(country).not.toHaveClass('font-mono')
     }
-    for (const time of screen.getAllByText('09:00')) {
-      expect(time).toHaveClass('font-mono')
+    const times = screen.getAllByText('09:00')
+    for (const time of times) {
+      expect(time).toHaveAttribute('data-warm-value', 'time')
+      expect(time).not.toHaveClass('font-sans')
+    }
+
+    const mobileModels = screen.getAllByText('AI: gpt-5')
+    for (const model of mobileModels) {
+      expect(model).toHaveAttribute('data-warm-value', 'model')
+      expect(model).not.toHaveClass('font-sans')
     }
   })
 

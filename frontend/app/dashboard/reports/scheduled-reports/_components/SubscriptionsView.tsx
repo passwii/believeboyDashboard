@@ -715,11 +715,8 @@ export default function SubscriptionsView({
                           />
                         </td>
                         <td
-                          className={cn(
-                            styles.mutedCell,
-                            styles.numeric,
-                            'font-mono'
-                          )}
+                          className={cn(styles.mutedCell, styles.timeCell)}
+                          data-warm-value="time"
                         >
                           {formatDispatchText(sub)}
                         </td>
@@ -820,11 +817,8 @@ export default function SubscriptionsView({
                             {display}
                           </div>
                           <div
-                            className={cn(
-                              styles.mobileMeta,
-                              styles.mobileTime,
-                              'font-mono tabular-nums'
-                            )}
+                            className={cn(styles.mobileMeta, styles.mobileTime)}
+                            data-warm-value="time"
                           >
                             {formatDispatchText(sub)}
                           </div>
@@ -857,7 +851,10 @@ export default function SubscriptionsView({
                       {sub.email || '未填写邮箱'}
                     </div>
                     {sub.ai_model ? (
-                          <div className={cn(styles.mobileMeta, styles.modelCell)}>
+                          <div
+                            className={cn(styles.mobileMeta, styles.modelCell)}
+                            data-warm-value="model"
+                          >
                             AI: {sub.ai_model}
                           </div>
                     ) : null}

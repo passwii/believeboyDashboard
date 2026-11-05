@@ -48,4 +48,16 @@ describe('scheduled reports Warm 样式契约', () => {
       'font-family: var(--warm-ledger-font-mono)'
     )
   })
+
+  it('时间与模型用复合专用选择器确保最终 mono，不依赖声明顺序', () => {
+    expect(cssBlock('.mutedCell.timeCell')).toContain(
+      'font-family: var(--warm-ledger-font-mono)'
+    )
+    expect(cssBlock('.mobileMeta.mobileTime')).toContain(
+      'font-family: var(--warm-ledger-font-mono)'
+    )
+    expect(cssBlock('.mobileMeta.modelCell')).toContain(
+      'font-family: var(--warm-ledger-font-mono)'
+    )
+  })
 })
