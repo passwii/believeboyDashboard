@@ -314,12 +314,23 @@ async function expectDesktopWindowGeometry(page: Page) {
       borderRadius: '22px',
     })
 
-  const widths = await page.evaluate(() => ({
-    documentWidth: document.documentElement.scrollWidth,
-    bodyWidth: document.body.scrollWidth,
-  }))
-  expect(widths.documentWidth).toBeLessThanOrEqual(VIEWPORT.width)
-  expect(widths.bodyWidth).toBeLessThanOrEqual(VIEWPORT.width)
+  await expect
+    .poll(async () =>
+      page
+        .evaluate(() => ({
+          documentWidth: document.documentElement.scrollWidth,
+          bodyWidth: document.body.scrollWidth,
+        }))
+        .then(
+          ({ documentWidth, bodyWidth }) =>
+            documentWidth <= VIEWPORT.width && bodyWidth <= VIEWPORT.width
+        )
+        .catch((error: Error) => {
+          if (error.message.includes('Execution context was destroyed')) return false
+          throw error
+        })
+    )
+    .toBe(true)
 }
 
 test.describe('V4 Warm Ledger desktop expansion matrix', () => {
@@ -348,13 +359,26 @@ test.describe('V4 Warm Ledger desktop expansion matrix', () => {
       // Several routes normalize project/country query params during hydration.
       // Wait for the HTTP commit before that same-document replace can abort goto().
       // Redirect aliases must finish before the next matrix navigation starts.
-      const response = await page.goto(route, {
-        waitUntil: redirectTarget ? 'domcontentloaded' : 'commit',
-      })
+      let response: Awaited<ReturnType<Page['goto']>> = null
+      try {
+        response = await page.goto(route, {
+          waitUntil: redirectTarget ? 'domcontentloaded' : 'commit',
+        })
+      } catch (error) {
+        if (!(error instanceof Error) || !error.message.includes('net::ERR_ABORTED')) {
+          throw error
+        }
+        const probe = await page.request.get(route)
+        expect(probe.ok(), `${route} should return a successful document`).toBe(true)
+      }
       if (redirectTarget) {
         await page.waitForURL((url) => url.pathname === redirectTarget)
+      } else {
+        await page.waitForURL((url) => url.pathname === route)
       }
-      expect(response?.ok(), `${route} should return a successful document`).toBe(true)
+      if (response) {
+        expect(response.ok(), `${route} should return a successful document`).toBe(true)
+      }
       await expect(page.locator('.warm-ledger__app-window'), `${route} shell`).toBeVisible({
         timeout: 30_000,
       })
