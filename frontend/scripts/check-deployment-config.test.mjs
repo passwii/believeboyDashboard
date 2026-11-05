@@ -52,11 +52,18 @@ test('dashboard deployment workflow is manual-only and publishes both images', a
   assert.match(workflow, /workflow_dispatch:/)
   assert.doesNotMatch(workflow, /^on:\s*\n\s+push:/m)
   assert.match(workflow, /packages:\s*write/)
+  assert.match(workflow, /secrets\.GHCR_TOKEN/)
   assert.match(workflow, /ghcr\.io\/passwii\/believeboydashboard-api/)
   assert.match(workflow, /ghcr\.io\/passwii\/believeboydashboard-web/)
   assert.match(workflow, /secrets\.NEXTAUTH_SECRET/)
   assert.match(workflow, /steps\.api\.outputs\.digest/)
   assert.match(workflow, /steps\.web\.outputs\.digest/)
+})
+
+test('remote deploy keeps the SSH script stream out of Compose run', async () => {
+  const script = await read('deploy/deploy-remote.sh')
+  assert.match(script, /docker compose run --rm -T migrate/)
+  assert.doesNotMatch(script, /docker compose run --rm migrate/)
 })
 
 test('server-side backend calls prefer loopback while browser metadata stays public', async () => {

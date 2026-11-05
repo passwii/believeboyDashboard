@@ -199,6 +199,7 @@ jobs:
             "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/docker-compose.yml"
 
       - name: Deploy over SSH
+        id: deploy
         env:
           API_IMAGE: ${{ env.API_IMAGE_NAME }}@${{ steps.api.outputs.digest }}
           WEB_IMAGE: ${{ env.WEB_IMAGE_NAME }}@${{ steps.web.outputs.digest }}
@@ -213,6 +214,7 @@ jobs:
             < deploy/deploy-remote.sh
 
       - name: External health check
+        id: health
         run: |
           set -euo pipefail
           for attempt in $(seq 1 15); do
@@ -225,6 +227,21 @@ jobs:
           done
           echo "::error::Dashboard Web or API health check is not reachable"
           exit 1
+
+      - name: Diagnose deployment failure
+        if: ${{ always() && (steps.deploy.outcome == 'failure' || steps.health.outcome == 'failure') }}
+        run: |
+          set -euo pipefail
+          ssh -i "$HOME/.ssh/believeboy-dashboard" \
+            -o IdentitiesOnly=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes \
+            "$SSH_USER@$SSH_HOST" \
+            "cd '$DEPLOY_PATH'
+             docker compose ps || true
+             docker compose logs --tail=200 || true
+             systemctl is-active believeboy-api believeboy-celery \
+               believeboy-celery-scheduled believeboy-beat 2>/dev/null || true"
 
       - name: Disable legacy units
         run: |
