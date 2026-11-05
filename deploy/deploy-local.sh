@@ -212,11 +212,12 @@ ssh "$DEPLOY_HOST" "
 
 ssh "$DEPLOY_HOST" "umask 077 && cat > '$DEPLOY_PATH/web.env'" < "$TMP_DIR/web.env"
 scp "$ROOT/deploy/docker-compose.yml" "$DEPLOY_HOST:$DEPLOY_PATH/docker-compose.yml"
+scp "$ROOT/deploy/deploy-remote.sh" "$DEPLOY_HOST:$DEPLOY_PATH/deploy-remote.sh"
 
 echo "Deploying API and Web..."
 if ! ssh "$DEPLOY_HOST" \
-  "API_IMAGE='$API_IMAGE' WEB_IMAGE='$WEB_IMAGE' DEPLOY_PATH='$DEPLOY_PATH' bash -s" \
-  < "$ROOT/deploy/deploy-remote.sh"; then
+  "API_IMAGE='$API_IMAGE' WEB_IMAGE='$WEB_IMAGE' DEPLOY_PATH='$DEPLOY_PATH' \
+    bash '$DEPLOY_PATH/deploy-remote.sh'"; then
   echo "Compose deployment failed; legacy services will not be restored automatically." >&2
   exit 1
 fi

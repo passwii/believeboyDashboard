@@ -62,8 +62,14 @@ test('dashboard deployment workflow is manual-only and publishes both images', a
 
 test('remote deploy keeps the SSH script stream out of Compose run', async () => {
   const script = await read('deploy/deploy-remote.sh')
-  assert.match(script, /docker compose run --rm -T migrate/)
+  const workflow = await read('.github/workflows/deploy-dashboard.yml')
+  const localDeploy = await read('deploy/deploy-local.sh')
+  assert.match(script, /docker compose run --rm -T migrate < \/dev\/null/)
   assert.doesNotMatch(script, /docker compose run --rm migrate/)
+  assert.doesNotMatch(workflow, /bash -s/)
+  assert.doesNotMatch(localDeploy, /bash -s/)
+  assert.match(workflow, /bash '\$DEPLOY_PATH\/deploy-remote\.sh'/)
+  assert.match(localDeploy, /bash '\$DEPLOY_PATH\/deploy-remote\.sh'/)
 })
 
 test('server-side backend calls prefer loopback while browser metadata stays public', async () => {

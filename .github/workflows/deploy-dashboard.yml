@@ -189,7 +189,7 @@ jobs:
              docker stop believeboy-dashboard 2>/dev/null || true
              docker rm believeboy-dashboard 2>/dev/null || true"
 
-      - name: Sync compose file
+      - name: Sync deployment files
         run: |
           scp -i "$HOME/.ssh/believeboy-dashboard" \
             -o IdentitiesOnly=yes \
@@ -197,6 +197,12 @@ jobs:
             -o StrictHostKeyChecking=yes \
             deploy/docker-compose.yml \
             "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/docker-compose.yml"
+          scp -i "$HOME/.ssh/believeboy-dashboard" \
+            -o IdentitiesOnly=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes \
+            deploy/deploy-remote.sh \
+            "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/deploy-remote.sh"
 
       - name: Deploy over SSH
         id: deploy
@@ -210,8 +216,8 @@ jobs:
             -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
             -o StrictHostKeyChecking=yes \
             "$SSH_USER@$SSH_HOST" \
-            "API_IMAGE='$API_IMAGE' WEB_IMAGE='$WEB_IMAGE' DEPLOY_PATH='$DEPLOY_PATH' bash -s" \
-            < deploy/deploy-remote.sh
+            "API_IMAGE='$API_IMAGE' WEB_IMAGE='$WEB_IMAGE' DEPLOY_PATH='$DEPLOY_PATH' \
+              bash '$DEPLOY_PATH/deploy-remote.sh'"
 
       - name: External health check
         id: health

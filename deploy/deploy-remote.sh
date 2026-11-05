@@ -54,7 +54,7 @@ echo "Pulling API and Web images..."
 docker compose pull migrate api celery celery-scheduled beat web
 
 echo "Running database migrations..."
-docker compose run --rm -T migrate
+docker compose run --rm -T migrate < /dev/null
 
 if ! docker compose up -d --no-build --remove-orphans; then
   docker compose ps
