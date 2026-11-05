@@ -17,10 +17,10 @@ import path from 'node:path'
 
 import { BelieveboyModelsView } from './believeboy-models-view'
 
-const DOC_RELATIVE_PATH = ['docs', 'believeboy-models.md']
-
 export default async function BelieveboyModelsPage() {
-  const filePath = path.join(process.cwd(), ...DOC_RELATIVE_PATH)
+  // Keep the path literal so Next's output tracing includes only this file,
+  // not the whole repository, in the standalone runtime.
+  const filePath = path.join(process.cwd(), 'docs', 'believeboy-models.md')
   const source = await readFile(filePath, 'utf-8')
 
   return <BelieveboyModelsView source={source} />

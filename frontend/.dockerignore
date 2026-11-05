@@ -1,0 +1,14 @@
+node_modules
+.next
+.next-temp-build
+coverage
+playwright-report
+test-results
+tests
+playwright.config.ts
+docs/*
+!docs/believeboy-models.md
+.env*
+!.env.local.example
+*.log
+*.tsbuildinfo

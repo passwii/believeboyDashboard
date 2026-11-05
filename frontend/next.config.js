@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  output: 'standalone',
+  outputFileTracingRoot: __dirname,
   allowedDevOrigins: ['145.79.143.98', 'dash.believeboy.com'],
   images: {
     remotePatterns: [
