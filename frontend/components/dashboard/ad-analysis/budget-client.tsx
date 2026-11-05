@@ -217,7 +217,7 @@ export function AdAnalysisBudgetClient() {
       <WarmDeferredSection fallbackHeight="h-[420px]" data-testid="budget-deferred-table">
       <WarmPanel title="活动层分析" bodyClassName="p-0">
         <div className="flex items-center gap-1.5 px-2 py-1.5">
-            <Wallet className="h-4 w-4 text-primary" />
+            <Wallet className="h-4 w-4 text-[var(--warm-ledger-color-accent-strong)]" />
           {/* 桌面端：完整表格 */}
           <div>
             <WarmTable>
@@ -256,7 +256,7 @@ export function AdAnalysisBudgetClient() {
                         ${item.missed_sales_min.toFixed(2)} - ${item.missed_sales_max.toFixed(2)}
                       </WarmNumber>
                     </WarmCell>
-                    <WarmCell className="max-w-[220px] text-sm text-muted-foreground">
+                    <WarmCell className="max-w-[220px] text-sm text-[var(--warm-ledger-color-text-muted)]">
                       {item.next_step}
                     </WarmCell>
                     <WarmCell numeric>{(item.acos * 100).toFixed(2)}%</WarmCell>

@@ -177,7 +177,7 @@ export function AdAnalysisProductsClient() {
       <WarmDeferredSection fallbackHeight="h-[420px]" data-testid="products-deferred-table">
       <WarmPanel title="活动层分析" bodyClassName="p-0">
         <div className="flex items-center gap-1.5 px-2 py-1.5">
-            <Package2 className="h-4 w-4 text-primary" />
+            <Package2 className="h-4 w-4 text-[var(--warm-ledger-color-accent-strong)]" />
           {/* 桌面端：完整表格 */}
           <div>
             <WarmTable>
@@ -220,7 +220,7 @@ export function AdAnalysisProductsClient() {
                     <WarmCell className="align-top">
                       <div className="space-y-1 text-sm">
                         <p><WarmNumber>${item.cross_sell_sales_7d.toFixed(2)}</WarmNumber></p>
-                        <p className="text-muted-foreground">
+                        <p className="text-[var(--warm-ledger-color-text-muted)]">
                           <WarmNumber>{item.cross_sell_orders_7d}</WarmNumber> 单 / <WarmNumber>{item.cross_sell_asin_count}</WarmNumber> 个 ASIN
                         </p>
                         <p className="font-sans text-xs text-[var(--warm-ledger-color-text-muted)]">
@@ -231,7 +231,7 @@ export function AdAnalysisProductsClient() {
                     <WarmCell>
                       <div className="space-y-1">
                         <WarmPill tone="muted">{item.cross_sell_action}</WarmPill>
-                        <p className="max-w-[220px] text-xs text-muted-foreground">
+                        <p className="max-w-[220px] text-xs text-[var(--warm-ledger-color-text-muted)]">
                           {item.next_action}
                         </p>
                       </div>

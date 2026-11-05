@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 
@@ -8,6 +8,11 @@ import {
   WarmPill,
   WarmSkeleton,
 } from './warm-analysis'
+import {
+  activeAdAnalysisDatePreset,
+  buildAdAnalysisDatePresets,
+  isAdAnalysisDateInput,
+} from './date-presets'
 import {
   useHeaderRefresh,
   useHeaderSlot,
@@ -65,6 +70,9 @@ export function AdAnalysisTopFilters() {
   const country = searchParams.get('country') || 'US'
   const dateFrom = searchParams.get('dateFrom') || ''
   const dateTo = searchParams.get('dateTo') || ''
+  const datePresets = useMemo(() => buildAdAnalysisDatePresets(country), [country])
+  const todayInSiteTimezone = datePresets.find((preset) => preset.key === 'today')?.dateFrom ?? ''
+  const activeDatePreset = activeAdAnalysisDatePreset(datePresets, dateFrom, dateTo)
   const drillTokens: Array<{ key: string; label: string; value: string }> = []
   Object.entries(DRILL_PARAM_LABELS).forEach(([key, label]) => {
     const value = searchParams.get(key)
@@ -115,9 +123,28 @@ export function AdAnalysisTopFilters() {
   }
 
   const updateDate = (key: 'dateFrom' | 'dateTo', value: string) => {
+    if (value && (!isAdAnalysisDateInput(value) || value > todayInSiteTimezone)) return
+    if (key === 'dateTo' && value && dateFrom && value < dateFrom) return
+
     replaceSearchParams((next) => {
-      if (value) next.set(key, value)
-      else next.delete(key)
+      if (!value) {
+        next.delete(key)
+        return
+      }
+
+      next.set(key, value)
+      if (key === 'dateFrom' && dateTo && value > dateTo) {
+        next.set('dateTo', value)
+      }
+    })
+  }
+
+  const applyDatePreset = (key: string) => {
+    const preset = datePresets.find((item) => item.key === key)
+    if (!preset) return
+    replaceSearchParams((next) => {
+      next.set('dateFrom', preset.dateFrom)
+      next.set('dateTo', preset.dateTo)
     })
   }
 
@@ -169,11 +196,25 @@ export function AdAnalysisTopFilters() {
       </select>
 
       <div className={styles.dateGroup}>
+        <select
+          aria-label="日期快捷范围"
+          className={styles.datePreset}
+          value={activeDatePreset ?? ''}
+          onChange={(event) => applyDatePreset(event.target.value)}
+        >
+          <option value="">自定义</option>
+          {datePresets.map((preset) => (
+            <option key={preset.key} value={preset.key}>
+              {preset.label}
+            </option>
+          ))}
+        </select>
         <input
           type="date"
           aria-label="开始日期"
           className={styles.dateInput}
           value={dateFrom}
+          max={todayInSiteTimezone || undefined}
           onChange={(event) => updateDate('dateFrom', event.target.value)}
         />
         <input
@@ -181,6 +222,8 @@ export function AdAnalysisTopFilters() {
           aria-label="结束日期"
           className={styles.dateInput}
           value={dateTo}
+          min={dateFrom || undefined}
+          max={todayInSiteTimezone || undefined}
           onChange={(event) => updateDate('dateTo', event.target.value)}
         />
       </div>
@@ -214,11 +257,25 @@ export function AdAnalysisTopFilters() {
   const mobileSummary = `${country} · ${dateFrom || ''} ~ ${dateTo || ''}`
   const mobileControls = (
     <>
+      <select
+        aria-label="日期快捷范围"
+        className={styles.mobileControl}
+        value={activeDatePreset ?? ''}
+        onChange={(event) => applyDatePreset(event.target.value)}
+      >
+        <option value="">自定义</option>
+        {datePresets.map((preset) => (
+          <option key={preset.key} value={preset.key}>
+            {preset.label}
+          </option>
+        ))}
+      </select>
       <input
         type="date"
         aria-label="开始日期"
         className={styles.mobileControl}
         value={dateFrom}
+        max={todayInSiteTimezone || undefined}
         onChange={(event) => updateDate('dateFrom', event.target.value)}
       />
       <input
@@ -226,6 +283,8 @@ export function AdAnalysisTopFilters() {
         aria-label="结束日期"
         className={styles.mobileControl}
         value={dateTo}
+        min={dateFrom || undefined}
+        max={todayInSiteTimezone || undefined}
         onChange={(event) => updateDate('dateTo', event.target.value)}
       />
       <MobileFilterWide>

@@ -154,7 +154,7 @@ export function AdAnalysisPurchasedProductsClient() {
 
       <WarmPanel title="活动层分析" bodyClassName="p-0">
         <div className="flex items-center gap-1.5 px-2 py-1.5">
-            <ShoppingBasket className="h-4 w-4 text-primary" />
+            <ShoppingBasket className="h-4 w-4 text-[var(--warm-ledger-color-accent-strong)]" />
           {/* 桌面端：完整表格 */}
           <div>
             <WarmTable>

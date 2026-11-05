@@ -208,7 +208,7 @@ export function AdAnalysisTrafficQualityClient() {
       <WarmDeferredSection fallbackHeight="h-[420px]" data-testid="traffic-quality-deferred-table">
       <WarmPanel title="活动层分析" bodyClassName="p-0">
         <div className="flex items-center gap-1.5 px-2 py-1.5">
-            <ShieldAlert className="h-4 w-4 text-primary" />
+            <ShieldAlert className="h-4 w-4 text-[var(--warm-ledger-color-accent-strong)]" />
           {/* 桌面端：完整表格 */}
           <div>
             <WarmTable>
@@ -247,7 +247,7 @@ export function AdAnalysisTrafficQualityClient() {
                       <WarmNumber>{item.total_clicks} / {item.invalid_clicks}</WarmNumber>
                     </WarmCell>
                     <WarmCell numeric>{(item.invalid_click_rate * 100).toFixed(2)}%</WarmCell>
-                    <WarmCell className="max-w-[220px] text-sm text-muted-foreground">
+                    <WarmCell className="max-w-[220px] text-sm text-[var(--warm-ledger-color-text-muted)]">
                       {item.next_step}
                     </WarmCell>
                     <WarmCell className="align-top">

@@ -29,6 +29,7 @@
 }
 
 .headerSelect,
+.datePreset,
 .dateInput,
 .mobileControl {
   height: var(--warm-ledger-control-height-select);
@@ -46,6 +47,11 @@
   padding-inline: var(--warm-ledger-space-2);
 }
 
+.datePreset {
+  width: 122px;
+  padding-inline: var(--warm-ledger-space-2);
+}
+
 .dateGroup {
   display: inline-flex;
   align-items: center;
@@ -58,6 +64,7 @@
 }
 
 .headerSelect:focus-visible,
+.datePreset:focus-visible,
 .dateInput:focus-visible,
 .mobileControl:focus-visible,
 .clearButton:focus-visible,

@@ -138,12 +138,12 @@ export function AdAnalysisTimeTrendClient() {
       {comparison ? (
         <WarmPanel title="周期对比" bodyClassName="p-2">
           <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-[var(--warm-ledger-color-text-muted)]">
               当前周期 {comparison.current_start} ~ {comparison.current_end} 对比上一周期{' '}
               {comparison.previous_start} ~ {comparison.previous_end}
             </p>
             {comparison.summary ? (
-              <p className="text-sm leading-6 text-foreground/90">{comparison.summary}</p>
+              <p className="text-sm leading-6 text-[var(--warm-ledger-color-text-soft)]">{comparison.summary}</p>
             ) : null}
             <div className="grid grid-cols-3 gap-3">
               <div className="rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] px-2 py-1.5 font-sans text-xs">
@@ -201,7 +201,7 @@ export function AdAnalysisTimeTrendClient() {
                   >
                     <WarmCell className="font-sans text-xs font-medium text-[var(--warm-ledger-color-text)]">
                       <div className="flex items-center gap-2">
-                        <TimerReset className="h-3.5 w-3.5 text-muted-foreground" />
+                        <TimerReset className="h-3.5 w-3.5 text-[var(--warm-ledger-color-text-muted)]" />
                         <WarmNumber>{item.report_date}</WarmNumber>
                       </div>
                     </WarmCell>

@@ -54,6 +54,9 @@ describe('广告分析 V4 Warm Ledger 契约', () => {
       expect(source, path).not.toContain('rounded-none')
       expect(source, path).not.toMatch(/(?:^|[\s"'])font-mono(?=[\s"']|$)/m)
       expect(source, path).not.toMatch(
+        /(?:^|[\s"'])(?:text|bg|border|ring|fill|stroke)-(?:primary(?:-foreground)?|secondary(?:-foreground)?|muted(?:-foreground)?|accent(?:-foreground)?|destructive(?:-foreground)?|foreground|background|card(?:-foreground)?|popover(?:-foreground)?|border|input|ring)(?:\/\d+)?(?=[\s"']|$)/m
+      )
+      expect(source, path).not.toMatch(
         /\bTerm(?:Panel|KpiTile|Pill|RefreshStatus|Table|Head|Cell|Row|Body|THead|GridHeader|MetricTile|ChartPanel)\b/
       )
       if (path.endsWith('.tsx')) {
