@@ -6,6 +6,7 @@ import {
   getWarmLedgerRouteMeta,
   getWarmLedgerPageTitle,
   isWarmLedgerRoute,
+  isWarmLedgerStandaloneRoute,
 } from '@/components/dashboard-v2/warm-ledger/shell/warm-ledger-route-frame'
 
 let mockPathname = '/dashboard'
@@ -22,11 +23,6 @@ vi.mock('next-auth/react', () => ({
 vi.mock('@/components/notifications/server-notifications-context', () => ({
   ServerNotificationsProvider: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="notifications-provider">{children}</div>
-  ),
-}))
-vi.mock('@/components/terminal/terminal-shell', () => ({
-  TerminalShell: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="terminal-shell">{children}</div>
   ),
 }))
 vi.mock('@/components/dashboard/search-command', () => ({
@@ -118,6 +114,25 @@ const WARM_ROUTE_CASES = [
   ['/dashboard/system/logs', '日志查看', '系统管理'],
   ['/dashboard/system/operator-management', '运营管理', '系统管理'],
   ['/dashboard/system/project-info', '项目信息', '系统管理'],
+  ['/dashboard/advertising/ad-analysis', '广告分析', '广告'],
+  ['/dashboard/advertising/ad-analysis/overview', '广告总览', '广告'],
+  ['/dashboard/advertising/ad-analysis/budget', '广告预算', '广告'],
+  ['/dashboard/advertising/ad-analysis/campaigns', '广告活动', '广告'],
+  ['/dashboard/advertising/ad-analysis/placements', '广告位', '广告'],
+  ['/dashboard/advertising/ad-analysis/products', '广告商品', '广告'],
+  ['/dashboard/advertising/ad-analysis/purchased-products', '已购商品', '广告'],
+  ['/dashboard/advertising/ad-analysis/search-terms', '搜索词', '广告'],
+  ['/dashboard/advertising/ad-analysis/targets', '投放目标', '广告'],
+  ['/dashboard/advertising/ad-analysis/time-trend', '时间趋势', '广告'],
+  ['/dashboard/advertising/ad-analysis/traffic-quality', '流量质量', '广告'],
+  ['/dashboard/advertising/ad-data', '广告数据', '广告'],
+  ['/dashboard/profile', '个人中心', '运营'],
+  ['/dashboard/change-password', '修改密码', '运营'],
+  ['/dashboard/feature-updates', '产品更新', '运营'],
+  ['/dashboard/table-showcase', '表格规范', '运营'],
+  ['/dashboard/ai', 'AI 智能', 'AI 智能'],
+  ['/dashboard/ai/chat', 'AI Chat', 'AI 智能'],
+  ['/dashboard/system/digital-display', '数字大屏', '系统管理'],
 ] as const
 
 describe('DashboardLayout shell routing', () => {
@@ -126,7 +141,7 @@ describe('DashboardLayout shell routing', () => {
     mockSearchParams = new URLSearchParams()
   })
 
-  it('bypasses TerminalShell only for the exact /dashboard route', () => {
+  it('renders the exact /dashboard route without a nested shell wrapper', () => {
     render(
       <DashboardLayout>
         <div data-testid="child">real child</div>
@@ -135,20 +150,20 @@ describe('DashboardLayout shell routing', () => {
 
     expect(screen.getByTestId('notifications-provider')).toBeInTheDocument()
     expect(screen.getByTestId('child')).toBeInTheDocument()
-    expect(screen.queryByTestId('terminal-shell')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('warm-ledger-frame')).not.toBeInTheDocument()
     expect(screen.getByTestId('search-command')).toBeInTheDocument()
     expect(document.title).toContain('运营总览与关键数据面板')
   })
 
-  it('keeps TerminalShell mounted for every nested Dashboard route', () => {
-    mockPathname = '/dashboard/ai/chat'
+  it('renders a nested Dashboard route in the Warm frame', () => {
+    mockPathname = '/dashboard/advertising/ad-data'
     render(
       <DashboardLayout>
         <div data-testid="child">real child</div>
       </DashboardLayout>,
     )
 
-    expect(screen.getByTestId('terminal-shell')).toBeInTheDocument()
+    expect(screen.getByTestId('warm-ledger-frame')).toBeInTheDocument()
     expect(screen.getByTestId('child')).toBeInTheDocument()
     expect(screen.queryByTestId('search-command')).not.toBeInTheDocument()
   })
@@ -163,7 +178,7 @@ describe('DashboardLayout shell routing', () => {
       </DashboardLayout>,
     )
     expect(screen.getByTestId('warm-ledger-frame')).toBeInTheDocument()
-    expect(screen.queryByTestId('terminal-shell')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('warm-standalone')).not.toBeInTheDocument()
     normal.unmount()
 
     mockSearchParams = new URLSearchParams('mode=presentation')
@@ -172,7 +187,7 @@ describe('DashboardLayout shell routing', () => {
         <div data-testid="child">presentation</div>
       </DashboardLayout>,
     )
-    expect(screen.getByTestId('terminal-shell')).toBeInTheDocument()
+    expect(screen.getByTestId('warm-standalone')).toBeInTheDocument()
     expect(screen.queryByTestId('warm-ledger-frame')).not.toBeInTheDocument()
   })
 
@@ -213,14 +228,11 @@ describe('DashboardLayout shell routing', () => {
     }
   })
 
-  it('keeps redirects, visual exceptions, public pages, and nested neighbors outside Warm', () => {
+  it('keeps redirects, public pages, and nested neighbors outside Warm', () => {
     const outsideWarm = [
       '/dashboard/finance/vat-invoices',
       '/dashboard/crm',
       '/dashboard/crm/workbench',
-      '/dashboard/ai',
-      '/dashboard/ai/chat',
-      '/dashboard/system/digital-display',
       '/p/public-page-id',
       '/dashboard/finance/platform-revenue/history',
       '/dashboard/crm/proposals/42/versions',
@@ -232,6 +244,27 @@ describe('DashboardLayout shell routing', () => {
     for (const pathname of outsideWarm) {
       expect(isWarmLedgerRoute(pathname)).toBe(false)
     }
+  })
+
+  it('classifies standalone surfaces as Warm but outside the framed shell', () => {
+    for (const pathname of [
+      '/dashboard/ai',
+      '/dashboard/ai/chat',
+      '/dashboard/system/digital-display',
+    ]) {
+      expect(isWarmLedgerRoute(pathname)).toBe(true)
+      expect(isWarmLedgerStandaloneRoute(pathname)).toBe(true)
+    }
+
+    const officePath = '/dashboard/ai/digital-employees/office'
+    expect(isWarmLedgerRoute(officePath)).toBe(true)
+    expect(isWarmLedgerStandaloneRoute(officePath)).toBe(false)
+    expect(
+      isWarmLedgerStandaloneRoute(
+        officePath,
+        new URLSearchParams('mode=presentation')
+      )
+    ).toBe(true)
   })
 
   it('maps detail routes to the matching parent navigation item', () => {

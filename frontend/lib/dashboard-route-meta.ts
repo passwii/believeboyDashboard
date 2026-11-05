@@ -71,6 +71,7 @@ const OPERATIONS_SECTION = {
   sectionLabel: '运营',
   sectionHref: '/dashboard',
 } as const
+const ADVERTISING_SECTION = { sectionLabel: '广告' } as const
 const REPORTS_SECTION = { sectionLabel: '报表中心' } as const
 const FINANCE_SECTION = { sectionLabel: '财务资金' } as const
 const CRM_SECTION = { sectionLabel: 'CRM 客户与合作伙伴' } as const
@@ -430,6 +431,111 @@ const WARM_LEDGER_EXACT_ROUTE_META: Record<string, DashboardRouteMeta> = {
   '/dashboard/system/project-info': {
     ...SYSTEM_SECTION,
     title: '项目信息',
+    warm: true,
+  },
+  '/dashboard/advertising/ad-analysis': {
+    ...ADVERTISING_SECTION,
+    title: '广告分析',
+    navHref: '/dashboard/advertising/ad-analysis/overview',
+    warm: true,
+  },
+  '/dashboard/advertising/ad-analysis/overview': {
+    ...ADVERTISING_SECTION,
+    title: '广告总览',
+    warm: true,
+  },
+  '/dashboard/advertising/ad-analysis/budget': {
+    ...ADVERTISING_SECTION,
+    title: '广告预算',
+    navHref: '/dashboard/advertising/ad-analysis/overview',
+    warm: true,
+  },
+  '/dashboard/advertising/ad-analysis/campaigns': {
+    ...ADVERTISING_SECTION,
+    title: '广告活动',
+    navHref: '/dashboard/advertising/ad-analysis/overview',
+    warm: true,
+  },
+  '/dashboard/advertising/ad-analysis/placements': {
+    ...ADVERTISING_SECTION,
+    title: '广告位',
+    navHref: '/dashboard/advertising/ad-analysis/overview',
+    warm: true,
+  },
+  '/dashboard/advertising/ad-analysis/products': {
+    ...ADVERTISING_SECTION,
+    title: '广告商品',
+    navHref: '/dashboard/advertising/ad-analysis/overview',
+    warm: true,
+  },
+  '/dashboard/advertising/ad-analysis/purchased-products': {
+    ...ADVERTISING_SECTION,
+    title: '已购商品',
+    navHref: '/dashboard/advertising/ad-analysis/overview',
+    warm: true,
+  },
+  '/dashboard/advertising/ad-analysis/search-terms': {
+    ...ADVERTISING_SECTION,
+    title: '搜索词',
+    navHref: '/dashboard/advertising/ad-analysis/overview',
+    warm: true,
+  },
+  '/dashboard/advertising/ad-analysis/targets': {
+    ...ADVERTISING_SECTION,
+    title: '投放目标',
+    navHref: '/dashboard/advertising/ad-analysis/overview',
+    warm: true,
+  },
+  '/dashboard/advertising/ad-analysis/time-trend': {
+    ...ADVERTISING_SECTION,
+    title: '时间趋势',
+    navHref: '/dashboard/advertising/ad-analysis/overview',
+    warm: true,
+  },
+  '/dashboard/advertising/ad-analysis/traffic-quality': {
+    ...ADVERTISING_SECTION,
+    title: '流量质量',
+    navHref: '/dashboard/advertising/ad-analysis/overview',
+    warm: true,
+  },
+  '/dashboard/advertising/ad-data': {
+    ...ADVERTISING_SECTION,
+    title: '广告数据',
+    warm: true,
+  },
+  '/dashboard/profile': {
+    ...OPERATIONS_SECTION,
+    title: '个人中心',
+    warm: true,
+  },
+  '/dashboard/change-password': {
+    ...OPERATIONS_SECTION,
+    title: '修改密码',
+    warm: true,
+  },
+  '/dashboard/feature-updates': {
+    ...OPERATIONS_SECTION,
+    title: '产品更新',
+    warm: true,
+  },
+  '/dashboard/table-showcase': {
+    ...OPERATIONS_SECTION,
+    title: '表格规范',
+    warm: true,
+  },
+  '/dashboard/ai': {
+    ...AI_SECTION,
+    title: 'AI 智能',
+    warm: true,
+  },
+  '/dashboard/ai/chat': {
+    ...AI_SECTION,
+    title: 'AI Chat',
+    warm: true,
+  },
+  '/dashboard/system/digital-display': {
+    ...SYSTEM_SECTION,
+    title: '数字大屏',
     warm: true,
   },
 }

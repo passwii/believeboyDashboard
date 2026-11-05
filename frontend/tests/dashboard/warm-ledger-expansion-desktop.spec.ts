@@ -67,11 +67,34 @@ const WARM_ROUTES = [
   '/dashboard/operations/weekly-product-analysis',
   '/dashboard/agent-center/overview',
   '/dashboard/agent-center/employees',
+  '/dashboard/advertising/ad-analysis',
+  '/dashboard/advertising/ad-analysis/overview',
+  '/dashboard/advertising/ad-analysis/budget',
+  '/dashboard/advertising/ad-analysis/campaigns',
+  '/dashboard/advertising/ad-analysis/placements',
+  '/dashboard/advertising/ad-analysis/products',
+  '/dashboard/advertising/ad-analysis/purchased-products',
+  '/dashboard/advertising/ad-analysis/search-terms',
+  '/dashboard/advertising/ad-analysis/targets',
+  '/dashboard/advertising/ad-analysis/time-trend',
+  '/dashboard/advertising/ad-analysis/traffic-quality',
+  '/dashboard/advertising/ad-data',
+  '/dashboard/profile',
+  '/dashboard/change-password',
+  '/dashboard/feature-updates',
+  '/dashboard/table-showcase',
 ] as const
 
 const REDIRECT_TARGETS: Partial<Record<(typeof WARM_ROUTES)[number], string>> = {
   '/dashboard/reports/report-reconciliation': '/dashboard/reports/monthly-report/reconcile',
+  '/dashboard/advertising/ad-analysis': '/dashboard/advertising/ad-analysis/overview',
 }
+
+const STANDALONE_ROUTES = [
+  '/dashboard/ai',
+  '/dashboard/ai/chat',
+  '/dashboard/system/digital-display',
+] as const
 
 const PROJECTS = [
   {
@@ -384,6 +407,19 @@ test.describe('V4 Warm Ledger desktop expansion matrix', () => {
       })
       await expect(page.locator('.warm-ledger__topbar--route'), `${route} topbar`).toBeVisible()
       await expectDesktopWindowGeometry(page)
+    }
+  })
+
+  test('standalone Warm routes render outside the framed app window', async ({ page, context }) => {
+    await page.setViewportSize(VIEWPORT)
+    await addBLF611FixtureAuth(context)
+    await installApiFixtures(page)
+
+    for (const route of STANDALONE_ROUTES) {
+      const response = await page.goto(route, { waitUntil: 'domcontentloaded' })
+      expect(response?.ok(), `${route} should return a successful document`).toBe(true)
+      await expect(page.locator('.warm-ledger'), `${route} Warm surface`).toBeVisible()
+      await expect(page.locator('.warm-ledger__app-window'), `${route} app window`).toHaveCount(0)
     }
   })
 })
