@@ -44,8 +44,8 @@ jobs:
              test -d '$DEPLOY_PATH/backend-storage'
              test -d '$DEPLOY_PATH/celerybeat'
              for service in api web celery celery-scheduled beat; do
-               status=\"\$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \"believeboy-dashboard-\$service\")\"
-               test \"\$status\" = healthy
+               container_status=\"\$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \"believeboy-dashboard-\$service\")\"
+               test \"\$container_status\" = healthy
              done"
 
       - name: Remove legacy build artifacts
