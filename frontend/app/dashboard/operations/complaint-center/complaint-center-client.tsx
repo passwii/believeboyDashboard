@@ -124,17 +124,17 @@ export default function ComplaintCenterClient() {
     const points = overview?.trend ?? []
     if (points.length === 0) return null
 
-    const total = points.reduce((sum, point) => sum + point.needs_reply, 0)
-    const highest = points.reduce((current, point) =>
+    const peak = points.reduce((current, point) =>
       point.needs_reply > current.needs_reply ? point : current
     )
-    const lowest = points.reduce((current, point) =>
-      point.needs_reply < current.needs_reply ? point : current
+    const first = points.reduce((current, point) =>
+      point.date < current.date ? point : current
     )
-    const first = points[0]
-    const last = points[points.length - 1]
+    const latest = points.reduce((current, point) =>
+      point.date > current.date ? point : current
+    )
 
-    return `${first.date} 至 ${last.date}，待回复合计 ${total} 条；最高 ${highest.needs_reply} 条（${highest.date}），最低 ${lowest.needs_reply} 条（${lowest.date}）。`
+    return `每日待回复快照（${first.date} 至 ${latest.date}）：最新 ${latest.needs_reply} 条（${latest.date}）；期间峰值 ${peak.needs_reply} 条（${peak.date}）。`
   }, [overview?.trend])
 
   const headerControls = (

@@ -62,6 +62,8 @@ describe('Complaint Center Warm Ledger contract', () => {
     )
     expect(screen.getAllByTestId('complaint-metric')).toHaveLength(4)
     expect(screen.getByTestId('complaint-trend-panel')).toHaveAttribute('data-warm-panel', 'true')
+    expect(screen.queryByTestId('complaint-trend-summary')).not.toBeInTheDocument()
+    expect(screen.getByText('暂无趋势数据')).toBeInTheDocument()
 
     const table = await screen.findByRole('table')
     expect(table.parentElement).toHaveAttribute('data-warm-table-scroll', 'true')
@@ -100,7 +102,39 @@ describe('Complaint Center Warm Ledger contract', () => {
     render(<ComplaintCenterClient />)
 
     expect(await screen.findByTestId('complaint-trend-summary')).toHaveTextContent(
-      '2026-11-01 至 2026-11-03，待回复合计 7 条；最高 4 条（2026-11-02），最低 1 条（2026-11-01）。'
+      '每日待回复快照（2026-11-01 至 2026-11-03）：最新 2 条（2026-11-03）；期间峰值 4 条（2026-11-02）。'
+    )
+    expect(await screen.findByTestId('complaint-trend-chart')).toBeInTheDocument()
+  })
+
+  it('summarizes a single-point snapshot without inventing a trend range', async () => {
+    vi.mocked(fetchComplaintOverview).mockResolvedValueOnce({
+      date: '2026-11-04',
+      metrics: {
+        total_needs_reply: 5,
+        total_reported_unresolved: 0,
+        total_resolved: 6,
+        sla_due_soon: 1,
+        sla_overdue: 0,
+      },
+      trend: [{ date: '2026-11-04', needs_reply: 5 }],
+      projects: [
+        {
+          project_id: 1,
+          project_name: '北星店',
+          country: 'US',
+          check_status: 'ok',
+          needs_reply: 5,
+          resolved: 6,
+          sla_due_soon: 1,
+        },
+      ],
+    })
+
+    render(<ComplaintCenterClient />)
+
+    expect(await screen.findByTestId('complaint-trend-summary')).toHaveTextContent(
+      '每日待回复快照（2026-11-04 至 2026-11-04）：最新 5 条（2026-11-04）；期间峰值 5 条（2026-11-04）。'
     )
     expect(await screen.findByTestId('complaint-trend-chart')).toBeInTheDocument()
   })
