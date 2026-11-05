@@ -9,6 +9,7 @@ import {
   Sparkles,
   type LucideIcon,
 } from 'lucide-react'
+import styles from './warm-chat.module.css'
 
 export type SuggestionItem = {
   icon: LucideIcon
@@ -55,28 +56,20 @@ export function SuggestionChips({
             key={item.label}
             type="button"
             onClick={() => onSelect(item.prompt)}
-            className="group relative inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-[var(--duration-quick)] hover:scale-[1.03] active:scale-[0.97] bb-anim-scale-in cursor-pointer bg-white border border-slate-200 shadow-sm hover:border-slate-300 hover:shadow dark:bg-transparent dark:border-white/[0.06] dark:shadow-none"
+            className={`${styles.chip} group relative inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-all duration-[var(--duration-quick)] hover:scale-[1.03] active:scale-[0.97] bb-anim-scale-in cursor-pointer`}
             style={{
               animationDelay: `${2.8 + index * 0.12}s`,
             }}
           >
-            {/* Light: subtle hover tint — dark: blue wash */}
-            <span
-              className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-[var(--duration-quick)] pointer-events-none hidden dark:block"
-              style={{
-                background: 'linear-gradient(135deg, rgba(20,136,252,0.15), rgba(99,102,241,0.08))',
-              }}
-            />
-            <span className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-[var(--duration-quick)] pointer-events-none dark:hidden bg-slate-50" />
             <Icon
-              className="size-4 relative z-10 text-blue-500 dark:text-blue-400/70 group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors duration-[var(--duration-quick)]"
+              className={`${styles.chipAccent} size-4 relative z-10`}
               aria-hidden
             />
-            <span className="relative z-10 text-slate-700 dark:text-[#c8c8cc] group-hover:text-slate-900 dark:group-hover:text-white transition-colors duration-[var(--duration-quick)] whitespace-nowrap">
+            <span className="relative z-10 whitespace-nowrap">
               {item.label}
             </span>
             <Sparkles
-              className="size-3 relative z-10 text-blue-400/40 dark:text-blue-400/30 group-hover:text-blue-500/60 dark:group-hover:text-blue-400/60 transition-all duration-[var(--duration-quick)]"
+              className={`${styles.chipAccent} size-3 relative z-10`}
               aria-hidden
             />
           </button>

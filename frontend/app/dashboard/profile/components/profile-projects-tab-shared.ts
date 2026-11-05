@@ -19,11 +19,11 @@ export const COMMISSION_BASIS_LABEL: Record<string, string> = {
   profit_margin: '利润率',
 }
 
-export const TIER_BADGE_CLASS: Record<string, string> = {
-  T1: 'bg-term-neg/10 text-term-neg border-term-neg/30',
-  T2: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 border-blue-200 dark:border-blue-800',
-  T3: 'bg-term-warn/10 text-term-warn border-term-warn/30',
-  T4: 'bg-slate-100 text-slate-800 dark:bg-slate-900/40 dark:text-slate-300 border-slate-200 dark:border-slate-800',
+export function getTierTone(tier: string): 'neutral' | 'accent' | 'positive' | 'negative' {
+  if (tier === 'T1') return 'positive'
+  if (tier === 'T2') return 'accent'
+  if (tier === 'T3') return 'neutral'
+  return 'negative'
 }
 
 const OPERATOR_SPLIT_RE = /[、,，;\n]+/

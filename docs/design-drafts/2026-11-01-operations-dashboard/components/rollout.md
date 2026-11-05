@@ -379,3 +379,12 @@ A1 owns Warm controls wrapper and Dashboard token consumption. A2–A5 may work 
 - The combined desktop Playwright matrix passed all 61 C5-C8 routes at `1440x900`, including equal 8px stage insets, a 22px app-window radius, Warm shell/topbar visibility, no page-level horizontal overflow, and the Office presentation exception.
 - Existing finance, system, CRM, Tools, AI, and Security Track follow-ups remain open and are not claimed as fixed by this visual migration. C4 advertising remains deferred.
 - The independent Luna/max whole-batch gate passed at `f458441f`. Full evidence: [`2026-11-05-c8-review-audit.md`](../../../superpowers/plans/2026-11-05-v4-c8-residual-pages/2026-11-05-c8-review-audit.md).
+
+## 19. V4 final dashboard closeout (2026-11-05)
+
+- C4 Advertising Analysis, Advertising Data, Utility, AI standalone, Digital Display, and Office presentation are complete and independently reviewed.
+- `TerminalShell` and its test were deleted. `DashboardLayout` has no legacy-shell fallback: framed dashboard routes use `WarmLedgerRouteFrame`; `/dashboard/ai`, `/dashboard/ai/chat`, `/dashboard/system/digital-display`, and Office presentation use the Warm standalone boundary.
+- All old route-group Terminal loading skeletons were replaced by the shared static `WarmRouteLoading`; `page-skeletons.tsx`, `dashboard-page-loading.tsx`, and the unused `/dashboard/v1/loading.tsx` were removed.
+- The desktop matrix now covers all 94 dashboard page routes: 90 Warm framed entries, 3 Warm standalone pages, `/dashboard` home, plus the Office presentation query exception. Redirect aliases are followed and checked.
+- Final verification at `57872e8c`: `374 files / 2631 tests`; lint `0 errors / 8 existing warnings`; production build `97/97` pages; desktop Playwright `4/4` cases; `check:mocks`, `check:motion`, and `git diff --check` passed.
+- The final Luna/max whole-batch gate returned **PASS** at `57872e8c`. Full evidence: [`2026-11-05-v4-final-closeout/README.md`](../../../superpowers/plans/2026-11-05-v4-final-closeout/README.md). Existing authorization, data-consistency, retention, and accessibility follow-ups stay open and are not claimed as fixed by this visual shell closeout.

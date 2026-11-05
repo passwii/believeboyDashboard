@@ -1,4 +1,6 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { render, screen, within, cleanup } from '@testing-library/react'
 
 import { AdAnalysisTabNav } from '@/components/dashboard/ad-analysis/tab-nav'
@@ -55,11 +57,12 @@ function getTab(label: string): HTMLAnchorElement {
 
 // ── tests ────────────────────────────────────────────────────────────────────
 
-describe('AdAnalysisTabNav 终端风子 Tab 栏（BLF-818）', () => {
+describe('AdAnalysisTabNav Warm Ledger 子 Tab 栏', () => {
   it('渲染全部 tab 且激活项带 aria-current 与底部 accent 指示条', () => {
     render(<AdAnalysisTabNav />)
     const nav = screen.getByLabelText('广告分析子页面')
     expect(nav).toBeTruthy()
+    expect(nav).toHaveAttribute('data-warm-tablist', 'true')
 
     const active = getTab('总览')
     expect(active.getAttribute('aria-current')).toBe('page')
@@ -67,8 +70,8 @@ describe('AdAnalysisTabNav 终端风子 Tab 栏（BLF-818）', () => {
     // 激活指示条：绝对定位的 2px accent 条，不占布局空间（切换零抖动）
     const indicator = active.querySelector('span[aria-hidden]')
     expect(indicator).toBeTruthy()
-    expect(indicator!.className).toContain('bg-term-accent')
-    expect(indicator!.className).toContain('absolute')
+    expect(indicator!.className).not.toContain('term-')
+    expect(indicator!.className).not.toContain('rounded-none')
 
     // 非激活项无 aria-current、无指示条
     const inactive = getTab('活动')
@@ -89,5 +92,20 @@ describe('AdAnalysisTabNav 终端风子 Tab 栏（BLF-818）', () => {
     render(<AdAnalysisTabNav />)
     const active = getTab('搜索词')
     expect(active.getAttribute('aria-current')).toBe('page')
+  })
+
+  it('tab 和页面壳只使用 Warm tokens，不含 Terminal 视觉别名或新断点', () => {
+    const css = readFileSync(
+      resolve(
+        process.cwd(),
+        'app/dashboard/advertising/ad-analysis/ad-analysis-warm.module.css'
+      ),
+      'utf8'
+    )
+    expect(css).toContain('var(--warm-ledger-color-panel)')
+    expect(css).toContain('var(--warm-ledger-focus-color)')
+    expect(css).not.toContain('--term-')
+    expect(css).not.toContain('rounded-none')
+    expect(css).not.toMatch(/@media\s*\((?!prefers-reduced-motion)/)
   })
 })

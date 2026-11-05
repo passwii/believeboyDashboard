@@ -8,24 +8,24 @@ import { AlertTriangle, ShieldAlert } from 'lucide-react'
 import { AdAnalysisContextBanner } from '@/components/dashboard/ad-analysis/context-banner'
 import { buildAnalysisDrillHref } from '@/components/dashboard/ad-analysis/drill'
 import { AdAnalysisDrillLinks } from '@/components/dashboard/ad-analysis/drill-links'
-import { Button } from '@/components/ui/button'
-import { TermPanel } from '@/components/terminal/term-panel'
-import { TermKpiTile, TermPill } from '@/components/terminal/term-controls'
-import { EmptyState } from '@/components/ui/empty-state'
-import { DeferredSection } from '@/components/dashboard/deferred-section'
-import { useAdClientRefreshKey } from '@/components/dashboard/ad-refresh'
-import { TermRefreshStatus } from '@/components/dashboard/ad-analysis/term-chrome'
-import { fetchAdAnalysisCached } from '@/lib/ad-client-cache'
-import { cn } from '@/lib/utils'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-
+  WarmErrorBar,
+  WarmEmptyState,
+  WarmPanel,
+  WarmKpiTile,
+  WarmPill,
+  WarmRefreshStatus,
+  WarmTable,
+  WarmBody,
+  WarmCell,
+  WarmHead,
+  WarmTHead,
+  WarmRow,
+  WarmNumber,
+  WarmDeferredSection,
+} from './warm-analysis'
+import { useAdClientRefreshKey } from '@/components/dashboard/ad-refresh'
+import { fetchAdAnalysisCached } from '@/lib/ad-client-cache'
 
 type TrafficQualityItem = {
   campaign_name: string
@@ -132,21 +132,17 @@ export function AdAnalysisTrafficQualityClient() {
     }
   }, [campaignFilter, country, dateFrom, dateTo, projectId, querySignature, session, status, refreshKey])
 
-  if (!projectId) return <EmptyState rowHeight="lg" message="请先选择项目。" />
-  if (isLoading && !data) return <EmptyState rowHeight="lg" message="正在加载流量质量分析..." />
+  if (!projectId) return <WarmEmptyState rowHeight="lg" message="请先选择项目。" />
+  if (isLoading && !data) return <WarmEmptyState rowHeight="lg" message="正在加载流量质量分析..." />
   if (error && !data) {
-    return (
-      <div className="border border-term-neg/50 bg-term-neg/10 px-2 py-1.5 font-mono text-xs text-term-neg">
-        ERR · {error}
-      </div>
-    )
+    return <WarmErrorBar message={error} />
   }
-  if (!data) return <EmptyState rowHeight="lg" message="当前没有流量质量明细。" />
+  if (!data) return <WarmEmptyState rowHeight="lg" message="当前没有流量质量明细。" />
   if (data.items.length === 0) {
     return (
       <>
-        <TermRefreshStatus loading={loading} error={error} hasData />
-        <EmptyState rowHeight="lg" message="当前没有流量质量明细。" />
+        <WarmRefreshStatus loading={loading} error={error} hasData />
+        <WarmEmptyState rowHeight="lg" message="当前没有流量质量明细。" />
       </>
     )
   }
@@ -154,35 +150,35 @@ export function AdAnalysisTrafficQualityClient() {
   const narrativeSections = data.narrative_sections ?? []
 
   return (
-    <div className="flex min-w-0 flex-col gap-3">
-      <TermRefreshStatus loading={loading} error={error} hasData />
+    <div className="flex min-w-0 flex-col gap-3" data-warm-ad-analysis-page="traffic-quality">
+      <WarmRefreshStatus loading={loading} error={error} hasData />
       <AdAnalysisContextBanner
         items={campaignFilter ? [{ label: '当前活动', value: campaignFilter }] : []}
       />
-      {/* BLF-611：手机端汇总卡一行两个（总则 1）；数字降级防挤压；md+ 行为不变 */}
-      <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+      {/* 桌面端汇总卡固定四列，金额由 Warm 数字字体完整展示 */}
+      <div className="grid grid-cols-4 gap-2">
         {data.summary_cards.map((card) => (
-          <TermKpiTile key={card.label} label={card.label} value={card.value} />
+          <WarmKpiTile key={card.label} label={card.label} value={card.value} />
         ))}
       </div>
 
-      <DeferredSection fallbackHeight="h-[280px]" data-testid="traffic-quality-deferred-narrative">
-      <TermPanel title="流量质量层分析" bodyClassName="p-2">
+      <WarmDeferredSection fallbackHeight="h-[280px]" data-testid="traffic-quality-deferred-narrative">
+      <WarmPanel title="流量质量层分析" bodyClassName="p-2">
           <div className="space-y-1">
           {narrativeSections.map((section) => (
             <div
               key={section.title}
-              className="rounded-none border border-term-border bg-term-panel px-2 py-1.5"
+              className="rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] px-2 py-1.5"
             >
-              <p className="font-mono text-xs font-medium text-term-text">{section.title}</p>
-              <p className="mt-1 font-mono text-xs leading-5 text-term-muted">{section.summary}</p>
-              <div className="mt-1 space-y-0.5 font-mono text-xs text-term-faint">
+              <p className="font-sans text-xs font-medium text-[var(--warm-ledger-color-text)]">{section.title}</p>
+              <p className="mt-1 font-sans text-xs leading-5 text-[var(--warm-ledger-color-text-muted)]">{section.summary}</p>
+              <div className="mt-1 space-y-0.5 font-sans text-xs text-[var(--warm-ledger-color-text-faint)]">
                 {section.evidence.map((evidence) => (
                   <p key={evidence}>- {evidence}</p>
                 ))}
               </div>
               {section.action ? (
-                <p className="mt-1 font-mono text-xs leading-5 text-term-muted">动作：{section.action}</p>
+                <p className="mt-1 font-sans text-xs leading-5 text-[var(--warm-ledger-color-text-muted)]">动作：{section.action}</p>
               ) : null}
               <div className="mt-2">
                 <AdAnalysisDrillLinks
@@ -206,55 +202,55 @@ export function AdAnalysisTrafficQualityClient() {
             </div>
           ))}
         </div>
-      </TermPanel>
-      </DeferredSection>
+      </WarmPanel>
+      </WarmDeferredSection>
 
-      <DeferredSection fallbackHeight="h-[420px]" data-testid="traffic-quality-deferred-table">
-      <TermPanel title="活动层分析" bodyClassName="p-0">
+      <WarmDeferredSection fallbackHeight="h-[420px]" data-testid="traffic-quality-deferred-table">
+      <WarmPanel title="活动层分析" bodyClassName="p-0">
         <div className="flex items-center gap-1.5 px-2 py-1.5">
-            <ShieldAlert className="h-4 w-4 text-primary" />
+            <ShieldAlert className="h-4 w-4 text-[var(--warm-ledger-color-accent-strong)]" />
           {/* 桌面端：完整表格 */}
-          <div className="hidden lg:block">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>活动</TableHead>
-                  <TableHead>风险等级</TableHead>
-                  <TableHead>总曝光 / 无效曝光</TableHead>
-                  <TableHead>无效曝光率</TableHead>
-                  <TableHead>总点击 / 无效点击</TableHead>
-                  <TableHead>无效点击率</TableHead>
-                  <TableHead>下一步</TableHead>
-                  <TableHead>下钻</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+          <div>
+            <WarmTable>
+              <WarmTHead>
+                <WarmRow>
+                  <WarmHead>活动</WarmHead>
+                  <WarmHead>风险等级</WarmHead>
+                  <WarmHead numeric>总曝光 / 无效曝光</WarmHead>
+                  <WarmHead numeric>无效曝光率</WarmHead>
+                  <WarmHead numeric>总点击 / 无效点击</WarmHead>
+                  <WarmHead numeric>无效点击率</WarmHead>
+                  <WarmHead>下一步</WarmHead>
+                  <WarmHead>下钻</WarmHead>
+                </WarmRow>
+              </WarmTHead>
+              <WarmBody>
                 {data.items.map((item) => (
-                  <TableRow key={item.campaign_name}>
-                    <TableCell className="align-top">
+                  <WarmRow key={item.campaign_name}>
+                    <WarmCell className="align-top">
                       <div className="space-y-1">
-                        <p className="font-mono text-xs font-medium text-term-text">{item.campaign_name}</p>
-                        <p className="font-mono text-xs text-term-muted">{item.status}</p>
+                        <p className="font-sans text-xs font-medium text-[var(--warm-ledger-color-text)]">{item.campaign_name}</p>
+                        <p className="font-sans text-xs text-[var(--warm-ledger-color-text-muted)]">{item.status}</p>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <TermPill tone={item.risk_level === "高风险" ? "neg" : item.risk_level === "中风险" ? "warn" : "muted"}>
+                    </WarmCell>
+                    <WarmCell>
+                      <WarmPill tone={item.risk_level === "高风险" ? "neg" : item.risk_level === "中风险" ? "warn" : "muted"}>
                         <AlertTriangle className="mr-1 h-3.5 w-3.5" />
                         {item.risk_level}
-                      </TermPill>
-                    </TableCell>
-                    <TableCell>
-                      {item.total_impressions} / {item.invalid_impressions}
-                    </TableCell>
-                    <TableCell>{(item.invalid_impression_rate * 100).toFixed(2)}%</TableCell>
-                    <TableCell>
-                      {item.total_clicks} / {item.invalid_clicks}
-                    </TableCell>
-                    <TableCell>{(item.invalid_click_rate * 100).toFixed(2)}%</TableCell>
-                    <TableCell className="max-w-[220px] text-sm text-muted-foreground">
+                      </WarmPill>
+                    </WarmCell>
+                    <WarmCell>
+                      <WarmNumber>{item.total_impressions} / {item.invalid_impressions}</WarmNumber>
+                    </WarmCell>
+                    <WarmCell numeric>{(item.invalid_impression_rate * 100).toFixed(2)}%</WarmCell>
+                    <WarmCell>
+                      <WarmNumber>{item.total_clicks} / {item.invalid_clicks}</WarmNumber>
+                    </WarmCell>
+                    <WarmCell numeric>{(item.invalid_click_rate * 100).toFixed(2)}%</WarmCell>
+                    <WarmCell className="max-w-[220px] text-sm text-[var(--warm-ledger-color-text-muted)]">
                       {item.next_step}
-                    </TableCell>
-                    <TableCell className="align-top">
+                    </WarmCell>
+                    <WarmCell className="align-top">
                       <AdAnalysisDrillLinks
                         links={[
                           {
@@ -291,113 +287,16 @@ export function AdAnalysisTrafficQualityClient() {
                           },
                         ]}
                       />
-                    </TableCell>
-                  </TableRow>
+                    </WarmCell>
+                  </WarmRow>
                 ))}
-              </TableBody>
-            </Table>
+              </WarmBody>
+            </WarmTable>
           </div>
 
-          {/* 手机端：卡片列表 */}
-          <div className="lg:hidden space-y-3">
-            {data.items.map((item) => (
-              <div key={item.campaign_name} className="rounded-none border border-term-border bg-term-panel p-3 space-y-2">
-                <div className="flex items-start justify-between gap-2 border-b border-term-border pb-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-sm">{item.campaign_name}</p>
-                    <p className="font-mono text-xs text-term-muted">{item.status}</p>
-                  </div>
-                  <TermPill tone={item.risk_level === "高风险" ? "neg" : item.risk_level === "中风险" ? "warn" : "muted"}><AlertTriangle className="mr-1 h-3 w-3" />
-                    {item.risk_level}
-                  </TermPill>
-                </div>
-
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                  <div>
-                    <span className="font-mono text-xs text-term-muted">总曝光</span>
-                    <div className="font-mono text-xs font-medium text-term-text">{item.total_impressions.toLocaleString()}</div>
-                  </div>
-                  <div>
-                    <span className="font-mono text-xs text-term-muted">无效曝光率</span>
-                    <div
-                      className={cn(
-                        'font-medium',
-                        item.invalid_impression_rate > 0.1 ? 'text-term-neg' : ''
-                      )}
-                    >
-                      {(item.invalid_impression_rate * 100).toFixed(2)}%
-                    </div>
-                  </div>
-                  <div>
-                    <span className="font-mono text-xs text-term-muted">总点击</span>
-                    <div className="font-mono text-xs font-medium text-term-text">{item.total_clicks.toLocaleString()}</div>
-                  </div>
-                  <div>
-                    <span className="font-mono text-xs text-term-muted">无效点击率</span>
-                    <div
-                      className={cn(
-                        'font-medium',
-                        item.invalid_click_rate > 0.1 ? 'text-term-neg' : ''
-                      )}
-                    >
-                      {(item.invalid_click_rate * 100).toFixed(2)}%
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                  <div>
-                    <span className="text-muted-foreground">无效曝光</span>
-                    <div className="font-mono text-xs font-medium text-term-text">{item.invalid_impressions.toLocaleString()}</div>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">无效点击</span>
-                    <div className="font-mono text-xs font-medium text-term-text">{item.invalid_clicks.toLocaleString()}</div>
-                  </div>
-                </div>
-
-                <div className="text-xs text-muted-foreground border-t border-term-border pt-2">
-                  下一步: {item.next_step}
-                </div>
-
-                <div className="flex gap-2 pt-2 border-t border-term-border">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 min-h-[44px] text-xs flex-1"
-                    onClick={() => {
-                      const href = buildAnalysisDrillHref(
-                        'campaigns',
-                        { projectId, country, dateFrom, dateTo },
-                        { campaign: item.campaign_name }
-                      )
-                      if (href) window.location.href = href
-                    }}
-                  >
-                    活动
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 min-h-[44px] text-xs flex-1"
-                    onClick={() => {
-                      const href = buildAnalysisDrillHref(
-                        'targets',
-                        { projectId, country, dateFrom, dateTo },
-                        { campaign: item.campaign_name }
-                      )
-                      if (href) window.location.href = href
-                    }}
-                  >
-                    投放
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
-      </TermPanel>
-      </DeferredSection>
+      </WarmPanel>
+      </WarmDeferredSection>
     </div>
   )
 }

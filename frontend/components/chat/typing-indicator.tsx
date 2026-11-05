@@ -1,6 +1,7 @@
 'use client'
 
 import { Sparkles } from 'lucide-react'
+import styles from './warm-chat.module.css'
 
 export function TypingIndicator({ label = '正在思考' }: { label?: string }) {
   return (
@@ -9,15 +10,15 @@ export function TypingIndicator({ label = '正在思考' }: { label?: string }) 
         {[0, 1, 2].map((i) => (
           <span
             key={i}
-            className="h-[6px] w-[6px] rounded-full bg-blue-500/60 dark:bg-blue-400/60"
+            className={`${styles.typingDots} h-[6px] w-[6px] rounded-full`}
             style={{
               animation: `bb-thinking-pulse 1.2s ease-in-out ${i * 0.2}s infinite`,
             }}
           />
         ))}
       </span>
-      <span className="text-[13px] font-medium flex items-center gap-1.5 text-slate-500 dark:text-[#8a8a8f]">
-        <Sparkles className="size-3 text-blue-500/60 dark:text-blue-400/50" aria-hidden />
+      <span className={`${styles.typingText} text-[13px] font-medium flex items-center gap-1.5`}>
+        <Sparkles className={`${styles.chipAccent} size-3`} aria-hidden />
         {label}
         <span className="inline-flex overflow-hidden">
           <span style={{ animation: 'bb-dot-fade 1.5s steps(4, end) infinite' }}>...</span>

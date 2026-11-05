@@ -1,11 +1,14 @@
 import type { ReactNode } from 'react'
 
 import { AdDataTopFilters } from '@/components/dashboard/ad-data/top-filters'
+import styles from './ad-data-warm.module.css'
 
 export default function AdDataLayout({ children }: { children: ReactNode }) {
   return (
-    // BLF-826：AdDataTopFilters 只渲染 Top Header 插槽 portal 宿主，不占页面布局
-    <div className="flex min-w-0 flex-col">
+    <div
+      className={styles.layout}
+      data-warm-ad-data-layout="true"
+    >
       <AdDataTopFilters />
       {children}
     </div>

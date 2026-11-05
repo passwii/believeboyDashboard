@@ -37,7 +37,7 @@ export function AdAnalysisDrillLinks({ links }: { links: AdAnalysisDrillLinkItem
         <Link
           key={`${item.label}-${item.href}`}
           href={item.href!}
-          className="text-primary underline-offset-4 hover:underline"
+          className="text-[var(--warm-ledger-color-accent-strong)] underline-offset-4 hover:underline"
         >
           {item.label}
         </Link>

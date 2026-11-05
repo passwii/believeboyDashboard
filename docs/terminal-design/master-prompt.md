@@ -1,8 +1,8 @@
 # BelieveBoy Dashboard 终端化推进 Master Prompt
 
-> ⛔ **历史规范（V3 Terminal，2026-08-23 ~ 2026-11-03）**：自 2026-11-04 起，V4 Warm Ledger 是新 UI 的现行权威，本文件不再规定新页面视觉，也不能用于把 Warm Ledger 改回 Terminal 风格。本文仅保留给未迁移 `TerminalShell` 路由的维护与历史追溯。新任务从 [`frontend/docs/design-spec.md`](../../frontend/docs/design-spec.md) §0.4 和 Warm Ledger foundations 开始。
+> ⛔ **历史规范（V3 Terminal，2026-08-23 ~ 2026-11-03）**：自 2026-11-04 起，V4 Warm Ledger 是新 UI 的现行权威，本文件不再规定新页面视觉，也不能用于把 Warm Ledger 改回 Terminal 风格。`TerminalShell` 已从 dashboard 布局删除，本文仅作历史追溯。新任务从 [`frontend/docs/design-spec.md`](../../frontend/docs/design-spec.md) §0.4 和 Warm Ledger foundations 开始。
 >
-> ⚠️ 历史文档：文中「桌面端 GUI」指已删除的 `gui/`（Rust + GPUI）方案 —— 该目录已于 2026-09-13 整体删除（BLF-1041）；后续 SwiftUI macOS 客户端也已停止并删除，桌面端后续改由 MyGo 承接。本文的 Web 端 Terminal 指令仅用于未迁移路由维护。
+> ⚠️ 历史文档：文中「桌面端 GUI」指已删除的 `gui/`（Rust + GPUI）方案 —— 该目录已于 2026-09-13 整体删除（BLF-1041）；后续 SwiftUI macOS 客户端也已停止并删除，桌面端后续改由 MyGo 承接。本文的 Web 端 Terminal 指令不再适用于任何 dashboard 路由。
 
 > 用途：在任意 AI 编码工具（Claude Code / Cursor / Codex 等）中作为完整工作指令使用。
 > 使用方式：把本文件全文作为首条任务提示词发给工具，或按 §任务 分批发给它。

@@ -32,9 +32,9 @@ import {
   type ServerChatMessage,
   type ServerConversation,
 } from '@/lib/api/ai-chat'
-import { Skeleton } from '@/components/ui/skeleton'
 import { useMobile } from '@/lib/hooks/use-mobile'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
+import styles from './warm-chat.module.css'
 
 import type { TextSegment, ChatMessage, Phase, AIChatWindowProps, Conversation } from './types'
 
@@ -853,13 +853,14 @@ export function AIChatWindow({
     <div
       ref={rootRef}
       data-testid="ai-chat-window"
-      className="relative h-full w-full overflow-hidden bg-[#f6f7fb] dark:bg-[#0f0f0f] safe-area-inset-top safe-area-inset-bottom"
+      data-warm-surface="warm-ledger"
+      className={`${styles.window} warm-ledger relative h-full w-full overflow-hidden safe-area-inset-top safe-area-inset-bottom`}
       style={{ ['--sidebar-width' as string]: '280px' }}
     >
       <style dangerouslySetInnerHTML={{ __html: animationStyles }} />
 
       {pageRefreshError && (
-        <div role="alert" className="absolute left-1/2 top-4 z-[60] -translate-x-1/2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-700 dark:text-red-200">
+        <div role="alert" className={`${styles.alert} absolute left-1/2 top-4 z-[60] -translate-x-1/2 px-3 py-2 text-xs`}>
           历史会话刷新失败：{pageRefreshError}
         </div>
       )}
@@ -881,7 +882,7 @@ export function AIChatWindow({
         <button
           type="button"
           onClick={() => setShowSidebar(true)}
-          className="absolute top-4 left-16 md:left-4 z-30 flex items-center justify-center size-10 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-50 shadow-sm dark:bg-white/[0.06] dark:border-white/[0.08] dark:text-[#8a8a8f] dark:hover:text-white dark:hover:bg-white/[0.1] dark:shadow-none transition-all duration-[var(--duration-quick)] active:scale-95"
+          className={`${styles.sidebarToggle} absolute top-4 left-16 md:left-4 z-30 size-10`}
           aria-label="打开对话历史"
         >
           <PanelLeft className="size-4" />
@@ -891,7 +892,7 @@ export function AIChatWindow({
       {/* Provider-unconfigured banner */}
       {showInput && providerConfigured === false && (
         <div className="absolute left-1/2 top-4 z-30 -translate-x-1/2 w-full max-w-[680px] px-3 sm:px-4">
-          <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/[0.06] px-3 py-2 text-xs text-amber-200">
+          <div className={`${styles.providerBanner} flex items-start gap-2 px-3 py-2 text-xs`}>
             <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
             <div>
               <p className="font-medium">后端 AI Provider 未配置</p>
@@ -935,7 +936,7 @@ export function AIChatWindow({
         {/* Greeting + suggestion chips — positioned between top badge and input */}
         <div className="absolute left-1/2 top-[22%] -translate-x-1/2 w-full max-w-[600px] px-6 sm:px-4">
           <div className="text-center mb-6 sm:mb-8">
-            <h1 className="text-[28px] sm:text-[36px] md:text-[42px] font-bold text-slate-900 dark:text-white tracking-tight leading-[1.15]">
+            <h1 className={styles.landingTitle}>
               <TypewriterText
                 segments={[
                   { text: '今天想', speed: 80 },
@@ -958,7 +959,7 @@ export function AIChatWindow({
               />
             </h1>
             <p
-              className="mt-3 text-sm sm:text-base text-slate-500 dark:text-[#8a8a8f] bb-anim-fade-up"
+              className={`${styles.landingSubtitle} mt-3 text-sm sm:text-base bb-anim-fade-up`}
               style={{ animationDelay: '2.5s' }}
             >
               用 AI 探索数据 — 销售趋势、运营指标、异常洞察
@@ -988,16 +989,16 @@ export function AIChatWindow({
             {loadingMessages ? (
               <div className="mx-auto max-w-3xl space-y-4">
                 <div className="flex gap-3">
-                  <Skeleton className="h-8 w-8 rounded-full" />
+                  <div className={`${styles.skeleton} h-8 w-8 rounded-full`} />
                   <div className="flex-1 space-y-2">
-                    <Skeleton className="h-4 w-3/4" />
-                    <Skeleton className="h-4 w-2/3" />
+                    <div className={`${styles.skeleton} h-4 w-3/4`} />
+                    <div className={`${styles.skeleton} h-4 w-2/3`} />
                   </div>
                 </div>
                 <div className="flex gap-3">
-                  <Skeleton className="h-8 w-8 rounded-full" />
+                  <div className={`${styles.skeleton} h-8 w-8 rounded-full`} />
                   <div className="flex-1 space-y-2">
-                    <Skeleton className="h-4 w-1/2" />
+                    <div className={`${styles.skeleton} h-4 w-1/2`} />
                   </div>
                 </div>
               </div>
@@ -1035,7 +1036,7 @@ export function AIChatWindow({
 
             {loadingConversations && conversations.length === 0 && !loadingMessages && (
               <div className="mx-auto max-w-3xl mt-2">
-                <p className="text-xs text-slate-400 dark:text-[#5a5a5f]">正在加载历史会话…</p>
+                <p className={`${styles.loadingText} text-xs`}>正在加载历史会话…</p>
               </div>
             )}
             <div ref={messagesEndRef} />
@@ -1067,7 +1068,7 @@ export function AIChatWindow({
                 ref={stopBtnRef}
                 type="button"
                 onClick={handleStopGeneration}
-                className="flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-50 shadow-sm dark:bg-white/[0.06] dark:border-white/[0.08] dark:text-[#8a8a8f] dark:hover:text-white dark:hover:bg-white/[0.1] dark:shadow-none transition-all duration-[var(--duration-quick)] active:scale-95"
+                className={`${styles.stopButton} gap-2 px-4 py-2`}
                 style={{
                   animation: isStreaming ? 'bb-stop-pulse 1.5s ease-in-out infinite' : 'none',
                 }}

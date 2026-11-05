@@ -1,6 +1,7 @@
 'use client'
 
 import { AIChatWindow } from '@/components/chat/ai-chat-window'
+import styles from '@/components/chat/warm-chat.module.css'
 
 /**
  * Dashboard 内嵌版 AI Chat。
@@ -22,8 +23,12 @@ import { AIChatWindow } from '@/components/chat/ai-chat-window'
  */
 export default function DashboardAiChatPage() {
   return (
-    <div className="relative -m-1 -mt-5 -mb-6 h-screen supports-[height:100dvh]:h-dvh md:!absolute md:inset-0 md:h-auto md:-m-2 md:-mt-3 md:-mb-8 lg:-m-3 xl:-m-4">
+    <main
+      className={`${styles.fullscreenPage} warm-ledger relative -m-1 -mt-5 -mb-6 h-screen supports-[height:100dvh]:h-dvh md:!absolute md:inset-0 md:h-auto md:-m-2 md:-mt-3 md:-mb-8 lg:-m-3 xl:-m-4`}
+      data-testid="ai-chat-fullscreen-page"
+      data-warm-surface="warm-ledger"
+    >
       <AIChatWindow />
-    </div>
+    </main>
   )
 }

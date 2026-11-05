@@ -1,0 +1,381 @@
+.errorBar,
+.refreshBar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--warm-ledger-space-2);
+  padding: var(--warm-ledger-space-2) var(--warm-ledger-space-3);
+  font-size: var(--warm-ledger-font-size-control);
+}
+
+.errorBar {
+  color: var(--warm-ledger-color-negative);
+  background: var(--warm-ledger-color-panel);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-negative);
+  border-radius: var(--warm-ledger-radius-inner);
+}
+
+.errorBar svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+.errorBar span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.refreshStack {
+  display: grid;
+  gap: var(--warm-ledger-space-2);
+}
+
+.refreshBar {
+  color: var(--warm-ledger-color-text-muted);
+  background: var(--warm-ledger-color-panel);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-inner);
+}
+
+.refreshMark {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--warm-ledger-color-accent);
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.metricTile,
+.kpiTile {
+  min-width: 0;
+  padding: var(--warm-ledger-space-3);
+  background: var(--warm-ledger-color-panel);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-inner);
+  box-shadow: var(--warm-ledger-highlight-rest);
+}
+
+.metricHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--warm-ledger-space-1);
+}
+
+.metricLabel,
+.kpiLabel,
+.panelMeta,
+.kpiHint {
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-label);
+}
+
+.metricLabel,
+.kpiLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metricChange,
+.metricNoChange,
+.metricValue,
+.kpiValue {
+  font-family: var(--warm-ledger-font-mono);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+}
+
+.metricChange,
+.metricNoChange {
+  flex: 0 0 auto;
+  font-size: var(--warm-ledger-font-size-label);
+}
+
+.metricNoChange {
+  color: var(--warm-ledger-color-text-faint);
+}
+
+.metricValue {
+  margin-top: var(--warm-ledger-space-1);
+  color: var(--warm-ledger-color-text);
+  font-size: var(--warm-ledger-font-size-body);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.panel {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--warm-ledger-color-text);
+  background: var(--warm-ledger-color-panel);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-panel);
+  box-shadow: var(--warm-ledger-highlight-rest);
+}
+
+.panelHeader {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: var(--warm-ledger-space-2);
+  padding: 0 var(--warm-ledger-space-4);
+  background: var(--warm-ledger-color-panel-strong);
+  border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+}
+
+.panelHeader h2 {
+  margin: 0;
+  overflow: hidden;
+  color: var(--warm-ledger-color-text);
+  font-size: var(--warm-ledger-font-size-section);
+  font-weight: var(--warm-ledger-font-weight-medium);
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.panelMeta {
+  font-family: var(--warm-ledger-font-mono);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+}
+
+.panelActions {
+  display: flex;
+  align-items: center;
+  gap: var(--warm-ledger-space-1);
+  margin-left: auto;
+}
+
+.panelBody {
+  min-height: 0;
+}
+
+.panelBody {
+  flex: 1;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--warm-ledger-space-1);
+  padding: 2px 6px;
+  font-family: var(--warm-ledger-font-sans);
+  font-size: var(--warm-ledger-font-size-label);
+  line-height: 1.35;
+  white-space: nowrap;
+  border: var(--warm-ledger-border-width) solid currentColor;
+  border-radius: 999px;
+}
+
+.kpiTile {
+  display: grid;
+  gap: 2px;
+}
+
+.kpiValue {
+  font-size: var(--warm-ledger-font-size-section);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.kpiHint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tonePositive {
+  color: var(--warm-ledger-color-positive) !important;
+}
+
+.toneNegative {
+  color: var(--warm-ledger-color-negative) !important;
+}
+
+.toneWarning {
+  color: var(--warm-ledger-color-accent) !important;
+}
+
+.toneAccent {
+  color: var(--warm-ledger-color-accent-strong) !important;
+}
+
+.toneMuted {
+  color: var(--warm-ledger-color-text-muted) !important;
+}
+
+.toneNeutral {
+  color: var(--warm-ledger-color-text-soft) !important;
+}
+
+.emptyState {
+  display: grid;
+  min-height: 96px;
+  place-content: center;
+  justify-items: center;
+  gap: var(--warm-ledger-space-2);
+  padding: var(--warm-ledger-space-5);
+  color: var(--warm-ledger-color-text-muted);
+  font-family: var(--warm-ledger-font-sans);
+  font-size: var(--warm-ledger-font-size-control);
+  text-align: center;
+  background: var(--warm-ledger-color-panel);
+  border: var(--warm-ledger-border-width) dashed var(--warm-ledger-color-hairline-strong);
+  border-radius: var(--warm-ledger-radius-panel);
+}
+
+.emptyStateLarge {
+  min-height: 176px;
+}
+
+.emptyStateChart {
+  border-radius: var(--warm-ledger-radius-inner);
+}
+
+.emptyStateIcon {
+  width: 28px;
+  height: 28px;
+  color: var(--warm-ledger-color-text-faint);
+}
+
+.emptyTableCell {
+  height: 96px;
+  color: var(--warm-ledger-color-text-muted);
+  font-family: var(--warm-ledger-font-sans);
+  text-align: center;
+}
+
+.skeleton {
+  min-height: 12px;
+  overflow: hidden;
+  background:
+    linear-gradient(
+      90deg,
+      var(--warm-ledger-color-raised) 0%,
+      var(--warm-ledger-color-panel-strong) 50%,
+      var(--warm-ledger-color-raised) 100%
+    );
+  background-size: 200% 100%;
+  border-radius: var(--warm-ledger-radius-inner);
+}
+
+.skeletonAnimated {
+  animation: skeleton-shimmer var(--pulse-dur) var(--reveal-ease) infinite;
+}
+
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: var(--warm-ledger-color-text-soft);
+  font-family: var(--warm-ledger-font-sans);
+  font-size: var(--warm-ledger-font-size-control);
+}
+
+.tableScroll {
+  width: 100%;
+  min-width: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.tableHead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.table th {
+  height: 40px;
+  padding: var(--warm-ledger-space-2) var(--warm-ledger-space-3);
+  color: var(--warm-ledger-color-text-muted);
+  font-family: var(--warm-ledger-font-sans);
+  font-size: var(--warm-ledger-font-size-label);
+  font-weight: var(--warm-ledger-font-weight-medium);
+  letter-spacing: 0;
+  text-align: left;
+  text-transform: none;
+  background: var(--warm-ledger-color-panel-strong);
+  border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline-strong);
+}
+
+.tableCell {
+  height: 40px;
+  padding: var(--warm-ledger-space-2) var(--warm-ledger-space-3);
+  color: var(--warm-ledger-color-text-soft);
+  vertical-align: middle;
+  border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+}
+
+.numericCell {
+  font-family: var(--warm-ledger-font-mono);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.numericText {
+  font-family: var(--warm-ledger-font-mono);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+  white-space: nowrap;
+}
+
+.sortableHead {
+  cursor: pointer;
+}
+
+.sortableHead:hover {
+  color: var(--warm-ledger-color-text);
+}
+
+.tableRow {
+  transition: background-color var(--warm-ledger-motion-duration-control)
+    var(--warm-ledger-motion-ease);
+}
+
+.tableRow:hover {
+  background: var(--warm-ledger-color-raised);
+}
+
+.tableRowHighlight {
+  background: var(--warm-ledger-color-accent-soft);
+}
+
+.tableRowClickable {
+  cursor: pointer;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .refreshMark {
+    animation: none;
+  }
+
+  .skeletonAnimated {
+    animation: none;
+  }
+
+  .tableRow {
+    transition: none;
+  }
+}

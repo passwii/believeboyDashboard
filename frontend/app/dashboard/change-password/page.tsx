@@ -1,14 +1,12 @@
 'use client'
 
 import { FormEvent, useState } from 'react'
-import { KeyRound, Loader2 } from 'lucide-react'
+import { KeyRound } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { TermPanel } from '@/components/terminal/term-panel'
-import { TermPill } from '@/components/terminal/term-controls'
+import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
 import { useNotifications } from '@/components/notifications'
+
+import styles from './change-password-warm.module.css'
 
 export default function ChangePasswordPage() {
   const { notify } = useNotifications()
@@ -45,9 +43,7 @@ export default function ChangePasswordPage() {
         body: JSON.stringify({ currentPassword, newPassword }),
       })
       const data = (await response.json()) as { message?: string }
-      if (!response.ok) {
-        throw new Error(data.message || '修改失败')
-      }
+      if (!response.ok) throw new Error(data.message || '修改失败')
 
       setCurrentPassword('')
       setNewPassword('')
@@ -61,68 +57,73 @@ export default function ChangePasswordPage() {
   }
 
   return (
-    <div className="mx-auto max-w-[780px]">
-      <TermPanel
-        title="修改密码"
-        bodyClassName="p-5"
-      >
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <TermPill tone="info">账号安全</TermPill>
-          <span className="flex items-center gap-1.5 font-mono text-xs text-term-muted">
-            <KeyRound className="h-3.5 w-3.5" />
-            请输入当前密码，并设置一个新的登录密码。
-          </span>
-        </div>
-          <form className="space-y-5" onSubmit={onSubmit}>
-            <div className="space-y-2">
-              <Label htmlFor="current-password">当前密码</Label>
-              <Input
-                id="current-password"
-                type="password"
-                autoComplete="current-password"
-                value={currentPassword}
-                onChange={(event) => setCurrentPassword(event.target.value)}
-                disabled={submitting}
-              />
-            </div>
+    <div className={styles.page} data-warm-page="change-password">
+      <header className={styles.header}>
+        <h1 className={styles.pageTitle}>修改密码</h1>
+      </header>
 
-            <div className="space-y-2">
-              <Label htmlFor="new-password">新密码</Label>
-              <Input
-                id="new-password"
-                type="password"
-                autoComplete="new-password"
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-                disabled={submitting}
-              />
-              <p className="text-xs text-muted-foreground dark:text-muted-foreground/80">
-                建议至少 8 位，包含字母、数字与符号。
-              </p>
-            </div>
+      <section className={styles.panel} aria-label="修改密码">
+        <form className={styles.form} onSubmit={onSubmit}>
+          <div className={styles.field}>
+            <label htmlFor="current-password" className={styles.label}>
+              当前密码
+            </label>
+            <input
+              id="current-password"
+              type="password"
+              autoComplete="current-password"
+              value={currentPassword}
+              onChange={(event) => setCurrentPassword(event.target.value)}
+              disabled={submitting}
+              className={styles.input}
+            />
+          </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="confirm-password">确认新密码</Label>
-              <Input
-                id="confirm-password"
-                type="password"
-                autoComplete="new-password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                disabled={submitting}
-              />
-            </div>
+          <div className={styles.field}>
+            <label htmlFor="new-password" className={styles.label}>
+              新密码
+            </label>
+            <input
+              id="new-password"
+              type="password"
+              autoComplete="new-password"
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              disabled={submitting}
+              className={styles.input}
+            />
+            <p className={styles.hint}>建议至少 8 位，包含字母、数字与符号。</p>
+          </div>
 
-            <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
-              {submitting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <KeyRound className="h-4 w-4" />
-              )}
+          <div className={styles.field}>
+            <label htmlFor="confirm-password" className={styles.label}>
+              确认新密码
+            </label>
+            <input
+              id="confirm-password"
+              type="password"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              disabled={submitting}
+              className={styles.input}
+            />
+          </div>
+
+          <div className={styles.actions}>
+            <WarmButton
+              type="submit"
+              variant="primary"
+              disabled={submitting}
+              loading={submitting}
+              loadingLabel="正在修改密码"
+            >
+              <KeyRound className="h-4 w-4" aria-hidden="true" />
               {submitting ? '提交中...' : '确认修改'}
-            </Button>
-          </form>
-      </TermPanel>
+            </WarmButton>
+          </div>
+        </form>
+      </section>
     </div>
   )
 }

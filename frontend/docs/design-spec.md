@@ -32,7 +32,7 @@
 ### 0.3 V3 —— Terminal 终端化（历史维护）
 
 - 2026-08-23 至 2026-11-03 的现行体系，核心是零圆角、零阴影、1px 全平铺、双层 rail/subnav 和 `--term-*`。
-- 自 2026-11-04 起，V3 不再是设计权威。`TerminalShell`、`components/terminal/*`、`term-controls`、`TERM_PANEL_SURFACE` 和 Terminal 表格规范仅保留用于未迁移路由的维护。
+- 自 2026-11-04 起，V3 不再是设计权威。`TerminalShell` 已从 dashboard 布局删除，所有 dashboard 页面统一由 Warm Ledger 边界承载；`components/terminal/*` 中仅保留 header-slot、global-filter 等兼容基础设施。
 - 新 V4 页面不得使用 `--term-*` 作为新视觉的别名，也不得把 Terminal 控件默认样式直接当作 Warm Ledger 基底。
 - `docs/terminal-design/master-prompt.md`、`frontend/docs/table-spec.md` 等 V3 文档保留为历史与存量维护资料；与 V4 冲突时，以本文档和 Warm Ledger foundations 为准。
 
@@ -108,10 +108,11 @@ V4 是 BelieveBoy 运营与业务页面的全新设计语言：暖石墨表面�
 
 - `system/digital-display` 与 `ai/digital-employees/office?mode=presentation` 是恒暗展示页，保留强制 dark 和全屏行为。
 
-### 1.4 未迁移的 V3 Terminal 路由
+### 1.4 dashboard 外壳覆盖
 
-- 未进入 Warm Ledger allowlist 的页面继续使用 `TerminalShell` 和既有 `--term-*`，这是迁移期间的刻意存量，不是 V4 示例。
-- 修改这类页面时，除非任务明确要求迁移，否则只维护其现有 V3 行为，不要顺手混入 Warm Ledger 表面。
+- 所有 dashboard 页面均已纳入 Warm Ledger；路由级加载骨架也使用 Warm Ledger 表面。
+- dashboard 布局不再提供旧 Terminal 外壳回退。AI Chat、数字大屏与虚拟办公室投屏使用 Warm standalone 边界，保留各自的全屏/强制暗色行为。
+- V3 文档与截图只作历史追溯，不得作为新页面实现依据。
 
 ### 1.5 `dashboard-v2` 目录命名
 

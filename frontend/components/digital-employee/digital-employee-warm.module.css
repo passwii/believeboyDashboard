@@ -1193,6 +1193,98 @@
   font-family: var(--warm-ledger-font-sans);
 }
 
+.presentationPage {
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: var(--warm-ledger-space-8);
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-sans);
+  background:
+    radial-gradient(circle at 50% -8%, var(--warm-ledger-color-accent-soft), transparent 32%),
+    var(--warm-ledger-color-stage);
+}
+
+.presentationHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--warm-ledger-space-4);
+  margin-bottom: var(--warm-ledger-space-6);
+}
+
+.presentationTitle {
+  margin: 0;
+  color: var(--warm-ledger-color-text);
+  font-size: clamp(34px, 4vw, 56px);
+  font-weight: var(--warm-ledger-font-weight-regular);
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.presentationClock {
+  margin: var(--warm-ledger-space-2) 0 0;
+  color: var(--warm-ledger-color-text-muted);
+  font-family: var(--warm-ledger-font-mono);
+  font-size: var(--warm-ledger-font-size-body);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+}
+
+.presentationControls {
+  display: flex;
+  align-items: center;
+  gap: var(--warm-ledger-space-3);
+}
+
+.presentationStatus {
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-control);
+}
+
+.presentationExit {
+  display: inline-flex;
+  min-height: var(--warm-ledger-control-height);
+  align-items: center;
+  padding: 0 var(--warm-ledger-space-4);
+  color: var(--warm-ledger-color-text-soft);
+  font-family: var(--warm-ledger-font-sans);
+  font-size: var(--warm-ledger-font-size-control);
+  background: var(--warm-ledger-color-panel);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-control);
+  box-shadow: var(--warm-ledger-highlight-rest);
+}
+
+.presentationExit:hover {
+  color: var(--warm-ledger-color-text);
+  background: var(--warm-ledger-color-raised);
+  border-color: var(--warm-ledger-color-hairline-strong);
+}
+
+.presentationOverview {
+  margin-bottom: var(--warm-ledger-space-5);
+}
+
+.overviewPresentation {
+  padding: var(--warm-ledger-space-5);
+  background: var(--warm-ledger-color-panel);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-panel);
+  box-shadow: var(--warm-ledger-highlight-rest);
+}
+
+.overviewPresentation .overviewItem {
+  font-size: var(--warm-ledger-font-size-body);
+}
+
+.overviewPresentation .overviewToday {
+  font-size: var(--warm-ledger-font-size-body);
+}
+
+.overviewTodayLarge {
+  font-size: var(--warm-ledger-font-size-body);
+}
+
 .officeToolbar {
   display: flex;
   align-items: center;
@@ -1293,6 +1385,14 @@
   gap: var(--warm-ledger-space-4);
 }
 
+.presentationGrid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--warm-ledger-space-6);
+  margin-top: var(--warm-ledger-space-5);
+}
+
 .officeCard {
   display: flex;
   min-width: 0;
@@ -1310,6 +1410,28 @@
     background-color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease),
     border-color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease),
     box-shadow var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease);
+}
+
+.officeCardPresentation {
+  min-height: 250px;
+  padding: var(--warm-ledger-space-5);
+  transform: scale(1.015);
+  transform-origin: center;
+}
+
+.officeCardPresentation .officeName {
+  font-size: var(--warm-ledger-font-size-section);
+}
+
+.officeCardPresentation .officeHeroText {
+  font-size: var(--warm-ledger-font-size-section);
+}
+
+.officeCardPresentation .officeAvatar {
+  width: 52px;
+  height: 52px;
+  flex-basis: 52px;
+  font-size: 26px;
 }
 
 .officeCard:hover {
@@ -1522,6 +1644,14 @@
   background: var(--warm-ledger-color-panel);
 }
 
+.chatterTickerPresentation .chatterList {
+  padding: var(--warm-ledger-space-4) var(--warm-ledger-space-5);
+}
+
+.chatterTickerPresentation .chatterItem {
+  font-size: var(--warm-ledger-font-size-body);
+}
+
 .chatterList {
   display: flex;
   align-items: center;
@@ -1584,6 +1714,19 @@
   border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-positive);
   border-radius: var(--warm-ledger-radius-panel);
   box-shadow: var(--warm-ledger-shadow-window), var(--warm-ledger-highlight-rest);
+}
+
+.spotlightPresentation {
+  min-width: 420px;
+  padding: var(--warm-ledger-space-4) var(--warm-ledger-space-5);
+}
+
+.spotlightPresentation .spotlightName {
+  font-size: var(--warm-ledger-font-size-section);
+}
+
+.spotlightPresentation .spotlightText {
+  font-size: var(--warm-ledger-font-size-body);
 }
 
 .spotlight[data-failed='true'] {

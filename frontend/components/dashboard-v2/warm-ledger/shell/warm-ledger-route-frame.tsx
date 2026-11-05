@@ -40,6 +40,11 @@ import { useManagedProjects } from '@/lib/hooks/use-managed-projects'
 const DAILY_ANALYSIS_ROUTE = '/dashboard/operations/daily-analysis'
 const ORDER_INFO_ROUTE = '/dashboard/reports/order-info'
 const DIGITAL_OFFICE_ROUTE = '/dashboard/ai/digital-employees/office'
+const WARM_STANDALONE_ROUTES = new Set([
+  '/dashboard/ai',
+  '/dashboard/ai/chat',
+  '/dashboard/system/digital-display',
+])
 const FALLBACK_REFRESH_WATCHDOG_MS = 10_000
 
 const GLOBAL_COUNTRY_OPTIONS: ReadonlyArray<WarmSelectOption> = [
@@ -77,6 +82,19 @@ export function isWarmLedgerRoute(
     return false
   }
   return Boolean(getWarmLedgerRouteMeta(pathname))
+}
+
+export function isWarmLedgerStandaloneRoute(
+  pathname: string,
+  searchParams?: { get(name: string): string | null } | null
+) {
+  if (
+    pathname === DIGITAL_OFFICE_ROUTE &&
+    searchParams?.get('mode') === 'presentation'
+  ) {
+    return true
+  }
+  return WARM_STANDALONE_ROUTES.has(pathname)
 }
 
 export function getWarmLedgerPageTitle(pathname: string) {

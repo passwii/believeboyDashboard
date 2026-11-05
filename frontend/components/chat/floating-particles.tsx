@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef } from 'react'
+import styles from './warm-chat.module.css'
 
 export function FloatingParticles() {
   const particles = useRef([
@@ -95,7 +96,7 @@ export function FloatingParticles() {
       {particles.map((p, i) => (
         <div
           key={i}
-          className="absolute rounded-full bg-blue-500 dark:bg-blue-400"
+          className={styles.particle}
           style={{
             width: p.size,
             height: p.size,
@@ -106,8 +107,6 @@ export function FloatingParticles() {
           }}
         />
       ))}
-      {/* Dark: slightly higher opacity for visibility on dark */}
-      <style>{`.dark .absolute.rounded-full.bg-blue-500 { opacity: inherit; }`}</style>
     </div>
   )
 }

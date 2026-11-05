@@ -4,12 +4,13 @@ import { Suspense, useCallback, useEffect, useMemo, useRef } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import { SearchCommand } from '@/components/dashboard/search-command'
-import { TerminalShell } from '@/components/terminal/terminal-shell'
 import {
   getWarmLedgerPageTitle,
   isWarmLedgerRoute,
+  isWarmLedgerStandaloneRoute,
   WarmLedgerRouteFrame,
 } from '@/components/dashboard-v2/warm-ledger/shell/warm-ledger-route-frame'
+import { TerminalHeaderSlotProvider } from '@/components/terminal/terminal-header-slot'
 import { ServerNotificationsProvider } from '@/components/notifications/server-notifications-context'
 import { buildLoginCallbackUrl } from '@/lib/login-callback-url'
 
@@ -26,6 +27,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const searchParams = useSearchParams()
   const isWarmLedgerHome = pathname === '/dashboard'
   const isWarmLedger = isWarmLedgerRoute(pathname, searchParams)
+  const isWarmStandalone = isWarmLedgerStandaloneRoute(pathname, searchParams)
   const pageTitle = useMemo(() => getWarmLedgerPageTitle(pathname), [pathname])
   const { status } = useSession()
   const wasAuthenticatedRef = useRef(false)
@@ -50,7 +52,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
     document.title = `${pageTitle} | BelieveBoy Dashboard`
   }, [pageTitle])
 
-  // 监听 TerminalShell 派发的登出事件
+  // 监听全局登出事件。
   useEffect(() => {
     const handler = () => {
       void signOut({ callbackUrl: buildLoginCallbackUrl(getCurrentPath()) })
@@ -73,7 +75,17 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
   return (
     <ServerNotificationsProvider>
-      {isWarmLedger ? (
+      {isWarmStandalone ? (
+        <TerminalHeaderSlotProvider>
+          <div
+            className="warm-ledger min-h-dvh bg-[var(--warm-ledger-color-stage)] text-[var(--warm-ledger-color-text)]"
+            data-testid="warm-standalone"
+          >
+            {children}
+            <SearchCommand />
+          </div>
+        </TerminalHeaderSlotProvider>
+      ) : isWarmLedger ? (
         <WarmLedgerRouteFrame pathname={pathname}>{children}</WarmLedgerRouteFrame>
       ) : isWarmLedgerHome ? (
         <>
@@ -81,7 +93,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
           <SearchCommand />
         </>
       ) : (
-        <TerminalShell>{children}</TerminalShell>
+        <WarmLedgerRouteFrame pathname={pathname}>{children}</WarmLedgerRouteFrame>
       )}
     </ServerNotificationsProvider>
   )

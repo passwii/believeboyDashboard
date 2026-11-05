@@ -1,5 +1,5 @@
-import { AnalyticsPageLoading } from '@/components/dashboard/page-skeletons'
+import { AdAnalysisWarmLoading } from './ad-analysis-loading'
 
 export default function AdAnalysisLoading() {
-  return <AnalyticsPageLoading />
+  return <AdAnalysisWarmLoading />
 }

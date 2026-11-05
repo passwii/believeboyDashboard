@@ -88,6 +88,15 @@ describe('AdAnalysisCampaignsClient Header refresh', () => {
 
     const view = render(<AdAnalysisCampaignsClient />)
     await waitFor(() => expect(screen.getByText('旧结果 $25.00')).toBeInTheDocument())
+    const page = document.querySelector('[data-warm-ad-analysis-page="campaigns"]')
+    expect(page).not.toBeNull()
+    expect(page?.querySelector('[data-warm-table-scroll="true"]')).not.toBeNull()
+    for (const element of page?.querySelectorAll('*') ?? []) {
+      const className = element.getAttribute('class') ?? ''
+      expect(className).not.toContain('term-')
+      expect(className).not.toContain('rounded-none')
+      expect(className).not.toMatch(/(?:^|\s)font-mono(?=\s|$)/)
+    }
 
     mockSearchParams = new URLSearchParams('projectId=1&country=DE')
     view.rerender(<AdAnalysisCampaignsClient />)

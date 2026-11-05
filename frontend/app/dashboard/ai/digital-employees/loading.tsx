@@ -1,5 +1,5 @@
-import { SimplePageLoading } from '@/components/dashboard/page-skeletons'
+import { WarmRouteLoading } from '@/components/dashboard-v2/warm-ledger/loading/warm-route-loading'
 
 export default function DigitalEmployeesLoading() {
-  return <SimplePageLoading />
+  return <WarmRouteLoading variant="table" columns={6} rows={5} label="正在加载数字员工" />
 }
