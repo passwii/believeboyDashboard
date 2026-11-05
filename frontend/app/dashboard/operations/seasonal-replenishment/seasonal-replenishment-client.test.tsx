@@ -233,8 +233,11 @@ describe('SeasonalReplenishmentClient header 化渲染契约（operations header
     expect(container.querySelector('[data-filter-control="keyword"]')).not.toBeNull()
     expect(container.querySelector('[data-filter-control="compare"]')).not.toBeNull()
     expect(screen.getAllByRole('combobox')).toHaveLength(2)
-    expect(screen.getByPlaceholderText('搜索 SKU / ASIN')).toBeInTheDocument()
-    expect(screen.getByRole('switch')).toBeInTheDocument()
+    const dateControl = container.querySelector('[data-filter-control="date"] button')
+    expect(dateControl).toBeInstanceOf(HTMLButtonElement)
+    expect(dateControl).toHaveTextContent('~')
+    expect(screen.getByPlaceholderText('搜索 SKU / ASIN')).toBeInstanceOf(HTMLInputElement)
+    expect(screen.getByRole('switch')).toBeInstanceOf(HTMLButtonElement)
     expect(screen.getByText('去年')).not.toHaveClass('font-mono')
   })
 

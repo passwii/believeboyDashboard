@@ -320,7 +320,11 @@ vi.mock('@/lib/ops-client-cache', async (importOriginal) => {
   }
 })
 
-import ReturnAnalysisClient, { RETURN_REASON_COLORS } from './return-analysis-client'
+import ReturnAnalysisClient, {
+  RETURN_REASON_COLORS,
+  RETURN_REASON_SLICE_STROKE,
+  RETURN_REASON_SLICE_STROKE_WIDTH,
+} from './return-analysis-client'
 import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
 import { RAW_DISPLAY_LIMIT, RETURN_RAW_COLUMNS } from './return-raw-columns'
 
@@ -416,13 +420,35 @@ describe('ReturnAnalysisClient header 化渲染契约（BLF-834 / operations hea
 
   it('退货原因饼图使用中性分类色，不表达 positive/negative 语义', () => {
     expect(RETURN_REASON_COLORS).toEqual([
-      'var(--warm-ledger-color-text-muted)',
-      'var(--warm-ledger-color-text-soft)',
-      'var(--warm-ledger-color-text)',
-      'var(--warm-ledger-color-text-faint)',
-      'var(--warm-ledger-color-raised-hover)',
+      '#f1ede5',
+      '#d8d0c4',
+      '#c2bbaf',
+      '#a9a297',
+      '#918a80',
     ])
-    expect(RETURN_REASON_COLORS.join(' ')).not.toMatch(/positive|negative|accent/)
+    expect(new Set(RETURN_REASON_COLORS).size).toBe(5)
+
+    const channel = (value: number) => {
+      const normalized = value / 255
+      return normalized <= 0.04045
+        ? normalized / 12.92
+        : ((normalized + 0.055) / 1.055) ** 2.4
+    }
+    const luminance = (hex: string) => {
+      const [r, g, b] = hex.slice(1).match(/.{2}/g)!.map((part) => parseInt(part, 16))
+      return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+    }
+    const panelLuminance = luminance('#2b2c2b')
+    for (const color of RETURN_REASON_COLORS) {
+      const colorLuminance = luminance(color)
+      const contrast =
+        (Math.max(panelLuminance, colorLuminance) + 0.05) /
+        (Math.min(panelLuminance, colorLuminance) + 0.05)
+      expect(contrast).toBeGreaterThanOrEqual(4)
+    }
+
+    expect(RETURN_REASON_SLICE_STROKE).toBe('var(--warm-ledger-color-panel)')
+    expect(RETURN_REASON_SLICE_STROKE_WIDTH).toBe(2)
   })
 
   it('Warm Ledger 契约：空态与原始数据错误态带可识别状态标记', async () => {

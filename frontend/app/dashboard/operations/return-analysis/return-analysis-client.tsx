@@ -317,14 +317,20 @@ const TAB_ICONS: Record<ViewTab, LucideIcon> = {
   raw: Table2,
 }
 
-/** 分类色只区分排名，不表达好/坏；避免 positive/negative/accent 语义。 */
+/**
+ * Chart-local neutral categorical palette. Each color has >= 4:1 contrast
+ * against --warm-ledger-color-panel (#2b2c2b) and intentionally carries no
+ * positive/negative/accent meaning.
+ */
 export const RETURN_REASON_COLORS = [
-  'var(--warm-ledger-color-text-muted)',
-  'var(--warm-ledger-color-text-soft)',
-  'var(--warm-ledger-color-text)',
-  'var(--warm-ledger-color-text-faint)',
-  'var(--warm-ledger-color-raised-hover)',
+  '#f1ede5',
+  '#d8d0c4',
+  '#c2bbaf',
+  '#a9a297',
+  '#918a80',
 ]
+export const RETURN_REASON_SLICE_STROKE = 'var(--warm-ledger-color-panel)'
+export const RETURN_REASON_SLICE_STROKE_WIDTH = 2
 
 /** 统计磁贴：Warm 面板、sans 标签、mono/tabular 数值。 */
 function SummaryTile({
@@ -1252,6 +1258,8 @@ export default function ReturnAnalysisPage() {
                                 cy="50%"
                                 outerRadius={80}
                                 dataKey="value"
+                                stroke={RETURN_REASON_SLICE_STROKE}
+                                strokeWidth={RETURN_REASON_SLICE_STROKE_WIDTH}
                               >
                                 {data.reason_rows.slice(0, 5).map((_, i) => (
                                   <Cell

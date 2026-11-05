@@ -881,6 +881,7 @@ export default function InventoryReplenishmentPage() {
   }
 
   const retryAnalysis = () => {
+    forceNextLoadRef.current = true
     setLoadError(null)
     setRefreshNonce((nonce) => nonce + 1)
   }

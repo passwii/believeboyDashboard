@@ -306,6 +306,7 @@ describe('补货分析页 header 化渲染契约（operations header migration B
 
   it('主请求失败时显示独立 error 状态，不退化为 empty，且保留通知', async () => {
     vi.mocked(fetchOpsJsonCached).mockRejectedValueOnce(new Error('补货服务不可用'))
+    const user = userEvent.setup()
     const { container } = render(<InventoryReplenishmentPage />)
     const page = container.querySelector('[data-warm-page="inventory-replenishment"]')
 
@@ -318,6 +319,15 @@ describe('补货分析页 header 化渲染契约（operations header migration B
     expect(mockNotify).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'error', title: '分析数据加载失败' })
     )
+
+    const callsBeforeRetry = vi.mocked(fetchOpsJsonCached).mock.calls.length
+    await user.click(screen.getByRole('button', { name: '重试' }))
+    expect(await screen.findByText('SKU-001')).toBeInTheDocument()
+    await vi.waitFor(() =>
+      expect(vi.mocked(fetchOpsJsonCached).mock.calls.length).toBeGreaterThan(callsBeforeRetry)
+    )
+    expect(opsCacheCapture.lastForce).toBe(true)
+    expect(opsCacheCapture.lastUrl).toContain('/inventory-replenishment-analysis?')
   })
 
   it('4 个筛选控件注册进头部插槽（项目/关键词/站点/风险状态），正文不再渲染', async () => {
