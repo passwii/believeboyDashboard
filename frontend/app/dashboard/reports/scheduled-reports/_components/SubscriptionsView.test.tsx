@@ -61,6 +61,7 @@ vi.mock('./EditSubscriptionDialog', () => ({
 import SubscriptionsView from './SubscriptionsView'
 import { ensureConfigLoaded } from '@/lib/api/ai-chat-config-store'
 import type { Subscription } from './types'
+import styles from '../scheduled-reports-warm.module.css'
 
 function makeSub(overrides: Partial<Subscription> & { id: number }): Subscription {
   return {
@@ -204,6 +205,11 @@ describe('SubscriptionsView 批量操作（BLF-1032）', () => {
       expect(country).not.toHaveClass('font-mono')
     }
     const times = screen.getAllByText('09:00')
+    const desktopTimes = times.filter((time) => time.classList.contains(styles.timeCell))
+    const mobileTimes = times.filter((time) => time.classList.contains(styles.mobileTime))
+    expect(desktopTimes.length).toBeGreaterThan(0)
+    expect(mobileTimes.length).toBeGreaterThan(0)
+    expect(desktopTimes.length + mobileTimes.length).toBe(times.length)
     for (const time of times) {
       expect(time).toHaveAttribute('data-warm-value', 'time')
       expect(time).not.toHaveClass('font-sans')
@@ -211,6 +217,7 @@ describe('SubscriptionsView 批量操作（BLF-1032）', () => {
 
     const mobileModels = screen.getAllByText('AI: gpt-5')
     for (const model of mobileModels) {
+      expect(model).toHaveClass(styles.modelCell)
       expect(model).toHaveAttribute('data-warm-value', 'model')
       expect(model).not.toHaveClass('font-sans')
     }
