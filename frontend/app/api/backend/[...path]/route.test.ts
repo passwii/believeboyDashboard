@@ -44,6 +44,21 @@ describe('backend proxy cancellation and overview deadline', () => {
     mocks.tryCachedBackendGet.mockResolvedValue(null)
   })
 
+  it('uses a 10s proxy deadline for the single-project daily-analysis request', async () => {
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout')
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 200 })))
+
+    const response = await GET(
+      new NextRequest('https://dashboard.test/api/backend/api/v1/daily-analysis?project_id=1', {
+        method: 'GET',
+      }),
+      { params: Promise.resolve({ path: ['api', 'v1', 'daily-analysis'] }) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(timeoutSpy).toHaveBeenCalledWith(10_000)
+  })
+
   it('propagates client abort to the upstream signal and does not classify it as a proxy failure', async () => {
     const client = new AbortController()
     let upstreamSignal: AbortSignal | undefined

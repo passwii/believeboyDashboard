@@ -106,6 +106,11 @@ const ORDER_INFO_READ_PATH_PATTERNS: ReadonlyArray<RegExp> = [
   /\/order-info\/(?:page|list|stats|overview|filter-options|live-stream)(?:\?.*)?$/,
 ]
 
+const DAILY_ANALYSIS_READ_PATH_PATTERNS: ReadonlyArray<RegExp> = [
+  /\/daily-analysis$/,
+  /\/daily-analysis\/(?:all|all-countries|all-projects-countries)$/,
+]
+
 const STATS_PATH_PATTERNS: ReadonlyArray<RegExp> = [
   /\/metrics\//,
   /\/aggregations\//,
@@ -159,6 +164,13 @@ export const TIMEOUT_TIERS: ReadonlyArray<TimeoutTier> = [
     label: 'order-info-read',
     pathPattern: matchAny(ORDER_INFO_READ_PATH_PATTERNS),
     timeoutMs: 20_000,
+  },
+  {
+    // 销售分析读取包含多项目和跨国家聚合，避免被默认 5s deadline 提前中断。
+    label: 'daily-analysis-read',
+    pathPattern: matchAny(DAILY_ANALYSIS_READ_PATH_PATTERNS),
+    methods: ['GET'],
+    timeoutMs: 10_000,
   },
   { label: 'stats', pathPattern: matchAny(STATS_PATH_PATTERNS), timeoutMs: 15_000 },
   { label: 'detail', pathPattern: matchAny(DETAIL_PATH_PATTERNS), timeoutMs: 10_000 },

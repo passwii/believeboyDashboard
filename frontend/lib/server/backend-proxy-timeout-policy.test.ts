@@ -5,6 +5,22 @@ import {
   TIMEOUT_TIERS,
 } from './backend-proxy-timeout-policy'
 
+describe('日销售 API 代理 deadline（10s）', () => {
+  it.each([
+    'api/v1/daily-analysis',
+    'api/v1/daily-analysis/all',
+    'api/v1/daily-analysis/all-countries',
+    'api/v1/daily-analysis/all-projects-countries',
+  ])('%s 使用 10 秒 deadline', (path) => {
+    expect(getProxyTimeoutMs(path, null, 'GET')).toBe(10_000)
+  })
+
+  it('不扩大到未知 daily-analysis 子路径或其他 API', () => {
+    expect(getProxyTimeoutMs('api/v1/daily-analysis/unknown', null, 'GET')).toBe(5_000)
+    expect(getProxyTimeoutMs('api/v1/report-upload/recognize', null, 'GET')).toBe(5_000)
+  })
+})
+
 /**
  * BEL-417: `POST /api/v1/report-upload/commit` ingests large monthly reports
  * (e.g. inventory_ledger 30-50k rows). The default 5s timeout was killing
