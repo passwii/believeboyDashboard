@@ -108,7 +108,9 @@ gh run list --workflow deploy-dashboard.yml --limit 3
 ```
 
 Actions 复用现有 Secrets：`VPS_SSH_KEY`、`VPS_KNOWN_HOSTS`、`VPS_HOST`、
-`NEXTAUTH_SECRET`。首次本地切流完成后才能使用此入口。
+`NEXTAUTH_SECRET`。工作流可在首次切流时从 VPS 现有的 `app.env` 与
+`backend/.env` 生成新环境文件，并迁移 storage/celerybeat；因此本地 GHCR
+链路不稳定时，可直接用此入口完成同版本 Web/API 镜像发布。
 
 ## 检查
 
