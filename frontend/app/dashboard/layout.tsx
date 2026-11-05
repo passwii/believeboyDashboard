@@ -10,6 +10,7 @@ import {
   isWarmLedgerStandaloneRoute,
   WarmLedgerRouteFrame,
 } from '@/components/dashboard-v2/warm-ledger/shell/warm-ledger-route-frame'
+import { TerminalHeaderSlotProvider } from '@/components/terminal/terminal-header-slot'
 import { ServerNotificationsProvider } from '@/components/notifications/server-notifications-context'
 import { buildLoginCallbackUrl } from '@/lib/login-callback-url'
 
@@ -75,13 +76,15 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   return (
     <ServerNotificationsProvider>
       {isWarmStandalone ? (
-        <div
-          className="warm-ledger min-h-dvh bg-[var(--warm-ledger-color-stage)] text-[var(--warm-ledger-color-text)]"
-          data-testid="warm-standalone"
-        >
-          {children}
-          <SearchCommand />
-        </div>
+        <TerminalHeaderSlotProvider>
+          <div
+            className="warm-ledger min-h-dvh bg-[var(--warm-ledger-color-stage)] text-[var(--warm-ledger-color-text)]"
+            data-testid="warm-standalone"
+          >
+            {children}
+            <SearchCommand />
+          </div>
+        </TerminalHeaderSlotProvider>
       ) : isWarmLedger ? (
         <WarmLedgerRouteFrame pathname={pathname}>{children}</WarmLedgerRouteFrame>
       ) : isWarmLedgerHome ? (
