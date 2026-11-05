@@ -1,0 +1,78 @@
+name: Clean legacy dashboard artifacts
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    env:
+      SSH_HOST: ${{ secrets.VPS_HOST }}
+      SSH_USER: root
+      DEPLOY_PATH: /opt/believeboy-dashboard
+
+    steps:
+      - name: Configure SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$VPS_SSH_KEY" > "$HOME/.ssh/believeboy-dashboard"
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/believeboy-dashboard" "$HOME/.ssh/known_hosts"
+
+      - name: Verify healthy before cleanup
+        run: |
+          set -euo pipefail
+          curl -fsS --max-time 15 https://dash.believeboy.com/healthz
+          curl -fsS --max-time 15 https://dash-api.believeboy.com/api/v1/health/live
+          ssh -i "$HOME/.ssh/believeboy-dashboard" \
+            -o IdentitiesOnly=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes \
+            "$SSH_USER@$SSH_HOST" \
+            "set -euo pipefail
+             test -f '$DEPLOY_PATH/backend.env'
+             test -f '$DEPLOY_PATH/web.env'
+             test -d '$DEPLOY_PATH/backend-storage'
+             test -d '$DEPLOY_PATH/celerybeat'
+             for service in api web celery celery-scheduled beat; do
+               status=\"\$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \"believeboy-dashboard-\$service\")\"
+               test \"\$status\" = healthy
+             done"
+
+      - name: Remove legacy build artifacts
+        run: |
+          set -euo pipefail
+          ssh -i "$HOME/.ssh/believeboy-dashboard" \
+            -o IdentitiesOnly=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes \
+            "$SSH_USER@$SSH_HOST" \
+            "set -euo pipefail
+             for service in believeboy-api believeboy-celery believeboy-celery-scheduled believeboy-beat; do
+               if systemctl is-active --quiet \"\$service\"; then
+                 echo \"Refusing cleanup: \$service is active\" >&2
+                 exit 1
+               fi
+               systemctl disable \"\$service\" >/dev/null 2>&1 || true
+             done
+             echo 'Disk before:'
+             df -h / | tail -1
+             du -sh /root/believeboyDashboard /root/believeboyDashboard/.git \
+               /root/believeboyDashboard/frontend/node_modules \
+               /root/believeboyDashboard/backend/.venv 2>/dev/null || true
+             rm -rf /root/believeboyDashboard/.git
+             rm -rf /root/believeboyDashboard/frontend/node_modules
+             rm -rf /root/believeboyDashboard/backend/.venv
+             docker image prune -f
+             docker builder prune -f
+             echo 'Disk after:'
+             df -h / | tail -1"
