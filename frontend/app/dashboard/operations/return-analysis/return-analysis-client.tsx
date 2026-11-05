@@ -39,7 +39,6 @@ import {
 } from '@/components/ui/chart'
 import { DataTableCard, DataTableCardHeader, DataTableCardBody } from '@/components/ui/data-card'
 import { EmptyTableState } from '@/components/ui/empty-state'
-import { Skeleton } from '@/components/ui/skeleton'
 import {
   DirectionalTabTransition,
   SlidingTabsTrigger,
@@ -55,7 +54,6 @@ import {
   ColGroup,
   STICKY_TOP_ROW,
 } from '@/components/ui/table'
-import { TableSkeletonRows } from '@/components/ui/table-skeleton'
 import { Tabs, TabsContent, TabsList } from '@/components/ui/tabs'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
@@ -389,15 +387,19 @@ function WarmTable({
 
 function WarmProgressTableBody({
   refreshing,
+  busy,
   colSpan,
   children,
 }: {
   refreshing: boolean
+  busy?: boolean
   colSpan: number
   children: ReactNode
 }) {
+  const isBusy = refreshing || Boolean(busy)
+
   return (
-    <TableBody aria-busy={refreshing || undefined}>
+    <TableBody aria-busy={isBusy || undefined}>
       {refreshing ? (
         <TableRow
           className={cn(styles.progressRow, 'warm-ledger-table-progress-row')}
@@ -486,6 +488,7 @@ export default function ReturnAnalysisPage() {
 
   const [data, setData] = useState<ReturnAnalysisResponse | null>(null)
   const [loading, setLoading] = useState(false)
+  const hasLoadedDataRef = useRef(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
 
@@ -505,7 +508,9 @@ export default function ReturnAnalysisPage() {
   // 会把新请求刚置上的 loading 提前打下去（调用方会误判请求已结束）。
   const rawRequestSeqRef = useRef(0)
 
-  const { showSkeleton, isRefreshing } = useSmoothRefresh({ loading, hasData: !!data })
+  const { isRefreshing } = useSmoothRefresh({ loading, hasData: !!data })
+  const isInitialDataLoading = loading && !data && !hasLoadedDataRef.current
+  const showRefreshProgress = isRefreshing && !isInitialDataLoading
   const warmState =
     loadError
       ? 'error'
@@ -589,6 +594,7 @@ export default function ReturnAnalysisPage() {
           { session, force, fallbackError: '退货数据加载失败' }
         )
         setData(payload)
+        hasLoadedDataRef.current = true
         setLoadError(null)
       } catch (fetchError) {
         notify({
@@ -1038,6 +1044,11 @@ export default function ReturnAnalysisPage() {
       {headerSlotPortal}
       {/* BLF-931：移动端折叠筛选条（正文顶部，md:hidden 挂载点内） */}
       {mobileFilterStrip}
+      {isInitialDataLoading ? (
+        <p className={styles.visuallyHidden} role="status">
+          正在加载退货分析数据
+        </p>
+      ) : null}
 
       {loadError ? (
         <div className={styles.errorNotice} data-warm-state="error">
@@ -1175,41 +1186,42 @@ export default function ReturnAnalysisPage() {
                       </TableRow>
                     </TableHeader>
                     <WarmProgressTableBody
-                      refreshing={isRefreshing}
+                      refreshing={showRefreshProgress}
+                      busy={isInitialDataLoading}
                       colSpan={10}
                     >
-                      {showSkeleton ? (
+                      {isInitialDataLoading ? (
                         Array.from({ length: 5 }).map((_, i) => (
-                          <TableRow key={i}>
+                          <TableRow key={i} data-warm-skeleton="static">
                             <TableCell>
-                              <div className="h-4 w-20 animate-pulse rounded bg-[var(--warm-ledger-color-raised)]" />
-                            </TableCell>
-                            <TableCell>
-                              <div className="h-4 w-28 animate-pulse rounded bg-[var(--warm-ledger-color-raised)]" />
+                              <div className="h-4 w-20 rounded bg-[var(--warm-ledger-color-raised)]" />
                             </TableCell>
                             <TableCell>
-                              <div className="h-4 w-16 animate-pulse rounded bg-[var(--warm-ledger-color-raised)]" />
+                              <div className="h-4 w-28 rounded bg-[var(--warm-ledger-color-raised)]" />
+                            </TableCell>
+                            <TableCell>
+                              <div className="h-4 w-16 rounded bg-[var(--warm-ledger-color-raised)]" />
                             </TableCell>
                             <TableCell className="text-right">
-                              <div className="ml-auto h-4 w-16 animate-pulse rounded bg-[var(--warm-ledger-color-raised)]" />
+                              <div className="ml-auto h-4 w-16 rounded bg-[var(--warm-ledger-color-raised)]" />
                             </TableCell>
                             <TableCell className="text-right">
-                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-[var(--warm-ledger-color-raised)]" />
+                              <div className="ml-auto h-4 w-12 rounded bg-[var(--warm-ledger-color-raised)]" />
                             </TableCell>
                             <TableCell className="text-right">
-                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-[var(--warm-ledger-color-raised)]" />
+                              <div className="ml-auto h-4 w-12 rounded bg-[var(--warm-ledger-color-raised)]" />
                             </TableCell>
                             <TableCell className="text-right">
-                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-[var(--warm-ledger-color-raised)]" />
+                              <div className="ml-auto h-4 w-12 rounded bg-[var(--warm-ledger-color-raised)]" />
                             </TableCell>
                             <TableCell className="text-right">
-                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-[var(--warm-ledger-color-raised)]" />
+                              <div className="ml-auto h-4 w-12 rounded bg-[var(--warm-ledger-color-raised)]" />
                             </TableCell>
                             <TableCell className="text-right">
-                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-[var(--warm-ledger-color-raised)]" />
+                              <div className="ml-auto h-4 w-12 rounded bg-[var(--warm-ledger-color-raised)]" />
                             </TableCell>
                             <TableCell className="text-right">
-                              <div className="ml-auto h-4 w-12 animate-pulse rounded bg-[var(--warm-ledger-color-raised)]" />
+                              <div className="ml-auto h-4 w-12 rounded bg-[var(--warm-ledger-color-raised)]" />
                             </TableCell>
                           </TableRow>
                         ))
@@ -1278,7 +1290,11 @@ export default function ReturnAnalysisPage() {
                             <TableHead className="text-right">占比</TableHead>
                           </TableRow>
                         </TableHeader>
-                        <WarmProgressTableBody refreshing={isRefreshing} colSpan={3}>
+                        <WarmProgressTableBody
+                          refreshing={showRefreshProgress}
+                          busy={isInitialDataLoading}
+                          colSpan={3}
+                        >
                           {data?.reason_rows.length ? (
                             data.reason_rows.map((row) => (
                               <TableRow key={row.reason}>
@@ -1456,7 +1472,11 @@ export default function ReturnAnalysisPage() {
                             <TableHead className="text-right">占比</TableHead>
                           </TableRow>
                         </TableHeader>
-                        <WarmProgressTableBody refreshing={isRefreshing} colSpan={3}>
+                        <WarmProgressTableBody
+                          refreshing={showRefreshProgress}
+                          busy={isInitialDataLoading}
+                          colSpan={3}
+                        >
                           {data?.disposition_rows.length ? (
                             data.disposition_rows.map((row) => (
                               <TableRow key={row.detailed_disposition}>
@@ -1494,7 +1514,11 @@ export default function ReturnAnalysisPage() {
                             <TableHead className="text-right">占比</TableHead>
                           </TableRow>
                         </TableHeader>
-                        <WarmProgressTableBody refreshing={isRefreshing} colSpan={3}>
+                        <WarmProgressTableBody
+                          refreshing={showRefreshProgress}
+                          busy={isInitialDataLoading}
+                          colSpan={3}
+                        >
                           {data?.status_rows.length ? (
                             data.status_rows.map((row) => (
                               <TableRow key={row.status}>
@@ -1532,7 +1556,11 @@ export default function ReturnAnalysisPage() {
                           <TableHead>顾客评论</TableHead>
                         </TableRow>
                       </TableHeader>
-                      <WarmProgressTableBody refreshing={isRefreshing} colSpan={4}>
+                      <WarmProgressTableBody
+                        refreshing={showRefreshProgress}
+                        busy={isInitialDataLoading}
+                        colSpan={4}
+                      >
                         {data?.feedback_rows.length ? (
                           data.feedback_rows.slice(0, 50).map((row, index) => (
                             <TableRow key={`${row.order_id}-${index}`}>
@@ -1609,7 +1637,8 @@ export default function ReturnAnalysisPage() {
                           </TableRow>
                         </TableHeader>
                         <WarmProgressTableBody
-                          refreshing={isRefreshing}
+                          refreshing={showRefreshProgress}
+                          busy={isInitialDataLoading}
                           colSpan={RETURN_RAW_COLUMNS.length}
                         >
                           {rawNeedsMainData ? (
@@ -1618,7 +1647,18 @@ export default function ReturnAnalysisPage() {
                               message="请先加载退货分析数据"
                             />
                           ) : rawLoading || !rawRows ? (
-                            <TableSkeletonRows columns={RETURN_RAW_COLUMNS.length} rows={8} />
+                            Array.from({ length: 8 }).map((_, rowIndex) => (
+                              <TableRow
+                                key={`raw-skeleton-${rowIndex}`}
+                                data-warm-skeleton="static"
+                              >
+                                {RETURN_RAW_COLUMNS.map((column) => (
+                                  <TableCell key={column.key}>
+                                    <div className={cn(styles.skeletonBar, 'h-4 w-20')} />
+                                  </TableCell>
+                                ))}
+                              </TableRow>
+                            ))
                           ) : rawRows.rows.length ? (
                             rawRows.rows.slice(0, RAW_DISPLAY_LIMIT).map((row, index) => (
                               <TableRow key={`${row.order_id}-${row.sku}-${index}`}>
@@ -1664,14 +1704,18 @@ export default function ReturnAnalysisPage() {
                         </span>
                       )}
                     </div>
-                    {showSkeleton ? (
+                    {isInitialDataLoading ? (
                       <div className="space-y-3">
                         {Array.from({ length: 8 }).map((_, i) => (
-                          <Skeleton key={i} className="h-4 w-full" />
+                          <div
+                            key={i}
+                            className={cn(styles.skeletonBar, 'h-4 w-full')}
+                            data-warm-skeleton="static"
+                          />
                         ))}
                       </div>
                     ) : (
-                      <WarmProgressRegion refreshing={isRefreshing}>
+                      <WarmProgressRegion refreshing={showRefreshProgress}>
                         {data?.summary_text ? (
                           <div className="space-y-4">
                             {/* Text Summary */}

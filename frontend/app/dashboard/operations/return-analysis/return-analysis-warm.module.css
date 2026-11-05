@@ -8,6 +8,22 @@
   font-family: var(--warm-ledger-font-sans);
 }
 
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skeletonBar {
+  background: var(--warm-ledger-color-raised);
+  border-radius: 999px;
+}
+
 .summaryGrid {
   display: grid;
   min-width: 0;

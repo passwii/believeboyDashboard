@@ -597,7 +597,9 @@ describe('ReturnAnalysisClient header 化渲染契约（BLF-834 / operations hea
     expect(
       Array.from(table!.children).some((child) => child.tagName.toLowerCase() === 'div')
     ).toBe(false)
-    expect(progressRow.parentElement?.tagName).toBe('TBODY')
+    const progressBody = progressRow.parentElement
+    expect(progressBody?.tagName).toBe('TBODY')
+    expect(progressBody).toHaveAttribute('aria-busy', 'true')
     expect(progressRow.querySelector('td[colspan="10"]')).not.toBeNull()
 
     const track = progressRow.querySelector('[data-warm-progress]')
@@ -610,6 +612,36 @@ describe('ReturnAnalysisClient header 化渲染契约（BLF-834 / operations hea
     await act(async () => {
       resolveFetch?.(returnPayload())
     })
+    await vi.waitFor(() =>
+      expect(progressBody).not.toHaveAttribute('aria-busy', 'true')
+    )
+  })
+
+  it('首次加载提供 status 与 aria-busy，完成后移除；skeleton 不带动画', async () => {
+    let resolveFetch: ((value: unknown) => void) | undefined
+    vi.mocked(fetchOpsJsonCached).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFetch = resolve
+        })
+    )
+
+    const { container } = render(<ReturnAnalysisClient />)
+    expect(await screen.findByRole('status')).toHaveTextContent('正在加载退货分析数据')
+
+    const table = container.querySelector('[data-warm-table-scroll] table')
+    expect(table).not.toBeNull()
+    const busyBody = table?.querySelector('tbody[aria-busy="true"]')
+    expect(busyBody).not.toBeNull()
+    expect(container.querySelector('[data-warm-skeleton="static"]')).not.toBeNull()
+    expect(container.querySelector('.animate-pulse')).toBeNull()
+
+    await act(async () => {
+      resolveFetch?.(returnPayload())
+    })
+    await screen.findByText('SKU-001')
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(busyBody).not.toHaveAttribute('aria-busy', 'true')
   })
 
   it('空 ranking_rows 时展示空态占位而非崩溃', async () => {
