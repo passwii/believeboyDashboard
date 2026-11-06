@@ -1,0 +1,86 @@
+name: Remove unused legacy dashboard image
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  remove-image:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+    env:
+      SSH_HOST: ${{ secrets.VPS_HOST }}
+      SSH_USER: root
+      OLD_FRONTEND_IMAGE: ghcr.io/passwii/believeboydashboard:sha-d261406177445ce007b763b05ef77fc4ab3e647c
+
+    steps:
+      - name: Configure SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$VPS_SSH_KEY" > "$HOME/.ssh/believeboy-dashboard"
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/believeboy-dashboard" "$HOME/.ssh/known_hosts"
+
+      - name: Verify image is unused, then remove it
+        run: |
+          set -euo pipefail
+          curl -fsS --max-time 15 https://dash.believeboy.com/healthz
+          curl -fsS --max-time 15 https://dash-api.believeboy.com/api/v1/health/live
+          ssh -i "$HOME/.ssh/believeboy-dashboard" \
+            -o IdentitiesOnly=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes \
+            "$SSH_USER@$SSH_HOST" \
+            "set -euo pipefail
+             old_image='$OLD_FRONTEND_IMAGE'
+             if ! docker image inspect \"\$old_image\" >/dev/null 2>&1; then
+               echo \"Image already absent: \$old_image\"
+               exit 0
+             fi
+             image_id=\"\$(docker image inspect --format '{{.Id}}' \"\$old_image\")\"
+             echo \"Removing unused image: \$old_image (\$image_id)\"
+             for container_id in \$(docker ps -aq); do
+               container_image_id=\"\$(docker inspect --format '{{.Image}}' \"\$container_id\")\"
+               if [ \"\$container_image_id\" = \"\$image_id\" ]; then
+                 docker inspect --format 'Refusing: container {{.Name}} uses image {{.Image}}' \"\$container_id\" >&2
+                 exit 1
+               fi
+             done
+             docker image rm \"\$old_image\"
+             if docker image inspect \"\$old_image\" >/dev/null 2>&1; then
+               echo \"Image still present after removal: \$old_image\" >&2
+               exit 1
+             fi
+             echo 'Current Dashboard containers:'
+             docker ps --filter 'label=com.docker.compose.project=believeboy-dashboard' \
+               --format '{{.Names}}\t{{.Image}}\t{{.Status}}'
+             echo 'Disk after removal:'
+             df -h / | tail -1"
+
+      - name: Verify current Web and API remain healthy
+        run: |
+          set -euo pipefail
+          curl -fsS --max-time 15 https://dash.believeboy.com/healthz
+          curl -fsS --max-time 15 https://dash-api.believeboy.com/api/v1/health/live
+          ssh -i "$HOME/.ssh/believeboy-dashboard" \
+            -o IdentitiesOnly=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes \
+            "$SSH_USER@$SSH_HOST" \
+            "set -euo pipefail
+             if docker image inspect '$OLD_FRONTEND_IMAGE' >/dev/null 2>&1; then
+               echo 'Legacy frontend image still exists.' >&2
+               exit 1
+             fi
+             for service in web api celery celery-scheduled beat; do
+               container_status=\"\$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' \"believeboy-dashboard-\$service\")\"
+               echo \"\$service: \$container_status\"
+               test \"\$container_status\" = healthy
+             done"
