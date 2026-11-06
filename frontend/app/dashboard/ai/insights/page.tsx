@@ -939,7 +939,7 @@ export default function AIInsightsPage() {
                       !dateRange?.to
                     }
                   >
-                    {isGenerating ? <Loader2 aria-hidden /> : <Bot aria-hidden />}
+                    {isGenerating ? null : <Bot aria-hidden />}
                     {isGenerating ? '生成中...' : '生成洞察'}
                   </WarmButton>
                 </div>

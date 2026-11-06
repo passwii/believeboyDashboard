@@ -262,6 +262,31 @@ describe('账号管理 · Warm Ledger 与既有写入行为', () => {
     expect(screen.getAllByRole('table')).toHaveLength(1)
   })
 
+  it('刷新中只显示一个 loading mark，完成后恢复刷新图标', async () => {
+    const user = userEvent.setup()
+    await renderPage()
+
+    let resolveRefresh: (response: Response) => void = () => {}
+    const pendingRefresh = new Promise<Response>((resolve) => {
+      resolveRefresh = resolve
+    })
+    fetchMock.mockImplementationOnce(() => pendingRefresh)
+
+    await user.click(screen.getByRole('button', { name: '刷新' }))
+    const refreshingButton = await screen.findByRole('button', { name: '正在刷新账号列表' })
+
+    expect(refreshingButton).toHaveAttribute('aria-busy', 'true')
+    expect(refreshingButton.querySelectorAll('.warm-ledger__loading-mark')).toHaveLength(1)
+    expect(refreshingButton.querySelector('svg')).not.toBeInTheDocument()
+    expect(refreshingButton).toHaveTextContent('刷新中')
+
+    resolveRefresh(jsonResponse(USERS))
+    await waitFor(() => expect(refreshingButton).not.toHaveAttribute('aria-busy'))
+    expect(refreshingButton.querySelector('.warm-ledger__loading-mark')).not.toBeInTheDocument()
+    expect(refreshingButton.querySelector('svg')).toBeInTheDocument()
+    expect(refreshingButton).toHaveTextContent('刷新')
+  })
+
   it('账号弹窗同样使用 Warm 控件，不混入 Terminal 类', async () => {
     await renderPage()
     await userEvent.click(screen.getByRole('button', { name: '新增账号' }))

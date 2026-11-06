@@ -325,8 +325,8 @@ export default function AccountManagementPage() {
               loading={loading}
               loadingLabel="正在刷新账号列表"
             >
-              <RefreshCw className={styles.actionIcon} aria-hidden />
-              刷新
+              {loading ? null : <RefreshCw className={styles.actionIcon} aria-hidden />}
+              {loading ? '刷新中...' : '刷新'}
             </WarmButton>
             <WarmButton variant="primary" onClick={() => setCreateOpen(true)}>
               新增账号

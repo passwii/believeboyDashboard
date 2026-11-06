@@ -142,6 +142,7 @@ describe('Project Context Warm Ledger 迁移', () => {
   it('编辑背景仍提交完整 project_context 并保留成功回调', async () => {
     const user = userEvent.setup()
     const onSuccess = vi.fn()
+    const onOpenChange = vi.fn()
     START_GLOBAL_LOADING.mockClear()
     END_GLOBAL_LOADING.mockClear()
     FETCH_PROJECT_CONTEXT.mockResolvedValue({
@@ -159,7 +160,7 @@ describe('Project Context Warm Ledger 迁移', () => {
         projectId={2}
         projectName="店铺乙"
         open
-        onOpenChange={vi.fn()}
+        onOpenChange={onOpenChange}
         onSuccess={onSuccess}
       />
     )
@@ -177,6 +178,8 @@ describe('Project Context Warm Ledger 迁移', () => {
     expect(screen.queryByLabelText('定位 描述')).not.toBeInTheDocument()
     expect(START_GLOBAL_LOADING).not.toHaveBeenCalled()
     expect(END_GLOBAL_LOADING).not.toHaveBeenCalled()
+    await user.keyboard('{Escape}')
+    expect(onOpenChange).not.toHaveBeenCalled()
     await waitFor(() =>
       expect(UPDATE_PROJECT_CONTEXT).toHaveBeenCalledWith(
         2,

@@ -7,7 +7,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/ui/tabs'
-import { Loader2, KeyRound, Copy, Check, LayoutGrid, BookOpen, Activity, Pencil, Eye, PenLine } from 'lucide-react'
+import { KeyRound, Copy, Check, LayoutGrid, BookOpen, Activity, Pencil, Eye, PenLine } from 'lucide-react'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
 import { useManagedProjects } from '@/lib/hooks/use-managed-projects'
@@ -882,8 +882,7 @@ export function AgentManagementClient() {
                   loading={submitting}
                   loadingLabel="正在创建凭据"
                 >
-                  {submitting && <Loader2 className={styles.loadingIcon} aria-hidden />}
-                  创建
+                  {submitting ? '创建中...' : '创建'}
                 </WarmButton>
               </DialogFooter>
             </div>
@@ -961,8 +960,7 @@ export function AgentManagementClient() {
                   loading={editSubmitting}
                   loadingLabel="正在保存凭据权限"
                 >
-                  {editSubmitting && <Loader2 className={styles.loadingIcon} aria-hidden />}
-                  保存
+                  {editSubmitting ? '保存中...' : '保存'}
                 </WarmButton>
               </DialogFooter>
             </div>

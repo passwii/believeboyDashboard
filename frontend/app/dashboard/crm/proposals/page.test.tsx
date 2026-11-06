@@ -211,4 +211,26 @@ describe('Warm Ledger 方案列表', () => {
     expect(container.querySelector('[data-warm-crm-table-frame]')).toBeInTheDocument()
     expect(container.querySelector('[data-table-scroll]')).toBeInTheDocument()
   })
+
+  it('下载中只显示一个 loading mark，完成后恢复下载图标', async () => {
+    let rejectDownload: (reason: Error) => void = () => {}
+    const pendingDownload = new Promise<Blob>((_, reject) => {
+      rejectDownload = reject
+    })
+    client.downloadProposalVersion.mockReturnValueOnce(pendingDownload)
+
+    render(<ProposalsPage />)
+    await screen.findByText('北美春季方案')
+
+    const downloadButton = screen.getByRole('button', { name: '下载 北美春季方案' })
+    fireEvent.click(downloadButton)
+
+    await waitFor(() => expect(downloadButton).toHaveAttribute('aria-busy', 'true'))
+    expect(downloadButton.querySelectorAll('.warm-ledger__loading-mark')).toHaveLength(1)
+    expect(downloadButton.querySelector('svg')).not.toBeInTheDocument()
+
+    rejectDownload(new Error('测试下载失败'))
+    await waitFor(() => expect(downloadButton).not.toHaveAttribute('aria-busy'))
+    expect(downloadButton.querySelector('svg')).toBeInTheDocument()
+  })
 })

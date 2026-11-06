@@ -130,6 +130,35 @@ describe('AiInsightsPage 模型配置懒加载（BEL-424）', () => {
     await waitFor(() => expect(ensureConfigLoaded).toHaveBeenCalledTimes(1))
   })
 
+  it('生成洞察等待响应时只显示一个 loading 图标', async () => {
+    const user = userEvent.setup()
+    let resolveGenerate: (response: Response) => void = () => {}
+    const pendingGenerate = new Promise<Response>((resolve) => {
+      resolveGenerate = resolve
+    })
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input)
+      if (url.includes('/api/backend/v1/ai-insights/generate')) return pendingGenerate
+      if (url.includes('/api/backend/v1/ai-insights/schedules')) {
+        return jsonResponse({ items: [] })
+      }
+      if (url.includes('/api/backend/v1/ai-insights')) return jsonResponse({ items: [] })
+      return jsonResponse({})
+    })
+
+    render(<AiInsightsPage />)
+    await screen.findByRole('combobox', { name: '项目' })
+    const generateButton = screen.getByRole('button', { name: '生成洞察' })
+    await user.click(generateButton)
+
+    await waitFor(() => expect(generateButton).toHaveAttribute('aria-busy', 'true'))
+    expect(generateButton.querySelectorAll('.warm-ledger__loading-mark')).toHaveLength(1)
+    expect(generateButton.querySelector('svg')).not.toBeInTheDocument()
+
+    resolveGenerate(jsonResponse({ insight_id: 99 }))
+    await waitFor(() => expect(generateButton).not.toHaveAttribute('aria-busy'))
+  })
+
   it('使用 Warm 页面边界并让旧洞察流进入 Warm 展示', async () => {
     const user = userEvent.setup()
     const { container } = render(<AiInsightsPage />)
