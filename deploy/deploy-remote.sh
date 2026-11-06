@@ -5,6 +5,8 @@ set -euo pipefail
 : "${GO_API_IMAGE:?GO_API_IMAGE is required}"
 : "${WEB_IMAGE:?WEB_IMAGE is required}"
 : "${DEPLOY_PATH:?DEPLOY_PATH is required}"
+: "${PUBLIC_WEB_HEALTH_URL:?PUBLIC_WEB_HEALTH_URL is required}"
+: "${PUBLIC_API_HEALTH_URL:?PUBLIC_API_HEALTH_URL is required}"
 
 CONTAINER_API="believeboy-dashboard-api"
 CONTAINER_GO_API="believeboy-dashboard-go-api"
@@ -13,36 +15,45 @@ HEALTH_ATTEMPTS="${HEALTH_ATTEMPTS:-30}"
 
 cd "$DEPLOY_PATH"
 
-for file in backend.env web.env docker-compose.yml web.env.next go.env.next docker-compose.yml.next; do
+for file in backend.env web.env.next go.env.next docker-compose.yml.next; do
   if [[ ! -f "$file" ]]; then
     echo "Missing $DEPLOY_PATH/$file. Run deploy-local.sh to stage all runtime files." >&2
     exit 1
   fi
 done
 
-previous_api_image="$(docker inspect --format '{{.Config.Image}}' "$CONTAINER_API" 2>/dev/null || true)"
-previous_go_api_image="$(docker inspect --format '{{.Config.Image}}' "$CONTAINER_GO_API" 2>/dev/null || true)"
-previous_web_image="$(docker inspect --format '{{.Config.Image}}' "$CONTAINER_WEB" 2>/dev/null || true)"
+saved_image() {
+  local key="$1"
+  [[ -f .deploy-images ]] || return 0
+  sed -n "s/^${key}=//p" .deploy-images 2>/dev/null | head -n 1
+}
+
+previous_api_image="$(saved_image API_IMAGE)"
+previous_go_api_image="$(saved_image GO_API_IMAGE)"
+previous_web_image="$(saved_image WEB_IMAGE)"
+previous_api_image="${previous_api_image:-$(docker inspect --format '{{.Config.Image}}' "$CONTAINER_API" 2>/dev/null || true)}"
+previous_go_api_image="${previous_go_api_image:-$(docker inspect --format '{{.Config.Image}}' "$CONTAINER_GO_API" 2>/dev/null || true)}"
+previous_web_image="${previous_web_image:-$(docker inspect --format '{{.Config.Image}}' "$CONTAINER_WEB" 2>/dev/null || true)}"
 backup_dir="$(mktemp -d "$DEPLOY_PATH/.deploy-rollback.XXXXXX")"
-cp -p docker-compose.yml "$backup_dir/docker-compose.yml"
-cp -p web.env "$backup_dir/web.env"
-if [[ -f go.env ]]; then
-  cp -p go.env "$backup_dir/go.env"
-fi
+for file in docker-compose.yml web.env go.env .deploy-images; do
+  if [[ -f "$file" ]]; then
+    cp -p "$file" "$backup_dir/$file"
+  fi
+done
 
 cleanup_backup() {
-  rm -f "$backup_dir/docker-compose.yml" "$backup_dir/web.env" "$backup_dir/go.env"
+  rm -f "$backup_dir/docker-compose.yml" "$backup_dir/web.env" "$backup_dir/go.env" "$backup_dir/.deploy-images"
   rmdir "$backup_dir"
 }
 
 restore_config() {
-  cp -p "$backup_dir/docker-compose.yml" docker-compose.yml
-  cp -p "$backup_dir/web.env" web.env
-  if [[ -f "$backup_dir/go.env" ]]; then
-    cp -p "$backup_dir/go.env" go.env
-  else
-    rm -f go.env
-  fi
+  for file in docker-compose.yml web.env go.env .deploy-images; do
+    if [[ -f "$backup_dir/$file" ]]; then
+      cp -p "$backup_dir/$file" "$file"
+    else
+      rm -f "$file"
+    fi
+  done
 }
 
 wait_for_url() {
@@ -62,6 +73,17 @@ wait_for_url() {
 rollback() {
   if [[ -z "$previous_api_image" || -z "$previous_web_image" ]]; then
     echo "No previous FastAPI/Go/Web image set is available for automatic rollback." >&2
+    API_IMAGE="$API_IMAGE" GO_API_IMAGE="$GO_API_IMAGE" WEB_IMAGE="$WEB_IMAGE" \
+      docker compose down --remove-orphans || true
+    restore_config
+    return 1
+  fi
+
+  if [[ -f "$backup_dir/docker-compose.yml" ]] &&
+    grep -Eq '^[[:space:]]+go-api:' "$backup_dir/docker-compose.yml" &&
+    [[ -z "$previous_go_api_image" ]]; then
+    echo "Previous Compose includes Go API, but its image reference is unavailable; refusing an incomplete rollback." >&2
+    docker stop "$CONTAINER_GO_API" 2>/dev/null || true
     restore_config
     return 1
   fi
@@ -83,6 +105,7 @@ rollback() {
 }
 
 fail_deployment() {
+  trap - ERR
   docker compose ps || true
   docker compose logs --tail=150 || true
   if ! rollback; then
@@ -93,7 +116,13 @@ fail_deployment() {
   exit 1
 }
 
-trap 'if [[ -d "$backup_dir" ]]; then restore_config || true; fi' ERR
+handle_unexpected_error() {
+  trap - ERR
+  echo "Unexpected deployment command failure; attempting rollback." >&2
+  fail_deployment
+}
+
+trap 'handle_unexpected_error' ERR
 
 mv docker-compose.yml.next docker-compose.yml
 mv web.env.next web.env
@@ -137,6 +166,19 @@ echo "Checking Celery beat..."
 if [[ "$(docker inspect --format '{{.State.Running}}' believeboy-dashboard-beat)" != "true" ]]; then
   fail_deployment
 fi
+
+if ! wait_for_url "Public Web" "$PUBLIC_WEB_HEALTH_URL"; then
+  fail_deployment
+fi
+if ! wait_for_url "Public API" "$PUBLIC_API_HEALTH_URL"; then
+  fail_deployment
+fi
+
+manifest_tmp="$(mktemp "$DEPLOY_PATH/.deploy-images.next.XXXXXX")"
+printf 'API_IMAGE=%s\nGO_API_IMAGE=%s\nWEB_IMAGE=%s\n' \
+  "$API_IMAGE" "$GO_API_IMAGE" "$WEB_IMAGE" > "$manifest_tmp"
+chmod 600 "$manifest_tmp"
+mv "$manifest_tmp" "$DEPLOY_PATH/.deploy-images"
 
 trap - ERR
 cleanup_backup

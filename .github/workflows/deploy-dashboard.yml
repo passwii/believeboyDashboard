@@ -265,6 +265,8 @@ jobs:
           API_IMAGE: ${{ env.API_IMAGE_NAME }}@${{ steps.api.outputs.digest }}
           GO_API_IMAGE: ${{ env.GO_API_IMAGE_NAME }}@${{ steps.go_api.outputs.digest }}
           WEB_IMAGE: ${{ env.WEB_IMAGE_NAME }}@${{ steps.web.outputs.digest }}
+          PUBLIC_WEB_HEALTH_URL: https://dash.believeboy.com/healthz
+          PUBLIC_API_HEALTH_URL: https://dash-api.believeboy.com/api/v1/health/live
         run: |
           set -euo pipefail
           ssh -i "$HOME/.ssh/believeboy-dashboard" \
@@ -273,26 +275,13 @@ jobs:
             -o StrictHostKeyChecking=yes \
             "$SSH_USER@$SSH_HOST" \
             "mv '$DEPLOY_PATH/deploy-remote.sh.next' '$DEPLOY_PATH/deploy-remote.sh' && \
+               PUBLIC_WEB_HEALTH_URL='$PUBLIC_WEB_HEALTH_URL' \
+               PUBLIC_API_HEALTH_URL='$PUBLIC_API_HEALTH_URL' \
                API_IMAGE='$API_IMAGE' GO_API_IMAGE='$GO_API_IMAGE' WEB_IMAGE='$WEB_IMAGE' DEPLOY_PATH='$DEPLOY_PATH' \
               bash '$DEPLOY_PATH/deploy-remote.sh'"
 
-      - name: External health check
-        id: health
-        run: |
-          set -euo pipefail
-          for attempt in $(seq 1 15); do
-            if curl -fsS --max-time 10 https://dash.believeboy.com/healthz >/dev/null &&
-              curl -fsS --max-time 10 https://dash-api.believeboy.com/api/v1/health/live >/dev/null; then
-              echo "Web and API healthy after ${attempt} attempt(s)."
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "::error::Dashboard Web or API health check is not reachable"
-          exit 1
-
       - name: Diagnose deployment failure
-        if: ${{ always() && (steps.deploy.outcome == 'failure' || steps.health.outcome == 'failure') }}
+        if: ${{ always() && steps.deploy.outcome == 'failure' }}
         env:
           API_IMAGE: ${{ env.API_IMAGE_NAME }}@${{ steps.api.outputs.digest }}
           GO_API_IMAGE: ${{ env.GO_API_IMAGE_NAME }}@${{ steps.go_api.outputs.digest }}

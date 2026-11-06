@@ -50,6 +50,7 @@ Web、FastAPI 和 Go API 必须同版本切换与回滚。
 | `/opt/believeboy-dashboard/backend.env` | 后端运行环境，权限 `0600` |
 | `/opt/believeboy-dashboard/web.env` | Web/Auth.js 运行环境，权限 `0600` |
 | `/opt/believeboy-dashboard/go.env` | Go Gateway 监听、路由所有权和代理密钥，权限 `0600` |
+| `/opt/believeboy-dashboard/.deploy-images` | 最近一次通过健康检查的三镜像清单，权限 `0600` |
 | `/opt/believeboy-dashboard/backend-storage` | 上传、分析结果与临时工作文件 |
 | `/opt/believeboy-dashboard/celerybeat` | Celery beat schedule 状态 |
 | `/opt/believeboy-dashboard/legacy` | 首次切流前的前端 Compose/env 回滚副本 |
@@ -111,9 +112,9 @@ deploy/deploy-local.sh
    本地无法访问 `proxy.golang.org` 时，可在 `deploy.env` 设置 `GO_MODULE_PROXY=https://goproxy.cn,direct`。
 3. 从三个镜像 metadata 读取 digest。
 4. 生成 `web.env.next` 和 `go.env.next`，同一个可信代理密钥只通过运行环境传递。
-5. 暂存 Compose 与环境文件，远端保留旧 Compose、环境文件和镜像作为回滚点。
+5. 暂存 Compose 与环境文件；首次安装允许没有旧 Compose/Web env。远端保存已有配置和镜像清单作为回滚点。
 6. 执行 `alembic upgrade head`，启动 FastAPI `8100`、Go Gateway `8200` 和 Web。
-7. 检查 FastAPI、Go、Web、两个 Celery worker 与 beat；全通过后清理回滚副本。
+7. 检查 FastAPI、Go、Web、两个 Celery worker、beat 和公网 Web/API 健康地址；全部通过后更新 `.deploy-images` 并清理回滚副本。
 
 部署失败时脚本恢复上一版 Compose、环境文件和 API/Web/Go 镜像；数据库 migration
 不会自动回滚。旧 systemd 服务不会自动启动。Go Gateway 首次健康后，再把 VPS Caddy 的
@@ -133,6 +134,7 @@ Actions 复用 Secrets：`VPS_SSH_KEY`、`VPS_KNOWN_HOSTS`、`VPS_HOST`、
 用 `openssl rand -hex 32` 生成；`GHCR_TOKEN` 需具备 `write:packages`，因为已有 GHCR
 package 最初由本机 PAT 创建，Actions 自带的 `GITHUB_TOKEN` 没有该 package 的读权限。
 工作流从 VPS 现有 env 复制 `web.env`，并暂存 Go Gateway 配置，再部署三张镜像。
+公网 Web/API 检查在远端部署事务清理回滚点前执行，失败会触发同一镜像组回滚。
 
 ## 检查
 

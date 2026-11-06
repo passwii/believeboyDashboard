@@ -21,7 +21,7 @@ GO_MODULE_PROXY="${GO_MODULE_PROXY:-https://proxy.golang.org,direct}"
 INTERNAL_AI_PROVIDER_BASE_URL="${INTERNAL_AI_PROVIDER_BASE_URL:-http://127.0.0.1:3100/v1}"
 FRONTEND_ENV_FILE="${FRONTEND_ENV_FILE:-$ROOT/frontend/.env.local}"
 
-for command in git pnpm docker ssh scp curl python3; do
+for command in git pnpm docker ssh scp python3; do
   if ! command -v "$command" >/dev/null 2>&1; then
     echo "Missing required command: $command" >&2
     exit 1
@@ -212,6 +212,10 @@ web_digest="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["c
 API_IMAGE="$API_IMAGE_NAME@$api_digest"
 GO_API_IMAGE="$GO_API_IMAGE_NAME@$go_api_digest"
 WEB_IMAGE="$WEB_IMAGE_NAME@$web_digest"
+PUBLIC_WEB_HEALTH_URL="${PUBLIC_WEB_HEALTH_URL:-${DOMAIN%/}/healthz}"
+PUBLIC_API_HEALTH_URL="${PUBLIC_API_HEALTH_URL:-${BACKEND_API_BASE_URL%/}/api/v1/health/live}"
+printf -v remote_public_web_url '%q' "$PUBLIC_WEB_HEALTH_URL"
+printf -v remote_public_api_url '%q' "$PUBLIC_API_HEALTH_URL"
 
 echo "Preparing VPS directories and legacy fallback..."
 ssh "$DEPLOY_HOST" "
@@ -260,26 +264,18 @@ scp "$ROOT/deploy/deploy-remote.sh" "$DEPLOY_HOST:$DEPLOY_PATH/deploy-remote.sh.
 echo "Deploying FastAPI, Go API, and Web..."
 if ! ssh "$DEPLOY_HOST" \
   "mv '$DEPLOY_PATH/deploy-remote.sh.next' '$DEPLOY_PATH/deploy-remote.sh' && \
+    PUBLIC_WEB_HEALTH_URL=$remote_public_web_url PUBLIC_API_HEALTH_URL=$remote_public_api_url \
     API_IMAGE='$API_IMAGE' GO_API_IMAGE='$GO_API_IMAGE' WEB_IMAGE='$WEB_IMAGE' DEPLOY_PATH='$DEPLOY_PATH' \
       bash '$DEPLOY_PATH/deploy-remote.sh'"; then
   echo "Compose deployment failed; remote deploy script attempted config and image rollback." >&2
   exit 1
 fi
 
-for attempt in $(seq 1 15); do
-  if curl -fsS --max-time 10 "$DOMAIN/healthz" >/dev/null; then
-    ssh "$DEPLOY_HOST" "
-      systemctl disable believeboy-api.service believeboy-celery.service \
-        believeboy-celery-scheduled.service believeboy-beat.service \
-        >/dev/null 2>&1 || true
-    "
-    echo "Deployed $DOMAIN from $WEB_IMAGE"
-    echo "Deployed FastAPI fallback from $API_IMAGE"
-    echo "Deployed Go API gateway from $GO_API_IMAGE"
-    exit 0
-  fi
-  sleep 2
-done
-
-echo "Containers are locally healthy, but $DOMAIN/healthz is not reachable." >&2
-exit 1
+ssh "$DEPLOY_HOST" "
+  systemctl disable believeboy-api.service believeboy-celery.service \
+    believeboy-celery-scheduled.service believeboy-beat.service \
+    >/dev/null 2>&1 || true
+"
+echo "Deployed $DOMAIN from $WEB_IMAGE"
+echo "Deployed FastAPI fallback from $API_IMAGE"
+echo "Deployed Go API gateway from $GO_API_IMAGE"
