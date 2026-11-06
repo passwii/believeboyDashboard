@@ -68,7 +68,7 @@ jobs:
              fi
              echo "=== Dashboard GHCR images ==="
              docker image ls -a --digests --format "{{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}" |
-               awk -F "\t" '\$1 == "ghcr.io/passwii/believeboydashboard" || \$1 == "ghcr.io/passwii/believeboydashboard-web" || \$1 == "ghcr.io/passwii/believeboydashboard-api"'
+               grep -E "^ghcr[.]io/passwii/believeboydashboard(:|-web:|-api:)" || true
              echo "=== related systemd units ==="
              systemctl list-units --type=service --all --no-legend |
                grep -iE "believeboy|guitar|digital|project" || true
