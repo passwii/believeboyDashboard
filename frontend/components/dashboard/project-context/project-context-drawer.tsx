@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Sheet,
   SheetContent,
@@ -15,7 +15,6 @@ import {
 } from '@/components/dashboard-v2/warm-ledger/controls'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
-import { useGlobalLoading } from '@/components/global-loading-provider'
 import {
   fetchProjectContext,
   updateProjectContext,
@@ -43,38 +42,64 @@ export function ProjectContextDrawer({
 }: ProjectContextDrawerProps) {
   const { notify } = useNotifications()
   const { confirm } = useConfirm()
-  const { startGlobalLoading, endGlobalLoading } = useGlobalLoading()
 
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'success' | 'error'>('idle')
   const [context, setContext] = useState<ProjectContextResponse | null>(null)
+  const [loadedProjectId, setLoadedProjectId] = useState<number | null>(null)
   const [draftContext, setDraftContext] = useState<Record<string, string>>({})
   const [hasChanges, setHasChanges] = useState(false)
   const [aiSheetOpen, setAiSheetOpen] = useState(false)
-
-  const loadData = useCallback(async () => {
-    if (!open) return
-    setLoading(true)
-    try {
-      const data = await fetchProjectContext(projectId, null)
-      setContext(data)
-      // project_context 本身就是 Record<string, string>
-      setDraftContext((data.project_context as Record<string, string>) || {})
-    } catch (err) {
-      notify({
-        type: 'error',
-        title: '加载失败',
-        message: err instanceof Error ? err.message : '加载项目背景配置失败',
-      })
-    } finally {
-      setLoading(false)
-    }
-  }, [open, projectId, notify])
+  const projectIdRef = useRef(projectId)
+  const saveRequestIdRef = useRef(0)
+  projectIdRef.current = projectId
 
   useEffect(() => {
-    void loadData()
-  }, [loadData])
+    saveRequestIdRef.current += 1
+    setSubmitting(false)
+  }, [open, projectId])
+
+  useEffect(() => {
+    if (!open) {
+      setLoading(false)
+      setLoadedProjectId(null)
+      return
+    }
+
+    let cancelled = false
+    setLoading(true)
+    setLoadedProjectId(null)
+    setContext(null)
+    setDraftContext({})
+    setHasChanges(false)
+    setSaveState('idle')
+
+    void fetchProjectContext(projectId, null)
+      .then((data) => {
+        if (cancelled) return
+        setContext(data)
+        setDraftContext((data.project_context as Record<string, string>) || {})
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        notify({
+          type: 'error',
+          title: '加载失败',
+          message: err instanceof Error ? err.message : '加载项目背景配置失败',
+        })
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false)
+          setLoadedProjectId(projectId)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [open, projectId, notify])
 
   useEffect(() => {
     if (!context) return
@@ -97,11 +122,19 @@ export function ProjectContextDrawer({
   }, [saveState])
 
   const handleSave = async () => {
+    const requestId = ++saveRequestIdRef.current
+    const savingProjectId = projectId
     setSubmitting(true)
     setSaveState('saving')
-    startGlobalLoading('blocking')
     try {
-      const result = await updateProjectContext(projectId, { project_context: draftContext }, null)
+      const result = await updateProjectContext(
+        savingProjectId,
+        { project_context: draftContext },
+        null
+      )
+      if (requestId !== saveRequestIdRef.current || projectIdRef.current !== savingProjectId) {
+        return
+      }
       setContext(result)
       setHasChanges(false)
       setSaveState('success')
@@ -112,6 +145,9 @@ export function ProjectContextDrawer({
       })
       onSuccess?.()
     } catch (err) {
+      if (requestId !== saveRequestIdRef.current || projectIdRef.current !== savingProjectId) {
+        return
+      }
       setSaveState('error')
       notify({
         type: 'error',
@@ -119,12 +155,14 @@ export function ProjectContextDrawer({
         message: err instanceof Error ? err.message : '保存失败',
       })
     } finally {
-      endGlobalLoading('blocking')
-      setSubmitting(false)
+      if (requestId === saveRequestIdRef.current && projectIdRef.current === savingProjectId) {
+        setSubmitting(false)
+      }
     }
   }
 
   const handleOpenChange = async (newOpen: boolean) => {
+    if (!newOpen && submitting) return
     if (!newOpen && hasChanges) {
       const confirmed = await confirm({
         title: '有未保存的更改，确定要关闭吗？',
@@ -139,6 +177,8 @@ export function ProjectContextDrawer({
   const handleContextChange = (newContext: Record<string, string>) => {
     setDraftContext(newContext)
   }
+
+  const isProjectLoading = open && (loading || loadedProjectId !== projectId)
 
   const handleAiParsed = (parsed: Record<string, string>) => {
     // 合并解析结果到现有 context
@@ -162,7 +202,11 @@ export function ProjectContextDrawer({
                   <WarmBadge className={styles.unsavedBadge}>有未保存更改</WarmBadge>
                 )}
               </div>
-              <WarmButton variant="secondary" onClick={() => setAiSheetOpen(true)}>
+              <WarmButton
+                variant="secondary"
+                onClick={() => setAiSheetOpen(true)}
+                disabled={isProjectLoading || submitting}
+              >
                 AI 辅助
               </WarmButton>
             </div>
@@ -172,13 +216,14 @@ export function ProjectContextDrawer({
           </SheetHeader>
 
           <div className={styles.surfaceBody}>
-            {loading ? (
+            {isProjectLoading ? (
               <LoadingSkeleton />
             ) : (
               <DynamicContextCard
                 value={draftContext}
                 onChange={handleContextChange}
                 onAiImport={() => setAiSheetOpen(true)}
+                readOnly={submitting}
               />
             )}
           </div>

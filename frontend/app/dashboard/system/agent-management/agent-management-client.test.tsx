@@ -290,6 +290,36 @@ describe('AgentManagementClient 4-Tab 枢纽页（BLF-448）', () => {
     )
   })
 
+  it('创建凭据等待响应时只显示一个 loading 图标', async () => {
+    const user = userEvent.setup()
+    let resolveCreate: (result: Awaited<ReturnType<typeof createAgentApiKey>>) => void = () => {}
+    const pendingCreate = new Promise<Awaited<ReturnType<typeof createAgentApiKey>>>((resolve) => {
+      resolveCreate = resolve
+    })
+    vi.mocked(createAgentApiKey).mockReturnValueOnce(pendingCreate)
+
+    render(<AgentManagementClient />)
+    await waitFor(() => expect(listAgentApiKeys).toHaveBeenCalledTimes(1))
+
+    await user.click(screen.getByRole('button', { name: '创建凭据' }))
+    await user.type(screen.getByLabelText('名称'), '新的助手')
+    await user.type(screen.getByLabelText('Agent ID'), 'new-assistant')
+    await user.click(screen.getByRole('button', { name: /^创建$/ }))
+
+    const creatingButton = await screen.findByRole('button', { name: '正在创建凭据' })
+    expect(creatingButton).toHaveAttribute('aria-busy', 'true')
+    expect(creatingButton.querySelectorAll('.warm-ledger__loading-mark')).toHaveLength(1)
+    expect(creatingButton.querySelector('svg')).not.toBeInTheDocument()
+
+    resolveCreate({
+      ...mockKeys[0],
+      agent_id: 'new-assistant',
+      label: '新的助手',
+      plaintext_key: 'bbx_new_secret',
+    })
+    expect(await screen.findByText('凭据创建成功')).toBeInTheDocument()
+  })
+
   it('创建成功后只在当前 Dialog 展示一次性明文 Key 与安全提示', async () => {
     const user = userEvent.setup()
     render(<AgentManagementClient />)
@@ -503,6 +533,35 @@ describe('AgentManagementClient 4-Tab 枢纽页（BLF-448）', () => {
       })
     )
     expect(notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'success' }))
+    await waitFor(() => expect(screen.queryByText('编辑凭据权限')).toBeNull())
+  })
+
+  it('保存凭据权限等待响应时只显示一个 loading 图标', async () => {
+    const user = userEvent.setup()
+    let resolveUpdate: (result: typeof mockKeys[number]) => void = () => {}
+    const pendingUpdate = new Promise<typeof mockKeys[number]>((resolve) => {
+      resolveUpdate = resolve
+    })
+    updateAgentApiKey.mockReturnValueOnce(pendingUpdate)
+
+    render(<AgentManagementClient />)
+    await waitFor(() => expect(listAgentApiKeys).toHaveBeenCalledTimes(1))
+    await openCredentialsTab(user)
+
+    const row = screen.getByText('货件助理 (生产)').closest('tr')!
+    await user.click(within(row).getByRole('button', { name: /编辑/ }))
+    const dialog = screen.getByRole('dialog')
+    const nameInput = within(dialog).getByLabelText('名称')
+    await user.clear(nameInput)
+    await user.type(nameInput, '正在保存的助手')
+    await user.click(within(dialog).getByRole('button', { name: '保存' }))
+
+    const savingButton = await screen.findByRole('button', { name: '正在保存凭据权限' })
+    expect(savingButton).toHaveAttribute('aria-busy', 'true')
+    expect(savingButton.querySelectorAll('.warm-ledger__loading-mark')).toHaveLength(1)
+    expect(savingButton.querySelector('svg')).not.toBeInTheDocument()
+
+    resolveUpdate(mockKeys[0])
     await waitFor(() => expect(screen.queryByText('编辑凭据权限')).toBeNull())
   })
 

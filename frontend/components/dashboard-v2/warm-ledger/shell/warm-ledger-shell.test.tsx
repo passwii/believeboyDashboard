@@ -698,6 +698,42 @@ function GlobalFilterProbe() {
 }
 
 describe('WarmLedgerTopbar', () => {
+  it('shows one loading indicator for the page refresh action', () => {
+    installMatchMedia(false)
+    const onRefresh = vi.fn()
+    const renderTopbar = (refreshing: boolean) => (
+      <WarmLedgerShell
+        topbar={
+          <WarmLedgerTopbar
+            routeFrame
+            onRefresh={onRefresh}
+            refreshing={refreshing}
+            refreshFeedbackMessage={refreshing ? '正在刷新当前页。' : '刷新完成。'}
+            refreshFeedbackStatus={refreshing ? 'loading' : 'success'}
+          />
+        }
+      >
+        Dashboard
+      </WarmLedgerShell>
+    )
+
+    const { rerender } = render(renderTopbar(true))
+    const refreshingButton = screen.getByRole('button', { name: '正在刷新当前页数据' })
+
+    expect(refreshingButton).toBeDisabled()
+    expect(refreshingButton).toHaveAttribute('aria-busy', 'true')
+    expect(refreshingButton.querySelectorAll('.warm-ledger__loading-mark')).toHaveLength(1)
+    expect(refreshingButton.querySelector('.warm-ledger__refresh-icon')).not.toBeInTheDocument()
+
+    rerender(renderTopbar(false))
+    const idleButton = screen.getByRole('button', { name: '刷新当前页数据' })
+
+    expect(idleButton).toBeEnabled()
+    expect(idleButton).not.toHaveAttribute('aria-busy')
+    expect(idleButton.querySelectorAll('.warm-ledger__loading-mark')).toHaveLength(0)
+    expect(idleButton.querySelector('.warm-ledger__refresh-icon')).toBeInTheDocument()
+  })
+
   it('renders the selected project and reports option selection changes', async () => {
     installMatchMedia(false)
     const user = userEvent.setup()

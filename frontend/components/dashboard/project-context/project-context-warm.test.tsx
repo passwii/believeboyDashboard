@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { readFileSync, readdirSync } from 'node:fs'
 import { extname, join } from 'node:path'
@@ -33,6 +33,7 @@ vi.mock('@/hooks/use-confirm', () => ({
 
 import { ProjectContextTab } from './project-context-tab'
 import { ProjectContextDialog } from './project-context-dialog'
+import { ProjectContextDrawer } from './project-context-drawer'
 import { AiParseContextSheet } from './ai-parse-context-sheet'
 
 const PROJECT_CONTEXT_SOURCE_ROOT = join(process.cwd(), 'components/dashboard/project-context')
@@ -114,22 +115,52 @@ describe('Project Context Warm Ledger 迁移', () => {
     expect(FETCH_PROJECT_CONTEXT).toHaveBeenCalledWith(1, null)
   })
 
+  it('项目背景列表加载只显示本地忙碌状态，不启动全局阻塞层', async () => {
+    START_GLOBAL_LOADING.mockClear()
+    END_GLOBAL_LOADING.mockClear()
+
+    let resolveProjects: (response: Response) => void = () => {}
+    const pendingProjects = new Promise<Response>((resolve) => {
+      resolveProjects = resolve
+    })
+    vi.spyOn(globalThis, 'fetch').mockReturnValue(pendingProjects)
+
+    render(<ProjectContextTab />)
+
+    expect(START_GLOBAL_LOADING).not.toHaveBeenCalled()
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent('正在加载项目背景')
+    expect(status.closest('[aria-busy="true"]')).toBeInTheDocument()
+
+    resolveProjects(
+      new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } })
+    )
+    await screen.findByText('暂无项目数据')
+    expect(END_GLOBAL_LOADING).not.toHaveBeenCalled()
+  })
+
   it('编辑背景仍提交完整 project_context 并保留成功回调', async () => {
     const user = userEvent.setup()
     const onSuccess = vi.fn()
+    const onOpenChange = vi.fn()
+    START_GLOBAL_LOADING.mockClear()
+    END_GLOBAL_LOADING.mockClear()
     FETCH_PROJECT_CONTEXT.mockResolvedValue({
       project_context: { 定位: '旧值' },
     })
-    UPDATE_PROJECT_CONTEXT.mockResolvedValue({
-      project_context: { 定位: '新值' },
-    })
+    let resolveUpdate: (result: { project_context: Record<string, string> }) => void = () => {}
+    UPDATE_PROJECT_CONTEXT.mockReturnValue(
+      new Promise((resolve) => {
+        resolveUpdate = resolve
+      })
+    )
 
     render(
       <ProjectContextDialog
         projectId={2}
         projectName="店铺乙"
         open
-        onOpenChange={vi.fn()}
+        onOpenChange={onOpenChange}
         onSuccess={onSuccess}
       />
     )
@@ -141,6 +172,14 @@ describe('Project Context Warm Ledger 迁移', () => {
     await user.type(description, '新值')
     await user.click(screen.getByRole('button', { name: '保存配置' }))
 
+    const savingButton = await screen.findByRole('button', { name: '正在保存项目背景' })
+    expect(savingButton).toBeDisabled()
+    expect(savingButton).toHaveAttribute('aria-busy', 'true')
+    expect(screen.queryByLabelText('定位 描述')).not.toBeInTheDocument()
+    expect(START_GLOBAL_LOADING).not.toHaveBeenCalled()
+    expect(END_GLOBAL_LOADING).not.toHaveBeenCalled()
+    await user.keyboard('{Escape}')
+    expect(onOpenChange).not.toHaveBeenCalled()
     await waitFor(() =>
       expect(UPDATE_PROJECT_CONTEXT).toHaveBeenCalledWith(
         2,
@@ -148,7 +187,181 @@ describe('Project Context Warm Ledger 迁移', () => {
         null
       )
     )
+    resolveUpdate({ project_context: { 定位: '新值' } })
+    await screen.findByRole('button', { name: '已保存' })
     expect(onSuccess).toHaveBeenCalledTimes(1)
+  })
+
+  it('保存项目背景时只显示局部按钮 loading', async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    START_GLOBAL_LOADING.mockClear()
+    END_GLOBAL_LOADING.mockClear()
+    FETCH_PROJECT_CONTEXT.mockResolvedValue({
+      project_context: { 定位: '旧值' },
+    })
+
+    let resolveUpdate: (result: { project_context: Record<string, string> }) => void = () => {}
+    UPDATE_PROJECT_CONTEXT.mockReturnValue(
+      new Promise((resolve) => {
+        resolveUpdate = resolve
+      })
+    )
+
+    render(
+      <ProjectContextDrawer
+        projectId={2}
+        projectName="店铺乙"
+        open
+        onOpenChange={onOpenChange}
+      />
+    )
+
+    const description = await screen.findByLabelText('定位 描述')
+    await user.clear(description)
+    await user.type(description, '新值')
+    await user.click(screen.getByRole('button', { name: /添加维度/ }))
+    await user.type(screen.getByLabelText('新维度名称'), '关键渠道')
+    await user.type(screen.getByLabelText('新维度描述'), '线下分销')
+    await user.click(screen.getByRole('button', { name: '保存配置' }))
+
+    const savingButton = await screen.findByRole('button', { name: '正在保存项目背景' })
+    expect(savingButton).toBeDisabled()
+    expect(savingButton).toHaveAttribute('aria-busy', 'true')
+    expect(screen.queryByLabelText('定位 描述')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('新维度名称')).toHaveAttribute('readonly')
+    expect(screen.getByLabelText('新维度描述')).toHaveAttribute('readonly')
+    expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'AI 辅助' })).toBeDisabled()
+    expect(START_GLOBAL_LOADING).not.toHaveBeenCalled()
+    expect(END_GLOBAL_LOADING).not.toHaveBeenCalled()
+    await user.keyboard('{Escape}')
+    expect(onOpenChange).not.toHaveBeenCalled()
+
+    resolveUpdate({ project_context: { 定位: '新值' } })
+    await screen.findByRole('button', { name: '已保存' })
+  })
+
+  it('抽屉初次加载完成前禁用 AI 辅助，避免加载结果覆盖生成内容', async () => {
+    let resolveLoad: (result: { project_context: Record<string, string> }) => void = () => {}
+    const loadRequest = new Promise<{ project_context: Record<string, string> }>((resolve) => {
+      resolveLoad = resolve
+    })
+    FETCH_PROJECT_CONTEXT.mockReturnValue(loadRequest)
+
+    render(
+      <ProjectContextDrawer
+        projectId={2}
+        projectName="店铺乙"
+        open
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    const aiButton = screen.getByRole('button', { name: 'AI 辅助' })
+    expect(aiButton).toBeDisabled()
+
+    await act(async () => {
+      resolveLoad({ project_context: { 定位: '初始值' } })
+      await loadRequest
+    })
+    await waitFor(() => expect(aiButton).toBeEnabled())
+  })
+
+  it('抽屉切换项目后忽略旧项目晚返回的背景', async () => {
+    let resolveProjectA: (result: { project_context: Record<string, string> }) => void = () => {}
+    let resolveProjectB: (result: { project_context: Record<string, string> }) => void = () => {}
+    const projectARequest = new Promise<{ project_context: Record<string, string> }>((resolve) => {
+      resolveProjectA = resolve
+    })
+    const projectBRequest = new Promise<{ project_context: Record<string, string> }>((resolve) => {
+      resolveProjectB = resolve
+    })
+    FETCH_PROJECT_CONTEXT.mockImplementation((projectId: number) =>
+      projectId === 1 ? projectARequest : projectBRequest
+    )
+
+    const drawerProps = {
+      projectName: '店铺甲',
+      open: true,
+      onOpenChange: vi.fn(),
+    }
+    const { rerender } = render(<ProjectContextDrawer projectId={1} {...drawerProps} />)
+    await waitFor(() => expect(FETCH_PROJECT_CONTEXT).toHaveBeenCalledWith(1, null))
+
+    rerender(
+      <ProjectContextDrawer
+        projectId={2}
+        {...drawerProps}
+        projectName="店铺乙"
+      />
+    )
+    await waitFor(() => expect(FETCH_PROJECT_CONTEXT).toHaveBeenCalledWith(2, null))
+
+    resolveProjectB({ project_context: { 定位: '乙项目背景' } })
+    const description = await screen.findByLabelText('定位 描述')
+    await waitFor(() => expect(description).toHaveValue('乙项目背景'))
+
+    await act(async () => {
+      resolveProjectA({ project_context: { 定位: '甲项目背景' } })
+      await projectARequest
+    })
+    expect(description).toHaveValue('乙项目背景')
+    expect(screen.getByText('项目：店铺乙')).toBeInTheDocument()
+  })
+
+  it('抽屉切换项目后忽略旧项目晚返回的保存结果', async () => {
+    const user = userEvent.setup()
+    let rejectProjectB: (error: Error) => void = () => {}
+    const projectBRequest = new Promise<{ project_context: Record<string, string> }>(
+      (_, reject) => {
+        rejectProjectB = reject
+      }
+    )
+    FETCH_PROJECT_CONTEXT.mockImplementation((projectId: number) =>
+      projectId === 1
+        ? Promise.resolve({ project_context: { 定位: '甲项目背景' } })
+        : projectBRequest
+    )
+
+    let resolveProjectASave: (result: { project_context: Record<string, string> }) => void = () => {}
+    const projectASaveRequest = new Promise<{ project_context: Record<string, string> }>(
+      (resolve) => {
+        resolveProjectASave = resolve
+      }
+    )
+    UPDATE_PROJECT_CONTEXT.mockReturnValue(projectASaveRequest)
+
+    const drawerProps = {
+      projectName: '店铺甲',
+      open: true,
+      onOpenChange: vi.fn(),
+    }
+    const { rerender } = render(<ProjectContextDrawer projectId={1} {...drawerProps} />)
+    const description = await screen.findByLabelText('定位 描述')
+    await user.clear(description)
+    await user.type(description, '甲项目新背景')
+    await user.click(screen.getByRole('button', { name: '保存配置' }))
+    expect(await screen.findByRole('button', { name: '正在保存项目背景' })).toBeDisabled()
+
+    rerender(
+      <ProjectContextDrawer
+        projectId={2}
+        {...drawerProps}
+        projectName="店铺乙"
+      />
+    )
+    await waitFor(() => expect(FETCH_PROJECT_CONTEXT).toHaveBeenCalledWith(2, null))
+    rejectProjectB(new Error('项目乙读取失败'))
+    await screen.findByText('项目：店铺乙')
+
+    await act(async () => {
+      resolveProjectASave({ project_context: { 定位: '甲项目保存结果' } })
+      await projectASaveRequest
+    })
+
+    expect(screen.queryByText('有未保存更改')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '已保存' })).not.toBeInTheDocument()
   })
 
   it('AI 解析仍调用 context/parse 并把解析结果交给父表单', async () => {

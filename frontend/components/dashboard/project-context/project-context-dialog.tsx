@@ -15,7 +15,6 @@ import {
 } from '@/components/dashboard-v2/warm-ledger/controls'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
-import { useGlobalLoading } from '@/components/global-loading-provider'
 import {
   fetchProjectContext,
   updateProjectContext,
@@ -45,7 +44,6 @@ export function ProjectContextDialog({
 }: ProjectContextDialogProps) {
   const { notify } = useNotifications()
   const { confirm } = useConfirm()
-  const { startGlobalLoading, endGlobalLoading } = useGlobalLoading()
 
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -100,7 +98,6 @@ export function ProjectContextDialog({
   const handleSave = async () => {
     setSubmitting(true)
     setSaveState('saving')
-    startGlobalLoading('blocking')
     try {
       const result = await updateProjectContext(projectId, { project_context: draftContext }, null)
       setContext(result)
@@ -120,12 +117,12 @@ export function ProjectContextDialog({
         message: err instanceof Error ? err.message : '保存失败',
       })
     } finally {
-      endGlobalLoading('blocking')
       setSubmitting(false)
     }
   }
 
   const handleOpenChange = async (newOpen: boolean) => {
+    if (!newOpen && submitting) return
     if (!newOpen && hasChanges) {
       const confirmed = await confirm({
         title: '有未保存的更改，确定要关闭吗？',
@@ -212,7 +209,7 @@ export function ProjectContextDialog({
                 onAiImport={() => setAiSheetOpen(true)}
                 collapsed={isEditing ? cardCollapsed : false}
                 onCollapsedChange={isEditing ? setCardCollapsed : undefined}
-                readOnly={!isEditing}
+                readOnly={!isEditing || submitting}
               />
             )}
           </div>

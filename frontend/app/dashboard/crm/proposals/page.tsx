@@ -370,7 +370,7 @@ export default function ProposalsPage() {
                           loading={downloadingId === p.id}
                           onClick={() => void handleDownload(p)}
                         >
-                          <Download aria-hidden="true" />
+                          {downloadingId !== p.id ? <Download aria-hidden="true" /> : null}
                         </WarmIconButton>
                         <WarmIconButton
                           className={styles.dangerButton}
