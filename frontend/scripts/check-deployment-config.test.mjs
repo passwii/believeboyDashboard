@@ -27,36 +27,47 @@ test('Docker build keeps the runtime secret out of image layers', async () => {
 
 test('VPS compose runs the application stack on host networking without absorbing shared infrastructure', async () => {
   const compose = await read('deploy/docker-compose.yml')
-  for (const service of ['migrate', 'api', 'celery', 'celery-scheduled', 'beat', 'web']) {
+  for (const service of ['migrate', 'api', 'go-api', 'celery', 'celery-scheduled', 'beat', 'web']) {
     assert.match(compose, new RegExp(`^  ${service}:`, 'm'))
   }
   assert.doesNotMatch(compose, /^  postgres:/m)
   assert.doesNotMatch(compose, /^  redis:/m)
-  assert.equal((compose.match(/network_mode: host/g) ?? []).length, 6)
+  assert.equal((compose.match(/network_mode: host/g) ?? []).length, 7)
   assert.match(compose, /API_IMAGE:\?API_IMAGE must be set/)
+  assert.match(compose, /GO_API_IMAGE:\?GO_API_IMAGE must be set/)
   assert.match(compose, /WEB_IMAGE:\?WEB_IMAGE must be set/)
   assert.match(compose, /believeboy-dashboard-api/)
+  assert.match(compose, /believeboy-dashboard-go-api/)
   assert.match(compose, /believeboy-dashboard-web/)
+  assert.match(compose, /\.\/go\.env/)
+  assert.match(compose, /8200\/api\/v1\/health\/live/)
 })
 
-test('API image contains the Playwright runtime without running as root', async () => {
+test('API images contain the required production runtimes', async () => {
   const dockerfile = await read('backend/Dockerfile')
+  const goDockerfile = await read('backend-go/Dockerfile')
   assert.match(dockerfile, /playwright install --with-deps --only-shell chromium/)
   assert.match(dockerfile, /PLAYWRIGHT_BROWSERS_PATH=\/ms-playwright/)
   assert.match(dockerfile, /USER app/)
   assert.match(dockerfile, /id=believeboy-pip-cache/)
+  assert.match(goDockerfile, /CGO_ENABLED=0/)
+  assert.match(goDockerfile, /USER 10001:10001/)
+  assert.match(goDockerfile, /EXPOSE 8200/)
 })
 
-test('dashboard deployment workflow is manual-only and publishes both images', async () => {
+test('dashboard deployment workflow is manual-only and publishes all three images', async () => {
   const workflow = await read('.github/workflows/deploy-dashboard.yml')
   assert.match(workflow, /workflow_dispatch:/)
   assert.doesNotMatch(workflow, /^on:\s*\n\s+push:/m)
   assert.match(workflow, /packages:\s*write/)
   assert.match(workflow, /secrets\.GHCR_TOKEN/)
   assert.match(workflow, /ghcr\.io\/passwii\/believeboydashboard-api/)
+  assert.match(workflow, /ghcr\.io\/passwii\/believeboydashboard-go-api/)
   assert.match(workflow, /ghcr\.io\/passwii\/believeboydashboard-web/)
   assert.match(workflow, /secrets\.NEXTAUTH_SECRET/)
+  assert.match(workflow, /secrets\.GO_API_TRUSTED_PROXY_SECRET/)
   assert.match(workflow, /steps\.api\.outputs\.digest/)
+  assert.match(workflow, /steps\.go_api\.outputs\.digest/)
   assert.match(workflow, /steps\.web\.outputs\.digest/)
 })
 
@@ -68,17 +79,22 @@ test('remote deploy keeps the SSH script stream out of Compose run', async () =>
   assert.doesNotMatch(script, /docker compose run --rm migrate/)
   assert.doesNotMatch(workflow, /bash -s/)
   assert.doesNotMatch(localDeploy, /bash -s/)
-  assert.match(workflow, /bash '\$DEPLOY_PATH\/deploy-remote\.sh'/)
-  assert.match(localDeploy, /bash '\$DEPLOY_PATH\/deploy-remote\.sh'/)
+  assert.match(script, /docker compose pull migrate api go-api/ )
+  assert.match(localDeploy, /build_go_api/ )
+  assert.match(localDeploy, /IMAGE_BUILD_SECONDS/ )
+  assert.match(workflow, /deploy-remote\.sh\.next/)
+  assert.match(localDeploy, /docker-compose\.yml\.next/)
+  assert.match(localDeploy, /go\.env\.next/)
 })
 
 test('server-side backend calls prefer loopback while browser metadata stays public', async () => {
   const envExample = await read('deploy/web.env.example')
   const backendApi = await read('frontend/lib/server/backend-api.ts')
-  assert.match(envExample, /^BACKEND_INTERNAL_URL=http:\/\/127\.0\.0\.1:8100$/m)
+  assert.match(envExample, /^BACKEND_INTERNAL_URL=http:\/\/127\.0\.0\.1:8200$/m)
   assert.match(envExample, /^BACKEND_PUBLIC_API_BASE_URL=https:\/\/dash-api\.believeboy\.com$/m)
   assert.match(backendApi, /process\.env\.BACKEND_INTERNAL_URL/)
   assert.match(backendApi, /process\.env\.BACKEND_PUBLIC_API_BASE_URL/)
+  assert.match(backendApi, /process\.env\.GO_API_TRUSTED_PROXY_SECRET/)
 })
 
 test('deployment health endpoint is available outside the auth matcher', async () => {

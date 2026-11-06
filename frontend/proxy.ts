@@ -132,6 +132,8 @@ async function checkSessionNotInvalidated(
       'X-User-Email': encodeURIComponent(email),
       cache: 'no-store',
     }
+    const trustedProxySecret = getBackendTrustedProxySecret()
+    if (trustedProxySecret) headers['X-Trusted-Proxy-Secret'] = trustedProxySecret
     if (sessionId) {
       headers['X-Session-Id'] = sessionId
     }
@@ -174,7 +176,11 @@ async function checkSessionNotInvalidated(
 
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth/options'
-import { getBackendApiKey, getBackendBaseUrl } from '@/lib/server/backend-api'
+import {
+  getBackendApiKey,
+  getBackendBaseUrl,
+  getBackendTrustedProxySecret,
+} from '@/lib/server/backend-api'
 
 export const proxy = auth(async (request) => {
   const { pathname, search } = request.nextUrl

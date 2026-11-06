@@ -1,8 +1,8 @@
 name: Deploy dashboard stack
 
 # Manual fallback. The local Mac is the primary release path via
-# deploy/deploy-local.sh. Both paths build the same API/Web image pair and call
-# the same remote Compose script.
+# deploy/deploy-local.sh. Both paths build the FastAPI, Go API, and Web image set
+# and call the same remote Compose script.
 
 on:
   workflow_dispatch:
@@ -17,6 +17,7 @@ permissions:
 
 env:
   API_IMAGE_NAME: ghcr.io/passwii/believeboydashboard-api
+  GO_API_IMAGE_NAME: ghcr.io/passwii/believeboydashboard-go-api
   WEB_IMAGE_NAME: ghcr.io/passwii/believeboydashboard-web
 
 jobs:
@@ -93,6 +94,22 @@ jobs:
           cache-to: type=gha,scope=dashboard-api,mode=max
           provenance: false
 
+      - name: Build and push Go API
+        id: go_api
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend-go/Dockerfile
+          platforms: ${{ env.DOCKER_PLATFORM }}
+          push: true
+          tags: |
+            ${{ env.GO_API_IMAGE_NAME }}:sha-${{ github.sha }}
+          build-args: |
+            GOPROXY=https://proxy.golang.org,direct
+          cache-from: type=gha,scope=dashboard-go-api
+          cache-to: type=gha,scope=dashboard-go-api,mode=max
+          provenance: false
+
       - name: Build and push Web
         id: web
         uses: docker/build-push-action@v6
@@ -152,15 +169,16 @@ jobs:
              test -f '$DEPLOY_PATH/backend.env'
              test -f '$DEPLOY_PATH/web.env'
              sed -i 's#^AI_CHAT_PROVIDER_BASE_URL=.*#AI_CHAT_PROVIDER_BASE_URL=http://127.0.0.1:3100/v1#' '$DEPLOY_PATH/backend.env'
-             if grep -q '^BACKEND_INTERNAL_URL=' '$DEPLOY_PATH/web.env'; then
-               sed -i 's#^BACKEND_INTERNAL_URL=.*#BACKEND_INTERNAL_URL=http://127.0.0.1:8100#' '$DEPLOY_PATH/web.env'
+             cp '$DEPLOY_PATH/web.env' '$DEPLOY_PATH/web.env.next'
+             if grep -q '^BACKEND_INTERNAL_URL=' '$DEPLOY_PATH/web.env.next'; then
+               sed -i 's#^BACKEND_INTERNAL_URL=.*#BACKEND_INTERNAL_URL=http://127.0.0.1:8200#' '$DEPLOY_PATH/web.env.next'
              else
-               printf 'BACKEND_INTERNAL_URL=http://127.0.0.1:8100\n' >> '$DEPLOY_PATH/web.env'
+               printf 'BACKEND_INTERNAL_URL=http://127.0.0.1:8200\n' >> '$DEPLOY_PATH/web.env.next'
              fi
-             if ! grep -q '^BACKEND_PUBLIC_API_BASE_URL=' '$DEPLOY_PATH/web.env'; then
-               public_api=\"\$(sed -n 's/^BACKEND_API_BASE_URL=//p' '$DEPLOY_PATH/web.env' | head -1)\"
+             if ! grep -q '^BACKEND_PUBLIC_API_BASE_URL=' '$DEPLOY_PATH/web.env.next'; then
+               public_api=\"\$(sed -n 's/^BACKEND_API_BASE_URL=//p' '$DEPLOY_PATH/web.env.next' | head -1)\"
                test -n \"\$public_api\"
-               printf 'BACKEND_PUBLIC_API_BASE_URL=%s\n' \"\$public_api\" >> '$DEPLOY_PATH/web.env'
+               printf 'BACKEND_PUBLIC_API_BASE_URL=%s\n' \"\$public_api\" >> '$DEPLOY_PATH/web.env.next'
              fi
              install -d -m 755 '$DEPLOY_PATH/backend-storage' '$DEPLOY_PATH/celerybeat'
              if [ -d \"\$legacy_repo/backend/storage\" ] && [ ! -f '$DEPLOY_PATH/.storage-migrated' ]; then
@@ -171,8 +189,45 @@ jobs:
                cp -a /var/lib/believeboy/. '$DEPLOY_PATH/celerybeat/'
                touch '$DEPLOY_PATH/.celerybeat-migrated'
              fi
-             chmod 600 '$DEPLOY_PATH/backend.env' '$DEPLOY_PATH/web.env'
+             chmod 600 '$DEPLOY_PATH/backend.env' '$DEPLOY_PATH/web.env' '$DEPLOY_PATH/web.env.next'
              chown -R 10001:10001 '$DEPLOY_PATH/backend-storage' '$DEPLOY_PATH/celerybeat'"
+
+      - name: Stage Go Gateway environment
+        env:
+          GO_API_TRUSTED_PROXY_SECRET: ${{ secrets.GO_API_TRUSTED_PROXY_SECRET }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$GO_API_TRUSTED_PROXY_SECRET" =~ ^[0-9a-fA-F]{64}$ ]]; then
+            echo "::error::GO_API_TRUSTED_PROXY_SECRET must be a 64-character hex value."
+            exit 1
+          fi
+          secret_file="$(mktemp)"
+          trap 'rm -f "$secret_file"' EXIT
+          printf 'GO_API_TRUSTED_PROXY_SECRET=%s\n' "$GO_API_TRUSTED_PROXY_SECRET" > "$secret_file"
+          chmod 600 "$secret_file"
+          scp -i "$HOME/.ssh/believeboy-dashboard" \
+            -o IdentitiesOnly=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes \
+            "$secret_file" "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/.go-api-secret.next"
+          ssh -i "$HOME/.ssh/believeboy-dashboard" \
+            -o IdentitiesOnly=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes \
+            "$SSH_USER@$SSH_HOST" \
+            "set -euo pipefail
+             secret_file='$DEPLOY_PATH/.go-api-secret.next'
+             chmod 600 \"\$secret_file\"
+             sed -i '/^GO_API_TRUSTED_PROXY_SECRET=/d' '$DEPLOY_PATH/web.env.next'
+             cat \"\$secret_file\" >> '$DEPLOY_PATH/web.env.next'
+             {
+               printf 'GO_API_ADDR=127.0.0.1:8200\\n'
+               printf 'FASTAPI_ORIGIN=http://127.0.0.1:8100\\n'
+               printf 'GO_API_OWNED=health,exchange_rates,notifications,alerts,profile\\n'
+               cat \"\$secret_file\"
+             } > '$DEPLOY_PATH/go.env.next'
+             chmod 600 '$DEPLOY_PATH/web.env.next' '$DEPLOY_PATH/go.env.next'
+             rm -f \"\$secret_file\""
 
       - name: Stop legacy runtime
         run: |
@@ -196,18 +251,19 @@ jobs:
             -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
             -o StrictHostKeyChecking=yes \
             deploy/docker-compose.yml \
-            "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/docker-compose.yml"
+            "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/docker-compose.yml.next"
           scp -i "$HOME/.ssh/believeboy-dashboard" \
             -o IdentitiesOnly=yes \
             -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
             -o StrictHostKeyChecking=yes \
             deploy/deploy-remote.sh \
-            "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/deploy-remote.sh"
+            "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/deploy-remote.sh.next"
 
       - name: Deploy over SSH
         id: deploy
         env:
           API_IMAGE: ${{ env.API_IMAGE_NAME }}@${{ steps.api.outputs.digest }}
+          GO_API_IMAGE: ${{ env.GO_API_IMAGE_NAME }}@${{ steps.go_api.outputs.digest }}
           WEB_IMAGE: ${{ env.WEB_IMAGE_NAME }}@${{ steps.web.outputs.digest }}
         run: |
           set -euo pipefail
@@ -216,7 +272,8 @@ jobs:
             -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
             -o StrictHostKeyChecking=yes \
             "$SSH_USER@$SSH_HOST" \
-            "API_IMAGE='$API_IMAGE' WEB_IMAGE='$WEB_IMAGE' DEPLOY_PATH='$DEPLOY_PATH' \
+            "mv '$DEPLOY_PATH/deploy-remote.sh.next' '$DEPLOY_PATH/deploy-remote.sh' && \
+               API_IMAGE='$API_IMAGE' GO_API_IMAGE='$GO_API_IMAGE' WEB_IMAGE='$WEB_IMAGE' DEPLOY_PATH='$DEPLOY_PATH' \
               bash '$DEPLOY_PATH/deploy-remote.sh'"
 
       - name: External health check
@@ -238,6 +295,7 @@ jobs:
         if: ${{ always() && (steps.deploy.outcome == 'failure' || steps.health.outcome == 'failure') }}
         env:
           API_IMAGE: ${{ env.API_IMAGE_NAME }}@${{ steps.api.outputs.digest }}
+          GO_API_IMAGE: ${{ env.GO_API_IMAGE_NAME }}@${{ steps.go_api.outputs.digest }}
           WEB_IMAGE: ${{ env.WEB_IMAGE_NAME }}@${{ steps.web.outputs.digest }}
         run: |
           set -euo pipefail
@@ -247,8 +305,8 @@ jobs:
             -o StrictHostKeyChecking=yes \
             "$SSH_USER@$SSH_HOST" \
             "cd '$DEPLOY_PATH'
-             docker compose ps || true
-             docker compose logs --tail=200 || true
+             API_IMAGE='$API_IMAGE' GO_API_IMAGE='$GO_API_IMAGE' WEB_IMAGE='$WEB_IMAGE' docker compose ps || true
+             API_IMAGE='$API_IMAGE' GO_API_IMAGE='$GO_API_IMAGE' WEB_IMAGE='$WEB_IMAGE' docker compose logs --tail=200 || true
              systemctl is-active believeboy-api believeboy-celery \
                believeboy-celery-scheduled believeboy-beat 2>/dev/null || true"
 

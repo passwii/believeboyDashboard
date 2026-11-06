@@ -1,6 +1,6 @@
 # Dashboard VPS Compose 部署
 
-最后更新：2026-11-05
+最后更新：2026-11-06
 
 生产入口：
 
@@ -17,25 +17,30 @@
 
 Dashboard Compose（network_mode: host）
   migrate
-  api         127.0.0.1:8100
+  api         127.0.0.1:8100  FastAPI 回退
+  go-api      127.0.0.1:8200  Go Gateway
   celery
   celery-scheduled
   beat
   web         127.0.0.1:3200
 ```
 
-PostgreSQL、Redis、Caddy 不进入 Dashboard Compose。容器使用宿主机网络，直接访问
-现有回环地址，因此不需要修改 Redis bind、PostgreSQL HBA 或 Caddy upstream。
+PostgreSQL、Redis、Caddy 不进入 Dashboard Compose。Go API 从 `backend.env` 读取
+`DATABASE_URL`、`API_KEY` 和 FastAPI 使用的 Redis host/port/db/credential。显式 `REDIS_URL`
+优先；未设置时 Go 会按这些 Redis 字段构造连接 URL。Go 通过宿主机网络访问 `127.0.0.1`。Go Gateway
+监听 `8200`，把未接管路由反向代理到 FastAPI `8100`。Caddy 的 `dash-api` upstream
+指向 Go Gateway；当前示例见 `deploy/Caddyfile.example`。首次切换时需更新 VPS Caddyfile 并 reload。
 
 ## 镜像
 
 | 组件 | GHCR |
 | --- | --- |
 | Web | `ghcr.io/passwii/believeboydashboard-web` |
-| API 与全部 Celery 进程 | `ghcr.io/passwii/believeboydashboard-api` |
+| FastAPI 与全部 Celery 进程 | `ghcr.io/passwii/believeboydashboard-api` |
+| Go Gateway | `ghcr.io/passwii/believeboydashboard-go-api` |
 
-发布使用同一 commit 构建的两个镜像；部署参数使用 registry digest，而不是可变标签。
-Web 和 API 必须成对切换与回滚。
+发布使用同一 commit 构建的三个镜像；部署参数使用 registry digest，而不是可变标签。
+Web、FastAPI 和 Go API 必须同版本切换与回滚。
 
 ## VPS 文件
 
@@ -44,27 +49,41 @@ Web 和 API 必须成对切换与回滚。
 | `/opt/believeboy-dashboard/docker-compose.yml` | 统一 Compose |
 | `/opt/believeboy-dashboard/backend.env` | 后端运行环境，权限 `0600` |
 | `/opt/believeboy-dashboard/web.env` | Web/Auth.js 运行环境，权限 `0600` |
+| `/opt/believeboy-dashboard/go.env` | Go Gateway 监听、路由所有权和代理密钥，权限 `0600` |
 | `/opt/believeboy-dashboard/backend-storage` | 上传、分析结果与临时工作文件 |
 | `/opt/believeboy-dashboard/celerybeat` | Celery beat schedule 状态 |
 | `/opt/believeboy-dashboard/legacy` | 首次切流前的前端 Compose/env 回滚副本 |
 
-`backend.env` 和 `web.env` 不进入镜像或 Git。
+`backend.env`、`web.env` 和 `go.env` 不进入镜像或 Git。`GO_API_TRUSTED_PROXY_SECRET`
+必须在 `web.env` 和 `go.env` 中相同，生成命令为 `openssl rand -hex 32`。
 
 ## 内网与公网地址
 
 服务间调用优先使用本机回环：
 
 ```dotenv
-BACKEND_INTERNAL_URL=http://127.0.0.1:8100
+# web.env：Next.js 服务端请求走 Go Gateway
+BACKEND_INTERNAL_URL=http://127.0.0.1:8200
+GO_API_TRUSTED_PROXY_SECRET=<64-character hex secret>
+
+# backend.env：Go 复用 FastAPI 的数据库与 Redis 配置
 DATABASE_URL=postgresql+psycopg://...@127.0.0.1:5432/BLF
 REDIS_HOST=127.0.0.1
-AI_CHAT_PROVIDER_BASE_URL=http://127.0.0.1:3100/v1
+REDIS_PORT=6379
+REDIS_DB=0
+# 如 Redis 需要认证，Go 复用 backend.env 中已有的凭据
+
+# go.env
+GO_API_ADDR=127.0.0.1:8200
+FASTAPI_ORIGIN=http://127.0.0.1:8100
+GO_API_OWNED=health,exchange_rates,notifications,alerts,profile
+GO_API_TRUSTED_PROXY_SECRET=<same 64-character hex secret>
 ```
 
 以下地址必须继续使用公开 URL：
 
 - `NEXTAUTH_URL` / `AUTH_URL`：浏览器认证回调与 Cookie origin。
-- `BACKEND_PUBLIC_API_BASE_URL`：前端展示及 Agent 调用说明。
+- `BACKEND_PUBLIC_API_BASE_URL`：前端展示及 Agent 调用说明；`dash-api` 的 Caddy upstream 使用 Go Gateway `8200`。
 - `FRONTEND_URL`：CORS 与邮件中的可点击链接。
 - R2、Resend、联网搜索等外部服务地址。
 
@@ -87,16 +106,18 @@ deploy/deploy-local.sh
 本地脚本依次执行：
 
 1. 校验最新 `origin/main`、Alembic 迁移图、前端 lint 和全量测试。
-2. 构建并推送 API、Web 两个 `linux/amd64` 镜像；只推送 commit SHA 标签，
-   不推送会被网络抖动阻断的 `latest` 标签。
-3. 从镜像 metadata 读取 digest。
-4. 首次切流时复制旧后端环境、storage 和 celerybeat 状态。
-5. 停止旧的四个 systemd 后端单元和旧前端容器。
-6. 同步 Compose/Web env，执行 `alembic upgrade head`。
-7. 启动统一 Compose，检查 API、Web、两个 Celery worker 与 beat。
+2. 构建并推送 FastAPI、Go API、Web 三个 `linux/amd64` 镜像；只推送 commit SHA
+   标签，不推送 `latest`。脚本会输出每张镜像及三张镜像的总构建/推送秒数。
+   本地无法访问 `proxy.golang.org` 时，可在 `deploy.env` 设置 `GO_MODULE_PROXY=https://goproxy.cn,direct`。
+3. 从三个镜像 metadata 读取 digest。
+4. 生成 `web.env.next` 和 `go.env.next`，同一个可信代理密钥只通过运行环境传递。
+5. 暂存 Compose 与环境文件，远端保留旧 Compose、环境文件和镜像作为回滚点。
+6. 执行 `alembic upgrade head`，启动 FastAPI `8100`、Go Gateway `8200` 和 Web。
+7. 检查 FastAPI、Go、Web、两个 Celery worker 与 beat；全通过后清理回滚副本。
 
-失败时不会自动启动旧 systemd 服务或旧前端容器。修复后应继续前向部署，或按
-“回滚”章节人工恢复明确指定的版本。
+部署失败时脚本恢复上一版 Compose、环境文件和 API/Web/Go 镜像；数据库 migration
+不会自动回滚。旧 systemd 服务不会自动启动。Go Gateway 首次健康后，再把 VPS Caddy 的
+`dash-api` upstream 改为 `127.0.0.1:8200` 并 reload。
 
 ## GitHub Actions 备用发布
 
@@ -107,12 +128,11 @@ gh workflow run deploy-dashboard.yml --ref main
 gh run list --workflow deploy-dashboard.yml --limit 3
 ```
 
-Actions 复用现有 Secrets：`VPS_SSH_KEY`、`VPS_KNOWN_HOSTS`、`VPS_HOST`、
-`NEXTAUTH_SECRET`、`GHCR_TOKEN`。`GHCR_TOKEN` 需具备 `write:packages`，因为
-已有 GHCR package 最初由本机 PAT 创建，Actions 自带的 `GITHUB_TOKEN` 没有该
-package 的读权限。工作流可在首次切流时从 VPS 现有的 `app.env` 与
-`backend/.env` 生成新环境文件，并迁移 storage/celerybeat；因此本地 GHCR
-链路不稳定时，可直接用此入口完成同版本 Web/API 镜像发布。
+Actions 复用 Secrets：`VPS_SSH_KEY`、`VPS_KNOWN_HOSTS`、`VPS_HOST`、
+`NEXTAUTH_SECRET`、`GO_API_TRUSTED_PROXY_SECRET`、`GHCR_TOKEN`。`GO_API_TRUSTED_PROXY_SECRET`
+用 `openssl rand -hex 32` 生成；`GHCR_TOKEN` 需具备 `write:packages`，因为已有 GHCR
+package 最初由本机 PAT 创建，Actions 自带的 `GITHUB_TOKEN` 没有该 package 的读权限。
+工作流从 VPS 现有 env 复制 `web.env`，并暂存 Go Gateway 配置，再部署三张镜像。
 
 ## 检查
 
@@ -123,21 +143,22 @@ curl -fsS https://dash-api.believeboy.com/api/v1/health/live
 ssh guitar-vps '
   cd /opt/believeboy-dashboard
   docker compose ps
-  docker compose logs --tail=100 api web celery celery-scheduled beat
+  docker compose logs --tail=100 api go-api web celery celery-scheduled beat
 '
 ```
 
 预期：
 
-- `api`、`web` 为 healthy。
+- `api`、`go-api`、`web` 为 healthy。
+- `go-api` 读取 `backend.env` 中的 `DATABASE_URL`、`REDIS_HOST`、`REDIS_PORT`、`REDIS_DB`、Redis 凭据和 `API_KEY`，并把未接管路由转发至 `8100`。
 - 两个 Celery worker 响应 `celery inspect ping`。
 - `beat` 持续运行。
-- `5432`、`6379`、`8100`、`3200` 只监听宿主机回环或被 Caddy 使用。
+- `5432`、`6379`、`8100`、`8200`、`3200` 只监听宿主机回环；Caddy 的 API upstream 指向 `8200`。
 
 ## 回滚
 
-应用回滚要求 API/Web digest 成对恢复。数据库 migration 不会自动回滚，后续迁移必须
-保持向后兼容。
+应用回滚要求 FastAPI、Go API、Web 三个 digest 成组恢复。数据库 migration 不会自动回滚，
+后续迁移必须保持向后兼容。
 
 首次切流后的短期回退：
 

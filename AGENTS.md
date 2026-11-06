@@ -34,12 +34,12 @@ git rev-list --left-right --count origin/main...HEAD  # 左侧计数为 0，才�
 
 ## Push / 部署规则（重要）
 
-- **本地主发布**：`git deploy` 要求 main 分支，先跑 Alembic 图检查并 `git push origin main`，随后执行 `deploy/deploy-local.sh`；本地构建 Web/API 两个 GHCR 镜像并在 VPS 启动统一 Compose。
+- **本地主发布**：`git deploy` 要求 main 分支，先跑 Alembic 图检查并 `git push origin main`，随后执行 `deploy/deploy-local.sh`；本地构建 Web、FastAPI API、Go API 三个 GHCR 镜像并在 VPS 启动统一 Compose。Go Gateway 监听 `127.0.0.1:8200`，保留 FastAPI `127.0.0.1:8100` 作为未接管路由的回退；Go API 和 Web 共用 `GO_API_TRUSTED_PROXY_SECRET`（仅服务端）。
 - **VPS 运行边界**：PostgreSQL、Redis、Caddy 是宿主机公共设施，不进入 Dashboard Compose。应用容器使用 `network_mode: host` 访问现有回环端口。
 - **GitHub Actions 仅备用**：`.github/workflows/deploy-dashboard.yml` 只能手动触发，ref 必须是 `main`；旧 `deploy-vps.yml` 和 systemd 自动部署已退役。
 - **只推代码**：`PUSH_ONLY=1 git deploy`。Actions 备用发布：`gh workflow run deploy-dashboard.yml --ref main`。
-- **回滚**：Web/API 镜像成对回滚；数据库 migration 不自动回滚，迁移必须保持向后兼容。运行手册见 `docs/deployment/dashboard-vps-compose.md`。
-- **新机器首次配置 alias / 缺 secret**：`git config alias.deploy '!bash productEnvAgent/deploy.sh'`；CI 侧 secret 为 `VPS_SSH_KEY` / `VPS_KNOWN_HOSTS` / `VPS_HOST` / `NEXTAUTH_SECRET`。
+- **回滚**：Web、FastAPI API、Go API 三个镜像作为同一版本回滚；数据库 migration 不自动回滚，迁移必须保持向后兼容。运行手册见 `docs/deployment/dashboard-vps-compose.md`。
+- **新机器首次配置 alias / 缺 secret**：`git config alias.deploy '!bash productEnvAgent/deploy.sh'`；CI 侧 secret 为 `VPS_SSH_KEY` / `VPS_KNOWN_HOSTS` / `VPS_HOST` / `NEXTAUTH_SECRET` / `GO_API_TRUSTED_PROXY_SECRET`。Gateway 代理密钥用 `openssl rand -hex 32` 生成，并同步到 VPS 的 `web.env`、`go.env`。
 
 ## 测试规则
 

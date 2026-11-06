@@ -14,7 +14,10 @@ DEPLOY_PATH="${DEPLOY_PATH:-/opt/believeboy-dashboard}"
 DOMAIN="${DOMAIN:-https://dash.believeboy.com}"
 WEB_IMAGE_NAME="${WEB_IMAGE_NAME:-ghcr.io/passwii/believeboydashboard-web}"
 API_IMAGE_NAME="${API_IMAGE_NAME:-ghcr.io/passwii/believeboydashboard-api}"
+GO_API_IMAGE_NAME="${GO_API_IMAGE_NAME:-ghcr.io/passwii/believeboydashboard-go-api}"
+GO_API_OWNED_MODULES="${GO_API_OWNED_MODULES:-health,exchange_rates,notifications,alerts,profile}"
 PIP_INDEX_URL="${PIP_INDEX_URL:-https://pypi.org/simple}"
+GO_MODULE_PROXY="${GO_MODULE_PROXY:-https://proxy.golang.org,direct}"
 INTERNAL_AI_PROVIDER_BASE_URL="${INTERNAL_AI_PROVIDER_BASE_URL:-http://127.0.0.1:3100/v1}"
 FRONTEND_ENV_FILE="${FRONTEND_ENV_FILE:-$ROOT/frontend/.env.local}"
 
@@ -69,6 +72,11 @@ set +a
 : "${NEXTAUTH_SECRET:?NEXTAUTH_SECRET is required in $FRONTEND_ENV_FILE}"
 : "${BACKEND_API_KEY:?BACKEND_API_KEY is required in $FRONTEND_ENV_FILE}"
 : "${BACKEND_API_BASE_URL:?BACKEND_API_BASE_URL is required in $FRONTEND_ENV_FILE}"
+: "${GO_API_TRUSTED_PROXY_SECRET:?GO_API_TRUSTED_PROXY_SECRET is required in $CONFIG_FILE}"
+if [[ ! "$GO_API_TRUSTED_PROXY_SECRET" =~ ^[0-9a-fA-F]{64}$ ]]; then
+  echo "GO_API_TRUSTED_PROXY_SECRET must be 64 hexadecimal characters (openssl rand -hex 32)." >&2
+  exit 1
+fi
 
 SECRET_BYTES="$(printf '%s' "$NEXTAUTH_SECRET" | wc -c | tr -d ' ')"
 if (( SECRET_BYTES < 32 )); then
@@ -109,15 +117,24 @@ printf '%s' "$NEXTAUTH_SECRET" > "$TMP_DIR/nextauth_secret"
 chmod 600 "$TMP_DIR/nextauth_secret"
 
 printf 'BACKEND_API_BASE_URL=%s\n' "$BACKEND_API_BASE_URL" > "$TMP_DIR/web.env"
-printf 'BACKEND_INTERNAL_URL=http://127.0.0.1:8100\n' >> "$TMP_DIR/web.env"
+printf 'BACKEND_INTERNAL_URL=http://127.0.0.1:8200\n' >> "$TMP_DIR/web.env"
 printf 'BACKEND_PUBLIC_API_BASE_URL=%s\n' "$BACKEND_API_BASE_URL" >> "$TMP_DIR/web.env"
 printf 'BACKEND_API_KEY=%s\n' "$BACKEND_API_KEY" >> "$TMP_DIR/web.env"
+printf 'GO_API_TRUSTED_PROXY_SECRET=%s\n' "$GO_API_TRUSTED_PROXY_SECRET" >> "$TMP_DIR/web.env"
 printf 'NEXTAUTH_SECRET=%s\n' "$NEXTAUTH_SECRET" >> "$TMP_DIR/web.env"
 printf 'AUTH_SECRET=%s\n' "$NEXTAUTH_SECRET" >> "$TMP_DIR/web.env"
 printf 'NEXTAUTH_URL=%s\n' "$DOMAIN" >> "$TMP_DIR/web.env"
 printf 'AUTH_URL=%s\n' "$DOMAIN" >> "$TMP_DIR/web.env"
 printf 'NEXT_PUBLIC_CRM_API_MODE=http\n' >> "$TMP_DIR/web.env"
 chmod 600 "$TMP_DIR/web.env"
+
+{
+  printf 'GO_API_ADDR=127.0.0.1:8200\n'
+  printf 'FASTAPI_ORIGIN=http://127.0.0.1:8100\n'
+  printf 'GO_API_OWNED=%s\n' "$GO_API_OWNED_MODULES"
+  printf 'GO_API_TRUSTED_PROXY_SECRET=%s\n' "$GO_API_TRUSTED_PROXY_SECRET"
+} > "$TMP_DIR/go.env"
+chmod 600 "$TMP_DIR/go.env"
 
 IMAGE_TAG="sha-$SHA"
 
@@ -150,6 +167,18 @@ build_api() {
     "$ROOT"
 }
 
+build_go_api() {
+  docker buildx build \
+    --platform "$PLATFORM" \
+    --push \
+    --build-arg "GOPROXY=$GO_MODULE_PROXY" \
+    --tag "$GO_API_IMAGE_NAME:$IMAGE_TAG" \
+    --label "org.opencontainers.image.revision=$SHA" \
+    --metadata-file "$TMP_DIR/go-api-meta.json" \
+    --file "$ROOT/backend-go/Dockerfile" \
+    "$ROOT"
+}
+
 build_web() {
   docker buildx build \
     --platform "$PLATFORM" \
@@ -161,14 +190,27 @@ build_web() {
     "$ROOT/frontend"
 }
 
+IMAGE_BUILD_STARTED_AT=$SECONDS
+API_BUILD_STARTED_AT=$SECONDS
 echo "Building API image for $PLATFORM..."
 build_with_retry "API image build" build_api
+API_BUILD_SECONDS=$((SECONDS - API_BUILD_STARTED_AT))
+GO_API_BUILD_STARTED_AT=$SECONDS
+echo "Building Go API image for $PLATFORM..."
+build_with_retry "Go API image build" build_go_api
+GO_API_BUILD_SECONDS=$((SECONDS - GO_API_BUILD_STARTED_AT))
+WEB_BUILD_STARTED_AT=$SECONDS
 echo "Building Web image for $PLATFORM..."
 build_with_retry "Web image build" build_web
+WEB_BUILD_SECONDS=$((SECONDS - WEB_BUILD_STARTED_AT))
+IMAGE_BUILD_SECONDS=$((SECONDS - IMAGE_BUILD_STARTED_AT))
+echo "Image build times: FastAPI ${API_BUILD_SECONDS}s, Go API ${GO_API_BUILD_SECONDS}s, Web ${WEB_BUILD_SECONDS}s, total ${IMAGE_BUILD_SECONDS}s."
 
 api_digest="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["containerimage.digest"])' "$TMP_DIR/api-meta.json")"
+go_api_digest="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["containerimage.digest"])' "$TMP_DIR/go-api-meta.json")"
 web_digest="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["containerimage.digest"])' "$TMP_DIR/web-meta.json")"
 API_IMAGE="$API_IMAGE_NAME@$api_digest"
+GO_API_IMAGE="$GO_API_IMAGE_NAME@$go_api_digest"
 WEB_IMAGE="$WEB_IMAGE_NAME@$web_digest"
 
 echo "Preparing VPS directories and legacy fallback..."
@@ -210,15 +252,17 @@ ssh "$DEPLOY_HOST" "
   docker rm believeboy-dashboard 2>/dev/null || true
 "
 
-ssh "$DEPLOY_HOST" "umask 077 && cat > '$DEPLOY_PATH/web.env'" < "$TMP_DIR/web.env"
-scp "$ROOT/deploy/docker-compose.yml" "$DEPLOY_HOST:$DEPLOY_PATH/docker-compose.yml"
-scp "$ROOT/deploy/deploy-remote.sh" "$DEPLOY_HOST:$DEPLOY_PATH/deploy-remote.sh"
+ssh "$DEPLOY_HOST" "umask 077 && cat > '$DEPLOY_PATH/web.env.next'" < "$TMP_DIR/web.env"
+ssh "$DEPLOY_HOST" "umask 077 && cat > '$DEPLOY_PATH/go.env.next'" < "$TMP_DIR/go.env"
+scp "$ROOT/deploy/docker-compose.yml" "$DEPLOY_HOST:$DEPLOY_PATH/docker-compose.yml.next"
+scp "$ROOT/deploy/deploy-remote.sh" "$DEPLOY_HOST:$DEPLOY_PATH/deploy-remote.sh.next"
 
-echo "Deploying API and Web..."
+echo "Deploying FastAPI, Go API, and Web..."
 if ! ssh "$DEPLOY_HOST" \
-  "API_IMAGE='$API_IMAGE' WEB_IMAGE='$WEB_IMAGE' DEPLOY_PATH='$DEPLOY_PATH' \
-    bash '$DEPLOY_PATH/deploy-remote.sh'"; then
-  echo "Compose deployment failed; legacy services will not be restored automatically." >&2
+  "mv '$DEPLOY_PATH/deploy-remote.sh.next' '$DEPLOY_PATH/deploy-remote.sh' && \
+    API_IMAGE='$API_IMAGE' GO_API_IMAGE='$GO_API_IMAGE' WEB_IMAGE='$WEB_IMAGE' DEPLOY_PATH='$DEPLOY_PATH' \
+      bash '$DEPLOY_PATH/deploy-remote.sh'"; then
+  echo "Compose deployment failed; remote deploy script attempted config and image rollback." >&2
   exit 1
 fi
 
@@ -230,7 +274,8 @@ for attempt in $(seq 1 15); do
         >/dev/null 2>&1 || true
     "
     echo "Deployed $DOMAIN from $WEB_IMAGE"
-    echo "Deployed API from $API_IMAGE"
+    echo "Deployed FastAPI fallback from $API_IMAGE"
+    echo "Deployed Go API gateway from $GO_API_IMAGE"
     exit 0
   fi
   sleep 2
