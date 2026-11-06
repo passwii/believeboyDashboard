@@ -893,10 +893,6 @@
   background: var(--warm-ledger-color-raised);
 }
 
-.warm-ledger__refresh-icon.is-refreshing {
-  animation: warm-ledger-refresh 700ms linear infinite;
-}
-
 .warm-ledger__notification-action {
   position: relative;
 }

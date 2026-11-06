@@ -75,7 +75,6 @@ export function WarmLedgerTopbar({
   const hasRouteSlots = Boolean(routeSlots?.action || routeSlots?.primary || routeSlots?.secondary)
   const refreshIconClass = [
     'warm-ledger__refresh-icon',
-    refreshing && 'is-refreshing',
     !refreshing && refreshFeedbackStatus === 'success' && 'is-success',
     !refreshing && refreshFeedbackStatus === 'error' && 'is-error',
     !refreshing && refreshFeedbackStatus === 'requested' && 'is-requested',
@@ -159,7 +158,9 @@ export function WarmLedgerTopbar({
             loadingLabel="正在刷新当前页数据"
             onClick={onRefresh}
           >
-            <RefreshCw aria-hidden="true" className={refreshIconClass} />
+            {refreshing ? null : (
+              <RefreshCw aria-hidden="true" className={refreshIconClass} />
+            )}
           </WarmIconButton>
         ) : null}
         {onSearch ? (
