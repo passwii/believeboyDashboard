@@ -1,6 +1,4 @@
-# AWS Public ECR mirrors the official Node image and is reachable from both the
-# local Mac (where auth.docker.io is blocked) and GitHub Actions.
-FROM public.ecr.aws/docker/library/node:24-alpine AS base
+FROM node:24-alpine AS base
 ENV COREPACK_NPM_REGISTRY=https://registry.npmmirror.com \
     npm_config_registry=https://registry.npmmirror.com
 RUN --mount=type=cache,id=believeboy-corepack,target=/root/.cache/node/corepack \
@@ -26,7 +24,7 @@ RUN --mount=type=secret,id=nextauth_secret \
     NEXT_PUBLIC_CRM_API_MODE="http" \
     pnpm build
 
-FROM public.ecr.aws/docker/library/node:24-alpine AS runner
+FROM node:24-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production \

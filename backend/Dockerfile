@@ -1,4 +1,4 @@
-FROM public.ecr.aws/docker/library/python:3.13-slim-bookworm
+FROM python:3.13-slim-bookworm
 
 ARG PIP_INDEX_URL=https://pypi.org/simple
 
@@ -19,7 +19,12 @@ RUN --mount=type=cache,id=believeboy-pip-cache,target=/root/.cache/pip \
 # Scheduled reports use the headless shell only; installing the full Chromium
 # build would add hundreds of unused megabytes to every pull.
 RUN --mount=type=cache,id=believeboy-playwright-cache,target=/root/.cache/ms-playwright \
-    playwright install --with-deps --only-shell chromium
+    sed -i \
+      -e 's#^URIs: http://deb.debian.org/debian$#URIs: https://mirrors.tuna.tsinghua.edu.cn/debian#' \
+      -e 's#^URIs: http://deb.debian.org/debian-security$#URIs: https://deb.debian.org/debian-security#' \
+      /etc/apt/sources.list.d/debian.sources \
+    && printf 'Acquire::Retries "5";\n' > /etc/apt/apt.conf.d/80-retries \
+    && playwright install --with-deps --only-shell chromium
 
 COPY backend /app/backend
 COPY frontend/public/logo-email.png /app/frontend/public/logo-email.png
