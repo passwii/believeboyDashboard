@@ -67,7 +67,7 @@ jobs:
                echo "believeboy-dashboard: absent"
              fi
              echo "=== Dashboard GHCR images ==="
-             docker image ls -a --digests --format "{{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}" |
+             docker image ls -a --digests --format "{{.Repository}}:{{.Tag}}\t{{.ID}}\t{{.Size}}" |
                grep -E "^ghcr[.]io/passwii/believeboydashboard(:|-web:|-api:)" || true
              echo "=== related systemd units ==="
              systemctl list-units --type=service --all --no-legend |
