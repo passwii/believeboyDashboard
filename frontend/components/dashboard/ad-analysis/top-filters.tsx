@@ -52,7 +52,7 @@ function buildHref(pathname: string, searchParams: URLSearchParams) {
 /**
  * BLF-889 · 广告分析页筛选上移 Top Header 中段插槽。
  *
- * Desktop: 页面本地 Warm 原生控件 + `useHeaderSlot`.
+ * Desktop: 页面本地 Warm 控件 + `useHeaderSlot`.
  * Mobile:  `useMobileFilterStrip` + `MobileFilterStrip` 渲染等价摘要与控件。
  * 全局刷新为唯一入口，页面不额外放置 RefreshButton。
  */

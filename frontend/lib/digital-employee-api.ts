@@ -2,6 +2,13 @@ import { buildLoginCallbackUrl } from '@/lib/login-callback-url'
 
 const API_BASE = '/api/backend'
 
+export class DigitalEmployeeNotFoundError extends Error {
+  constructor() {
+    super('数字员工不存在')
+    this.name = 'DigitalEmployeeNotFoundError'
+  }
+}
+
 function resolveApiUrl(path: string) {
   const base = API_BASE.endsWith('/') ? API_BASE.slice(0, -1) : API_BASE
   return `${base}${path}`
@@ -58,6 +65,7 @@ export async function fetchDigitalEmployee(id: number) {
     void redirectToLoginWithCallback()
     throw new Error('Unauthorized')
   }
+  if (res.status === 404) throw new DigitalEmployeeNotFoundError()
   if (!res.ok) throw new Error('Failed to fetch digital employee')
   return normalizeEmployee(await res.json()) as import('@/types/digital-employee').DigitalEmployee
 }
@@ -70,6 +78,7 @@ export async function fetchEmployeeTasks(id: number) {
     void redirectToLoginWithCallback()
     throw new Error('Unauthorized')
   }
+  if (res.status === 404) throw new DigitalEmployeeNotFoundError()
   if (!res.ok) throw new Error('Failed to fetch tasks')
   return normalizeResponse(await res.json()) as unknown as {
     items: import('@/types/digital-employee').DigitalEmployeeTask[]

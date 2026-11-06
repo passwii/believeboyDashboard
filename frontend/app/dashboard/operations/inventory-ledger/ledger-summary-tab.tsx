@@ -296,7 +296,7 @@ export function LedgerSummaryTab({
                   axisLine={false}
                   dataKey="date"
                   interval="preserveStartEnd"
-                  tick={{ fontSize: 10 }}
+                  tick={{ fontSize: 11 }}
                   tickLine={false}
                   tickMargin={8}
                 />

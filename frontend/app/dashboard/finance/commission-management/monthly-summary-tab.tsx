@@ -111,7 +111,7 @@ export function MonthlySummaryTab({ items, year, loading }: MonthlySummaryTabPro
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className={styles.emptyCell}>
+                  <td colSpan={6} className={styles.emptyCell} role="status">
                     {year}年暂无数据
                   </td>
                 </tr>

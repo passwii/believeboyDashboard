@@ -279,10 +279,101 @@ export function CrmTable<T extends { id?: string | number }>({
     )
 
     if (isWarm) {
-      return (
-        <WarmCrmTableFrame className={warmStyles.frame}>
+      const warmFooterSkeleton =
+        defaultPageSize !== undefined ? (
+          <div
+            className={cn(
+              'mt-1.5 flex flex-wrap items-center justify-between gap-1.5 font-mono text-xs text-term-muted',
+              warmStyles.footer
+            )}
+            aria-hidden="true"
+          >
+            <div className={cn('flex items-center gap-3', warmStyles.footerMeta)}>
+              <span className={warmStyles.loadingFooterTotal} />
+              <span className="flex items-center gap-1">
+                <span className={warmStyles.loadingFooterLabel} />
+                <span className={warmStyles.loadingFooterSelect} />
+              </span>
+            </div>
+            <div className={cn('flex items-center gap-1', warmStyles.pager)}>
+              <span className={warmStyles.loadingFooterButton} />
+              <span className={warmStyles.loadingFooterButton} />
+              <span className={warmStyles.loadingFooterPage} />
+              <span className={warmStyles.loadingFooterButton} />
+              <span className={warmStyles.loadingFooterButton} />
+            </div>
+          </div>
+        ) : undefined
+
+      const warmLoadingState = (
+        <div
+          className={warmStyles.loadingContent}
+          role="status"
+          aria-busy="true"
+          aria-label="表格加载中"
+          data-testid="crm-table-skeleton"
+        >
           {refreshBridge}
-          {loadingState}
+          {searchable || filterFields.length > 0 ? (
+            <div
+              className={cn(warmStyles.toolbar, warmStyles.loadingToolbar)}
+              aria-hidden="true"
+            >
+              {searchable ? (
+                <span
+                  className={cn(warmStyles.loadingControl, warmStyles.loadingSearch)}
+                />
+              ) : null}
+              {filterFields.map((field) => (
+                <span
+                  key={field.key}
+                  className={cn(warmStyles.loadingControl, warmStyles.loadingFilter)}
+                />
+              ))}
+            </div>
+          ) : null}
+          <WarmCrmTableScroller ariaLabel={tableAriaLabel}>
+            <Table
+              className={cn('border-collapse font-mono text-xs tabular-nums', warmStyles.table)}
+              aria-hidden="true"
+            >
+              <TableHeader>
+                <TableRow>
+                  {selectable ? <TableHead className="w-10" /> : null}
+                  {columns.map((column) => (
+                    <TableHead
+                      key={String(column.key)}
+                      style={column.width ? { width: column.width } : undefined}
+                    >
+                      {column.title}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {Array.from({ length: 5 }, (_, rowIndex) => (
+                  <TableRow key={rowIndex}>
+                    {selectable ? (
+                      <TableCell className="w-10">
+                        <span className={warmStyles.loadingCheckbox} />
+                      </TableCell>
+                    ) : null}
+                    {columns.map((column) => (
+                      <TableCell key={String(column.key)}>
+                        <span className={warmStyles.loadingCell} />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </WarmCrmTableScroller>
+        </div>
+      )
+
+      return (
+        <WarmCrmTableFrame className={warmStyles.frame} footer={warmFooterSkeleton}>
+          {warmLoadingState}
         </WarmCrmTableFrame>
       )
     }

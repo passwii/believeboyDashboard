@@ -17,6 +17,7 @@ import { useNotifications } from '@/components/notifications'
 import type { Task, TaskType } from '@/lib/crm/types'
 import { TaskKanban } from './components/task-kanban'
 import { TaskList } from './components/task-list'
+import { TaskBoardLoading } from './components/task-board-loading'
 import { createDragEndHandler } from './board'
 import styles from './page.module.css'
 
@@ -131,7 +132,7 @@ export default function TasksPage() {
       />
 
       {loading && tasks.length === 0 ? (
-        <WarmCrmState kind="loading" title="任务加载中" />
+        <TaskBoardLoading />
       ) : (
         <>
           {error ? (

@@ -78,6 +78,8 @@ export function AdDataExplorer() {
 
   const [availableTypes, setAvailableTypes] = useState<string[]>([])
   const [availableLoading, setAvailableLoading] = useState(false)
+  const [availableError, setAvailableError] = useState<string | null>(null)
+  const [availableRetryKey, setAvailableRetryKey] = useState(0)
   const [selectedReportType, setSelectedReportType] = useState<string>('')
 
   const [rowsResult, setRowsResult] = useState<{ signature: string; value: RawRow[] } | null>(null)
@@ -160,6 +162,7 @@ export function AdDataExplorer() {
     if (status === 'loading') return
     let active = true
     setAvailableLoading(true)
+    setAvailableError(null)
     fetchAdUploadFilesCached<UploadFileItem[]>(projectId, country, session)
       .then((items) => {
         if (!active) return
@@ -175,9 +178,14 @@ export function AdDataExplorer() {
           return types[0] || ''
         })
       })
-      .catch(() => {
+      .catch((lookupError) => {
         if (!active) return
         setAvailableTypes([])
+        setAvailableError(
+          lookupError instanceof Error && lookupError.message
+            ? lookupError.message
+            : '广告报表列表加载失败'
+        )
       })
       .finally(() => {
         if (active) setAvailableLoading(false)
@@ -185,7 +193,7 @@ export function AdDataExplorer() {
     return () => {
       active = false
     }
-  }, [projectId, country, session, status, refreshKey])
+  }, [projectId, country, session, status, refreshKey, availableRetryKey])
 
   // ---- 拉取选中类型的原始行（BEL-421：2min 客户端缓存，切回已看过的类型 0 请求）----
   useEffect(() => {
@@ -298,6 +306,19 @@ export function AdDataExplorer() {
   if (availableLoading && availableTypes.length === 0) {
     return <AdDataEmptyState message="正在加载已上传的广告报表..." status />
   }
+  if (availableError && availableTypes.length === 0) {
+    return (
+      <div className={cn(styles.errorBar, 'justify-between gap-3')} role="alert">
+        <span>{availableError}</span>
+        <WarmButton
+          variant="secondary"
+          onClick={() => setAvailableRetryKey((current) => current + 1)}
+        >
+          重试
+        </WarmButton>
+      </div>
+    )
+  }
 
   return (
     <div className={styles.page} data-warm-ad-data="true">
@@ -319,7 +340,7 @@ export function AdDataExplorer() {
               >
                 <SelectValue placeholder="选择报表类型" />
               </SelectTrigger>
-              <SelectContent className={styles.selectContent}>
+              <SelectContent className={cn('warm-ledger', styles.selectContent)}>
                 {AD_DATA_REPORT_TYPES.map((item) => {
                   const hasData = availableTypes.includes(item.reportType)
                   return (

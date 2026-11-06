@@ -67,6 +67,7 @@ export function SlidingTabsTrigger({
   const prefersReducedMotion = useReducedMotion()
   const isActive = activeValue === value
   const isTerm = variant === 'term'
+  const isWarm = variant === 'warm'
 
   return (
     <TabsTrigger
@@ -76,7 +77,9 @@ export function SlidingTabsTrigger({
         'relative isolate overflow-hidden',
         isTerm
           ? 'data-[state=active]:border-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:after:hidden'
-          : 'data-[state=active]:border-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none',
+          : isWarm
+            ? 'data-[state=active]:border-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none'
+            : 'data-[state=active]:border-transparent data-[state=active]:bg-transparent data-[state=active]:shadow-none',
         className
       )}
       {...props}
@@ -102,11 +105,14 @@ export function SlidingTabsTrigger({
                   }
             }
             className={cn(
-              'absolute inset-0 -z-10 border shadow-none',
+              'absolute inset-0 border shadow-none',
+              isWarm ? 'z-0' : '-z-10',
               isTerm
                 ? 'rounded-none border-transparent bg-term-raised after:absolute after:inset-x-0 after:bottom-0 after:h-[2px] after:bg-term-accent after:shadow-[0_0_8px_color-mix(in_srgb,var(--term-accent)_60%,transparent),0_0_16px_color-mix(in_srgb,var(--term-accent)_30%,transparent)]'
-                : // BLF-893：非 term 分支的暗主题边框改走 term-border-strong（与 isTerm 路径基线对齐）。
-                'rounded-[inherit] border-term-border-strong bg-term-raised'
+                : isWarm
+                  ? 'rounded-[inherit] border border-[var(--warm-ledger-color-hairline-strong)] bg-[var(--warm-ledger-color-raised)] shadow-[var(--warm-ledger-highlight-rest)]'
+                  : // BLF-893：非 term 分支的暗主题边框改走 term-border-strong（与 isTerm 路径基线对齐）。
+                    'rounded-[inherit] border-term-border-strong bg-term-raised'
             )}
           />
         ) : null}

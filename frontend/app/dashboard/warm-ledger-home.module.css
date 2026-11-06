@@ -73,7 +73,7 @@
   height: 5px;
   flex: 0 0 5px;
   border-radius: 50%;
-  background: var(--warm-ledger-color-positive);
+  background: var(--warm-ledger-color-text-muted);
 }
 
 .errorBanner {
@@ -100,7 +100,9 @@
 
 .primaryGrid {
   grid-template-columns: minmax(0, 1.8fr) minmax(300px, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   align-items: stretch;
+  height: clamp(420px, calc(100vh - 390px), 560px);
 }
 
 .detailGrid {
@@ -111,6 +113,7 @@
 .primaryGrid > *,
 .detailGrid > * {
   min-width: 0;
+  min-height: 0;
   max-width: 100%;
 }
 
@@ -141,11 +144,6 @@
   font-weight: var(--warm-ledger-font-weight-medium);
 }
 
-.panelHeader > span {
-  color: var(--warm-ledger-color-text-muted);
-  font-size: var(--warm-ledger-font-size-label);
-}
-
 @media (max-width: 1240px) {
   .title {
     font-size: var(--warm-ledger-font-size-page-title-compact);
@@ -160,6 +158,11 @@
   .primaryGrid,
   .detailGrid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .primaryGrid {
+    grid-template-rows: auto;
+    height: auto;
   }
 
   .freshness {

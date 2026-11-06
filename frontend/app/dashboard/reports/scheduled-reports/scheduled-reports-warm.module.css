@@ -493,7 +493,7 @@
 .dayBadge {
   padding: 1px 6px;
   color: var(--warm-ledger-color-accent-strong);
-  font-size: 10px;
+  font-size: 11px;
   background: var(--warm-ledger-color-accent-soft);
   border: 1px solid
     color-mix(in srgb, var(--warm-ledger-color-accent) 35%, transparent);

@@ -72,7 +72,11 @@ export function SellerCard({
 
   const [projects, setProjects] = useState<ProjectOption[]>([])
   const [loadingProjects, setLoadingProjects] = useState(true)
+  const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
+  const [projectRetryKey, setProjectRetryKey] = useState(0)
   const [loadingEntities, setLoadingEntities] = useState(false)
+  const [entityLoadError, setEntityLoadError] = useState<string | null>(null)
+  const [entityRetryKey, setEntityRetryKey] = useState(0)
   const [saving, setSaving] = useState(false)
 
   // 编辑 Dialog 状态
@@ -92,6 +96,7 @@ export function SellerCard({
   useEffect(() => {
     let alive = true
     setLoadingProjects(true)
+    setProjectLoadError(null)
     fetchProjectsManage()
       .then((rows) => {
         if (!alive) return
@@ -99,6 +104,7 @@ export function SellerCard({
       })
       .catch((err) => {
         if (!alive) return
+        setProjectLoadError('店铺列表加载失败')
         notify({ type: 'error', title: '加载失败', message: normalizeErrorMessage(err) })
       })
       .finally(() => {
@@ -108,17 +114,20 @@ export function SellerCard({
     return () => {
       alive = false
     }
-  }, [notify])
+  }, [notify, projectRetryKey])
 
   // 选中店铺时加载其 VAT 主体
   useEffect(() => {
     if (selectedProjectId == null) {
       onSellersChange([])
       onCountryChange('')
+      setEntityLoadError(null)
+      setLoadingEntities(false)
       return
     }
     let alive = true
     setLoadingEntities(true)
+    setEntityLoadError(null)
     fetchEntities(selectedProjectId)
       .then((list) => {
         if (!alive) return
@@ -133,7 +142,9 @@ export function SellerCard({
       })
       .catch((err) => {
         if (!alive) return
-        notify({ type: 'error', title: '加载 VAT 主体失败', message: normalizeErrorMessage(err) })
+        const message = normalizeErrorMessage(err)
+        setEntityLoadError(message)
+        notify({ type: 'error', title: '加载 VAT 主体失败', message })
         onSellersChange([])
         onCountryChange('')
       })
@@ -145,7 +156,7 @@ export function SellerCard({
       alive = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProjectId])
+  }, [selectedProjectId, entityRetryKey])
 
   const openEdit = () => {
     if (!currentSeller) return
@@ -267,13 +278,21 @@ export function SellerCard({
           <Label htmlFor="project-select" className={styles.label}>
             店铺
           </Label>
-          <div>
+          <div
+            className={styles.projectControl}
+            aria-busy={loadingProjects || undefined}
+          >
             <Select
               value={selectedProjectId != null ? String(selectedProjectId) : ''}
               onValueChange={(v) => onSelectProject(Number(v))}
-              disabled={loadingProjects}
+              disabled={loadingProjects || Boolean(projectLoadError)}
             >
-              <SelectTrigger id="project-select" className={styles.selectTrigger}>
+              <SelectTrigger
+                id="project-select"
+                className={styles.selectTrigger}
+                aria-invalid={projectLoadError ? true : undefined}
+                aria-describedby={projectLoadError ? 'vat-create-project-error' : undefined}
+              >
                 <SelectValue placeholder={loadingProjects ? '加载中…' : '选择店铺'} />
                 {loadingProjects && <Loader2 className="ml-2 h-3.5 w-3.5 animate-spin" />}
               </SelectTrigger>
@@ -287,6 +306,28 @@ export function SellerCard({
                   ))}
               </SelectContent>
             </Select>
+            {loadingProjects ? (
+              <span className={styles.projectControlStatus} role="status">
+                正在加载店铺
+              </span>
+            ) : projectLoadError ? (
+              <div className={styles.projectControlStatus}>
+                <span
+                  id="vat-create-project-error"
+                  className={styles.projectControlError}
+                  role="alert"
+                >
+                  {projectLoadError}
+                </span>
+                <WarmButton
+                  className={styles.projectRetry}
+                  variant="quiet"
+                  onClick={() => setProjectRetryKey((current) => current + 1)}
+                >
+                  重试
+                </WarmButton>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -322,7 +363,7 @@ export function SellerCard({
               )}
             </div>
           </div>
-        ) : selectedProjectId != null && !loadingEntities ? (
+        ) : selectedProjectId != null && !loadingEntities && !entityLoadError ? (
           <div className={styles.notice}>
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <div>尚未配置任何国家的 VAT 主体。请点击右上角「新增国家」补充。</div>
@@ -334,6 +375,16 @@ export function SellerCard({
             <div className={styles.loadingState} role="status">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
               加载 Seller…
+            </div>
+          ) : entityLoadError ? (
+            <div className={styles.loadError} role="alert">
+              <span>VAT 主体加载失败：{entityLoadError}</span>
+              <WarmButton
+                variant="quiet"
+                onClick={() => setEntityRetryKey((current) => current + 1)}
+              >
+                重试
+              </WarmButton>
             </div>
           ) : currentSeller ? (
             <div className={styles.subpanel}>

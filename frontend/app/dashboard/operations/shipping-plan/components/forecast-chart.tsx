@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useId, useMemo } from 'react'
 import type { components } from '@/types/api-generated/api'
 import {
   Bar,
@@ -113,6 +113,28 @@ function formatValue(value: DecimalValue | null | undefined): string {
   return parsed === null ? '待核实' : new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 1 }).format(parsed)
 }
 
+function peakMonthlyValue(
+  points: MonthlyForecastPoint[],
+  key: 'confirmed_sales' | 'planned_sales' | 'historical_order_sales',
+): { label: string; value: number } | null {
+  let peak: { label: string; value: number } | null = null
+  for (const point of points) {
+    const value = point[key]
+    if (value === null) continue
+    if (peak === null || value > peak.value) peak = { label: point.label, value }
+  }
+  return peak
+}
+
+function peakSummary(
+  label: string,
+  peak: { label: string; value: number } | null,
+): string {
+  return peak
+    ? `${label}${formatValue(peak.value)} 件（${peak.label}）`
+    : `${label}待核实`
+}
+
 function qualityReason(reason: string): string {
   const labels: Record<string, string> = {
     inventory_snapshot_missing: '缺少库存快照日期',
@@ -148,11 +170,21 @@ function gapLabel(gap: ReturnType<typeof calculateInventoryGap>): string {
 }
 
 export function ForecastChart({ forecast }: { forecast: ShippingPlanForecast }) {
+  const chartSummaryId = useId()
   const points = forecast.daily_points
   const data = useMemo(() => buildMonthlyForecastPoints(points), [points])
   const hasHistoricalData = data.some((point) => point.historical_order_sales != null)
   const confirmedGap = useMemo(() => calculateInventoryGap(points, 'confirmed_sales'), [points])
   const plannedGap = useMemo(() => calculateInventoryGap(points, 'planned_sales'), [points])
+  const latestPoint = data[data.length - 1]
+  const confirmedSalesPeak = peakMonthlyValue(data, 'confirmed_sales')
+  const plannedSalesPeak = peakMonthlyValue(data, 'planned_sales')
+  const historicalSalesPeak = hasHistoricalData
+    ? peakMonthlyValue(data, 'historical_order_sales')
+    : null
+  const chartSummary = latestPoint
+    ? `按自然月绘制 ${data.length} 个预测点；${peakSummary('确定情景月销量峰值 ', confirmedSalesPeak)}；${peakSummary('计划情景月销量峰值 ', plannedSalesPeak)}；最新月度点（${latestPoint.label}）库存：确定情景 ${formatValue(latestPoint.confirmed_closing_inventory)} 件，计划情景 ${formatValue(latestPoint.planned_closing_inventory)} 件${historicalSalesPeak ? `；${peakSummary('去年同期月销量峰值 ', historicalSalesPeak)}` : ''}。`
+    : '当前预测区间暂无可绘制的月度数据。'
 
   return (
     <section className={styles.forecastChart} aria-label={`${forecast.sku} 180 天销量与库存预测`}>
@@ -175,7 +207,13 @@ export function ForecastChart({ forecast }: { forecast: ShippingPlanForecast }) 
           数据待核实：{forecast.data_quality.map(qualityReason).join('、')}
         </div>
       ) : null}
-      <div className={styles.forecastPlot} data-testid="shipping-plan-forecast-chart">
+      <div
+        className={styles.forecastPlot}
+        data-testid="shipping-plan-forecast-chart"
+        role="img"
+        aria-label={`${forecast.sku} 180 天销量与库存预测`}
+        aria-describedby={chartSummaryId}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 8, right: 4, bottom: 4, left: 0 }}>
             <CartesianGrid stroke="var(--warm-ledger-color-chart-grid)" strokeDasharray="2 4" vertical={false} />
@@ -209,7 +247,13 @@ export function ForecastChart({ forecast }: { forecast: ShippingPlanForecast }) 
           </ComposedChart>
         </ResponsiveContainer>
       </div>
-      <div className={styles.chartFootnote}>按自然月汇总；缺口为当月预测需求未能满足的数量{hasHistoricalData ? '；去年同期销售按相同月份对齐' : ''}</div>
+      <div className={styles.chartFootnote}>
+        <span id={chartSummaryId} className="sr-only">
+          {chartSummary}
+        </span>
+        <span>按自然月汇总；缺口为当月预测需求未能满足的数量</span>
+        {hasHistoricalData ? <span>；去年同期销售按相同月份对齐</span> : null}
+      </div>
     </section>
   )
 }

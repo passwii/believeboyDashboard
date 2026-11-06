@@ -139,7 +139,7 @@ export function ProjectSummaryTab({ items, year, loading }: ProjectSummaryTabPro
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={DATA_COLS} className={styles.emptyCell}>
+                  <td colSpan={DATA_COLS} className={styles.emptyCell} role="status">
                     {year}年暂无数据
                   </td>
                 </tr>

@@ -268,24 +268,19 @@ export function OrderFlowCard({
   return (
     <section
       aria-label="订单流"
-      className="min-w-0 overflow-hidden border"
+      className="flex min-h-0 min-w-0 flex-col overflow-hidden border"
       style={cardStyle}
     >
       <header
-        className="flex flex-wrap items-end justify-between gap-3 border-b px-5 py-4"
+        className="flex shrink-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-2 border-b px-5 py-4"
         style={{ borderColor: 'var(--warm-ledger-color-hairline)' }}
       >
-        <div>
-          <h2 className="text-base font-medium">订单流</h2>
-          <p className="mt-1 text-xs" style={{ color: 'var(--warm-ledger-color-text-soft)' }}>
-            Pending 总数
-          </p>
-        </div>
+        <h2 className="text-base font-medium">订单流</h2>
         <div className="flex items-baseline gap-2">
           {countLoading ? (
             <span
               role="status"
-              aria-label="Pending 总数加载中"
+              aria-label="待处理订单总数加载中"
               aria-busy="true"
               className="font-mono text-2xl tabular-nums"
             >
@@ -318,16 +313,16 @@ export function OrderFlowCard({
       </header>
 
       {countError && (
-        <p role="alert" className="border-b px-5 py-3 text-sm" style={{ borderColor: 'var(--warm-ledger-color-hairline)', color: 'var(--warm-ledger-color-negative)' }}>
-          Pending 总数加载失败：{countError}
+        <p role="alert" className="shrink-0 border-b px-5 py-3 text-sm" style={{ borderColor: 'var(--warm-ledger-color-hairline)', color: 'var(--warm-ledger-color-negative)' }}>
+          待处理订单总数加载失败：{countError}
         </p>
       )}
 
-      <section aria-label="待处理订单" aria-busy={listLoading}>
-        <div className="flex items-baseline justify-between gap-3 px-5 pb-2 pt-4">
-          <h3 className="text-sm font-medium">待处理订单</h3>
-        </div>
-
+      <section
+        aria-label="待处理订单"
+        aria-busy={listLoading}
+        className="min-h-0 flex-1 overflow-y-auto pt-3 [scrollbar-width:thin]"
+      >
         {listLoading && (
           <div
             role={countLoading ? undefined : 'status'}
@@ -394,7 +389,7 @@ export function OrderFlowCard({
       {liveEvents !== undefined && (
         <section
           aria-label="今日出单"
-          className="border-t px-5 py-4"
+          className="max-h-40 shrink-0 overflow-y-auto border-t px-5 py-4 [scrollbar-width:thin]"
           style={{ borderColor: 'var(--warm-ledger-color-hairline)' }}
         >
           <h3 className="text-sm font-medium">今日出单</h3>

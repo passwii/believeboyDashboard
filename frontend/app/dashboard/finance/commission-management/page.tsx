@@ -135,7 +135,7 @@ export default function CommissionManagementPage() {
 
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [summaryLoading, setSummaryLoading] = useState(false)
+  const [summaryLoading, setSummaryLoading] = useState(true)
   const [summaryError, setSummaryError] = useState<string | null>(null)
   const [recomputing, setRecomputing] = useState(false)
 
@@ -525,7 +525,7 @@ export default function CommissionManagementPage() {
         </>
       ) : null}
 
-      {activeTab === 'detail' ? (
+      {activeTab === 'detail' && !loading && !loadError ? (
         <div className={styles.headerMetrics}>
           <span className={styles.headerMetricLabel}>
             工厂佣金
@@ -536,7 +536,9 @@ export default function CommissionManagementPage() {
             <span className={styles.headerMetricValue}>{formatRmb(totalReceivedRmb)}</span>
           </span>
         </div>
-      ) : activeTab === 'monthly' || activeTab === 'projectSummary' ? (
+      ) : (activeTab === 'monthly' || activeTab === 'projectSummary') &&
+        !summaryLoading &&
+        !summaryError ? (
         <div className={styles.headerMetrics}>
           <span className={styles.headerMetricLabel}>
             销售

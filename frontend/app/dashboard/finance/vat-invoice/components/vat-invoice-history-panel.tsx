@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Download, Loader2 } from 'lucide-react'
+import { Download } from 'lucide-react'
 import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
 import { useNotifications } from '@/components/notifications'
 import { normalizeErrorMessage } from '@/lib/error-utils'
@@ -33,11 +33,14 @@ type StatusFilter = '' | 'draft' | 'issued' | 'voided'
 export function VatInvoiceHistoryPanel() {
   const { notify } = useNotifications()
   const [projects, setProjects] = useState<Array<{ id: number; name: string; vat_enabled: boolean }>>([])
+  const [projectsLoading, setProjectsLoading] = useState(true)
+  const [projectsError, setProjectsError] = useState<string | null>(null)
+  const [projectRetryKey, setProjectRetryKey] = useState(0)
   const [projectId, setProjectId] = useState<string>('')
   const [status, setStatus] = useState<StatusFilter>('')
   const [q, setQ] = useState<string>('')
   const [rows, setRows] = useState<VatInvoiceListItem[]>([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
   const [detailId, setDetailId] = useState<number | null>(null)
@@ -46,6 +49,8 @@ export function VatInvoiceHistoryPanel() {
   // 拉店铺（仅 vat_enabled）
   useEffect(() => {
     let alive = true
+    setProjectsLoading(true)
+    setProjectsError(null)
     fetchProjectsManage()
       .then((all) => {
         if (!alive) return
@@ -57,12 +62,17 @@ export function VatInvoiceHistoryPanel() {
       })
       .catch((err) => {
         if (!alive) return
+        setProjectsError('店铺列表加载失败')
         notify({ type: 'error', title: '加载店铺失败', message: normalizeErrorMessage(err) })
+      })
+      .finally(() => {
+        if (!alive) return
+        setProjectsLoading(false)
       })
     return () => {
       alive = false
     }
-  }, [notify])
+  }, [notify, projectRetryKey])
 
   const fetchList = useCallback(async () => {
     setLoading(true)
@@ -143,7 +153,7 @@ export function VatInvoiceHistoryPanel() {
           </h2>
         </header>
         <div className={styles.historyToolbar}>
-            <div className={styles.field}>
+            <div className={styles.field} aria-busy={projectsLoading || undefined}>
               <Label htmlFor="project" className={styles.label}>
                 店铺
               </Label>
@@ -151,7 +161,13 @@ export function VatInvoiceHistoryPanel() {
                 value={projectId || 'all'}
                 onValueChange={(v) => setProjectId(v === 'all' ? '' : v)}
               >
-                <SelectTrigger id="project" className={styles.selectTrigger}>
+                <SelectTrigger
+                  id="project"
+                  className={styles.selectTrigger}
+                  disabled={projectsLoading}
+                  aria-invalid={projectsError ? true : undefined}
+                  aria-describedby={projectsError ? 'vat-history-project-error' : undefined}
+                >
                   <SelectValue placeholder="全部" />
                 </SelectTrigger>
                 <SelectContent className={cn('warm-ledger', styles.selectContent)}>
@@ -163,6 +179,28 @@ export function VatInvoiceHistoryPanel() {
                   ))}
                 </SelectContent>
               </Select>
+              {projectsLoading ? (
+                <span className={styles.projectControlStatus} role="status">
+                  正在加载店铺
+                </span>
+              ) : projectsError ? (
+                <div className={styles.projectControlStatus}>
+                  <span
+                    id="vat-history-project-error"
+                    className={styles.projectControlError}
+                    role="alert"
+                  >
+                    {projectsError}
+                  </span>
+                  <WarmButton
+                    className={styles.projectRetry}
+                    variant="quiet"
+                    onClick={() => setProjectRetryKey((current) => current + 1)}
+                  >
+                    重试
+                  </WarmButton>
+                </div>
+              ) : null}
             </div>
             <div className={styles.field}>
               <Label htmlFor="status" className={styles.label}>
@@ -216,7 +254,7 @@ export function VatInvoiceHistoryPanel() {
             发票列表
           </h2>
         </header>
-        <div className={styles.panelBody}>
+        <div className={styles.panelBody} aria-busy={loading || undefined}>
           {loadError ? (
             <div className={styles.loadError} role="alert">
               <span>加载发票列表失败：{loadError}</span>
@@ -224,14 +262,10 @@ export function VatInvoiceHistoryPanel() {
                 重试
               </WarmButton>
             </div>
-          ) : loading ? (
-            <div className={styles.loadingState} role="status">
-              <Loader2 className="mr-2 inline h-3.5 w-3.5 animate-spin" aria-hidden />
-              加载发票列表…
-            </div>
           ) : (
             <InvoiceHistoryTable
               rows={rows}
+              loading={loading}
               onSelect={onSelect}
               onDownload={onDownload}
               onVoid={onVoid}

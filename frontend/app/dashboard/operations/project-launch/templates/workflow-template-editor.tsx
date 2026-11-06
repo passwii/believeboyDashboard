@@ -420,7 +420,7 @@ export default function WorkflowTemplateEditor() {
               </div>
               <div className="space-y-4 p-3">
                 <section className="space-y-2" aria-label="模板基本信息">
-                  <div className="flex items-center justify-between gap-2"><h3 className="text-xs font-semibold text-[var(--warm-ledger-color-text)]">模板信息</h3><span className={`${styles.numeric} truncate text-[10px] text-[var(--warm-ledger-color-text-muted)]`} data-numeric="true">Key: {detail.key}</span></div>
+                  <div className="flex items-center justify-between gap-2"><h3 className="text-xs font-semibold text-[var(--warm-ledger-color-text)]">模板信息</h3><span className={`${styles.numeric} truncate text-[11px] text-[var(--warm-ledger-color-text-muted)]`} data-numeric="true">Key: {detail.key}</span></div>
                   <div className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_100px]">
                     <div className="space-y-1"><Label htmlFor="template-title">模板名称</Label><Input id="template-title" value={detail.title} onChange={(event) => setDetail({ ...detail, title: event.target.value })} maxLength={160} /></div>
                     <div className="space-y-1"><Label htmlFor="template-order">目录顺序</Label><Input id="template-order" type="number" min={0} value={detail.sort_order} onChange={(event) => setDetail({ ...detail, sort_order: Number(event.target.value) || 0 })} /></div>
@@ -437,7 +437,7 @@ export default function WorkflowTemplateEditor() {
                           const active = task.id === activeTaskId
                           return <li key={task.id} className="min-w-0 flex-1">
                             <button type="button" aria-current={active ? 'step' : undefined} aria-label={`第 ${index + 1} 阶段：${task.title}`} onClick={() => void switchTask(task.id)} disabled={busyKey !== null} className={`flex h-full min-h-12 w-full min-w-[112px] items-center gap-2 border px-2 py-1.5 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--warm-ledger-color-hairline-strong)] disabled:cursor-wait ${active ? 'border-[var(--warm-ledger-color-hairline-strong)] bg-[var(--warm-ledger-color-raised)] text-[var(--warm-ledger-color-text)]' : 'border-[var(--warm-ledger-color-hairline)] text-[var(--warm-ledger-color-text-muted)] hover:bg-[var(--warm-ledger-color-raised-hover)] hover:text-[var(--warm-ledger-color-text)]'}`}>
-                              <span className={`${styles.numeric} flex h-6 w-6 shrink-0 items-center justify-center border text-[10px] ${active ? 'border-[var(--warm-ledger-color-hairline-strong)] text-[var(--warm-ledger-color-text)]' : 'border-[var(--warm-ledger-color-hairline)] text-[var(--warm-ledger-color-text-muted)]'}`}>{String(index + 1).padStart(2, '0')}</span>
+                              <span className={`${styles.numeric} flex h-6 w-6 shrink-0 items-center justify-center border text-[11px] ${active ? 'border-[var(--warm-ledger-color-hairline-strong)] text-[var(--warm-ledger-color-text)]' : 'border-[var(--warm-ledger-color-hairline)] text-[var(--warm-ledger-color-text-muted)]'}`}>{String(index + 1).padStart(2, '0')}</span>
                               <span className="min-w-0 truncate text-[11px]">{task.title}</span>
                             </button>
                           </li>
@@ -451,8 +451,8 @@ export default function WorkflowTemplateEditor() {
                         const taskAttachments = task.attachments ?? []
                         return <div className="space-y-4" data-testid={`template-task-${task.id}`}>
                           <div className="flex flex-wrap items-center gap-2 border-b border-[var(--warm-ledger-color-hairline)] pb-2">
-                            <div className="min-w-0 flex-1"><p className={`${styles.numeric} text-[10px] text-[var(--warm-ledger-color-text-muted)]`}>阶段 {String(taskIndex + 1).padStart(2, '0')} / {String(detail.tasks.length).padStart(2, '0')}</p><h4 className="mt-1 truncate text-sm font-semibold text-[var(--warm-ledger-color-text)]">{task.title}</h4></div>
-                            <span className="text-[10px] text-[var(--warm-ledger-color-text-muted)]">切换时自动保存</span>
+                            <div className="min-w-0 flex-1"><p className={`${styles.numeric} text-[11px] text-[var(--warm-ledger-color-text-muted)]`}>阶段 {String(taskIndex + 1).padStart(2, '0')} / {String(detail.tasks.length).padStart(2, '0')}</p><h4 className="mt-1 truncate text-sm font-semibold text-[var(--warm-ledger-color-text)]">{task.title}</h4></div>
+                            <span className="text-[11px] text-[var(--warm-ledger-color-text-muted)]">切换时自动保存</span>
                           </div>
                           <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-[36px_minmax(0,1fr)_110px]">
                             <span className={`${styles.numeric} flex h-9 items-center justify-center border border-[var(--warm-ledger-color-hairline)] text-xs text-[var(--warm-ledger-color-text-muted)]`}>{String(taskIndex + 1).padStart(2, '0')}</span>
@@ -526,12 +526,12 @@ export default function WorkflowTemplateEditor() {
                                 {busyKey === `upload-${task.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload aria-hidden className="h-3.5 w-3.5" />}上传附件
                                 <input className="sr-only" type="file" accept=".pdf,.xlsx,.xls,.docx,.doc,.csv,.txt,.zip,.png,.jpg,.jpeg,.webp" disabled={busyKey !== null} onChange={(event: ChangeEvent<HTMLInputElement>) => { void uploadAttachment(task, event.target.files?.[0]); event.target.value = '' }} />
                               </label>
-                              <p className="mt-1 text-[10px] leading-4 text-[var(--warm-ledger-color-text-muted)]">单个文件最大 50 MB。模板附件会随模板复制到新流程。</p>
+                              <p className="mt-1 text-[11px] leading-4 text-[var(--warm-ledger-color-text-muted)]">单个文件最大 50 MB。模板附件会随模板复制到新流程。</p>
                             </section>
                           </div>
                           <div className="flex flex-col gap-2 border-t border-[var(--warm-ledger-color-hairline)] pt-3 sm:flex-row sm:items-center sm:justify-between">
                             <Button type="button" variant="secondary" size="sm" disabled={busyKey !== null || taskIndex === 0} onClick={() => void switchTask(detail.tasks[taskIndex - 1].id)}><ArrowLeft aria-hidden />上一步</Button>
-                            <span className="text-[10px] text-[var(--warm-ledger-color-text-muted)]">离开此阶段时自动保存阶段设置与已有内容</span>
+                            <span className="text-[11px] text-[var(--warm-ledger-color-text-muted)]">离开此阶段时自动保存阶段设置与已有内容</span>
                             <Button type="button" variant="secondary" size="sm" disabled={busyKey !== null || taskIndex === detail.tasks.length - 1} onClick={() => void switchTask(detail.tasks[taskIndex + 1].id)}>下一步<ArrowRight aria-hidden /></Button>
                           </div>
                         </div>

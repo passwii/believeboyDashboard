@@ -26,9 +26,9 @@
 }
 
 .workspace {
-  display: flex;
+  display: grid;
   min-width: 0;
-  flex-direction: column;
+  grid-template-columns: 260px minmax(0, 1fr);
   gap: var(--warm-ledger-space-3);
 }
 
@@ -71,7 +71,7 @@
 }
 
 .projectPanel {
-  display: none;
+  display: flex;
   max-height: calc(100dvh - 9rem);
 }
 
@@ -880,7 +880,7 @@
 }
 
 .mobilePicker {
-  display: flex;
+  display: none;
   flex-direction: column;
   gap: var(--warm-ledger-space-1);
 }
@@ -1020,21 +1020,6 @@
 @keyframes spin {
   to {
     transform: rotate(360deg);
-  }
-}
-
-@media (min-width: 768px) {
-  .workspace {
-    display: grid;
-    grid-template-columns: 260px minmax(0, 1fr);
-  }
-
-  .projectPanel {
-    display: flex;
-  }
-
-  .mobilePicker {
-    display: none;
   }
 }
 

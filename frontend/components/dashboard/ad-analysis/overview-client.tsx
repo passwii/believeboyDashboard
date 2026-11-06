@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import {
@@ -26,10 +26,13 @@ import {
   WarmTable,
   WarmTHead,
   WarmEmptyTableState,
+  WarmPanel,
   WarmSkeleton,
 } from './warm-analysis'
 import {
   ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
   type ChartConfig,
 } from '@/components/ui/chart'
 import { useAdClientRefreshKey } from '@/components/dashboard/ad-refresh'
@@ -107,7 +110,7 @@ type OverviewResponse = {
 
 const TREND_CHART_CONFIG = {
   spend: { label: '花费', color: 'var(--warm-ledger-color-accent)' },
-  sales: { label: '销售额', color: 'var(--warm-ledger-color-positive)' },
+  sales: { label: '销售额', color: 'var(--warm-ledger-color-text-soft)' },
 } satisfies ChartConfig
 
 const DISTRIBUTION_CHART_CONFIG = {
@@ -177,7 +180,31 @@ function num(v: unknown): number {
   return Number.isFinite(n) ? n : 0
 }
 
+function formatCurrency(value: number): string {
+  return `$${value.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}`
+}
+
+function summarizeSeries(
+  label: string,
+  points: Array<{ date: string; value: number }>
+): string {
+  const first = points[0]
+  const latest = points[points.length - 1]
+  const peak = points.reduce((highest, point) =>
+    point.value > highest.value ? point : highest
+  )
+
+  return `${label}：起始 ${formatCurrency(first.value)}（${first.date}），峰值 ${formatCurrency(peak.value)}（${peak.date}），最新 ${formatCurrency(latest.value)}（${latest.date}）`
+}
+
+function emptyChartSummary(label: string, loading: boolean, error: string | null): string {
+  if (loading) return `正在加载${label}数据。`
+  if (error) return `${label}数据加载失败。`
+  return `当前筛选范围没有${label}数据。`
+}
+
 export function AdAnalysisOverviewClient() {
+  const chartSummaryId = useId()
   const searchParams = useSearchParams()
   const { data: session, status } = useSession()
   const projectId = searchParams.get('projectId') || ''
@@ -261,13 +288,21 @@ export function AdAnalysisOverviewClient() {
     }))
   }, [data])
 
-  /** 国家/站点分布：overview 单国家 payload → 用各维度花费构成近似分布柱状 */
+  /** 活动花费：使用总览响应中的 top_campaigns 前 8 条。 */
   const distributionData = useMemo(() => {
     if (!data) return []
-    const rows: Array<{ name: string; spend: number; sales: number; acos: number }> = []
+    const rows: Array<{
+      name: string
+      fullName: string
+      spend: number
+      sales: number
+      acos: number
+    }> = []
     for (const item of data.top_campaigns.slice(0, 8)) {
+      const fullName = String(item.campaign_name ?? '-')
       rows.push({
-        name: String(item.campaign_name ?? '-').slice(0, 12),
+        name: fullName.slice(0, 12),
+        fullName,
         spend: num(item.spend),
         sales: num(item.sales_7d),
         acos: num(item.acos),
@@ -275,6 +310,23 @@ export function AdAnalysisOverviewClient() {
     }
     return rows
   }, [data])
+
+  const trendChartSummary =
+    trendData.length === 0
+      ? emptyChartSummary('按日花费与 Sales 7d', isLoading, error)
+      : `共 ${trendData.length} 个报告日期点；${summarizeSeries(
+          '花费',
+          trendData.map((point) => ({ date: point.date, value: point.spend }))
+        )}；${summarizeSeries(
+          'Sales 7d',
+          trendData.map((point) => ({ date: point.date, value: point.sales }))
+        )}。`
+  const distributionChartSummary =
+    distributionData.length === 0
+      ? emptyChartSummary('活动花费', isLoading, error)
+      : `图表显示 ${distributionData.length} 个活动：${distributionData
+          .map((item) => `${item.fullName}，花费 ${formatCurrency(item.spend)}`)
+          .join('；')}。`
 
   const comparison = data?.comparison
 
@@ -336,86 +388,115 @@ export function AdAnalysisOverviewClient() {
 
       {/* ===== 上部图表分割区（范围 1，约 40~45% 高度，容器内自适应） ===== */}
       <div className="grid h-[38vh] max-h-[420px] min-h-[220px] shrink-0 grid-cols-2 gap-1">
-        <ChartContainer
-          config={TREND_CHART_CONFIG}
-          role="img"
-          aria-label="花费与销售额趋势"
-          className="aspect-auto h-full w-full overflow-hidden rounded-[var(--warm-ledger-radius-panel)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)]"
+        <WarmPanel
+          title="按日花费与销售额"
+          className="flex min-h-0 flex-col"
+          bodyClassName="min-h-0 flex-1 p-0"
         >
-          <LineChart data={trendData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-            <CartesianGrid stroke="var(--warm-ledger-color-hairline)" strokeDasharray="2 2" vertical={false} />
-            <XAxis
-              dataKey="date"
-              tick={{ fontSize: 11, fontFamily: 'var(--warm-ledger-font-mono)', fill: 'var(--warm-ledger-color-text-muted)' }}
-              tickLine={false}
-              axisLine={{ stroke: 'var(--warm-ledger-color-hairline-strong)' }}
-            />
-            <YAxis
-              yAxisId="left"
-              tick={{ fontSize: 11, fontFamily: 'var(--warm-ledger-font-mono)', fill: 'var(--warm-ledger-color-text-muted)' }}
-              tickLine={false}
-              axisLine={false}
-              width={52}
-              tickFormatter={(v: number) => `$${v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v.toFixed(0)}`}
-            />
-            <YAxis
-              yAxisId="right"
-              orientation="right"
-              tick={{ fontSize: 11, fontFamily: 'var(--warm-ledger-font-mono)', fill: 'var(--warm-ledger-color-text-muted)' }}
-              tickLine={false}
-              axisLine={false}
-              width={44}
-              tickFormatter={(v: number) => `$${v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v.toFixed(0)}`}
-            />
-            <Tooltip content={<WarmChartTooltip />} />
-            <Line
-              yAxisId="left"
-              type="monotone"
-              dataKey="spend"
-              stroke="var(--warm-ledger-color-accent)"
-              strokeWidth={1.5}
-              dot={false}
-              name="花费"
-            />
-            <Line
-              yAxisId="right"
-              type="monotone"
-              dataKey="sales"
-              stroke="var(--warm-ledger-color-positive)"
-              strokeWidth={1.5}
-              dot={false}
-              name="销售额"
-            />
-          </LineChart>
-        </ChartContainer>
+          <ChartContainer
+            config={TREND_CHART_CONFIG}
+            role="img"
+            aria-label="花费与销售额趋势"
+            aria-describedby={`${chartSummaryId}-trend-summary`}
+            className="aspect-auto h-full min-h-0 w-full overflow-hidden"
+          >
+            <LineChart data={trendData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+              <CartesianGrid stroke="var(--warm-ledger-color-hairline)" strokeDasharray="2 2" vertical={false} />
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 11, fontFamily: 'var(--warm-ledger-font-mono)', fill: 'var(--warm-ledger-color-text-muted)' }}
+                tickLine={false}
+                axisLine={{ stroke: 'var(--warm-ledger-color-hairline-strong)' }}
+              />
+              <YAxis
+                yAxisId="left"
+                tick={{ fontSize: 11, fontFamily: 'var(--warm-ledger-font-mono)', fill: 'var(--warm-ledger-color-text-muted)' }}
+                tickLine={false}
+                axisLine={false}
+                width={52}
+                tickFormatter={(v: number) => `$${v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v.toFixed(0)}`}
+              />
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                tick={{ fontSize: 11, fontFamily: 'var(--warm-ledger-font-mono)', fill: 'var(--warm-ledger-color-text-muted)' }}
+                tickLine={false}
+                axisLine={false}
+                width={44}
+                tickFormatter={(v: number) => `$${v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v.toFixed(0)}`}
+              />
+              <Tooltip content={<WarmChartTooltip />} />
+              <ChartLegend
+                verticalAlign="bottom"
+                content={<ChartLegendContent />}
+              />
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="spend"
+                stroke="var(--warm-ledger-color-accent)"
+                strokeWidth={1.5}
+                dot={false}
+                name="花费"
+              />
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="sales"
+                stroke="var(--warm-ledger-color-text-soft)"
+                strokeDasharray="4 3"
+                strokeWidth={1.5}
+                dot={false}
+                name="销售额"
+              />
+            </LineChart>
+          </ChartContainer>
+          <p id={`${chartSummaryId}-trend-summary`} className="sr-only">
+            {trendChartSummary}
+          </p>
+        </WarmPanel>
 
-        <ChartContainer
-          config={DISTRIBUTION_CHART_CONFIG}
-          role="img"
-          aria-label="活动花费分布"
-          className="aspect-auto h-full w-full overflow-hidden rounded-[var(--warm-ledger-radius-panel)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)]"
+        <WarmPanel
+          title="活动花费"
+          className="flex min-h-0 flex-col"
+          bodyClassName="min-h-0 flex-1 p-0"
         >
-          <BarChart data={distributionData} layout="vertical" margin={{ top: 4, right: 12, bottom: 0, left: 4 }}>
-            <CartesianGrid stroke="var(--warm-ledger-color-hairline)" strokeDasharray="2 2" horizontal={false} />
-            <XAxis
-              type="number"
-              tick={{ fontSize: 11, fontFamily: 'var(--warm-ledger-font-mono)', fill: 'var(--warm-ledger-color-text-muted)' }}
-              tickLine={false}
-              axisLine={{ stroke: 'var(--warm-ledger-color-hairline-strong)' }}
-              tickFormatter={(v: number) => `$${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v.toFixed(0)}`}
-            />
-            <YAxis
-              type="category"
-              dataKey="name"
-              width={96}
-              tick={{ fontSize: 11, fontFamily: 'var(--warm-ledger-font-sans)', fill: 'var(--warm-ledger-color-text-muted)' }}
-              tickLine={false}
-              axisLine={false}
-            />
-            <Tooltip content={<WarmChartTooltip />} />
-            <Bar dataKey="spend" fill="var(--warm-ledger-color-accent)" name="花费" barSize={10} />
-          </BarChart>
-        </ChartContainer>
+          <ChartContainer
+            config={DISTRIBUTION_CHART_CONFIG}
+            role="img"
+            aria-label="活动花费分布"
+            aria-describedby={`${chartSummaryId}-campaign-summary`}
+            className="aspect-auto h-full min-h-0 w-full overflow-hidden"
+          >
+            <BarChart data={distributionData} layout="vertical" margin={{ top: 4, right: 12, bottom: 0, left: 4 }}>
+              <CartesianGrid stroke="var(--warm-ledger-color-hairline)" strokeDasharray="2 2" horizontal={false} />
+              <XAxis
+                type="number"
+                tick={{ fontSize: 11, fontFamily: 'var(--warm-ledger-font-mono)', fill: 'var(--warm-ledger-color-text-muted)' }}
+                tickLine={false}
+                axisLine={{ stroke: 'var(--warm-ledger-color-hairline-strong)' }}
+                tickFormatter={(v: number) => `$${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v.toFixed(0)}`}
+              />
+              <YAxis
+                type="category"
+                dataKey="name"
+                width={96}
+                tick={{ fontSize: 11, fontFamily: 'var(--warm-ledger-font-sans)', fill: 'var(--warm-ledger-color-text-muted)' }}
+                tickLine={false}
+                axisLine={false}
+              />
+              <Tooltip content={<WarmChartTooltip />} />
+              <ChartLegend
+                verticalAlign="bottom"
+                content={<ChartLegendContent />}
+              />
+              <Bar dataKey="spend" fill="var(--warm-ledger-color-accent)" name="花费" barSize={10} />
+            </BarChart>
+          </ChartContainer>
+          <p id={`${chartSummaryId}-campaign-summary`} className="sr-only">
+            {distributionChartSummary}
+          </p>
+        </WarmPanel>
       </div>
 
       {/* ===== 下部子 Tab 数据网格（范围 2）：WarmPanel 密度规格 + sticky 表头独立滚动 ===== */}

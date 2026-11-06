@@ -1,0 +1,50 @@
+.metricSelectTrigger {
+  width: 128px !important;
+  height: 36px !important;
+  padding: 0 8px !important;
+  color: var(--warm-ledger-color-text) !important;
+  font-family: var(--warm-ledger-font-sans) !important;
+  font-size: var(--warm-ledger-font-size-control) !important;
+  background: var(--warm-ledger-color-panel) !important;
+  border: 1px solid var(--warm-ledger-color-hairline) !important;
+  border-radius: var(--warm-ledger-radius-control) !important;
+  box-shadow: var(--warm-ledger-highlight-rest) !important;
+}
+
+.metricSelectTrigger:hover:not(:disabled),
+.metricSelectTrigger[data-state='open'] {
+  background: var(--warm-ledger-color-panel-strong) !important;
+  border-color: var(--warm-ledger-color-hairline-strong) !important;
+}
+
+.metricSelectTrigger:focus-visible {
+  outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color) !important;
+  outline-offset: var(--warm-ledger-focus-offset);
+  box-shadow: var(--warm-ledger-highlight-rest) !important;
+}
+
+.metricSelectTrigger :global(svg) {
+  color: var(--warm-ledger-color-text-muted) !important;
+}
+
+.metricSelectContent {
+  color: var(--warm-ledger-color-text) !important;
+  background: var(--warm-ledger-color-panel-strong) !important;
+  border: 1px solid var(--warm-ledger-color-hairline-strong) !important;
+  border-radius: var(--warm-ledger-radius-control) !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3), var(--warm-ledger-highlight-rest) !important;
+  backdrop-filter: none !important;
+}
+
+.metricSelectItem {
+  color: var(--warm-ledger-color-text-soft) !important;
+  font-family: var(--warm-ledger-font-sans) !important;
+  font-size: var(--warm-ledger-font-size-control) !important;
+  border-radius: var(--warm-ledger-radius-inner) !important;
+}
+
+.metricSelectItem:focus,
+.metricSelectItem[data-highlighted] {
+  color: var(--warm-ledger-color-text) !important;
+  background: var(--warm-ledger-color-raised) !important;
+}

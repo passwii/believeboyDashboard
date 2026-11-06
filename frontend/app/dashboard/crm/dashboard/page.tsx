@@ -154,125 +154,131 @@ export default function CrmDashboardPage() {
         />
       ) : null}
 
-      <SkeletonReveal
-        loading={loading}
-        skeleton={<DashboardKpiSkeleton />}
-        data-testid="crm-dashboard-kpis"
-      >
-        <div className={styles.kpiGrid} aria-label="本月指标">
-          <KpiTile
-            label="本月新增客户"
-            value={String(stats?.newThisMonth.newCustomers ?? 0)}
-            accent
-          />
-          <KpiTile label="本月新增线索" value={String(stats?.newThisMonth.newLeads ?? 0)} />
-          <KpiTile label="本月转化" value={String(stats?.newThisMonth.convertedCount ?? 0)} />
-          <KpiTile label="近7天跟进" value={String(stats?.followActivity.followCount7d ?? 0)} />
-        </div>
-      </SkeletonReveal>
-
-      <WarmCrmSection title="线索漏斗">
-        <p className={styles.funnelDescription}>
-          阶段口径为各阶段当前线索数；点击某级查看停留时长 / 卡点复盘明细。
-        </p>
+      {stats !== null || loading ? (
         <SkeletonReveal
           loading={loading}
-          skeleton={<LeadFunnelSkeleton />}
-          data-testid="crm-dashboard-funnel"
+          skeleton={<DashboardKpiSkeleton />}
+          data-testid="crm-dashboard-kpis"
         >
-          <div className={styles.funnelBody}>
-            <div className={styles.funnelSummary}>
-              {convRate !== null ? (
-                <span className={styles.conversionRate}>
-                  <TrendingUp aria-hidden="true" />
-                  整体转化率 {(convRate * 100).toFixed(1)}%
-                </span>
-              ) : null}
-              {discarded > 0 ? (
-                <span className={styles.discarded}>本期弃置 {discarded}</span>
-              ) : null}
+          {stats ? (
+            <div className={styles.kpiGrid} aria-label="本月指标">
+              <KpiTile label="本月新增客户" value={String(stats.newThisMonth.newCustomers)} accent />
+              <KpiTile label="本月新增线索" value={String(stats.newThisMonth.newLeads)} />
+              <KpiTile label="本月转化" value={String(stats.newThisMonth.convertedCount)} />
+              <KpiTile label="近7天跟进" value={String(stats.followActivity.followCount7d)} />
             </div>
+          ) : null}
+        </SkeletonReveal>
+      ) : null}
 
-            {funnelTotal > 0 ? (
-              <FunnelChart
-                data={funnelStages}
-                className={styles.funnelChart}
-                color="var(--warm-ledger-color-accent)"
-                edges="curved"
-                layers={2}
-                onStageClick={(index) => {
-                  const stageKey = funnelStages[index]?.stage
-                  if (stageKey) setSelectedStage(stageKey)
-                }}
-                orientation="horizontal"
-                formatValue={compact}
-              />
+      {stats !== null || loading ? (
+        <>
+          <WarmCrmSection title="线索漏斗">
+            <p className={styles.funnelDescription}>
+              阶段口径为各阶段当前线索数；点击某级查看停留时长 / 卡点复盘明细。
+            </p>
+            <SkeletonReveal
+              loading={loading}
+              skeleton={<LeadFunnelSkeleton />}
+              data-testid="crm-dashboard-funnel"
+            >
+              <div className={styles.funnelBody}>
+                <div className={styles.funnelSummary}>
+                  {convRate !== null ? (
+                    <span className={styles.conversionRate}>
+                      <TrendingUp aria-hidden="true" />
+                      整体转化率 {(convRate * 100).toFixed(1)}%
+                    </span>
+                  ) : null}
+                  {discarded > 0 ? (
+                    <span className={styles.discarded}>本期弃置 {discarded}</span>
+                  ) : null}
+                </div>
+
+                {funnelTotal > 0 ? (
+                  <FunnelChart
+                    data={funnelStages}
+                    className={styles.funnelChart}
+                    color="var(--warm-ledger-color-accent)"
+                    edges="curved"
+                    layers={2}
+                    onStageClick={(index) => {
+                      const stageKey = funnelStages[index]?.stage
+                      if (stageKey) setSelectedStage(stageKey)
+                    }}
+                    orientation="horizontal"
+                    formatValue={compact}
+                  />
+                ) : (
+                  <WarmCrmState
+                    className={styles.embeddedState}
+                    kind="empty"
+                    title="暂无漏斗数据"
+                  />
+                )}
+
+                <div className={styles.stepGrid}>
+                  {leadFunnelStepRates(funnelStages).map((rate, index) => {
+                    const from = funnelStages[index]?.label ?? ''
+                    const to = funnelStages[index + 1]?.label ?? ''
+                    const pct = rate === null ? 0 : Math.round(rate * 100)
+                    return (
+                      <div key={`${from}-${to}`} className={styles.stepCard}>
+                        <div className={styles.stepMeta}>
+                          <span>
+                            {from} → {to}
+                          </span>
+                          <span className={styles.stepValue}>
+                            {rate === null ? '—' : `${(rate * 100).toFixed(1)}%`}
+                          </span>
+                        </div>
+                        <div className={styles.stepTrack} aria-hidden="true">
+                          <span style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </SkeletonReveal>
+          </WarmCrmSection>
+
+          <WarmCrmSection title="每销售业绩">
+            {stats && stats.perOwner.length > 0 ? (
+              <WarmCrmTableScroller ariaLabel="每销售业绩表格">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>负责人</th>
+                      <th data-numeric>名下客户数</th>
+                      <th data-numeric>本月转化</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stats.perOwner.map((owner) => (
+                      <tr key={owner.ownerId}>
+                        <td>{owner.ownerName ?? owner.ownerId}</td>
+                        <td data-numeric>{owner.customerCount}</td>
+                        <td data-numeric>{owner.convertedThisMonth}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </WarmCrmTableScroller>
             ) : (
               <WarmCrmState
                 className={styles.embeddedState}
-                kind="empty"
-                title="暂无漏斗数据"
+                kind={loading ? 'loading' : 'empty'}
+                title={loading ? '加载中' : '暂无业绩数据'}
               />
             )}
+          </WarmCrmSection>
+        </>
+      ) : null}
 
-            <div className={styles.stepGrid}>
-              {leadFunnelStepRates(funnelStages).map((rate, index) => {
-                const from = funnelStages[index]?.label ?? ''
-                const to = funnelStages[index + 1]?.label ?? ''
-                const pct = rate === null ? 0 : Math.round(rate * 100)
-                return (
-                  <div key={`${from}-${to}`} className={styles.stepCard}>
-                    <div className={styles.stepMeta}>
-                      <span>
-                        {from} → {to}
-                      </span>
-                      <span className={styles.stepValue}>
-                        {rate === null ? '—' : `${(rate * 100).toFixed(1)}%`}
-                      </span>
-                    </div>
-                    <div className={styles.stepTrack} aria-hidden="true">
-                      <span style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </SkeletonReveal>
-      </WarmCrmSection>
-
-      <WarmCrmSection title="每销售业绩">
-        {stats && stats.perOwner.length > 0 ? (
-          <WarmCrmTableScroller ariaLabel="每销售业绩表格">
-            <table>
-              <thead>
-                <tr>
-                  <th>负责人</th>
-                  <th data-numeric>名下客户数</th>
-                  <th data-numeric>本月转化</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.perOwner.map((owner) => (
-                  <tr key={owner.ownerId}>
-                    <td>{owner.ownerName ?? owner.ownerId}</td>
-                    <td data-numeric>{owner.customerCount}</td>
-                    <td data-numeric>{owner.convertedThisMonth}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </WarmCrmTableScroller>
-        ) : (
-          <WarmCrmState
-            className={styles.embeddedState}
-            kind={loading ? 'loading' : 'empty'}
-            title={loading ? '加载中' : '暂无业绩数据'}
-          />
-        )}
-      </WarmCrmSection>
-
-      <LifecycleBoardSection board={lifecycle} loading={loading} />
+      {lifecycle !== null || loading ? (
+        <LifecycleBoardSection board={lifecycle} loading={loading} />
+      ) : null}
 
       <FunnelStageDrawer
         open={selectedStage !== null}

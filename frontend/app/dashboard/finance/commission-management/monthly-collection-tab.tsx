@@ -132,7 +132,7 @@ export function MonthlyCollectionTab({ items, year, loading }: MonthlyCollection
               <tbody>
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={DATA_COLS} className={styles.emptyCell}>
+                    <td colSpan={DATA_COLS} className={styles.emptyCell} role="status">
                       {year}年暂无数据
                     </td>
                   </tr>

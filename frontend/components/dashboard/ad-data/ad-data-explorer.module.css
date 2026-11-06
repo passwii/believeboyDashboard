@@ -114,16 +114,16 @@
 }
 
 .selectItem {
-  color: var(--warm-ledger-color-text-soft);
-  font-family: var(--warm-ledger-font-sans);
-  font-size: var(--warm-ledger-font-size-control);
-  border-radius: var(--warm-ledger-radius-inner);
+  color: var(--warm-ledger-color-text-soft) !important;
+  font-family: var(--warm-ledger-font-sans) !important;
+  font-size: var(--warm-ledger-font-size-control) !important;
+  border-radius: var(--warm-ledger-radius-inner) !important;
 }
 
 .selectItem:focus,
 .selectItem[data-highlighted] {
-  color: var(--warm-ledger-color-text);
-  background: var(--warm-ledger-color-raised);
+  color: var(--warm-ledger-color-text) !important;
+  background: var(--warm-ledger-color-raised) !important;
 }
 
 .optionAvailable,

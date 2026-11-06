@@ -169,7 +169,7 @@
 .field {
   display: grid;
   min-width: 0;
-  gap: 6px;
+  gap: var(--warm-ledger-space-2);
 }
 
 .fieldFull {
@@ -194,6 +194,32 @@
 .sellerCountrySelect {
   min-width: 0;
   flex: 1 1 auto;
+}
+
+.projectControl {
+  display: grid;
+  min-width: 0;
+  gap: var(--warm-ledger-space-1);
+}
+
+.projectControlStatus {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--warm-ledger-space-2);
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-label);
+  line-height: 16px;
+}
+
+.projectControlError {
+  color: var(--warm-ledger-color-negative);
+}
+
+.projectRetry {
+  min-height: var(--warm-ledger-control-height-compact);
+  padding-inline: var(--warm-ledger-space-2);
 }
 
 .label {
@@ -326,7 +352,7 @@
   display: flex;
   align-items: flex-start;
   gap: var(--warm-ledger-space-2);
-  padding: 10px 12px;
+  padding: 12px;
   color: var(--warm-ledger-color-accent-strong);
   font-size: 12px;
   line-height: 18px;
@@ -585,7 +611,7 @@
 }
 
 .tableCell {
-  height: 44px;
+  height: 52px;
   padding: 8px 12px;
   color: var(--warm-ledger-color-text-soft);
   border-bottom: 1px solid var(--warm-ledger-color-hairline);
@@ -615,15 +641,39 @@
   text-align: center;
 }
 
+.tableLoadingCell {
+  height: 52px;
+  padding: 8px 12px;
+}
+
+.tableLoadingLabel {
+  margin: 0;
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-control);
+}
+
+.tableSkeletonBar {
+  display: block;
+  width: 64%;
+  height: 12px;
+  border-radius: var(--warm-ledger-radius-inner);
+  background: var(--warm-ledger-color-raised);
+}
+
+.tableSkeletonNumeric {
+  width: 44%;
+  margin-inline-start: auto;
+}
+
 .tableActions {
   display: inline-flex;
   justify-content: flex-end;
-  gap: 2px;
+  gap: var(--warm-ledger-space-1);
 }
 
 .tableAction {
-  width: 32px !important;
-  height: 32px !important;
+  width: 36px !important;
+  height: 36px !important;
 }
 
 .tableAction svg {

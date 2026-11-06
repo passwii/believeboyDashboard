@@ -80,6 +80,9 @@ function HistoryTab({
 
   const [projects, setProjects] = useState<Project[]>([])
   const [projectId, setProjectId] = useState<number | null>(null)
+  const [isLoadingProjects, setIsLoadingProjects] = useState(true)
+  const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
+  const [projectLoadAttempt, setProjectLoadAttempt] = useState(0)
   const [country, setCountry] = useState<string>('US')
   const [range, setRange] = useState<{ from: Date; to: Date }>(() => defaultRange('US'))
   const [generationDialogOpen, setGenerationDialogOpen] = useState(false)
@@ -87,6 +90,8 @@ function HistoryTab({
 
   useEffect(() => {
     let cancelled = false
+    setIsLoadingProjects(true)
+    setProjectLoadError(null)
     fetchManagedProjectsCached<Project[]>(session, false)
       .then((items) => {
         if (cancelled) return
@@ -97,12 +102,17 @@ function HistoryTab({
         }
       })
       .catch((err) => {
+        if (cancelled) return
+        setProjectLoadError(err instanceof Error ? err.message : String(err))
         notify({ type: 'error', title: '项目列表加载失败', message: String(err) })
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingProjects(false)
       })
     return () => {
       cancelled = true
     }
-  }, [session, notify])
+  }, [session, notify, projectLoadAttempt])
 
   useEffect(() => {
     setRange(defaultRange(country))
@@ -134,20 +144,42 @@ function HistoryTab({
       <section className={styles.panel}>
         <div className={styles.panelBody}>
           <div className={styles.filters}>
-            <WarmSelect
-              id="ad-project"
-              label="项目"
-              value={projectId ? String(projectId) : ''}
-              options={projects.map((project) => ({
-                value: String(project.id),
-                label: project.brand_name
-                  ? `${project.name} · ${project.brand_name}`
-                  : project.name,
-              }))}
-              onChange={(value) => setProjectId(Number(value))}
-              placeholder={projects.length === 0 ? '暂无可用项目' : '选择项目'}
-              disabled={projects.length === 0}
-            />
+            <div className={styles.field}>
+              <WarmSelect
+                id="ad-project"
+                label="项目"
+                value={projectId ? String(projectId) : ''}
+                options={projects.map((project) => ({
+                  value: String(project.id),
+                  label: project.brand_name
+                    ? `${project.name} · ${project.brand_name}`
+                    : project.name,
+                }))}
+                onChange={(value) => setProjectId(Number(value))}
+                placeholder={
+                  isLoadingProjects
+                    ? '加载项目中...'
+                    : projectLoadError
+                      ? '项目加载失败'
+                      : projects.length === 0
+                        ? '暂无可用项目'
+                        : '选择项目'
+                }
+                disabled={isLoadingProjects || !!projectLoadError || projects.length === 0}
+                error={projectLoadError ? '项目列表加载失败，请重试' : null}
+              />
+              {projectLoadError ? (
+                <WarmButton
+                  type="button"
+                  variant="quiet"
+                  onClick={() => setProjectLoadAttempt((attempt) => attempt + 1)}
+                  loading={isLoadingProjects}
+                  loadingLabel="正在加载项目"
+                >
+                  重试
+                </WarmButton>
+              ) : null}
+            </div>
 
             <WarmSelect
               id="ad-country"

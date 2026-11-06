@@ -11,6 +11,7 @@ import {
 import {
   fetchDigitalEmployee,
   fetchEmployeeTasks,
+  DigitalEmployeeNotFoundError,
   suspendEmployee,
   resumeEmployee,
 } from '@/lib/digital-employee-api'
@@ -39,28 +40,47 @@ export default function EmployeeDetailPage() {
   const router = useRouter()
   const employeeId = parseInt(routeParams.id, 10)
 
-  const [employee, setEmployee] = useState<DigitalEmployee | null>(null)
+  const [employeeData, setEmployeeData] = useState<DigitalEmployee | null>(null)
+  const employee = employeeData?.id === employeeId ? employeeData : null
   const employeeRef = useRef(employee)
   employeeRef.current = employee
+  const loadRequestIdRef = useRef(0)
   const [tasks, setTasks] = useState<DigitalEmployeeTask[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<{ employeeId: number; message: string } | null>(null)
+  const [notFoundEmployeeId, setNotFoundEmployeeId] = useState<number | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isActing, setIsActing] = useState(false)
   const [taskPage, setTaskPage] = useState(1)
 
   const load = useCallback(async () => {
+    const requestId = ++loadRequestIdRef.current
     if (!employeeRef.current) setIsLoading(true)
+    setLoadError(null)
+    setNotFoundEmployeeId(null)
     try {
       const [nextEmployee, taskData] = await Promise.all([
         fetchDigitalEmployee(employeeId),
         fetchEmployeeTasks(employeeId),
       ])
-      setEmployee(nextEmployee)
+      if (requestId !== loadRequestIdRef.current) return
+      setEmployeeData(nextEmployee)
       setTasks(taskData.items)
-    } catch {
-      // Existing details remain visible during a transient refresh failure.
+      setLoadError(null)
+    } catch (error) {
+      if (requestId !== loadRequestIdRef.current) return
+      if (error instanceof DigitalEmployeeNotFoundError) {
+        setEmployeeData(null)
+        setTasks([])
+        setNotFoundEmployeeId(employeeId)
+      } else if (!employeeRef.current) {
+        setLoadError({
+          employeeId,
+          message: error instanceof Error ? error.message : '加载数字员工失败',
+        })
+      }
     } finally {
-      setIsLoading(false)
+      if (requestId === loadRequestIdRef.current) setIsLoading(false)
     }
   }, [employeeId])
 
@@ -77,15 +97,20 @@ export default function EmployeeDetailPage() {
 
   useEffect(() => {
     void load()
-    const interval = setInterval(load, 15000)
-    return () => clearInterval(interval)
+    const interval = setInterval(() => {
+      if (employeeRef.current) void load()
+    }, 15000)
+    return () => {
+      clearInterval(interval)
+      loadRequestIdRef.current += 1
+    }
   }, [load])
 
   async function handleSuspend() {
     setIsActing(true)
     try {
       await suspendEmployee(employeeId)
-      setEmployee((previous) =>
+      setEmployeeData((previous) =>
         previous ? { ...previous, status: 'SUSPENDED' } : null
       )
     } finally {
@@ -97,10 +122,55 @@ export default function EmployeeDetailPage() {
     setIsActing(true)
     try {
       await resumeEmployee(employeeId)
-      setEmployee((previous) => (previous ? { ...previous, status: 'IDLE' } : null))
+      setEmployeeData((previous) => (previous ? { ...previous, status: 'IDLE' } : null))
     } finally {
       setIsActing(false)
     }
+  }
+
+  const currentLoadError =
+    loadError?.employeeId === employeeId ? loadError.message : null
+  const isNotFound = notFoundEmployeeId === employeeId
+
+  if (!employee && currentLoadError) {
+    return (
+      <div
+        className={styles.page}
+        data-warm-digital-employee-detail="true"
+      >
+        <div className={styles.missingState} role="alert">
+          加载失败：{currentLoadError}
+        </div>
+        <WarmButton type="button" variant="secondary" onClick={() => void load()}>
+          重试
+        </WarmButton>
+      </div>
+    )
+  }
+
+  if (!employee && isNotFound) {
+    return (
+      <div
+        className={styles.page}
+        data-warm-digital-employee-detail="true"
+      >
+        <div className={styles.missingState}>数字员工不存在</div>
+      </div>
+    )
+  }
+
+  if (!employee) {
+    return (
+      <div
+        className={styles.page}
+        data-warm-digital-employee-detail="true"
+        aria-busy={isLoading || undefined}
+      >
+        <div className={styles.missingState} role="status">
+          正在加载数字员工...
+        </div>
+      </div>
+    )
   }
 
   if (isLoading) {
@@ -124,17 +194,6 @@ export default function EmployeeDetailPage() {
             ))}
           </div>
         </div>
-      </div>
-    )
-  }
-
-  if (!employee) {
-    return (
-      <div
-        className={styles.page}
-        data-warm-digital-employee-detail="true"
-      >
-        <div className={styles.missingState}>数字员工不存在</div>
       </div>
     )
   }

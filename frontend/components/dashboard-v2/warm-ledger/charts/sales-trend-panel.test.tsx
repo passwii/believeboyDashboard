@@ -20,11 +20,13 @@ describe('SalesTrendPanel', () => {
     const latestFocus = screen.getByTitle('2026-10-27 · 本周 $1,100.00')
     expect(latestFocus).toHaveTextContent('最新 · Tue · 本周 $1.1K')
     const chart = screen.getByRole('img', { name: '销售趋势图' })
-    expect(chart.nextElementSibling).toHaveTextContent('SunMonTue')
+    expect(chart.parentElement).toHaveTextContent('SunMonTue')
     expect(chart).toHaveAttribute('tabindex', '0')
     expect(screen.getByRole('group', { name: '图例' })).toHaveClass('flex-wrap')
-    expect(container.firstElementChild).toHaveClass('min-w-0', 'max-w-full')
-    expect(chart).toHaveClass('w-full', 'min-w-0')
+    expect(container.firstElementChild).toHaveClass('flex', 'flex-col', 'min-w-0', 'max-w-full')
+    expect(chart).toHaveClass('w-full', 'h-full', 'min-h-44', 'min-w-0')
+    expect(chart.parentElement).toHaveClass('grid', 'min-h-44', 'min-w-0', 'flex-1')
+    expect(chart).toHaveAttribute('viewBox', '0 0 700 176')
     expect(container.querySelector('[data-point="current"][r="4"]')).toBeInTheDocument()
     expect(container.querySelector('[data-series="current"]')).toHaveAttribute(
       'stroke',

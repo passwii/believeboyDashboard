@@ -51,27 +51,39 @@ export default function InventoryHealthPage() {
 
   const [projects, setProjects] = useState<Project[]>([])
   const [projectId, setProjectId] = useState<number | null>(null)
+  const [isLoadingProjects, setIsLoadingProjects] = useState(true)
+  const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
   const [country, setCountry] = useState('US')
   const [reportDate, setReportDate] = useState<Date | null>(null)
   /** 已提交的口径快照：非 null 即表示开了一次分析，之后改动表单不影响在跑的 run */
   const [submitted, setSubmitted] = useState<InventoryRunScope | null>(null)
 
-  useEffect(() => {
-    let cancelled = false
-    fetchManagedProjectsCached<Project[]>(session, false)
-      .then((items) => {
-        if (cancelled) return
-        const list = Array.isArray(items) ? items : []
-        setProjects(list)
-        if (list.length > 0) setProjectId(list[0].id)
-      })
-      .catch((err) => {
-        notify({ type: 'error', title: '项目列表加载失败', message: String(err) })
-      })
-    return () => {
-      cancelled = true
+  const loadProjects = useCallback(async (force = false) => {
+    setIsLoadingProjects(true)
+    setProjectLoadError(null)
+    try {
+      const items = await fetchManagedProjectsCached<Project[]>(
+        session,
+        false,
+        force ? { force: true } : undefined
+      )
+      const list = Array.isArray(items) ? items : []
+      setProjects(list)
+      setProjectId((currentId) =>
+        list.some((project) => project.id === currentId) ? currentId : list[0]?.id ?? null
+      )
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setProjectLoadError(message)
+      notify({ type: 'error', title: '项目列表加载失败', message })
+    } finally {
+      setIsLoadingProjects(false)
     }
   }, [session, notify])
+
+  useEffect(() => {
+    void loadProjects()
+  }, [loadProjects])
 
   const draftScope: InventoryRunScope = { projectId, country, reportDate }
   const activeScope = submitted ?? draftScope
@@ -83,13 +95,8 @@ export default function InventoryHealthPage() {
   }, [projectId, country, reportDate])
 
   const refreshProjects = useCallback(async () => {
-    const list = await fetchManagedProjectsCached<Project[]>(session, false, { force: true })
-    const nextProjects = Array.isArray(list) ? list : []
-    setProjects(nextProjects)
-    if (!nextProjects.some((project) => project.id === projectId)) {
-      setProjectId(nextProjects[0]?.id ?? null)
-    }
-  }, [projectId, session])
+    await loadProjects(true)
+  }, [loadProjects])
   useHeaderRefresh(refreshProjects)
 
   const activeLabel = inventoryScopeLabel(activeScope)
@@ -100,20 +107,42 @@ export default function InventoryHealthPage() {
       <section className={styles.panel}>
         <div className={styles.panelBody}>
           <div className={styles.filters}>
-            <WarmSelect
-              id="inventory-project"
-              label="项目"
-              value={projectId ? String(projectId) : ''}
-              options={projects.map((project) => ({
-                value: String(project.id),
-                label: project.brand_name
-                  ? `${project.name} · ${project.brand_name}`
-                  : project.name,
-              }))}
-              onChange={(value) => setProjectId(Number(value))}
-              placeholder={projects.length === 0 ? '暂无可用项目' : '选择项目'}
-              disabled={projects.length === 0}
-            />
+            <div className={styles.field}>
+              <WarmSelect
+                id="inventory-project"
+                label="项目"
+                value={projectId ? String(projectId) : ''}
+                options={projects.map((project) => ({
+                  value: String(project.id),
+                  label: project.brand_name
+                    ? `${project.name} · ${project.brand_name}`
+                    : project.name,
+                }))}
+                onChange={(value) => setProjectId(Number(value))}
+                placeholder={
+                  isLoadingProjects
+                    ? '加载项目中...'
+                    : projectLoadError
+                      ? '项目加载失败'
+                      : projects.length === 0
+                        ? '暂无可用项目'
+                        : '选择项目'
+                }
+                disabled={isLoadingProjects || !!projectLoadError || projects.length === 0}
+                error={projectLoadError ? '项目列表加载失败，请重试' : null}
+              />
+              {projectLoadError ? (
+                <WarmButton
+                  type="button"
+                  variant="quiet"
+                  onClick={() => void loadProjects()}
+                  loading={isLoadingProjects}
+                  loadingLabel="正在加载项目"
+                >
+                  重试
+                </WarmButton>
+              ) : null}
+            </div>
 
             <WarmSelect
               id="inventory-country"

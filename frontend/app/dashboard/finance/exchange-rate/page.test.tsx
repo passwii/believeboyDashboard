@@ -137,7 +137,7 @@ describe('ExchangeRatePage Warm Ledger 渲染契约', () => {
   it('加载失败时展示 error 行内提示态', async () => {
     vi.stubGlobal('fetch', makeFetch(false))
     render(<ExchangeRatePage />)
-    expect(await screen.findByRole('alert')).toHaveTextContent(/Failed to fetch exchange rates/)
+    expect(await screen.findByRole('alert')).toHaveTextContent(/汇率数据加载失败/)
   })
 
   it('数据表不混入 Terminal 表面与 emoji 货币符号', async () => {

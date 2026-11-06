@@ -182,7 +182,7 @@ export default function ExchangeRatePage() {
 
       const response = await fetch(`/api/exchange-rates?${queryParams}`)
       if (!response.ok) {
-        throw new Error('Failed to fetch exchange rates')
+        throw new Error('汇率数据加载失败')
       }
 
       const result = await response.json()
@@ -190,7 +190,7 @@ export default function ExchangeRatePage() {
       setPagination(result.pagination)
     } catch (error) {
       console.error('Error fetching rates:', error)
-      setLoadError(error instanceof Error ? error.message : '汇率数据加载失败')
+      setLoadError('汇率数据加载失败')
     } finally {
       setLoading(false)
     }
@@ -571,9 +571,15 @@ export default function ExchangeRatePage() {
               ) : loadError ? (
                 <tr className={styles.messageRow}>
                   <td colSpan={isAdmin ? 8 : 7}>
-                    <p className={cn(styles.message, styles.errorMessage)} role="alert">
+                    <div
+                      className={cn(styles.message, styles.errorMessage, styles.errorState)}
+                      role="alert"
+                    >
                       {loadError}
-                    </p>
+                      <WarmButton variant="quiet" onClick={() => void fetchRates()}>
+                        重试
+                      </WarmButton>
+                    </div>
                   </td>
                 </tr>
               ) : rates.length === 0 ? (
@@ -664,20 +670,30 @@ export default function ExchangeRatePage() {
         </div>
       </section>
 
-      <nav className={styles.pagination} aria-label="汇率管理分页">
-        <span>
-          第 {pagination.page} / {pagination.totalPages} 页 · 共 {pagination.total} 条
-        </span>
+      <nav
+        className={styles.pagination}
+        aria-label="汇率管理分页"
+        aria-busy={loading || undefined}
+      >
+        {loading || loadError ? (
+          <span className={styles.paginationPlaceholder} aria-hidden="true" />
+        ) : pagination.total === 0 ? (
+          <span>共 0 条</span>
+        ) : (
+          <span>
+            第 {pagination.page} / {pagination.totalPages} 页 · 共 {pagination.total} 条
+          </span>
+        )}
         <div className={styles.paginationActions}>
           <WarmButton
             className={styles.paginationButton}
             variant="quiet"
-          onClick={() =>
-            setPagination((prev) => ({ ...prev, page: Math.max(1, prev.page - 1) }))
-          }
-          disabled={pagination.page <= 1}
-        >
-          上一页
+            onClick={() =>
+              setPagination((prev) => ({ ...prev, page: Math.max(1, prev.page - 1) }))
+            }
+            disabled={loading || Boolean(loadError) || pagination.page <= 1}
+          >
+            上一页
           </WarmButton>
           <WarmButton
             className={styles.paginationButton}
@@ -688,7 +704,12 @@ export default function ExchangeRatePage() {
                 page: Math.min(prev.totalPages, prev.page + 1),
               }))
             }
-            disabled={pagination.page >= pagination.totalPages}
+            disabled={
+              loading ||
+              Boolean(loadError) ||
+              pagination.totalPages === 0 ||
+              pagination.page >= pagination.totalPages
+            }
           >
             下一页
           </WarmButton>

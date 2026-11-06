@@ -151,12 +151,14 @@ function toMetricItems(
   const hasComparison = comparisonRows.length > 0
   const sales = stats[0]
   const orders = stats[1]
+  const totalSales = sumRows(currentRows, 'sales_amount')
+  const totalOrders = sumRows(currentRows, 'order_qty')
 
   return [
     {
       key: 'sales',
       label: '销售额',
-      value: hasSalesRows ? sales?.value ?? null : null,
+      value: hasSalesRows ? formatFullCurrency(totalSales) : null,
       code: 'USD',
       comparison: hasSalesRows && hasComparison && sales
         ? { delta: sales.delta, label: 'vs 上周' }
@@ -165,7 +167,7 @@ function toMetricItems(
     {
       key: 'orders',
       label: '订单量',
-      value: hasSalesRows ? orders?.value ?? null : null,
+      value: hasSalesRows ? formatInteger(totalOrders) : null,
       comparison: hasSalesRows && hasComparison && orders
         ? { delta: orders.delta, label: 'vs 上周' }
         : undefined,
@@ -174,9 +176,8 @@ function toMetricItems(
       key: 'pending',
       label: '待处理订单',
       value: pendingError ? null : formatInteger(pendingTotal),
-      code: 'PND',
       tone: 'accent',
-      meta: pendingError ? undefined : '7 天 PT · 与订单流同源',
+      meta: pendingError ? undefined : '近 7 天 PT',
     },
   ]
 }
@@ -396,6 +397,7 @@ export default function DashboardHomePage() {
     <WarmLedgerShell
       topbar={(
         <WarmLedgerTopbar
+          showScopeMeta={false}
           projectId={selectedProjectId}
           projectOptions={projectOptions}
           onProjectChange={setSelectedProjectId}
@@ -475,7 +477,6 @@ export default function DashboardHomePage() {
           <section className={styles.panel} aria-labelledby="project-rank-title">
             <header className={styles.panelHeader}>
               <h2 id="project-rank-title">项目排行</h2>
-              <span>当前区间 · 7 天</span>
             </header>
             <ProjectRankTable
               rows={rankRows}
@@ -490,7 +491,6 @@ export default function DashboardHomePage() {
           <section className={styles.panel} aria-labelledby="daily-ledger-title">
             <header className={styles.panelHeader}>
               <h2 id="daily-ledger-title">日明细</h2>
-              <span>当前区间 · 7 天</span>
             </header>
             <DailyLedgerTable
               rows={currentRows}
