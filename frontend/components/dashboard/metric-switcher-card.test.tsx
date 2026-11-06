@@ -36,7 +36,7 @@ describe('metric-switcher-card · 指标卡片区内边距（BLF-529）', () => 
     expect(header?.className).not.toContain('px-6')
     expect(header?.className).not.toContain('px-4')
     // 底部内边距保留（"形态"切换行的呼吸空间）
-    expect(header?.className).toContain('pb-3')
+    expect(header?.className).toContain('pb-2')
   })
 
   it('指标卡片正常渲染', () => {
@@ -46,63 +46,90 @@ describe('metric-switcher-card · 指标卡片区内边距（BLF-529）', () => 
   })
 })
 
-// BLF-908：bar chart 顶部 stats 区域终端化——label / 数值 / hint / 对比 pill
-// 全部切到 term 语义色 + mono 字体（与 TermKpiTile 同规格），不再使用 Badge
-// 彩色胶囊底。回归测试锁契约：mono + term-* 颜色 + 零圆角 pill。
-describe('metric-switcher-card · stats 终端化（BLF-908）', () => {
-  it('指标选择态使用 term 表面和无圆角 accent 指示条', () => {
+// V4 Warm Ledger：指标区使用暖色中性表面、sans label、mono 数值和轻量 pill。
+describe('metric-switcher-card · Warm Ledger stats', () => {
+  it('指标选择态使用 V4 抬升表面和 accent 指示条', () => {
     const { container } = renderCard()
     const metricGrid = container.querySelector('.grid')!
     const activeButton = metricGrid.querySelector('button[aria-pressed="true"]')!
     const inactiveButton = metricGrid.querySelector('button[aria-pressed="false"]')!
     const indicator = activeButton.querySelector('span.absolute')
 
-    expect(activeButton.className).toContain('bg-term-raised')
+    expect(activeButton.className).toContain('min-h-[88px]')
+    expect(activeButton.className).toContain('bg-[var(--warm-ledger-color-raised)]')
     expect(activeButton.className).not.toContain('bg-primary')
-    expect(inactiveButton.className).toContain('hover:bg-term-hover')
+    expect(inactiveButton.className).toContain(
+      'hover:bg-[var(--warm-ledger-color-raised-hover)]'
+    )
     expect(indicator?.className).toContain('rounded-none')
-    expect(indicator?.className).toContain('bg-term-accent')
+    expect(indicator?.className).toContain('bg-[var(--warm-ledger-color-accent)]')
     expect(indicator?.className).not.toContain('rounded-full')
   })
 
-  it('图表形态切换使用终端尺寸、边界和 pressed 状态', () => {
+  it('图表形态切换使用暖色中性边界、pressed 状态和非 amber 填充', () => {
     const { container } = renderCard()
     const lineButton = screen.getByRole('button', { name: /折线/ })
     const toggle = lineButton.parentElement as HTMLElement
 
-    expect(toggle.className).toContain('rounded-none')
-    expect(toggle.className).toContain('border-term-border')
-    expect(toggle.className).toContain('bg-term-panel')
+    expect(toggle.className).toContain('rounded-[var(--warm-ledger-radius-inner)]')
+    expect(toggle.className).toContain('border-[var(--warm-ledger-color-hairline)]')
+    expect(toggle.className).toContain('bg-[var(--warm-ledger-color-panel)]')
     expect(toggle.className).toContain('h-9')
     expect(toggle.className).not.toContain('rounded-full')
-    expect(toggle.className).not.toContain('shadow-')
     expect(lineButton).toHaveAttribute('aria-pressed', 'true')
+    expect(lineButton.className).not.toContain('bg-term-accent')
+    expect(lineButton.className).not.toContain('text-term-panel')
     expect(within(toggle).getByRole('button', { name: /面积/ })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByRole('group', { name: '图表形态' })).toBe(toggle)
     expect(container.querySelector('[data-testid="chart-kind-toggle"]')).toBe(toggle)
+
+    const activeSpans = Array.from(lineButton.querySelectorAll('span.absolute'))
+    expect(
+      activeSpans.some((span) =>
+        span.className.includes('bg-[var(--warm-ledger-color-raised)]')
+      )
+    ).toBe(true)
+    expect(
+      activeSpans.some((span) =>
+        span.className.includes('bg-[var(--warm-ledger-color-accent)]')
+      )
+    ).toBe(true)
   })
 
-  it('label / 数值 / hint 使用 mono 字体 + term 语义色', () => {
+  it('label 使用 sans + muted，数值使用 mono + tabular', () => {
     const { container } = renderCard()
-    // label：mono + uppercase + tracking-wider + term-muted
-    const label = container.querySelector('span.uppercase')
-    expect(label?.className).toContain('font-mono')
-    expect(label?.className).toContain('text-term-muted')
-    // 数值：mono + tabular-nums + leading-6
+    const label = screen.getByText('指标A')
+    expect(label.className).toContain('font-sans')
+    expect(label.className).toContain('text-[var(--warm-ledger-color-text-muted)]')
     const value = container.querySelector('div.leading-6')
     expect(value?.className).toContain('font-mono')
     expect(value?.className).toContain('tabular-nums')
-    expect(value?.className).toMatch(/text-term-(muted|text)/)
+    expect(value?.className).toContain('text-[var(--warm-ledger-color-text)]')
   })
 
-  it('对比 pill 改用 term 终端规格（mono + 零圆角 + 1px current 边）', () => {
+  it('对比 pill 使用 mono + 内层圆角 + 中性 hairline 边', () => {
     const { container } = renderCard()
-    // 不再使用 Badge 彩色胶囊底（无 bg-secondary / bg-destructive 等）
     expect(container.innerHTML).not.toMatch(/bg-secondary\//)
     expect(container.innerHTML).not.toMatch(/bg-destructive\//)
-    // pill 元素带 rounded-none + border-current/30 + font-mono
-    const pill = container.querySelector('span[class*="border-current/30"]')
-    expect(pill?.className).toContain('rounded-none')
-    expect(pill?.className).toContain('font-mono')
+    const pill = screen.getAllByText('--')[0]
+    expect(pill.className).toContain('rounded-[var(--warm-ledger-radius-inner)]')
+    expect(pill.className).toContain('border-[var(--warm-ledger-color-hairline)]')
+    expect(pill.className).toContain('font-mono')
+  })
+
+  it('keeps comparison values in metric cells without a summary row', () => {
+    render(
+      <MetricSwitcherCard
+        metrics={metrics}
+        defaultMetric="a"
+        chartKind="auto"
+        getCurrent={() => 10}
+        getPrevious={() => 5}
+        renderLine={() => [{ date: '2026-01-01', a: 1, b: 2 }]}
+      />
+    )
+
+    expect(screen.queryByText('本期合计')).not.toBeInTheDocument()
+    expect(screen.getAllByText(/^对比 5$/)).toHaveLength(metrics.length)
   })
 })

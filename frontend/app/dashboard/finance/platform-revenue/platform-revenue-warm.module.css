@@ -18,8 +18,32 @@
 }
 
 .filterProject {
+  width: 100%;
+}
+
+.projectFilterGroup {
+  display: grid;
   width: 200px;
   flex: 0 0 200px;
+  gap: var(--warm-ledger-space-1);
+}
+
+.projectFilterStatus {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--warm-ledger-space-2);
+}
+
+.projectFilterLoading {
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-label);
+}
+
+.projectFilterRetry {
+  min-height: var(--warm-ledger-control-height-compact);
+  padding-inline: var(--warm-ledger-space-2);
 }
 
 .filterSelect {
@@ -120,8 +144,8 @@
 }
 
 .table td {
-  height: 54px;
-  padding: var(--warm-ledger-space-3) var(--warm-ledger-space-4);
+  height: 56px;
+  padding: var(--warm-ledger-space-2) var(--warm-ledger-space-4);
   border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
   vertical-align: middle;
 }
@@ -248,9 +272,9 @@
 }
 
 .rowAction {
-  width: 30px;
-  height: 30px;
-  min-height: 30px;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
 }
 
 .rowActionDanger {
@@ -308,6 +332,14 @@
   color: var(--warm-ledger-color-negative);
 }
 
+.errorState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--warm-ledger-space-3);
+  flex-wrap: wrap;
+}
+
 .totalRow td {
   border-top: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline-strong);
   border-bottom: 0;
@@ -350,6 +382,14 @@
 .paginationButton {
   min-height: var(--warm-ledger-control-height-compact);
   padding-inline: var(--warm-ledger-space-3);
+}
+
+.paginationPlaceholder {
+  display: block;
+  width: 132px;
+  height: 12px;
+  border-radius: var(--warm-ledger-radius-inner);
+  background: var(--warm-ledger-color-raised);
 }
 
 .dialog {
@@ -628,7 +668,7 @@
   overflow: hidden;
   color: var(--warm-ledger-color-text-muted);
   font-family: var(--warm-ledger-font-mono);
-  font-size: 10px;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

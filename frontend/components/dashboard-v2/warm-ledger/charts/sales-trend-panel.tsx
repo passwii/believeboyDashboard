@@ -31,13 +31,10 @@ interface ChartScale {
   ticks: [number, number, number]
 }
 
-const CHART_WIDTH = 700
-const CHART_HEIGHT = 176
+const CHART_INITIAL_WIDTH = 700
+const CHART_MIN_HEIGHT = 176
 const CHART_TOP = 12
-const CHART_BOTTOM = 164
-const CHART_LEFT = 8
-const CHART_RIGHT = CHART_WIDTH - CHART_LEFT
-const CHART_GRID = [CHART_TOP, (CHART_TOP + CHART_BOTTOM) / 2, CHART_BOTTOM]
+const CHART_SIDE_INSET = 8
 
 function isFiniteNumber(value: number | null | undefined): value is number {
   return typeof value === 'number' && Number.isFinite(value)
@@ -79,10 +76,14 @@ function createScale(rows: SalesTrendRow[]): ChartScale {
 function toSegments(
   rows: SalesTrendRow[],
   key: 'current' | 'previous',
-  scale: ChartScale
+  scale: ChartScale,
+  width: number,
+  height: number
 ): ChartPoint[][] {
   const segments: ChartPoint[][] = []
   let activeSegment: ChartPoint[] = []
+  const right = width - CHART_SIDE_INSET
+  const bottom = height - CHART_TOP
 
   rows.forEach((row, index) => {
     const value = row[key]
@@ -93,11 +94,11 @@ function toSegments(
     }
 
     const x = rows.length === 1
-      ? CHART_WIDTH / 2
-      : CHART_LEFT + (index / (rows.length - 1)) * (CHART_RIGHT - CHART_LEFT)
+      ? width / 2
+      : CHART_SIDE_INSET + (index / (rows.length - 1)) * (right - CHART_SIDE_INSET)
     const scaledValue = value / scale.divisor
     const ratio = (scale.upper - scaledValue) / (scale.upper - scale.lower)
-    const y = CHART_TOP + ratio * (CHART_BOTTOM - CHART_TOP)
+    const y = CHART_TOP + ratio * (bottom - CHART_TOP)
     activeSegment.push({ x, y, index })
   })
 
@@ -126,12 +127,12 @@ function linePath(points: ChartPoint[]): string {
   return path
 }
 
-function areaPath(points: ChartPoint[]): string {
+function areaPath(points: ChartPoint[], bottom: number): string {
   if (points.length < 2) return ''
   const first = points[0]
   const last = points[points.length - 1]
-  return `${linePath(points)} L ${coordinate(last.x)} ${CHART_BOTTOM}`
-    + ` L ${coordinate(first.x)} ${CHART_BOTTOM} Z`
+  return `${linePath(points)} L ${coordinate(last.x)} ${bottom}`
+    + ` L ${coordinate(first.x)} ${bottom} Z`
 }
 
 function chartSummary(rows: SalesTrendRow[]): string {
@@ -174,14 +175,14 @@ function ChartState({
 }) {
   if (kind === 'loading') {
     return (
-      <div className="min-w-0" role="status" aria-busy="true">
+      <div className="flex min-h-44 min-w-0 flex-1 flex-col" role="status" aria-busy="true">
         <p className="text-[12px] leading-5 text-[var(--warm-ledger-color-text-soft)]">
           {message}
         </p>
-        <div aria-hidden="true" className="mt-3 flex h-44 flex-col justify-between">
-          {CHART_GRID.map((y) => (
+        <div aria-hidden="true" className="mt-3 flex min-h-0 flex-1 flex-col justify-between">
+          {[0, 1, 2].map((index) => (
             <span
-              key={y}
+              key={index}
               className="h-px w-full bg-[var(--warm-ledger-color-chart-grid)]"
             />
           ))}
@@ -192,7 +193,7 @@ function ChartState({
 
   return (
     <div
-      className="flex min-h-44 min-w-0 items-center text-[12px] leading-5 text-[var(--warm-ledger-color-text-soft)]"
+      className="flex min-h-44 min-w-0 flex-1 items-center text-[12px] leading-5 text-[var(--warm-ledger-color-text-soft)]"
       role={kind === 'error' ? 'alert' : 'status'}
     >
       {message}
@@ -209,12 +210,45 @@ export function SalesTrendPanel({
   const id = React.useId()
   const titleId = `${id}-title`
   const summaryId = `${id}-summary`
+  const chartRef = React.useRef<SVGSVGElement | null>(null)
+  const [chartSize, setChartSize] = React.useState({
+    width: CHART_INITIAL_WIDTH,
+    height: CHART_MIN_HEIGHT,
+  })
   const latest = latestCurrentRow(rows)
   const latestIndex = latest ? rows.lastIndexOf(latest) : -1
   const scale = createScale(rows)
-  const currentSegments = toSegments(rows, 'current', scale)
-  const previousSegments = toSegments(rows, 'previous', scale)
+  const currentSegments = toSegments(rows, 'current', scale, chartSize.width, chartSize.height)
+  const previousSegments = toSegments(rows, 'previous', scale, chartSize.width, chartSize.height)
   const hasCurrentData = currentSegments.some((segment) => segment.length > 0)
+  const chartVisible = !error && !loading && hasCurrentData
+  const chartBottom = chartSize.height - CHART_TOP
+  const chartGrid = [CHART_TOP, (CHART_TOP + chartBottom) / 2, chartBottom]
+
+  React.useEffect(() => {
+    if (!chartVisible) return
+    const element = chartRef.current
+    if (!element) return
+
+    const measure = () => {
+      const rect = element.getBoundingClientRect()
+      if (rect.width <= 0 || rect.height <= 0) return
+      const next = {
+        width: Math.round(rect.width),
+        height: Math.max(CHART_MIN_HEIGHT, Math.round(rect.height)),
+      }
+      setChartSize((current) => (
+        current.width === next.width && current.height === next.height ? current : next
+      ))
+    }
+
+    measure()
+    const observer = typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(measure)
+    observer?.observe(element)
+    return () => observer?.disconnect()
+  }, [chartVisible])
   const errorMessage = error instanceof Error
     ? error.message
     : typeof error === 'string' && error.trim()
@@ -231,36 +265,40 @@ export function SalesTrendPanel({
     state = <ChartState kind="empty" message="暂无销售数据" />
   } else {
     state = (
-      <div className="grid min-w-0 grid-cols-[2.75rem_minmax(0,1fr)] gap-2">
+      <div className="grid min-h-44 min-w-0 flex-1 grid-cols-[2.75rem_minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] gap-x-2">
         <div
           aria-hidden="true"
-          className="flex h-44 min-w-0 flex-col justify-between font-[var(--warm-ledger-font-mono)] text-[11px] leading-4 tabular-nums text-[var(--warm-ledger-color-text-muted)]"
+          className="relative min-h-0 min-w-0 font-[var(--warm-ledger-font-mono)] text-[11px] leading-4 tabular-nums text-[var(--warm-ledger-color-text-muted)]"
         >
           {scale.ticks.map((tick, index) => (
-            <span key={`${index}-${tick}`} className="min-w-0 break-all">
+            <span
+              key={`${index}-${tick}`}
+              className="absolute right-0 -translate-y-1/2 whitespace-nowrap text-right"
+              style={{ top: `${chartGrid[index]}px` }}
+            >
               {formatCompactCurrency(tick, { maximumFractionDigits: 1 })}
             </span>
           ))}
         </div>
 
-        <div className="min-w-0">
-          <svg
-            aria-describedby={summaryId}
-            aria-labelledby={`${id}-chart-title`}
-            className="block h-44 min-w-0 w-full overflow-visible outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-[var(--warm-ledger-color-accent-strong)]"
-            role="img"
-            tabIndex={0}
-            viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
-            preserveAspectRatio="none"
-          >
+        <svg
+          ref={chartRef}
+          aria-describedby={summaryId}
+          aria-labelledby={`${id}-chart-title`}
+          className="block h-full min-h-44 min-w-0 w-full overflow-visible outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-[var(--warm-ledger-color-accent-strong)]"
+          role="img"
+          tabIndex={0}
+          viewBox={`0 0 ${chartSize.width} ${chartSize.height}`}
+          preserveAspectRatio="none"
+        >
             <title id={`${id}-chart-title`}>销售趋势图</title>
             <desc>本周使用琥珀色实线，上周使用灰色虚线。可访问图片描述以阅读逐日数值。</desc>
             <g aria-hidden="true">
-              {CHART_GRID.map((y) => (
+              {chartGrid.map((y) => (
                 <line
                   key={y}
-                  x1={CHART_LEFT}
-                  x2={CHART_RIGHT}
+                  x1={CHART_SIDE_INSET}
+                  x2={chartSize.width - CHART_SIDE_INSET}
                   y1={y}
                   y2={y}
                   stroke="var(--warm-ledger-color-chart-grid)"
@@ -270,7 +308,7 @@ export function SalesTrendPanel({
               ))}
 
               {currentSegments.map((segment, index) => {
-                const d = areaPath(segment)
+                const d = areaPath(segment, chartBottom)
                 return d ? (
                   <path
                     key={`current-area-${index}`}
@@ -342,18 +380,17 @@ export function SalesTrendPanel({
                 ))
               )}
             </g>
-          </svg>
+        </svg>
 
-          <div className="flex min-w-0" aria-hidden="true">
-            {rows.map((row) => (
-              <span
-                key={`${row.date}-${row.label}`}
-                className="min-w-0 flex-1 break-words text-center text-[11px] leading-4 text-[var(--warm-ledger-color-text-muted)] [overflow-wrap:anywhere]"
-              >
-                {row.label}
-              </span>
-            ))}
-          </div>
+        <div className="col-start-2 mt-1 flex min-w-0" aria-hidden="true">
+          {rows.map((row) => (
+            <span
+              key={`${row.date}-${row.label}`}
+              className="min-w-0 flex-1 break-words text-center text-[11px] leading-4 text-[var(--warm-ledger-color-text-muted)] [overflow-wrap:anywhere]"
+            >
+              {row.label}
+            </span>
+          ))}
         </div>
       </div>
     )
@@ -362,9 +399,9 @@ export function SalesTrendPanel({
   return (
     <section
       aria-labelledby={titleId}
-      className={`box-border min-w-0 max-w-full rounded-[var(--warm-ledger-radius-panel)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] p-5 font-[var(--warm-ledger-font-sans)] text-[var(--warm-ledger-color-text)] max-[460px]:p-3 ${className ?? ''}`}
+      className={`box-border flex min-w-0 max-w-full flex-col rounded-[var(--warm-ledger-radius-panel)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] p-5 font-[var(--warm-ledger-font-sans)] text-[var(--warm-ledger-color-text)] max-[460px]:p-3 ${className ?? ''}`}
     >
-      <header className="flex min-w-0 flex-wrap items-start justify-between gap-x-4 gap-y-2">
+      <header className="flex min-w-0 shrink-0 flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <h2
           id={titleId}
           className="min-w-0 text-[16px] font-medium leading-6 text-[var(--warm-ledger-color-text)]"
@@ -377,7 +414,7 @@ export function SalesTrendPanel({
       </header>
 
       {!error && !loading && hasCurrentData && (
-        <div className="mt-3 flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="mt-3 flex min-w-0 shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <div
             role="group"
             aria-label="图例"
@@ -402,7 +439,7 @@ export function SalesTrendPanel({
         </div>
       )}
 
-      <div className="mt-4 min-w-0">
+      <div className="mt-4 flex min-h-0 min-w-0 flex-1 flex-col">
         {state}
       </div>
 

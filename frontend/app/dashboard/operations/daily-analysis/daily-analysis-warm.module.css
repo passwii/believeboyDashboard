@@ -424,70 +424,8 @@
   animation: none;
 }
 
-.chartCard :global([class~='border-term-border']) {
-  border-color: var(--warm-ledger-color-hairline);
-}
-
-.chartCard :global([class~='border-term-accent']) {
-  border-color: var(--warm-ledger-color-accent);
-}
-
-.chartCard :global([class~='bg-term-panel']) {
-  background-color: var(--warm-ledger-color-panel);
-}
-
-.chartCard :global([class~='bg-term-raised']) {
-  background-color: var(--warm-ledger-color-raised);
-}
-
-.chartCard :global([class~='bg-term-hover']) {
-  background-color: var(--warm-ledger-color-raised-hover);
-}
-
-.chartCard :global([class~='bg-term-accent']) {
-  background-color: var(--warm-ledger-color-accent);
-}
-
-.chartCard :global([class~='text-term-text']) {
-  color: var(--warm-ledger-color-text);
-}
-
-.chartCard :global([class~='text-term-muted']),
-.chartCard :global([class~='text-term-faint']) {
-  color: var(--warm-ledger-color-text-muted);
-}
-
-.chartCard :global([class~='text-term-pos']) {
-  color: var(--warm-ledger-color-positive);
-}
-
-.chartCard :global([class~='text-term-neg']) {
-  color: var(--warm-ledger-color-negative);
-}
-
-.chartCard :global([class~='text-term-panel']) {
-  color: var(--warm-ledger-color-stage);
-}
-
-.chartCard :global([class~='text-term-warn']),
-.chartCard :global([class~='text-term-accent']) {
-  color: var(--warm-ledger-color-accent-strong);
-}
-
-.chartCard :global([class~='uppercase']),
-.chartCard :global([class~='tracking-wider']) {
-  letter-spacing: 0;
-  text-transform: none;
-}
-
 .chartCard :global(button) {
   font-family: var(--warm-ledger-font-sans);
-}
-
-.chartCard :global(button[aria-pressed='true']) {
-  background-color: var(--warm-ledger-color-raised);
-  border-radius: var(--warm-ledger-radius-inner);
-  box-shadow: var(--warm-ledger-highlight-rest);
 }
 
 .chartCard :global(button:focus-visible) {
@@ -583,7 +521,7 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
   gap: var(--warm-ledger-space-4);
-  padding: var(--warm-ledger-space-5) var(--warm-ledger-space-6);
+  padding: var(--warm-ledger-space-3) var(--warm-ledger-space-6);
   background: var(--warm-ledger-color-panel-strong);
   border-color: var(--warm-ledger-color-hairline);
 }
@@ -641,14 +579,7 @@
     transform var(--warm-ledger-motion-duration-press) var(--warm-ledger-motion-ease);
 }
 
-.tabsList :global(button[data-state='active']) {
-  color: var(--warm-ledger-color-text);
-  background: var(--warm-ledger-color-raised);
-  border-color: var(--warm-ledger-color-hairline-strong);
-  box-shadow: var(--warm-ledger-highlight-rest);
-}
-
-.tabsList :global(button:hover:not(:disabled)) {
+.tabsList :global(button[data-state='inactive']:hover:not(:disabled)) {
   color: var(--warm-ledger-color-text);
   background: var(--warm-ledger-color-raised-hover);
   box-shadow: var(--warm-ledger-highlight-hover);
@@ -720,21 +651,16 @@
 .tableScroll :global(td) {
   color: var(--warm-ledger-color-text-soft);
   font-variant-numeric: var(--warm-ledger-font-variant-numeric);
-  border-color: var(--warm-ledger-color-hairline);
-}
-
-.tableScroll :global(tbody tr[class~='bg-term-panel']),
-.tableScroll :global(tbody td[class~='bg-term-panel']) {
-  background-color: var(--warm-ledger-color-panel);
-}
-
-.tableScroll :global(tbody tr[class~='bg-term-raised']),
-.tableScroll :global(tbody td[class~='bg-term-raised']) {
-  background-color: var(--warm-ledger-color-raised);
+  border-right-color: transparent;
+  border-bottom-color: var(--warm-ledger-color-hairline);
 }
 
 .tableScroll :global(tbody tr:hover) {
-  background: var(--warm-ledger-color-raised-hover);
+  background: color-mix(
+    in srgb,
+    var(--warm-ledger-color-raised) 58%,
+    transparent
+  );
 }
 
 @media (max-width: 820px) {

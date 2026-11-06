@@ -226,7 +226,6 @@ type DetailDisplayRow = {
   rowKey: string
   showDate: boolean
   rowSpan: number
-  isTintedGroup: boolean
   productName: string | null
 }
 
@@ -1752,7 +1751,6 @@ export default function DailyAnalysisPage() {
     const rowsToGroup = selectedSku ? filteredDetailRows : detailRows
     const groupedRows: DetailDisplayRow[] = []
     let index = 0
-    let groupIndex = 0
 
     while (index < rowsToGroup.length) {
       const groupDate = rowsToGroup[index].date
@@ -1763,7 +1761,6 @@ export default function DailyAnalysisPage() {
       }
 
       const rowSpan = endIndex - index
-      const isTintedGroup = groupIndex % 2 === 0
 
       for (let currentIndex = index; currentIndex < endIndex; currentIndex += 1) {
         const row = rowsToGroup[currentIndex]
@@ -1773,13 +1770,11 @@ export default function DailyAnalysisPage() {
           rowKey: `${row.date}-${row.sku}-${row.asin ?? 'no-asin'}-${currentIndex}`,
           showDate: currentIndex === index,
           rowSpan: currentIndex === index ? rowSpan : 0,
-          isTintedGroup,
           productName: skuInfo?.product_name ?? null,
         })
       }
 
       index = endIndex
-      groupIndex += 1
     }
 
     return groupedRows
@@ -2192,7 +2187,7 @@ export default function DailyAnalysisPage() {
                     LINE_METRICS.map((m) => [m.key, SINGLE_METRIC_CHART_CONFIG[m.key]?.color ?? ''])
                   ) as Partial<Record<ChartMetricKey, string>>
                 }
-                heightClass={isMobile ? 'h-[260px]' : 'h-[360px]'}
+                heightClass={isMobile ? 'h-[260px]' : 'h-[280px]'}
                 extraContent={
                   showGoalProgressStat ? (
                     <GoalProgressStat
@@ -2260,7 +2255,7 @@ export default function DailyAnalysisPage() {
                 </WarmButton>
                 <TabsMotionGroup id="daily-analysis-tabs">
                   <TabsList
-                    variant="term"
+                    variant="warm"
                     className={cn(
                       styles.tabsList,
                       'grid h-auto w-full grid-cols-2 sm:w-[260px]'
@@ -2270,7 +2265,7 @@ export default function DailyAnalysisPage() {
                       value="summary"
                       activeValue={activeTab}
                       layoutId="daily-analysis-tab-indicator"
-                      variant="term"
+                      variant="warm"
                     >
                       <CalendarDays aria-hidden />
                       每日汇总
@@ -2279,7 +2274,7 @@ export default function DailyAnalysisPage() {
                       value="details"
                       activeValue={activeTab}
                       layoutId="daily-analysis-tab-indicator"
-                      variant="term"
+                      variant="warm"
                     >
                       <Package aria-hidden />
                       SKU 明细
@@ -2323,13 +2318,8 @@ export default function DailyAnalysisPage() {
                           <EmptyTableState colSpan={13} message="销售数据加载失败" />
                         ) : summaryTableRows.length ? (
                           summaryTableRows.map((row, index) => (
-                            <TableRow
-                              key={`${row.date}-${index}`}
-                              className={cn(
-                                index % 2 === 0 && 'bg-term-raised'
-                              )}
-                            >
-                              <TableCell className="font-medium text-foreground">
+                            <TableRow key={`${row.date}-${index}`}>
+                              <TableCell className="font-medium text-[var(--warm-ledger-color-text)]">
                                 {granularity === 'monthly' ? row.date.slice(0, 7) : row.date}
                               </TableCell>
                               <TableCell className={numericCell}>
@@ -2380,9 +2370,7 @@ export default function DailyAnalysisPage() {
                     <Table containerClassName={styles.tableScroll}>
                       <TableHeader className={cn(STICKY_TOP_ROW, styles.stickyHeader)}>
                         <TableRow className="hover:bg-transparent">
-                          <TableHead className="min-w-[120px] bg-term-raised">
-                            日期
-                          </TableHead>
+                          <TableHead className="min-w-[120px]">日期</TableHead>
                           <TableHead className="min-w-[200px]">SKU</TableHead>
                           <TableHead className="min-w-[200px]">品名</TableHead>
                           <TableHead className={numericHead}>订单量</TableHead>
@@ -2411,23 +2399,19 @@ export default function DailyAnalysisPage() {
                           <EmptyTableState colSpan={16} message="销售数据加载失败" />
                         ) : detailDisplayRows.length ? (
                           detailDisplayRows.map(
-                            ({ row, rowKey, showDate, rowSpan, isTintedGroup, productName }) => (
+                            ({ row, rowKey, showDate, rowSpan, productName }) => (
                               <TableRow
                                 key={rowKey}
                                 className={cn(
                                   'transition-colors',
-                                  isTintedGroup
-                                    ? 'bg-term-raised hover:bg-term-hover'
-                                    : 'bg-term-panel hover:bg-term-hover'
+                                  showDate &&
+                                    '[&>td]:border-t [&>td]:border-t-[var(--warm-ledger-color-hairline-strong)]'
                                 )}
                               >
                                 {showDate ? (
                                   <TableCell
                                     rowSpan={rowSpan}
-                                    className={cn(
-                                      'align-middle text-center font-semibold text-foreground',
-                                      isTintedGroup ? 'bg-term-raised' : 'bg-term-panel'
-                                    )}
+                                    className="border-l-2 border-l-[var(--warm-ledger-color-hairline-strong)] align-middle text-center font-semibold text-[var(--warm-ledger-color-text)]"
                                   >
                                     {granularity === 'monthly' ? row.date.slice(0, 7) : row.date}
                                   </TableCell>

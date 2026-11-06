@@ -160,7 +160,11 @@ export default function AIInsightsPage() {
   const [insightType, setInsightType] = useState('custom')
   const [insights, setInsights] = useState<InsightItem[]>([])
   const [isLoadingProjects, setIsLoadingProjects] = useState(true)
+  const [projectLoadError, setProjectLoadError] = useState<string | null>(null)
   const [isLoadingInsights, setIsLoadingInsights] = useState(true)
+  const [insightLoadError, setInsightLoadError] = useState<string | null>(null)
+  const [projectLoadAttempt, setProjectLoadAttempt] = useState(0)
+  const insightRequestIdRef = useRef(0)
   const [insightDialogOpen, setInsightDialogOpen] = useState(false)
   // 生成弹窗当前订阅的旧 run id（null = 尚未拿到 id）
   const [generatingId, setGeneratingId] = useState<number | null>(null)
@@ -198,10 +202,17 @@ export default function AIInsightsPage() {
 
 
   useEffect(() => {
+    let cancelled = false
     async function loadProjects() {
-      if (!session) return
+      setIsLoadingProjects(true)
+      setProjectLoadError(null)
+      if (!session) {
+        setIsLoadingProjects(false)
+        return
+      }
       try {
         const rows = await fetchManagedProjectsCached<ProjectOption[]>(session)
+        if (cancelled) return
         setProjects(rows || [])
         if (rows && rows.length > 0) {
           const paramProjectId = searchParams.get('project_id')
@@ -211,13 +222,18 @@ export default function AIInsightsPage() {
           // Default to 'all' — no need to set explicitly since that is already the initial state
         }
       } catch (e) {
+        if (cancelled) return
+        setProjectLoadError(e instanceof Error ? e.message : '项目列表加载失败')
         console.error('Failed to load projects', e)
       } finally {
-        setIsLoadingProjects(false)
+        if (!cancelled) setIsLoadingProjects(false)
       }
     }
     void loadProjects()
-  }, [session, searchParams])
+    return () => {
+      cancelled = true
+    }
+  }, [session, searchParams, projectLoadAttempt])
 
   // When country changes, reset dateRange to "last 7 days in that country's timezone".
   useEffect(() => {
@@ -226,7 +242,9 @@ export default function AIInsightsPage() {
 
   const loadInsights = useCallback(async () => {
     if (!selectedProjectId) return
+    const requestId = ++insightRequestIdRef.current
     setIsLoadingInsights(true)
+    setInsightLoadError(null)
     try {
       const params = new URLSearchParams({ limit: '20' })
       if (selectedProjectId !== 'all') {
@@ -235,11 +253,17 @@ export default function AIInsightsPage() {
       const res = await fetch(`/api/backend/v1/ai-insights?${params}`)
       if (!res.ok) throw new Error(await parseResponseError(res, '加载失败'))
       const data = await res.json()
-      setInsights(data.items || [])
+      if (requestId === insightRequestIdRef.current) {
+        setInsights(data.items || [])
+      }
     } catch (e) {
-      console.error('Failed to load insights', e)
+      if (requestId === insightRequestIdRef.current) {
+        setInsights([])
+        setInsightLoadError(e instanceof Error ? e.message : '加载洞察失败')
+        console.error('Failed to load insights', e)
+      }
     } finally {
-      setIsLoadingInsights(false)
+      if (requestId === insightRequestIdRef.current) setIsLoadingInsights(false)
     }
   }, [selectedProjectId])
 
@@ -832,10 +856,22 @@ export default function AIInsightsPage() {
                       onChange={(value) =>
                         setSelectedProjectId(value === 'all' ? 'all' : Number(value))
                       }
-                      placeholder="选择项目"
+                      placeholder={projectLoadError ? '项目加载失败' : '选择项目'}
+                      disabled={!!projectLoadError}
+                      error={projectLoadError ? '项目列表加载失败，请重试' : null}
                     />
                   )}
-                  {selectedProjectId !== 'all' && (
+                  {projectLoadError ? (
+                    <WarmButton
+                      type="button"
+                      variant="quiet"
+                      onClick={() => setProjectLoadAttempt((attempt) => attempt + 1)}
+                      loading={isLoadingProjects}
+                      loadingLabel="正在加载项目"
+                    >
+                      重试
+                    </WarmButton>
+                  ) : selectedProjectId !== 'all' && (
                     <WarmButton
                       type="button"
                       variant="quiet"
@@ -928,9 +964,18 @@ export default function AIInsightsPage() {
                   ))}
                 </div>
               ) : insights.length === 0 ? (
-                <div className={styles.emptyState}>
-                  在左侧选择项目和时间范围，然后点击「生成洞察」按钮
-                </div>
+                insightLoadError ? (
+                  <div className={styles.emptyState} role="alert">
+                    <span>加载洞察记录失败：{insightLoadError}。</span>
+                    <WarmButton type="button" variant="quiet" onClick={() => void loadInsights()}>
+                      重试
+                    </WarmButton>
+                  </div>
+                ) : (
+                  <div className={styles.emptyState}>
+                    在左侧选择项目和时间范围，然后点击「生成洞察」按钮
+                  </div>
+                )
               ) : (
                 <div className={styles.tableScroller}>
                   <table className={styles.dataTable}>

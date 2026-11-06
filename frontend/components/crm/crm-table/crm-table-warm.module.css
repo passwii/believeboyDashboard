@@ -10,10 +10,98 @@
   padding: var(--warm-ledger-space-2) 0 var(--warm-ledger-inset-panel);
 }
 
+.loadingContent {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--warm-ledger-space-2);
+}
+
 .loadingBar {
   height: 38px;
   border-radius: var(--warm-ledger-radius-inner);
   background: var(--warm-ledger-color-raised);
+}
+
+.loadingToolbar {
+  min-height: var(--warm-ledger-control-height-compact);
+}
+
+.loadingControl {
+  display: block;
+  height: var(--warm-ledger-control-height-compact);
+  background: var(--warm-ledger-color-raised);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-inner);
+}
+
+.loadingSearch {
+  width: 240px;
+  max-width: 100%;
+}
+
+.loadingFilter {
+  width: 156px;
+  max-width: 100%;
+}
+
+.loadingCheckbox {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline-strong);
+  border-radius: 4px;
+  background: var(--warm-ledger-color-panel);
+}
+
+.loadingCell {
+  display: block;
+  width: 68%;
+  height: 12px;
+  border-radius: 4px;
+  background: var(--warm-ledger-color-raised);
+}
+
+.loadingFooterTotal,
+.loadingFooterLabel,
+.loadingFooterPage {
+  display: block;
+  height: 12px;
+  border-radius: 4px;
+  background: var(--warm-ledger-color-raised);
+}
+
+.loadingFooterTotal {
+  width: 60px;
+}
+
+.loadingFooterLabel {
+  width: 28px;
+}
+
+.loadingFooterSelect {
+  display: block;
+  width: 56px;
+  height: var(--warm-ledger-control-height-compact);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-inner);
+  background: var(--warm-ledger-color-panel);
+}
+
+.loadingFooterPage {
+  width: 72px;
+}
+
+.loadingFooterButton {
+  display: block;
+  width: 36px;
+  height: 36px;
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-control);
+  background: var(--warm-ledger-color-raised);
+  box-shadow: var(--warm-ledger-highlight-rest);
 }
 
 .toolbar {

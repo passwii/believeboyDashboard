@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import { BadgeDollarSign, Wallet } from 'lucide-react'
+import { BadgeDollarSign } from 'lucide-react'
 
 import { AdAnalysisContextBanner } from '@/components/dashboard/ad-analysis/context-banner'
 import { buildAnalysisDrillHref } from '@/components/dashboard/ad-analysis/drill'
@@ -78,16 +78,27 @@ export function AdAnalysisBudgetClient() {
   const campaignFilter = searchParams.get('campaign') || ''
   const skuFilter = searchParams.get('sku') || ''
 
-  const [dataResult, setDataResult] = useState<{ signature: string; value: BudgetResponse } | null>(null)
+  const [dataResult, setDataResult] = useState<{ signature: string; value: BudgetResponse } | null>(
+    null
+  )
   const [loading, setLoading] = useState(false)
-  const [errorResult, setErrorResult] = useState<{ signature: string; message: string } | null>(null)
+  const [errorResult, setErrorResult] = useState<{ signature: string; message: string } | null>(
+    null
+  )
   const refreshKey = useAdClientRefreshKey()
   const sessionUser = session?.user as
     | { id?: string | null; roleType?: string | null; name?: string | null }
     | undefined
   const querySignature = JSON.stringify([
-    projectId, country, dateFrom, dateTo, campaignFilter, skuFilter,
-    sessionUser?.id ?? null, sessionUser?.roleType ?? null, sessionUser?.name ?? null,
+    projectId,
+    country,
+    dateFrom,
+    dateTo,
+    campaignFilter,
+    skuFilter,
+    sessionUser?.id ?? null,
+    sessionUser?.roleType ?? null,
+    sessionUser?.name ?? null,
   ])
   const data = dataResult?.signature === querySignature ? dataResult.value : null
   const error = errorResult?.signature === querySignature ? errorResult.message : null
@@ -98,7 +109,7 @@ export function AdAnalysisBudgetClient() {
     // BEL-421：缓存键按用户域隔离，等 session 就绪再取数，避免 unknown 域双请求
     if (status === 'loading') return
     let active = true
-    setDataResult((current) => current?.signature === querySignature ? current : null)
+    setDataResult((current) => (current?.signature === querySignature ? current : null))
     setErrorResult(null)
 
     async function load() {
@@ -131,7 +142,18 @@ export function AdAnalysisBudgetClient() {
     return () => {
       active = false
     }
-  }, [campaignFilter, country, dateFrom, dateTo, projectId, querySignature, session, skuFilter, status, refreshKey])
+  }, [
+    campaignFilter,
+    country,
+    dateFrom,
+    dateTo,
+    projectId,
+    querySignature,
+    session,
+    skuFilter,
+    status,
+    refreshKey,
+  ])
 
   if (!projectId) return <WarmEmptyState rowHeight="lg" message="请先选择项目。" />
   if (isLoading && !data) return <WarmEmptyState rowHeight="lg" message="正在加载预算分析..." />
@@ -168,58 +190,59 @@ export function AdAnalysisBudgetClient() {
 
       {/* BEL-421：非首屏区块 —— 叙述分析推迟到滚动接近时再挂载渲染 */}
       <WarmDeferredSection fallbackHeight="h-[280px]" data-testid="budget-deferred-narrative">
-      <WarmPanel title="预算层分析" bodyClassName="p-2">
-          <div className="space-y-1">
-          {narrativeSections.map((section) => (
-            <div
-              key={section.title}
-              className="rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] px-2 py-1.5"
-            >
-              <p className="font-sans text-xs font-medium text-[var(--warm-ledger-color-text)]">{section.title}</p>
-              <p className="mt-1 font-sans text-xs leading-5 text-[var(--warm-ledger-color-text-muted)]">{section.summary}</p>
-              <div className="mt-1 space-y-0.5 font-sans text-xs text-[var(--warm-ledger-color-text-faint)]">
-                {section.evidence.map((evidence) => (
-                  <p key={evidence}>- {evidence}</p>
-                ))}
+        <WarmPanel title="预算层分析" bodyClassName="p-2">
+          <div className="divide-y divide-[var(--warm-ledger-color-hairline)]">
+            {narrativeSections.map((section) => (
+              <div key={section.title} className="py-2 first:pt-0 last:pb-0">
+                <p className="font-sans text-xs font-medium text-[var(--warm-ledger-color-text)]">
+                  {section.title}
+                </p>
+                <p className="mt-1 font-sans text-xs leading-5 text-[var(--warm-ledger-color-text-muted)]">
+                  {section.summary}
+                </p>
+                <div className="mt-1 space-y-0.5 font-sans text-xs text-[var(--warm-ledger-color-text-muted)]">
+                  {section.evidence.map((evidence) => (
+                    <p key={evidence}>- {evidence}</p>
+                  ))}
+                </div>
+                {section.action ? (
+                  <p className="mt-1 font-sans text-xs leading-5 text-[var(--warm-ledger-color-text-muted)]">
+                    动作：{section.action}
+                  </p>
+                ) : null}
+                <div className="mt-2">
+                  <AdAnalysisDrillLinks
+                    links={[
+                      {
+                        href: buildAnalysisDrillHref(
+                          section.drill_to || '',
+                          { projectId, country, dateFrom, dateTo },
+                          {
+                            campaign: campaignFilter || undefined,
+                            sku: skuFilter || undefined,
+                          }
+                        ),
+                        label:
+                          section.drill_to === 'search-terms'
+                            ? '搜索词'
+                            : section.drill_to === 'campaigns'
+                              ? '活动'
+                              : '预算',
+                      },
+                    ]}
+                  />
+                </div>
               </div>
-              {section.action ? (
-                <p className="mt-1 font-sans text-xs leading-5 text-[var(--warm-ledger-color-text-muted)]">动作：{section.action}</p>
-              ) : null}
-              <div className="mt-2">
-                <AdAnalysisDrillLinks
-                  links={[
-                    {
-                      href: buildAnalysisDrillHref(
-                        section.drill_to || '',
-                        { projectId, country, dateFrom, dateTo },
-                        {
-                          campaign: campaignFilter || undefined,
-                          sku: skuFilter || undefined,
-                        }
-                      ),
-                      label:
-                        section.drill_to === 'search-terms'
-                          ? '搜索词'
-                          : section.drill_to === 'campaigns'
-                            ? '活动'
-                            : '预算',
-                    },
-                  ]}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </WarmPanel>
+            ))}
+          </div>
+        </WarmPanel>
       </WarmDeferredSection>
 
       {/* BEL-421：非首屏区块 —— 预算明细表推迟挂载 */}
       <WarmDeferredSection fallbackHeight="h-[420px]" data-testid="budget-deferred-table">
-      <WarmPanel title="活动层分析" bodyClassName="p-0">
-        <div className="flex items-center gap-1.5 px-2 py-1.5">
-            <Wallet className="h-4 w-4 text-[var(--warm-ledger-color-accent-strong)]" />
-          {/* 桌面端：完整表格 */}
-          <div>
+        <WarmPanel title="活动层分析" bodyClassName="p-0">
+          <div className="w-full min-w-0">
+            {/* 桌面端：完整表格 */}
             <WarmTable>
               <WarmTHead>
                 <WarmRow>
@@ -239,12 +262,17 @@ export function AdAnalysisBudgetClient() {
                   <WarmRow key={item.campaign_name}>
                     <WarmCell className="align-top">
                       <div className="space-y-1">
-                        <p className="font-sans text-xs font-medium text-[var(--warm-ledger-color-text)]">{item.campaign_name}</p>
-                        <p className="font-sans text-xs text-[var(--warm-ledger-color-text-muted)]">{item.status}</p>
+                        <p className="font-sans text-xs font-medium text-[var(--warm-ledger-color-text)]">
+                          {item.campaign_name}
+                        </p>
+                        <p className="font-sans text-xs text-[var(--warm-ledger-color-text-muted)]">
+                          {item.status}
+                        </p>
                       </div>
                     </WarmCell>
                     <WarmCell>
-                      <WarmPill tone="muted"><BadgeDollarSign className="mr-1 h-3.5 w-3.5" />
+                      <WarmPill tone="muted">
+                        <BadgeDollarSign className="mr-1 h-3.5 w-3.5" />
                         {item.action}
                       </WarmPill>
                     </WarmCell>
@@ -303,9 +331,7 @@ export function AdAnalysisBudgetClient() {
               </WarmBody>
             </WarmTable>
           </div>
-
-        </div>
-      </WarmPanel>
+        </WarmPanel>
       </WarmDeferredSection>
     </div>
   )

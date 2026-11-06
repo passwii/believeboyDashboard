@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -34,14 +34,26 @@ const baseProps: OrderFlowCardProps = {
 }
 
 describe('OrderFlowCard', () => {
+  it('uses one header hierarchy and keeps the pending list named', () => {
+    render(<OrderFlowCard {...baseProps} pendingCount={17} />)
+
+    const card = screen.getByRole('region', { name: '订单流' })
+    expect(within(card).getByRole('heading', { name: '订单流' })).toBeInTheDocument()
+    expect(within(card).getByText('17')).toBeInTheDocument()
+    expect(within(card).getByText('单')).toBeInTheDocument()
+    expect(within(card).queryByText('Pending 总数')).not.toBeInTheDocument()
+    expect(within(card).queryByRole('heading', { name: '待处理订单' })).not.toBeInTheDocument()
+    expect(within(card).getByRole('region', { name: '待处理订单' })).toBeInTheDocument()
+  })
+
   it('announces count loading while preserving the count slot', () => {
     render(<OrderFlowCard {...baseProps} pendingCount={0} countLoading />)
 
-    expect(screen.getByRole('status', { name: 'Pending 总数加载中' })).toHaveAttribute(
+    expect(screen.getByRole('status', { name: '待处理订单总数加载中' })).toHaveAttribute(
       'aria-busy',
       'true'
     )
-    expect(screen.getByRole('status', { name: 'Pending 总数加载中' })).toHaveTextContent('—')
+    expect(screen.getByRole('status', { name: '待处理订单总数加载中' })).toHaveTextContent('—')
   })
 
   it('shows list loading separately from the supplied Pending count', () => {
@@ -70,9 +82,9 @@ describe('OrderFlowCard', () => {
   })
 
   it('announces count failures independently from list state', () => {
-    render(<OrderFlowCard {...baseProps} countError="Pending 总数暂不可用" />)
+    render(<OrderFlowCard {...baseProps} countError="订单服务暂不可用" />)
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Pending 总数暂不可用')
+    expect(screen.getByRole('alert')).toHaveTextContent('待处理订单总数加载失败：订单服务暂不可用')
     expect(screen.getByText('—')).toBeInTheDocument()
     expect(screen.queryByText('1')).not.toBeInTheDocument()
     expect(screen.getByText('114-1234567-1234567')).toBeInTheDocument()
@@ -90,7 +102,7 @@ describe('OrderFlowCard', () => {
       />
     )
 
-    expect(screen.getByRole('status', { name: 'Pending 总数加载中' })).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: '待处理订单总数加载中' })).toBeInTheDocument()
     expect(screen.queryByRole('status', { name: '待处理订单加载中' })).not.toBeInTheDocument()
 
     rerender(

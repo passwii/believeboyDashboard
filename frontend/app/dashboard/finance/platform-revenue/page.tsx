@@ -247,6 +247,8 @@ export default function PlatformRevenuePage() {
   // 状态
   const [revenues, setRevenues] = useState<PlatformRevenue[]>([])
   const [projects, setProjects] = useState<ProjectOption[]>([])
+  const [projectsLoading, setProjectsLoading] = useState(true)
+  const [projectsError, setProjectsError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [pagination, setPagination] = useState({
@@ -295,6 +297,8 @@ export default function PlatformRevenuePage() {
 
   // 获取项目列表
   const fetchProjects = useCallback(async () => {
+    setProjectsLoading(true)
+    setProjectsError(null)
     try {
       // 复用 projects/manage 2min 客户端缓存（BEL-424）：跨页共享项目列表。
       const data = await fetchManagedProjectsCached<ProjectOption[]>(session)
@@ -302,6 +306,9 @@ export default function PlatformRevenuePage() {
       setProjects(items)
     } catch (error) {
       console.error('Error fetching projects:', error)
+      setProjectsError('项目列表加载失败')
+    } finally {
+      setProjectsLoading(false)
     }
   }, [session])
 
@@ -323,7 +330,7 @@ export default function PlatformRevenuePage() {
 
       const response = await fetch(`/api/backend/api/v1/platform-revenues?${queryParams}`)
       if (!response.ok) {
-        throw new Error('Failed to fetch revenues')
+        throw new Error('平台回款数据加载失败')
       }
 
       const result = await response.json()
@@ -336,7 +343,7 @@ export default function PlatformRevenuePage() {
       })
     } catch (error) {
       console.error('Error fetching revenues:', error)
-      setLoadError(error instanceof Error ? error.message : '回款数据加载失败')
+      setLoadError('平台回款数据加载失败')
     } finally {
       setLoading(false)
     }
@@ -820,22 +827,41 @@ export default function PlatformRevenuePage() {
 
   const filterControls = (
     <div className={styles.filters} role="group" aria-label="平台回款筛选">
-      <WarmSelect
-        id="platform-revenue-project-filter"
-        label="项目"
-        value={filters.project_id || ALL_FILTER_VALUE}
-        options={[
-          { value: ALL_FILTER_VALUE, label: '全部项目' },
-          ...projects.map((project) => ({
-            value: project.id.toString(),
-            label: project.name,
-          })),
-        ]}
-        onChange={(value) =>
-          handleFilterChange('project_id', value === ALL_FILTER_VALUE ? '' : value)
-        }
-        className={styles.filterProject}
-      />
+      <div className={styles.projectFilterGroup} aria-busy={projectsLoading || undefined}>
+        <WarmSelect
+          id="platform-revenue-project-filter"
+          label="项目"
+          value={filters.project_id || ALL_FILTER_VALUE}
+          options={[
+            { value: ALL_FILTER_VALUE, label: '全部项目' },
+            ...projects.map((project) => ({
+              value: project.id.toString(),
+              label: project.name,
+            })),
+          ]}
+          onChange={(value) =>
+            handleFilterChange('project_id', value === ALL_FILTER_VALUE ? '' : value)
+          }
+          disabled={projectsLoading}
+          error={projectsError}
+          className={styles.filterProject}
+        />
+        {projectsLoading ? (
+          <span className={styles.projectFilterLoading} role="status">
+            正在加载项目
+          </span>
+        ) : projectsError ? (
+          <div className={styles.projectFilterStatus}>
+            <WarmButton
+              className={styles.projectFilterRetry}
+              variant="quiet"
+              onClick={() => void fetchProjects()}
+            >
+              重试
+            </WarmButton>
+          </div>
+        ) : null}
+      </div>
       <WarmSelect
         id="platform-revenue-year-filter"
         label="年份"
@@ -1002,9 +1028,15 @@ export default function PlatformRevenuePage() {
               ) : loadError ? (
                 <tr className={styles.messageRow}>
                   <td colSpan={8}>
-                    <p className={cn(styles.message, styles.errorMessage)} role="alert">
+                    <div
+                      className={cn(styles.message, styles.errorMessage, styles.errorState)}
+                      role="alert"
+                    >
                       {loadError}
-                    </p>
+                      <WarmButton variant="quiet" onClick={() => void fetchRevenues()}>
+                        重试
+                      </WarmButton>
+                    </div>
                   </td>
                 </tr>
               ) : revenues.length === 0 ? (
@@ -1111,10 +1143,20 @@ export default function PlatformRevenuePage() {
         </div>
       </section>
 
-      <nav className={styles.pagination} aria-label="平台回款分页">
-        <span>
-          共 {pagination.total} 条 · 第 {pagination.page}/{pagination.total_pages} 页
-        </span>
+      <nav
+        className={styles.pagination}
+        aria-label="平台回款分页"
+        aria-busy={loading || undefined}
+      >
+        {loading || loadError ? (
+          <span className={styles.paginationPlaceholder} aria-hidden="true" />
+        ) : pagination.total === 0 ? (
+          <span>共 0 条</span>
+        ) : (
+          <span>
+            共 {pagination.total} 条 · 第 {pagination.page}/{pagination.total_pages} 页
+          </span>
+        )}
         <div className={styles.paginationActions}>
           <WarmButton
             className={styles.paginationButton}
@@ -1122,7 +1164,7 @@ export default function PlatformRevenuePage() {
             onClick={() =>
               setPagination((prev) => ({ ...prev, page: Math.max(1, prev.page - 1) }))
             }
-            disabled={pagination.page <= 1}
+            disabled={loading || Boolean(loadError) || pagination.page <= 1}
           >
             上一页
           </WarmButton>
@@ -1135,7 +1177,12 @@ export default function PlatformRevenuePage() {
                 page: Math.min(prev.total_pages, prev.page + 1),
               }))
             }
-            disabled={pagination.page >= pagination.total_pages}
+            disabled={
+              loading ||
+              Boolean(loadError) ||
+              pagination.total_pages === 0 ||
+              pagination.page >= pagination.total_pages
+            }
           >
             下一页
           </WarmButton>

@@ -129,18 +129,18 @@ describe('CRM Dashboard SkeletonReveal 接入', () => {
     expect(screen.getByText('本月新增客户')).toBeVisible()
   })
 
-  it('请求失败时结束加载态并保留错误提示和原有空态', async () => {
+  it('请求失败时显示错误并隐藏尚无真实数据的区域', async () => {
     client.getDashboardStats.mockRejectedValue(new Error('看板暂不可用'))
     client.getLifecycleBoard.mockRejectedValue(new Error('看板暂不可用'))
 
     render(<CrmDashboardPage />)
 
     expect(await screen.findByText('看板暂不可用')).toBeVisible()
-    expect(screen.getByTestId('crm-dashboard-kpis')).toHaveAttribute('data-state', 'revealed')
-    expect(screen.getByTestId('crm-dashboard-funnel')).toHaveAttribute('data-state', 'revealed')
-    expect(screen.getByTestId('crm-dashboard-kpis')).not.toHaveAttribute('aria-busy')
-    expect(screen.getByText('暂无漏斗数据')).toBeVisible()
-    expect(screen.getByText('暂无业绩数据')).toBeVisible()
-    expect(screen.getByText('本月新增客户')).toBeVisible()
+    expect(screen.queryByTestId('crm-dashboard-kpis')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('crm-dashboard-funnel')).not.toBeInTheDocument()
+    expect(screen.queryByText('暂无漏斗数据')).not.toBeInTheDocument()
+    expect(screen.queryByText('暂无业绩数据')).not.toBeInTheDocument()
+    expect(screen.queryByText('本月新增客户')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '重试' })).toBeVisible()
   })
 })

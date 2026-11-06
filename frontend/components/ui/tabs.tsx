@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 const Tabs = TabsPrimitive.Root
 
 type TabsListProps = React.ComponentPropsWithoutRef<typeof TabsPrimitive.List> & {
-  variant?: 'default' | 'term'
+  variant?: 'default' | 'term' | 'warm'
 }
 
 const TABS_LIST_BASE =
@@ -24,6 +24,9 @@ const TABS_LIST_DEFAULT =
 const TABS_LIST_TERM =
   'h-10 min-h-10 max-w-full gap-0 rounded-none border border-term-border bg-term-panel p-0 text-xs overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
 
+const TABS_LIST_WARM =
+  'h-10 min-h-10 max-w-full gap-1 rounded-[var(--warm-ledger-radius-control)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] p-1 text-xs shadow-[var(--warm-ledger-highlight-shell)] overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+
 const TabsList = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.List>,
   TabsListProps
@@ -32,7 +35,11 @@ const TabsList = React.forwardRef<
     ref={ref}
     className={cn(
       TABS_LIST_BASE,
-      variant === 'term' ? TABS_LIST_TERM : TABS_LIST_DEFAULT,
+      variant === 'term'
+        ? TABS_LIST_TERM
+        : variant === 'warm'
+          ? TABS_LIST_WARM
+          : TABS_LIST_DEFAULT,
       className
     )}
     {...props}
@@ -41,7 +48,7 @@ const TabsList = React.forwardRef<
 TabsList.displayName = TabsPrimitive.List.displayName
 
 type TabsTriggerProps = React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger> & {
-  variant?: 'default' | 'term'
+  variant?: 'default' | 'term' | 'warm'
 }
 
 const TRIGGER_BASE =
@@ -58,6 +65,9 @@ const TERM_ACTIVE_UNDERLINE =
 const TRIGGER_TERM =
   `h-10 min-h-10 rounded-none border border-transparent px-3 py-0 gap-1.5 font-mono text-xs leading-none text-term-muted hover:text-term-text data-[state=active]:bg-term-raised data-[state=active]:text-term-text data-[state=active]:shadow-none ${TERM_ACTIVE_UNDERLINE} [&_svg]:h-3.5 [&_svg]:w-3.5`
 
+const TRIGGER_WARM =
+  "h-9 min-h-9 rounded-[var(--warm-ledger-radius-inner)] border border-transparent px-3 py-0 gap-1.5 [font-family:var(--warm-ledger-font-sans)] text-xs leading-none text-[var(--warm-ledger-color-text-muted)] hover:bg-[var(--warm-ledger-color-raised-hover)] hover:text-[var(--warm-ledger-color-text)] data-[state=active]:border-[var(--warm-ledger-color-hairline-strong)] data-[state=active]:bg-[var(--warm-ledger-color-raised)] data-[state=active]:text-[var(--warm-ledger-color-text)] data-[state=active]:shadow-[var(--warm-ledger-highlight-rest)] data-[state=active]:after:absolute data-[state=active]:after:inset-x-2 data-[state=active]:after:bottom-0 data-[state=active]:after:h-[2px] data-[state=active]:after:bg-[var(--warm-ledger-color-accent)] data-[state=active]:after:content-[''] [&_svg]:h-3.5 [&_svg]:w-3.5"
+
 const TabsTrigger = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Trigger>,
   TabsTriggerProps
@@ -66,7 +76,11 @@ const TabsTrigger = React.forwardRef<
     ref={ref}
     className={cn(
       TRIGGER_BASE,
-      variant === 'term' ? TRIGGER_TERM : TRIGGER_DEFAULT,
+      variant === 'term'
+        ? TRIGGER_TERM
+        : variant === 'warm'
+          ? TRIGGER_WARM
+          : TRIGGER_DEFAULT,
       className
     )}
     {...props}

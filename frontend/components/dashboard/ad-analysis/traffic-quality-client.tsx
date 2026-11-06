@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import { AlertTriangle, ShieldAlert } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 
 import { AdAnalysisContextBanner } from '@/components/dashboard/ad-analysis/context-banner'
 import { buildAnalysisDrillHref } from '@/components/dashboard/ad-analysis/drill'
@@ -62,7 +62,6 @@ type TrafficQualityResponse = {
   items: TrafficQualityItem[]
 }
 
-
 function riskVariant(level: string): 'default' | 'secondary' | 'destructive' | 'outline' {
   if (level === '高风险') return 'destructive'
   if (level === '中风险') return 'secondary'
@@ -78,16 +77,27 @@ export function AdAnalysisTrafficQualityClient() {
   const dateTo = searchParams.get('dateTo') || ''
   const campaignFilter = searchParams.get('campaign') || ''
 
-  const [dataResult, setDataResult] = useState<{ signature: string; value: TrafficQualityResponse } | null>(null)
+  const [dataResult, setDataResult] = useState<{
+    signature: string
+    value: TrafficQualityResponse
+  } | null>(null)
   const [loading, setLoading] = useState(false)
-  const [errorResult, setErrorResult] = useState<{ signature: string; message: string } | null>(null)
+  const [errorResult, setErrorResult] = useState<{ signature: string; message: string } | null>(
+    null
+  )
   const refreshKey = useAdClientRefreshKey()
   const sessionUser = session?.user as
     | { id?: string | null; roleType?: string | null; name?: string | null }
     | undefined
   const querySignature = JSON.stringify([
-    projectId, country, dateFrom, dateTo, campaignFilter,
-    sessionUser?.id ?? null, sessionUser?.roleType ?? null, sessionUser?.name ?? null,
+    projectId,
+    country,
+    dateFrom,
+    dateTo,
+    campaignFilter,
+    sessionUser?.id ?? null,
+    sessionUser?.roleType ?? null,
+    sessionUser?.name ?? null,
   ])
   const data = dataResult?.signature === querySignature ? dataResult.value : null
   const error = errorResult?.signature === querySignature ? errorResult.message : null
@@ -98,7 +108,7 @@ export function AdAnalysisTrafficQualityClient() {
     // BEL-421: cache key is user-scoped; wait for session to avoid an unknown-scope double fetch
     if (status === 'loading') return
     let active = true
-    setDataResult((current) => current?.signature === querySignature ? current : null)
+    setDataResult((current) => (current?.signature === querySignature ? current : null))
     setErrorResult(null)
 
     async function load() {
@@ -112,7 +122,11 @@ export function AdAnalysisTrafficQualityClient() {
         if (dateTo) query.set('date_to', dateTo)
         if (campaignFilter) query.set('campaign', campaignFilter)
         // BEL-421: 2-min client cache — repeat mounts within TTL make 0 requests
-        const payload = await fetchAdAnalysisCached<TrafficQualityResponse>('traffic-quality', query, session)
+        const payload = await fetchAdAnalysisCached<TrafficQualityResponse>(
+          'traffic-quality',
+          query,
+          session
+        )
         if (active) setDataResult({ signature: querySignature, value: payload })
       } catch (fetchError) {
         if (active) {
@@ -130,7 +144,17 @@ export function AdAnalysisTrafficQualityClient() {
     return () => {
       active = false
     }
-  }, [campaignFilter, country, dateFrom, dateTo, projectId, querySignature, session, status, refreshKey])
+  }, [
+    campaignFilter,
+    country,
+    dateFrom,
+    dateTo,
+    projectId,
+    querySignature,
+    session,
+    status,
+    refreshKey,
+  ])
 
   if (!projectId) return <WarmEmptyState rowHeight="lg" message="请先选择项目。" />
   if (isLoading && !data) return <WarmEmptyState rowHeight="lg" message="正在加载流量质量分析..." />
@@ -162,55 +186,59 @@ export function AdAnalysisTrafficQualityClient() {
         ))}
       </div>
 
-      <WarmDeferredSection fallbackHeight="h-[280px]" data-testid="traffic-quality-deferred-narrative">
-      <WarmPanel title="流量质量层分析" bodyClassName="p-2">
-          <div className="space-y-1">
-          {narrativeSections.map((section) => (
-            <div
-              key={section.title}
-              className="rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] px-2 py-1.5"
-            >
-              <p className="font-sans text-xs font-medium text-[var(--warm-ledger-color-text)]">{section.title}</p>
-              <p className="mt-1 font-sans text-xs leading-5 text-[var(--warm-ledger-color-text-muted)]">{section.summary}</p>
-              <div className="mt-1 space-y-0.5 font-sans text-xs text-[var(--warm-ledger-color-text-faint)]">
-                {section.evidence.map((evidence) => (
-                  <p key={evidence}>- {evidence}</p>
-                ))}
+      <WarmDeferredSection
+        fallbackHeight="h-[280px]"
+        data-testid="traffic-quality-deferred-narrative"
+      >
+        <WarmPanel title="流量质量层分析" bodyClassName="p-2">
+          <div className="divide-y divide-[var(--warm-ledger-color-hairline)]">
+            {narrativeSections.map((section) => (
+              <div key={section.title} className="py-2 first:pt-0 last:pb-0">
+                <p className="font-sans text-xs font-medium text-[var(--warm-ledger-color-text)]">
+                  {section.title}
+                </p>
+                <p className="mt-1 font-sans text-xs leading-5 text-[var(--warm-ledger-color-text-muted)]">
+                  {section.summary}
+                </p>
+                <div className="mt-1 space-y-0.5 font-sans text-xs text-[var(--warm-ledger-color-text-muted)]">
+                  {section.evidence.map((evidence) => (
+                    <p key={evidence}>- {evidence}</p>
+                  ))}
+                </div>
+                {section.action ? (
+                  <p className="mt-1 font-sans text-xs leading-5 text-[var(--warm-ledger-color-text-muted)]">
+                    动作：{section.action}
+                  </p>
+                ) : null}
+                <div className="mt-2">
+                  <AdAnalysisDrillLinks
+                    links={[
+                      {
+                        href: buildAnalysisDrillHref(
+                          section.drill_to || '',
+                          { projectId, country, dateFrom, dateTo },
+                          { campaign: campaignFilter || undefined }
+                        ),
+                        label:
+                          section.drill_to === 'targets'
+                            ? '投放'
+                            : section.drill_to === 'campaigns'
+                              ? '活动'
+                              : '流量',
+                      },
+                    ]}
+                  />
+                </div>
               </div>
-              {section.action ? (
-                <p className="mt-1 font-sans text-xs leading-5 text-[var(--warm-ledger-color-text-muted)]">动作：{section.action}</p>
-              ) : null}
-              <div className="mt-2">
-                <AdAnalysisDrillLinks
-                  links={[
-                    {
-                      href: buildAnalysisDrillHref(
-                        section.drill_to || '',
-                        { projectId, country, dateFrom, dateTo },
-                        { campaign: campaignFilter || undefined }
-                      ),
-                      label:
-                        section.drill_to === 'targets'
-                          ? '投放'
-                          : section.drill_to === 'campaigns'
-                            ? '活动'
-                            : '流量',
-                    },
-                  ]}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </WarmPanel>
+            ))}
+          </div>
+        </WarmPanel>
       </WarmDeferredSection>
 
       <WarmDeferredSection fallbackHeight="h-[420px]" data-testid="traffic-quality-deferred-table">
-      <WarmPanel title="活动层分析" bodyClassName="p-0">
-        <div className="flex items-center gap-1.5 px-2 py-1.5">
-            <ShieldAlert className="h-4 w-4 text-[var(--warm-ledger-color-accent-strong)]" />
-          {/* 桌面端：完整表格 */}
-          <div>
+        <WarmPanel title="活动层分析" bodyClassName="p-0">
+          <div className="w-full min-w-0">
+            {/* 桌面端：完整表格 */}
             <WarmTable>
               <WarmTHead>
                 <WarmRow>
@@ -229,22 +257,38 @@ export function AdAnalysisTrafficQualityClient() {
                   <WarmRow key={item.campaign_name}>
                     <WarmCell className="align-top">
                       <div className="space-y-1">
-                        <p className="font-sans text-xs font-medium text-[var(--warm-ledger-color-text)]">{item.campaign_name}</p>
-                        <p className="font-sans text-xs text-[var(--warm-ledger-color-text-muted)]">{item.status}</p>
+                        <p className="font-sans text-xs font-medium text-[var(--warm-ledger-color-text)]">
+                          {item.campaign_name}
+                        </p>
+                        <p className="font-sans text-xs text-[var(--warm-ledger-color-text-muted)]">
+                          {item.status}
+                        </p>
                       </div>
                     </WarmCell>
                     <WarmCell>
-                      <WarmPill tone={item.risk_level === "高风险" ? "neg" : item.risk_level === "中风险" ? "warn" : "muted"}>
+                      <WarmPill
+                        tone={
+                          item.risk_level === '高风险'
+                            ? 'neg'
+                            : item.risk_level === '中风险'
+                              ? 'warn'
+                              : 'muted'
+                        }
+                      >
                         <AlertTriangle className="mr-1 h-3.5 w-3.5" />
                         {item.risk_level}
                       </WarmPill>
                     </WarmCell>
                     <WarmCell>
-                      <WarmNumber>{item.total_impressions} / {item.invalid_impressions}</WarmNumber>
+                      <WarmNumber>
+                        {item.total_impressions} / {item.invalid_impressions}
+                      </WarmNumber>
                     </WarmCell>
                     <WarmCell numeric>{(item.invalid_impression_rate * 100).toFixed(2)}%</WarmCell>
                     <WarmCell>
-                      <WarmNumber>{item.total_clicks} / {item.invalid_clicks}</WarmNumber>
+                      <WarmNumber>
+                        {item.total_clicks} / {item.invalid_clicks}
+                      </WarmNumber>
                     </WarmCell>
                     <WarmCell numeric>{(item.invalid_click_rate * 100).toFixed(2)}%</WarmCell>
                     <WarmCell className="max-w-[220px] text-sm text-[var(--warm-ledger-color-text-muted)]">
@@ -293,9 +337,7 @@ export function AdAnalysisTrafficQualityClient() {
               </WarmBody>
             </WarmTable>
           </div>
-
-        </div>
-      </WarmPanel>
+        </WarmPanel>
       </WarmDeferredSection>
     </div>
   )

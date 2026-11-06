@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import {
   CartesianGrid,
   Line,
@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/select'
 import { useMobile } from '@/lib/hooks/use-mobile'
 import type { ProjectPortfolioKPI } from '@/lib/hooks/use-portfolio-data'
+import styles from './portfolio-trend-chart.module.css'
 
 interface PortfolioTrendChartProps {
   projects: ProjectPortfolioKPI[]
@@ -65,6 +66,7 @@ function formatMetricValue(value: number, metric: MetricKey, country: string): s
 }
 
 export function PortfolioTrendChart({ projects, country }: PortfolioTrendChartProps) {
+  const chartSummaryId = useId()
   const [metric, setMetric] = useState<MetricKey>('sales_amount')
   const isMobile = useMobile()
 
@@ -99,6 +101,28 @@ export function PortfolioTrendChart({ projects, country }: PortfolioTrendChartPr
       .map(([, entry]) => entry)
   })()
 
+  const chartSummary =
+    chartData.length === 0
+      ? '当前筛选范围内暂无可绘制趋势数据。'
+      : `${METRIC_CONFIG[metric].label}按日趋势（${String(chartData[0].date)} 至 ${String(chartData[chartData.length - 1].date)}）。${projects
+          .map((project) => {
+            const projectKey = `p${project.project_id}_${metric}`
+            const projectPoints = chartData.flatMap((entry) => {
+              const value = entry[projectKey]
+              return typeof value === 'number' && Number.isFinite(value)
+                ? [{ date: String(entry.date), value }]
+                : []
+            })
+            if (projectPoints.length === 0) return `${project.project_name}：无可绘制数据`
+
+            const latestPoint = projectPoints[projectPoints.length - 1]
+            const peakPoint = projectPoints.reduce((peak, point) =>
+              point.value > peak.value ? point : peak
+            )
+            return `${project.project_name}：峰值 ${formatMetricValue(peakPoint.value, metric, country)}（${peakPoint.date}），最新 ${formatMetricValue(latestPoint.value, metric, country)}（${latestPoint.date}）`
+          })
+          .join('；')}`
+
   if (projects.length === 0) {
     return (
       <div className="flex h-64 items-center justify-center font-mono text-xs leading-5 text-term-muted">
@@ -112,12 +136,16 @@ export function PortfolioTrendChart({ projects, country }: PortfolioTrendChartPr
       title="多项目趋势对比"
       actions={
         <Select value={metric} onValueChange={(v) => setMetric(v as MetricKey)}>
-          <SelectTrigger className="h-9 w-32 rounded-none border-term-border bg-term-bg font-mono text-xs leading-5 text-term-text shadow-none focus-visible:outline-none focus-visible:border-term-border-strong">
+          <SelectTrigger className={styles.metricSelectTrigger}>
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className={`${styles.metricSelectContent} warm-ledger`}>
             {(Object.keys(METRIC_CONFIG) as MetricKey[]).map((k) => (
-              <SelectItem key={k} value={k}>
+              <SelectItem
+                key={k}
+                value={k}
+                className={styles.metricSelectItem}
+              >
                 {METRIC_CONFIG[k].label}
               </SelectItem>
             ))}
@@ -125,55 +153,66 @@ export function PortfolioTrendChart({ projects, country }: PortfolioTrendChartPr
         </Select>
       }
     >
-      <ChartContainer config={chartConfig} className="h-[300px] w-full sm:h-[350px]">
-        <LineChart
-          data={chartData}
-          margin={
-            isMobile
-              ? { top: 5, right: 8, left: -28, bottom: 5 }
-              : { top: 5, right: 20, left: 10, bottom: 5 }
-          }
+      <>
+        <p id={chartSummaryId} className="sr-only">
+          {chartSummary}
+        </p>
+        <ChartContainer
+          config={chartConfig}
+          className="h-[300px] w-full sm:h-[350px]"
+          role="img"
+          aria-label={`${METRIC_CONFIG[metric].label}多项目趋势对比`}
+          aria-describedby={chartSummaryId}
         >
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--term-border))" />
-          <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(v) => v.slice(5)} />
-          {/* 手机端隐藏 Y 轴消除留白（规则：图表区域手机端优化），tooltip 仍可读精确值 */}
-          {!isMobile && (
-            <YAxis
-              tick={{ fontSize: 11 }}
-              tickFormatter={(v) => formatMetricValue(v, metric, country)}
-            />
-          )}
-          <ChartTooltip
-            content={
-              <ChartTooltipContent
-                labelFormatter={(label) => `日期: ${label}`}
-                formatter={(value, name) => (
-                  <div className="flex w-full items-center justify-between gap-4">
-                    <span className="font-mono text-[11px] leading-4 text-term-muted">
-                      {String(name)}
-                    </span>
-                    <span className="font-mono text-xs leading-5 tabular-nums text-term-text">
-                      {formatMetricValue(Number(value), metric, country)}
-                    </span>
-                  </div>
-                )}
-              />
+          <LineChart
+            data={chartData}
+            margin={
+              isMobile
+                ? { top: 5, right: 8, left: -28, bottom: 5 }
+                : { top: 5, right: 20, left: 10, bottom: 5 }
             }
-          />
-          <ChartLegend content={<ChartLegendContent />} />
-          {projects.map((p, i) => (
-            <Line
-              key={p.project_id}
-              type="monotone"
-              dataKey={`p${p.project_id}_${metric}`}
-              name={p.project_name}
-              stroke={CHART_COLORS[i % CHART_COLORS.length]}
-              dot={false}
-              strokeWidth={2}
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--term-border))" />
+            <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(v) => v.slice(5)} />
+            {/* 手机端隐藏 Y 轴消除留白（规则：图表区域手机端优化），tooltip 仍可读精确值 */}
+            {!isMobile && (
+              <YAxis
+                tick={{ fontSize: 11 }}
+                tickFormatter={(v) => formatMetricValue(v, metric, country)}
+              />
+            )}
+            <ChartTooltip
+              content={
+                <ChartTooltipContent
+                  labelFormatter={(label) => `日期: ${label}`}
+                  formatter={(value, name) => (
+                    <div className="flex w-full items-center justify-between gap-4">
+                      <span className="font-mono text-[11px] leading-4 text-term-muted">
+                        {String(name)}
+                      </span>
+                      <span className="font-mono text-xs leading-5 tabular-nums text-term-text">
+                        {formatMetricValue(Number(value), metric, country)}
+                      </span>
+                    </div>
+                  )}
+                />
+              }
             />
-          ))}
-        </LineChart>
-      </ChartContainer>
+            <ChartLegend content={<ChartLegendContent />} />
+            {projects.map((p, i) => (
+              <Line
+                key={p.project_id}
+                type="monotone"
+                dataKey={`p${p.project_id}_${metric}`}
+                name={p.project_name}
+                stroke={CHART_COLORS[i % CHART_COLORS.length]}
+                dot={false}
+                strokeWidth={2}
+              />
+            ))}
+          </LineChart>
+        </ChartContainer>
+      </>
     </ChartCard>
   )
 }

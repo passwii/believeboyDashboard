@@ -16,7 +16,18 @@ import { buildLoginCallbackUrl } from '@/lib/login-callback-url'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
-    <Suspense fallback={<div data-dashboard-layout-loading aria-busy="true" />}>
+    <Suspense
+      fallback={
+        <div
+          className="grid min-h-dvh w-full place-items-center"
+          data-dashboard-layout-loading
+          role="status"
+          aria-busy="true"
+        >
+          <span className="text-sm text-muted-foreground">页面加载中</span>
+        </div>
+      }
+    >
       <DashboardLayoutContent>{children}</DashboardLayoutContent>
     </Suspense>
   )

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import { Package2, Target } from 'lucide-react'
+import { Target } from 'lucide-react'
 
 import { AdAnalysisContextBanner } from '@/components/dashboard/ad-analysis/context-banner'
 import { buildAnalysisDrillHref } from '@/components/dashboard/ad-analysis/drill'
@@ -176,10 +176,8 @@ export function AdAnalysisProductsClient() {
 
       <WarmDeferredSection fallbackHeight="h-[420px]" data-testid="products-deferred-table">
       <WarmPanel title="活动层分析" bodyClassName="p-0">
-        <div className="flex items-center gap-1.5 px-2 py-1.5">
-            <Package2 className="h-4 w-4 text-[var(--warm-ledger-color-accent-strong)]" />
+          <div className="w-full min-w-0">
           {/* 桌面端：完整表格 */}
-          <div>
             <WarmTable>
               <WarmTHead>
                 <WarmRow>
@@ -294,8 +292,6 @@ export function AdAnalysisProductsClient() {
               </WarmBody>
             </WarmTable>
           </div>
-
-        </div>
       </WarmPanel>
       </WarmDeferredSection>
     </div>

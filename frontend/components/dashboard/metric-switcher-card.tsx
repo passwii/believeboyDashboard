@@ -20,16 +20,13 @@ import { DURATION, EASE } from '@/lib/motion/tokens'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { ChartContainer, ChartTooltip, type ChartConfig } from '@/components/ui/line-charts-6'
 
-/**
- * 终端语义色（涨跌/状态微语义，去彩色胶囊底）。
- * 与 `components/terminal/term-controls` 的 TermTone 同规格（BLF-908 对齐）。
- */
+/** V4 Warm Ledger 涨跌/状态微语义色。 */
 type MetricTone = 'pos' | 'neg' | 'warn' | 'muted'
 const METRIC_TONE_CLASS: Record<MetricTone, string> = {
-  pos: 'text-term-pos',
-  neg: 'text-term-neg',
-  warn: 'text-term-warn',
-  muted: 'text-term-muted',
+  pos: 'text-[var(--warm-ledger-color-positive)]',
+  neg: 'text-[var(--warm-ledger-color-negative)]',
+  warn: 'text-[var(--warm-ledger-color-accent-strong)]',
+  muted: 'text-[var(--warm-ledger-color-text-muted)]',
 }
 
 /**
@@ -101,7 +98,7 @@ export interface MetricSwitcherCardProps<K extends string> {
   metrics: MetricDef<K>[]
   /** 默认选中 metric；不传则用 metrics[0] */
   defaultMetric?: K
-  /** 颜色表：每个 metric 的颜色，未提供则回退到 chart-* CSS 变量 */
+  /** 颜色表：每个 metric 的图表颜色，未提供时使用默认配色。 */
   colors?: Partial<Record<K, string>>
   heightClass?: string
   /** metric 是否用 Badge 显示变化百分比，否则只显示数字 */
@@ -183,17 +180,16 @@ export function MetricSwitcherCard<K extends string>({
   // 把当前选中 metric 数值映射成 ChartConfig
   const config: ChartConfig = React.useMemo(() => {
     const result: ChartConfig = {}
-    // Terminal UI 风格：使用语义色（pos/warn/neg/accent）替代 chart-* CSS 变量
-    const TERM_COLORS = [
-      'var(--term-pos)', // 正向指标
-      'var(--term-warn)', // 警告/中性指标
-      'var(--term-neg)', // 负向指标
-      'var(--term-accent)', // 强调指标
+    const WARM_COLORS = [
+      'var(--warm-ledger-color-positive)',
+      'var(--warm-ledger-color-accent)',
+      'var(--warm-ledger-color-negative)',
+      'var(--warm-ledger-color-accent-strong)',
     ]
     for (const m of metrics) {
       result[m.key] = {
         label: m.label,
-        color: colors?.[m.key] ?? TERM_COLORS[metrics.indexOf(m) % TERM_COLORS.length],
+        color: colors?.[m.key] ?? WARM_COLORS[metrics.indexOf(m) % WARM_COLORS.length],
       }
     }
     return result
@@ -218,37 +214,31 @@ export function MetricSwitcherCard<K extends string>({
     [getCurrent, data]
   )
 
-  const getDaysLabel = (): string => {
-    if (data) {
-      const half = Math.floor(data.length / 2)
-      return `近 ${data.length - half} 日合计`
-    }
-    return '本期合计'
-  }
-
   const hasCompareData = chartData.some((row) => row.compareMetricValue != null)
 
   return (
     <Card className="animate-enter overflow-hidden">
       {(title || description) && (
-        <CardHeader className="border-b border-term-border bg-term-raised py-3">
+        <CardHeader className="border-b border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] py-3">
           <div className="space-y-1">
             {title && (
-              <h2 className="font-mono text-sm font-semibold leading-none tracking-wide text-term-text">
+              <h2 className="font-sans text-sm font-semibold leading-none text-[var(--warm-ledger-color-text)]">
                 {title}
               </h2>
             )}
             {description && (
-              <p className="font-mono text-xs leading-5 text-term-muted">{description}</p>
+              <p className="font-sans text-xs leading-5 text-[var(--warm-ledger-color-text-muted)]">
+                {description}
+              </p>
             )}
           </div>
         </CardHeader>
       )}
       {/* BLF-529：指标卡片区左右/顶部零内边距（占满卡片两侧、顶对齐）。
           BLF-872 起 CardHeader 基类已无 md 断点内边距（px-4 pb-3 pt-4），
-          p-0 即可完全清零；pb-3 显式保留 —— 给"形态"切换行留一点呼吸空间。 */}
-      <CardHeader className="p-0 pb-3">
-        <div className="relative grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 grow divide-y divide-r-0 divide-term-border">
+          p-0 即可完全清零；pb-2 显式保留 —— 给"形态"切换行留一点呼吸空间。 */}
+      <CardHeader className="p-0 pb-2">
+        <div className="relative grid grow grid-cols-2 divide-y divide-[var(--warm-ledger-color-hairline)] sm:grid-cols-3 lg:grid-cols-6">
           {metrics.map((m) => {
             return (
               <MetricCell<K>
@@ -257,7 +247,6 @@ export function MetricSwitcherCard<K extends string>({
                 isActive={m.key === selected}
                 currentValue={getCurrentForCard(m.key)}
                 previousValue={getPrevious?.(m.key) ?? null}
-                daysLabel={getDaysLabel()}
                 onSelect={() => setSelected(m.key)}
               />
             )
@@ -266,8 +255,8 @@ export function MetricSwitcherCard<K extends string>({
         </div>
 
         {showChartKindToggle && (
-          <div className="flex items-center justify-end gap-1 border-t border-term-border px-3 py-2">
-            <span className="mr-1 font-mono text-[10px] font-medium uppercase tracking-wider text-term-muted">
+          <div className="flex items-center justify-end gap-1 border-t border-[var(--warm-ledger-color-hairline)] px-3 py-1.5">
+            <span className="mr-1 font-sans text-[11px] font-medium text-[var(--warm-ledger-color-text-muted)]">
               形态
             </span>
             <ChartKindToggle
@@ -279,7 +268,7 @@ export function MetricSwitcherCard<K extends string>({
         )}
       </CardHeader>
 
-      <CardContent className="px-2.5 py-6">
+      <CardContent className="px-2.5 py-3">
         {/* 用 key={effectiveKind} 强制 remount：切换 chartKind 时整个图表重新挂载，
             保证 line ↔ bar 跨形态切换也有干净的 enter 动画（同形态切换靠 recharts 内部）。
             外层 motion.div 用来掩盖 remount 之间的视觉空隙 —— 不做 morph
@@ -290,9 +279,12 @@ export function MetricSwitcherCard<K extends string>({
           initial={prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: DURATION.fast, ease: EASE.smoothOut }}
-          className={cn('w-full border border-term-border bg-term-panel', heightClass)}
+          className={cn(
+            'w-full border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)]',
+            heightClass
+          )}
         >
-          <ChartContainer config={config} className={cn('w-full', heightClass)}>
+          <ChartContainer config={config} className="h-full w-full">
             {renderChart(
               effectiveKind,
               chartData,
@@ -326,8 +318,8 @@ export function MetricSwitcherCard<K extends string>({
 /*   2. Sliding bottom accent indicator via `layoutId="metric-cell-indicator"`:*/
 /*      only the active cell renders the indicator span; framer-motion         */
 /*      tweens it between cells when the user picks a different metric.       */
-/*   3. Active-state visual: term-raised surface + term-accent indicator;    */
-/*      inactive cells use the shared term hover surface and muted text.      */
+/*   3. Active-state visual: warm raised surface + amber indicator;           */
+/*      inactive cells use the warm hover surface and muted text.             */
 /* -------------------------------------------------------------------------- */
 
 interface MetricCellProps<K extends string> {
@@ -335,7 +327,6 @@ interface MetricCellProps<K extends string> {
   isActive: boolean
   currentValue: number
   previousValue: number | null
-  daysLabel: string
   onSelect: () => void
 }
 
@@ -344,7 +335,6 @@ function MetricCell<K extends string>({
   isActive,
   currentValue,
   previousValue,
-  daysLabel,
   onSelect,
 }: MetricCellProps<K>) {
   // Display math (shared with the legacy inline version)
@@ -359,22 +349,17 @@ function MetricCell<K extends string>({
   const displayCurrent = roundToPrecision(currentValue, metric.precision)
   const displayPrevious =
     previousValue === null ? null : roundToPrecision(previousValue, metric.precision)
-
-  // Spring-driven count-up only for the active cell — six idle springs would
-  // tick every frame for no visible benefit. ActiveMetricCell mounts fresh on
-  // each activation, giving the user a count-up from the new cell's value.
-  const subLabel = isActive
-    ? hasPrev && displayPrevious !== null
+  const comparisonReference =
+    hasPrev && displayPrevious !== null
       ? `对比 ${metric.format(displayPrevious)}`
-      : daysLabel
-    : daysLabel
+      : undefined
 
   if (isActive) {
     return (
       <ActiveMetricCell
         metric={metric}
         currentValue={currentValue}
-        subLabel={subLabel}
+        comparisonReference={comparisonReference}
         change={change}
         isPositive={isPositive}
         onSelect={onSelect}
@@ -383,37 +368,31 @@ function MetricCell<K extends string>({
   }
   // Inactive cell — plain render, no spring. The shared accent indicator is
   // handled here too (only the active cell renders it via layoutId).
-  // BLF-908：bar chart 顶部 stats 区域终端化——label / 数值 / hint / 对比 pill 全部切到
-  // term 语义色 + mono 字体（与 TermKpiTile 同规格；不再用 Badge 彩色胶囊底）。
   return (
     <button
       type="button"
       onClick={onSelect}
       aria-pressed={false}
       className={cn(
-        'relative cursor-pointer p-4 text-start transition-colors duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-term-accent',
-        'min-h-[112px]',
-        'hover:bg-term-hover'
+        'relative min-h-[88px] cursor-pointer px-4 py-3 text-start transition-colors duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--warm-ledger-color-accent-strong)]',
+        'hover:bg-[var(--warm-ledger-color-raised-hover)]'
       )}
     >
       <div className="mb-2 flex items-center justify-between gap-1.5">
-        <span className="truncate font-mono text-[11px] uppercase tracking-wider text-term-muted">
+        <span className="truncate font-sans text-[11px] text-[var(--warm-ledger-color-text-muted)]">
           {metric.label}
         </span>
         <span
           className={cn(
-            'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-none border border-current/30 px-1.5 py-0.5 font-mono text-[11px] leading-4',
-            'text-term-faint'
+            'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] px-1.5 py-0.5 font-mono text-[11px] leading-4',
+            'text-[var(--warm-ledger-color-text-muted)]'
           )}
         >
           {hasPrev && displayPrevious !== null ? `对比 ${metric.format(displayPrevious)}` : '--'}
         </span>
       </div>
-      <div className="truncate font-mono text-base leading-6 tabular-nums text-term-muted">
+      <div className="truncate font-mono text-base leading-6 tabular-nums text-[var(--warm-ledger-color-text-soft)]">
         {metric.format(displayCurrent)}
-      </div>
-      <div className="mt-1 truncate font-mono text-[10px] leading-3 text-term-faint">
-        {subLabel}
       </div>
     </button>
   )
@@ -427,7 +406,7 @@ function MetricCell<K extends string>({
 interface ActiveMetricCellProps<K extends string> {
   metric: MetricDef<K>
   currentValue: number
-  subLabel: string
+  comparisonReference?: string
   change: number | null
   isPositive: boolean
   onSelect: () => void
@@ -436,7 +415,7 @@ interface ActiveMetricCellProps<K extends string> {
 function ActiveMetricCell<K extends string>({
   metric,
   currentValue,
-  subLabel,
+  comparisonReference,
   change,
   isPositive,
   onSelect,
@@ -470,26 +449,24 @@ function ActiveMetricCell<K extends string>({
       onClick={onSelect}
       aria-pressed={true}
       className={cn(
-        'relative cursor-pointer p-4 text-start transition-colors duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-term-accent',
-        'min-h-[112px]',
-        'bg-term-raised'
+        'relative min-h-[88px] cursor-pointer px-4 py-3 text-start transition-colors duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--warm-ledger-color-accent-strong)]',
+        'bg-[var(--warm-ledger-color-raised)]'
       )}
     >
       <motion.span
         layoutId="metric-cell-indicator"
         aria-hidden
-        className="pointer-events-none absolute inset-x-2 bottom-0 h-0.5 rounded-none bg-term-accent"
+        className="pointer-events-none absolute inset-x-2 bottom-0 h-0.5 rounded-none bg-[var(--warm-ledger-color-accent)]"
         transition={{ type: 'spring', stiffness: 380, damping: 32 }}
       />
       <div className="mb-2 flex items-center justify-between gap-1.5">
-        <span className="truncate font-mono text-[11px] uppercase tracking-wider text-term-muted">
+        <span className="truncate font-sans text-[11px] text-[var(--warm-ledger-color-text-muted)]">
           {metric.label}
         </span>
-        {/* BLF-908：Badge 彩色胶囊底改 term 语义色 + mono 等宽 pill。 */}
         {change === null ? (
           <span
             className={cn(
-              'inline-flex shrink-0 items-center whitespace-nowrap rounded-none border border-current/30 px-1.5 py-0.5 font-mono text-[11px] leading-4',
+              'inline-flex shrink-0 items-center whitespace-nowrap rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] px-1.5 py-0.5 font-mono text-[11px] leading-4',
               METRIC_TONE_CLASS.muted
             )}
           >
@@ -498,7 +475,7 @@ function ActiveMetricCell<K extends string>({
         ) : (
           <span
             className={cn(
-              'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-none border border-current/30 px-1.5 py-0.5 font-mono text-[11px] leading-4',
+              'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] px-1.5 py-0.5 font-mono text-[11px] leading-4',
               isPositive ? METRIC_TONE_CLASS.pos : METRIC_TONE_CLASS.neg
             )}
           >
@@ -507,12 +484,14 @@ function ActiveMetricCell<K extends string>({
           </span>
         )}
       </div>
-      <div className="truncate font-mono text-base leading-6 tabular-nums text-term-text">
+      <div className="truncate font-mono text-base leading-6 tabular-nums text-[var(--warm-ledger-color-text)]">
         {displayValue}
       </div>
-      <div className="mt-1 truncate font-mono text-[10px] leading-3 text-term-faint">
-        {subLabel}
-      </div>
+      {comparisonReference ? (
+        <div className="mt-1 truncate font-mono text-[11px] leading-4 text-[var(--warm-ledger-color-text-muted)]">
+          {comparisonReference}
+        </div>
+      ) : null}
     </button>
   )
 }
@@ -542,7 +521,7 @@ function ChartKindToggle({
       aria-label="图表形态"
       data-testid="chart-kind-toggle"
       className={cn(
-        'inline-flex h-9 items-center rounded-none border border-term-border bg-term-panel p-0.5 font-mono text-xs',
+        'inline-flex h-9 items-center rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] p-0.5 font-sans text-xs shadow-[var(--warm-ledger-highlight-rest)]',
         disabled && 'opacity-50'
       )}
     >
@@ -557,8 +536,10 @@ function ChartKindToggle({
             disabled={disabled}
             aria-pressed={isActive}
             className={cn(
-              'relative inline-flex h-full min-w-11 items-center justify-center gap-1 rounded-none px-2 font-mono transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-term-accent',
-              isActive && prefersReducedMotion && 'bg-term-accent text-term-panel'
+              'relative inline-flex h-full min-w-11 items-center justify-center gap-1 rounded-[var(--warm-ledger-radius-inner)] px-2 font-sans transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--warm-ledger-color-accent-strong)]',
+              isActive &&
+                prefersReducedMotion &&
+                'border-[var(--warm-ledger-color-hairline-strong)] bg-[var(--warm-ledger-color-raised)] text-[var(--warm-ledger-color-text)] shadow-[var(--warm-ledger-highlight-rest)]'
             )}
           >
             {/* Sliding pill — only the active option renders it; layoutId
@@ -567,7 +548,7 @@ function ChartKindToggle({
               <motion.span
                 layoutId="chart-kind-pill"
                 aria-hidden
-                className="absolute inset-0 rounded-none border border-term-accent bg-term-accent shadow-none"
+                className="absolute inset-0 rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline-strong)] bg-[var(--warm-ledger-color-raised)] shadow-[var(--warm-ledger-highlight-rest)]"
                 transition={{
                   type: 'spring',
                   stiffness: 380,
@@ -579,13 +560,19 @@ function ChartKindToggle({
               className={cn(
                 'relative z-10 inline-flex items-center gap-1 transition-colors',
                 isActive
-                  ? 'text-term-panel'
-                  : 'text-term-muted hover:text-term-text'
+                  ? 'text-[var(--warm-ledger-color-text)]'
+                  : 'text-[var(--warm-ledger-color-text-muted)] hover:text-[var(--warm-ledger-color-text)]'
               )}
             >
               <Icon className="size-3" />
               <span>{opt.label}</span>
             </span>
+            {isActive ? (
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-x-2 bottom-0 h-0.5 rounded-none bg-[var(--warm-ledger-color-accent)]"
+              />
+            ) : null}
           </button>
         )
       })}
@@ -625,19 +612,19 @@ function renderChart<K extends string>(
       ? { cursor: false as const }
       : {
           cursor: {
-            stroke: 'var(--term-muted)',
+            stroke: 'var(--warm-ledger-color-text-muted)',
             strokeDasharray: '4 4',
           },
         }
   const sharedAxes = [
-    <CartesianGrid key="grid" vertical={false} stroke="var(--term-border)" strokeDasharray="2 2" />,
+    <CartesianGrid key="grid" vertical={false} stroke="var(--warm-ledger-color-chart-grid)" strokeDasharray="2 2" />,
     <XAxis
       key="xaxis"
       dataKey={xKey}
       axisLine={false}
       tickLine={false}
       tickMargin={8}
-      tick={{ fontSize: 11, fontFamily: 'var(--font-mono, monospace)', fill: 'var(--term-muted)' }}
+      tick={{ fontSize: 11, fontFamily: 'var(--font-mono, monospace)', fill: 'var(--warm-ledger-color-text-muted)' }}
       tickFormatter={(value) => {
         if (xTickFormatter) return xTickFormatter(String(value))
         const s = String(value)
@@ -649,7 +636,7 @@ function renderChart<K extends string>(
       axisLine={false}
       tickLine={false}
       tickMargin={8}
-      tick={{ fontSize: 11, fontFamily: 'var(--font-mono, monospace)', fill: 'var(--term-muted)' }}
+      tick={{ fontSize: 11, fontFamily: 'var(--font-mono, monospace)', fill: 'var(--warm-ledger-color-text-muted)' }}
       tickCount={6}
       tickFormatter={(value) =>
         yAxisFormatter ? yAxisFormatter(Number(value), selected) : metric.format(Number(value))
@@ -677,7 +664,7 @@ function renderChart<K extends string>(
           <Bar
             dataKey="compareMetricValue"
             name="compareMetricValue"
-            fill="var(--term-muted)"
+            fill="var(--warm-ledger-color-text-muted)"
             radius={[0, 0, 0, 0]}
             isAnimationActive
             animationDuration={320}
@@ -710,7 +697,7 @@ function renderChart<K extends string>(
             type="monotone"
             dataKey="compareMetricValue"
             name="compareMetricValue"
-            stroke="var(--term-muted)"
+            stroke="var(--warm-ledger-color-text-muted)"
             strokeWidth={1.5}
             strokeDasharray="4 4"
             dot={false}
@@ -731,7 +718,7 @@ function renderChart<K extends string>(
           activeDot={{
             r: 4,
             fill: `var(--color-${selected})`,
-            stroke: 'var(--term-panel)',
+            stroke: 'var(--warm-ledger-color-panel)',
             strokeWidth: 2,
           }}
         />
@@ -748,7 +735,7 @@ function renderChart<K extends string>(
           type="monotone"
           dataKey="compareMetricValue"
           name="compareMetricValue"
-          stroke="var(--term-muted)"
+          stroke="var(--warm-ledger-color-text-muted)"
           strokeWidth={1.5}
           strokeDasharray="4 4"
           dot={false}
@@ -768,7 +755,7 @@ function renderChart<K extends string>(
         activeDot={{
           r: 4,
           fill: `var(--color-${selected})`,
-          stroke: 'var(--term-panel)',
+          stroke: 'var(--warm-ledger-color-panel)',
           strokeWidth: 2,
         }}
       />
@@ -821,10 +808,12 @@ function MetricSwitcherTooltip<K extends string>({
       initial={prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: DURATION.quick, ease: EASE.smoothOut }}
-      className="grid min-w-[8rem] items-start gap-1.5 border border-term-border bg-term-panel px-2.5 py-1.5 text-xs shadow-none"
+      className="grid min-w-[8rem] items-start gap-1.5 rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] px-2.5 py-1.5 text-xs shadow-none"
     >
       {label !== undefined && label !== null && (
-        <div className="font-mono text-xs font-medium text-term-text">{String(label)}</div>
+        <div className="font-mono text-xs font-medium text-[var(--warm-ledger-color-text)]">
+          {String(label)}
+        </div>
       )}
       <div className="grid gap-1.5">
         {items.map((item, index) => {
@@ -835,7 +824,7 @@ function MetricSwitcherTooltip<K extends string>({
             metrics[0]
           if (!itemMetric) return null
           const numVal = Number(item.value)
-          const indicatorColor = item.color ?? 'var(--term-accent)'
+          const indicatorColor = item.color ?? 'var(--warm-ledger-color-accent)'
           const displayValue = tooltipFormatter
             ? tooltipFormatter(numVal, itemMetric.key)
             : itemMetric.format(numVal)
@@ -857,11 +846,11 @@ function MetricSwitcherTooltip<K extends string>({
                     style={{ backgroundColor: indicatorColor }}
                   />
                 )}
-                <span className="truncate font-mono text-xs text-term-muted">
+                <span className="truncate font-mono text-xs text-[var(--warm-ledger-color-text-muted)]">
                   {isCompare ? '上一周期' : itemMetric.label}
                 </span>
               </div>
-              <span className="font-mono text-xs font-medium tabular-nums text-term-text">
+              <span className="font-mono text-xs font-medium tabular-nums text-[var(--warm-ledger-color-text)]">
                 {displayValue}
               </span>
             </div>

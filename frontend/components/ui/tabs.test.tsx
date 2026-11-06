@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { render } from '@testing-library/react'
 import { Tabs, TabsList, TabsTrigger } from './tabs'
+import { SlidingTabsTrigger } from './tab-motion'
 
 function renderTermTabs() {
   return render(
@@ -57,5 +58,68 @@ describe('Tabs Terminal 收口（BLF-867）', () => {
     expect(list.className).toContain('rounded-2xl')
     const trigger = container.querySelector('[role="tab"]')!
     expect(trigger.className).toContain('min-h-[2.85rem]')
+  })
+})
+
+describe('Tabs Warm Ledger variant', () => {
+  it('uses the warm neutral list surface and keeps trigger text in the V4 palette', () => {
+    const { container } = render(
+      <Tabs defaultValue="a">
+        <TabsList variant="warm">
+          <TabsTrigger variant="warm" value="a">
+            a
+          </TabsTrigger>
+          <TabsTrigger variant="warm" value="b">
+            b
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+    )
+    const list = container.querySelector('[role="tablist"]')!
+    const trigger = container.querySelector('[role="tab"]')!
+
+    expect(list.className).toContain('rounded-[var(--warm-ledger-radius-control)]')
+    expect(list.className).toContain('border-[var(--warm-ledger-color-hairline)]')
+    expect(list.className).not.toContain('border-term-border')
+    expect(trigger.className).toContain('text-[var(--warm-ledger-color-text-muted)]')
+    expect(trigger.className).toContain('data-[state=active]:bg-[var(--warm-ledger-color-raised)]')
+    expect(trigger.className).not.toContain('data-[state=active]:bg-term-raised')
+    expect(trigger.className).not.toMatch(/0_0_(8|10|16)px/)
+  })
+
+  it('gives the sliding warm indicator a neutral raised fill and a 2px amber marker only', () => {
+    const { container } = render(
+      <Tabs defaultValue="a">
+        <TabsList variant="warm">
+          <SlidingTabsTrigger
+            value="a"
+            activeValue="a"
+            layoutId="warm-tab"
+            variant="warm"
+          >
+            a
+          </SlidingTabsTrigger>
+          <SlidingTabsTrigger
+            value="b"
+            activeValue="a"
+            layoutId="warm-tab"
+            variant="warm"
+          >
+            b
+          </SlidingTabsTrigger>
+        </TabsList>
+      </Tabs>
+    )
+    const activeTrigger = container.querySelector('[role="tab"][data-state="active"]')!
+    const indicator = activeTrigger.querySelector('span.absolute')!
+
+    expect(indicator.className).toContain('bg-[var(--warm-ledger-color-raised)]')
+    expect(indicator.className).toContain('border-[var(--warm-ledger-color-hairline-strong)]')
+    expect(indicator.className).not.toContain('after:')
+    expect(activeTrigger.className).toContain(
+      'data-[state=active]:after:bg-[var(--warm-ledger-color-accent)]'
+    )
+    expect(indicator.className).not.toContain('bg-term-accent')
+    expect(indicator.className).not.toContain('shadow-[0_0_')
   })
 })

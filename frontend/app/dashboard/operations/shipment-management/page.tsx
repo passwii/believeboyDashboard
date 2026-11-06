@@ -577,7 +577,7 @@ function SearchableSkuField({
         ref={openerRef}
         onClick={() => setOpen(true)}
       >
-        <span className="truncate text-left">
+        <span className="min-w-0 whitespace-normal break-words text-left">
           {selectedSku ? selectedSku.sku : loading ? '加载中...' : '选择 SKU'}
         </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0" />
@@ -626,8 +626,10 @@ function SearchableSkuField({
                       value === option.sku ? 'opacity-100' : 'opacity-0'
                     )}
                   />
-                  <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <span className="truncate flex-1 font-medium">{option.sku}</span>
+                  <div className="flex min-w-0 flex-1 items-start gap-2">
+                    <span className="min-w-0 flex-1 whitespace-normal break-words font-medium">
+                      {option.sku}
+                    </span>
                     {option.product_name && (
                       <span className="shrink-0 truncate max-w-[200px] text-term-muted text-xs">
                         {option.product_name}

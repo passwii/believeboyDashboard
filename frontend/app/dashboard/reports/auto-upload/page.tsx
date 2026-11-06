@@ -1052,7 +1052,7 @@ function AutoUploadContent({
                                           )
                                         )
                                       }}
-                                      className="-my-1 ml-1 rounded-[var(--warm-ledger-radius-inner)] px-1.5 py-1 font-sans text-[10px] text-[color:var(--warm-ledger-color-accent-strong)] hover:bg-[color-mix(in_srgb,var(--warm-ledger-color-accent)_10%,transparent)]"
+                                      className="-my-1 ml-1 rounded-[var(--warm-ledger-radius-inner)] px-1.5 py-1 font-sans text-[11px] text-[color:var(--warm-ledger-color-accent-strong)] hover:bg-[color-mix(in_srgb,var(--warm-ledger-color-accent)_10%,transparent)]"
                                     >
                                       {item.userReportStartDate ? '取消' : '编辑'}
                                     </button>
@@ -1077,7 +1077,7 @@ function AutoUploadContent({
                                           )
                                         )
                                       }}
-                                      className="-my-1 ml-1 rounded-[var(--warm-ledger-radius-inner)] px-1.5 py-1 font-sans text-[10px] text-[color:var(--warm-ledger-color-accent-strong)] hover:bg-[color-mix(in_srgb,var(--warm-ledger-color-accent)_10%,transparent)]"
+                                      className="-my-1 ml-1 rounded-[var(--warm-ledger-radius-inner)] px-1.5 py-1 font-sans text-[11px] text-[color:var(--warm-ledger-color-accent-strong)] hover:bg-[color-mix(in_srgb,var(--warm-ledger-color-accent)_10%,transparent)]"
                                     >
                                       {item.userReportDate ? '取消' : '编辑'}
                                     </button>
@@ -1087,7 +1087,7 @@ function AutoUploadContent({
                               {item.reportType === 'payment_report' &&
                               item.userReportStartDate !== null ? (
                                 <div className="flex items-center gap-1.5 pt-0.5">
-                                  <span className="font-sans text-[10px] text-[color:var(--warm-ledger-color-accent)]">起：</span>
+                                  <span className="font-sans text-[11px] text-[color:var(--warm-ledger-color-accent)]">起：</span>
                                   <SimpleDatePicker
                                     value={parseDateInputValue(item.userReportStartDate || '')}
                                     onChange={(date) => {
@@ -1104,7 +1104,7 @@ function AutoUploadContent({
                                     }}
                                     className="h-6 w-[130px] text-xs"
                                   />
-                                  <span className="font-sans text-[10px] text-[color:var(--warm-ledger-color-accent)]">止：</span>
+                                  <span className="font-sans text-[11px] text-[color:var(--warm-ledger-color-accent)]">止：</span>
                                   <SimpleDatePicker
                                     value={parseDateInputValue(item.userReportEndDate || '')}
                                     onChange={(date) => {
@@ -1125,7 +1125,7 @@ function AutoUploadContent({
                               ) : item.userReportDate !== null &&
                                 item.reportType !== 'payment_report' ? (
                                 <div className="flex items-center gap-1.5 pt-0.5">
-                                  <span className="font-sans text-[10px] text-[color:var(--warm-ledger-color-accent)]">日期：</span>
+                                  <span className="font-sans text-[11px] text-[color:var(--warm-ledger-color-accent)]">日期：</span>
                                   <SimpleDatePicker
                                     value={parseDateInputValue(item.userReportDate || '')}
                                     onChange={(date) => {

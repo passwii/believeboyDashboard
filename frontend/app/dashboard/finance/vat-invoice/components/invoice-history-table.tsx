@@ -30,15 +30,8 @@ const STATUS_TONE: Record<VatInvoiceListItem['status'], WarmBadgeTone> = {
 }
 
 export function InvoiceHistoryTable({ rows, onSelect, onDownload, onVoid, loading }: Props) {
-  if (loading) {
-    return (
-      <p className={styles.loadingState} role="status">
-        加载中…
-      </p>
-    )
-  }
   return (
-    <div className={styles.tableScroller}>
+    <div className={styles.tableScroller} aria-busy={loading || undefined}>
       <table className={styles.table} data-warm-table="true">
         <thead className={styles.tableHead}>
           <tr>
@@ -55,9 +48,34 @@ export function InvoiceHistoryTable({ rows, onSelect, onDownload, onVoid, loadin
           </tr>
         </thead>
         <tbody>
-          {rows.length === 0 ? (
+          {loading ? (
+            <>
+              <tr>
+                <td colSpan={8} className={styles.tableLoadingCell}>
+                  <p className={styles.tableLoadingLabel} role="status">
+                    正在加载发票列表
+                  </p>
+                </td>
+              </tr>
+              {Array.from({ length: 6 }).map((_, rowIndex) => (
+                <tr key={`loading-${rowIndex}`} aria-hidden="true">
+                  {Array.from({ length: 8 }).map((__, columnIndex) => (
+                    <td key={columnIndex} className={styles.tableLoadingCell}>
+                      <span
+                        className={`${styles.tableSkeletonBar} ${
+                          columnIndex > 0 && columnIndex !== 1 && columnIndex !== 2
+                            ? styles.tableSkeletonNumeric
+                            : ''
+                        }`}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </>
+          ) : rows.length === 0 ? (
             <tr>
-              <td colSpan={8} className={styles.tableEmptyCell}>
+              <td colSpan={8} className={styles.tableEmptyCell} role="status">
                 没有匹配的发票。
               </td>
             </tr>

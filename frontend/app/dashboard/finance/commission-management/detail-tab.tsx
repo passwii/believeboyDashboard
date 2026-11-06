@@ -248,7 +248,7 @@ export function DetailTab({
             <tbody>
               {projectRows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className={styles.emptyCell}>
+                  <td colSpan={7} className={styles.emptyCell} role="status">
                     当前月份暂无数据，请先刷新核算
                   </td>
                 </tr>

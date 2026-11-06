@@ -86,6 +86,7 @@ export default function PageRenderClient() {
   const [historyTotal, setHistoryTotal] = useState(0)
   const [isUploading, setIsUploading] = useState(false)
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+  const [historyError, setHistoryError] = useState<string | null>(null)
 
   const refreshHistory = useCallback(async (preserveExisting = false) => {
     setIsLoadingHistory(true)
@@ -99,7 +100,9 @@ export default function PageRenderClient() {
       const data = (await res.json()) as { items: UploadedPage[]; total: number }
       setHistory(data.items)
       setHistoryTotal(data.total)
+      setHistoryError(null)
     } catch (err) {
+      setHistoryError(normalizeErrorMessage(err))
       if (!preserveExisting) {
         notify({ type: 'error', title: '加载历史失败', message: normalizeErrorMessage(err) })
       } else {
@@ -349,7 +352,11 @@ export default function PageRenderClient() {
             aria-busy={isLoadingHistory || undefined}
             role={isLoadingHistory ? 'status' : undefined}
           >
-            {isLoadingHistory ? '加载中...' : '暂无记录，上传一个文件试试'}
+            {isLoadingHistory
+              ? '加载中...'
+              : historyError
+                ? `加载失败：${historyError}。请刷新重试。`
+                : '暂无记录，上传一个文件试试'}
           </div>
         ) : (
           <div
