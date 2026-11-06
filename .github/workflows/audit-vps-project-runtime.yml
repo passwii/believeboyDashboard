@@ -60,6 +60,15 @@ jobs:
              docker compose ls --all
              echo "=== containers ==="
              docker ps -a --format "{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}\t{{.Label \"com.docker.compose.project\"}}\t{{.Label \"com.docker.compose.service\"}}"
+             echo "=== legacy frontend container ==="
+             if docker inspect believeboy-dashboard >/dev/null 2>&1; then
+               docker inspect --format "{{.Name}}\t{{.Config.Image}}\t{{.State.Status}}" believeboy-dashboard
+             else
+               echo "believeboy-dashboard: absent"
+             fi
+             echo "=== Dashboard GHCR images ==="
+             docker image ls -a --digests --format "{{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}" |
+               awk -F "\t" '\$1 == "ghcr.io/passwii/believeboydashboard" || \$1 == "ghcr.io/passwii/believeboydashboard-web" || \$1 == "ghcr.io/passwii/believeboydashboard-api"'
              echo "=== related systemd units ==="
              systemctl list-units --type=service --all --no-legend |
                grep -iE "believeboy|guitar|digital|project" || true
