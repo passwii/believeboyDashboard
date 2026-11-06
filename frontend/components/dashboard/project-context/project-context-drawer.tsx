@@ -197,7 +197,7 @@ export function ProjectContextDrawer({
               <WarmButton
                 variant="secondary"
                 onClick={() => setAiSheetOpen(true)}
-                disabled={submitting}
+                disabled={loading || submitting}
               >
                 AI 辅助
               </WarmButton>

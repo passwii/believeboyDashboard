@@ -242,6 +242,32 @@ describe('Project Context Warm Ledger 迁移', () => {
     await screen.findByRole('button', { name: '已保存' })
   })
 
+  it('抽屉初次加载完成前禁用 AI 辅助，避免加载结果覆盖生成内容', async () => {
+    let resolveLoad: (result: { project_context: Record<string, string> }) => void = () => {}
+    const loadRequest = new Promise<{ project_context: Record<string, string> }>((resolve) => {
+      resolveLoad = resolve
+    })
+    FETCH_PROJECT_CONTEXT.mockReturnValue(loadRequest)
+
+    render(
+      <ProjectContextDrawer
+        projectId={2}
+        projectName="店铺乙"
+        open
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    const aiButton = screen.getByRole('button', { name: 'AI 辅助' })
+    expect(aiButton).toBeDisabled()
+
+    await act(async () => {
+      resolveLoad({ project_context: { 定位: '初始值' } })
+      await loadRequest
+    })
+    await waitFor(() => expect(aiButton).toBeEnabled())
+  })
+
   it('抽屉切换项目后忽略旧项目晚返回的背景', async () => {
     let resolveProjectA: (result: { project_context: Record<string, string> }) => void = () => {}
     let resolveProjectB: (result: { project_context: Record<string, string> }) => void = () => {}
