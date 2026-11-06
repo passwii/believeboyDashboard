@@ -278,6 +278,60 @@ describe('Project Context Warm Ledger 迁移', () => {
     expect(screen.getByText('项目：店铺乙')).toBeInTheDocument()
   })
 
+  it('抽屉切换项目后忽略旧项目晚返回的保存结果', async () => {
+    const user = userEvent.setup()
+    let rejectProjectB: (error: Error) => void = () => {}
+    const projectBRequest = new Promise<{ project_context: Record<string, string> }>(
+      (_, reject) => {
+        rejectProjectB = reject
+      }
+    )
+    FETCH_PROJECT_CONTEXT.mockImplementation((projectId: number) =>
+      projectId === 1
+        ? Promise.resolve({ project_context: { 定位: '甲项目背景' } })
+        : projectBRequest
+    )
+
+    let resolveProjectASave: (result: { project_context: Record<string, string> }) => void = () => {}
+    const projectASaveRequest = new Promise<{ project_context: Record<string, string> }>(
+      (resolve) => {
+        resolveProjectASave = resolve
+      }
+    )
+    UPDATE_PROJECT_CONTEXT.mockReturnValue(projectASaveRequest)
+
+    const drawerProps = {
+      projectName: '店铺甲',
+      open: true,
+      onOpenChange: vi.fn(),
+    }
+    const { rerender } = render(<ProjectContextDrawer projectId={1} {...drawerProps} />)
+    const description = await screen.findByLabelText('定位 描述')
+    await user.clear(description)
+    await user.type(description, '甲项目新背景')
+    await user.click(screen.getByRole('button', { name: '保存配置' }))
+    expect(await screen.findByRole('button', { name: '正在保存项目背景' })).toBeDisabled()
+
+    rerender(
+      <ProjectContextDrawer
+        projectId={2}
+        {...drawerProps}
+        projectName="店铺乙"
+      />
+    )
+    await waitFor(() => expect(FETCH_PROJECT_CONTEXT).toHaveBeenCalledWith(2, null))
+    rejectProjectB(new Error('项目乙读取失败'))
+    await screen.findByText('项目：店铺乙')
+
+    await act(async () => {
+      resolveProjectASave({ project_context: { 定位: '甲项目保存结果' } })
+      await projectASaveRequest
+    })
+
+    expect(screen.queryByText('有未保存更改')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '已保存' })).not.toBeInTheDocument()
+  })
+
   it('AI 解析仍调用 context/parse 并把解析结果交给父表单', async () => {
     const user = userEvent.setup()
     const onParsed = vi.fn()

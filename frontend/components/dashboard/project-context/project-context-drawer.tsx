@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Sheet,
   SheetContent,
@@ -50,6 +50,14 @@ export function ProjectContextDrawer({
   const [draftContext, setDraftContext] = useState<Record<string, string>>({})
   const [hasChanges, setHasChanges] = useState(false)
   const [aiSheetOpen, setAiSheetOpen] = useState(false)
+  const projectIdRef = useRef(projectId)
+  const saveRequestIdRef = useRef(0)
+  projectIdRef.current = projectId
+
+  useEffect(() => {
+    saveRequestIdRef.current += 1
+    setSubmitting(false)
+  }, [open, projectId])
 
   useEffect(() => {
     if (!open) {
@@ -108,10 +116,19 @@ export function ProjectContextDrawer({
   }, [saveState])
 
   const handleSave = async () => {
+    const requestId = ++saveRequestIdRef.current
+    const savingProjectId = projectId
     setSubmitting(true)
     setSaveState('saving')
     try {
-      const result = await updateProjectContext(projectId, { project_context: draftContext }, null)
+      const result = await updateProjectContext(
+        savingProjectId,
+        { project_context: draftContext },
+        null
+      )
+      if (requestId !== saveRequestIdRef.current || projectIdRef.current !== savingProjectId) {
+        return
+      }
       setContext(result)
       setHasChanges(false)
       setSaveState('success')
@@ -122,6 +139,9 @@ export function ProjectContextDrawer({
       })
       onSuccess?.()
     } catch (err) {
+      if (requestId !== saveRequestIdRef.current || projectIdRef.current !== savingProjectId) {
+        return
+      }
       setSaveState('error')
       notify({
         type: 'error',
@@ -129,7 +149,9 @@ export function ProjectContextDrawer({
         message: err instanceof Error ? err.message : '保存失败',
       })
     } finally {
-      setSubmitting(false)
+      if (requestId === saveRequestIdRef.current && projectIdRef.current === savingProjectId) {
+        setSubmitting(false)
+      }
     }
   }
 
