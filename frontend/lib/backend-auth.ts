@@ -1,7 +1,7 @@
 import type { Session } from 'next-auth'
 
 import { pickSessionDisplayName } from '@/lib/auth/display-name'
-import { getBackendApiKey } from '@/lib/server/backend-api'
+import { getBackendApiKey, getBackendTrustedProxySecret } from '@/lib/server/backend-api'
 
 /**
  * Unified header builder for backend API calls.
@@ -150,6 +150,9 @@ export function buildBackendAuthHeaders(
   // the standard `Authorization` header is always forwarded. Backend
   // `require_api_key` accepts both (added 2026-07-22, live-chat 401 fix).
   headers.set('Authorization', `Bearer ${options.apiKey}`)
+  // Added only on the server-side helper. Browser headers deliberately omit this secret.
+  const trustedProxySecret = getBackendTrustedProxySecret()
+  if (trustedProxySecret) headers.set('X-Trusted-Proxy-Secret', trustedProxySecret)
   if (options.contentType) headers.set('Content-Type', options.contentType)
   if (options.accept) headers.set('Accept', options.accept)
 

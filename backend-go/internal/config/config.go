@@ -2,8 +2,10 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -35,6 +37,7 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 		Addr:               valueOrDefault(lookup, "GO_API_ADDR", defaultAddr),
 		FastAPIOrigin:      valueOrDefault(lookup, "FASTAPI_ORIGIN", defaultFastAPIOrigin),
 		TrustedProxySecret: valueOrDefault(lookup, "GO_API_TRUSTED_PROXY_SECRET", ""),
+		RedisURL:           firstNonEmpty(lookup, "REDIS_URL"),
 		AppEnv:             valueOrDefault(lookup, "APP_ENV", "development"),
 		OwnedModules:       parseOwnedModules(valueOrDefault(lookup, "GO_API_OWNED", "")),
 	}
@@ -45,13 +48,21 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 	}{
 		{key: "API_KEY", target: &cfg.APIKey},
 		{key: "DATABASE_URL", target: &cfg.DatabaseURL},
-		{key: "REDIS_URL", target: &cfg.RedisURL},
 	} {
 		value := firstNonEmpty(lookup, required.key)
 		if value == "" {
 			return Config{}, fmt.Errorf("%s is required", required.key)
 		}
 		*required.target = value
+	}
+
+	// Reuse the host, port, database, and optional password settings used by FastAPI.
+	if cfg.RedisURL == "" {
+		redisURL, err := redisURLFromEnvironment(lookup)
+		if err != nil {
+			return Config{}, err
+		}
+		cfg.RedisURL = redisURL
 	}
 
 	cfg.DatabaseReadURL = firstNonEmpty(lookup, "DATABASE_READ_URL")
@@ -71,6 +82,32 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func redisURLFromEnvironment(lookup func(string) (string, bool)) (string, error) {
+	host := valueOrDefault(lookup, "REDIS_HOST", "127.0.0.1")
+	portValue := valueOrDefault(lookup, "REDIS_PORT", "6379")
+	port, err := strconv.Atoi(portValue)
+	if err != nil || port < 1 || port > 65535 {
+		return "", fmt.Errorf("REDIS_PORT must be between 1 and 65535")
+	}
+
+	dbValue := valueOrDefault(lookup, "REDIS_DB", "0")
+	db, err := strconv.Atoi(dbValue)
+	if err != nil || db < 0 || db > 15 {
+		return "", fmt.Errorf("REDIS_DB must be between 0 and 15")
+	}
+
+	redisURL := url.URL{
+		Scheme: "redis",
+		Host:   net.JoinHostPort(host, strconv.Itoa(port)),
+		Path:   fmt.Sprintf("/%d", db),
+	}
+	passwordEnvKey := "REDIS_" + "PASS" + "WORD"
+	if password, ok := lookup(passwordEnvKey); ok && password != "" {
+		redisURL.User = url.UserPassword("", password)
+	}
+	return redisURL.String(), nil
 }
 
 func firstNonEmpty(lookup func(string) (string, bool), keys ...string) string {

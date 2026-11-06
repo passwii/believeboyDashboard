@@ -52,7 +52,7 @@ func TestLoadDefaultsOwnedModulesToEmpty(t *testing.T) {
 }
 
 func TestLoadRequiresCoreSettings(t *testing.T) {
-	tests := []string{"API_KEY", "DATABASE_URL", "REDIS_URL"}
+	tests := []string{"API_KEY", "DATABASE_URL"}
 
 	for _, key := range tests {
 		t.Run(key, func(t *testing.T) {

@@ -68,6 +68,12 @@ export function getBackendApiKey() {
   return process.env.BACKEND_API_KEY || ''
 }
 
+/** Server-to-server proof required when the Go Gateway receives the master API key. */
+export function getBackendTrustedProxySecret() {
+  if (typeof window !== 'undefined') return ''
+  return process.env.GO_API_TRUSTED_PROXY_SECRET || ''
+}
+
 /**
  * Append `?api_key=<key>` (or `&api_key=...`) to a backend path.
  *
@@ -112,8 +118,13 @@ async function readResponseBody(response: Response): Promise<{ payload: BackendE
 }
 
 export async function backendFetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers)
+  const trustedProxySecret = getBackendTrustedProxySecret()
+  if (trustedProxySecret) headers.set('X-Trusted-Proxy-Secret', trustedProxySecret)
+
   const response = await fetch(`${getBackendBaseUrl()}${appendApiKeyQuery(path)}`, {
     ...init,
+    headers,
     signal: init?.signal ?? AbortSignal.timeout(5_000),
   })
   const { payload, text } = await readResponseBody(response)

@@ -1,8 +1,9 @@
 name: believeboy-dashboard
 
 # PostgreSQL, Redis and Caddy stay on the host. Host networking preserves the
-# current systemd contract: containers can reach loopback-only PostgreSQL and
-# Redis, while Caddy keeps using 127.0.0.1:3200 and 127.0.0.1:8100.
+# current host contract: Go and FastAPI can reach loopback-only PostgreSQL and
+# Redis; Caddy uses 127.0.0.1:3200 for Web and 127.0.0.1:8200 for the Go gateway.
+# The Go gateway falls back to FastAPI on 127.0.0.1:8100 for unowned routes.
 services:
   migrate:
     image: "${API_IMAGE:?API_IMAGE must be set}"
@@ -54,6 +55,27 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  go-api:
+    image: "${GO_API_IMAGE:?GO_API_IMAGE must be set}"
+    container_name: believeboy-dashboard-go-api
+    network_mode: host
+    env_file:
+      - ./backend.env
+      - ./go.env
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    init: true
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8200/api/v1/health/live || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 15s
+    logging: *logging
 
   celery:
     image: "${API_IMAGE:?API_IMAGE must be set}"
@@ -153,6 +175,8 @@ services:
       PORT: "3200"
     depends_on:
       api:
+        condition: service_healthy
+      go-api:
         condition: service_healthy
     restart: unless-stopped
     init: true
