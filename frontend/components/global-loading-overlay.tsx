@@ -55,9 +55,6 @@ export function GlobalLoadingOverlay() {
               <Loader2 className="h-4 w-4 animate-spin" />
               <span className="text-sm font-medium">加载中，请稍候...</span>
             </div>
-            <div className="global-loading-track h-[3px] overflow-hidden rounded-full">
-              <div className="global-loading-indicator h-full" />
-            </div>
           </div>
         </div>
       ) : null}

@@ -33,6 +33,7 @@ vi.mock('@/hooks/use-confirm', () => ({
 
 import { ProjectContextTab } from './project-context-tab'
 import { ProjectContextDialog } from './project-context-dialog'
+import { ProjectContextDrawer } from './project-context-drawer'
 import { AiParseContextSheet } from './ai-parse-context-sheet'
 
 const PROJECT_CONTEXT_SOURCE_ROOT = join(process.cwd(), 'components/dashboard/project-context')
@@ -114,15 +115,44 @@ describe('Project Context Warm Ledger 迁移', () => {
     expect(FETCH_PROJECT_CONTEXT).toHaveBeenCalledWith(1, null)
   })
 
+  it('项目背景列表加载只显示本地忙碌状态，不启动全局阻塞层', async () => {
+    START_GLOBAL_LOADING.mockClear()
+    END_GLOBAL_LOADING.mockClear()
+
+    let resolveProjects: (response: Response) => void = () => {}
+    const pendingProjects = new Promise<Response>((resolve) => {
+      resolveProjects = resolve
+    })
+    vi.spyOn(globalThis, 'fetch').mockReturnValue(pendingProjects)
+
+    render(<ProjectContextTab />)
+
+    expect(START_GLOBAL_LOADING).not.toHaveBeenCalled()
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent('正在加载项目背景')
+    expect(status.closest('[aria-busy="true"]')).toBeInTheDocument()
+
+    resolveProjects(
+      new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } })
+    )
+    await screen.findByText('暂无项目数据')
+    expect(END_GLOBAL_LOADING).not.toHaveBeenCalled()
+  })
+
   it('编辑背景仍提交完整 project_context 并保留成功回调', async () => {
     const user = userEvent.setup()
     const onSuccess = vi.fn()
+    START_GLOBAL_LOADING.mockClear()
+    END_GLOBAL_LOADING.mockClear()
     FETCH_PROJECT_CONTEXT.mockResolvedValue({
       project_context: { 定位: '旧值' },
     })
-    UPDATE_PROJECT_CONTEXT.mockResolvedValue({
-      project_context: { 定位: '新值' },
-    })
+    let resolveUpdate: (result: { project_context: Record<string, string> }) => void = () => {}
+    UPDATE_PROJECT_CONTEXT.mockReturnValue(
+      new Promise((resolve) => {
+        resolveUpdate = resolve
+      })
+    )
 
     render(
       <ProjectContextDialog
@@ -141,6 +171,12 @@ describe('Project Context Warm Ledger 迁移', () => {
     await user.type(description, '新值')
     await user.click(screen.getByRole('button', { name: '保存配置' }))
 
+    const savingButton = await screen.findByRole('button', { name: '正在保存项目背景' })
+    expect(savingButton).toBeDisabled()
+    expect(savingButton).toHaveAttribute('aria-busy', 'true')
+    expect(screen.queryByLabelText('定位 描述')).not.toBeInTheDocument()
+    expect(START_GLOBAL_LOADING).not.toHaveBeenCalled()
+    expect(END_GLOBAL_LOADING).not.toHaveBeenCalled()
     await waitFor(() =>
       expect(UPDATE_PROJECT_CONTEXT).toHaveBeenCalledWith(
         2,
@@ -148,7 +184,50 @@ describe('Project Context Warm Ledger 迁移', () => {
         null
       )
     )
+    resolveUpdate({ project_context: { 定位: '新值' } })
+    await screen.findByRole('button', { name: '已保存' })
     expect(onSuccess).toHaveBeenCalledTimes(1)
+  })
+
+  it('保存项目背景时只显示局部按钮 loading', async () => {
+    const user = userEvent.setup()
+    START_GLOBAL_LOADING.mockClear()
+    END_GLOBAL_LOADING.mockClear()
+    FETCH_PROJECT_CONTEXT.mockResolvedValue({
+      project_context: { 定位: '旧值' },
+    })
+
+    let resolveUpdate: (result: { project_context: Record<string, string> }) => void = () => {}
+    UPDATE_PROJECT_CONTEXT.mockReturnValue(
+      new Promise((resolve) => {
+        resolveUpdate = resolve
+      })
+    )
+
+    render(
+      <ProjectContextDrawer
+        projectId={2}
+        projectName="店铺乙"
+        open
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    const description = await screen.findByLabelText('定位 描述')
+    await user.clear(description)
+    await user.type(description, '新值')
+    await user.click(screen.getByRole('button', { name: '保存配置' }))
+
+    const savingButton = await screen.findByRole('button', { name: '正在保存项目背景' })
+    expect(savingButton).toBeDisabled()
+    expect(savingButton).toHaveAttribute('aria-busy', 'true')
+    expect(screen.queryByLabelText('定位 描述')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'AI 辅助' })).toBeDisabled()
+    expect(START_GLOBAL_LOADING).not.toHaveBeenCalled()
+    expect(END_GLOBAL_LOADING).not.toHaveBeenCalled()
+
+    resolveUpdate({ project_context: { 定位: '新值' } })
+    await screen.findByRole('button', { name: '已保存' })
   })
 
   it('AI 解析仍调用 context/parse 并把解析结果交给父表单', async () => {

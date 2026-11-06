@@ -15,7 +15,6 @@ import {
 } from '@/components/dashboard-v2/warm-ledger/controls'
 import { useNotifications } from '@/components/notifications'
 import { useConfirm } from '@/hooks/use-confirm'
-import { useGlobalLoading } from '@/components/global-loading-provider'
 import {
   fetchProjectContext,
   updateProjectContext,
@@ -43,7 +42,6 @@ export function ProjectContextDrawer({
 }: ProjectContextDrawerProps) {
   const { notify } = useNotifications()
   const { confirm } = useConfirm()
-  const { startGlobalLoading, endGlobalLoading } = useGlobalLoading()
 
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -99,7 +97,6 @@ export function ProjectContextDrawer({
   const handleSave = async () => {
     setSubmitting(true)
     setSaveState('saving')
-    startGlobalLoading('blocking')
     try {
       const result = await updateProjectContext(projectId, { project_context: draftContext }, null)
       setContext(result)
@@ -119,12 +116,12 @@ export function ProjectContextDrawer({
         message: err instanceof Error ? err.message : '保存失败',
       })
     } finally {
-      endGlobalLoading('blocking')
       setSubmitting(false)
     }
   }
 
   const handleOpenChange = async (newOpen: boolean) => {
+    if (!newOpen && submitting) return
     if (!newOpen && hasChanges) {
       const confirmed = await confirm({
         title: '有未保存的更改，确定要关闭吗？',
@@ -162,7 +159,11 @@ export function ProjectContextDrawer({
                   <WarmBadge className={styles.unsavedBadge}>有未保存更改</WarmBadge>
                 )}
               </div>
-              <WarmButton variant="secondary" onClick={() => setAiSheetOpen(true)}>
+              <WarmButton
+                variant="secondary"
+                onClick={() => setAiSheetOpen(true)}
+                disabled={submitting}
+              >
                 AI 辅助
               </WarmButton>
             </div>
@@ -179,6 +180,7 @@ export function ProjectContextDrawer({
                 value={draftContext}
                 onChange={handleContextChange}
                 onAiImport={() => setAiSheetOpen(true)}
+                readOnly={submitting}
               />
             )}
           </div>

@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react'
 
 import { Skeleton } from '@/components/ui/skeleton'
 import { useNotifications } from '@/components/notifications'
-import { useGlobalLoading } from '@/components/global-loading-provider'
 import { WarmBadge } from '@/components/dashboard-v2/warm-ledger/controls'
 import { ProjectContextDialog } from './project-context-dialog'
 import { fetchProjectContext } from '@/lib/project-context'
@@ -175,11 +174,9 @@ export function ProjectContextTab() {
   const [searchQuery] = useState('')
   const [filterHasContext] = useState<string>('all')
   const { notify } = useNotifications()
-  const { startGlobalLoading, endGlobalLoading } = useGlobalLoading()
 
   const loadData = useCallback(async () => {
     setLoading(true)
-    startGlobalLoading('blocking')
     try {
       const data = await fetchAllProjectContexts()
       setProjects(data)
@@ -191,9 +188,8 @@ export function ProjectContextTab() {
       })
     } finally {
       setLoading(false)
-      endGlobalLoading('blocking')
     }
-  }, [notify, startGlobalLoading, endGlobalLoading])
+  }, [notify])
 
   useEffect(() => {
     void loadData()
@@ -226,7 +222,10 @@ export function ProjectContextTab() {
     <div className={styles.contextTab} data-warm-project-context="true">
       <div>
         {loading ? (
-          <div className={styles.loadingGrid}>
+          <div className={styles.loadingGrid} aria-busy="true">
+            <span className="sr-only" role="status" aria-live="polite">
+              正在加载项目背景
+            </span>
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className={styles.loadingCard}>
                 <div className={styles.loadingStack}>

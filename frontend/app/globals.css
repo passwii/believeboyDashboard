@@ -1417,10 +1417,6 @@ html[data-theme-transition] body * {
       opacity var(--duration-quick) var(--ease-smooth-out);
   }
 
-  .global-loading-track {
-    background: linear-gradient(90deg, transparent 0%, hsl(var(--primary) / 0.2) 50%, transparent 100%);
-  }
-
   .global-loading-indicator {
     width: 28%;
     background: linear-gradient(90deg, hsl(var(--chart-2) / 0.95) 0%, hsl(var(--primary) / 0.95) 45%, hsl(var(--chart-1) / 0.9) 100%);
