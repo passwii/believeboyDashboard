@@ -536,6 +536,35 @@ describe('AgentManagementClient 4-Tab 枢纽页（BLF-448）', () => {
     await waitFor(() => expect(screen.queryByText('编辑凭据权限')).toBeNull())
   })
 
+  it('保存凭据权限等待响应时只显示一个 loading 图标', async () => {
+    const user = userEvent.setup()
+    let resolveUpdate: (result: typeof mockKeys[number]) => void = () => {}
+    const pendingUpdate = new Promise<typeof mockKeys[number]>((resolve) => {
+      resolveUpdate = resolve
+    })
+    updateAgentApiKey.mockReturnValueOnce(pendingUpdate)
+
+    render(<AgentManagementClient />)
+    await waitFor(() => expect(listAgentApiKeys).toHaveBeenCalledTimes(1))
+    await openCredentialsTab(user)
+
+    const row = screen.getByText('货件助理 (生产)').closest('tr')!
+    await user.click(within(row).getByRole('button', { name: /编辑/ }))
+    const dialog = screen.getByRole('dialog')
+    const nameInput = within(dialog).getByLabelText('名称')
+    await user.clear(nameInput)
+    await user.type(nameInput, '正在保存的助手')
+    await user.click(within(dialog).getByRole('button', { name: '保存' }))
+
+    const savingButton = await screen.findByRole('button', { name: '正在保存凭据权限' })
+    expect(savingButton).toHaveAttribute('aria-busy', 'true')
+    expect(savingButton.querySelectorAll('.warm-ledger__loading-mark')).toHaveLength(1)
+    expect(savingButton.querySelector('svg')).not.toBeInTheDocument()
+
+    resolveUpdate(mockKeys[0])
+    await waitFor(() => expect(screen.queryByText('编辑凭据权限')).toBeNull())
+  })
+
   it('编辑流：预填具体项目/业务域白名单并原样保存', async () => {
     const user = userEvent.setup()
     render(<AgentManagementClient />)
