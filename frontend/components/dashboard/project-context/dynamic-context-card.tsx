@@ -96,7 +96,7 @@ export function DynamicContextCard({
   }
 
   const handleAdd = () => {
-    if (!newKey.trim()) return
+    if (readOnly || !newKey.trim()) return
     onChange({ ...value, [newKey]: newValue })
     setNewKey('')
     setNewValue('')
@@ -104,6 +104,7 @@ export function DynamicContextCard({
   }
 
   const handleCancelAdd = () => {
+    if (readOnly) return
     setNewKey('')
     setNewValue('')
     setNewKeyMode(false)
@@ -249,6 +250,7 @@ export function DynamicContextCard({
                     value={newKey}
                     onChange={(event) => setNewKey(event.target.value)}
                     placeholder="维度名称"
+                    readOnly={readOnly}
                     className={styles.input}
                     autoFocus
                   />
@@ -260,6 +262,7 @@ export function DynamicContextCard({
                     onChange={(event) => setNewValue(event.target.value)}
                     placeholder="输入维度描述..."
                     rows={2}
+                    readOnly={readOnly}
                     className={`${styles.textarea} ${styles.dimensionTextarea}`}
                   />
                 </div>
@@ -267,6 +270,7 @@ export function DynamicContextCard({
                   <WarmButton
                     variant="quiet"
                     onClick={handleCancelAdd}
+                    disabled={readOnly}
                     className={styles.editorActionButton}
                   >
                     取消
@@ -274,7 +278,7 @@ export function DynamicContextCard({
                   <WarmButton
                     variant="primary"
                     onClick={handleAdd}
-                    disabled={!newKey.trim()}
+                    disabled={readOnly || !newKey.trim()}
                     className={styles.editorActionButton}
                   >
                     添加
