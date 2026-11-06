@@ -47,6 +47,7 @@ export function ProjectContextDrawer({
   const [submitting, setSubmitting] = useState(false)
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'success' | 'error'>('idle')
   const [context, setContext] = useState<ProjectContextResponse | null>(null)
+  const [loadedProjectId, setLoadedProjectId] = useState<number | null>(null)
   const [draftContext, setDraftContext] = useState<Record<string, string>>({})
   const [hasChanges, setHasChanges] = useState(false)
   const [aiSheetOpen, setAiSheetOpen] = useState(false)
@@ -62,11 +63,13 @@ export function ProjectContextDrawer({
   useEffect(() => {
     if (!open) {
       setLoading(false)
+      setLoadedProjectId(null)
       return
     }
 
     let cancelled = false
     setLoading(true)
+    setLoadedProjectId(null)
     setContext(null)
     setDraftContext({})
     setHasChanges(false)
@@ -87,7 +90,10 @@ export function ProjectContextDrawer({
         })
       })
       .finally(() => {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) {
+          setLoading(false)
+          setLoadedProjectId(projectId)
+        }
       })
 
     return () => {
@@ -172,6 +178,8 @@ export function ProjectContextDrawer({
     setDraftContext(newContext)
   }
 
+  const isProjectLoading = open && (loading || loadedProjectId !== projectId)
+
   const handleAiParsed = (parsed: Record<string, string>) => {
     // 合并解析结果到现有 context
     setDraftContext((prev) => ({ ...prev, ...parsed }))
@@ -197,7 +205,7 @@ export function ProjectContextDrawer({
               <WarmButton
                 variant="secondary"
                 onClick={() => setAiSheetOpen(true)}
-                disabled={loading || submitting}
+                disabled={isProjectLoading || submitting}
               >
                 AI 辅助
               </WarmButton>
@@ -208,7 +216,7 @@ export function ProjectContextDrawer({
           </SheetHeader>
 
           <div className={styles.surfaceBody}>
-            {loading ? (
+            {isProjectLoading ? (
               <LoadingSkeleton />
             ) : (
               <DynamicContextCard
