@@ -296,7 +296,7 @@ describe('AgentManagementClient 4-Tab 枢纽页（BLF-448）', () => {
     const pendingCreate = new Promise<Awaited<ReturnType<typeof createAgentApiKey>>>((resolve) => {
       resolveCreate = resolve
     })
-    vi.mocked(createAgentApiKey).mockReturnValue(pendingCreate)
+    vi.mocked(createAgentApiKey).mockReturnValueOnce(pendingCreate)
 
     render(<AgentManagementClient />)
     await waitFor(() => expect(listAgentApiKeys).toHaveBeenCalledTimes(1))
