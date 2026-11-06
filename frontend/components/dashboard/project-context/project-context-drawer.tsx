@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Sheet,
   SheetContent,
@@ -51,28 +51,41 @@ export function ProjectContextDrawer({
   const [hasChanges, setHasChanges] = useState(false)
   const [aiSheetOpen, setAiSheetOpen] = useState(false)
 
-  const loadData = useCallback(async () => {
-    if (!open) return
-    setLoading(true)
-    try {
-      const data = await fetchProjectContext(projectId, null)
-      setContext(data)
-      // project_context 本身就是 Record<string, string>
-      setDraftContext((data.project_context as Record<string, string>) || {})
-    } catch (err) {
-      notify({
-        type: 'error',
-        title: '加载失败',
-        message: err instanceof Error ? err.message : '加载项目背景配置失败',
-      })
-    } finally {
+  useEffect(() => {
+    if (!open) {
       setLoading(false)
+      return
+    }
+
+    let cancelled = false
+    setLoading(true)
+    setContext(null)
+    setDraftContext({})
+    setHasChanges(false)
+    setSaveState('idle')
+
+    void fetchProjectContext(projectId, null)
+      .then((data) => {
+        if (cancelled) return
+        setContext(data)
+        setDraftContext((data.project_context as Record<string, string>) || {})
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        notify({
+          type: 'error',
+          title: '加载失败',
+          message: err instanceof Error ? err.message : '加载项目背景配置失败',
+        })
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
     }
   }, [open, projectId, notify])
-
-  useEffect(() => {
-    void loadData()
-  }, [loadData])
 
   useEffect(() => {
     if (!context) return

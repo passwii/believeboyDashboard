@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { readFileSync, readdirSync } from 'node:fs'
 import { extname, join } from 'node:path'
@@ -191,6 +191,7 @@ describe('Project Context Warm Ledger 迁移', () => {
 
   it('保存项目背景时只显示局部按钮 loading', async () => {
     const user = userEvent.setup()
+    const onOpenChange = vi.fn()
     START_GLOBAL_LOADING.mockClear()
     END_GLOBAL_LOADING.mockClear()
     FETCH_PROJECT_CONTEXT.mockResolvedValue({
@@ -209,7 +210,7 @@ describe('Project Context Warm Ledger 迁移', () => {
         projectId={2}
         projectName="店铺乙"
         open
-        onOpenChange={vi.fn()}
+        onOpenChange={onOpenChange}
       />
     )
 
@@ -225,9 +226,53 @@ describe('Project Context Warm Ledger 迁移', () => {
     expect(screen.getByRole('button', { name: 'AI 辅助' })).toBeDisabled()
     expect(START_GLOBAL_LOADING).not.toHaveBeenCalled()
     expect(END_GLOBAL_LOADING).not.toHaveBeenCalled()
+    await user.keyboard('{Escape}')
+    expect(onOpenChange).not.toHaveBeenCalled()
 
     resolveUpdate({ project_context: { 定位: '新值' } })
     await screen.findByRole('button', { name: '已保存' })
+  })
+
+  it('抽屉切换项目后忽略旧项目晚返回的背景', async () => {
+    let resolveProjectA: (result: { project_context: Record<string, string> }) => void = () => {}
+    let resolveProjectB: (result: { project_context: Record<string, string> }) => void = () => {}
+    const projectARequest = new Promise<{ project_context: Record<string, string> }>((resolve) => {
+      resolveProjectA = resolve
+    })
+    const projectBRequest = new Promise<{ project_context: Record<string, string> }>((resolve) => {
+      resolveProjectB = resolve
+    })
+    FETCH_PROJECT_CONTEXT.mockImplementation((projectId: number) =>
+      projectId === 1 ? projectARequest : projectBRequest
+    )
+
+    const drawerProps = {
+      projectName: '店铺甲',
+      open: true,
+      onOpenChange: vi.fn(),
+    }
+    const { rerender } = render(<ProjectContextDrawer projectId={1} {...drawerProps} />)
+    await waitFor(() => expect(FETCH_PROJECT_CONTEXT).toHaveBeenCalledWith(1, null))
+
+    rerender(
+      <ProjectContextDrawer
+        projectId={2}
+        {...drawerProps}
+        projectName="店铺乙"
+      />
+    )
+    await waitFor(() => expect(FETCH_PROJECT_CONTEXT).toHaveBeenCalledWith(2, null))
+
+    resolveProjectB({ project_context: { 定位: '乙项目背景' } })
+    const description = await screen.findByLabelText('定位 描述')
+    await waitFor(() => expect(description).toHaveValue('乙项目背景'))
+
+    await act(async () => {
+      resolveProjectA({ project_context: { 定位: '甲项目背景' } })
+      await projectARequest
+    })
+    expect(description).toHaveValue('乙项目背景')
+    expect(screen.getByText('项目：店铺乙')).toBeInTheDocument()
   })
 
   it('AI 解析仍调用 context/parse 并把解析结果交给父表单', async () => {
