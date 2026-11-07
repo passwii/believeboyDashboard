@@ -37,17 +37,17 @@
 
 **文件：** `deploy/deploy-remote.sh`、`deploy/deploy-local.sh`
 
-- [ ] 校验 `SOURCE_SHA`、三张镜像 digest、`DEPLOY_PATH`、`STAGING_DIR` 与公网健康 URL；确认 `STAGING_DIR` 是 `$DEPLOY_PATH/.deploy-staging.*` 下的目录。
-- [ ] 同步改造现有本机 SSH 调用：在远端创建唯一暂存目录，把 Compose、Web/Go env 和远端脚本放入其中，并传入 `STAGING_DIR` 与 `SOURCE_SHA`；退出 trap 尽力删除尚未被远端脚本清除的目录。此步只适配新接口，不改变本机当前默认发布方式。
-- [ ] 在修改活动配置前，通过 `flock -n` 获取 `$DEPLOY_PATH/.deploy.lock`；锁已占用时明确失败。
-- [ ] 在锁内清理超过 24 小时的 `.deploy-staging.*` 目录和遗留 `.deploy-images.next.*` 文件，保留本次 `STAGING_DIR`。
-- [ ] 用 `df -B1 --output=avail "$DEPLOY_PATH"` 读取可用字节；用 `docker system df` 记录镜像占用。失败日志输出两项摘要。
-- [ ] 实现 `prune_dashboard_images`：只枚举三个固定 GHCR 仓库的 tags 与 repo digests；保护所有容器引用的 image ID、当前 `.deploy-images` 中的 refs 和传入的目标 refs；对其他 refs 按完整 `repo:tag` 或 `repo@digest` 执行 `docker image rm`，不按 image ID 删除。
-- [ ] 拉取前运行镜像回收，再检查 `DEPLOY_MIN_FREE_BYTES`；可用空间低于默认 `3221225472` 字节时，在迁移前退出。
-- [ ] 从 `STAGING_DIR` 提升 Compose 与运行环境文件，创建权限为 `0700` 的回滚目录，备份现有 Compose、Web/Go env 和 `.deploy-images`。
-- [ ] 拉取三张目标镜像后，逐一读取 `org.opencontainers.image.revision`；任一标签不等于 `SOURCE_SHA` 时走回滚与清理，不运行 migration。
-- [ ] 保持现有 migration、容器健康、Celery、beat 和公网健康检查顺序。全部通过后原子更新 `.deploy-images`，关闭 rollback trap 并删除回滚副本，再尽力回收没有引用的旧 Dashboard 镜像。镜像删除失败只报告 warning，不回滚已健康的新版本。
-- [ ] 添加退出 trap：总是删除本次暂存目录与临时 manifest；成功或回滚成功时删除回滚目录；回滚失败时保留回滚目录并报告路径。
+- [x] 校验 `SOURCE_SHA`、三张镜像 digest、`DEPLOY_PATH`、`STAGING_DIR` 与公网健康 URL；确认 `STAGING_DIR` 是 `$DEPLOY_PATH/.deploy-staging.*` 下的目录。
+- [x] 同步改造现有本机 SSH 调用：在远端创建唯一暂存目录，把 Compose、Web/Go env 和远端脚本放入其中，并传入 `STAGING_DIR` 与 `SOURCE_SHA`；退出 trap 尽力删除尚未被远端脚本清除的目录。此步只适配新接口，不改变本机当前默认发布方式。
+- [x] 在修改活动配置前，通过 `flock -n` 获取 `$DEPLOY_PATH/.deploy.lock`；锁已占用时明确失败。
+- [x] 在锁内清理超过 24 小时的 `.deploy-staging.*` 目录和遗留 `.deploy-images.next.*` 文件，保留本次 `STAGING_DIR`。
+- [x] 用 `df -B1 --output=avail "$DEPLOY_PATH"` 读取可用字节；用 `docker system df` 记录镜像占用。失败日志输出两项摘要。
+- [x] 实现 `prune_dashboard_images`：只枚举三个固定 GHCR 仓库的 tags 与 repo digests；保护所有容器引用的 image ID、当前 `.deploy-images` 中的 refs 和传入的目标 refs；对其他 refs 按完整 `repo:tag` 或 `repo@digest` 执行 `docker image rm`，不按 image ID 删除。
+- [x] 拉取前运行镜像回收，再检查 `DEPLOY_MIN_FREE_BYTES`；可用空间低于默认 `3221225472` 字节时，在迁移前退出。
+- [x] 从 `STAGING_DIR` 提升 Compose 与运行环境文件，创建权限为 `0700` 的回滚目录，备份现有 Compose、Web/Go env 和 `.deploy-images`。
+- [x] 拉取三张目标镜像后，逐一读取 `org.opencontainers.image.revision`；任一标签不等于 `SOURCE_SHA` 时走回滚与清理，不运行 migration。
+- [x] 保持现有 migration、容器健康、Celery、beat 和公网健康检查顺序。全部通过后原子更新 `.deploy-images`，关闭 rollback trap 并删除回滚副本，再尽力回收没有引用的旧 Dashboard 镜像。镜像删除失败只报告 warning，不回滚已健康的新版本。
+- [x] 添加退出 trap：总是删除本次暂存目录与临时 manifest；成功或回滚成功时删除回滚目录；回滚失败时保留回滚目录并报告路径。
 
 ### Task 2: 让 GitHub Actions 接收本地 digest
 
@@ -80,11 +80,11 @@
 
 **文件：** `docs/deployment/dashboard-vps-compose.md`、`AGENTS.md`、设计 spec
 
-- [ ] 在部署手册写明默认发布命令、预构建输入、Actions run 查看命令、完整构建备用命令和本机 SSH 应急命令。
-- [ ] 记录 `DEPLOY_MIN_FREE_BYTES` 默认值、Dashboard 仓库清理范围、引用保护规则、3 GiB 未达标时迁移前终止，以及不触碰持久化数据的边界。
-- [ ] 说明 Actions 预构建模式使用 VPS 当前 Web 运行环境；运行期环境变量更新走 SSH 应急模式。
-- [ ] 更新 `AGENTS.md` 的本地主发布与 Actions 备用规则，包含 `DEPLOY_METHOD=ssh` 和空间回收限制。
-- [ ] 修正文档：Actions 先校验 SHA/digest，VPS 拉取后、迁移前校验 OCI revision。
+- [x] 在部署手册写明默认发布命令、预构建输入、Actions run 查看命令、完整构建备用命令和本机 SSH 应急命令。
+- [x] 记录 `DEPLOY_MIN_FREE_BYTES` 默认值、Dashboard 仓库清理范围、引用保护规则、3 GiB 未达标时迁移前终止，以及不触碰持久化数据的边界。
+- [x] 说明 Actions 预构建模式使用 VPS 当前 Web 运行环境；运行期环境变量更新走 SSH 应急模式。
+- [x] 更新 `AGENTS.md` 的本地主发布与 Actions 备用规则，包含 `DEPLOY_METHOD=ssh` 和空间回收限制。
+- [x] 修正文档：Actions 先校验 SHA/digest，VPS 拉取后、迁移前校验 OCI revision。
 
 ### Task 5: 静态核对与交付
 
