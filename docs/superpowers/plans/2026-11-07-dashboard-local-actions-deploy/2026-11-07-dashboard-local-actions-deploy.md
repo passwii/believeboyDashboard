@@ -91,10 +91,10 @@
 
 ### Task 5: 静态核对与交付
 
-- [ ] 逐个执行 `bash -n deploy/deploy-local.sh`、`bash -n deploy/deploy-remote.sh`、`bash -n productEnvAgent/deploy.sh`，确认 shell 语法通过。
-- [ ] 若 `actionlint` 已安装，执行 `actionlint .github/workflows/deploy-dashboard.yml`；若未安装，记录未运行，不为此安装依赖。
-- [ ] 执行 `git diff --check` 并逐项复核：无全局 prune、无 volume/上传数据删除、失败回滚前不清理旧镜像、预构建模式没有 build/test 步骤。
-- [ ] 不从隔离 worktree 推送 `main` 或触发生产部署；交付本地变更与静态核对结果，待后续按仓库发布规则集成。
+- [x] 逐个执行 `bash -n deploy/deploy-local.sh`、`bash -n deploy/deploy-remote.sh`、`bash -n productEnvAgent/deploy.sh`，确认 shell 语法通过。
+- [x] 若 `actionlint` 已安装，执行 `actionlint .github/workflows/deploy-dashboard.yml`；若未安装，记录未运行，不为此安装依赖。
+- [x] 执行 `git diff --check` 并逐项复核：无全局 prune、无 volume/上传数据删除、失败回滚前不清理旧镜像、预构建模式没有 build/test 步骤。
+- [x] 不从隔离 worktree 推送 `main` 或触发生产部署；交付本地变更与静态核对结果，待后续按仓库发布规则集成。
 
 ## 覆盖对照
 
