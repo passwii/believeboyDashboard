@@ -34,10 +34,11 @@ git rev-list --left-right --count origin/main...HEAD  # 左侧计数为 0，才�
 
 ## Push / 部署规则（重要）
 
-- **本地主发布**：`git deploy` 要求 main 分支，先跑 Alembic 图检查并 `git push origin main`，随后执行 `deploy/deploy-local.sh`；本地构建 Web、FastAPI API、Go API 三个 GHCR 镜像并在 VPS 启动统一 Compose。Go Gateway 监听 `127.0.0.1:8200`，保留 FastAPI `127.0.0.1:8100` 作为未接管路由的回退；Go API 和 Web 共用 `GO_API_TRUSTED_PROXY_SECRET`（仅服务端）。
+- **本地主发布**：`git deploy` 要求 main 分支，先推送 `origin/main`，随后由本机运行 Alembic 图检查、前端 lint/test，并构建、推送 Web、FastAPI API、Go API 三个 GHCR 镜像；再通过 GitHub Actions 传入 commit SHA 与 registry digest 部署，不依赖本机到 VPS 的 SSH。默认平台为 `linux/amd64`。本机应急直连：`DEPLOY_METHOD=ssh git deploy`；本机运行期环境配置变更使用此路径。Go Gateway 监听 `127.0.0.1:8200`，保留 FastAPI `127.0.0.1:8100` 作为未接管路由的回退；Go API 和 Web 共用 `GO_API_TRUSTED_PROXY_SECRET`（仅服务端）。
 - **VPS 运行边界**：PostgreSQL、Redis、Caddy 是宿主机公共设施，不进入 Dashboard Compose。应用容器使用 `network_mode: host` 访问现有回环端口。
-- **GitHub Actions 仅备用**：`.github/workflows/deploy-dashboard.yml` 只能手动触发，ref 必须是 `main`；旧 `deploy-vps.yml` 和 systemd 自动部署已退役。
-- **只推代码**：`PUSH_ONLY=1 git deploy`。Actions 备用发布：`gh workflow run deploy-dashboard.yml --ref main`。
+- **GitHub Actions**：`.github/workflows/deploy-dashboard.yml` 只能手动触发且 ref 必须是 `main`。`git deploy` 默认以预构建模式传入三个 digest；手动不传预构建参数则运行完整构建备用流程。旧 `deploy-vps.yml` 和 systemd 自动部署已退役。
+- **只推代码**：`PUSH_ONLY=1 git deploy`。手动完整构建备用发布：`gh workflow run deploy-dashboard.yml --ref main`。
+- **VPS 空间回收**：远端部署只清理三个 Dashboard GHCR 仓库中无容器引用的旧镜像；默认至少保留 3 GiB 可用空间，低于 `DEPLOY_MIN_FREE_BYTES` 时在 migration 前中止。禁止自动运行全局 `docker image prune -a`、`docker system prune` 或 volume prune；不得删除上传数据和数据库文件。
 - **回滚**：Web、FastAPI API、Go API 三个镜像作为同一版本回滚；数据库 migration 不自动回滚，迁移必须保持向后兼容。运行手册见 `docs/deployment/dashboard-vps-compose.md`。
 - **新机器首次配置 alias / 缺 secret**：`git config alias.deploy '!bash productEnvAgent/deploy.sh'`；CI 侧 secret 为 `VPS_SSH_KEY` / `VPS_KNOWN_HOSTS` / `VPS_HOST` / `NEXTAUTH_SECRET` / `GO_API_TRUSTED_PROXY_SECRET`。Gateway 代理密钥用 `openssl rand -hex 32` 生成，并同步到 VPS 的 `web.env`、`go.env`。
 
