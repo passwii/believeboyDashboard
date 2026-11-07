@@ -5,6 +5,7 @@
 .venv
 **/__pycache__
 **/*.pyc
+**/*.pem
 **/node_modules
 frontend/.next
 frontend/.next-temp-build
