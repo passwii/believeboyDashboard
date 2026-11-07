@@ -2,7 +2,7 @@
 
 日期：2026-11-07
 
-状态：待用户评审
+状态：用户已批准，按实施计划进行
 
 ## 背景
 
@@ -49,7 +49,7 @@
 - `source_sha` 必须是完整 40 位 commit SHA，且与本次 Actions 的 `github.sha` 相同。
 - 三张 digest 必须符合 `sha256:<64 位十六进制>` 格式。
 - 镜像仓库名固定为 `ghcr.io/passwii/believeboydashboard-api`、`ghcr.io/passwii/believeboydashboard-go-api` 和 `ghcr.io/passwii/believeboydashboard-web`；调用者不能通过输入替换仓库地址。
-- 部署前读取镜像的 `org.opencontainers.image.revision` 标签，确认三张镜像都来自 `source_sha`。不匹配时停止部署。
+- Actions 在连接 VPS 前校验 SHA 和 digest；远端拉取目标镜像后、数据库迁移前读取 `org.opencontainers.image.revision` 标签，确认三张镜像都来自 `source_sha`。不匹配时停止部署并清理新拉取且无容器引用的镜像。
 - 保留现有 Actions concurrency，避免两个 Actions 部署同时改写 VPS 配置或 Compose 状态。
 
 ### 备用流程
@@ -88,7 +88,7 @@
 
 ## 失败处理与可观测性
 
-- 输入、SHA、digest 或镜像 revision 校验失败时，在接触 VPS 前终止。
+- 输入、SHA 或 digest 校验失败时，在接触 VPS 前终止；镜像 revision 不匹配时，在数据库迁移前终止。
 - SSH 或传输失败时，Actions 显示失败步骤和运行链接；可用同一组 digest 重试或选择本机 SSH 应急方式。
 - 磁盘不足时，在迁移前终止，并在日志中列出可用空间与 Docker 镜像占用摘要。
 - 远端部署失败时保留现有自动回滚行为；若回滚也失败，保留最小必要恢复文件并明确报告。
