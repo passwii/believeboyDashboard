@@ -69,7 +69,7 @@
 **文件：** `deploy/deploy-local.sh`、`productEnvAgent/deploy.sh`、`.github/workflows/deploy-dashboard.yml`
 
 - [x] 增加 `DEPLOY_METHOD="${DEPLOY_METHOD:-actions}"`，只接受 `actions` 或 `ssh`；`DEPLOY_HOST`、`ssh`、`scp` 仅在 `ssh` 模式必需，`gh` 仅在 `actions` 模式必需。
-- [ ] Actions 模式在构建前确认三个本地 `*_IMAGE_NAME` 都等于固定 GHCR 仓库；发现自定义仓库覆盖时停止并说明原因。SSH 应急模式保留现有仓库名配置能力。
+- [ ] Actions 模式在加载 `frontend/.env.local` 后、依赖安装和构建前确认三个本地 `*_IMAGE_NAME` 都等于固定 GHCR 仓库；发现自定义仓库覆盖时停止并说明原因。SSH 应急模式保留现有仓库名配置能力。
 - [x] 两种模式都要求前端 env 文件中的 `NEXTAUTH_SECRET` 供本机构建 Web 镜像；只有 `ssh` 模式要求 `BACKEND_API_KEY`、`BACKEND_API_BASE_URL` 和本机 `GO_API_TRUSTED_PROXY_SECRET`。
 - [x] 默认平台设为 `linux/amd64`，不再为默认发布 SSH 查询 VPS 架构。
 - [x] 两种模式都执行现有 main SHA 检查、Alembic 检查、前端 lint/test 与本地镜像构建/推送，并从 metadata 读取 digest。
