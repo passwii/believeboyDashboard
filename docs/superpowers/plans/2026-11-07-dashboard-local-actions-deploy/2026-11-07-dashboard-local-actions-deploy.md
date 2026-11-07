@@ -14,6 +14,7 @@
 - 三个镜像仓库固定为 `ghcr.io/passwii/believeboydashboard-api`、`ghcr.io/passwii/believeboydashboard-go-api`、`ghcr.io/passwii/believeboydashboard-web`，部署引用使用 digest。
 - 镜像 OCI revision 标签在 VPS 拉取镜像后、数据库迁移前校验。
 - VPS 最低可用空间默认是 `3221225472` 字节（3 GiB），由 `DEPLOY_MIN_FREE_BYTES` 覆盖。
+- 每次本地 Actions 派发生成唯一 32 位小写十六进制 `dispatch_id`；工作流 run name 包含它，fallback 只能按精确 ID 定位 run。
 - 垃圾回收只处理三个 Dashboard 仓库中未被任何容器、当前镜像清单或目标 digest 使用的镜像引用；不运行全局 image/system/volume prune。
 - 不删除 Docker volumes、`backend-storage`、`celerybeat`、数据库文件或其他应用镜像。
 - Actions 预构建部署使用 VPS 当前运行环境配置；本机运行期环境变更使用 `DEPLOY_METHOD=ssh`。
@@ -65,16 +66,17 @@
 
 ### Task 3: 调整本地默认发布与应急 SSH 路径
 
-**文件：** `deploy/deploy-local.sh`、`productEnvAgent/deploy.sh`
+**文件：** `deploy/deploy-local.sh`、`productEnvAgent/deploy.sh`、`.github/workflows/deploy-dashboard.yml`
 
 - [ ] 增加 `DEPLOY_METHOD="${DEPLOY_METHOD:-actions}"`，只接受 `actions` 或 `ssh`；`DEPLOY_HOST`、`ssh`、`scp` 仅在 `ssh` 模式必需，`gh` 仅在 `actions` 模式必需。
 - [ ] 两种模式都要求前端 env 文件中的 `NEXTAUTH_SECRET` 供本机构建 Web 镜像；只有 `ssh` 模式要求 `BACKEND_API_KEY`、`BACKEND_API_BASE_URL` 和本机 `GO_API_TRUSTED_PROXY_SECRET`。
 - [ ] 默认平台设为 `linux/amd64`，不再为默认发布 SSH 查询 VPS 架构。
 - [ ] 两种模式都执行现有 main SHA 检查、Alembic 检查、前端 lint/test 与本地镜像构建/推送，并从 metadata 读取 digest。
-- [ ] `actions` 模式记录派发开始时间，通过 `gh workflow run deploy-dashboard.yml --ref main` 传入 `deploy_mode=prebuilt`、完整 SHA 和三个 digest；从命令返回的 Actions URL 提取 run ID。若命令未返回 URL，则最多重试 15 次查询 `gh run list --workflow deploy-dashboard.yml --commit "$SHA" --event workflow_dispatch --limit 20 --json databaseId,url,createdAt`，只选择 `createdAt` 不早于本次派发时间的最新 run。定位到后调用 `gh run watch "$run_id" --compact --exit-status` 等待并报告 URL 与最终状态；超时后明确失败，不接管更早的 run。
+- [ ] `actions` 模式通过 Python 生成唯一 32 位小写十六进制 `dispatch_id`，传入 `deploy_mode=prebuilt`、完整 SHA 和三个 digest；从命令返回的 Actions URL 提取 run ID。若没有 URL，则最多重试 15 次查询 `gh run list --workflow deploy-dashboard.yml --commit "$SHA" --event workflow_dispatch --limit 20 --json databaseId,url,displayTitle`，只选择 `displayTitle` 精确匹配该 `dispatch_id` 的 run。定位到后调用 `gh run watch "$run_id" --compact --exit-status` 等待并报告 URL 与最终状态；超时后明确失败，不接管其他 run。
 - [ ] `ssh` 模式保留当前本机运行环境文件生成和统一 Compose 部署；复用 Task 1 已接入的唯一 `.deploy-staging.*` 目录和 `STAGING_DIR`/`SOURCE_SHA` 调用接口，不重复实现暂存流程。
 - [ ] 用 EXIT trap 删除本机 BuildKit secret 与临时 metadata；不要将运行密钥放入 `gh workflow run` 输入。
 - [ ] 更新 `productEnvAgent/deploy.sh` 注释，明确 `git deploy` 默认走 Actions，`DEPLOY_METHOD=ssh git deploy` 是应急路径，`PUSH_ONLY=1 git deploy` 语义不变。
+- [ ] 在 workflow 中增加可选 `dispatch_id` 输入，预构建模式校验其格式，并设置包含该 ID 的 `run-name`；人工完整构建不传该输入时仍能运行。
 
 ### Task 4: 同步运行手册与仓库约定
 
