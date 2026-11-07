@@ -344,21 +344,6 @@ jobs:
              chmod 600 '$DEPLOY_PATH/backend.env' '$DEPLOY_PATH/web.env'
              chown -R 10001:10001 '$DEPLOY_PATH/backend-storage' '$DEPLOY_PATH/celerybeat'"
 
-      - name: Stop legacy runtime
-        run: |
-          set -euo pipefail
-          ssh -i "$SSH_DIR/believeboy-dashboard" \
-            -o IdentitiesOnly=yes \
-            -o UserKnownHostsFile="$SSH_DIR/known_hosts" \
-            -o StrictHostKeyChecking=yes \
-            "$SSH_USER@$SSH_HOST" \
-            "set -euo pipefail
-             systemctl stop believeboy-beat.service 2>/dev/null || true
-             systemctl stop believeboy-celery.service believeboy-celery-scheduled.service 2>/dev/null || true
-             systemctl stop believeboy-api.service 2>/dev/null || true
-             docker stop believeboy-dashboard 2>/dev/null || true
-             docker rm believeboy-dashboard 2>/dev/null || true"
-
       - name: Create unique deployment staging directory
         run: |
           set -euo pipefail
@@ -441,6 +426,21 @@ jobs:
              chmod 600 \"\$staging_dir/web.env\" \"\$staging_dir/go.env\" \
                \"\$staging_dir/docker-compose.yml\" \"\$staging_dir/deploy-remote.sh\"
              rm -f \"\$secret_file\""
+
+      - name: Stop legacy runtime
+        run: |
+          set -euo pipefail
+          ssh -i "$SSH_DIR/believeboy-dashboard" \
+            -o IdentitiesOnly=yes \
+            -o UserKnownHostsFile="$SSH_DIR/known_hosts" \
+            -o StrictHostKeyChecking=yes \
+            "$SSH_USER@$SSH_HOST" \
+            "set -euo pipefail
+             systemctl stop believeboy-beat.service 2>/dev/null || true
+             systemctl stop believeboy-celery.service believeboy-celery-scheduled.service 2>/dev/null || true
+             systemctl stop believeboy-api.service 2>/dev/null || true
+             docker stop believeboy-dashboard 2>/dev/null || true
+             docker rm believeboy-dashboard 2>/dev/null || true"
 
       - name: Deploy over SSH
         id: deploy
