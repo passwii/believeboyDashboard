@@ -28,6 +28,15 @@ GO_MODULE_PROXY="${GO_MODULE_PROXY:-https://proxy.golang.org,direct}"
 INTERNAL_AI_PROVIDER_BASE_URL="${INTERNAL_AI_PROVIDER_BASE_URL:-http://127.0.0.1:3100/v1}"
 FRONTEND_ENV_FILE="${FRONTEND_ENV_FILE:-$ROOT/frontend/.env.local}"
 
+if [[ "$DEPLOY_METHOD" == "actions" ]] &&
+  [[ "$API_IMAGE_NAME" != "ghcr.io/passwii/believeboydashboard-api" ||
+    "$GO_API_IMAGE_NAME" != "ghcr.io/passwii/believeboydashboard-go-api" ||
+    "$WEB_IMAGE_NAME" != "ghcr.io/passwii/believeboydashboard-web" ]]; then
+  echo "Actions mode requires the fixed GHCR image names from deploy-dashboard.yml." >&2
+  echo "Custom image repository overrides are supported only with DEPLOY_METHOD=ssh." >&2
+  exit 1
+fi
+
 if [[ "$DEPLOY_METHOD" == "ssh" ]]; then
   : "${DEPLOY_HOST:?Set DEPLOY_HOST in $CONFIG_FILE or the shell environment}"
 fi
