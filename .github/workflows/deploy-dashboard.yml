@@ -1,11 +1,36 @@
 name: Deploy dashboard stack
 
 # Manual fallback. The local Mac is the primary release path via
-# deploy/deploy-local.sh. Both paths build the FastAPI, Go API, and Web image set
-# and call the same remote Compose script.
+# deploy/deploy-local.sh. Both paths deploy the same FastAPI, Go API, and Web
+# image set through the shared remote Compose script.
 
 on:
   workflow_dispatch:
+    inputs:
+      deploy_mode:
+        description: Deployment mode
+        type: choice
+        options:
+          - build_and_deploy
+          - prebuilt
+        default: build_and_deploy
+        required: true
+      source_sha:
+        description: Full source commit SHA for prebuilt images
+        type: string
+        required: false
+      api_digest:
+        description: FastAPI image sha256 digest for prebuilt mode
+        type: string
+        required: false
+      go_api_digest:
+        description: Go API image sha256 digest for prebuilt mode
+        type: string
+        required: false
+      web_digest:
+        description: Web image sha256 digest for prebuilt mode
+        type: string
+        required: false
 
 concurrency:
   group: believeboy-dashboard-stack
@@ -22,7 +47,6 @@ env:
 
 jobs:
   deploy:
-    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 45
@@ -30,11 +54,87 @@ jobs:
       SSH_HOST: ${{ secrets.VPS_HOST }}
       SSH_USER: root
       DEPLOY_PATH: /opt/believeboy-dashboard
+      SSH_DIR: ''
+      STAGING_DIR: ''
       DOCKER_PLATFORM: linux/amd64
+      PUBLIC_WEB_HEALTH_URL: https://dash.believeboy.com/healthz
+      PUBLIC_API_HEALTH_URL: https://dash-api.believeboy.com/api/v1/health/live
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Validate deployment inputs
+        env:
+          DEPLOY_MODE: ${{ inputs.deploy_mode }}
+          SOURCE_SHA_INPUT: ${{ inputs.source_sha }}
+          API_DIGEST_INPUT: ${{ inputs.api_digest }}
+          GO_API_DIGEST_INPUT: ${{ inputs.go_api_digest }}
+          WEB_DIGEST_INPUT: ${{ inputs.web_digest }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+          GO_API_TRUSTED_PROXY_SECRET: ${{ secrets.GO_API_TRUSTED_PROXY_SECRET }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "::error::This workflow may only deploy refs/heads/main."
+            exit 1
+          fi
+
+          case "$DEPLOY_MODE" in
+            build_and_deploy | prebuilt) ;;
+            *)
+              echo "::error::deploy_mode must be build_and_deploy or prebuilt."
+              exit 1
+              ;;
+          esac
+
+          for name in SSH_HOST VPS_SSH_KEY VPS_KNOWN_HOSTS GO_API_TRUSTED_PROXY_SECRET; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::$name is required."
+              exit 1
+            fi
+          done
+
+          if [[ ! "$GO_API_TRUSTED_PROXY_SECRET" =~ ^[0-9a-fA-F]{64}$ ]]; then
+            echo "::error::GO_API_TRUSTED_PROXY_SECRET must be a 64-character hex value."
+            exit 1
+          fi
+
+          if [[ "$DEPLOY_MODE" == "prebuilt" ]]; then
+            if [[ ! "$SOURCE_SHA_INPUT" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error::source_sha must be a full 40-character lowercase Git SHA."
+              exit 1
+            fi
+            if [[ "$SOURCE_SHA_INPUT" != "$GITHUB_SHA" ]]; then
+              echo "::error::source_sha must match the workflow SHA."
+              exit 1
+            fi
+            for name in API_DIGEST_INPUT GO_API_DIGEST_INPUT WEB_DIGEST_INPUT; do
+              if [[ ! "${!name}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+                echo "::error::$name must use the sha256:<64 lowercase hex> format."
+                exit 1
+              fi
+            done
+          else
+            if [[ -z "$GHCR_TOKEN" ]]; then
+              echo "::error::GHCR_TOKEN is required for build_and_deploy."
+              exit 1
+            fi
+            if [[ -z "$NEXTAUTH_SECRET" ]]; then
+              echo "::error::NEXTAUTH_SECRET is required for build_and_deploy."
+              exit 1
+            fi
+            nextauth_secret_bytes="$(LC_ALL=C printf '%s' "$NEXTAUTH_SECRET" | wc -c | tr -d '[:space:]')"
+            if (( nextauth_secret_bytes < 32 )); then
+              echo "::error::NEXTAUTH_SECRET must be at least 32 bytes."
+              exit 1
+            fi
+          fi
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -45,11 +145,13 @@ jobs:
         run: python backend/scripts/check_alembic.py
 
       - name: Setup pnpm
+        if: ${{ inputs.deploy_mode == 'build_and_deploy' }}
         uses: pnpm/action-setup@v4
         with:
           version: 10.18.0
 
       - name: Setup Node.js
+        if: ${{ inputs.deploy_mode == 'build_and_deploy' }}
         uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
@@ -57,21 +159,26 @@ jobs:
           cache-dependency-path: frontend/pnpm-lock.yaml
 
       - name: Install frontend dependencies
+        if: ${{ inputs.deploy_mode == 'build_and_deploy' }}
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
       - name: Lint frontend
+        if: ${{ inputs.deploy_mode == 'build_and_deploy' }}
         working-directory: frontend
         run: pnpm lint
 
       - name: Test frontend
+        if: ${{ inputs.deploy_mode == 'build_and_deploy' }}
         working-directory: frontend
         run: pnpm test
 
       - name: Set up Docker Buildx
+        if: ${{ inputs.deploy_mode == 'build_and_deploy' }}
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
+        if: ${{ inputs.deploy_mode == 'build_and_deploy' }}
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -79,6 +186,7 @@ jobs:
           password: ${{ secrets.GHCR_TOKEN }}
 
       - name: Build and push API
+        if: ${{ inputs.deploy_mode == 'build_and_deploy' }}
         id: api
         uses: docker/build-push-action@v6
         with:
@@ -88,6 +196,8 @@ jobs:
           push: true
           tags: |
             ${{ env.API_IMAGE_NAME }}:sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
           build-args: |
             PIP_INDEX_URL=https://pypi.org/simple
           cache-from: type=gha,scope=dashboard-api
@@ -95,6 +205,7 @@ jobs:
           provenance: false
 
       - name: Build and push Go API
+        if: ${{ inputs.deploy_mode == 'build_and_deploy' }}
         id: go_api
         uses: docker/build-push-action@v6
         with:
@@ -104,6 +215,8 @@ jobs:
           push: true
           tags: |
             ${{ env.GO_API_IMAGE_NAME }}:sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
           build-args: |
             GOPROXY=https://proxy.golang.org,direct
           cache-from: type=gha,scope=dashboard-go-api
@@ -111,6 +224,7 @@ jobs:
           provenance: false
 
       - name: Build and push Web
+        if: ${{ inputs.deploy_mode == 'build_and_deploy' }}
         id: web
         uses: docker/build-push-action@v6
         with:
@@ -120,11 +234,60 @@ jobs:
           push: true
           tags: |
             ${{ env.WEB_IMAGE_NAME }}:sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
           secrets: |
             nextauth_secret=${{ secrets.NEXTAUTH_SECRET }}
           cache-from: type=gha,scope=dashboard-web
           cache-to: type=gha,scope=dashboard-web,mode=max
           provenance: false
+
+      - name: Set deployment image references
+        env:
+          DEPLOY_MODE: ${{ inputs.deploy_mode }}
+          SOURCE_SHA_INPUT: ${{ inputs.source_sha }}
+          API_DIGEST_INPUT: ${{ inputs.api_digest }}
+          GO_API_DIGEST_INPUT: ${{ inputs.go_api_digest }}
+          WEB_DIGEST_INPUT: ${{ inputs.web_digest }}
+          BUILT_API_DIGEST: ${{ steps.api.outputs.digest }}
+          BUILT_GO_API_DIGEST: ${{ steps.go_api.outputs.digest }}
+          BUILT_WEB_DIGEST: ${{ steps.web.outputs.digest }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$DEPLOY_MODE" == "prebuilt" ]]; then
+            source_sha="$SOURCE_SHA_INPUT"
+            api_digest="$API_DIGEST_INPUT"
+            go_api_digest="$GO_API_DIGEST_INPUT"
+            web_digest="$WEB_DIGEST_INPUT"
+          else
+            source_sha="$GITHUB_SHA"
+            api_digest="$BUILT_API_DIGEST"
+            go_api_digest="$BUILT_GO_API_DIGEST"
+            web_digest="$BUILT_WEB_DIGEST"
+          fi
+
+          if [[ ! "$source_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::SOURCE_SHA must be a full 40-character lowercase Git SHA."
+            exit 1
+          fi
+          for digest in "$api_digest" "$go_api_digest" "$web_digest"; do
+            if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+              echo "::error::Image build or supplied digest is invalid."
+              exit 1
+            fi
+          done
+
+          {
+            printf 'SOURCE_SHA=%s\n' "$source_sha"
+            printf 'API_DIGEST=%s\n' "$api_digest"
+            printf 'GO_API_DIGEST=%s\n' "$go_api_digest"
+            printf 'WEB_DIGEST=%s\n' "$web_digest"
+            printf 'API_IMAGE=%s@%s\n' "$API_IMAGE_NAME" "$api_digest"
+            printf 'GO_API_IMAGE=%s@%s\n' "$GO_API_IMAGE_NAME" "$go_api_digest"
+            printf 'WEB_IMAGE=%s@%s\n' "$WEB_IMAGE_NAME" "$web_digest"
+          } >> "$GITHUB_ENV"
 
       - name: Configure SSH
         env:
@@ -132,21 +295,21 @@ jobs:
           VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
-          test -n "$VPS_SSH_KEY"
-          test -n "$VPS_KNOWN_HOSTS"
-          test -n "$SSH_HOST"
-          install -m 700 -d "$HOME/.ssh"
-          printf '%s\n' "$VPS_SSH_KEY" > "$HOME/.ssh/believeboy-dashboard"
-          chmod 600 "$HOME/.ssh/believeboy-dashboard"
-          printf '%s\n' "$VPS_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
-          chmod 600 "$HOME/.ssh/known_hosts"
+          umask 077
+          SSH_DIR="$RUNNER_TEMP/believeboy-dashboard-ssh"
+          printf 'SSH_DIR=%s\n' "$SSH_DIR" >> "$GITHUB_ENV"
+          install -m 700 -d "$SSH_DIR"
+          printf '%s\n' "$VPS_SSH_KEY" > "$SSH_DIR/believeboy-dashboard"
+          chmod 600 "$SSH_DIR/believeboy-dashboard"
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > "$SSH_DIR/known_hosts"
+          chmod 600 "$SSH_DIR/known_hosts"
 
       - name: Prepare runtime
         run: |
           set -euo pipefail
-          ssh -i "$HOME/.ssh/believeboy-dashboard" \
+          ssh -i "$SSH_DIR/believeboy-dashboard" \
             -o IdentitiesOnly=yes \
-            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o UserKnownHostsFile="$SSH_DIR/known_hosts" \
             -o StrictHostKeyChecking=yes \
             "$SSH_USER@$SSH_HOST" \
             "set -euo pipefail
@@ -169,17 +332,6 @@ jobs:
              test -f '$DEPLOY_PATH/backend.env'
              test -f '$DEPLOY_PATH/web.env'
              sed -i 's#^AI_CHAT_PROVIDER_BASE_URL=.*#AI_CHAT_PROVIDER_BASE_URL=http://127.0.0.1:3100/v1#' '$DEPLOY_PATH/backend.env'
-             cp '$DEPLOY_PATH/web.env' '$DEPLOY_PATH/web.env.next'
-             if grep -q '^BACKEND_INTERNAL_URL=' '$DEPLOY_PATH/web.env.next'; then
-               sed -i 's#^BACKEND_INTERNAL_URL=.*#BACKEND_INTERNAL_URL=http://127.0.0.1:8200#' '$DEPLOY_PATH/web.env.next'
-             else
-               printf 'BACKEND_INTERNAL_URL=http://127.0.0.1:8200\n' >> '$DEPLOY_PATH/web.env.next'
-             fi
-             if ! grep -q '^BACKEND_PUBLIC_API_BASE_URL=' '$DEPLOY_PATH/web.env.next'; then
-               public_api=\"\$(sed -n 's/^BACKEND_API_BASE_URL=//p' '$DEPLOY_PATH/web.env.next' | head -1)\"
-               test -n \"\$public_api\"
-               printf 'BACKEND_PUBLIC_API_BASE_URL=%s\n' \"\$public_api\" >> '$DEPLOY_PATH/web.env.next'
-             fi
              install -d -m 755 '$DEPLOY_PATH/backend-storage' '$DEPLOY_PATH/celerybeat'
              if [ -d \"\$legacy_repo/backend/storage\" ] && [ ! -f '$DEPLOY_PATH/.storage-migrated' ]; then
                cp -a \"\$legacy_repo/backend/storage/.\" '$DEPLOY_PATH/backend-storage/'
@@ -189,52 +341,15 @@ jobs:
                cp -a /var/lib/believeboy/. '$DEPLOY_PATH/celerybeat/'
                touch '$DEPLOY_PATH/.celerybeat-migrated'
              fi
-             chmod 600 '$DEPLOY_PATH/backend.env' '$DEPLOY_PATH/web.env' '$DEPLOY_PATH/web.env.next'
+             chmod 600 '$DEPLOY_PATH/backend.env' '$DEPLOY_PATH/web.env'
              chown -R 10001:10001 '$DEPLOY_PATH/backend-storage' '$DEPLOY_PATH/celerybeat'"
-
-      - name: Stage Go Gateway environment
-        env:
-          GO_API_TRUSTED_PROXY_SECRET: ${{ secrets.GO_API_TRUSTED_PROXY_SECRET }}
-        run: |
-          set -euo pipefail
-          if [[ ! "$GO_API_TRUSTED_PROXY_SECRET" =~ ^[0-9a-fA-F]{64}$ ]]; then
-            echo "::error::GO_API_TRUSTED_PROXY_SECRET must be a 64-character hex value."
-            exit 1
-          fi
-          secret_file="$(mktemp)"
-          trap 'rm -f "$secret_file"' EXIT
-          printf 'GO_API_TRUSTED_PROXY_SECRET=%s\n' "$GO_API_TRUSTED_PROXY_SECRET" > "$secret_file"
-          chmod 600 "$secret_file"
-          scp -i "$HOME/.ssh/believeboy-dashboard" \
-            -o IdentitiesOnly=yes \
-            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
-            -o StrictHostKeyChecking=yes \
-            "$secret_file" "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/.go-api-secret.next"
-          ssh -i "$HOME/.ssh/believeboy-dashboard" \
-            -o IdentitiesOnly=yes \
-            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
-            -o StrictHostKeyChecking=yes \
-            "$SSH_USER@$SSH_HOST" \
-            "set -euo pipefail
-             secret_file='$DEPLOY_PATH/.go-api-secret.next'
-             chmod 600 \"\$secret_file\"
-             sed -i '/^GO_API_TRUSTED_PROXY_SECRET=/d' '$DEPLOY_PATH/web.env.next'
-             cat \"\$secret_file\" >> '$DEPLOY_PATH/web.env.next'
-             {
-               printf 'GO_API_ADDR=127.0.0.1:8200\\n'
-               printf 'FASTAPI_ORIGIN=http://127.0.0.1:8100\\n'
-               printf 'GO_API_OWNED=health,exchange_rates,notifications,alerts,profile\\n'
-               cat \"\$secret_file\"
-             } > '$DEPLOY_PATH/go.env.next'
-             chmod 600 '$DEPLOY_PATH/web.env.next' '$DEPLOY_PATH/go.env.next'
-             rm -f \"\$secret_file\""
 
       - name: Stop legacy runtime
         run: |
           set -euo pipefail
-          ssh -i "$HOME/.ssh/believeboy-dashboard" \
+          ssh -i "$SSH_DIR/believeboy-dashboard" \
             -o IdentitiesOnly=yes \
-            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o UserKnownHostsFile="$SSH_DIR/known_hosts" \
             -o StrictHostKeyChecking=yes \
             "$SSH_USER@$SSH_HOST" \
             "set -euo pipefail
@@ -244,69 +359,176 @@ jobs:
              docker stop believeboy-dashboard 2>/dev/null || true
              docker rm believeboy-dashboard 2>/dev/null || true"
 
-      - name: Sync deployment files
+      - name: Create unique deployment staging directory
         run: |
-          scp -i "$HOME/.ssh/believeboy-dashboard" \
+          set -euo pipefail
+          staging_dir="$(ssh -i "$SSH_DIR/believeboy-dashboard" \
             -o IdentitiesOnly=yes \
-            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o UserKnownHostsFile="$SSH_DIR/known_hosts" \
             -o StrictHostKeyChecking=yes \
-            deploy/docker-compose.yml \
-            "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/docker-compose.yml.next"
-          scp -i "$HOME/.ssh/believeboy-dashboard" \
+            "$SSH_USER@$SSH_HOST" \
+            "set -euo pipefail
+             staging_dir=\$(mktemp -d '$DEPLOY_PATH/.deploy-staging.XXXXXX')
+             chmod 700 \"\$staging_dir\"
+             printf '%s\n' \"\$staging_dir\"")"
+
+          case "$staging_dir" in
+            "$DEPLOY_PATH"/.deploy-staging.*) ;;
+            *)
+              echo "::error::Remote staging directory did not match the expected path."
+              exit 1
+              ;;
+          esac
+          if [[ "$staging_dir" == "$DEPLOY_PATH/.deploy-staging." ]]; then
+            echo "::error::Remote staging directory name is incomplete."
+            exit 1
+          fi
+          printf 'STAGING_DIR=%s\n' "$staging_dir" >> "$GITHUB_ENV"
+
+      - name: Stage deployment files and runtime environment
+        env:
+          GO_API_TRUSTED_PROXY_SECRET: ${{ secrets.GO_API_TRUSTED_PROXY_SECRET }}
+        run: |
+          set -euo pipefail
+          secret_file="$(mktemp "$RUNNER_TEMP/go-api-secret.XXXXXX")"
+          trap 'rm -f "$secret_file"' EXIT
+          printf 'GO_API_TRUSTED_PROXY_SECRET=%s\n' "$GO_API_TRUSTED_PROXY_SECRET" > "$secret_file"
+          chmod 600 "$secret_file"
+
+          scp -i "$SSH_DIR/believeboy-dashboard" \
             -o IdentitiesOnly=yes \
-            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o UserKnownHostsFile="$SSH_DIR/known_hosts" \
             -o StrictHostKeyChecking=yes \
-            deploy/deploy-remote.sh \
-            "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/deploy-remote.sh.next"
+            "$secret_file" "$SSH_USER@$SSH_HOST:$STAGING_DIR/.go-api-secret"
+          scp -i "$SSH_DIR/believeboy-dashboard" \
+            -o IdentitiesOnly=yes \
+            -o UserKnownHostsFile="$SSH_DIR/known_hosts" \
+            -o StrictHostKeyChecking=yes \
+            deploy/docker-compose.yml deploy/deploy-remote.sh \
+            "$SSH_USER@$SSH_HOST:$STAGING_DIR/"
+
+          ssh -i "$SSH_DIR/believeboy-dashboard" \
+            -o IdentitiesOnly=yes \
+            -o UserKnownHostsFile="$SSH_DIR/known_hosts" \
+            -o StrictHostKeyChecking=yes \
+            "$SSH_USER@$SSH_HOST" \
+            "set -euo pipefail
+             staging_dir='$STAGING_DIR'
+             deploy_path='$DEPLOY_PATH'
+             secret_file=\"\$staging_dir/.go-api-secret\"
+             test -d \"\$staging_dir\"
+             chmod 700 \"\$staging_dir\"
+             chmod 600 \"\$secret_file\"
+             install -m 600 \"\$deploy_path/web.env\" \"\$staging_dir/web.env\"
+             if grep -q '^BACKEND_INTERNAL_URL=' \"\$staging_dir/web.env\"; then
+               sed -i 's#^BACKEND_INTERNAL_URL=.*#BACKEND_INTERNAL_URL=http://127.0.0.1:8200#' \"\$staging_dir/web.env\"
+             else
+               printf 'BACKEND_INTERNAL_URL=http://127.0.0.1:8200\n' >> \"\$staging_dir/web.env\"
+             fi
+             if ! grep -q '^BACKEND_PUBLIC_API_BASE_URL=' \"\$staging_dir/web.env\"; then
+               public_api=\"\$(sed -n 's/^BACKEND_API_BASE_URL=//p' \"\$staging_dir/web.env\" | head -1)\"
+               test -n \"\$public_api\"
+               printf 'BACKEND_PUBLIC_API_BASE_URL=%s\n' \"\$public_api\" >> \"\$staging_dir/web.env\"
+             fi
+             sed -i '/^GO_API_TRUSTED_PROXY_SECRET=/d' \"\$staging_dir/web.env\"
+             cat \"\$secret_file\" >> \"\$staging_dir/web.env\"
+             {
+               printf 'GO_API_ADDR=127.0.0.1:8200\n'
+               printf 'FASTAPI_ORIGIN=http://127.0.0.1:8100\n'
+               printf 'GO_API_OWNED=health,exchange_rates,notifications,alerts,profile\n'
+               cat \"\$secret_file\"
+             } > \"\$staging_dir/go.env\"
+             chmod 600 \"\$staging_dir/web.env\" \"\$staging_dir/go.env\" \
+               \"\$staging_dir/docker-compose.yml\" \"\$staging_dir/deploy-remote.sh\"
+             rm -f \"\$secret_file\""
 
       - name: Deploy over SSH
         id: deploy
-        env:
-          API_IMAGE: ${{ env.API_IMAGE_NAME }}@${{ steps.api.outputs.digest }}
-          GO_API_IMAGE: ${{ env.GO_API_IMAGE_NAME }}@${{ steps.go_api.outputs.digest }}
-          WEB_IMAGE: ${{ env.WEB_IMAGE_NAME }}@${{ steps.web.outputs.digest }}
-          PUBLIC_WEB_HEALTH_URL: https://dash.believeboy.com/healthz
-          PUBLIC_API_HEALTH_URL: https://dash-api.believeboy.com/api/v1/health/live
         run: |
           set -euo pipefail
-          ssh -i "$HOME/.ssh/believeboy-dashboard" \
+          printf -v remote_staging_dir '%q' "$STAGING_DIR"
+          printf -v remote_deploy_path '%q' "$DEPLOY_PATH"
+          printf -v remote_script_path '%q' "$STAGING_DIR/deploy-remote.sh"
+          printf -v remote_source_sha '%q' "$SOURCE_SHA"
+          printf -v remote_api_digest '%q' "$API_DIGEST"
+          printf -v remote_go_api_digest '%q' "$GO_API_DIGEST"
+          printf -v remote_web_digest '%q' "$WEB_DIGEST"
+          printf -v remote_api_image '%q' "$API_IMAGE"
+          printf -v remote_go_api_image '%q' "$GO_API_IMAGE"
+          printf -v remote_web_image '%q' "$WEB_IMAGE"
+          printf -v remote_public_web_url '%q' "$PUBLIC_WEB_HEALTH_URL"
+          printf -v remote_public_api_url '%q' "$PUBLIC_API_HEALTH_URL"
+
+          ssh -i "$SSH_DIR/believeboy-dashboard" \
             -o IdentitiesOnly=yes \
-            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o UserKnownHostsFile="$SSH_DIR/known_hosts" \
             -o StrictHostKeyChecking=yes \
             "$SSH_USER@$SSH_HOST" \
-            "mv '$DEPLOY_PATH/deploy-remote.sh.next' '$DEPLOY_PATH/deploy-remote.sh' && \
-               PUBLIC_WEB_HEALTH_URL='$PUBLIC_WEB_HEALTH_URL' \
-               PUBLIC_API_HEALTH_URL='$PUBLIC_API_HEALTH_URL' \
-               API_IMAGE='$API_IMAGE' GO_API_IMAGE='$GO_API_IMAGE' WEB_IMAGE='$WEB_IMAGE' DEPLOY_PATH='$DEPLOY_PATH' \
-              bash '$DEPLOY_PATH/deploy-remote.sh'"
+            "PUBLIC_WEB_HEALTH_URL=$remote_public_web_url PUBLIC_API_HEALTH_URL=$remote_public_api_url \
+             SOURCE_SHA=$remote_source_sha STAGING_DIR=$remote_staging_dir DEPLOY_PATH=$remote_deploy_path \
+             API_DIGEST=$remote_api_digest GO_API_DIGEST=$remote_go_api_digest WEB_DIGEST=$remote_web_digest \
+             API_IMAGE=$remote_api_image GO_API_IMAGE=$remote_go_api_image WEB_IMAGE=$remote_web_image \
+             bash $remote_script_path"
 
       - name: Diagnose deployment failure
         if: ${{ always() && steps.deploy.outcome == 'failure' }}
-        env:
-          API_IMAGE: ${{ env.API_IMAGE_NAME }}@${{ steps.api.outputs.digest }}
-          GO_API_IMAGE: ${{ env.GO_API_IMAGE_NAME }}@${{ steps.go_api.outputs.digest }}
-          WEB_IMAGE: ${{ env.WEB_IMAGE_NAME }}@${{ steps.web.outputs.digest }}
         run: |
           set -euo pipefail
-          ssh -i "$HOME/.ssh/believeboy-dashboard" \
+          printf -v remote_deploy_path '%q' "$DEPLOY_PATH"
+          printf -v remote_api_image '%q' "$API_IMAGE"
+          printf -v remote_go_api_image '%q' "$GO_API_IMAGE"
+          printf -v remote_web_image '%q' "$WEB_IMAGE"
+          ssh -i "$SSH_DIR/believeboy-dashboard" \
             -o IdentitiesOnly=yes \
-            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o UserKnownHostsFile="$SSH_DIR/known_hosts" \
             -o StrictHostKeyChecking=yes \
             "$SSH_USER@$SSH_HOST" \
-            "cd '$DEPLOY_PATH'
-             API_IMAGE='$API_IMAGE' GO_API_IMAGE='$GO_API_IMAGE' WEB_IMAGE='$WEB_IMAGE' docker compose ps || true
-             API_IMAGE='$API_IMAGE' GO_API_IMAGE='$GO_API_IMAGE' WEB_IMAGE='$WEB_IMAGE' docker compose logs --tail=200 || true
+            "set -euo pipefail
+             cd $remote_deploy_path
+             API_IMAGE=$remote_api_image GO_API_IMAGE=$remote_go_api_image WEB_IMAGE=$remote_web_image docker compose ps || true
+             API_IMAGE=$remote_api_image GO_API_IMAGE=$remote_go_api_image WEB_IMAGE=$remote_web_image docker compose logs --tail=200 || true
              systemctl is-active believeboy-api believeboy-celery \
                believeboy-celery-scheduled believeboy-beat 2>/dev/null || true"
 
       - name: Disable legacy units
         run: |
           set -euo pipefail
-          ssh -i "$HOME/.ssh/believeboy-dashboard" \
+          ssh -i "$SSH_DIR/believeboy-dashboard" \
             -o IdentitiesOnly=yes \
-            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o UserKnownHostsFile="$SSH_DIR/known_hosts" \
             -o StrictHostKeyChecking=yes \
             "$SSH_USER@$SSH_HOST" \
             "systemctl disable believeboy-api.service believeboy-celery.service \
               believeboy-celery-scheduled.service believeboy-beat.service \
               >/dev/null 2>&1 || true"
+
+      - name: Cleanup deployment staging and runner SSH keys
+        if: ${{ always() }}
+        run: |
+          set -uo pipefail
+          if [[ -n "$STAGING_DIR" ]]; then
+            case "$STAGING_DIR" in
+              "$DEPLOY_PATH"/.deploy-staging.*)
+                printf -v remote_staging_dir '%q' "$STAGING_DIR"
+                printf -v remote_deploy_path '%q' "$DEPLOY_PATH"
+                if ! ssh -i "$SSH_DIR/believeboy-dashboard" \
+                  -o IdentitiesOnly=yes \
+                  -o UserKnownHostsFile="$SSH_DIR/known_hosts" \
+                  -o StrictHostKeyChecking=yes \
+                  "$SSH_USER@$SSH_HOST" \
+                  "case $remote_staging_dir in
+                     $remote_deploy_path/.deploy-staging.*) rm -rf -- $remote_staging_dir ;;
+                     *) exit 2 ;;
+                   esac"; then
+                  echo "::warning::Could not remove remote staging directory; the next remote deployment will clean stale staging directories."
+                fi
+                ;;
+              *)
+                echo "::warning::Skipped remote cleanup because STAGING_DIR is outside the expected deployment path."
+                ;;
+            esac
+          fi
+
+          if [[ -n "$SSH_DIR" ]] && ! rm -rf -- "$SSH_DIR"; then
+            echo "::warning::Could not remove the runner SSH key directory."
+          fi
