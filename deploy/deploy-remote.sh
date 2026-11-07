@@ -140,11 +140,11 @@ fi
 if [[ ! "$WEB_IMAGE" =~ ^ghcr\.io/passwii/believeboydashboard-web@sha256:[0-9a-f]{64}$ ]]; then
   die "WEB_IMAGE must be a digest reference for $WEB_REPOSITORY."
 fi
-if [[ ! "$PUBLIC_WEB_HEALTH_URL" =~ ^https://[^[:space:]]+$ ]]; then
-  die "PUBLIC_WEB_HEALTH_URL must be a public HTTPS URL."
+if [[ "$PUBLIC_WEB_HEALTH_URL" != "https://dash.believeboy.com/healthz" ]]; then
+  die "PUBLIC_WEB_HEALTH_URL must be exactly https://dash.believeboy.com/healthz."
 fi
-if [[ ! "$PUBLIC_API_HEALTH_URL" =~ ^https://[^[:space:]]+$ ]]; then
-  die "PUBLIC_API_HEALTH_URL must be a public HTTPS URL."
+if [[ "$PUBLIC_API_HEALTH_URL" != "https://dash-api.believeboy.com/api/v1/health/live" ]]; then
+  die "PUBLIC_API_HEALTH_URL must be exactly https://dash-api.believeboy.com/api/v1/health/live."
 fi
 if [[ ! "$DEPLOY_MIN_FREE_BYTES" =~ ^[0-9]+$ ]]; then
   die "DEPLOY_MIN_FREE_BYTES must be a non-negative integer."
