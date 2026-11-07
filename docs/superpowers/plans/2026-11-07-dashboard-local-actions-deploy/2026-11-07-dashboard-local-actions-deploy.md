@@ -53,15 +53,15 @@
 
 **文件：** `.github/workflows/deploy-dashboard.yml`
 
-- [ ] 为 `workflow_dispatch` 增加 `deploy_mode`（默认 `build_and_deploy`，另一个值为 `prebuilt`）、`source_sha`、`api_digest`、`go_api_digest`、`web_digest` 五个输入。
-- [ ] 在任何 SSH 步骤之前校验 ref 为 `main`。预构建模式校验完整 40 位 SHA、三个 `sha256:` digest 格式，并要求 `source_sha == github.sha`。
-- [ ] 将 Python/Alembic 图检查保留在两种模式；只在 `build_and_deploy` 模式运行 pnpm 安装、lint、测试、Buildx 和三个构建步骤。
-- [ ] 给完整构建的三个镜像都添加 `org.opencontainers.image.revision=${{ github.sha }}` 标签。
-- [ ] 为两种模式生成统一的 `API_IMAGE`、`GO_API_IMAGE`、`WEB_IMAGE`、`SOURCE_SHA`。预构建值只能与 workflow 顶层固定仓库名拼接，不能接受可变仓库输入。
-- [ ] 远端用 `mktemp -d "$DEPLOY_PATH/.deploy-staging.XXXXXX"` 创建唯一的 `0700` 暂存目录；复制现有 VPS `web.env` 到暂存目录，按现有行为写入 Go env 和 Go 代理密钥，所有密钥文件设为 `0600`。
-- [ ] 将 Compose、远端脚本和暂存文件传入唯一目录；调用远端脚本时传递 `STAGING_DIR`、`SOURCE_SHA`、三张 digest 与健康 URL。
-- [ ] 添加 `if: always()` 收尾步骤，尝试删除本次暂存目录和 runner 私钥目录；VPS 暂不可达时只报告清理失败，由下一次远端部署清理过期暂存目录。
-- [ ] 保持完整构建模式的人工备用方式和现有 concurrency group；预构建模式不下载三张镜像到 GitHub runner。
+- [x] 为 `workflow_dispatch` 增加 `deploy_mode`（默认 `build_and_deploy`，另一个值为 `prebuilt`）、`source_sha`、`api_digest`、`go_api_digest`、`web_digest` 五个输入。
+- [x] 在任何 SSH 步骤之前校验 ref 为 `main`。预构建模式校验完整 40 位 SHA、三个 `sha256:` digest 格式，并要求 `source_sha == github.sha`。
+- [x] 将 Python/Alembic 图检查保留在两种模式；只在 `build_and_deploy` 模式运行 pnpm 安装、lint、测试、Buildx 和三个构建步骤。
+- [x] 给完整构建的三个镜像都添加 `org.opencontainers.image.revision=${{ github.sha }}` 标签。
+- [x] 为两种模式生成统一的 `API_IMAGE`、`GO_API_IMAGE`、`WEB_IMAGE`、`SOURCE_SHA`。预构建值只能与 workflow 顶层固定仓库名拼接，不能接受可变仓库输入。
+- [x] 远端用 `mktemp -d "$DEPLOY_PATH/.deploy-staging.XXXXXX"` 创建唯一的 `0700` 暂存目录；复制现有 VPS `web.env` 到暂存目录，按现有行为写入 Go env 和 Go 代理密钥，所有密钥文件设为 `0600`。
+- [x] 将 Compose、远端脚本和暂存文件传入唯一目录；调用远端脚本时传递 `STAGING_DIR`、`SOURCE_SHA`、三张 digest 与健康 URL。
+- [x] 添加 `if: always()` 收尾步骤，尝试删除本次暂存目录和 runner 私钥目录；VPS 暂不可达时只报告清理失败，由下一次远端部署清理过期暂存目录。
+- [x] 保持完整构建模式的人工备用方式和现有 concurrency group；预构建模式不下载三张镜像到 GitHub runner。
 
 ### Task 3: 调整本地默认发布与应急 SSH 路径
 
