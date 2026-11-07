@@ -102,6 +102,7 @@
 
 - [ ] 将 `backend.env`、Compose、Web/Go env 的备份及恢复纳入回滚副本；bootstrap 对 `backend.env` 的任何变更都必须可以恢复。
 - [ ] 远端脚本取得锁后，再执行 legacy 配置复制、storage/celerybeat 初始化与 chown、backend env 更新、Actions Web/Go env 生成、systemd/container 停止、迁移和清理。
+- [ ] prune 后先检查 3 GiB 阈值；若 bootstrap 复制 legacy 数据，再检查一次可用空间，并在低于阈值时于停旧服务和 migration 前退出。
 - [ ] 支持两种 staging 输入：SSH 模式提供 `web.env` 与 `go.env`；Actions 模式只提供 `.go-api-secret`，远端在锁内从当前 VPS `web.env` 生成 Web/Go env。
 - [ ] 保持 bootstrap 与临时 env 的生成在 migration 前；第一次部署时若部署失败且没有旧 Compose 镜像组，恢复配置后重新启动原 systemd 服务和停止的旧单体容器。
 - [ ] 目标镜像拉取与 revision 校验后，再停止旧服务并运行 migration；全部健康检查成功后在锁内禁用旧 systemd 单元并移除旧单体容器。
