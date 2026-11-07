@@ -96,6 +96,44 @@
 - [x] 执行 `git diff --check` 并逐项复核：无全局 prune、无 volume/上传数据删除、失败回滚前不清理旧镜像、预构建模式没有 build/test 步骤。
 - [x] 不从隔离 worktree 推送 `main` 或触发生产部署；交付本地变更与静态核对结果，待后续按仓库发布规则集成。
 
+### Task 6: 将远端 bootstrap 与回滚清理纳入部署锁
+
+**文件：** `deploy/deploy-remote.sh`
+
+- [ ] 将 `backend.env`、Compose、Web/Go env 的备份及恢复纳入回滚副本；bootstrap 对 `backend.env` 的任何变更都必须可以恢复。
+- [ ] 远端脚本取得锁后，再执行 legacy 配置复制、storage/celerybeat 初始化与 chown、backend env 更新、Actions Web/Go env 生成、systemd/container 停止、迁移和清理。
+- [ ] 支持两种 staging 输入：SSH 模式提供 `web.env` 与 `go.env`；Actions 模式只提供 `.go-api-secret`，远端在锁内从当前 VPS `web.env` 生成 Web/Go env。
+- [ ] 保持 bootstrap 与临时 env 的生成在 migration 前；第一次部署时若部署失败且没有旧 Compose 镜像组，恢复配置后重新启动原 systemd 服务和停止的旧单体容器。
+- [ ] 目标镜像拉取与 revision 校验后，再停止旧服务并运行 migration；全部健康检查成功后在锁内禁用旧 systemd 单元并移除旧单体容器。
+- [ ] 回滚成功后调用 Dashboard-only prune，保护已恢复容器 image IDs 与 `.deploy-images`，不再保护本次失败 target refs；回滚失败时保留 rollback dir 和所有可用镜像。
+- [ ] 记录初始、prune 后、bootstrap 后及部署结束的磁盘可用字节与 Docker image 占用；输出源码 SHA、三个 digest、成功清理的 image ref 数量。
+
+### Task 7: 移除锁外的 VPS 状态变更并收紧 build context
+
+**文件：** `.github/workflows/deploy-dashboard.yml`、`deploy/deploy-local.sh`
+
+- [ ] Actions `Prepare runtime` 只创建部署根目录；删除对活动 env、backend env、storage/celerybeat 和 systemd 的锁外修改。
+- [ ] Actions staging 只上传 Compose、远端脚本和权限为 `0600` 的 `.go-api-secret`；移除锁外生成 Web/Go env、停止 legacy 服务及部署后锁外 disable legacy 的步骤，由远端事务完成。
+- [ ] 本机 SSH 路径的锁外 VPS preparation 只保留创建 `$DEPLOY_PATH` 和唯一 stage 目录；删除 legacy 配置复制、storage/chown 和 stop systemd/container 的 SSH 块。
+- [ ] 在本机构建前，对 Actions 与 SSH 两种模式都拒绝 `git ls-files --others --exclude-standard` 非空；忽略文件仍允许。检查发生在所有 Docker build context 使用之前。
+- [ ] 将三个固定 GHCR 仓库约束应用到两种部署方式；两种模式都拒绝自定义 image repository overrides，确保本机 digest 与远端固定仓库引用一致。
+
+### Task 8: 更新最终运行说明
+
+**文件：** `docs/deployment/dashboard-vps-compose.md`、`AGENTS.md`、设计 spec
+
+- [ ] 说明完整远端锁范围包含 bootstrap、env 生成、旧服务停机、migration、rollback 和清理；调用端只创建目录并暂存文件。
+- [ ] 说明本地 build context 有未跟踪文件时会在构建前失败，并且 SSH/Actions 两种方式都使用固定仓库。
+- [ ] 更新失败回滚成功后清理目标镜像、rollback 失败时保留镜像的规则。
+- [ ] 明确部署日志包含 SHA、三个 digest、镜像清理数量和前后磁盘/镜像占用。
+
+### Task 9: 最终静态核对和整支复审
+
+- [ ] 运行三份脚本的 `bash -n`、`.github/workflows/deploy-dashboard.yml` 的 `actionlint` 和 `git diff --check origin/main...HEAD`。
+- [ ] 静态复核无全局 prune、无持久化数据删除、锁外无活动 VPS 状态变更、失败回滚后按规则清理、预构建模式没有 build/test 步骤。
+- [ ] 由独立只读 Reviewer 审查 merge-base 到 HEAD 的完整 diff；修复 Critical/Important findings 并复审。
+- [ ] 按 AGENTS.md 不跑自动化测试，不触发 GitHub Actions 或 VPS 部署。
+
 ## 覆盖对照
 
 | 设计要求 | 对应任务 |
@@ -108,3 +146,6 @@
 | 保留 rollback、运行 env 与持久化数据 | 任务 1、任务 2 |
 | 暂存密钥和 SSH 中断后的清理 | 任务 1、任务 2、任务 3 |
 | 本机运行环境变更仍可通过 SSH 发布 | 任务 3、任务 4 |
+| 部署锁覆盖所有 VPS 状态变更 | 任务 6、任务 7 |
+| 回滚成功回收失败目标，日志包含清理与空间数据 | 任务 6、任务 8 |
+| 构建 SHA 与实际源码上下文匹配 | 任务 7 |

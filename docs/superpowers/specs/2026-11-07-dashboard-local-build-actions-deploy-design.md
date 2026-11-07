@@ -23,6 +23,7 @@
 ## 范围与边界
 
 - 发布仍只针对 `main`，Web、FastAPI、Go API 始终作为同一版本镜像组部署和回滚。
+- 本机 Actions 与 SSH 发布都使用三个固定 GHCR 仓库；Docker build context 含有未跟踪且未忽略的文件时，本机在构建前中止。
 - VPS 继续使用现有统一 Compose；PostgreSQL、Redis、Caddy 仍为宿主机公共设施。
 - 数据库 migration 不自动回滚，迁移继续保持向后兼容。
 - Docker volume、`backend-storage`、`celerybeat`、数据库文件及其他应用的镜像不属于自动回收范围。
@@ -41,7 +42,7 @@
 
 发布参数只传 commit SHA 与 digest，不传运行密钥。Actions 继续从 GitHub Secrets 读取 VPS 地址、SSH key、known hosts 及 Go 可信代理密钥；VPS 上现有的 GHCR 拉取凭据继续负责拉取镜像。
 
-预构建部署沿用当前 Actions 的运行配置处理方式：从 VPS 现有 `web.env` 派生暂存文件，并用 GitHub Secret 生成 Go 配置；不会把本机 `.env.local` 或 `deploy.env` 内容作为 workflow 输入。若一次发布同时需要更新本机运行期环境值，应走本机 SSH 应急路径，或先把该配置纳入专门的安全同步设计。
+预构建部署由远端脚本在持有部署锁时，从 VPS 现有 `web.env` 和 GitHub Secret 生成暂存 Web/Go 配置；不会把本机 `.env.local` 或 `deploy.env` 内容作为 workflow 输入。若一次发布同时需要更新本机运行期环境值，应走本机 SSH 应急路径，或先把该配置纳入专门的安全同步设计。
 
 ### 输入校验
 
@@ -66,22 +67,22 @@
 - `ghcr.io/passwii/believeboydashboard-go-api`
 - `ghcr.io/passwii/believeboydashboard-web`
 
-部署事务按以下顺序处理镜像：
+部署事务按以下顺序处理镜像和 VPS 运行状态：
 
-1. 获取远端部署锁，记录当前 `.deploy-images` 和容器实际使用的镜像引用，并保存配置回滚副本。
-2. 检查根分区可用空间并输出 `df` 与 `docker system df` 摘要。
-3. 在拉取新镜像前，只删除上述三个仓库里未被任何容器使用、也不属于当前 `.deploy-images` 的过期镜像。不得运行无范围限制的 `docker image prune -a`、`docker system prune` 或 volume prune。
-4. 清理后若可用空间仍低于默认 3 GiB，停止部署并报告磁盘状态；不得开始数据库迁移。阈值通过部署环境变量配置，后续可依据镜像增长和 VPS 扩容情况调整。
-5. 拉取目标 digest。拉取、迁移或健康检查任一步失败时，保留当前镜像组与回滚配置，恢复原 Compose 和运行环境；成功恢复后清理本次部署新增且无容器引用的目标镜像。
-6. FastAPI、Go API、Web、两个 Celery worker、beat 与公网 Web/API 检查全部通过后，原子更新 `.deploy-images`。
-7. 部署成功后删除三个 Dashboard 仓库中没有容器引用的旧镜像；若遗留容器仍引用旧版本，则保留并报告。不触碰其他仓库或持久化数据。
+1. 本机或 Actions runner 只创建唯一 `.deploy-staging.*` 暂存目录并上传本次文件；在取得远端锁前不修改活动 env、Compose、数据目录权限或运行服务。
+2. 远端脚本取得部署锁；锁覆盖 VPS bootstrap、旧运行数据复制、env 生成或更新、数据目录权限变更、旧服务停止、镜像拉取、migration、健康检查、回滚与清理。
+3. 记录根分区可用字节及 Docker 镜像占用；在拉取目标镜像前，只删除三个固定仓库中未被任何容器使用、也不属于当前 `.deploy-images` 的过期引用。不得运行无范围限制的 `docker image prune -a`、`docker system prune` 或 volume prune。
+4. 清理后若可用空间仍低于默认 3 GiB，停止部署并报告磁盘状态；不得停止旧服务或开始数据库迁移。bootstrap 若复制数据，再次检查可用空间，低于阈值时也需在停止服务和迁移前中止。阈值由 `DEPLOY_MIN_FREE_BYTES` 覆盖。
+5. 拉取目标 digest 并验证 revision 标签后，才停止旧服务并运行 migration。若拉取、迁移或健康检查失败，恢复原配置与镜像组；回滚成功后清理未被恢复中的容器或当前 manifest 引用的失败目标镜像。回滚失败时保留回滚目录且不回收镜像。
+6. FastAPI、Go API、Web、两个 Celery worker、beat 与公网 Web/API 检查全部通过后，在锁内禁用旧 systemd 单元、更新 `.deploy-images`、删除回滚副本，再回收没有容器引用的旧 Dashboard 镜像。
+7. 记录部署 SHA、三个 digest、删除引用数以及部署前后磁盘和镜像占用；若遗留容器仍引用旧版本则保留并报告。不触碰其他仓库或持久化数据。
 
 空间检查应在迁移前完成。若新镜像拉取后空间不足，迁移尚未执行；部署失败处理仍会恢复旧容器，并清理未被容器引用的本次目标镜像。迁移已经成功而后续健康检查失败时，按现有语义回滚应用镜像与配置，不自动回滚数据库。
 
 ## 暂存文件与密钥清理
 
 - 本机临时目录和 Actions runner 上的 SSH 私钥、临时 secret 文件通过退出 trap 清理。
-- VPS 上的 `web.env.next`、`go.env.next`、`.go-api-secret.next`、`docker-compose.yml.next`、`deploy-remote.sh.next` 和 `.deploy-images.next.*` 在部署成功或回滚完成后删除。
+- VPS 上唯一 `.deploy-staging.*` 目录内的 env、secret、Compose 与远端脚本，以及 `.deploy-images.next.*`、`.deploy-config.next.*` 等临时文件，在部署成功或回滚完成后删除。
 - 远端部署脚本使用退出清理逻辑，Actions 增加 `always()` 清理步骤。下一次部署取得远端锁后，也会先清理上次留下的已知暂存文件。若 VPS 在 SSH 中断期间不可达，清理延至 VPS 再次可达时执行。
 - 正常成功或回滚完成时删除 `.deploy-rollback.*`。若自动回滚失败，保留权限受限的回滚副本供人工恢复，并在日志中打印路径；密钥暂存文件仍需清理。
 - 始终保留 `backend.env`、`web.env`、`go.env`、`.deploy-images`、`backend-storage` 与 `celerybeat`。
@@ -91,9 +92,9 @@
 - 输入、SHA 或 digest 校验失败时，在接触 VPS 前终止；镜像 revision 不匹配时，在数据库迁移前终止。
 - SSH 或传输失败时，Actions 显示失败步骤和运行链接；可用同一组 digest 重试或选择本机 SSH 应急方式。
 - 磁盘不足时，在迁移前终止，并在日志中列出可用空间与 Docker 镜像占用摘要。
-- 远端部署失败时保留现有自动回滚行为；若回滚也失败，保留最小必要恢复文件并明确报告。
+- 远端 bootstrap、env 更新、服务停机、migration 和 rollback 都必须在同一部署锁内执行；远端部署失败时恢复原配置和运行版本，回滚失败时保留最小必要恢复文件并明确报告。
 - 垃圾回收只删除没有容器引用的过期镜像；若旧 Dashboard 镜像仍被遗留容器引用，则保留并报告，避免为清空间而删除容器。
-- 部署日志记录源码 SHA、三个镜像 digest、部署阶段结果、清理数量及前后磁盘可用空间，不记录密钥值。
+- 部署日志记录源码 SHA、三个镜像 digest、部署阶段结果、清理数量及前后磁盘和 Docker 镜像占用，不记录密钥值。
 
 ## 验收标准
 
@@ -104,6 +105,8 @@
 - 镜像拉取前执行限定在 Dashboard 仓库的过期镜像回收；空间低于阈值时不运行 migration。
 - 成功部署后没有容器引用的旧 Dashboard 镜像被回收；失败部署能恢复原镜像组，且不删除其他应用镜像、Docker volume、上传文件或数据库数据。
 - 成功或回滚完成后清理临时密钥与环境暂存文件；若 SSH 中断使 VPS 暂时不可达，残留文件在下一次部署连接成功后清理。仅在自动回滚失败时保留受限权限的回滚副本。
+- Actions 和 SSH fallback 都在远端部署锁内修改活动 VPS 状态；失败回滚成功后回收失败版本且未被容器/manifest 引用的目标镜像。
+- 本地 Actions 和 SSH 发布拒绝未跟踪且未忽略的 build context 文件，避免把未标记为 `source_sha` 的源码打入镜像。
 
 ## 方案取舍
 
