@@ -230,6 +230,7 @@ GO_API_IMAGE="$GO_API_IMAGE_NAME@$go_api_digest"
 WEB_IMAGE="$WEB_IMAGE_NAME@$web_digest"
 
 if [[ "$DEPLOY_METHOD" == "actions" ]]; then
+  dispatch_started_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
   echo "Dispatching prebuilt deployment to GitHub Actions..."
   if dispatch_output="$(gh workflow run deploy-dashboard.yml \
     --ref main \
@@ -260,19 +261,58 @@ if [[ "$DEPLOY_METHOD" == "actions" ]]; then
   done <<< "$dispatch_output"
 
   if [[ -z "$run_id" ]]; then
-    echo "Dispatch returned no Actions URL; locating the run by commit..."
-    if ! run_list="$(gh run list \
-      --workflow deploy-dashboard.yml \
-      --commit "$SHA" \
-      --event workflow_dispatch \
-      --limit 1 \
-      --json databaseId,url)"; then
-      echo "Unable to locate the dispatched GitHub Actions run." >&2
+    echo "Dispatch returned no Actions URL; waiting for this run to appear..."
+    for ((attempt = 1; attempt <= 15; attempt++)); do
+      if run_list="$(gh run list \
+        --workflow deploy-dashboard.yml \
+        --commit "$SHA" \
+        --event workflow_dispatch \
+        --limit 20 \
+        --json databaseId,url,createdAt)"; then
+        run_record="$(python3 -c '
+import json
+import sys
+from datetime import datetime, timezone
+
+dispatch_started_at = datetime.fromisoformat(
+    sys.argv[1].replace("Z", "+00:00")
+).astimezone(timezone.utc)
+runs = json.load(sys.stdin)
+eligible = []
+for run in runs:
+    created_at = run.get("createdAt")
+    if not isinstance(created_at, str):
+        continue
+    try:
+        created_at = datetime.fromisoformat(
+            created_at.replace("Z", "+00:00")
+        ).astimezone(timezone.utc)
+        run_id = int(run["databaseId"])
+    except (KeyError, TypeError, ValueError):
+        continue
+    run_url = run.get("url")
+    if created_at >= dispatch_started_at and isinstance(run_url, str) and run_url:
+        eligible.append((created_at, run_id, run_url))
+
+if eligible:
+    _, run_id, run_url = max(eligible, key=lambda record: (record[0], record[1]))
+    print(f"{run_id}\t{run_url}")
+' "$dispatch_started_at" <<< "$run_list")"
+        if [[ -n "$run_record" ]]; then
+          IFS=$'\t' read -r run_id run_url <<< "$run_record"
+          break
+        fi
+      fi
+
+      if (( attempt < 15 )); then
+        echo "New Actions run not visible yet (attempt $attempt/15); retrying in 2 seconds..."
+        sleep 2
+      fi
+    done
+
+    if [[ -z "$run_id" || -z "$run_url" ]]; then
+      echo "No new workflow_dispatch run for commit $SHA appeared within 15 attempts." >&2
       exit 1
-    fi
-    run_record="$(python3 -c 'import json,sys; runs=json.load(sys.stdin); print((str(runs[0]["databaseId"]) + "\t" + runs[0]["url"]) if runs else "")' <<< "$run_list")"
-    if [[ -n "$run_record" ]]; then
-      IFS=$'\t' read -r run_id run_url <<< "$run_record"
     fi
   fi
 
