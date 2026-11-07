@@ -13,12 +13,12 @@
 - 只允许部署 `main`，预构建模式的 `source_sha` 必须等于本次 Actions 的 `github.sha`。
 - 三个镜像仓库固定为 `ghcr.io/passwii/believeboydashboard-api`、`ghcr.io/passwii/believeboydashboard-go-api`、`ghcr.io/passwii/believeboydashboard-web`，部署引用使用 digest。
 - 镜像 OCI revision 标签在 VPS 拉取镜像后、数据库迁移前校验。
-- VPS 最低可用空间默认是 `3221225472` 字节（3 GiB），由 `DEPLOY_MIN_FREE_BYTES` 覆盖。
+- VPS 每次部署读取所在分区总容量，要求可用字节严格大于总容量的 10%。
 - 每次本地 Actions 派发生成唯一 32 位小写十六进制 `dispatch_id`；工作流 run name 包含它，fallback 只能按精确 ID 定位 run。
 - 垃圾回收只处理三个 Dashboard 仓库中未被任何容器、当前镜像清单或目标 digest 使用的镜像引用；不运行全局 image/system/volume prune。
 - 不删除 Docker volumes、`backend-storage`、`celerybeat`、数据库文件或其他应用镜像。
 - Actions 预构建部署使用 VPS 当前运行环境配置；本机运行期环境变更使用 `DEPLOY_METHOD=ssh`。
-- 遵循仓库 AGENTS.md：本次不新增或运行自动化测试；完成 shell/YAML 静态检查和 diff 检查。
+- 修改远端部署脚本时必须同步更新并运行 `deploy/tests/test_deploy_remote.py`，同时完成 shell/YAML 静态检查和 diff 检查。
 
 ## 文件职责
 
@@ -27,6 +27,7 @@
 | `deploy/deploy-local.sh` | 默认改为本机构建后派发 Actions；保留直接 SSH 应急模式；等待 Actions 并报告 URL 与结果。 |
 | `.github/workflows/deploy-dashboard.yml` | 增加完整构建与预构建部署两种手动模式；校验输入；清理临时 SSH 与 VPS 暂存文件。 |
 | `deploy/deploy-remote.sh` | 加远端锁、镜像 revision 校验、空间预检、限定仓库的镜像回收和退出清理。 |
+| `deploy/tests/test_deploy_remote.py` | 覆盖空间门槛、回滚跳过 migrate、首次安装和 Actions 清理锁。 |
 | `productEnvAgent/deploy.sh` | 更新 `git deploy` 使用说明和 SSH 应急命令。 |
 | `docs/deployment/dashboard-vps-compose.md` | 更新本地发布、Actions 备用发布、VPS 回收和空间失败说明。 |
 | `AGENTS.md` | 更新仓库内发布权威规则，避免后续 agent 继续假设默认由本机 SSH 部署。 |
@@ -42,9 +43,9 @@
 - [x] 同步改造现有本机 SSH 调用：在远端创建唯一暂存目录，把 Compose、Web/Go env 和远端脚本放入其中，并传入 `STAGING_DIR` 与 `SOURCE_SHA`；退出 trap 尽力删除尚未被远端脚本清除的目录。此步只适配新接口，不改变本机当前默认发布方式。
 - [x] 在修改活动配置前，通过 `flock -n` 获取 `$DEPLOY_PATH/.deploy.lock`；锁已占用时明确失败。
 - [x] 在锁内清理超过 24 小时的 `.deploy-staging.*` 目录和遗留 `.deploy-images.next.*` 文件，保留本次 `STAGING_DIR`。
-- [x] 用 `df -B1 --output=avail "$DEPLOY_PATH"` 读取可用字节；用 `docker system df` 记录镜像占用。失败日志输出两项摘要。
+- [x] 用 `df -B1 --output=size,avail "$DEPLOY_PATH"` 读取总容量和可用字节；用 `docker system df` 记录镜像占用。失败日志输出两项摘要。
 - [x] 实现 `prune_dashboard_images`：只枚举三个固定 GHCR 仓库的 tags 与 repo digests；保护所有容器引用的 image ID、当前 `.deploy-images` 中的 refs 和传入的目标 refs；对其他 refs 按完整 `repo:tag` 或 `repo@digest` 执行 `docker image rm`，不按 image ID 删除。
-- [x] 拉取前运行镜像回收，再检查 `DEPLOY_MIN_FREE_BYTES`；可用空间低于默认 `3221225472` 字节时，在迁移前退出。
+- [x] 拉取前运行镜像回收，再要求可用空间严格大于分区总容量的 10%；未达到时在迁移前退出。
 - [x] 从 `STAGING_DIR` 提升 Compose 与运行环境文件，创建权限为 `0700` 的回滚目录，备份现有 Compose、Web/Go env 和 `.deploy-images`。
 - [x] 拉取三张目标镜像后，逐一读取 `org.opencontainers.image.revision`；任一标签不等于 `SOURCE_SHA` 时走回滚与清理，不运行 migration。
 - [x] 保持现有 migration、容器健康、Celery、beat 和公网健康检查顺序。全部通过后原子更新 `.deploy-images`，关闭 rollback trap 并删除回滚副本，再尽力回收没有引用的旧 Dashboard 镜像。镜像删除失败只报告 warning，不回滚已健康的新版本。
@@ -61,7 +62,7 @@
 - [x] 为两种模式生成统一的 `API_IMAGE`、`GO_API_IMAGE`、`WEB_IMAGE`、`SOURCE_SHA`。预构建值只能与 workflow 顶层固定仓库名拼接，不能接受可变仓库输入。
 - [x] 远端用 `mktemp -d "$DEPLOY_PATH/.deploy-staging.XXXXXX"` 创建唯一的 `0700` 暂存目录；复制现有 VPS `web.env` 到暂存目录，按现有行为写入 Go env 和 Go 代理密钥，所有密钥文件设为 `0600`。
 - [x] 将 Compose、远端脚本和暂存文件传入唯一目录；调用远端脚本时传递 `STAGING_DIR`、`SOURCE_SHA`、三张 digest 与健康 URL。
-- [x] 添加 `if: always()` 收尾步骤，尝试删除本次暂存目录和 runner 私钥目录；VPS 暂不可达时只报告清理失败，由下一次远端部署清理过期暂存目录。
+- [x] 添加 `if: always()` 收尾步骤，先取得远端部署锁再删除本次暂存目录；持锁时延后清理，并始终清理 runner 私钥目录。
 - [x] 保持完整构建模式的人工备用方式和现有 concurrency group；预构建模式不下载三张镜像到 GitHub runner。
 
 ### Task 3: 调整本地默认发布与应急 SSH 路径
@@ -84,7 +85,7 @@
 **文件：** `docs/deployment/dashboard-vps-compose.md`、`AGENTS.md`、设计 spec
 
 - [x] 在部署手册写明默认发布命令、预构建输入、Actions run 查看命令、完整构建备用命令和本机 SSH 应急命令。
-- [x] 记录 `DEPLOY_MIN_FREE_BYTES` 默认值、Dashboard 仓库清理范围、引用保护规则、3 GiB 未达标时迁移前终止，以及不触碰持久化数据的边界。
+- [x] 记录动态 10% 空间门槛、Dashboard 仓库清理范围、引用保护规则、门槛未达标时迁移前终止，以及不触碰持久化数据的边界。
 - [x] 说明 Actions 预构建模式使用 VPS 当前 Web 运行环境；运行期环境变量更新走 SSH 应急模式。
 - [x] 更新 `AGENTS.md` 的本地主发布与 Actions 备用规则，包含 `DEPLOY_METHOD=ssh` 和空间回收限制。
 - [x] 修正文档：Actions 先校验 SHA/digest，VPS 拉取后、迁移前校验 OCI revision。
@@ -100,39 +101,57 @@
 
 **文件：** `deploy/deploy-remote.sh`、`.github/workflows/deploy-dashboard.yml`、`deploy/deploy-local.sh`
 
-- [ ] 将 `backend.env`、Compose、Web/Go env 的备份及恢复纳入回滚副本；bootstrap 对 `backend.env` 的任何变更都必须可以恢复。
-- [ ] 远端脚本取得锁后，再执行 legacy 配置复制、storage/celerybeat 初始化与 chown、backend env 更新、Actions Web/Go env 生成、systemd/container 停止、迁移和清理。
-- [ ] prune 后先检查 3 GiB 阈值；若 bootstrap 复制 legacy 数据，再检查一次可用空间，并在低于阈值时于停旧服务和 migration 前退出。
-- [ ] 支持两种 staging 输入：SSH 模式提供 `web.env` 与 `go.env`；Actions 模式只提供 `.go-api-secret`，远端在锁内从当前 VPS `web.env` 生成 Web/Go env。
-- [ ] 保持 bootstrap 与临时 env 的生成在 migration 前；第一次部署时若部署失败且没有旧 Compose 镜像组，恢复配置后重新启动原 systemd 服务和停止的旧单体容器。
-- [ ] 目标镜像拉取与 revision 校验后，再停止旧服务并运行 migration；全部健康检查成功后在锁内禁用旧 systemd 单元并移除旧单体容器。
-- [ ] 回滚成功后调用 Dashboard-only prune，保护已恢复容器 image IDs 与 `.deploy-images`，不再保护本次失败 target refs；回滚失败时保留 rollback dir 和所有可用镜像。
-- [ ] 记录初始、prune 后、bootstrap 后及部署结束的磁盘可用字节与 Docker image 占用；输出源码 SHA、三个 digest、成功清理的 image ref 数量。
-- [ ] 将 Actions `Prepare runtime` 改为只创建部署根目录，删除其余活动 VPS 配置、数据复制、chown 和服务停止；Actions 暂存 `.go-api-secret`、Compose、远端脚本后交给远端事务生成 env。
-- [ ] 将 SSH 路径锁外 preparation 缩减为创建部署根目录和 staging；删除复制 legacy 配置、修改 backend env、复制/chown 数据目录、停止 legacy 服务和部署后 disable 单元的 SSH 命令。
+- [x] 将 `backend.env`、Compose、Web/Go env、`.deploy-images` 和 legacy 数据迁移标记的备份及恢复纳入回滚副本；bootstrap 对 `backend.env` 的任何变更都必须可以恢复。
+- [x] 远端脚本取得锁后，先完成 legacy 配置复制、目录初始化、backend env 更新和 Actions Web/Go env 生成；storage/celerybeat 的实际复制放到旧写入方停止后执行。
+- [x] 需要复制每个 legacy 数据目录时，停机前先估算已分配空间，并额外检查 10% 数据估算缓冲和 512 MiB 固定缓冲，避免复制本身耗尽 VPS 空间。
+- [x] prune 后先检查动态 10% 门槛；旧写入方停止后执行最终数据复制和 chown，再次检查可用空间，未达到门槛时不运行 migration。
+- [x] 支持两种 staging 输入：SSH 模式提供 `web.env` 与 `go.env`；Actions 模式只提供 `.go-api-secret`，远端在锁内从当前 VPS `web.env` 生成 Web/Go env。
+- [x] 保持 bootstrap 与临时 env 的生成在 migration 前；第一次部署时若部署失败且没有旧 Compose 镜像组，恢复配置后重新启动原 systemd 服务和停止的旧单体容器。
+- [x] 目标镜像拉取与 revision 校验后，再停止旧服务并运行 migration；全部健康检查成功后在锁内禁用旧 systemd 单元、逐个验证 disabled 状态，再移除旧单体容器。
+- [x] 回滚成功后调用 Dashboard-only prune，保护已恢复容器 image IDs 与 `.deploy-images`，不再保护本次失败 target refs；回滚失败时保留 rollback dir 和所有可用镜像。
+- [x] 记录初始、prune 后、bootstrap 后及部署结束的磁盘可用字节与 Docker image 占用；输出源码 SHA、三个 digest、成功清理的 image ref 数量。
+- [x] 将 Actions `Prepare runtime` 改为只创建部署根目录，删除其余活动 VPS 配置、数据复制、chown 和服务停止；Actions 暂存 `.go-api-secret`、Compose、远端脚本后交给远端事务生成 env。
+- [x] 将 SSH 路径锁外 preparation 缩减为创建部署根目录和 staging；删除复制 legacy 配置、修改 backend env、复制/chown 数据目录、停止 legacy 服务和部署后 disable 单元的 SSH 命令。
 
 ### Task 7: 收紧本地 build context 与镜像仓库
 
 **文件：** `deploy/deploy-local.sh`
 
-- [ ] 在本机构建前，对 Actions 与 SSH 两种模式都拒绝 `git ls-files --others --exclude-standard` 非空；忽略文件仍允许。检查发生在所有 Docker build context 使用之前。
-- [ ] 将三个固定 GHCR 仓库约束应用到两种部署方式；两种模式都拒绝自定义 image repository overrides，确保本机 digest 与远端固定仓库引用一致。
+- [x] 在本机构建前，对 Actions 与 SSH 两种模式都拒绝 `git ls-files --others --exclude-standard` 非空；忽略文件仍允许。检查发生在所有 Docker build context 使用之前。
+- [x] 将三个固定 GHCR 仓库约束应用到两种部署方式；两种模式都拒绝自定义 image repository overrides，确保本机 digest 与远端固定仓库引用一致。
 
 ### Task 8: 更新最终运行说明
 
 **文件：** `docs/deployment/dashboard-vps-compose.md`、`AGENTS.md`、设计 spec
 
-- [ ] 说明完整远端锁范围包含 bootstrap、env 生成、旧服务停机、migration、rollback 和清理；调用端只创建目录并暂存文件。
-- [ ] 说明本地 build context 有未跟踪文件时会在构建前失败，并且 SSH/Actions 两种方式都使用固定仓库。
-- [ ] 更新失败回滚成功后清理目标镜像、rollback 失败时保留镜像的规则。
-- [ ] 明确部署日志包含 SHA、三个 digest、镜像清理数量和前后磁盘/镜像占用。
+- [x] 说明完整远端锁范围包含 bootstrap、env 生成、旧服务停机、migration、rollback 和清理；调用端只创建目录并暂存文件。
+- [x] 说明本地 build context 有未跟踪文件时会在构建前失败，并且 SSH/Actions 两种方式都使用固定仓库。
+- [x] 更新失败回滚成功后清理目标镜像、rollback 失败时保留镜像的规则。
+- [x] 明确部署日志包含 SHA、三个 digest、镜像清理数量和前后磁盘/镜像占用。
 
 ### Task 9: 最终静态核对和整支复审
 
-- [ ] 运行三份脚本的 `bash -n`、`.github/workflows/deploy-dashboard.yml` 的 `actionlint` 和 `git diff --check origin/main...HEAD`。
-- [ ] 静态复核无全局 prune、无持久化数据删除、锁外无活动 VPS 状态变更、失败回滚后按规则清理、预构建模式没有 build/test 步骤。
-- [ ] 由独立只读 Reviewer 审查 merge-base 到 HEAD 的完整 diff；修复 Critical/Important findings 并复审。
-- [ ] 按 AGENTS.md 不跑自动化测试，不触发 GitHub Actions 或 VPS 部署。
+- [x] 运行三份脚本的 `bash -n`、`.github/workflows/deploy-dashboard.yml` 的 `actionlint` 和当前工作区与 `origin/main` 的 `git diff --check`。
+- [x] 静态复核无全局 prune、无持久化数据删除、锁外无活动 VPS 状态变更、失败回滚后按规则清理、预构建模式没有 build/test 步骤。
+- [x] 由多轮独立只读 Reviewer 审查 merge-base 到工作区的完整 diff；已修复全部 Critical/Important findings，并用 14 个部署脚本单测和最终静态检查复核。
+- [x] 运行 `deploy/tests/test_deploy_remote.py`，且不触发 GitHub Actions 或 VPS 部署。
+
+### Task 10: 修复最终 Review findings
+
+**文件：** `deploy/deploy-remote.sh`、`.github/workflows/deploy-dashboard.yml`、`deploy/tests/test_deploy_remote.py`、相关文档
+
+- [x] 将固定 3 GiB 空间门槛改为读取分区总容量，并要求可用空间严格大于 10%。
+- [x] 回滚时使用 `--no-deps` 只启动业务服务，跳过旧 `migrate`，避免新 migration 后旧 Alembic 阻塞应用回滚。
+- [x] Actions `always()` 暂存清理先取得同一部署锁，持锁时延后清理。
+- [x] legacy storage/celerybeat 改为在旧写入方停止后复制，避免复制仍在变化的数据快照。
+- [x] 回滚恢复 `.storage-migrated` / `.celerybeat-migrated` 的部署前状态，避免旧写入方恢复后下一次部署漏拷数据。
+- [x] 已有旧 Compose 镜像组时，回滚也重启部署前处于活动状态的 legacy systemd/container 写入方。
+- [x] 目标镜像拉取后、停止旧写入方前再次执行 legacy 复制空间预检，避免拉取镜像消耗空间后才停机。
+- [x] 自动回滚失败时仍尽力重启部署前活动的 legacy 写入方。
+- [x] 自动回滚失败时先停止失败的 Compose 写入服务，再恢复 legacy 写入方，避免新旧 API/Celery/beat 并行。
+- [x] 新版本健康后逐个验证旧 systemd 单元已 disabled；仍有 enabled 单元时 Actions 失败并保留 rollback 副本和旧镜像。
+- [x] 更新远端部署单测，覆盖 10% 临界值、复制空间余量、拉取后复检、复制时序、迁移后回滚、首次安装/回滚失败、写入方去重、systemd 收尾失败和 Actions 清理锁。
+- [x] 同步 `AGENTS.md`、运行手册和设计 spec 的 10% 与 migration 回滚口径。
 
 ## 覆盖对照
 
@@ -141,11 +160,14 @@
 | 本机构建、push digest，Actions 只部署 | 任务 2、任务 3 |
 | 主动完整构建备用与本机 SSH 应急 | 任务 2、任务 3 |
 | SHA、digest、镜像 revision 校验 | 任务 1、任务 2 |
-| 3 GiB 空间预检且 migration 前失败 | 任务 1、任务 4 |
+| 动态 10% 空间预检且 migration 前失败 | 任务 1、任务 4、任务 10 |
 | 仅清理 Dashboard 旧镜像 | 任务 1、任务 4 |
-| 保留 rollback、运行 env 与持久化数据 | 任务 1、任务 2 |
+| 保留 rollback、运行 env 与持久化数据 | 任务 1、任务 2、任务 10 |
+| legacy 数据在旧写入方停止后复制 | 任务 6、任务 10 |
 | 暂存密钥和 SSH 中断后的清理 | 任务 1、任务 2、任务 3 |
 | 本机运行环境变更仍可通过 SSH 发布 | 任务 3、任务 4 |
-| 部署锁覆盖所有 VPS 状态变更 | 任务 6、任务 7 |
+| 部署锁覆盖所有 VPS 状态变更 | 任务 6、任务 7、任务 10 |
+| 迁移后应用回滚跳过旧 migrate | 任务 10 |
+| 回滚失败先停新写入方再恢复 legacy，systemd 收尾失败不报成功 | 任务 10 |
 | 回滚成功回收失败目标，日志包含清理与空间数据 | 任务 6、任务 8 |
 | 构建 SHA 与实际源码上下文匹配 | 任务 7 |

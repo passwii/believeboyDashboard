@@ -322,37 +322,7 @@ jobs:
             -o UserKnownHostsFile="$SSH_DIR/known_hosts" \
             -o StrictHostKeyChecking=yes \
             "$SSH_USER@$SSH_HOST" \
-            "set -euo pipefail
-             legacy_repo=/root/believeboyDashboard
-             install -d -m 755 '$DEPLOY_PATH' '$DEPLOY_PATH/legacy'
-             if [ -f '$DEPLOY_PATH/docker-compose.yml' ] && [ ! -f '$DEPLOY_PATH/legacy/docker-compose.yml' ]; then
-               cp '$DEPLOY_PATH/docker-compose.yml' '$DEPLOY_PATH/legacy/docker-compose.yml'
-             fi
-             if [ -f '$DEPLOY_PATH/app.env' ] && [ ! -f '$DEPLOY_PATH/legacy/app.env' ]; then
-               cp '$DEPLOY_PATH/app.env' '$DEPLOY_PATH/legacy/app.env'
-             fi
-             if [ ! -f '$DEPLOY_PATH/backend.env' ]; then
-               test -f \"\$legacy_repo/backend/.env\"
-               install -m 600 \"\$legacy_repo/backend/.env\" '$DEPLOY_PATH/backend.env'
-             fi
-             if [ ! -f '$DEPLOY_PATH/web.env' ]; then
-               test -f '$DEPLOY_PATH/app.env'
-               install -m 600 '$DEPLOY_PATH/app.env' '$DEPLOY_PATH/web.env'
-             fi
-             test -f '$DEPLOY_PATH/backend.env'
-             test -f '$DEPLOY_PATH/web.env'
-             sed -i 's#^AI_CHAT_PROVIDER_BASE_URL=.*#AI_CHAT_PROVIDER_BASE_URL=http://127.0.0.1:3100/v1#' '$DEPLOY_PATH/backend.env'
-             install -d -m 755 '$DEPLOY_PATH/backend-storage' '$DEPLOY_PATH/celerybeat'
-             if [ -d \"\$legacy_repo/backend/storage\" ] && [ ! -f '$DEPLOY_PATH/.storage-migrated' ]; then
-               cp -a \"\$legacy_repo/backend/storage/.\" '$DEPLOY_PATH/backend-storage/'
-               touch '$DEPLOY_PATH/.storage-migrated'
-             fi
-             if [ -d /var/lib/believeboy ] && [ ! -f '$DEPLOY_PATH/.celerybeat-migrated' ]; then
-               cp -a /var/lib/believeboy/. '$DEPLOY_PATH/celerybeat/'
-               touch '$DEPLOY_PATH/.celerybeat-migrated'
-             fi
-             chmod 600 '$DEPLOY_PATH/backend.env' '$DEPLOY_PATH/web.env'
-             chown -R 10001:10001 '$DEPLOY_PATH/backend-storage' '$DEPLOY_PATH/celerybeat'"
+            "install -d -m 755 '$DEPLOY_PATH'"
 
       - name: Create unique deployment staging directory
         run: |
@@ -364,7 +334,6 @@ jobs:
             "$SSH_USER@$SSH_HOST" \
             "set -euo pipefail
              staging_dir=\$(mktemp -d '$DEPLOY_PATH/.deploy-staging.XXXXXX')
-             chmod 700 \"\$staging_dir\"
              printf '%s\n' \"\$staging_dir\"")"
 
           case "$staging_dir" in
@@ -401,56 +370,6 @@ jobs:
             -o StrictHostKeyChecking=yes \
             deploy/docker-compose.yml deploy/deploy-remote.sh \
             "$SSH_USER@$SSH_HOST:$STAGING_DIR/"
-
-          ssh -i "$SSH_DIR/believeboy-dashboard" \
-            -o IdentitiesOnly=yes \
-            -o UserKnownHostsFile="$SSH_DIR/known_hosts" \
-            -o StrictHostKeyChecking=yes \
-            "$SSH_USER@$SSH_HOST" \
-            "set -euo pipefail
-             staging_dir='$STAGING_DIR'
-             deploy_path='$DEPLOY_PATH'
-             secret_file=\"\$staging_dir/.go-api-secret\"
-             test -d \"\$staging_dir\"
-             chmod 700 \"\$staging_dir\"
-             chmod 600 \"\$secret_file\"
-             install -m 600 \"\$deploy_path/web.env\" \"\$staging_dir/web.env\"
-             if grep -q '^BACKEND_INTERNAL_URL=' \"\$staging_dir/web.env\"; then
-               sed -i 's#^BACKEND_INTERNAL_URL=.*#BACKEND_INTERNAL_URL=http://127.0.0.1:8200#' \"\$staging_dir/web.env\"
-             else
-               printf 'BACKEND_INTERNAL_URL=http://127.0.0.1:8200\n' >> \"\$staging_dir/web.env\"
-             fi
-             if ! grep -q '^BACKEND_PUBLIC_API_BASE_URL=' \"\$staging_dir/web.env\"; then
-               public_api=\"\$(sed -n 's/^BACKEND_API_BASE_URL=//p' \"\$staging_dir/web.env\" | head -1)\"
-               test -n \"\$public_api\"
-               printf 'BACKEND_PUBLIC_API_BASE_URL=%s\n' \"\$public_api\" >> \"\$staging_dir/web.env\"
-             fi
-             sed -i '/^GO_API_TRUSTED_PROXY_SECRET=/d' \"\$staging_dir/web.env\"
-             cat \"\$secret_file\" >> \"\$staging_dir/web.env\"
-             {
-               printf 'GO_API_ADDR=127.0.0.1:8200\n'
-               printf 'FASTAPI_ORIGIN=http://127.0.0.1:8100\n'
-               printf 'GO_API_OWNED=health,exchange_rates,notifications,alerts,profile\n'
-               cat \"\$secret_file\"
-             } > \"\$staging_dir/go.env\"
-             chmod 600 \"\$staging_dir/web.env\" \"\$staging_dir/go.env\" \
-               \"\$staging_dir/docker-compose.yml\" \"\$staging_dir/deploy-remote.sh\"
-             rm -f \"\$secret_file\""
-
-      - name: Stop legacy runtime
-        run: |
-          set -euo pipefail
-          ssh -i "$SSH_DIR/believeboy-dashboard" \
-            -o IdentitiesOnly=yes \
-            -o UserKnownHostsFile="$SSH_DIR/known_hosts" \
-            -o StrictHostKeyChecking=yes \
-            "$SSH_USER@$SSH_HOST" \
-            "set -euo pipefail
-             systemctl stop believeboy-beat.service 2>/dev/null || true
-             systemctl stop believeboy-celery.service believeboy-celery-scheduled.service 2>/dev/null || true
-             systemctl stop believeboy-api.service 2>/dev/null || true
-             docker stop believeboy-dashboard 2>/dev/null || true
-             docker rm believeboy-dashboard 2>/dev/null || true"
 
       - name: Deploy over SSH
         id: deploy
@@ -500,18 +419,6 @@ jobs:
              systemctl is-active believeboy-api believeboy-celery \
                believeboy-celery-scheduled believeboy-beat 2>/dev/null || true"
 
-      - name: Disable legacy units
-        run: |
-          set -euo pipefail
-          ssh -i "$SSH_DIR/believeboy-dashboard" \
-            -o IdentitiesOnly=yes \
-            -o UserKnownHostsFile="$SSH_DIR/known_hosts" \
-            -o StrictHostKeyChecking=yes \
-            "$SSH_USER@$SSH_HOST" \
-            "systemctl disable believeboy-api.service believeboy-celery.service \
-              believeboy-celery-scheduled.service believeboy-beat.service \
-              >/dev/null 2>&1 || true"
-
       - name: Cleanup deployment staging and runner SSH keys
         if: ${{ always() }}
         run: |
@@ -526,7 +433,13 @@ jobs:
                   -o UserKnownHostsFile="$SSH_DIR/known_hosts" \
                   -o StrictHostKeyChecking=yes \
                   "$SSH_USER@$SSH_HOST" \
-                  "case $remote_staging_dir in
+                  "set -euo pipefail
+                   exec 9>$remote_deploy_path/.deploy.lock
+                   if ! flock -n 9; then
+                     echo 'Another deployment holds the lock; deferring staging cleanup.' >&2
+                     exit 3
+                   fi
+                   case $remote_staging_dir in
                      $remote_deploy_path/.deploy-staging.*) rm -rf -- $remote_staging_dir ;;
                      *) exit 2 ;;
                    esac"; then
