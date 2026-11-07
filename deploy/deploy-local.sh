@@ -230,11 +230,12 @@ GO_API_IMAGE="$GO_API_IMAGE_NAME@$go_api_digest"
 WEB_IMAGE="$WEB_IMAGE_NAME@$web_digest"
 
 if [[ "$DEPLOY_METHOD" == "actions" ]]; then
-  dispatch_started_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+  dispatch_id="$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
   echo "Dispatching prebuilt deployment to GitHub Actions..."
   if dispatch_output="$(gh workflow run deploy-dashboard.yml \
     --ref main \
     -f "deploy_mode=prebuilt" \
+    -f "dispatch_id=$dispatch_id" \
     -f "source_sha=$SHA" \
     -f "api_digest=$api_digest" \
     -f "go_api_digest=$go_api_digest" \
@@ -268,36 +269,25 @@ if [[ "$DEPLOY_METHOD" == "actions" ]]; then
         --commit "$SHA" \
         --event workflow_dispatch \
         --limit 20 \
-        --json databaseId,url,createdAt)"; then
+        --json databaseId,url,displayTitle)"; then
         run_record="$(python3 -c '
 import json
 import sys
-from datetime import datetime, timezone
 
-dispatch_started_at = datetime.fromisoformat(
-    sys.argv[1].replace("Z", "+00:00")
-).astimezone(timezone.utc)
+expected_title = f"Deploy Dashboard ({sys.argv[1]})"
 runs = json.load(sys.stdin)
-eligible = []
 for run in runs:
-    created_at = run.get("createdAt")
-    if not isinstance(created_at, str):
+    if run.get("displayTitle") != expected_title:
         continue
     try:
-        created_at = datetime.fromisoformat(
-            created_at.replace("Z", "+00:00")
-        ).astimezone(timezone.utc)
         run_id = int(run["databaseId"])
     except (KeyError, TypeError, ValueError):
         continue
     run_url = run.get("url")
-    if created_at >= dispatch_started_at and isinstance(run_url, str) and run_url:
-        eligible.append((created_at, run_id, run_url))
-
-if eligible:
-    _, run_id, run_url = max(eligible, key=lambda record: (record[0], record[1]))
-    print(f"{run_id}\t{run_url}")
-' "$dispatch_started_at" <<< "$run_list")"
+    if isinstance(run_url, str) and run_url:
+        print(f"{run_id}\t{run_url}")
+        break
+' "$dispatch_id" <<< "$run_list")"
         if [[ -n "$run_record" ]]; then
           IFS=$'\t' read -r run_id run_url <<< "$run_record"
           break
@@ -311,7 +301,7 @@ if eligible:
     done
 
     if [[ -z "$run_id" || -z "$run_url" ]]; then
-      echo "No new workflow_dispatch run for commit $SHA appeared within 15 attempts." >&2
+      echo "No Actions run titled 'Deploy Dashboard ($dispatch_id)' for commit $SHA appeared within 15 polls." >&2
       exit 1
     fi
   fi

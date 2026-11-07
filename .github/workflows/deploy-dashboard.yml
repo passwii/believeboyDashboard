@@ -1,4 +1,5 @@
 name: Deploy dashboard stack
+run-name: Deploy Dashboard (${{ inputs.dispatch_id || github.run_number }})
 
 # Manual fallback. The local Mac is the primary release path via
 # deploy/deploy-local.sh. Both paths deploy the same FastAPI, Go API, and Web
@@ -15,6 +16,10 @@ on:
           - prebuilt
         default: build_and_deploy
         required: true
+      dispatch_id:
+        description: Unique ID used to correlate a prebuilt deployment run
+        type: string
+        required: false
       source_sha:
         description: Full source commit SHA for prebuilt images
         type: string
@@ -67,6 +72,7 @@ jobs:
       - name: Validate deployment inputs
         env:
           DEPLOY_MODE: ${{ inputs.deploy_mode }}
+          DISPATCH_ID_INPUT: ${{ inputs.dispatch_id }}
           SOURCE_SHA_INPUT: ${{ inputs.source_sha }}
           API_DIGEST_INPUT: ${{ inputs.api_digest }}
           GO_API_DIGEST_INPUT: ${{ inputs.go_api_digest }}
@@ -106,6 +112,10 @@ jobs:
           fi
 
           if [[ "$DEPLOY_MODE" == "prebuilt" ]]; then
+            if [[ ! "$DISPATCH_ID_INPUT" =~ ^[0-9a-f]{32}$ ]]; then
+              echo "::error::dispatch_id must be a 32-character lowercase hexadecimal value for prebuilt mode."
+              exit 1
+            fi
             if [[ ! "$SOURCE_SHA_INPUT" =~ ^[0-9a-f]{40}$ ]]; then
               echo "::error::source_sha must be a full 40-character lowercase Git SHA."
               exit 1
