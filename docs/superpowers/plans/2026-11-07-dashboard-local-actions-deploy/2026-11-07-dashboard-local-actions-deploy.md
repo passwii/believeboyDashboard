@@ -35,9 +35,10 @@
 
 ### Task 1: 实现远端部署事务、空间检查与镜像回收
 
-**文件：** `deploy/deploy-remote.sh`
+**文件：** `deploy/deploy-remote.sh`、`deploy/deploy-local.sh`
 
 - [ ] 校验 `SOURCE_SHA`、三张镜像 digest、`DEPLOY_PATH`、`STAGING_DIR` 与公网健康 URL；确认 `STAGING_DIR` 是 `$DEPLOY_PATH/.deploy-staging.*` 下的目录。
+- [ ] 同步改造现有本机 SSH 调用：在远端创建唯一暂存目录，把 Compose、Web/Go env 和远端脚本放入其中，并传入 `STAGING_DIR` 与 `SOURCE_SHA`；退出 trap 尽力删除尚未被远端脚本清除的目录。此步只适配新接口，不改变本机当前默认发布方式。
 - [ ] 在修改活动配置前，通过 `flock -n` 获取 `$DEPLOY_PATH/.deploy.lock`；锁已占用时明确失败。
 - [ ] 在锁内清理超过 24 小时的 `.deploy-staging.*` 目录和遗留 `.deploy-images.next.*` 文件，保留本次 `STAGING_DIR`。
 - [ ] 用 `df -B1 --output=avail "$DEPLOY_PATH"` 读取可用字节；用 `docker system df` 记录镜像占用。失败日志输出两项摘要。
@@ -71,7 +72,7 @@
 - [ ] 默认平台设为 `linux/amd64`，不再为默认发布 SSH 查询 VPS 架构。
 - [ ] 两种模式都执行现有 main SHA 检查、Alembic 检查、前端 lint/test 与本地镜像构建/推送，并从 metadata 读取 digest。
 - [ ] `actions` 模式通过 `gh workflow run deploy-dashboard.yml --ref main` 传入 `deploy_mode=prebuilt`、完整 SHA 和三个 digest；从命令返回的 Actions URL 提取 run ID，调用 `gh run watch "$run_id" --compact --exit-status` 等待并报告 URL 与最终状态。若命令未返回 URL，则用 `gh run list --workflow deploy-dashboard.yml --commit "$SHA" --event workflow_dispatch --limit 1 --json databaseId,url` 定位本次 run。
-- [ ] `ssh` 模式保留当前本机运行环境文件生成、VPS 暂存、统一 Compose 部署和 rollback 处理；把暂存文件改为传入唯一 `.deploy-staging.*` 目录，并设置安全权限。
+- [ ] `ssh` 模式保留当前本机运行环境文件生成和统一 Compose 部署；复用 Task 1 已接入的唯一 `.deploy-staging.*` 目录和 `STAGING_DIR`/`SOURCE_SHA` 调用接口，不重复实现暂存流程。
 - [ ] 用 EXIT trap 删除本机 BuildKit secret 与临时 metadata；不要将运行密钥放入 `gh workflow run` 输入。
 - [ ] 更新 `productEnvAgent/deploy.sh` 注释，明确 `git deploy` 默认走 Actions，`DEPLOY_METHOD=ssh git deploy` 是应急路径，`PUSH_ONLY=1 git deploy` 语义不变。
 
