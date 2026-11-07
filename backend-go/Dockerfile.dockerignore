@@ -10,6 +10,7 @@
 frontend/.next
 frontend/.next-temp-build
 frontend/.env*
+autoReportUpload/.env
 backend/.venv
 backend/.env*
 backend/.pytest_cache
