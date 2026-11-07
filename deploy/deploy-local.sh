@@ -222,35 +222,36 @@ PUBLIC_WEB_HEALTH_URL="${PUBLIC_WEB_HEALTH_URL:-${DOMAIN%/}/healthz}"
 PUBLIC_API_HEALTH_URL="${PUBLIC_API_HEALTH_URL:-${BACKEND_API_BASE_URL%/}/api/v1/health/live}"
 printf -v remote_public_web_url '%q' "$PUBLIC_WEB_HEALTH_URL"
 printf -v remote_public_api_url '%q' "$PUBLIC_API_HEALTH_URL"
+printf -v remote_deploy_path '%q' "$DEPLOY_PATH"
 
 echo "Preparing VPS directories and legacy fallback..."
 ssh "$DEPLOY_HOST" "
   set -euo pipefail
-  install -d -m 755 '$DEPLOY_PATH'
-  install -d -m 755 '$DEPLOY_PATH/legacy'
-  if [ -f '$DEPLOY_PATH/docker-compose.yml' ] && [ ! -f '$DEPLOY_PATH/legacy/docker-compose.yml' ]; then
-    cp '$DEPLOY_PATH/docker-compose.yml' '$DEPLOY_PATH/legacy/docker-compose.yml'
+  install -d -m 755 $remote_deploy_path
+  install -d -m 755 $remote_deploy_path/legacy
+  if [ -f $remote_deploy_path/docker-compose.yml ] && [ ! -f $remote_deploy_path/legacy/docker-compose.yml ]; then
+    cp $remote_deploy_path/docker-compose.yml $remote_deploy_path/legacy/docker-compose.yml
   fi
-  if [ -f '$DEPLOY_PATH/app.env' ] && [ ! -f '$DEPLOY_PATH/legacy/app.env' ]; then
-    cp '$DEPLOY_PATH/app.env' '$DEPLOY_PATH/legacy/app.env'
+  if [ -f $remote_deploy_path/app.env ] && [ ! -f $remote_deploy_path/legacy/app.env ]; then
+    cp $remote_deploy_path/app.env $remote_deploy_path/legacy/app.env
   fi
-  if [ ! -f '$DEPLOY_PATH/backend.env' ] && [ -f '/root/believeboyDashboard/backend/.env' ]; then
-    install -m 600 '/root/believeboyDashboard/backend/.env' '$DEPLOY_PATH/backend.env'
+  if [ ! -f $remote_deploy_path/backend.env ] && [ -f '/root/believeboyDashboard/backend/.env' ]; then
+    install -m 600 '/root/believeboyDashboard/backend/.env' $remote_deploy_path/backend.env
   fi
-  if grep -q '^AI_CHAT_PROVIDER_BASE_URL=' '$DEPLOY_PATH/backend.env'; then
-    sed -i 's#^AI_CHAT_PROVIDER_BASE_URL=.*#AI_CHAT_PROVIDER_BASE_URL=$INTERNAL_AI_PROVIDER_BASE_URL#' '$DEPLOY_PATH/backend.env'
+  if grep -q '^AI_CHAT_PROVIDER_BASE_URL=' $remote_deploy_path/backend.env; then
+    sed -i 's#^AI_CHAT_PROVIDER_BASE_URL=.*#AI_CHAT_PROVIDER_BASE_URL=$INTERNAL_AI_PROVIDER_BASE_URL#' $remote_deploy_path/backend.env
   fi
-  install -d -m 755 '$DEPLOY_PATH/backend-storage' '$DEPLOY_PATH/celerybeat'
-  if [ -d '/root/believeboyDashboard/backend/storage' ] && [ ! -f '$DEPLOY_PATH/.storage-migrated' ]; then
-    cp -a '/root/believeboyDashboard/backend/storage/.' '$DEPLOY_PATH/backend-storage/'
-    touch '$DEPLOY_PATH/.storage-migrated'
+  install -d -m 755 $remote_deploy_path/backend-storage $remote_deploy_path/celerybeat
+  if [ -d '/root/believeboyDashboard/backend/storage' ] && [ ! -f $remote_deploy_path/.storage-migrated ]; then
+    cp -a '/root/believeboyDashboard/backend/storage/.' $remote_deploy_path/backend-storage/
+    touch $remote_deploy_path/.storage-migrated
   fi
-  if [ -d '/var/lib/believeboy' ] && [ ! -f '$DEPLOY_PATH/.celerybeat-migrated' ]; then
-    cp -a '/var/lib/believeboy/.' '$DEPLOY_PATH/celerybeat/'
-    touch '$DEPLOY_PATH/.celerybeat-migrated'
+  if [ -d '/var/lib/believeboy' ] && [ ! -f $remote_deploy_path/.celerybeat-migrated ]; then
+    cp -a '/var/lib/believeboy/.' $remote_deploy_path/celerybeat/
+    touch $remote_deploy_path/.celerybeat-migrated
   fi
-  chown -R 10001:10001 '$DEPLOY_PATH/backend-storage' '$DEPLOY_PATH/celerybeat'
-  chmod 600 '$DEPLOY_PATH/backend.env'
+  chown -R 10001:10001 $remote_deploy_path/backend-storage $remote_deploy_path/celerybeat
+  chmod 600 $remote_deploy_path/backend.env
 "
 
 ssh "$DEPLOY_HOST" "
@@ -262,10 +263,10 @@ ssh "$DEPLOY_HOST" "
   docker rm believeboy-dashboard 2>/dev/null || true
 "
 
-printf -v remote_deploy_path '%q' "$DEPLOY_PATH"
 REMOTE_STAGING_DIR="$(ssh "$DEPLOY_HOST" \
   "umask 077 && mktemp -d $remote_deploy_path/.deploy-staging.XXXXXXXX")"
 printf -v remote_staging_dir '%q' "$REMOTE_STAGING_DIR"
+printf -v remote_script_path '%q' "$REMOTE_STAGING_DIR/deploy-remote.sh"
 ssh "$DEPLOY_HOST" "chmod 700 $remote_staging_dir"
 scp "$TMP_DIR/web.env" "$DEPLOY_HOST:$REMOTE_STAGING_DIR/web.env"
 scp "$TMP_DIR/go.env" "$DEPLOY_HOST:$REMOTE_STAGING_DIR/go.env"
@@ -274,13 +275,16 @@ scp "$ROOT/deploy/deploy-remote.sh" "$DEPLOY_HOST:$REMOTE_STAGING_DIR/deploy-rem
 ssh "$DEPLOY_HOST" \
   "chmod 600 $remote_staging_dir/web.env $remote_staging_dir/go.env $remote_staging_dir/docker-compose.yml $remote_staging_dir/deploy-remote.sh"
 printf -v remote_source_sha '%q' "$SHA"
+printf -v remote_api_image '%q' "$API_IMAGE"
+printf -v remote_go_api_image '%q' "$GO_API_IMAGE"
+printf -v remote_web_image '%q' "$WEB_IMAGE"
 
 echo "Deploying FastAPI, Go API, and Web..."
 if ! ssh "$DEPLOY_HOST" \
   "PUBLIC_WEB_HEALTH_URL=$remote_public_web_url PUBLIC_API_HEALTH_URL=$remote_public_api_url \
     SOURCE_SHA=$remote_source_sha STAGING_DIR=$remote_staging_dir \
-    API_IMAGE='$API_IMAGE' GO_API_IMAGE='$GO_API_IMAGE' WEB_IMAGE='$WEB_IMAGE' DEPLOY_PATH='$DEPLOY_PATH' \
-      bash $remote_staging_dir/deploy-remote.sh"; then
+    API_IMAGE=$remote_api_image GO_API_IMAGE=$remote_go_api_image WEB_IMAGE=$remote_web_image DEPLOY_PATH=$remote_deploy_path \
+      bash $remote_script_path"; then
   echo "Compose deployment failed; remote deploy script attempted config and image rollback." >&2
   exit 1
 fi
