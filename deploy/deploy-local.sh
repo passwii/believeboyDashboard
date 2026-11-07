@@ -8,7 +8,14 @@ if [[ -f "$CONFIG_FILE" ]]; then
   source "$CONFIG_FILE"
 fi
 
-: "${DEPLOY_HOST:?Set DEPLOY_HOST in $CONFIG_FILE or the shell environment}"
+DEPLOY_METHOD="${DEPLOY_METHOD:-actions}"
+case "$DEPLOY_METHOD" in
+  actions | ssh) ;;
+  *)
+    echo "DEPLOY_METHOD must be either 'actions' or 'ssh' (current: $DEPLOY_METHOD)." >&2
+    exit 1
+    ;;
+esac
 
 DEPLOY_PATH="${DEPLOY_PATH:-/opt/believeboy-dashboard}"
 DOMAIN="${DOMAIN:-https://dash.believeboy.com}"
@@ -21,7 +28,18 @@ GO_MODULE_PROXY="${GO_MODULE_PROXY:-https://proxy.golang.org,direct}"
 INTERNAL_AI_PROVIDER_BASE_URL="${INTERNAL_AI_PROVIDER_BASE_URL:-http://127.0.0.1:3100/v1}"
 FRONTEND_ENV_FILE="${FRONTEND_ENV_FILE:-$ROOT/frontend/.env.local}"
 
-for command in git pnpm docker ssh scp python3; do
+if [[ "$DEPLOY_METHOD" == "ssh" ]]; then
+  : "${DEPLOY_HOST:?Set DEPLOY_HOST in $CONFIG_FILE or the shell environment}"
+fi
+
+REQUIRED_COMMANDS=(git pnpm docker python3)
+if [[ "$DEPLOY_METHOD" == "actions" ]]; then
+  REQUIRED_COMMANDS+=(gh)
+else
+  REQUIRED_COMMANDS+=(ssh scp)
+fi
+
+for command in "${REQUIRED_COMMANDS[@]}"; do
   if ! command -v "$command" >/dev/null 2>&1; then
     echo "Missing required command: $command" >&2
     exit 1
@@ -70,12 +88,14 @@ source "$FRONTEND_ENV_FILE"
 set +a
 
 : "${NEXTAUTH_SECRET:?NEXTAUTH_SECRET is required in $FRONTEND_ENV_FILE}"
-: "${BACKEND_API_KEY:?BACKEND_API_KEY is required in $FRONTEND_ENV_FILE}"
-: "${BACKEND_API_BASE_URL:?BACKEND_API_BASE_URL is required in $FRONTEND_ENV_FILE}"
-: "${GO_API_TRUSTED_PROXY_SECRET:?GO_API_TRUSTED_PROXY_SECRET is required in $CONFIG_FILE}"
-if [[ ! "$GO_API_TRUSTED_PROXY_SECRET" =~ ^[0-9a-fA-F]{64}$ ]]; then
-  echo "GO_API_TRUSTED_PROXY_SECRET must be 64 hexadecimal characters (openssl rand -hex 32)." >&2
-  exit 1
+if [[ "$DEPLOY_METHOD" == "ssh" ]]; then
+  : "${BACKEND_API_KEY:?BACKEND_API_KEY is required in $FRONTEND_ENV_FILE}"
+  : "${BACKEND_API_BASE_URL:?BACKEND_API_BASE_URL is required in $FRONTEND_ENV_FILE}"
+  : "${GO_API_TRUSTED_PROXY_SECRET:?GO_API_TRUSTED_PROXY_SECRET is required in $CONFIG_FILE}"
+  if [[ ! "$GO_API_TRUSTED_PROXY_SECRET" =~ ^[0-9a-fA-F]{64}$ ]]; then
+    echo "GO_API_TRUSTED_PROXY_SECRET must be 64 hexadecimal characters (openssl rand -hex 32)." >&2
+    exit 1
+  fi
 fi
 
 SECRET_BYTES="$(printf '%s' "$NEXTAUTH_SECRET" | wc -c | tr -d ' ')"
@@ -84,19 +104,7 @@ if (( SECRET_BYTES < 32 )); then
   exit 1
 fi
 
-if [[ -n "${DEPLOY_PLATFORM:-}" ]]; then
-  PLATFORM="$DEPLOY_PLATFORM"
-else
-  REMOTE_ARCH="$(ssh "$DEPLOY_HOST" 'uname -m')"
-  case "$REMOTE_ARCH" in
-    x86_64 | amd64) PLATFORM="linux/amd64" ;;
-    aarch64 | arm64) PLATFORM="linux/arm64" ;;
-    *)
-      echo "Unsupported VPS architecture: $REMOTE_ARCH" >&2
-      exit 1
-      ;;
-  esac
-fi
+PLATFORM="${DEPLOY_PLATFORM:-linux/amd64}"
 
 if [[ ! -d "$ROOT/frontend/node_modules" ||
   ! -f "$ROOT/frontend/node_modules/.modules.yaml" ]] ||
@@ -122,25 +130,27 @@ trap cleanup EXIT
 printf '%s' "$NEXTAUTH_SECRET" > "$TMP_DIR/nextauth_secret"
 chmod 600 "$TMP_DIR/nextauth_secret"
 
-printf 'BACKEND_API_BASE_URL=%s\n' "$BACKEND_API_BASE_URL" > "$TMP_DIR/web.env"
-printf 'BACKEND_INTERNAL_URL=http://127.0.0.1:8200\n' >> "$TMP_DIR/web.env"
-printf 'BACKEND_PUBLIC_API_BASE_URL=%s\n' "$BACKEND_API_BASE_URL" >> "$TMP_DIR/web.env"
-printf 'BACKEND_API_KEY=%s\n' "$BACKEND_API_KEY" >> "$TMP_DIR/web.env"
-printf 'GO_API_TRUSTED_PROXY_SECRET=%s\n' "$GO_API_TRUSTED_PROXY_SECRET" >> "$TMP_DIR/web.env"
-printf 'NEXTAUTH_SECRET=%s\n' "$NEXTAUTH_SECRET" >> "$TMP_DIR/web.env"
-printf 'AUTH_SECRET=%s\n' "$NEXTAUTH_SECRET" >> "$TMP_DIR/web.env"
-printf 'NEXTAUTH_URL=%s\n' "$DOMAIN" >> "$TMP_DIR/web.env"
-printf 'AUTH_URL=%s\n' "$DOMAIN" >> "$TMP_DIR/web.env"
-printf 'NEXT_PUBLIC_CRM_API_MODE=http\n' >> "$TMP_DIR/web.env"
-chmod 600 "$TMP_DIR/web.env"
+if [[ "$DEPLOY_METHOD" == "ssh" ]]; then
+  printf 'BACKEND_API_BASE_URL=%s\n' "$BACKEND_API_BASE_URL" > "$TMP_DIR/web.env"
+  printf 'BACKEND_INTERNAL_URL=http://127.0.0.1:8200\n' >> "$TMP_DIR/web.env"
+  printf 'BACKEND_PUBLIC_API_BASE_URL=%s\n' "$BACKEND_API_BASE_URL" >> "$TMP_DIR/web.env"
+  printf 'BACKEND_API_KEY=%s\n' "$BACKEND_API_KEY" >> "$TMP_DIR/web.env"
+  printf 'GO_API_TRUSTED_PROXY_SECRET=%s\n' "$GO_API_TRUSTED_PROXY_SECRET" >> "$TMP_DIR/web.env"
+  printf 'NEXTAUTH_SECRET=%s\n' "$NEXTAUTH_SECRET" >> "$TMP_DIR/web.env"
+  printf 'AUTH_SECRET=%s\n' "$NEXTAUTH_SECRET" >> "$TMP_DIR/web.env"
+  printf 'NEXTAUTH_URL=%s\n' "$DOMAIN" >> "$TMP_DIR/web.env"
+  printf 'AUTH_URL=%s\n' "$DOMAIN" >> "$TMP_DIR/web.env"
+  printf 'NEXT_PUBLIC_CRM_API_MODE=http\n' >> "$TMP_DIR/web.env"
+  chmod 600 "$TMP_DIR/web.env"
 
-{
-  printf 'GO_API_ADDR=127.0.0.1:8200\n'
-  printf 'FASTAPI_ORIGIN=http://127.0.0.1:8100\n'
-  printf 'GO_API_OWNED=%s\n' "$GO_API_OWNED_MODULES"
-  printf 'GO_API_TRUSTED_PROXY_SECRET=%s\n' "$GO_API_TRUSTED_PROXY_SECRET"
-} > "$TMP_DIR/go.env"
-chmod 600 "$TMP_DIR/go.env"
+  {
+    printf 'GO_API_ADDR=127.0.0.1:8200\n'
+    printf 'FASTAPI_ORIGIN=http://127.0.0.1:8100\n'
+    printf 'GO_API_OWNED=%s\n' "$GO_API_OWNED_MODULES"
+    printf 'GO_API_TRUSTED_PROXY_SECRET=%s\n' "$GO_API_TRUSTED_PROXY_SECRET"
+  } > "$TMP_DIR/go.env"
+  chmod 600 "$TMP_DIR/go.env"
+fi
 
 IMAGE_TAG="sha-$SHA"
 
@@ -218,6 +228,71 @@ web_digest="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["c
 API_IMAGE="$API_IMAGE_NAME@$api_digest"
 GO_API_IMAGE="$GO_API_IMAGE_NAME@$go_api_digest"
 WEB_IMAGE="$WEB_IMAGE_NAME@$web_digest"
+
+if [[ "$DEPLOY_METHOD" == "actions" ]]; then
+  echo "Dispatching prebuilt deployment to GitHub Actions..."
+  if dispatch_output="$(gh workflow run deploy-dashboard.yml \
+    --ref main \
+    -f "deploy_mode=prebuilt" \
+    -f "source_sha=$SHA" \
+    -f "api_digest=$api_digest" \
+    -f "go_api_digest=$go_api_digest" \
+    -f "web_digest=$web_digest" 2>&1)"; then
+    :
+  else
+    dispatch_status=$?
+    printf '%s\n' "$dispatch_output" >&2
+    echo "Unable to dispatch the GitHub Actions deployment." >&2
+    exit "$dispatch_status"
+  fi
+
+  if [[ -n "$dispatch_output" ]]; then
+    printf '%s\n' "$dispatch_output"
+  fi
+
+  run_id=""
+  run_url=""
+  while IFS= read -r output_line; do
+    if [[ "$output_line" =~ https://github\.com/([^/[:space:]]+)/([^/[:space:]]+)/actions/runs/([0-9]+) ]]; then
+      run_id="${BASH_REMATCH[3]}"
+      run_url="https://github.com/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}/actions/runs/$run_id"
+    fi
+  done <<< "$dispatch_output"
+
+  if [[ -z "$run_id" ]]; then
+    echo "Dispatch returned no Actions URL; locating the run by commit..."
+    if ! run_list="$(gh run list \
+      --workflow deploy-dashboard.yml \
+      --commit "$SHA" \
+      --event workflow_dispatch \
+      --limit 1 \
+      --json databaseId,url)"; then
+      echo "Unable to locate the dispatched GitHub Actions run." >&2
+      exit 1
+    fi
+    run_record="$(python3 -c 'import json,sys; runs=json.load(sys.stdin); print((str(runs[0]["databaseId"]) + "\t" + runs[0]["url"]) if runs else "")' <<< "$run_list")"
+    if [[ -n "$run_record" ]]; then
+      IFS=$'\t' read -r run_id run_url <<< "$run_record"
+    fi
+  fi
+
+  if [[ -z "$run_id" || -z "$run_url" ]]; then
+    echo "Unable to identify the GitHub Actions run for commit $SHA." >&2
+    exit 1
+  fi
+
+  echo "GitHub Actions run: $run_url"
+  echo "Waiting for the deployment run to finish..."
+  if gh run watch "$run_id" --compact --exit-status; then
+    echo "GitHub Actions deployment completed successfully: $run_url"
+  else
+    watch_status=$?
+    echo "GitHub Actions deployment finished unsuccessfully (exit $watch_status): $run_url" >&2
+    exit "$watch_status"
+  fi
+  exit 0
+fi
+
 PUBLIC_WEB_HEALTH_URL="${PUBLIC_WEB_HEALTH_URL:-${DOMAIN%/}/healthz}"
 PUBLIC_API_HEALTH_URL="${PUBLIC_API_HEALTH_URL:-${BACKEND_API_BASE_URL%/}/api/v1/health/live}"
 printf -v remote_public_web_url '%q' "$PUBLIC_WEB_HEALTH_URL"

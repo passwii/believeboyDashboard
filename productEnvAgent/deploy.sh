@@ -6,11 +6,9 @@
 # deploy/docker-compose.yml.
 #
 # Usage:
-#   git deploy              # push main, then run deploy/deploy-local.sh
-#   PUSH_ONLY=1 git deploy  # push only
-#
-# GitHub Actions fallback:
-#   gh workflow run deploy-dashboard.yml --ref main
+#   git deploy                  # push main, build/push images, deploy through Actions
+#   DEPLOY_METHOD=ssh git deploy # emergency direct deployment over SSH
+#   PUSH_ONLY=1 git deploy      # push main only; skip image build and deployment
 set -euo pipefail
 
 repo_root="$(git rev-parse --show-toplevel)"
