@@ -245,12 +245,24 @@
   flex: 1;
   flex-direction: column;
   margin-top: var(--warm-ledger-space-6);
+  overflow: hidden;
+}
+
+.warm-ledger__navigation-scroll {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
   overflow-y: auto;
   scrollbar-width: none;
 }
 
-.warm-ledger__navigation::-webkit-scrollbar {
+.warm-ledger__navigation-scroll::-webkit-scrollbar {
   display: none;
+}
+
+.warm-ledger__quick-access {
+  flex: 0 0 auto;
 }
 
 .warm-ledger__nav-label {
@@ -1130,6 +1142,16 @@
     box-shadow: none;
     transform: translateX(-102%);
     transition: transform var(--warm-ledger-motion-duration-drawer) var(--warm-ledger-motion-ease);
+  }
+
+  .warm-ledger__navigation {
+    overflow-y: auto;
+  }
+
+  .warm-ledger__navigation-scroll {
+    min-height: auto;
+    flex: 0 0 auto;
+    overflow-y: visible;
   }
 
   .warm-ledger-shell[data-nav-open='true'] .warm-ledger__sidebar {

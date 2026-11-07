@@ -200,158 +200,162 @@ export function WarmLedgerSidebar() {
         className="warm-ledger__navigation"
         aria-label="业务域和快捷入口"
       >
-        <span className="warm-ledger__nav-label">业务域</span>
-        <div className="warm-ledger__nav-list">
-          <Link
-            href="/dashboard"
-            className="warm-ledger__nav-item"
-            aria-label="运营总览"
-            title="运营总览"
-            aria-current={pathname === '/dashboard' ? 'page' : undefined}
-            onClick={closeAfterNavigation}
-          >
-            <span className="warm-ledger__nav-indicator" aria-hidden="true" />
-            <span className="warm-ledger__nav-icon-wrap">
-              {OVERVIEW_ICON ? <OVERVIEW_ICON aria-hidden="true" /> : null}
-            </span>
-            <span className="warm-ledger__nav-copy">运营总览</span>
-          </Link>
-
-          {primaryNavigation.map(({ title, href, icon: Icon }) => {
-            const active = isCurrentRoute(pathname, href)
-            return (
-              <Link
-                key={href}
-                href={href}
-                className="warm-ledger__nav-item"
-                aria-label={title}
-                title={title}
-                aria-current={active ? 'page' : undefined}
-                onClick={closeAfterNavigation}
-              >
-                <span className="warm-ledger__nav-indicator" aria-hidden="true" />
-                <span className="warm-ledger__nav-icon-wrap">
-                  <Icon aria-hidden="true" />
-                </span>
-                <span className="warm-ledger__nav-copy">{title}</span>
-              </Link>
-            )
-          })}
-          {productAnalysisNavigation.map(({ title, href, icon: Icon }) => {
-            const active = isCurrentRoute(pathname, href)
-            return (
-              <Link
-                key={href}
-                href={href}
-                className="warm-ledger__nav-item"
-                aria-label={title}
-                title={title}
-                aria-current={active ? 'page' : undefined}
-                onClick={closeAfterNavigation}
-              >
-                <span className="warm-ledger__nav-indicator" aria-hidden="true" />
-                <span className="warm-ledger__nav-icon-wrap">
-                  <Icon aria-hidden="true" />
-                </span>
-                <span className="warm-ledger__nav-copy">{title}</span>
-              </Link>
-            )
-          })}
-          {portfolioNavigation.map(({ title, href, icon: Icon }) => {
-            const active = isCurrentRoute(pathname, href)
-            return (
-              <Link
-                key={href}
-                href={href}
-                className="warm-ledger__nav-item"
-                aria-label={title}
-                title={title}
-                aria-current={active ? 'page' : undefined}
-                onClick={closeAfterNavigation}
-              >
-                <span className="warm-ledger__nav-indicator" aria-hidden="true" />
-                <span className="warm-ledger__nav-icon-wrap">
-                  <Icon aria-hidden="true" />
-                </span>
-                <span className="warm-ledger__nav-copy">{title}</span>
-              </Link>
-            )
-          })}
-        </div>
-
-        {warmNavigationSections.map((section) => (
-          <Fragment key={section.label}>
-            <div className="warm-ledger__nav-separator" aria-hidden="true" />
-            <span className="warm-ledger__nav-label">{section.label}</span>
-            <div className="warm-ledger__nav-list">
-              {section.items.map(({ title, href, icon: Icon }) => {
-                const active = isCurrentRoute(pathname, href)
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    className="warm-ledger__nav-item"
-                    aria-label={title}
-                    title={title}
-                    aria-current={active ? 'page' : undefined}
-                    onClick={closeAfterNavigation}
-                  >
-                    <span className="warm-ledger__nav-indicator" aria-hidden="true" />
-                    <span className="warm-ledger__nav-icon-wrap">
-                      <Icon aria-hidden="true" />
-                    </span>
-                    <span className="warm-ledger__nav-copy">{title}</span>
-                  </Link>
-                )
-              })}
-            </div>
-          </Fragment>
-        ))}
-
-        <div className="warm-ledger__nav-separator" aria-hidden="true" />
-        <span className="warm-ledger__nav-label">库存与履约</span>
-        <div className="warm-ledger__nav-list">
-          {inventoryFulfillmentNavigation.map(({ title, href, icon: Icon }) => {
-            const active = isCurrentRoute(pathname, href)
-            return (
-              <Link
-                key={href}
-                href={href}
-                className="warm-ledger__nav-item"
-                aria-label={title}
-                title={title}
-                aria-current={active ? 'page' : undefined}
-                onClick={closeAfterNavigation}
-              >
-                <span className="warm-ledger__nav-indicator" aria-hidden="true" />
-                <span className="warm-ledger__nav-icon-wrap">
-                  <Icon aria-hidden="true" />
-                </span>
-                <span className="warm-ledger__nav-copy">{title}</span>
-              </Link>
-            )
-          })}
-        </div>
-
-        <div className="warm-ledger__nav-separator" aria-hidden="true" />
-        <span className="warm-ledger__nav-label">快捷入口</span>
-        <div className="warm-ledger__quick-list">
-          {quickLinks.map(({ title, href, icon: Icon }) => (
+        <div className="warm-ledger__navigation-scroll">
+          <span className="warm-ledger__nav-label">业务域</span>
+          <div className="warm-ledger__nav-list">
             <Link
-              key={title}
-              href={href}
-              className="warm-ledger__quick-link"
-              aria-label={title}
-              title={title}
-              aria-current={isCurrentRoute(pathname, href) ? 'page' : undefined}
+              href="/dashboard"
+              className="warm-ledger__nav-item"
+              aria-label="运营总览"
+              title="运营总览"
+              aria-current={pathname === '/dashboard' ? 'page' : undefined}
               onClick={closeAfterNavigation}
             >
-              <span className="warm-ledger__quick-icon-wrap" aria-hidden="true">
-                <Icon />
+              <span className="warm-ledger__nav-indicator" aria-hidden="true" />
+              <span className="warm-ledger__nav-icon-wrap">
+                {OVERVIEW_ICON ? <OVERVIEW_ICON aria-hidden="true" /> : null}
               </span>
-              <span>{title}</span>
+              <span className="warm-ledger__nav-copy">运营总览</span>
             </Link>
+
+            {primaryNavigation.map(({ title, href, icon: Icon }) => {
+              const active = isCurrentRoute(pathname, href)
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className="warm-ledger__nav-item"
+                  aria-label={title}
+                  title={title}
+                  aria-current={active ? 'page' : undefined}
+                  onClick={closeAfterNavigation}
+                >
+                  <span className="warm-ledger__nav-indicator" aria-hidden="true" />
+                  <span className="warm-ledger__nav-icon-wrap">
+                    <Icon aria-hidden="true" />
+                  </span>
+                  <span className="warm-ledger__nav-copy">{title}</span>
+                </Link>
+              )
+            })}
+            {productAnalysisNavigation.map(({ title, href, icon: Icon }) => {
+              const active = isCurrentRoute(pathname, href)
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className="warm-ledger__nav-item"
+                  aria-label={title}
+                  title={title}
+                  aria-current={active ? 'page' : undefined}
+                  onClick={closeAfterNavigation}
+                >
+                  <span className="warm-ledger__nav-indicator" aria-hidden="true" />
+                  <span className="warm-ledger__nav-icon-wrap">
+                    <Icon aria-hidden="true" />
+                  </span>
+                  <span className="warm-ledger__nav-copy">{title}</span>
+                </Link>
+              )
+            })}
+            {portfolioNavigation.map(({ title, href, icon: Icon }) => {
+              const active = isCurrentRoute(pathname, href)
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className="warm-ledger__nav-item"
+                  aria-label={title}
+                  title={title}
+                  aria-current={active ? 'page' : undefined}
+                  onClick={closeAfterNavigation}
+                >
+                  <span className="warm-ledger__nav-indicator" aria-hidden="true" />
+                  <span className="warm-ledger__nav-icon-wrap">
+                    <Icon aria-hidden="true" />
+                  </span>
+                  <span className="warm-ledger__nav-copy">{title}</span>
+                </Link>
+              )
+            })}
+          </div>
+
+          {warmNavigationSections.map((section) => (
+            <Fragment key={section.label}>
+              <div className="warm-ledger__nav-separator" aria-hidden="true" />
+              <span className="warm-ledger__nav-label">{section.label}</span>
+              <div className="warm-ledger__nav-list">
+                {section.items.map(({ title, href, icon: Icon }) => {
+                  const active = isCurrentRoute(pathname, href)
+                  return (
+                    <Link
+                      key={href}
+                      href={href}
+                      className="warm-ledger__nav-item"
+                      aria-label={title}
+                      title={title}
+                      aria-current={active ? 'page' : undefined}
+                      onClick={closeAfterNavigation}
+                    >
+                      <span className="warm-ledger__nav-indicator" aria-hidden="true" />
+                      <span className="warm-ledger__nav-icon-wrap">
+                        <Icon aria-hidden="true" />
+                      </span>
+                      <span className="warm-ledger__nav-copy">{title}</span>
+                    </Link>
+                  )
+                })}
+              </div>
+            </Fragment>
           ))}
+
+          <div className="warm-ledger__nav-separator" aria-hidden="true" />
+          <span className="warm-ledger__nav-label">库存与履约</span>
+          <div className="warm-ledger__nav-list">
+            {inventoryFulfillmentNavigation.map(({ title, href, icon: Icon }) => {
+              const active = isCurrentRoute(pathname, href)
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className="warm-ledger__nav-item"
+                  aria-label={title}
+                  title={title}
+                  aria-current={active ? 'page' : undefined}
+                  onClick={closeAfterNavigation}
+                >
+                  <span className="warm-ledger__nav-indicator" aria-hidden="true" />
+                  <span className="warm-ledger__nav-icon-wrap">
+                    <Icon aria-hidden="true" />
+                  </span>
+                  <span className="warm-ledger__nav-copy">{title}</span>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="warm-ledger__quick-access">
+          <div className="warm-ledger__nav-separator" aria-hidden="true" />
+          <span className="warm-ledger__nav-label">快捷入口</span>
+          <div className="warm-ledger__quick-list">
+            {quickLinks.map(({ title, href, icon: Icon }) => (
+              <Link
+                key={title}
+                href={href}
+                className="warm-ledger__quick-link"
+                aria-label={title}
+                title={title}
+                aria-current={isCurrentRoute(pathname, href) ? 'page' : undefined}
+                onClick={closeAfterNavigation}
+              >
+                <span className="warm-ledger__quick-icon-wrap" aria-hidden="true">
+                  <Icon />
+                </span>
+                <span>{title}</span>
+              </Link>
+            ))}
+          </div>
         </div>
       </nav>
     </aside>
