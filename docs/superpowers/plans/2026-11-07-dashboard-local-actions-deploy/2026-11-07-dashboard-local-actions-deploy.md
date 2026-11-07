@@ -98,7 +98,7 @@
 
 ### Task 6: 将远端 bootstrap 与回滚清理纳入部署锁
 
-**文件：** `deploy/deploy-remote.sh`
+**文件：** `deploy/deploy-remote.sh`、`.github/workflows/deploy-dashboard.yml`、`deploy/deploy-local.sh`
 
 - [ ] 将 `backend.env`、Compose、Web/Go env 的备份及恢复纳入回滚副本；bootstrap 对 `backend.env` 的任何变更都必须可以恢复。
 - [ ] 远端脚本取得锁后，再执行 legacy 配置复制、storage/celerybeat 初始化与 chown、backend env 更新、Actions Web/Go env 生成、systemd/container 停止、迁移和清理。
@@ -107,14 +107,13 @@
 - [ ] 目标镜像拉取与 revision 校验后，再停止旧服务并运行 migration；全部健康检查成功后在锁内禁用旧 systemd 单元并移除旧单体容器。
 - [ ] 回滚成功后调用 Dashboard-only prune，保护已恢复容器 image IDs 与 `.deploy-images`，不再保护本次失败 target refs；回滚失败时保留 rollback dir 和所有可用镜像。
 - [ ] 记录初始、prune 后、bootstrap 后及部署结束的磁盘可用字节与 Docker image 占用；输出源码 SHA、三个 digest、成功清理的 image ref 数量。
+- [ ] 将 Actions `Prepare runtime` 改为只创建部署根目录，删除其余活动 VPS 配置、数据复制、chown 和服务停止；Actions 暂存 `.go-api-secret`、Compose、远端脚本后交给远端事务生成 env。
+- [ ] 将 SSH 路径锁外 preparation 缩减为创建部署根目录和 staging；删除复制 legacy 配置、修改 backend env、复制/chown 数据目录、停止 legacy 服务和部署后 disable 单元的 SSH 命令。
 
-### Task 7: 移除锁外的 VPS 状态变更并收紧 build context
+### Task 7: 收紧本地 build context 与镜像仓库
 
-**文件：** `.github/workflows/deploy-dashboard.yml`、`deploy/deploy-local.sh`
+**文件：** `deploy/deploy-local.sh`
 
-- [ ] Actions `Prepare runtime` 只创建部署根目录；删除对活动 env、backend env、storage/celerybeat 和 systemd 的锁外修改。
-- [ ] Actions staging 只上传 Compose、远端脚本和权限为 `0600` 的 `.go-api-secret`；移除锁外生成 Web/Go env、停止 legacy 服务及部署后锁外 disable legacy 的步骤，由远端事务完成。
-- [ ] 本机 SSH 路径的锁外 VPS preparation 只保留创建 `$DEPLOY_PATH` 和唯一 stage 目录；删除 legacy 配置复制、storage/chown 和 stop systemd/container 的 SSH 块。
 - [ ] 在本机构建前，对 Actions 与 SSH 两种模式都拒绝 `git ls-files --others --exclude-standard` 非空；忽略文件仍允许。检查发生在所有 Docker build context 使用之前。
 - [ ] 将三个固定 GHCR 仓库约束应用到两种部署方式；两种模式都拒绝自定义 image repository overrides，确保本机 digest 与远端固定仓库引用一致。
 
