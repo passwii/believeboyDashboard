@@ -108,8 +108,14 @@ python3 "$ROOT/backend/scripts/check_alembic.py"
 (cd "$ROOT/frontend" && pnpm lint && pnpm test)
 
 TMP_DIR="$(mktemp -d)"
+REMOTE_STAGING_DIR=""
 cleanup() {
-  rm -rf "$TMP_DIR"
+  local quoted_stage_dir
+  rm -rf "$TMP_DIR" || true
+  if [[ -n "$REMOTE_STAGING_DIR" ]]; then
+    printf -v quoted_stage_dir '%q' "$REMOTE_STAGING_DIR"
+    ssh "$DEPLOY_HOST" "rm -rf -- $quoted_stage_dir" >/dev/null 2>&1 || true
+  fi
 }
 trap cleanup EXIT
 
@@ -256,17 +262,25 @@ ssh "$DEPLOY_HOST" "
   docker rm believeboy-dashboard 2>/dev/null || true
 "
 
-ssh "$DEPLOY_HOST" "umask 077 && cat > '$DEPLOY_PATH/web.env.next'" < "$TMP_DIR/web.env"
-ssh "$DEPLOY_HOST" "umask 077 && cat > '$DEPLOY_PATH/go.env.next'" < "$TMP_DIR/go.env"
-scp "$ROOT/deploy/docker-compose.yml" "$DEPLOY_HOST:$DEPLOY_PATH/docker-compose.yml.next"
-scp "$ROOT/deploy/deploy-remote.sh" "$DEPLOY_HOST:$DEPLOY_PATH/deploy-remote.sh.next"
+printf -v remote_deploy_path '%q' "$DEPLOY_PATH"
+REMOTE_STAGING_DIR="$(ssh "$DEPLOY_HOST" \
+  "umask 077 && mktemp -d $remote_deploy_path/.deploy-staging.XXXXXXXX")"
+printf -v remote_staging_dir '%q' "$REMOTE_STAGING_DIR"
+ssh "$DEPLOY_HOST" "chmod 700 $remote_staging_dir"
+scp "$TMP_DIR/web.env" "$DEPLOY_HOST:$REMOTE_STAGING_DIR/web.env"
+scp "$TMP_DIR/go.env" "$DEPLOY_HOST:$REMOTE_STAGING_DIR/go.env"
+scp "$ROOT/deploy/docker-compose.yml" "$DEPLOY_HOST:$REMOTE_STAGING_DIR/docker-compose.yml"
+scp "$ROOT/deploy/deploy-remote.sh" "$DEPLOY_HOST:$REMOTE_STAGING_DIR/deploy-remote.sh"
+ssh "$DEPLOY_HOST" \
+  "chmod 600 $remote_staging_dir/web.env $remote_staging_dir/go.env $remote_staging_dir/docker-compose.yml $remote_staging_dir/deploy-remote.sh"
+printf -v remote_source_sha '%q' "$SHA"
 
 echo "Deploying FastAPI, Go API, and Web..."
 if ! ssh "$DEPLOY_HOST" \
-  "mv '$DEPLOY_PATH/deploy-remote.sh.next' '$DEPLOY_PATH/deploy-remote.sh' && \
-    PUBLIC_WEB_HEALTH_URL=$remote_public_web_url PUBLIC_API_HEALTH_URL=$remote_public_api_url \
+  "PUBLIC_WEB_HEALTH_URL=$remote_public_web_url PUBLIC_API_HEALTH_URL=$remote_public_api_url \
+    SOURCE_SHA=$remote_source_sha STAGING_DIR=$remote_staging_dir \
     API_IMAGE='$API_IMAGE' GO_API_IMAGE='$GO_API_IMAGE' WEB_IMAGE='$WEB_IMAGE' DEPLOY_PATH='$DEPLOY_PATH' \
-      bash '$DEPLOY_PATH/deploy-remote.sh'"; then
+      bash $remote_staging_dir/deploy-remote.sh"; then
   echo "Compose deployment failed; remote deploy script attempted config and image rollback." >&2
   exit 1
 fi
