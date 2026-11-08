@@ -34,11 +34,12 @@ git rev-list --left-right --count origin/main...HEAD  # 左侧计数为 0，才�
 
 ## Push / 部署规则（重要）
 
-- **本地主发布**：`git deploy` 要求 main 分支，先跑 Alembic 图检查并 `git push origin main`，随后执行 `deploy/deploy-local.sh`；本地构建 Web、FastAPI API、Go API 三个 GHCR 镜像并在 VPS 启动统一 Compose。Go Gateway 监听 `127.0.0.1:8200`，保留 FastAPI `127.0.0.1:8100` 作为未接管路由的回退；Go API 和 Web 共用 `GO_API_TRUSTED_PROXY_SECRET`（仅服务端）。
+- **本地主发布**：`git deploy` 要求 main 分支，先推送 `origin/main`，随后由本机运行 Alembic 图检查、前端 lint/test，并构建、推送固定 GHCR 仓库中的 Web、FastAPI API、Go API 三个镜像；build context 含有未跟踪且未忽略的文件时在构建前失败。之后通过 GitHub Actions 传入 commit SHA 与 registry digest 部署，不依赖本机到 VPS 的 SSH。默认平台为 `linux/amd64`。本机应急直连：`DEPLOY_METHOD=ssh git deploy`；该路径也使用同一组固定 GHCR 仓库，本机运行期环境配置变更使用此路径。Go Gateway 监听 `127.0.0.1:8200`，保留 FastAPI `127.0.0.1:8100` 作为未接管路由的回退；Go API 和 Web 共用 `GO_API_TRUSTED_PROXY_SECRET`（仅服务端）。
 - **VPS 运行边界**：PostgreSQL、Redis、Caddy 是宿主机公共设施，不进入 Dashboard Compose。应用容器使用 `network_mode: host` 访问现有回环端口。
-- **GitHub Actions 仅备用**：`.github/workflows/deploy-dashboard.yml` 只能手动触发，ref 必须是 `main`；旧 `deploy-vps.yml` 和 systemd 自动部署已退役。
-- **只推代码**：`PUSH_ONLY=1 git deploy`。Actions 备用发布：`gh workflow run deploy-dashboard.yml --ref main`。
-- **回滚**：Web、FastAPI API、Go API 三个镜像作为同一版本回滚；数据库 migration 不自动回滚，迁移必须保持向后兼容。运行手册见 `docs/deployment/dashboard-vps-compose.md`。
+- **GitHub Actions**：`.github/workflows/deploy-dashboard.yml` 只能手动触发且 ref 必须是 `main`。`git deploy` 默认以预构建模式传入三个 digest；手动不传预构建参数则运行完整构建备用流程。旧 `deploy-vps.yml` 和 systemd 自动部署已退役。
+- **只推代码**：`PUSH_ONLY=1 git deploy`。手动完整构建备用发布：`gh workflow run deploy-dashboard.yml --ref main`。
+- **VPS 空间回收**：Actions 与 SSH 调用端只创建部署目录、暂存并上传文件；远端 `.deploy.lock` 内完成 bootstrap、环境生成、镜像拉取与 revision 校验、旧服务停机、legacy 数据复制、migration、回滚和清理。部署只清理三个 Dashboard GHCR 仓库中无容器或当前清单引用的旧镜像；每次读取部署分区总容量，要求可用空间严格大于总容量的 10%。legacy 数据在旧写入方停止后才复制；复制预检覆盖估算数据量、估算值的 10% 和 512 MiB 缓冲，并在镜像拉取后、停机前再次执行，预检失败时不停止旧服务。成功回滚后也清理无引用的失败目标镜像；回滚失败则保留回滚副本和镜像，并尽力重启部署前活动的 legacy 写入方。禁止自动运行全局 `docker image prune -a`、`docker system prune` 或 volume prune；不得删除上传数据和数据库文件。部署日志记录源码 SHA、三个 digest、清理数量及各阶段磁盘和 Docker 镜像占用。
+- **回滚与收尾**：Web、FastAPI API、Go API 三个镜像作为同一版本回滚；数据库 migration 不自动回滚，迁移必须保持向后兼容。迁移后的应用回滚使用 `--no-deps` 只重启业务服务、跳过旧 `migrate`，避免旧 Alembic 因数据库版本超前而阻塞回滚；同时恢复 `.storage-migrated` / `.celerybeat-migrated` 的部署前状态，并重启部署前处于活动状态的 legacy 写入方。自动回滚失败时必须先停止失败的 Compose 写入服务，再尝试恢复 legacy 写入方，避免新旧 worker/beat 并行。部署健康后仍要确认旧 systemd 单元已全部 disabled；否则 Actions 必须失败并保留回滚副本和旧镜像。运行手册见 `docs/deployment/dashboard-vps-compose.md`。
 - **新机器首次配置 alias / 缺 secret**：`git config alias.deploy '!bash productEnvAgent/deploy.sh'`；CI 侧 secret 为 `VPS_SSH_KEY` / `VPS_KNOWN_HOSTS` / `VPS_HOST` / `NEXTAUTH_SECRET` / `GO_API_TRUSTED_PROXY_SECRET`。Gateway 代理密钥用 `openssl rand -hex 32` 生成，并同步到 VPS 的 `web.env`、`go.env`。
 
 ## 测试规则

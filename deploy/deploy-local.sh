@@ -8,7 +8,14 @@ if [[ -f "$CONFIG_FILE" ]]; then
   source "$CONFIG_FILE"
 fi
 
-: "${DEPLOY_HOST:?Set DEPLOY_HOST in $CONFIG_FILE or the shell environment}"
+DEPLOY_METHOD="${DEPLOY_METHOD:-actions}"
+case "$DEPLOY_METHOD" in
+  actions | ssh) ;;
+  *)
+    echo "DEPLOY_METHOD must be either 'actions' or 'ssh' (current: $DEPLOY_METHOD)." >&2
+    exit 1
+    ;;
+esac
 
 DEPLOY_PATH="${DEPLOY_PATH:-/opt/believeboy-dashboard}"
 DOMAIN="${DOMAIN:-https://dash.believeboy.com}"
@@ -21,7 +28,18 @@ GO_MODULE_PROXY="${GO_MODULE_PROXY:-https://proxy.golang.org,direct}"
 INTERNAL_AI_PROVIDER_BASE_URL="${INTERNAL_AI_PROVIDER_BASE_URL:-http://127.0.0.1:3100/v1}"
 FRONTEND_ENV_FILE="${FRONTEND_ENV_FILE:-$ROOT/frontend/.env.local}"
 
-for command in git pnpm docker ssh scp python3; do
+if [[ "$DEPLOY_METHOD" == "ssh" ]]; then
+  : "${DEPLOY_HOST:?Set DEPLOY_HOST in $CONFIG_FILE or the shell environment}"
+fi
+
+REQUIRED_COMMANDS=(git pnpm docker python3)
+if [[ "$DEPLOY_METHOD" == "actions" ]]; then
+  REQUIRED_COMMANDS+=(gh)
+else
+  REQUIRED_COMMANDS+=(ssh scp)
+fi
+
+for command in "${REQUIRED_COMMANDS[@]}"; do
   if ! command -v "$command" >/dev/null 2>&1; then
     echo "Missing required command: $command" >&2
     exit 1
@@ -34,7 +52,8 @@ if [[ -n "$(git -C "$ROOT" status --porcelain --untracked-files=no)" ]]; then
 fi
 
 if [[ -n "$(git -C "$ROOT" ls-files --others --exclude-standard)" ]]; then
-  echo "Warning: untracked files are present; they are not part of the release commit." >&2
+  echo "Untracked non-ignored files are present in the Docker build context. Commit or remove them before deploying." >&2
+  exit 1
 fi
 
 echo "Fetching origin/main..."
@@ -69,13 +88,22 @@ set -a
 source "$FRONTEND_ENV_FILE"
 set +a
 
-: "${NEXTAUTH_SECRET:?NEXTAUTH_SECRET is required in $FRONTEND_ENV_FILE}"
-: "${BACKEND_API_KEY:?BACKEND_API_KEY is required in $FRONTEND_ENV_FILE}"
-: "${BACKEND_API_BASE_URL:?BACKEND_API_BASE_URL is required in $FRONTEND_ENV_FILE}"
-: "${GO_API_TRUSTED_PROXY_SECRET:?GO_API_TRUSTED_PROXY_SECRET is required in $CONFIG_FILE}"
-if [[ ! "$GO_API_TRUSTED_PROXY_SECRET" =~ ^[0-9a-fA-F]{64}$ ]]; then
-  echo "GO_API_TRUSTED_PROXY_SECRET must be 64 hexadecimal characters (openssl rand -hex 32)." >&2
+if [[ "$API_IMAGE_NAME" != "ghcr.io/passwii/believeboydashboard-api" ||
+  "$GO_API_IMAGE_NAME" != "ghcr.io/passwii/believeboydashboard-go-api" ||
+  "$WEB_IMAGE_NAME" != "ghcr.io/passwii/believeboydashboard-web" ]]; then
+  echo "Deployment requires the fixed GHCR image names used by the VPS deploy script." >&2
   exit 1
+fi
+
+: "${NEXTAUTH_SECRET:?NEXTAUTH_SECRET is required in $FRONTEND_ENV_FILE}"
+if [[ "$DEPLOY_METHOD" == "ssh" ]]; then
+  : "${BACKEND_API_KEY:?BACKEND_API_KEY is required in $FRONTEND_ENV_FILE}"
+  : "${BACKEND_API_BASE_URL:?BACKEND_API_BASE_URL is required in $FRONTEND_ENV_FILE}"
+  : "${GO_API_TRUSTED_PROXY_SECRET:?GO_API_TRUSTED_PROXY_SECRET is required in $CONFIG_FILE}"
+  if [[ ! "$GO_API_TRUSTED_PROXY_SECRET" =~ ^[0-9a-fA-F]{64}$ ]]; then
+    echo "GO_API_TRUSTED_PROXY_SECRET must be 64 hexadecimal characters (openssl rand -hex 32)." >&2
+    exit 1
+  fi
 fi
 
 SECRET_BYTES="$(printf '%s' "$NEXTAUTH_SECRET" | wc -c | tr -d ' ')"
@@ -84,19 +112,7 @@ if (( SECRET_BYTES < 32 )); then
   exit 1
 fi
 
-if [[ -n "${DEPLOY_PLATFORM:-}" ]]; then
-  PLATFORM="$DEPLOY_PLATFORM"
-else
-  REMOTE_ARCH="$(ssh "$DEPLOY_HOST" 'uname -m')"
-  case "$REMOTE_ARCH" in
-    x86_64 | amd64) PLATFORM="linux/amd64" ;;
-    aarch64 | arm64) PLATFORM="linux/arm64" ;;
-    *)
-      echo "Unsupported VPS architecture: $REMOTE_ARCH" >&2
-      exit 1
-      ;;
-  esac
-fi
+PLATFORM="${DEPLOY_PLATFORM:-linux/amd64}"
 
 if [[ ! -d "$ROOT/frontend/node_modules" ||
   ! -f "$ROOT/frontend/node_modules/.modules.yaml" ]] ||
@@ -108,33 +124,53 @@ python3 "$ROOT/backend/scripts/check_alembic.py"
 (cd "$ROOT/frontend" && pnpm lint && pnpm test)
 
 TMP_DIR="$(mktemp -d)"
+REMOTE_STAGING_DIR=""
 cleanup() {
-  rm -rf "$TMP_DIR"
+  local quoted_stage_dir
+  local quoted_deploy_path
+  rm -rf "$TMP_DIR" || true
+  if [[ -n "$REMOTE_STAGING_DIR" ]]; then
+    printf -v quoted_stage_dir '%q' "$REMOTE_STAGING_DIR"
+    printf -v quoted_deploy_path '%q' "$DEPLOY_PATH"
+    if ! ssh "$DEPLOY_HOST" "
+      set -euo pipefail
+      exec 9>$quoted_deploy_path/.deploy.lock
+      if ! flock -n 9; then
+        echo 'Skipping remote staging cleanup because another deployment holds the lock.' >&2
+        exit 1
+      fi
+      rm -rf -- $quoted_stage_dir
+    "; then
+      echo "Warning: remote staging cleanup was deferred; the remote deployment owns its staging directory until its lock is released." >&2
+    fi
+  fi
 }
 trap cleanup EXIT
 
 printf '%s' "$NEXTAUTH_SECRET" > "$TMP_DIR/nextauth_secret"
 chmod 600 "$TMP_DIR/nextauth_secret"
 
-printf 'BACKEND_API_BASE_URL=%s\n' "$BACKEND_API_BASE_URL" > "$TMP_DIR/web.env"
-printf 'BACKEND_INTERNAL_URL=http://127.0.0.1:8200\n' >> "$TMP_DIR/web.env"
-printf 'BACKEND_PUBLIC_API_BASE_URL=%s\n' "$BACKEND_API_BASE_URL" >> "$TMP_DIR/web.env"
-printf 'BACKEND_API_KEY=%s\n' "$BACKEND_API_KEY" >> "$TMP_DIR/web.env"
-printf 'GO_API_TRUSTED_PROXY_SECRET=%s\n' "$GO_API_TRUSTED_PROXY_SECRET" >> "$TMP_DIR/web.env"
-printf 'NEXTAUTH_SECRET=%s\n' "$NEXTAUTH_SECRET" >> "$TMP_DIR/web.env"
-printf 'AUTH_SECRET=%s\n' "$NEXTAUTH_SECRET" >> "$TMP_DIR/web.env"
-printf 'NEXTAUTH_URL=%s\n' "$DOMAIN" >> "$TMP_DIR/web.env"
-printf 'AUTH_URL=%s\n' "$DOMAIN" >> "$TMP_DIR/web.env"
-printf 'NEXT_PUBLIC_CRM_API_MODE=http\n' >> "$TMP_DIR/web.env"
-chmod 600 "$TMP_DIR/web.env"
+if [[ "$DEPLOY_METHOD" == "ssh" ]]; then
+  printf 'BACKEND_API_BASE_URL=%s\n' "$BACKEND_API_BASE_URL" > "$TMP_DIR/web.env"
+  printf 'BACKEND_INTERNAL_URL=http://127.0.0.1:8200\n' >> "$TMP_DIR/web.env"
+  printf 'BACKEND_PUBLIC_API_BASE_URL=%s\n' "$BACKEND_API_BASE_URL" >> "$TMP_DIR/web.env"
+  printf 'BACKEND_API_KEY=%s\n' "$BACKEND_API_KEY" >> "$TMP_DIR/web.env"
+  printf 'GO_API_TRUSTED_PROXY_SECRET=%s\n' "$GO_API_TRUSTED_PROXY_SECRET" >> "$TMP_DIR/web.env"
+  printf 'NEXTAUTH_SECRET=%s\n' "$NEXTAUTH_SECRET" >> "$TMP_DIR/web.env"
+  printf 'AUTH_SECRET=%s\n' "$NEXTAUTH_SECRET" >> "$TMP_DIR/web.env"
+  printf 'NEXTAUTH_URL=%s\n' "$DOMAIN" >> "$TMP_DIR/web.env"
+  printf 'AUTH_URL=%s\n' "$DOMAIN" >> "$TMP_DIR/web.env"
+  printf 'NEXT_PUBLIC_CRM_API_MODE=http\n' >> "$TMP_DIR/web.env"
+  chmod 600 "$TMP_DIR/web.env"
 
-{
-  printf 'GO_API_ADDR=127.0.0.1:8200\n'
-  printf 'FASTAPI_ORIGIN=http://127.0.0.1:8100\n'
-  printf 'GO_API_OWNED=%s\n' "$GO_API_OWNED_MODULES"
-  printf 'GO_API_TRUSTED_PROXY_SECRET=%s\n' "$GO_API_TRUSTED_PROXY_SECRET"
-} > "$TMP_DIR/go.env"
-chmod 600 "$TMP_DIR/go.env"
+  {
+    printf 'GO_API_ADDR=127.0.0.1:8200\n'
+    printf 'FASTAPI_ORIGIN=http://127.0.0.1:8100\n'
+    printf 'GO_API_OWNED=%s\n' "$GO_API_OWNED_MODULES"
+    printf 'GO_API_TRUSTED_PROXY_SECRET=%s\n' "$GO_API_TRUSTED_PROXY_SECRET"
+  } > "$TMP_DIR/go.env"
+  chmod 600 "$TMP_DIR/go.env"
+fi
 
 IMAGE_TAG="sha-$SHA"
 
@@ -212,70 +248,137 @@ web_digest="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["c
 API_IMAGE="$API_IMAGE_NAME@$api_digest"
 GO_API_IMAGE="$GO_API_IMAGE_NAME@$go_api_digest"
 WEB_IMAGE="$WEB_IMAGE_NAME@$web_digest"
+
+if [[ "$DEPLOY_METHOD" == "actions" ]]; then
+  dispatch_id="$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
+  echo "Dispatching prebuilt deployment to GitHub Actions..."
+  if dispatch_output="$(gh workflow run deploy-dashboard.yml \
+    --ref main \
+    -f "deploy_mode=prebuilt" \
+    -f "dispatch_id=$dispatch_id" \
+    -f "source_sha=$SHA" \
+    -f "api_digest=$api_digest" \
+    -f "go_api_digest=$go_api_digest" \
+    -f "web_digest=$web_digest" 2>&1)"; then
+    :
+  else
+    dispatch_status=$?
+    printf '%s\n' "$dispatch_output" >&2
+    echo "Unable to dispatch the GitHub Actions deployment." >&2
+    exit "$dispatch_status"
+  fi
+
+  if [[ -n "$dispatch_output" ]]; then
+    printf '%s\n' "$dispatch_output"
+  fi
+
+  run_id=""
+  run_url=""
+  while IFS= read -r output_line; do
+    if [[ "$output_line" =~ https://github\.com/([^/[:space:]]+)/([^/[:space:]]+)/actions/runs/([0-9]+) ]]; then
+      run_id="${BASH_REMATCH[3]}"
+      run_url="https://github.com/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}/actions/runs/$run_id"
+    fi
+  done <<< "$dispatch_output"
+
+  if [[ -z "$run_id" ]]; then
+    echo "Dispatch returned no Actions URL; waiting for this run to appear..."
+    for ((attempt = 1; attempt <= 15; attempt++)); do
+      if run_list="$(gh run list \
+        --workflow deploy-dashboard.yml \
+        --commit "$SHA" \
+        --event workflow_dispatch \
+        --limit 20 \
+        --json databaseId,url,displayTitle)"; then
+        run_record="$(python3 -c '
+import json
+import sys
+
+expected_title = f"Deploy Dashboard ({sys.argv[1]})"
+runs = json.load(sys.stdin)
+for run in runs:
+    if run.get("displayTitle") != expected_title:
+        continue
+    try:
+        run_id = int(run["databaseId"])
+    except (KeyError, TypeError, ValueError):
+        continue
+    run_url = run.get("url")
+    if isinstance(run_url, str) and run_url:
+        print(f"{run_id}\t{run_url}")
+        break
+' "$dispatch_id" <<< "$run_list")"
+        if [[ -n "$run_record" ]]; then
+          IFS=$'\t' read -r run_id run_url <<< "$run_record"
+          break
+        fi
+      fi
+
+      if (( attempt < 15 )); then
+        echo "New Actions run not visible yet (attempt $attempt/15); retrying in 2 seconds..."
+        sleep 2
+      fi
+    done
+
+    if [[ -z "$run_id" || -z "$run_url" ]]; then
+      echo "No Actions run titled 'Deploy Dashboard ($dispatch_id)' for commit $SHA appeared within 15 polls." >&2
+      exit 1
+    fi
+  fi
+
+  if [[ -z "$run_id" || -z "$run_url" ]]; then
+    echo "Unable to identify the GitHub Actions run for commit $SHA." >&2
+    exit 1
+  fi
+
+  echo "GitHub Actions run: $run_url"
+  echo "Waiting for the deployment run to finish..."
+  if gh run watch "$run_id" --compact --exit-status; then
+    echo "GitHub Actions deployment completed successfully: $run_url"
+  else
+    watch_status=$?
+    echo "GitHub Actions deployment finished unsuccessfully (exit $watch_status): $run_url" >&2
+    exit "$watch_status"
+  fi
+  exit 0
+fi
+
 PUBLIC_WEB_HEALTH_URL="${PUBLIC_WEB_HEALTH_URL:-${DOMAIN%/}/healthz}"
 PUBLIC_API_HEALTH_URL="${PUBLIC_API_HEALTH_URL:-${BACKEND_API_BASE_URL%/}/api/v1/health/live}"
 printf -v remote_public_web_url '%q' "$PUBLIC_WEB_HEALTH_URL"
 printf -v remote_public_api_url '%q' "$PUBLIC_API_HEALTH_URL"
+printf -v remote_deploy_path '%q' "$DEPLOY_PATH"
 
-echo "Preparing VPS directories and legacy fallback..."
-ssh "$DEPLOY_HOST" "
+echo "Creating VPS deployment root and unique staging directory..."
+REMOTE_STAGING_DIR="$(ssh "$DEPLOY_HOST" "
   set -euo pipefail
-  install -d -m 755 '$DEPLOY_PATH'
-  install -d -m 755 '$DEPLOY_PATH/legacy'
-  if [ -f '$DEPLOY_PATH/docker-compose.yml' ] && [ ! -f '$DEPLOY_PATH/legacy/docker-compose.yml' ]; then
-    cp '$DEPLOY_PATH/docker-compose.yml' '$DEPLOY_PATH/legacy/docker-compose.yml'
-  fi
-  if [ -f '$DEPLOY_PATH/app.env' ] && [ ! -f '$DEPLOY_PATH/legacy/app.env' ]; then
-    cp '$DEPLOY_PATH/app.env' '$DEPLOY_PATH/legacy/app.env'
-  fi
-  if [ ! -f '$DEPLOY_PATH/backend.env' ] && [ -f '/root/believeboyDashboard/backend/.env' ]; then
-    install -m 600 '/root/believeboyDashboard/backend/.env' '$DEPLOY_PATH/backend.env'
-  fi
-  if grep -q '^AI_CHAT_PROVIDER_BASE_URL=' '$DEPLOY_PATH/backend.env'; then
-    sed -i 's#^AI_CHAT_PROVIDER_BASE_URL=.*#AI_CHAT_PROVIDER_BASE_URL=$INTERNAL_AI_PROVIDER_BASE_URL#' '$DEPLOY_PATH/backend.env'
-  fi
-  install -d -m 755 '$DEPLOY_PATH/backend-storage' '$DEPLOY_PATH/celerybeat'
-  if [ -d '/root/believeboyDashboard/backend/storage' ] && [ ! -f '$DEPLOY_PATH/.storage-migrated' ]; then
-    cp -a '/root/believeboyDashboard/backend/storage/.' '$DEPLOY_PATH/backend-storage/'
-    touch '$DEPLOY_PATH/.storage-migrated'
-  fi
-  if [ -d '/var/lib/believeboy' ] && [ ! -f '$DEPLOY_PATH/.celerybeat-migrated' ]; then
-    cp -a '/var/lib/believeboy/.' '$DEPLOY_PATH/celerybeat/'
-    touch '$DEPLOY_PATH/.celerybeat-migrated'
-  fi
-  chown -R 10001:10001 '$DEPLOY_PATH/backend-storage' '$DEPLOY_PATH/celerybeat'
-  chmod 600 '$DEPLOY_PATH/backend.env'
-"
-
-ssh "$DEPLOY_HOST" "
-  set -euo pipefail
-  systemctl stop believeboy-beat.service 2>/dev/null || true
-  systemctl stop believeboy-celery.service believeboy-celery-scheduled.service 2>/dev/null || true
-  systemctl stop believeboy-api.service 2>/dev/null || true
-  docker stop believeboy-dashboard 2>/dev/null || true
-  docker rm believeboy-dashboard 2>/dev/null || true
-"
-
-ssh "$DEPLOY_HOST" "umask 077 && cat > '$DEPLOY_PATH/web.env.next'" < "$TMP_DIR/web.env"
-ssh "$DEPLOY_HOST" "umask 077 && cat > '$DEPLOY_PATH/go.env.next'" < "$TMP_DIR/go.env"
-scp "$ROOT/deploy/docker-compose.yml" "$DEPLOY_HOST:$DEPLOY_PATH/docker-compose.yml.next"
-scp "$ROOT/deploy/deploy-remote.sh" "$DEPLOY_HOST:$DEPLOY_PATH/deploy-remote.sh.next"
+  install -d -m 755 $remote_deploy_path
+  umask 077
+  mktemp -d $remote_deploy_path/.deploy-staging.XXXXXXXX
+")"
+printf -v remote_staging_dir '%q' "$REMOTE_STAGING_DIR"
+printf -v remote_script_path '%q' "$REMOTE_STAGING_DIR/deploy-remote.sh"
+scp "$TMP_DIR/web.env" "$DEPLOY_HOST:$REMOTE_STAGING_DIR/web.env"
+scp "$TMP_DIR/go.env" "$DEPLOY_HOST:$REMOTE_STAGING_DIR/go.env"
+scp "$ROOT/deploy/docker-compose.yml" "$DEPLOY_HOST:$REMOTE_STAGING_DIR/docker-compose.yml"
+scp "$ROOT/deploy/deploy-remote.sh" "$DEPLOY_HOST:$REMOTE_STAGING_DIR/deploy-remote.sh"
+printf -v remote_source_sha '%q' "$SHA"
+printf -v remote_api_image '%q' "$API_IMAGE"
+printf -v remote_go_api_image '%q' "$GO_API_IMAGE"
+printf -v remote_web_image '%q' "$WEB_IMAGE"
+printf -v remote_ai_provider_base_url '%q' "$INTERNAL_AI_PROVIDER_BASE_URL"
 
 echo "Deploying FastAPI, Go API, and Web..."
 if ! ssh "$DEPLOY_HOST" \
-  "mv '$DEPLOY_PATH/deploy-remote.sh.next' '$DEPLOY_PATH/deploy-remote.sh' && \
-    PUBLIC_WEB_HEALTH_URL=$remote_public_web_url PUBLIC_API_HEALTH_URL=$remote_public_api_url \
-    API_IMAGE='$API_IMAGE' GO_API_IMAGE='$GO_API_IMAGE' WEB_IMAGE='$WEB_IMAGE' DEPLOY_PATH='$DEPLOY_PATH' \
-      bash '$DEPLOY_PATH/deploy-remote.sh'"; then
+  "PUBLIC_WEB_HEALTH_URL=$remote_public_web_url PUBLIC_API_HEALTH_URL=$remote_public_api_url \
+    SOURCE_SHA=$remote_source_sha STAGING_DIR=$remote_staging_dir \
+    INTERNAL_AI_PROVIDER_BASE_URL=$remote_ai_provider_base_url \
+    API_IMAGE=$remote_api_image GO_API_IMAGE=$remote_go_api_image WEB_IMAGE=$remote_web_image DEPLOY_PATH=$remote_deploy_path \
+      bash $remote_script_path"; then
   echo "Compose deployment failed; remote deploy script attempted config and image rollback." >&2
   exit 1
 fi
 
-ssh "$DEPLOY_HOST" "
-  systemctl disable believeboy-api.service believeboy-celery.service \
-    believeboy-celery-scheduled.service believeboy-beat.service \
-    >/dev/null 2>&1 || true
-"
 echo "Deployed $DOMAIN from $WEB_IMAGE"
 echo "Deployed FastAPI fallback from $API_IMAGE"
 echo "Deployed Go API gateway from $GO_API_IMAGE"
