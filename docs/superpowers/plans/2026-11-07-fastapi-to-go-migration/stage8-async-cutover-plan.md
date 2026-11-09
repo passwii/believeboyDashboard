@@ -42,7 +42,7 @@ HTTP 路由可以按前缀灰度、随时回退；异步体系不行，原因有
 | --- | --- | --- |
 | Beat 静态 cron | 11 条（`backend/app/tasks/celery_shared.py:86-144`） | ✅ 11 条完全一致（`backend-go/internal/scheduler/jobs.go:28-40`） |
 | 订阅每分钟扫描 | `_run_minutely_scan`（`backend/app/core/scheduler.py:266-273`） | ❌ 无 |
-| Insight 动态调度 | `reload_insight_schedules()`（`backend/app/core/scheduler.py:255-261` + `backend/app/services/insight_schedule_service.py`） | ❌ 无 |
+| Insight 动态调度 | `reload_insight_schedules()`（`backend/app/core/scheduler.py:255-261` + `backend/app/services/insight_schedule_service.py`） | ✅ 已实现：`internal/scheduler/insight_schedules.go`（`SyncInsightSchedules`），`cmd/scheduler` 启动时同步 + 每 5 分钟 reconcile，含删除/停用/改 cron 的增量处理与坏行跳过 |
 
 ### 2.3 进程
 

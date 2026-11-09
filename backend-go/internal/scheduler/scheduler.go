@@ -172,6 +172,44 @@ func (s *Scheduler) addJob(name, cronExpr, taskName string, command func() error
 	return nil
 }
 
+// RemoveJob unregisters a job by name and stops it from firing again. It
+// reports whether a job with that name existed. In-flight executions are not
+// interrupted; the next occurrence simply never happens.
+func (s *Scheduler) RemoveJob(name string) bool {
+	name = strings.TrimSpace(name)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.initLocked()
+
+	job, exists := s.jobs[name]
+	if !exists {
+		return false
+	}
+	s.cron.Remove(job.entryID)
+	delete(s.jobs, name)
+	for index, registered := range s.order {
+		if registered == name {
+			s.order = append(s.order[:index], s.order[index+1:]...)
+			break
+		}
+	}
+	return true
+}
+
+// CronExprOf returns the cron expression registered for a job.
+func (s *Scheduler) CronExprOf(name string) (string, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.initLocked()
+
+	job, exists := s.jobs[name]
+	if !exists {
+		return "", false
+	}
+	return job.cronExpr, true
+}
+
 // Start starts the scheduler. Repeated calls are no-ops.
 func (s *Scheduler) Start() {
 	s.mu.Lock()

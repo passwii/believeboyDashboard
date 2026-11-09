@@ -14,6 +14,7 @@ import (
 	"github.com/passwii/believeboyDashboard/backend-go/internal/config"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/queue"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/scheduler"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/store"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -72,6 +73,13 @@ func run(logger *slog.Logger) error {
 
 	sched.Start()
 	defer sched.Stop()
+
+	// Mirror DB-driven insight schedules into cron. FastAPI did this through
+	// APScheduler (reload_insight_schedules); without it, schedules created via the
+	// API are persisted but never fire, because only the 11 static jobs exist.
+	stopInsightSync := startInsightScheduleSync(ctx, logger, cfg, sched, queueClient)
+	defer stopInsightSync()
+
 	logger.Info(
 		"scheduler started",
 		slog.Int("jobs", len(sched.ListJobs())),
@@ -80,4 +88,79 @@ func run(logger *slog.Logger) error {
 
 	<-ctx.Done()
 	return nil
+}
+
+// insightScheduleSyncInterval controls how often the scheduler re-reads the
+// insight schedule table so create/update/delete take effect without a restart.
+// FastAPI reloaded through APScheduler job add/remove on every mutation; a
+// periodic reconcile keeps the two runtimes detached.
+const insightScheduleSyncInterval = 5 * time.Minute
+
+func startInsightScheduleSync(
+	ctx context.Context,
+	logger *slog.Logger,
+	cfg config.Config,
+	sched *scheduler.Scheduler,
+	queueClient *queue.QueueClient,
+) func() {
+	if strings.TrimSpace(cfg.DatabaseURL) == "" {
+		logger.Warn("insight schedule sync disabled: DATABASE_URL is not set")
+		return func() {}
+	}
+
+	pool, err := store.OpenPool(ctx, cfg.DatabaseURL)
+	if err != nil {
+		logger.Error("insight schedule sync disabled: open database", slog.Any("error", err))
+		return func() {}
+	}
+	source := store.NewAIInsightStore(store.NewPGXDB(pool), nil)
+	enqueue := func(scheduleID int64) error {
+		enqueueCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_, enqueueErr := queueClient.Enqueue(
+			enqueueCtx,
+			queue.TypeGenerateInsight,
+			map[string]any{"schedule_id": scheduleID},
+		)
+		return enqueueErr
+	}
+
+	syncOnce := func() {
+		syncCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		result, syncErr := scheduler.SyncInsightSchedules(syncCtx, sched, source, enqueue)
+		if syncErr != nil {
+			logger.Error("insight schedule sync failed", slog.Any("error", syncErr))
+			return
+		}
+		logger.Info(
+			"insight schedules synced",
+			slog.Int("registered", result.Registered),
+			slog.Int("unchanged", result.Unchanged),
+			slog.Int("removed", result.Removed),
+			slog.Int("skipped", result.Skipped),
+		)
+	}
+	syncOnce()
+
+	stopSync := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(insightScheduleSyncInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				syncOnce()
+			case <-stopSync:
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return func() {
+		close(stopSync)
+		pool.Close()
+	}
 }
