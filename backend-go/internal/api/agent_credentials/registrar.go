@@ -8,6 +8,12 @@ import (
 	"github.com/passwii/believeboyDashboard/backend-go/internal/agentauth"
 )
 
+// agentAPIPrefix is the Agent API namespace shared by every Agent-domain
+// registrar. Routes are registered through router.With(...) with full paths
+// instead of router.Route(...)/Mount: chi panics when a prefix is mounted twice,
+// and GO_API_OWNED can enable several Agent registrars at the same time.
+const agentAPIPrefix = "/api/v1/agent"
+
 type Registrar struct {
 	handler     *Handler
 	auth        func(http.Handler) http.Handler
@@ -39,26 +45,24 @@ func (registrar *Registrar) RegisterRoutes(
 	if registrar == nil || registrar.handler == nil {
 		return
 	}
-	router.Route("/api/v1/agent", func(agent chi.Router) {
-		agent.Use(registrar.auth)
+	agent := router.With(registrar.auth)
 
-		provisioning := func(method, path string, handler http.HandlerFunc) {
-			agent.With(
-				agentauth.RequireBusinessScope("agent_provisioning"),
-				registrar.rateLimiter,
-			).Method(method, path, handler)
-		}
-		provisioning(http.MethodGet, "/provisioning/keys", registrar.handler.ListAgentKeys)
-		provisioning(http.MethodPost, "/provisioning/keys", registrar.handler.CreateAgentKey)
-		provisioning(http.MethodPatch, "/provisioning/keys/{key_id}", registrar.handler.UpdateAgentKey)
+	provisioning := func(method, path string, handler http.HandlerFunc) {
+		agent.With(
+			agentauth.RequireBusinessScope("agent_provisioning"),
+			registrar.rateLimiter,
+		).Method(method, agentAPIPrefix+path, handler)
+	}
+	provisioning(http.MethodGet, "/provisioning/keys", registrar.handler.ListAgentKeys)
+	provisioning(http.MethodPost, "/provisioning/keys", registrar.handler.CreateAgentKey)
+	provisioning(http.MethodPatch, "/provisioning/keys/{key_id}", registrar.handler.UpdateAgentKey)
 
-		upload := func(method, path string, handler http.HandlerFunc) {
-			agent.With(
-				agentauth.RequireBusinessScope("report_upload"),
-				registrar.rateLimiter,
-			).Method(method, path, handler)
-		}
-		upload(http.MethodPost, "/upload/validate", registrar.handler.ValidateUpload)
-		upload(http.MethodPost, "/upload/commit", registrar.handler.CommitUpload)
-	})
+	upload := func(method, path string, handler http.HandlerFunc) {
+		agent.With(
+			agentauth.RequireBusinessScope("report_upload"),
+			registrar.rateLimiter,
+		).Method(method, agentAPIPrefix+path, handler)
+	}
+	upload(http.MethodPost, "/upload/validate", registrar.handler.ValidateUpload)
+	upload(http.MethodPost, "/upload/commit", registrar.handler.CommitUpload)
 }
