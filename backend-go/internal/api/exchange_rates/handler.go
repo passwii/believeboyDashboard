@@ -42,6 +42,15 @@ type Store interface {
 
 type Handler struct {
 	store Store
+	blobs BlobStore
+}
+
+type HandlerOption func(*Handler)
+
+func WithBlobStore(blobs BlobStore) HandlerOption {
+	return func(handler *Handler) {
+		handler.blobs = blobs
+	}
 }
 
 type exchangeRateListResponse struct {
@@ -95,8 +104,14 @@ type ExchangeRateOption struct {
 	Label string `json:"label"`
 }
 
-func NewHandler(store Store) *Handler {
-	return &Handler{store: store}
+func NewHandler(store Store, options ...HandlerOption) *Handler {
+	handler := &Handler{store: store}
+	for _, option := range options {
+		if option != nil {
+			option(handler)
+		}
+	}
+	return handler
 }
 
 func (h *Handler) ListExchangeRates(w http.ResponseWriter, r *http.Request) {
@@ -284,8 +299,8 @@ func serializeItem(row ExchangeRate) ExchangeRateItem {
 		Rate:         row.Rate,
 		Description:  row.Description,
 		NoteImages:   normalizeNoteImages(row.NoteImages),
-		CreatedAt:    isoformat(row.CreatedAt),
-		UpdatedAt:    isoformat(row.UpdatedAt),
+		CreatedAt:    httpapi.Timestamp(row.CreatedAt),
+		UpdatedAt:    httpapi.Timestamp(row.UpdatedAt),
 	}
 }
 
@@ -539,24 +554,4 @@ func integerParsingError(name, input, location string) map[string]any {
 			"input": input,
 		}},
 	}
-}
-
-func isoformat(value time.Time) string {
-	if value.IsZero() {
-		return "0001-01-01T00:00:00+00:00"
-	}
-	value = value.UTC()
-	base := value.Format("2006-01-02T15:04:05")
-	if value.Nanosecond() != 0 {
-		base += "." + formatFraction(value.Nanosecond())
-	}
-	return base + "+00:00"
-}
-
-func formatFraction(nanoseconds int) string {
-	fraction := strings.TrimRight(leftPad(nanoseconds, 9), "0")
-	for len(fraction) < 6 {
-		fraction += "0"
-	}
-	return fraction
 }

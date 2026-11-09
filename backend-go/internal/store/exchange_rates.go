@@ -3,11 +3,13 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/exchange_rates"
 )
@@ -18,6 +20,101 @@ type ExchangeRateStore struct {
 
 func NewExchangeRateStore(db DB) *ExchangeRateStore {
 	return &ExchangeRateStore{db: db}
+}
+
+func (s *ExchangeRateStore) Insert(
+	ctx context.Context,
+	value exchange_rates.ExchangeRate,
+) (*exchange_rates.ExchangeRate, error) {
+	noteImages, err := encodeNoteImages(value.NoteImages)
+	if err != nil {
+		return nil, err
+	}
+	row := s.db.QueryRow(
+		ctx,
+		`insert into public.exchange_rates (
+		   currency, currency_name, year_month, rate, description, note_images
+		 )
+		 values ($1, $2, $3, $4, $5, $6::json)
+		 returning
+		   id, currency, currency_name, year_month, rate, description,
+		   note_images, created_at, updated_at`,
+		value.Currency,
+		value.CurrencyName,
+		value.YearMonth,
+		value.Rate,
+		value.Description,
+		noteImages,
+	)
+	item, err := scanExchangeRateRow(row)
+	if err != nil {
+		if isExchangeRateConflict(err) {
+			return nil, exchange_rates.ErrConflict
+		}
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (s *ExchangeRateStore) Update(
+	ctx context.Context,
+	id int64,
+	value exchange_rates.ExchangeRate,
+) (*exchange_rates.ExchangeRate, error) {
+	noteImages, err := encodeNoteImages(value.NoteImages)
+	if err != nil {
+		return nil, err
+	}
+	row := s.db.QueryRow(
+		ctx,
+		`update public.exchange_rates
+		 set currency = $1,
+		     currency_name = $2,
+		     year_month = $3,
+		     rate = $4,
+		     description = $5,
+		     note_images = $6::json,
+		     updated_at = now()
+		 where id = $7
+		 returning
+		   id, currency, currency_name, year_month, rate, description,
+		   note_images, created_at, updated_at`,
+		value.Currency,
+		value.CurrencyName,
+		value.YearMonth,
+		value.Rate,
+		value.Description,
+		noteImages,
+		id,
+	)
+	item, err := scanExchangeRateRow(row)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		if isExchangeRateConflict(err) {
+			return nil, exchange_rates.ErrConflict
+		}
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (s *ExchangeRateStore) Delete(ctx context.Context, id int64) (bool, error) {
+	execer, ok := s.db.(Execer)
+	if !ok {
+		return false, errors.New("database does not support writes")
+	}
+	tag, err := execer.Exec(
+		ctx,
+		`delete from public.exchange_rates
+		 where id = $1`,
+		id,
+	)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() > 0, nil
 }
 
 func (s *ExchangeRateStore) List(
@@ -274,4 +371,16 @@ func decodeNoteImages(raw []byte) ([]map[string]any, error) {
 		return nil, err
 	}
 	return images, nil
+}
+
+func encodeNoteImages(images []map[string]any) ([]byte, error) {
+	if images == nil {
+		images = []map[string]any{}
+	}
+	return json.Marshal(images)
+}
+
+func isExchangeRateConflict(err error) bool {
+	var postgresErr *pgconn.PgError
+	return errors.As(err, &postgresErr) && postgresErr.Code == "23505"
 }

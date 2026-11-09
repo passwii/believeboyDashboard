@@ -256,17 +256,23 @@ type queryRowCall struct {
 }
 
 type fakeDB struct {
-	rows          Rows
-	rowsErr       error
-	row           pgx.Row
-	rowsQueue     []pgx.Row
-	queryCalls    []queryCall
-	queryRowCalls []queryRowCall
-	pingErr       error
+	rows           Rows
+	rowsErr        error
+	row            pgx.Row
+	rowsQueue      []pgx.Row
+	rowsQueueQuery []Rows
+	queryCalls     []queryCall
+	queryRowCalls  []queryRowCall
+	pingErr        error
 }
 
 func (f *fakeDB) Query(_ context.Context, sql string, args ...any) (Rows, error) {
 	f.queryCalls = append(f.queryCalls, queryCall{sql: sql, args: args})
+	if len(f.rowsQueueQuery) > 0 {
+		next := f.rowsQueueQuery[0]
+		f.rowsQueueQuery = f.rowsQueueQuery[1:]
+		return next, f.rowsErr
+	}
 	return f.rows, f.rowsErr
 }
 
@@ -359,24 +365,52 @@ func scanValues(dest, values []any) error {
 			}
 			*target = text
 		case *pgtype.Text:
+			if value == nil {
+				*target = pgtype.Text{}
+				continue
+			}
+			if text, ok := value.(string); ok {
+				*target = pgtype.Text{String: text, Valid: true}
+				continue
+			}
+			if text, ok := value.(*string); ok {
+				if text == nil {
+					*target = pgtype.Text{}
+				} else {
+					*target = pgtype.Text{String: *text, Valid: true}
+				}
+				continue
+			}
 			text, ok := value.(pgtype.Text)
 			if !ok {
 				return errors.New("scan value is not pgtype.Text")
 			}
 			*target = text
 		case *pgtype.Numeric:
+			if value == nil {
+				*target = pgtype.Numeric{}
+				continue
+			}
 			number, ok := value.(pgtype.Numeric)
 			if !ok {
 				return errors.New("scan value is not pgtype.Numeric")
 			}
 			*target = number
 		case *pgtype.Float8:
+			if value == nil {
+				*target = pgtype.Float8{}
+				continue
+			}
 			number, ok := value.(pgtype.Float8)
 			if !ok {
 				return errors.New("scan value is not pgtype.Float8")
 			}
 			*target = number
 		case *pgtype.Int4:
+			if value == nil {
+				*target = pgtype.Int4{}
+				continue
+			}
 			number, ok := value.(pgtype.Int4)
 			if !ok {
 				return errors.New("scan value is not pgtype.Int4")
@@ -399,6 +433,18 @@ func scanValues(dest, values []any) error {
 			}
 			*target = bytes
 		case *time.Time:
+			if value == nil {
+				*target = time.Time{}
+				continue
+			}
+			if tPtr, ok := value.(*time.Time); ok {
+				if tPtr != nil {
+					*target = *tPtr
+				} else {
+					*target = time.Time{}
+				}
+				continue
+			}
 			timestamp, ok := value.(time.Time)
 			if !ok {
 				return errors.New("scan value is not time.Time")
@@ -407,6 +453,14 @@ func scanValues(dest, values []any) error {
 		case *pgtype.Timestamptz:
 			if value == nil {
 				*target = pgtype.Timestamptz{}
+				continue
+			}
+			if tPtr, ok := value.(*time.Time); ok {
+				if tPtr != nil {
+					*target = pgtype.Timestamptz{Time: *tPtr, Valid: true}
+				} else {
+					*target = pgtype.Timestamptz{}
+				}
 				continue
 			}
 			timestamp, ok := value.(time.Time)
@@ -420,9 +474,65 @@ func scanValues(dest, values []any) error {
 				return errors.New("scan value is not bool")
 			}
 			*target = boolean
+		case **string:
+			if value == nil {
+				*target = nil
+				continue
+			}
+			if strVal, ok := value.(string); ok {
+				*target = &strVal
+				continue
+			}
+			if strPtr, ok := value.(*string); ok {
+				*target = strPtr
+				continue
+			}
+			return errors.New("scan value is not string or *string")
+		case **float64:
+			if value == nil {
+				*target = nil
+				continue
+			}
+			if fVal, ok := value.(float64); ok {
+				*target = &fVal
+				continue
+			}
+			if fPtr, ok := value.(*float64); ok {
+				*target = fPtr
+				continue
+			}
+			if iVal, ok := value.(int); ok {
+				f := float64(iVal)
+				*target = &f
+				continue
+			}
+			if iVal, ok := value.(int64); ok {
+				f := float64(iVal)
+				*target = &f
+				continue
+			}
+			return fmt.Errorf("scan value is not float64 or *float64: got %T for dest %T", value, dest[i])
+		case **int:
+			if value == nil {
+				*target = nil
+				continue
+			}
+			if intVal, ok := value.(int); ok {
+				*target = &intVal
+				continue
+			}
+			if intPtr, ok := value.(*int); ok {
+				*target = intPtr
+				continue
+			}
+			return errors.New("scan value is not int or *int")
 		case **time.Time:
 			if value == nil {
 				*target = nil
+				continue
+			}
+			if tPtr, ok := value.(*time.Time); ok {
+				*target = tPtr
 				continue
 			}
 			timestamp, ok := value.(time.Time)

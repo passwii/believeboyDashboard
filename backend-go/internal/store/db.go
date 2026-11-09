@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -16,6 +17,23 @@ type DB interface {
 	Query(ctx context.Context, sql string, args ...any) (Rows, error)
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 	Ping(ctx context.Context) error
+}
+
+// Execer executes statements that do not return rows.
+type Execer interface {
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
+
+// Transactor begins a database transaction.
+type Transactor interface {
+	Begin(ctx context.Context) (pgx.Tx, error)
+}
+
+// FullDB combines DB, Execer, and Transactor.
+type FullDB interface {
+	DB
+	Execer
+	Transactor
 }
 
 type Rows interface {
@@ -84,7 +102,7 @@ type poolDB struct {
 	pool *pgxpool.Pool
 }
 
-func NewPGXDB(pool *pgxpool.Pool) DB {
+func NewPGXDB(pool *pgxpool.Pool) FullDB {
 	if pool == nil {
 		return nil
 	}
@@ -101,6 +119,66 @@ func (db poolDB) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row 
 
 func (db poolDB) Ping(ctx context.Context) error {
 	return db.pool.Ping(ctx)
+}
+
+func (db poolDB) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	return db.pool.Exec(ctx, sql, args...)
+}
+
+func (db poolDB) Begin(ctx context.Context) (pgx.Tx, error) {
+	return db.pool.Begin(ctx)
+}
+
+// TxDB adapts a pgx.Tx to satisfy FullDB so stores can execute queries within an active transaction.
+type TxDB struct {
+	tx pgx.Tx
+}
+
+func NewTxDB(tx pgx.Tx) TxDB {
+	return TxDB{tx: tx}
+}
+
+func (db TxDB) Query(ctx context.Context, sql string, args ...any) (Rows, error) {
+	return db.tx.Query(ctx, sql, args...)
+}
+
+func (db TxDB) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	return db.tx.QueryRow(ctx, sql, args...)
+}
+
+func (db TxDB) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	return db.tx.Exec(ctx, sql, args...)
+}
+
+func (db TxDB) Ping(context.Context) error {
+	return nil
+}
+
+func (db TxDB) Begin(ctx context.Context) (pgx.Tx, error) {
+	return db.tx.Begin(ctx)
+}
+
+// RunInTx executes fn inside a transaction. If fn returns an error, the transaction
+// is rolled back. If fn returns nil, the transaction is committed.
+func RunInTx(ctx context.Context, txer Transactor, fn func(tx pgx.Tx) error) error {
+	if txer == nil {
+		return fmt.Errorf("transactor is nil")
+	}
+	tx, err := txer.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	if err := fn(tx); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit transaction: %w", err)
+	}
+	return nil
 }
 
 // Text converts nullable pgx text values without leaking pgtype into handlers.

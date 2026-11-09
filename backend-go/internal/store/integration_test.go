@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/alerts"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/notifications"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/httpapi"
@@ -182,6 +183,14 @@ func (db txDB) Query(ctx context.Context, sql string, args ...any) (Rows, error)
 
 func (db txDB) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
 	return db.tx.QueryRow(ctx, sql, args...)
+}
+
+func (db txDB) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	return db.tx.Exec(ctx, sql, args...)
+}
+
+func (db txDB) Begin(ctx context.Context) (pgx.Tx, error) {
+	return db.tx.Begin(ctx)
 }
 
 func (db txDB) Ping(context.Context) error {

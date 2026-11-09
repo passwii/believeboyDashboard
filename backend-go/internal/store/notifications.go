@@ -2,7 +2,9 @@ package store
 
 import (
 	"context"
+	"errors"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/notifications"
 )
@@ -13,6 +15,72 @@ type NotificationStore struct {
 
 func NewNotificationStore(db DB) *NotificationStore {
 	return &NotificationStore{db: db}
+}
+
+func (s *NotificationStore) MarkRead(
+	ctx context.Context,
+	userID string,
+	id int64,
+) (*notifications.Notification, error) {
+	row := s.db.QueryRow(
+		ctx,
+		`update public.notifications
+		 set "read" = true,
+		     read_at = now()
+		 where id = $1
+		   and user_id = $2::integer
+		 returning
+		   id, user_id, type, title, message, data, "read", read_at, created_at`,
+		id,
+		userID,
+	)
+	item, err := scanNotification(row)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (s *NotificationStore) MarkAllRead(ctx context.Context, userID string) (int, error) {
+	execer, ok := s.db.(Execer)
+	if !ok {
+		return 0, errors.New("database does not support writes")
+	}
+	tag, err := execer.Exec(
+		ctx,
+		`update public.notifications
+		 set "read" = true,
+		     read_at = now()
+		 where user_id = $1::integer
+		   and "read" = false`,
+		userID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return int(tag.RowsAffected()), nil
+}
+
+func (s *NotificationStore) Delete(ctx context.Context, userID string, id int64) (bool, error) {
+	execer, ok := s.db.(Execer)
+	if !ok {
+		return false, errors.New("database does not support writes")
+	}
+	tag, err := execer.Exec(
+		ctx,
+		`delete from public.notifications
+		 where id = $1
+		   and user_id = $2::integer`,
+		id,
+		userID,
+	)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() > 0, nil
 }
 
 func (s *NotificationStore) List(

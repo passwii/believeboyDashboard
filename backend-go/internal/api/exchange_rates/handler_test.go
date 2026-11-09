@@ -85,11 +85,11 @@ func TestListExchangeRatesClampsPaginationAndSerializesItems(t *testing.T) {
 	if math.Abs(item.Rate-7.12345678) > 1e-9 {
 		t.Errorf("rate = %v, want 7.12345678", item.Rate)
 	}
-	if item.CreatedAt != "2026-10-27T01:02:03.456789+00:00" {
-		t.Errorf("created_at = %q, want ISO-8601 with microseconds and +00:00", item.CreatedAt)
+	if item.CreatedAt != "2026-10-27T01:02:03.456789Z" {
+		t.Errorf("created_at = %q, want httpapi timestamp with microseconds", item.CreatedAt)
 	}
-	if item.UpdatedAt != "2026-10-27T01:03:03.456789+00:00" {
-		t.Errorf("updated_at = %q, want ISO-8601 with microseconds and +00:00", item.UpdatedAt)
+	if item.UpdatedAt != "2026-10-27T01:03:03.456789Z" {
+		t.Errorf("updated_at = %q, want httpapi timestamp with microseconds", item.UpdatedAt)
 	}
 	if len(item.NoteImages) != 1 || item.NoteImages[0]["filename"] != "a.webp" ||
 		item.NoteImages[0]["size"] != float64(123) {

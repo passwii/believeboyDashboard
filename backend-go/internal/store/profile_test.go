@@ -2,16 +2,18 @@ package store
 
 import (
 	"context"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/api/profile"
 )
 
 func TestProfileStoreReadsByIdTextAndScansNullableFields(t *testing.T) {
 	passwordChangedAt := time.Date(2026, 10, 1, 2, 3, 4, 0, time.UTC)
-	db := &fakeDB{
+	db := &fakeWriteDB{fakeDB: &fakeDB{
 		row: fakeRow{values: []any{
 			"user-123",
 			"person@example.com",
@@ -25,7 +27,7 @@ func TestProfileStoreReadsByIdTextAndScansNullableFields(t *testing.T) {
 			time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
 			time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC),
 		}},
-	}
+	}}
 
 	got, err := NewProfileStore(db).GetByUserID(context.Background(), "user-123")
 	if err != nil {
@@ -49,7 +51,7 @@ func TestProfileStoreReadsByIdTextAndScansNullableFields(t *testing.T) {
 }
 
 func TestProfileStoreReturnsNilForUnknownUser(t *testing.T) {
-	db := &fakeDB{row: fakeRow{err: pgx.ErrNoRows}}
+	db := &fakeWriteDB{fakeDB: &fakeDB{row: fakeRow{err: pgx.ErrNoRows}}}
 
 	got, err := NewProfileStore(db).GetByUserID(context.Background(), "missing")
 	if err != nil {
@@ -61,7 +63,7 @@ func TestProfileStoreReturnsNilForUnknownUser(t *testing.T) {
 }
 
 func TestProfileStoreKeepsNullRoleForHandlerFallback(t *testing.T) {
-	db := &fakeDB{
+	db := &fakeWriteDB{fakeDB: &fakeDB{
 		row: fakeRow{values: []any{
 			"user-456",
 			"operator@example.com",
@@ -75,7 +77,7 @@ func TestProfileStoreKeepsNullRoleForHandlerFallback(t *testing.T) {
 			nil,
 			nil,
 		}},
-	}
+	}}
 
 	got, err := NewProfileStore(db).GetByUserID(context.Background(), "user-456")
 	if err != nil {
@@ -84,6 +86,124 @@ func TestProfileStoreKeepsNullRoleForHandlerFallback(t *testing.T) {
 	if got.RoleType != "" || got.FullName != nil || got.AvatarURL != nil ||
 		got.PasswordChangedAt != nil || got.CreatedAt != nil || got.UpdatedAt != nil {
 		t.Errorf("GetByUserID() = %#v, want nil/empty optional fields", got)
+	}
+}
+
+func TestProfileStoreUpdateByUserIDUsesTransactionAndAuditsChangedFields(t *testing.T) {
+	db := &fakeWriteDB{fakeDB: &fakeDB{
+		row: fakeRow{values: []any{
+			"user-123",
+			"person@example.com",
+			"new-login",
+			pgtype.Text{},
+			false,
+			true,
+			pgtype.Text{String: "operator", Valid: true},
+			pgtype.Text{},
+			nil,
+			time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
+			time.Date(2026, 11, 8, 0, 0, 0, 0, time.UTC),
+		}},
+	}}
+	name := " new-login "
+	operator := "operator-a"
+	req := httptest.NewRequest("PATCH", "/api/v1/system-management/profile", nil)
+
+	got, err := NewProfileStore(db).UpdateByUserID(
+		context.Background(),
+		"user-123",
+		profile.UpdateInput{
+			Name:        &name,
+			SetFullName: true,
+			FullName:    nil,
+			Operator:    &operator,
+			Request:     req,
+		},
+	)
+	if err != nil {
+		t.Fatalf("UpdateByUserID() error = %v", err)
+	}
+	if got == nil || got.Name != "new-login" || got.FullName != nil {
+		t.Fatalf("UpdateByUserID() = %#v, want updated profile", got)
+	}
+	if len(db.queryRowCalls) != 1 {
+		t.Fatalf("QueryRow() calls = %d, want 1", len(db.queryRowCalls))
+	}
+	if !contains(db.queryRowCalls[0].sql, "name = $1, full_name = $2") ||
+		!contains(db.queryRowCalls[0].sql, "where id::text = $3") {
+		t.Errorf("update SQL = %s, want parameterized name/full_name/user filter", db.queryRowCalls[0].sql)
+	}
+	assertArgs(t, db.queryRowCalls[0].args, []any{" new-login ", (*string)(nil), "user-123"})
+	if len(db.execCalls) != 1 || !contains(db.execCalls[0].sql, "operation_audit_logs") {
+		t.Fatalf("audit calls = %#v, want one operation_audit_logs insert", db.execCalls)
+	}
+	if db.execCalls[0].args[1] != "profile.update" ||
+		db.execCalls[0].args[2] != "user_account" {
+		t.Errorf("audit action/target = %#v, want profile.update/user_account", db.execCalls[0].args[:3])
+	}
+}
+
+func TestProfileStoreUpdateByUserIDNoChangesDoesNotAudit(t *testing.T) {
+	db := &fakeWriteDB{fakeDB: &fakeDB{
+		row: fakeRow{values: []any{
+			"user-123",
+			"person@example.com",
+			"operator",
+			pgtype.Text{String: "Operator", Valid: true},
+			false,
+			true,
+			pgtype.Text{String: "operator", Valid: true},
+			pgtype.Text{},
+			nil,
+			nil,
+			nil,
+		}},
+	}}
+
+	got, err := NewProfileStore(db).UpdateByUserID(
+		context.Background(),
+		"user-123",
+		profile.UpdateInput{},
+	)
+	if err != nil {
+		t.Fatalf("UpdateByUserID() error = %v", err)
+	}
+	if got == nil || got.ID != "user-123" {
+		t.Fatalf("UpdateByUserID() = %#v, want current profile", got)
+	}
+	if len(db.execCalls) != 0 {
+		t.Fatalf("audit calls = %#v, want none without changes", db.execCalls)
+	}
+}
+
+func TestProfileStoreUpdateByUserIDRollsBackWhenAuditFails(t *testing.T) {
+	db := &fakeWriteDB{
+		fakeDB: &fakeDB{
+			row: fakeRow{values: []any{
+				"user-123",
+				"person@example.com",
+				"operator",
+				pgtype.Text{},
+				false,
+				true,
+				pgtype.Text{},
+				pgtype.Text{},
+				nil,
+				nil,
+				nil,
+			}},
+		},
+		execErr: context.DeadlineExceeded,
+	}
+	name := "operator"
+
+	_, err := NewProfileStore(db).UpdateByUserID(
+		context.Background(),
+		"user-123",
+		profile.UpdateInput{Name: &name},
+	)
+	if err == nil {
+		t.Fatal("UpdateByUserID() error = nil, want audit failure")
 	}
 }
 
