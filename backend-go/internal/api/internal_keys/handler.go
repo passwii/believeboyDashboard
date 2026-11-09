@@ -102,8 +102,22 @@ func (h *Handler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
 	if operator != nil {
 		createdBy = *operator
 	}
-	record, plaintext, err := h.store.CreateAPIKey(r.Context(), input, createdBy)
+	record, plaintext, err := h.createAPIKey(r, input, createdBy, func(record *APIKey) audit.Entry {
+		entry := audit.Entry{
+			Action:     "api_key.create",
+			TargetType: "agent_api_key",
+			TargetID:   int64Pointer(record.ID),
+			Operator:   operator,
+			AfterJSON:  serializeAPIKey(*record),
+		}
+		entry.PopulateFromRequest(r)
+		return entry
+	})
 	if err != nil {
+		if errors.Is(err, ErrAPIKeyConflict) {
+			httpapi.WriteDetail(w, http.StatusConflict, provisioningSingletonConflictMessage)
+			return
+		}
 		httpapi.WriteInternalServerError(w)
 		return
 	}
@@ -112,16 +126,6 @@ func (h *Handler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	item := serializeAPIKey(*record)
-	if !h.logAction(r, audit.Entry{
-		Action:     "api_key.create",
-		TargetType: "agent_api_key",
-		TargetID:   int64Pointer(record.ID),
-		Operator:   operator,
-		AfterJSON:  item,
-	}) {
-		httpapi.WriteInternalServerError(w)
-		return
-	}
 	_ = httpapi.WriteJSON(w, http.StatusCreated, APIKeyCreateResponse{
 		ID:            item.ID,
 		KeyPrefix:     item.KeyPrefix,
@@ -135,6 +139,40 @@ func (h *Handler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:     item.CreatedAt,
 		PlaintextKey:  plaintext,
 	})
+}
+
+// auditedKeyCreator is implemented by the transactional store. It is optional so
+// non-transactional test doubles can still satisfy Store; the production store
+// always implements it, which keeps the insert and its audit entry atomic.
+type auditedKeyCreator interface {
+	CreateAPIKeyWithAudit(
+		ctx context.Context,
+		input APIKeyCreateInput,
+		operator string,
+		auditor audit.Service,
+		entryFor func(*APIKey) audit.Entry,
+	) (*APIKey, string, error)
+}
+
+func (h *Handler) createAPIKey(
+	r *http.Request,
+	input APIKeyCreateInput,
+	createdBy string,
+	entryFor func(*APIKey) audit.Entry,
+) (*APIKey, string, error) {
+	if creator, ok := h.store.(auditedKeyCreator); ok {
+		return creator.CreateAPIKeyWithAudit(r.Context(), input, createdBy, h.auditor, entryFor)
+	}
+	// Fallback for stores without transaction support (in-memory test doubles):
+	// the audit entry is written after the insert and cannot roll it back.
+	record, plaintext, err := h.store.CreateAPIKey(r.Context(), input, createdBy)
+	if err != nil || record == nil || h.auditor == nil {
+		return record, plaintext, err
+	}
+	if err := h.auditor.LogAction(r.Context(), entryFor(record)); err != nil {
+		return nil, "", err
+	}
+	return record, plaintext, nil
 }
 
 func (h *Handler) UpdateAPIKey(w http.ResponseWriter, r *http.Request) {

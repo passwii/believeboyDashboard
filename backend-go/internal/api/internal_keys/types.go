@@ -7,6 +7,7 @@ import (
 
 var (
 	ErrAPIKeyUpdateConflict = errors.New("active provisioning credential already exists")
+	ErrAPIKeyConflict       = errors.New("agent API key conflicts with an active provisioning credential")
 	ErrAPIKeyNotFound       = errors.New("API key not found")
 )
 

@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/internal_keys"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/audit"
 )
 
 const (
@@ -76,6 +77,73 @@ func (s *APIKeyStore) CreateAPIKey(
 	if err != nil {
 		return nil, "", err
 	}
+	input = normalizeAPIKeyCreateInput(input)
+	record, err := insertAPIKey(ctx, s.db, input, normalizeAPIKeyOperator(operator), keyHash, keyPrefix)
+	if err != nil {
+		return nil, "", err
+	}
+	return &record, plaintext, nil
+}
+
+// CreateAPIKeyWithAudit inserts an agent API key and records its audit entry in a
+// single transaction. When either write fails the transaction rolls back, so a
+// key row is never persisted when the caller cannot receive the plaintext key.
+func (s *APIKeyStore) CreateAPIKeyWithAudit(
+	ctx context.Context,
+	input internal_keys.APIKeyCreateInput,
+	operator string,
+	auditor audit.Service,
+	entryFor func(*internal_keys.APIKey) audit.Entry,
+) (*internal_keys.APIKey, string, error) {
+	if s == nil || s.db == nil {
+		return nil, "", errors.New("api key store database is nil")
+	}
+	txer, ok := s.db.(Transactor)
+	if !ok {
+		return nil, "", errors.New("api key store database does not support transactions")
+	}
+	plaintext, keyHash, keyPrefix, err := generateKey(agentAPIKeyPrefix)
+	if err != nil {
+		return nil, "", err
+	}
+	input = normalizeAPIKeyCreateInput(input)
+	operator = normalizeAPIKeyOperator(operator)
+	var created *internal_keys.APIKey
+	err = RunInTx(ctx, txer, func(tx pgx.Tx) error {
+		// FastAPI parity: reject a second live provisioning holder before inserting
+		// (key_service.active_provisioning_key_exists). The partial unique index
+		// uq_aak_active_provisioning only covers expires_at IS NULL, so the 23505
+		// mapping below alone would miss keys with a future expiry.
+		if businessScopeHasProvisioning(input.BusinessScope) {
+			exists, err := activeProvisioningKeyExistsTx(ctx, tx, 0)
+			if err != nil {
+				return err
+			}
+			if exists {
+				return internal_keys.ErrAPIKeyConflict
+			}
+		}
+		record, err := insertAPIKey(ctx, NewTxDB(tx), input, operator, keyHash, keyPrefix)
+		if err != nil {
+			return err
+		}
+		if auditor != nil && entryFor != nil {
+			if err := auditor.LogActionTx(ctx, tx, entryFor(&record)); err != nil {
+				return fmt.Errorf("write api key audit entry: %w", err)
+			}
+		}
+		created = &record
+		return nil
+	})
+	if err != nil {
+		return nil, "", err
+	}
+	return created, plaintext, nil
+}
+
+func normalizeAPIKeyCreateInput(
+	input internal_keys.APIKeyCreateInput,
+) internal_keys.APIKeyCreateInput {
 	if input.Scope == "" {
 		input.Scope = "read"
 	}
@@ -85,10 +153,32 @@ func (s *APIKeyStore) CreateAPIKey(
 	if input.BusinessScope == "" {
 		input.BusinessScope = "*"
 	}
+	input.Label = strings.TrimSpace(input.Label)
+	return input
+}
+
+func normalizeAPIKeyOperator(operator string) string {
 	if strings.TrimSpace(operator) == "" {
-		operator = "admin"
+		return "admin"
 	}
-	row := s.db.QueryRow(
+	return operator
+}
+
+// apiKeyQuerier is the row-query surface shared by the pool DB and pgx.Tx
+// adapters, so the same insert runs both standalone and inside RunInTx.
+type apiKeyQuerier interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+func insertAPIKey(
+	ctx context.Context,
+	db apiKeyQuerier,
+	input internal_keys.APIKeyCreateInput,
+	operator string,
+	keyHash string,
+	keyPrefix string,
+) (internal_keys.APIKey, error) {
+	row := db.QueryRow(
 		ctx,
 		`insert into public.agent_api_keys (
 		   key_hash, key_prefix, label, scope, project_scope, business_scope,
@@ -101,7 +191,7 @@ func (s *APIKeyStore) CreateAPIKey(
 		   last_used_at, deleted_at`,
 		keyHash,
 		keyPrefix,
-		strings.TrimSpace(input.Label),
+		input.Label,
 		input.Scope,
 		input.ProjectScope,
 		input.BusinessScope,
@@ -111,10 +201,14 @@ func (s *APIKeyStore) CreateAPIKey(
 		input.ItemKey,
 	)
 	record, err := scanAPIKey(row)
-	if err != nil {
-		return nil, "", err
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		return internal_keys.APIKey{}, internal_keys.ErrAPIKeyConflict
 	}
-	return &record, plaintext, nil
+	if err != nil {
+		return internal_keys.APIKey{}, err
+	}
+	return record, nil
 }
 
 func (s *APIKeyStore) UpdateAPIKey(
