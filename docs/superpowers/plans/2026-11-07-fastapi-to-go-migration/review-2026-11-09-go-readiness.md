@@ -18,7 +18,7 @@ PR #809 把自己判定为「FAIL（不可部署）」，本次审核逐条复�
 | 能否全量切流 | **不能** | 笼统地在 `GO_API_OWNED` 多开一个 Agent 模块就会在启动期 panic（P0，已实测） |
 | 能否下线 FastAPI | **不能，且差距很大** | 生产 compose 无 `go-worker` / `go-scheduler`；异步任务 2 个空壳 + 2 个动态调度源缺失；PDF / Playwright / Alembic 仍为 Python 独占 |
 | 线上实际接管比例 | **≈ 2.7%（17 条路由）** | `deploy/deploy-remote.sh` 硬编码 `GO_API_OWNED=health,exchange_rates,notifications,alerts,profile` |
-| 门禁可信度 | **不能复现「全绿」** | `go test ./...` 在 Windows 上 4 包 12 例失败；所有真库集成测试被 `t.Skip` |
+| 门禁可信度 | **本机不能复现「全绿」** | `go test ./...` 在 Windows 上 4 包 12 例失败；`internal/store` 真库集成套件需 `GO_API_TEST_DATABASE_URL`，未设置时 `t.Skip`（CI 的 `live contract` job 另有真库覆盖，见 §3.4 第 2 条） |
 
 一句话：**代码质量高于预期，证据链低于切流要求。** 差的不是代码量，是运行期证明、异步体系与 Python 独占能力。
 
@@ -91,7 +91,9 @@ Go 侧使用 asynq 自有 Redis key（`internal/queue/client.go:44-52`），与 
 
 1. **`go test ./...` 不绿**：Windows 上 4 包 12 例失败（7 例 symlink 权限、2 例硬编码 `/` 断言、1 例 multipart 平台差异、2 例真实 Windows 路径缺陷）。
    - 真实代码缺陷：`internal/api/product_analysis_reports/handler.go:196`（`url.Parse` 把盘符 `C:` 当 scheme → 绝对路径恒 404）、`:205`（`filepath.IsAbs("/abs")` 在 Windows 为 false）。Linux 生产不受影响，但本地门禁永远红。
-2. **所有真库集成测试被跳过**：`GO_API_TEST_DATABASE_URL` 未设置时 `internal/store/integration_test.go:19-32` 等 4 处 `t.Skip`；全仓 40 处 skip、462 处 fake/mock。**76 个「绿」包只证明「SQL 字符串传给了 fake」，24 万行 SQL 从未被真实 PostgreSQL 执行。**
+2. **`internal/store` 真库集成套件默认不跑**：`GO_API_TEST_DATABASE_URL` 未设置时 `internal/store/integration_test.go:19-32` 等 4 处 `t.Skip`；全仓 40 处 skip、462 处 fake/mock。
+   - **但 CI 并非完全没有真库覆盖**（此前判断需修正）：`.github/workflows/test-ci.yml` 的 `live contract (FastAPI ↔ Go)` job 会起 PostgreSQL service、灌固定数据，再对 14 条 GET 逐字段比对 FastAPI 与 Go 的响应。也就是说核心读接口在 CI 上有真实 SQL 执行证据。
+   - 仍缺的是**广度**：`internal/store` 下数百个 store 方法的 SQL 只有 fake 覆盖，`live contract` 只挑 14 条。要把「SQL 字符串正确」升级为「SQL 执行正确」，仍需给 `backend-go` job 配上 `GO_API_TEST_DATABASE_URL`（指向 CI 的 Postgres service）。
 3. **4 个 agent 包零测试，共 11,687 行**：`agent_commerce`(4,220) / `agent_inspection`(3,151) / `agent_monthly_reports`(2,481) / `agent_credentials`(1,835) —— 恰是有写权限、上传、密钥管理的部分，风险与覆盖倒挂。
 
 ---
@@ -185,7 +187,7 @@ router.Handle("/*", fastAPIFallback)
 | 3.3 internal API key 事务 | 创建流程改为单事务内写审计，`23505` 映射 409 | 已修 |
 | 3.4 门禁红灯 | 修 `product_analysis_reports` 两个 Windows 路径缺陷；符号链接用例改为「探测能力后再决定 skip」；两处硬编码分隔符断言改为按 `filepath.Abs` 构造期望值；multipart 路径穿越用例改为直接单测校验函数 | 已修 |
 | 3.2 Tier A-3 | `deploy-remote.sh` / `deploy-local.sh` / `deploy-dashboard.yml` 统一支持 `GO_API_OWNED_MODULES`（CI 可用仓库变量覆盖，缺省仍是原 5 模块） | 已修 |
-| Tier A-5 真库集成测试 | **本轮未能执行**：本机（Windows）无 Postgres 实例；临时 `initdb` 集群可用，但 `alembic upgrade head` 在空库上失败（`UndefinedTable: projects`），因为基线 schema 早于 Alembic 存在，无法从迁移链重建。需要在具备 `BLF_test` 快照的机器上执行（命令见 §6） | 待执行 |
+| Tier A-5 真库集成测试 | **本机未能执行**（无 Postgres 实例；临时 `initdb` 集群可用，但 `alembic upgrade head` 无法从空库重建 schema，报 `UndefinedTable: 关系 "projects" 不存在`，因基线 schema 早于 Alembic）。**已由 CI 补上**：PR #810 的 `live contract (FastAPI ↔ Go)` job 在真 PostgreSQL 上跑通 14 条 GET 比对，`backend-go test + vet` job 同时跑 `go test ./...` 与 `go test -race ./...` 全绿 | CI 已覆盖 |
 | Tier B 异步体系 | 单独立项，见 `stage8-async-cutover-plan.md` | 立项 |
 
 > 注意：`go test ./...` 在本机全绿后，曾有一次在**两个 `go test ./...` 并发执行**时出现 `TestStage7BAIChatContract` 偶发失败（单独与整包复跑均通过）。如果是并行跑测试导致的竞态，后续需要在 CI 里串行化或定位共享状态。
