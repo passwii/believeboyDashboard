@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/queue"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/store"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/testutil"
 )
 
 var monthlyReportUSHeader = []string{
@@ -284,6 +285,7 @@ func TestMonthlyReportGeneratorRejectsMissingAndMismatchedInput(t *testing.T) {
 }
 
 func TestMonthlyReportGeneratorEnforcesPathExtensionSizeAndSymlinkRules(t *testing.T) {
+	testutil.RequireSymlink(t)
 	uploadRoot := t.TempDir()
 	resultRoot := t.TempDir()
 	generator := NewFileMonthlyReportGenerator(uploadRoot, resultRoot)

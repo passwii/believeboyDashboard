@@ -64,6 +64,25 @@ func safeStoredPath(raw string) (string, error) {
 	return cleaned, nil
 }
 
+// localAbsoluteResultPath reports whether raw is a server-side absolute path.
+// It must be consulted before any URL parsing: url.Parse reads a Windows drive
+// letter ("C:") as a scheme, and filepath.IsAbs does not treat "/abs/path" as
+// absolute on Windows (it has no volume name). Both forms can be persisted by
+// the worker, so both count as local paths on every platform.
+func localAbsoluteResultPath(raw string) bool {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return false
+	}
+	if filepath.IsAbs(raw) {
+		return true
+	}
+	// Windows reports "/abs/path" as relative; a POSIX-rooted path recorded by
+	// a Linux worker must still be routed through the result-root check.
+	return filepath.Separator == '\\' &&
+		(strings.HasPrefix(raw, "/") || strings.HasPrefix(raw, `\`))
+}
+
 // resolveLocalResultFile resolves a path only if its canonical target remains
 // inside the server-controlled result root. Symlink escapes are rejected.
 func resolveLocalResultFile(root, raw string) (string, error) {
@@ -130,4 +149,23 @@ func relativeInside(root, candidate string) (string, error) {
 		return "", errResultPathUnsafe
 	}
 	return relative, nil
+}
+
+// hasURLScheme reports whether scheme denotes a real URL scheme. url.Parse
+// reports a Windows drive letter as a scheme: url.Parse(`C:\tmp\result.xlsx`)
+// yields scheme "c", so testing parsed.Scheme != "" would classify every
+// absolute Windows path as a URL and reject it as not found.
+func hasURLScheme(scheme string) bool {
+	return len(scheme) > 1
+}
+
+// isLocalAbsolutePath reports whether raw is an absolute filesystem path on the
+// current platform. It also accepts POSIX-style absolute paths on Windows,
+// where filepath.IsAbs("/absolute/result.xlsx") is false and such a value would
+// otherwise be treated as a relative stored key.
+func isLocalAbsolutePath(raw string) bool {
+	if filepath.IsAbs(raw) || filepath.VolumeName(raw) != "" {
+		return true
+	}
+	return strings.HasPrefix(raw, "/")
 }

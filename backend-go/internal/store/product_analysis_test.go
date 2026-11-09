@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/product_analysis"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/testutil"
 )
 
 func TestProductAnalysisStoreVerifyProjectAccess(t *testing.T) {
@@ -614,6 +615,7 @@ func TestProductAnalysisOverviewMatchesProductionFormula(t *testing.T) {
 }
 
 func TestProductAnalysisCalculationEngineRejectsUnsafeFiles(t *testing.T) {
+	testutil.RequireSymlink(t)
 	root := t.TempDir()
 	reportDir := filepath.Join(root, reportTempDirectory)
 	if err := os.MkdirAll(reportDir, 0o700); err != nil {

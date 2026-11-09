@@ -85,20 +85,38 @@ func TestHandlerRecognize(t *testing.T) {
 	}
 }
 
-func TestHandlerRecognizeRejectsPathTraversalFilename(t *testing.T) {
-	router := setupRouter(&mockAdUploadStore{}, nil)
-	var buf bytes.Buffer
-	mw := multipart.NewWriter(&buf)
-	part, _ := mw.CreateFormFile("file", `..\evil.csv`)
-	_, _ = part.Write([]byte("开始日期,结束日期,广告活动名称,预算,定位类型,竞价策略\n"))
-	_ = mw.Close()
-
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/ad-upload/recognize", &buf)
-	req.Header.Set("Content-Type", mw.FormDataContentType())
-	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, req)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400; body=%s", rec.Code, rec.Body.String())
+// TestValidUploadFilenameRejectsDirectoryComponents covers the traversal guard
+// directly. It cannot be driven through a multipart request: net/http reduces
+// every uploaded filename with filepath.Base, so "../../evil.csv" reaches the
+// handler as "evil.csv" on all platforms and the guard would never fire.
+func TestValidUploadFilenameRejectsDirectoryComponents(t *testing.T) {
+	tests := []struct {
+		name     string
+		filename string
+		want     bool
+	}{
+		{name: "plain csv", filename: "ads.csv", want: true},
+		{name: "plain xlsx", filename: "ads-report.xlsx", want: true},
+		{name: "parent traversal posix", filename: "../evil.csv", want: false},
+		{name: "parent traversal windows", filename: `..\evil.csv`, want: false},
+		{name: "nested traversal", filename: "reports/../../evil.csv", want: false},
+		{name: "posix absolute", filename: "/tmp/evil.csv", want: false},
+		{name: "windows absolute", filename: `C:\tmp\evil.csv`, want: false},
+		{name: "backslash separator", filename: `reports\evil.csv`, want: false},
+		{name: "dot dot inside name", filename: "a..b.csv", want: false},
+		{name: "empty", filename: "", want: false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := validUploadFilename(test.filename); got != test.want {
+				t.Fatalf(
+					"validUploadFilename(%q) = %v, want %v",
+					test.filename,
+					got,
+					test.want,
+				)
+			}
+		})
 	}
 }
 

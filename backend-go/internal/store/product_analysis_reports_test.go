@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -110,17 +111,28 @@ func TestProductAnalysisReportStoreCreateTaskPersistsJobPayload(t *testing.T) {
 		payload.Params.FileIDs["ad_report"] != "ads.xlsx" {
 		t.Fatalf("file ids = %#v", payload.Params.FileIDs)
 	}
+	// The upload root is resolved with filepath.Abs, so the expected paths must be
+	// built the same way instead of being pinned to POSIX separators and "/tmp".
+	uploadRoot, err := filepath.Abs("/tmp/product-analysis-uploads")
+	if err != nil {
+		t.Fatalf("resolve upload root: %v", err)
+	}
+	projectPrefix := filepath.Join(uploadRoot, "Project-A") + string(filepath.Separator)
 	for reportType, path := range payload.Params.ResolvedFilePaths {
-		if !strings.HasPrefix(path, "/tmp/product-analysis-uploads/Project-A/") {
+		if !strings.HasPrefix(path, projectPrefix) {
 			t.Fatalf("%s path = %q", reportType, path)
 		}
 		if strings.Contains(path, "..") {
 			t.Fatalf("%s path contains traversal: %q", reportType, path)
 		}
 	}
-	if payload.Params.ResolvedFilePaths["ad_report"] !=
-		"/tmp/product-analysis-uploads/Project-A/ad-product-report/ads.xlsx" {
-		t.Fatalf("ad path = %q", payload.Params.ResolvedFilePaths["ad_report"])
+	wantAdReport := filepath.Join(uploadRoot, "Project-A", "ad-product-report", "ads.xlsx")
+	if payload.Params.ResolvedFilePaths["ad_report"] != wantAdReport {
+		t.Fatalf(
+			"ad path = %q, want %q",
+			payload.Params.ResolvedFilePaths["ad_report"],
+			wantAdReport,
+		)
 	}
 }
 
@@ -338,7 +350,18 @@ func TestResolveProductAnalysisUploadPathRequiresRootAndStaysContained(t *testin
 	if err != nil {
 		t.Fatalf("ResolveProductAnalysisUploadPath() error = %v", err)
 	}
-	if path != "/tmp/uploads/Project-A/business-report/nested/business.csv" {
-		t.Fatalf("path = %q", path)
+	uploadsRoot, err := filepath.Abs("/tmp/uploads")
+	if err != nil {
+		t.Fatalf("resolve uploads root: %v", err)
+	}
+	wantPath := filepath.Join(
+		uploadsRoot,
+		"Project-A",
+		"business-report",
+		"nested",
+		"business.csv",
+	)
+	if path != wantPath {
+		t.Fatalf("path = %q, want %q", path, wantPath)
 	}
 }

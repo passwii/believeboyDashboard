@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/monthly_reports"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/testutil"
 )
 
 func TestMonthlyReportStoreListMapsRowsAndFilters(t *testing.T) {
@@ -1151,6 +1152,7 @@ func TestMonthlyReportAccountingDetailExportIsRealXLSX(t *testing.T) {
 }
 
 func TestMonthlyReportStoreTaskResultRejectsOutsideAndSymlinkPaths(t *testing.T) {
+	testutil.RequireSymlink(t)
 	root := t.TempDir()
 	outside := filepath.Join(t.TempDir(), "outside.xlsx")
 	if err := os.WriteFile(outside, []byte("PK\x03\x04outside"), 0o600); err != nil {
