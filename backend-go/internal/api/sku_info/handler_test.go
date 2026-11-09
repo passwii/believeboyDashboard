@@ -37,9 +37,11 @@ func (m *mockAuditor) LogView(_ context.Context, _ string, _ string, _ *string, 
 }
 
 type mockSkuStore struct {
-	item      SkuRecordItem
-	createErr error
-	bulkErr   error
+	item           SkuRecordItem
+	createErr      error
+	bulkErr        error
+	importCSVCalls int
+	importCSVBytes []byte
 }
 
 func (m *mockSkuStore) ListSkuRecords(_ context.Context, _ SkuFilter) (SkuRecordsPage, error) {
@@ -104,7 +106,9 @@ func (m *mockSkuStore) GetFnskuLabelsBySkus(_ context.Context, _ string, skus []
 func (m *mockSkuStore) ExportCSV(_ context.Context, _ SkuFilter) (string, []byte, error) {
 	return "sku_info.csv", []byte("sku,asin\nSKU1,ASIN1\n"), nil
 }
-func (m *mockSkuStore) ImportCSV(_ context.Context, _ string, _ []byte, _ string) (SkuRecordImportResponse, error) {
+func (m *mockSkuStore) ImportCSV(_ context.Context, _ string, data []byte, _ string) (SkuRecordImportResponse, error) {
+	m.importCSVCalls++
+	m.importCSVBytes = data
 	return SkuRecordImportResponse{Inserted: 1, Total: 1}, nil
 }
 
@@ -431,4 +435,96 @@ func TestSkuInfoProjectPermissions(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200 for authorized sku update, got %d", rec.Code)
 	}
+}
+
+func TestSkuInfoImportCSVAcceptsWithinUploadLimit(t *testing.T) {
+	auditor := &mockAuditor{}
+	store := &mockSkuStore{item: SkuRecordItem{ID: 1, ProjectName: "ProjectA", SKU: "SKU1"}}
+	router := chi.NewRouter()
+	NewRegistrar(store, auditor).RegisterRoutes(router, func(next http.Handler) http.Handler { return next })
+
+	const csv = "sku,asin\nSKU1,ASIN1\n"
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("file", "sku.csv")
+	if err != nil {
+		t.Fatalf("CreateFormFile() error = %v", err)
+	}
+	if _, err := io.WriteString(part, csv); err != nil {
+		t.Fatalf("write file part error = %v", err)
+	}
+	if err := writer.WriteField("project_name", "ProjectA"); err != nil {
+		t.Fatalf("WriteField() error = %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("multipart close error = %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/sku-info/import-csv", &body).WithContext(adminCtxFor(t))
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+	if store.importCSVCalls != 1 || string(store.importCSVBytes) != csv {
+		t.Fatalf("ImportCSV() calls/bytes = (%d, %q), want the uploaded CSV payload", store.importCSVCalls, store.importCSVBytes)
+	}
+}
+
+func TestSkuInfoImportCSVRejectsOversizedUpload(t *testing.T) {
+	auditor := &mockAuditor{}
+	store := &mockSkuStore{item: SkuRecordItem{ID: 1, ProjectName: "ProjectA", SKU: "SKU1"}}
+	router := chi.NewRouter()
+	NewRegistrar(store, auditor).RegisterRoutes(router, func(next http.Handler) http.Handler { return next })
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("file", "huge.csv")
+	if err != nil {
+		t.Fatalf("CreateFormFile() error = %v", err)
+	}
+	if _, err := io.WriteString(part, strings.Repeat("x", int(maxSKUImportBytes)+1)); err != nil {
+		t.Fatalf("write oversized file part error = %v", err)
+	}
+	if err := writer.WriteField("project_name", "ProjectA"); err != nil {
+		t.Fatalf("WriteField() error = %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("multipart close error = %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/sku-info/import-csv", &body).WithContext(adminCtxFor(t))
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want 413; body = %s", rec.Code, rec.Body.String())
+	}
+	var payload struct {
+		Detail string `json:"detail"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode 413 body: %v (body = %s)", err, rec.Body.String())
+	}
+	if payload.Detail != skuImportTooLargeDetail {
+		t.Fatalf("detail = %q, want %q", payload.Detail, skuImportTooLargeDetail)
+	}
+	if store.importCSVCalls != 0 {
+		t.Fatalf("ImportCSV() calls = %d, want 0 for an oversized upload", store.importCSVCalls)
+	}
+	if len(auditor.entries) != 0 {
+		t.Fatalf("oversized upload was audited: %#v", auditor.entries)
+	}
+}
+
+func adminCtxFor(t *testing.T) context.Context {
+	t.Helper()
+	return auth.WithUserContext(context.Background(), auth.UserContext{
+		UserID:   "admin",
+		Operator: "admin_op",
+		IsAdmin:  true,
+	})
 }
