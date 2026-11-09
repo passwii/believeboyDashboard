@@ -1,6 +1,7 @@
 package profile
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -179,6 +180,128 @@ func TestGetProfileStoreErrorReturns500(t *testing.T) {
 	assertDetail(t, rec, http.StatusInternalServerError, "Internal Server Error")
 }
 
+func TestUpdateProfileUpdatesAuthenticatedUserAndClearsBlankFullName(t *testing.T) {
+	store := &fakeStore{row: &Profile{
+		ID:       "user-123",
+		Email:    "person@example.com",
+		Name:     "new-login",
+		FullName: nil,
+		IsActive: true,
+	}}
+	req := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/v1/system-management/profile",
+		bytes.NewBufferString(`{"name":" new-login ","full_name":"   "}`),
+	)
+	req = req.WithContext(auth.WithUserContext(req.Context(), auth.UserContext{
+		UserID:   "user-123",
+		Operator: "operator-a",
+	}))
+	req.Header.Set("X-User-Id", "victim-user")
+	rec := httptest.NewRecorder()
+
+	NewHandler(store).UpdateProfile(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+	if store.updateUserID != "user-123" {
+		t.Errorf("update user id = %q, want authenticated user", store.updateUserID)
+	}
+	if store.updateInput.Name == nil || *store.updateInput.Name != "new-login" {
+		t.Errorf("update name = %#v, want trimmed new-login", store.updateInput.Name)
+	}
+	if !store.updateInput.SetFullName || store.updateInput.FullName != nil {
+		t.Errorf("update full_name = set:%v value:%#v, want clear", store.updateInput.SetFullName, store.updateInput.FullName)
+	}
+	if store.updateInput.Operator == nil || *store.updateInput.Operator != "operator-a" {
+		t.Errorf("update operator = %#v, want operator-a", store.updateInput.Operator)
+	}
+	if store.updateInput.Request != req {
+		t.Errorf("update request = %p, want original request %p", store.updateInput.Request, req)
+	}
+	var got profileResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if got.ID != "user-123" || got.Name != "new-login" || got.FullName != nil {
+		t.Errorf("response = %#v, want updated profile", got)
+	}
+}
+
+func TestUpdateProfileValidationContracts(t *testing.T) {
+	tests := []struct {
+		name   string
+		body   string
+		status int
+		detail string
+	}{
+		{name: "missing body", body: "", status: http.StatusUnprocessableEntity, detail: "Invalid request body"},
+		{name: "invalid json", body: "{", status: http.StatusUnprocessableEntity, detail: "Invalid request body"},
+		{name: "empty name", body: `{"name":""}`, status: http.StatusUnprocessableEntity},
+		{name: "blank name", body: `{"name":"   "}`, status: http.StatusBadRequest, detail: "姓名不能为空"},
+		{name: "long name", body: `{"name":"` + strings.Repeat("x", 256) + `"}`, status: http.StatusUnprocessableEntity},
+		{name: "long full name", body: `{"full_name":"` + strings.Repeat("x", 256) + `"}`, status: http.StatusUnprocessableEntity},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(
+				http.MethodPatch,
+				"/api/v1/system-management/profile",
+				bytes.NewBufferString(tt.body),
+			)
+			req = req.WithContext(auth.WithUserContext(req.Context(), auth.UserContext{UserID: "user-123"}))
+			rec := httptest.NewRecorder()
+			NewHandler(&fakeStore{}).UpdateProfile(rec, req)
+			if rec.Code != tt.status {
+				t.Fatalf("status = %d, want %d; body = %s", rec.Code, tt.status, rec.Body.String())
+			}
+			if tt.detail != "" &&
+				rec.Body.String() != `{"detail":"`+tt.detail+`"}` {
+				t.Errorf("body = %s, want detail %q", rec.Body.String(), tt.detail)
+			}
+		})
+	}
+}
+
+func TestUpdateProfileNullFullNameDoesNotClearExistingValue(t *testing.T) {
+	store := &fakeStore{row: &Profile{
+		ID:       "user-123",
+		Email:    "person@example.com",
+		Name:     "operator",
+		FullName: stringPtr("Existing"),
+		IsActive: true,
+	}}
+	req := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/v1/system-management/profile",
+		bytes.NewBufferString(`{"full_name":null}`),
+	)
+	req = req.WithContext(auth.WithUserContext(req.Context(), auth.UserContext{UserID: "user-123"}))
+	rec := httptest.NewRecorder()
+
+	NewHandler(store).UpdateProfile(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+	if store.updateInput.SetFullName {
+		t.Error("explicit null full_name must behave like FastAPI None and leave the field unchanged")
+	}
+}
+
+func TestUpdateProfileRequiresAuthenticatedContext(t *testing.T) {
+	req := httptest.NewRequest(
+		http.MethodPatch,
+		"/api/v1/system-management/profile",
+		bytes.NewBufferString(`{"name":"new-login"}`),
+	)
+	req.Header.Set("X-User-Id", "forged-user")
+	rec := httptest.NewRecorder()
+	NewHandler(&fakeStore{}).UpdateProfile(rec, req)
+	assertDetail(t, rec, http.StatusUnauthorized, "Not authenticated")
+}
+
 func assertDetail(t *testing.T, rec *httptest.ResponseRecorder, status int, detail string) {
 	t.Helper()
 	if rec.Code != status {
@@ -190,9 +313,12 @@ func assertDetail(t *testing.T, rec *httptest.ResponseRecorder, status int, deta
 }
 
 type fakeStore struct {
-	row       *Profile
-	err       error
-	getUserID string
+	row          *Profile
+	err          error
+	getUserID    string
+	updateUserID string
+	updateInput  UpdateInput
+	updateErr    error
 }
 
 func withRequestIdentity(req *http.Request) *http.Request {
@@ -202,6 +328,16 @@ func withRequestIdentity(req *http.Request) *http.Request {
 func (s *fakeStore) GetByUserID(_ context.Context, userID string) (*Profile, error) {
 	s.getUserID = userID
 	return s.row, s.err
+}
+
+func (s *fakeStore) UpdateByUserID(
+	_ context.Context,
+	userID string,
+	input UpdateInput,
+) (*Profile, error) {
+	s.updateUserID = userID
+	s.updateInput = input
+	return s.row, s.updateErr
 }
 
 func stringPtr(value string) *string {

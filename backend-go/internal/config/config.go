@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"math"
 	"net"
 	"net/url"
 	"os"
@@ -10,8 +11,35 @@ import (
 )
 
 const (
-	defaultAddr          = "127.0.0.1:8200"
-	defaultFastAPIOrigin = "http://127.0.0.1:8100"
+	defaultAddr                    = "127.0.0.1:8200"
+	defaultFastAPIOrigin           = "http://127.0.0.1:8100"
+	defaultUploadRoot              = "backend/storage/uploads"
+	defaultMonthlyReportResultRoot = "backend/storage/results"
+	defaultAgentMonthlyReportRoot  = "backend/storage/agent_monthly_reports"
+	defaultProjectLaunchDocsRoot   = "backend/app/resources/project_launch_documents"
+	defaultAlertFromEmail          = "alerts@believeboy.com"
+	defaultAlertFromName           = "BelieveBoy Dashboard"
+
+	ModulePricingCalculation          = "pricing_calculation"
+	ModulePricingCalculationSnapshots = "pricing_calculation_snapshots"
+	ModuleNewProductCalculations      = "new_product_calculations"
+	ModuleShopCalculation             = "shop_calculation"
+
+	ModuleDailyAnalysis        = "daily_analysis"
+	ModuleProjectGoals         = "project_goals"
+	ModuleAdAnalysis           = "ad_analysis"
+	ModuleRpaReports           = "rpa_reports"
+	ModuleAdUpload             = "ad_upload"
+	ModuleInternalAdData       = "internal_ad_data"
+	ModulePlatformRevenues     = "platform_revenues"
+	ModuleVatInvoices          = "vat_invoices"
+	ModuleReportReconciliation = "report_reconciliation"
+	ModuleReturnAnalysis       = "return_analysis"
+	ModuleCategoryResearch     = "category_research"
+	ModuleAgent                = "agent"
+	ModuleMonthlyReports       = "monthly_reports"
+	ModuleQueue                = "queue"
+	ModuleScheduler            = "scheduler"
 )
 
 type Config struct {
@@ -24,8 +52,72 @@ type Config struct {
 	DatabaseURL        string
 	DatabaseReadURL    string
 	RedisURL           string
+	RedisKeyPrefix     string
 	AppEnv             string
 	OwnedModules       map[string]bool
+
+	CRMSeaReclaimDays           int
+	CRMTaskReminderLeadHours    int
+	CRMFollowUpReminderDays     int
+	OperationAuditRetentionDays int
+	AgentAPIAuditRetentionDays  int
+	CRMRuleEngineEnabled        bool
+	CRMStaleEmailEnabled        bool
+	UploadRoot                  string
+	MonthlyReportResultRoot     string
+	AgentMonthlyReportRoot      string
+	ProjectLaunchDocumentsRoot  string
+	R2EndpointURL               string
+	R2BucketName                string
+	R2AccessKeyID               string
+	R2SecretAccessKey           string
+	R2Region                    string
+	R2PublicURL                 string
+	ResendAPIKey                string
+	ResendBaseURL               string
+	AlertFromEmail              string
+	AlertFromName               string
+
+	AIChatProviderBaseURL          string
+	AIChatProviderAPIKey           string
+	AIChatDefaultModel             string
+	AIChatTitleModel               string
+	AIChatBackupModel              string
+	AIChatModelBlocklist           string
+	AIChatPremiumModels            string
+	AIChatBasicModels              string
+	AIChatReasoningModels          string
+	AIChatDefaultReasoningEffort   string
+	AIChatTimeoutSeconds           int
+	AIChatWebSearchBaseURL         string
+	AIChatWebSearchAPIKey          string
+	AIChatWebSearchTopic           string
+	AIChatWebSearchDepth           string
+	AIChatWebSearchMaxResults      int
+	AIChatMaxConversationTurns     int
+	AIChatRedisDB                  int
+	AIChatRedisURL                 string
+	AIChatStreamPrefix             string
+	AIChatStreamTTLSeconds         int
+	AIChatStreamMaxLen             int
+	AIChatStreamMaxDurationSeconds int
+	AIChatStreamMemoryFallback     bool
+
+	InsightCanonicalDomains          string
+	InsightStreamRedisDB             int
+	InsightStreamRedisURL            string
+	InsightStreamTTLSeconds          int
+	InsightStreamMaxLen              int
+	InsightObservationEnabled        bool
+	InsightObservationWindowDays     int
+	InsightGateMaxDurationMS         int
+	InsightGateMaxFirstDeltaMS       int
+	InsightGateMaxStreamFrames       int
+	InsightGateMaxFallbackRatio      float64
+	InsightGateCostAnomalyMultiplier float64
+	InsightSemaphoreWaitSeconds      int
+	MaxConcurrentInsights            int
+	MaxConcurrentAISummary           int
 }
 
 func Load() (Config, error) {
@@ -34,12 +126,43 @@ func Load() (Config, error) {
 
 func load(lookup func(string) (string, bool)) (Config, error) {
 	cfg := Config{
-		Addr:               valueOrDefault(lookup, "GO_API_ADDR", defaultAddr),
-		FastAPIOrigin:      valueOrDefault(lookup, "FASTAPI_ORIGIN", defaultFastAPIOrigin),
-		TrustedProxySecret: valueOrDefault(lookup, "GO_API_TRUSTED_PROXY_SECRET", ""),
-		RedisURL:           firstNonEmpty(lookup, "REDIS_URL"),
-		AppEnv:             valueOrDefault(lookup, "APP_ENV", "development"),
-		OwnedModules:       parseOwnedModules(valueOrDefault(lookup, "GO_API_OWNED", "")),
+		Addr:                         valueOrDefault(lookup, "GO_API_ADDR", defaultAddr),
+		FastAPIOrigin:                valueOrDefault(lookup, "FASTAPI_ORIGIN", defaultFastAPIOrigin),
+		TrustedProxySecret:           valueOrDefault(lookup, "GO_API_TRUSTED_PROXY_SECRET", ""),
+		RedisURL:                     firstNonEmpty(lookup, "REDIS_URL"),
+		RedisKeyPrefix:               valueOrDefault(lookup, "REDIS_KEY_PREFIX", "bb"),
+		AppEnv:                       valueOrDefault(lookup, "APP_ENV", "development"),
+		OwnedModules:                 parseOwnedModules(valueOrDefault(lookup, "GO_API_OWNED", "")),
+		UploadRoot:                   valueOrDefault(lookup, "UPLOAD_ROOT", defaultUploadRoot),
+		MonthlyReportResultRoot:      valueOrDefault(lookup, "MONTHLY_REPORT_RESULT_ROOT", defaultMonthlyReportResultRoot),
+		AgentMonthlyReportRoot:       valueOrDefault(lookup, "AGENT_MONTHLY_REPORT_ROOT", defaultAgentMonthlyReportRoot),
+		ProjectLaunchDocumentsRoot:   valueOrDefault(lookup, "PROJECT_LAUNCH_DOCUMENTS_ROOT", defaultProjectLaunchDocsRoot),
+		R2EndpointURL:                firstNonEmpty(lookup, "R2_ENDPOINT_URL"),
+		R2BucketName:                 firstNonEmpty(lookup, "R2_BUCKET_NAME"),
+		R2AccessKeyID:                firstNonEmpty(lookup, "R2_ACCESS_KEY_ID"),
+		R2SecretAccessKey:            firstNonEmpty(lookup, "R2_SECRET_ACCESS_KEY"),
+		R2Region:                     valueOrDefault(lookup, "R2_REGION", "auto"),
+		R2PublicURL:                  firstNonEmpty(lookup, "R2_PUBLIC_URL"),
+		ResendAPIKey:                 firstNonEmpty(lookup, "RESEND_API_KEY"),
+		ResendBaseURL:                firstNonEmpty(lookup, "RESEND_BASE_URL"),
+		AlertFromEmail:               valueOrDefault(lookup, "ALERT_FROM_EMAIL", defaultAlertFromEmail),
+		AlertFromName:                valueOrDefault(lookup, "ALERT_FROM_NAME", defaultAlertFromName),
+		AIChatProviderBaseURL:        valueOrDefault(lookup, "AI_CHAT_PROVIDER_BASE_URL", ""),
+		AIChatProviderAPIKey:         valueOrDefault(lookup, "AI_CHAT_PROVIDER_API_KEY", ""),
+		AIChatDefaultModel:           valueOrDefault(lookup, "AI_CHAT_DEFAULT_MODEL", ""),
+		AIChatTitleModel:             valueOrDefault(lookup, "AI_CHAT_TITLE_MODEL", ""),
+		AIChatBackupModel:            valueOrDefault(lookup, "AI_CHAT_BACKUP_MODEL", ""),
+		AIChatModelBlocklist:         valueOrDefault(lookup, "AI_CHAT_MODEL_BLOCKLIST", ""),
+		AIChatPremiumModels:          valueOrDefault(lookup, "AI_CHAT_PREMIUM_MODELS", ""),
+		AIChatBasicModels:            valueOrDefault(lookup, "AI_CHAT_BASIC_MODELS", ""),
+		AIChatReasoningModels:        valueOrDefault(lookup, "AI_CHAT_REASONING_MODELS", ""),
+		AIChatDefaultReasoningEffort: valueOrDefault(lookup, "AI_CHAT_DEFAULT_REASONING_EFFORT", "medium"),
+		AIChatWebSearchBaseURL:       valueOrDefault(lookup, "AI_CHAT_WEB_SEARCH_BASE_URL", "https://search.believeboy.com"),
+		AIChatWebSearchAPIKey:        valueOrDefault(lookup, "AI_CHAT_WEB_SEARCH_API_KEY", ""),
+		AIChatWebSearchTopic:         valueOrDefault(lookup, "AI_CHAT_WEB_SEARCH_TOPIC", "general"),
+		AIChatWebSearchDepth:         valueOrDefault(lookup, "AI_CHAT_WEB_SEARCH_DEPTH", "advanced"),
+		AIChatStreamPrefix:           valueOrDefault(lookup, "AI_CHAT_STREAM_PREFIX", "ai:chat"),
+		InsightCanonicalDomains:      valueOrDefault(lookup, "INSIGHT_CANONICAL_DOMAINS", ""),
 	}
 
 	for _, required := range []struct {
@@ -81,7 +204,110 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 		return Config{}, fmt.Errorf("FASTAPI_ORIGIN must use http or https")
 	}
 
+	if cfg.CRMSeaReclaimDays, err = intFromEnvironment(lookup, "CRM_SEA_RECLAIM_DAYS", 15, 0, 365); err != nil {
+		return Config{}, err
+	}
+	if cfg.CRMTaskReminderLeadHours, err = intFromEnvironment(lookup, "CRM_TASK_REMINDER_LEAD_HOURS", 24, 1, 168); err != nil {
+		return Config{}, err
+	}
+	if cfg.CRMFollowUpReminderDays, err = intFromEnvironment(lookup, "CRM_FOLLOW_UP_REMINDER_DAYS", 7, 0, 365); err != nil {
+		return Config{}, err
+	}
+	if cfg.OperationAuditRetentionDays, err = intFromEnvironment(lookup, "OPERATION_AUDIT_RETENTION_DAYS", 90, 1, 3650); err != nil {
+		return Config{}, err
+	}
+	if cfg.AgentAPIAuditRetentionDays, err = intFromEnvironment(lookup, "AGENT_API_AUDIT_RETENTION_DAYS", 90, 1, 3650); err != nil {
+		return Config{}, err
+	}
+	if cfg.CRMRuleEngineEnabled, err = boolFromEnvironment(lookup, "CRM_RULE_ENGINE_ENABLED", true); err != nil {
+		return Config{}, err
+	}
+	if cfg.CRMStaleEmailEnabled, err = boolFromEnvironment(lookup, "CRM_STALE_EMAIL_ENABLED", true); err != nil {
+		return Config{}, err
+	}
+	if cfg.AIChatTimeoutSeconds, err = intFromEnvironment(lookup, "AI_CHAT_TIMEOUT_SECONDS", 90, 10, 300); err != nil {
+		return Config{}, err
+	}
+	if cfg.AIChatWebSearchMaxResults, err = intFromEnvironment(lookup, "AI_CHAT_WEB_SEARCH_MAX_RESULTS", 20, 1, 100); err != nil {
+		return Config{}, err
+	}
+	if cfg.AIChatMaxConversationTurns, err = intFromEnvironment(lookup, "AI_CHAT_MAX_CONVERSATION_TURNS", 10, 1, 50); err != nil {
+		return Config{}, err
+	}
+	if cfg.AIChatRedisDB, err = intFromEnvironment(lookup, "AI_CHAT_REDIS_DB", 3, 0, 15); err != nil {
+		return Config{}, err
+	}
+	if cfg.AIChatStreamTTLSeconds, err = intFromEnvironment(lookup, "AI_CHAT_STREAM_TTL_SECONDS", 86400, 60, 604800); err != nil {
+		return Config{}, err
+	}
+	if cfg.AIChatStreamMaxLen, err = intFromEnvironment(lookup, "AI_CHAT_STREAM_MAXLEN", 10000, 100, 100000); err != nil {
+		return Config{}, err
+	}
+	if cfg.AIChatStreamMaxDurationSeconds, err = intFromEnvironment(lookup, "AI_CHAT_STREAM_MAX_DURATION_SECONDS", 900, 60, 900); err != nil {
+		return Config{}, err
+	}
+	if cfg.AIChatStreamMemoryFallback, err = boolFromEnvironment(lookup, "AI_CHAT_STREAM_MEMORY_FALLBACK", false); err != nil {
+		return Config{}, err
+	}
+	if cfg.InsightStreamRedisDB, err = intFromEnvironment(lookup, "INSIGHT_STREAM_REDIS_DB", 4, 0, 15); err != nil {
+		return Config{}, err
+	}
+	if cfg.InsightStreamTTLSeconds, err = intFromEnvironment(lookup, "INSIGHT_STREAM_TTL_SECONDS", 86400, 60, 604800); err != nil {
+		return Config{}, err
+	}
+	if cfg.InsightStreamMaxLen, err = intFromEnvironment(lookup, "INSIGHT_STREAM_MAXLEN", 10000, 100, 100000); err != nil {
+		return Config{}, err
+	}
+	if cfg.InsightObservationEnabled, err = boolFromEnvironment(lookup, "INSIGHT_OBSERVATION_ENABLED", true); err != nil {
+		return Config{}, err
+	}
+	if cfg.InsightObservationWindowDays, err = intFromEnvironment(lookup, "INSIGHT_OBSERVATION_WINDOW_DAYS", 7, 1, 90); err != nil {
+		return Config{}, err
+	}
+	if cfg.InsightGateMaxDurationMS, err = intFromEnvironment(lookup, "INSIGHT_GATE_MAX_DURATION_MS", 300000, 0, 86400000); err != nil {
+		return Config{}, err
+	}
+	if cfg.InsightGateMaxFirstDeltaMS, err = intFromEnvironment(lookup, "INSIGHT_GATE_MAX_FIRST_DELTA_MS", 90000, 0, 86400000); err != nil {
+		return Config{}, err
+	}
+	if cfg.InsightGateMaxStreamFrames, err = intFromEnvironment(lookup, "INSIGHT_GATE_MAX_STREAM_FRAMES", 10000, 0, 1000000); err != nil {
+		return Config{}, err
+	}
+	if cfg.InsightGateMaxFallbackRatio, err = floatFromEnvironment(lookup, "INSIGHT_GATE_MAX_FALLBACK_RATIO", 0, 0, 1); err != nil {
+		return Config{}, err
+	}
+	if cfg.InsightGateCostAnomalyMultiplier, err = floatFromEnvironment(lookup, "INSIGHT_GATE_COST_ANOMALY_MULTIPLIER", 5, 0, 100); err != nil {
+		return Config{}, err
+	}
+	if cfg.InsightSemaphoreWaitSeconds, err = intFromEnvironment(lookup, "INSIGHT_SEMAPHORE_WAIT_SECONDS", 60, 0, 280); err != nil {
+		return Config{}, err
+	}
+	if cfg.MaxConcurrentInsights, err = intFromEnvironment(lookup, "MAX_CONCURRENT_INSIGHTS", 3, 1, 10); err != nil {
+		return Config{}, err
+	}
+	if cfg.MaxConcurrentAISummary, err = intFromEnvironment(lookup, "MAX_CONCURRENT_AI_SUMMARY", 5, 1, 20); err != nil {
+		return Config{}, err
+	}
+	cfg.AIChatRedisURL, err = redisURLWithDB(cfg.RedisURL, cfg.AIChatRedisDB)
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.InsightStreamRedisURL, err = redisURLWithDB(cfg.RedisURL, cfg.InsightStreamRedisDB)
+	if err != nil {
+		return Config{}, err
+	}
+
 	return cfg, nil
+}
+
+func redisURLWithDB(rawURL string, db int) (string, error) {
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return "", fmt.Errorf("REDIS_URL must be a valid URL")
+	}
+	parsed.Path = "/" + strconv.Itoa(db)
+	parsed.RawPath = ""
+	return parsed.String(), nil
 }
 
 func redisURLFromEnvironment(lookup func(string) (string, bool)) (string, error) {
@@ -128,6 +354,70 @@ func valueOrDefault(lookup func(string) (string, bool), key, fallback string) st
 		return fallback
 	}
 	return value
+}
+
+func intFromEnvironment(
+	lookup func(string) (string, bool),
+	key string,
+	fallback int,
+	minValue int,
+	maxValue int,
+) (int, error) {
+	raw := valueOrDefault(lookup, key, "")
+	if raw == "" {
+		return fallback, nil
+	}
+
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("%s must be an integer between %d and %d", key, minValue, maxValue)
+	}
+	if value < minValue || value > maxValue {
+		return 0, fmt.Errorf("%s must be between %d and %d", key, minValue, maxValue)
+	}
+	return value, nil
+}
+
+func floatFromEnvironment(
+	lookup func(string) (string, bool),
+	key string,
+	fallback float64,
+	minValue float64,
+	maxValue float64,
+) (float64, error) {
+	raw := valueOrDefault(lookup, key, "")
+	if raw == "" {
+		return fallback, nil
+	}
+
+	value, err := strconv.ParseFloat(raw, 64)
+	if err != nil || math.IsNaN(value) || math.IsInf(value, 0) {
+		return 0, fmt.Errorf("%s must be a finite number", key)
+	}
+	if value < minValue || value > maxValue {
+		return 0, fmt.Errorf("%s must be between %g and %g", key, minValue, maxValue)
+	}
+	return value, nil
+}
+
+func boolFromEnvironment(lookup func(string) (string, bool), key string, fallback bool) (bool, error) {
+	raw := valueOrDefault(lookup, key, "")
+	if raw == "" {
+		return fallback, nil
+	}
+
+	switch strings.ToLower(raw) {
+	case "1", "true", "yes", "on":
+		return true, nil
+	case "0", "false", "no", "off":
+		return false, nil
+	default:
+		return false, fmt.Errorf(
+			"%s=%q is invalid; expected one of 1, true, yes, on, 0, false, no, off",
+			key,
+			raw,
+		)
+	}
 }
 
 func parseOwnedModules(raw string) map[string]bool {

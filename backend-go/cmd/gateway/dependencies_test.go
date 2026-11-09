@@ -51,3 +51,59 @@ func TestNewDependenciesSkipsDisabledOwnedModules(t *testing.T) {
 	}
 	t.Cleanup(deps.Close)
 }
+
+func TestNewDependenciesWiresPostStage6Modules(t *testing.T) {
+	root := t.TempDir()
+	cfg := config.Config{
+		APIKey:                     "test-api-key",
+		DatabaseURL:                "postgres://localhost/test",
+		RedisURL:                   "redis://localhost:6379/0",
+		InsightStreamRedisURL:      "redis://localhost:6379/4",
+		UploadRoot:                 root,
+		MonthlyReportResultRoot:    root,
+		AgentMonthlyReportRoot:     root,
+		ProjectLaunchDocumentsRoot: root,
+		CRMFollowUpReminderDays:    7,
+		OwnedModules: map[string]bool{
+			"ai_chat":                  true,
+			"ai_chat_v2":               true,
+			"ai_chat_usage":            true,
+			"ai_file_upload":           true,
+			"crm":                      true,
+			"system_management":        true,
+			"digital_employees":        true,
+			"digital_office":           true,
+			"digital_display":          true,
+			"agent_ops":                true,
+			"presence":                 true,
+			"uploads":                  true,
+			"page_render":              true,
+			"jobs":                     true,
+			"external_retired":         true,
+			"agent_inspection":         true,
+			"agent_credentials":        true,
+			"inspections":              true,
+			"amazon_review_tracking":   true,
+			"agent_monthly_reports":    true,
+			"ai_insight":               true,
+			"insight_runs":             true,
+			"insight_domains":          true,
+			"insight_observation":      true,
+			"agent_commerce":           true,
+			"agent_review_tracking":    true,
+			"product_analysis":         true,
+			"product_analysis_reports": true,
+			"internal_jobs":            true,
+		},
+	}
+
+	deps, err := newDependencies(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("newDependencies() error = %v", err)
+	}
+	t.Cleanup(deps.Close)
+
+	if len(deps.Stores.CustomRegistrars) < 25 {
+		t.Fatalf("CustomRegistrars = %d, want all post-stage-6 domain registrars", len(deps.Stores.CustomRegistrars))
+	}
+}

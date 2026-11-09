@@ -296,7 +296,7 @@ func TestOwnedAlertMetricsReturnsStaticPayload(t *testing.T) {
 	}
 }
 
-func TestOwnedRoutesOnlyProtectMigratedGETPaths(t *testing.T) {
+func TestOwnedRoutesOnlyProtectMigratedPaths(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("fastapi"))
 	}))
@@ -359,11 +359,11 @@ func TestOwnedRoutesOnlyProtectMigratedGETPaths(t *testing.T) {
 			wantBody:   "fastapi",
 		},
 		{
-			name:       "profile patch remains proxied",
+			name:       "profile patch protected",
 			method:     http.MethodPatch,
 			path:       "/api/v1/system-management/profile",
-			wantStatus: http.StatusOK,
-			wantBody:   "fastapi",
+			wantStatus: http.StatusUnauthorized,
+			wantBody:   `{"detail":"Missing API key"}`,
 		},
 	}
 	for _, tt := range tests {

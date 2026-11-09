@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -14,6 +15,197 @@ type AlertStore struct {
 
 func NewAlertStore(db DB) *AlertStore {
 	return &AlertStore{db: db}
+}
+
+func (s *AlertStore) CreateRule(ctx context.Context, value alerts.Rule) (*alerts.Rule, error) {
+	row := s.db.QueryRow(
+		ctx,
+		`insert into public.alert_rules (
+		   name, project_id, country, metric, trigger_type, condition, threshold,
+		   window_days, severity, notification_channels, is_active, created_by
+		 )
+		 values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		 returning
+		   id, name, project_id, country, metric, trigger_type, condition,
+		   threshold, window_days, severity, notification_channels, is_active,
+		   created_by, created_at, updated_at`,
+		value.Name,
+		value.ProjectID,
+		value.Country,
+		value.Metric,
+		value.TriggerType,
+		value.Condition,
+		value.Threshold,
+		value.WindowDays,
+		value.Severity,
+		value.NotificationChannels,
+		value.IsActive,
+		value.CreatedBy,
+	)
+	item, err := scanAlertRule(row)
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (s *AlertStore) GetRule(ctx context.Context, id int64) (*alerts.Rule, error) {
+	row := s.db.QueryRow(
+		ctx,
+		`select
+		   id, name, project_id, country, metric, trigger_type, condition,
+		   threshold, window_days, severity, notification_channels, is_active,
+		   created_by, created_at, updated_at
+		 from public.alert_rules
+		 where id = $1
+		 limit 1`,
+		id,
+	)
+	item, err := scanAlertRule(row)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (s *AlertStore) UpdateRule(
+	ctx context.Context,
+	id int64,
+	value alerts.RuleUpdate,
+) (*alerts.Rule, error) {
+	row := s.db.QueryRow(
+		ctx,
+		`update public.alert_rules
+		 set name = coalesce($2::text, name),
+		     metric = coalesce($3::text, metric),
+		     trigger_type = coalesce($4::text, trigger_type),
+		     condition = coalesce($5::text, condition),
+		     threshold = coalesce($6::double precision, threshold),
+		     window_days = coalesce($7::integer, window_days),
+		     severity = coalesce($8::text, severity),
+		     notification_channels = coalesce($9::text, notification_channels),
+		     is_active = coalesce($10::boolean, is_active),
+		     updated_at = now()
+		 where id = $1
+		 returning
+		   id, name, project_id, country, metric, trigger_type, condition,
+		   threshold, window_days, severity, notification_channels, is_active,
+		   created_by, created_at, updated_at`,
+		id,
+		value.Name,
+		value.Metric,
+		value.TriggerType,
+		value.Condition,
+		value.Threshold,
+		value.WindowDays,
+		value.Severity,
+		value.NotificationChannels,
+		value.IsActive,
+	)
+	item, err := scanAlertRule(row)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (s *AlertStore) DeleteRule(ctx context.Context, id int64) (bool, error) {
+	execer, ok := s.db.(Execer)
+	if !ok {
+		return false, errors.New("database does not support writes")
+	}
+	tag, err := execer.Exec(
+		ctx,
+		`delete from public.alert_rules
+		 where id = $1`,
+		id,
+	)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() > 0, nil
+}
+
+func (s *AlertStore) GetEvent(ctx context.Context, id int64) (*alerts.Event, error) {
+	row := s.db.QueryRow(
+		ctx,
+		`select
+		   id, rule_id, project_id, metric, current_value, baseline_value,
+		   deviation_pct, severity, message, status, triggered_at,
+		   acknowledged_at, acknowledged_by, match_rate, mismatched_items,
+		   total_diff, report_month, report_id
+		 from public.alert_events
+		 where id = $1
+		 limit 1`,
+		id,
+	)
+	item, err := scanAlertEvent(row)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (s *AlertStore) AcknowledgeEvent(
+	ctx context.Context,
+	id int64,
+	operator *string,
+) (*alerts.Event, error) {
+	row := s.db.QueryRow(
+		ctx,
+		`update public.alert_events
+		 set status = 'acknowledged',
+		     acknowledged_at = now(),
+		     acknowledged_by = $2
+		 where id = $1
+		 returning
+		   id, rule_id, project_id, metric, current_value, baseline_value,
+		   deviation_pct, severity, message, status, triggered_at,
+		   acknowledged_at, acknowledged_by, match_rate, mismatched_items,
+		   total_diff, report_month, report_id`,
+		id,
+		operator,
+	)
+	item, err := scanAlertEvent(row)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (s *AlertStore) ResolveEvent(ctx context.Context, id int64) (*alerts.Event, error) {
+	row := s.db.QueryRow(
+		ctx,
+		`update public.alert_events
+		 set status = 'resolved'
+		 where id = $1
+		 returning
+		   id, rule_id, project_id, metric, current_value, baseline_value,
+		   deviation_pct, severity, message, status, triggered_at,
+		   acknowledged_at, acknowledged_by, match_rate, mismatched_items,
+		   total_diff, report_month, report_id`,
+		id,
+	)
+	item, err := scanAlertEvent(row)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
 }
 
 func (s *AlertStore) GetProject(ctx context.Context, projectID string) (*alerts.Project, error) {
