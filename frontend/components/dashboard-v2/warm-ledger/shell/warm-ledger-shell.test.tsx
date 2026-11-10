@@ -13,79 +13,52 @@ import {
   isWarmLedgerRoute,
   WarmLedgerRouteFrame,
 } from './warm-ledger-route-frame'
+import { WARM_SIDEBAR_STORAGE_KEY } from './warm-ledger-sidebar'
 import { useTerminalGlobalFilter } from '@/components/terminal/global-filter-context'
+import { SIDEBAR_TOP_GROUPS, filterByRole } from '@/lib/sidebar-config'
 
 const shellThemeCss = readFileSync(
   join(process.cwd(), 'components/dashboard-v2/warm-ledger/shell/theme.css'),
   'utf8'
 )
 
-const WARM_NAV_SECTIONS = [
-  {
-    label: '财务资金',
-    links: [
-      ['平台回款', '/dashboard/finance/platform-revenue'],
-      ['汇率信息', '/dashboard/finance/exchange-rate'],
-      ['VAT 发票', '/dashboard/finance/vat-invoice'],
-      ['佣金管理', '/dashboard/finance/commission-management'],
-    ],
-  },
-  {
-    label: 'CRM 客户与合作伙伴',
-    links: [
-      ['数据看板', '/dashboard/crm/dashboard'],
-      ['待跟进', '/dashboard/crm/follow-ups'],
-      ['客户', '/dashboard/crm/customers'],
-      ['客户方案', '/dashboard/crm/proposals'],
-      ['线索', '/dashboard/crm/leads'],
-      ['任务', '/dashboard/crm/tasks'],
-      ['操作日志', '/dashboard/crm/audit'],
-      ['CRM 设置', '/dashboard/crm/settings'],
-    ],
-  },
-  {
-    label: 'AI 智能',
-    links: [
-      ['AI洞察', '/dashboard/ai/insights'],
-      ['AI 广告分析', '/dashboard/ai/ad-analysis'],
-      ['AI 库存健康', '/dashboard/ai/inventory-health'],
-      ['AI Chat', '/dashboard/ai/chat'],
-      ['模型选型', '/dashboard/ai/believeboy-models'],
-      ['客服交流', '/dashboard/ai/customer-service'],
-      ['数字员工', '/dashboard/ai/digital-employees'],
-      ['虚拟办公室', '/dashboard/ai/digital-employees/office'],
-    ],
-  },
-  {
-    label: '工具箱',
-    links: [
-      ['Markdown 转换', '/dashboard/tools/markdown-to-word'],
-      ['Markdown/HTML 渲染', '/dashboard/tools/page-render'],
-      ['品牌备案示例', '/dashboard/tools/brand-registration-example'],
-      ['产品标签制作', '/dashboard/tools/product-label'],
-      ['跨境电商合规', '/dashboard/tools/cross-border-compliance'],
-    ],
-  },
-  {
-    label: '系统管理',
-    links: [
-      ['更新日志', '/dashboard/system/changelog'],
-      ['项目信息', '/dashboard/system/project-info'],
-      ['数据库状态', '/dashboard/system/data-management'],
-      ['账号管理', '/dashboard/system/account-management'],
-      ['运营管理', '/dashboard/system/operator-management'],
-      ['告警中心', '/dashboard/system/alerts'],
-      ['日志查看', '/dashboard/system/logs'],
-      ['Agent 接入管理', '/dashboard/system/agent-management'],
-    ],
-  },
-] as const
+const configuredItems = (groupId: string) => {
+  const group = SIDEBAR_TOP_GROUPS.find((candidate) => candidate.id === groupId)
+  return group ? filterByRole(group.items) : []
+}
+
+function getNavScroller(navigation: HTMLElement) {
+  const scroller = navigation.querySelector<HTMLElement>('.warm-ledger__navigation-scroll')
+  if (!scroller) throw new Error('navigation scroll region is missing')
+  return scroller
+}
+
+function scrollerLinks(navigation: HTMLElement) {
+  return Array.from(getNavScroller(navigation).querySelectorAll<HTMLAnchorElement>('a'))
+}
+
+function visibleScrollerLinks(navigation: HTMLElement) {
+  return within(getNavScroller(navigation)).getAllByRole('link')
+}
+
+function groupToggle(navigation: HTMLElement, label: string) {
+  return within(navigation).getByRole('button', { name: label })
+}
+
+async function expandAllGroups(navigation: HTMLElement) {
+  for (const group of SIDEBAR_TOP_GROUPS) {
+    const toggle = groupToggle(navigation, group.label)
+    if (toggle.getAttribute('aria-expanded') !== 'true') fireEvent.click(toggle)
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-expanded', 'true'))
+  }
+}
 
 const WARM_CURRENT_ROUTES = [
   ['/dashboard/operations/daily-analysis', '/dashboard/operations/daily-analysis'],
   ['/dashboard/operations/portfolio-overview', '/dashboard/operations/portfolio-overview'],
   ['/dashboard/operations/inventory-analysis', '/dashboard/operations/inventory-analysis'],
   ['/dashboard/operations/inventory-ledger', '/dashboard/operations/inventory-ledger'],
+  ['/dashboard/operations/inventory-replenishment', '/dashboard/operations/inventory-replenishment'],
   ['/dashboard/operations/shipping-plan', '/dashboard/operations/shipping-plan'],
   ['/dashboard/operations/shipment-management', '/dashboard/operations/shipment-management'],
   ['/dashboard/operations/sku-info', '/dashboard/operations/sku-info'],
@@ -305,7 +278,7 @@ describe('WarmLedgerShell', () => {
   it('renders configured routes, the separate data-flow entry, and real quick links', () => {
     installMatchMedia(false)
 
-    render(<WarmLedgerShell>Dashboard</WarmLedgerShell>)
+    const { container } = render(<WarmLedgerShell>Dashboard</WarmLedgerShell>)
 
     const navigation = screen.getByRole('navigation', { name: '业务域和快捷入口' })
     const overview = within(navigation).getByRole('link', { name: '运营总览' })
@@ -317,6 +290,8 @@ describe('WarmLedgerShell', () => {
       expect(link.getAttribute('href')).toMatch(/^\/dashboard(?:\/|$)/)
     }
 
+    const quickAccess = container.querySelector('.warm-ledger__quick-access')
+    expect(quickAccess).not.toBeNull()
     const quickLinks = [
       ['销售数据', '/dashboard/operations/daily-analysis'],
       ['订单信息', '/dashboard/reports/order-info'],
@@ -324,12 +299,12 @@ describe('WarmLedgerShell', () => {
       ['客户消息', '/dashboard/operations/complaint-center'],
     ]
     for (const [label, href] of quickLinks) {
-      const link = within(navigation).getByRole('link', { name: label })
+      const link = within(quickAccess as HTMLElement).getByRole('link', { name: label })
       expect(link).toHaveAttribute('href', href)
     }
   })
 
-  it('links each C3 route once, marks its active link, and retains four quick links', () => {
+  it('links each C3 route once inside the collapsible navigation and retains four quick links', () => {
     installMatchMedia(false)
 
     const c3Routes = [
@@ -342,9 +317,9 @@ describe('WarmLedgerShell', () => {
       shellMocks.pathname = route
       const { container, unmount } = render(<WarmLedgerShell>Dashboard</WarmLedgerShell>)
       const navigation = screen.getByRole('navigation', { name: '业务域和快捷入口' })
-      const matchingLinks = within(navigation)
-        .getAllByRole('link')
-        .filter((link) => link.getAttribute('href') === route)
+      const matchingLinks = visibleScrollerLinks(navigation).filter(
+        (link) => link.getAttribute('href') === route
+      )
 
       expect(matchingLinks).toHaveLength(1)
       expect(matchingLinks[0]).toHaveAttribute('aria-current', 'page')
@@ -353,26 +328,219 @@ describe('WarmLedgerShell', () => {
     }
   })
 
-  it('exposes every configured item in the new Warm groups without duplicate links', () => {
+  it('renders one collapsible group per sidebar config group and expands only the owner of the current route', () => {
     installMatchMedia(false)
 
     render(<WarmLedgerShell>Dashboard</WarmLedgerShell>)
 
     const navigation = screen.getByRole('navigation', { name: '业务域和快捷入口' })
-    for (const section of WARM_NAV_SECTIONS) {
-      expect(within(navigation).getByText(section.label)).toBeInTheDocument()
-      for (const [label, href] of section.links) {
-        const links = within(navigation)
-          .getAllByRole('link', { name: label })
-          .filter((link) => link.getAttribute('href') === href)
-        expect(links).toHaveLength(1)
-      }
+    expect(SIDEBAR_TOP_GROUPS.length).toBeGreaterThan(1)
+    for (const group of SIDEBAR_TOP_GROUPS) {
+      const toggle = groupToggle(navigation, group.label)
+      const panelId = toggle.getAttribute('aria-controls')
+      expect(panelId, group.id + ' 分组需要 aria-controls').toBeTruthy()
+      expect(document.getElementById(panelId!)).toBeInTheDocument()
+      expect(toggle).toHaveAttribute(
+        'aria-expanded',
+        group.id === 'operations' ? 'true' : 'false'
+      )
     }
 
-    const hrefs = within(navigation)
-      .getAllByRole('link')
-      .map((link) => link.getAttribute('href'))
+    const visibleHrefs = visibleScrollerLinks(navigation).map((link) =>
+      link.getAttribute('href')
+    )
+    for (const item of configuredItems('operations')) {
+      expect(visibleHrefs, 'operations/' + item.title + ' 应可点击').toContain(item.url)
+    }
+    expect(visibleHrefs).not.toContain('/dashboard/finance/platform-revenue')
+  })
+
+  it('toggles a collapsed group from its header button and remembers the state', async () => {
+    installMatchMedia(false)
+
+    const { unmount } = render(<WarmLedgerShell>Dashboard</WarmLedgerShell>)
+    const readNavigation = () =>
+      screen.getByRole('navigation', { name: '业务域和快捷入口' })
+    const financeHref = '/dashboard/finance/platform-revenue'
+    let navigation = readNavigation()
+    const financeToggle = groupToggle(navigation, '财务资金')
+
+    expect(financeToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(
+      visibleScrollerLinks(navigation).some(
+        (link) => link.getAttribute('href') === financeHref
+      )
+    ).toBe(false)
+
+    fireEvent.click(financeToggle)
+    expect(financeToggle).toHaveAttribute('aria-expanded', 'true')
+    await waitFor(() =>
+      expect(
+        visibleScrollerLinks(navigation).some(
+          (link) => link.getAttribute('href') === financeHref
+        )
+      ).toBe(true)
+    )
+    await waitFor(() =>
+      expect(
+        JSON.parse(window.localStorage.getItem(WARM_SIDEBAR_STORAGE_KEY) ?? '[]')
+      ).toContain('finance')
+    )
+
+    fireEvent.click(financeToggle)
+    expect(financeToggle).toHaveAttribute('aria-expanded', 'false')
+    await waitFor(() =>
+      expect(
+        JSON.parse(window.localStorage.getItem(WARM_SIDEBAR_STORAGE_KEY) ?? '[]')
+      ).not.toContain('finance')
+    )
+
+    unmount()
+    window.localStorage.setItem(WARM_SIDEBAR_STORAGE_KEY, JSON.stringify(['finance']))
+    render(<WarmLedgerShell>Dashboard</WarmLedgerShell>)
+    navigation = readNavigation()
+    await waitFor(() =>
+      expect(groupToggle(navigation, '财务资金')).toHaveAttribute('aria-expanded', 'true')
+    )
+  })
+
+  it('exposes every sidebar config item once every group is expanded', async () => {
+    installMatchMedia(false)
+
+    render(<WarmLedgerShell>Dashboard</WarmLedgerShell>)
+
+    const navigation = screen.getByRole('navigation', { name: '业务域和快捷入口' })
+    await expandAllGroups(navigation)
+
+    const hrefs = visibleScrollerLinks(navigation).map((link) => link.getAttribute('href'))
     expect(new Set(hrefs).size).toBe(hrefs.length)
+    for (const group of SIDEBAR_TOP_GROUPS) {
+      for (const item of filterByRole(group.items)) {
+        expect(hrefs, group.id + '/' + item.title + ' 必须有侧栏入口').toContain(item.url)
+      }
+    }
+  })
+
+  it('shares one left edge across the quick access separator, label, and grid', () => {
+    expect(shellThemeCss).toMatch(
+      /\.warm-ledger__quick-access \{[^}]*flex-direction: column/s
+    )
+    expect(shellThemeCss).toMatch(
+      /\.warm-ledger__quick-access \{[^}]*gap: var\(--warm-ledger-space-2\)/s
+    )
+    expect(shellThemeCss).toMatch(
+      /\.warm-ledger__quick-access \.warm-ledger__nav-separator \{[^}]*margin: 0/s
+    )
+    expect(shellThemeCss).toMatch(
+      /\.warm-ledger__quick-access \.warm-ledger__nav-label \{[^}]*margin: 0/s
+    )
+  })
+
+  it('keeps four pinned quick links outside the collapsible groups', () => {
+    installMatchMedia(false)
+
+    const { container } = render(<WarmLedgerShell>Dashboard</WarmLedgerShell>)
+    const navigation = screen.getByRole('navigation', { name: '业务域和快捷入口' })
+    const quickAccess = container.querySelector('.warm-ledger__quick-access')
+    expect(quickAccess).not.toBeNull()
+    expect(quickAccess!.querySelectorAll('a')).toHaveLength(4)
+
+    const overview = within(navigation).getByRole('link', { name: '运营总览' })
+    expect(overview).toHaveAttribute('href', '/dashboard')
+
+    const scrollerHrefs = scrollerLinks(navigation).map((link) => link.getAttribute('href'))
+    expect(new Set(scrollerHrefs).size).toBe(scrollerHrefs.length)
+  })
+
+  it('keeps a group-level marker when the current route sits in a collapsed group', () => {
+    installMatchMedia(false)
+    shellMocks.pathname = '/dashboard/finance/platform-revenue'
+
+    render(<WarmLedgerShell>Dashboard</WarmLedgerShell>)
+
+    const navigation = screen.getByRole('navigation', { name: '业务域和快捷入口' })
+    const financeToggle = groupToggle(navigation, '财务资金')
+    expect(financeToggle).toHaveAttribute('aria-expanded', 'true')
+    expect(financeToggle).toHaveAttribute('data-current', 'true')
+
+    fireEvent.click(financeToggle)
+    expect(financeToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(financeToggle).toHaveAttribute('data-current', 'true')
+    expect(groupToggle(navigation, '运营')).not.toHaveAttribute('data-current')
+    // 域级琥珀书签只在折叠时显示；展开时由当前条目的书签负责。
+    expect(shellThemeCss).toContain(
+      "[data-current='true'][aria-expanded='false']"
+    )
+  })
+
+  it('keeps the group header typography out of the shared button reset', () => {
+    expect(shellThemeCss).toContain('.warm-ledger .warm-ledger__nav-group-toggle {')
+    expect(shellThemeCss).toMatch(
+      /\.warm-ledger \.warm-ledger__nav-group-toggle \{[^}]*font-size: var\(--warm-ledger-font-size-control\)/s
+    )
+    expect(shellThemeCss).toMatch(
+      /\.warm-ledger \.warm-ledger__nav-item \{[^}]*color: var\(--warm-ledger-color-text-soft\)/s
+    )
+  })
+
+  it('scrolls the current navigation item into view on route change', () => {
+    installMatchMedia(false)
+    shellMocks.pathname = '/dashboard/tools/cross-border-compliance'
+
+    const original = Element.prototype.scrollIntoView
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView as unknown as typeof Element.prototype.scrollIntoView
+
+    try {
+      render(<WarmLedgerShell>Dashboard</WarmLedgerShell>)
+    } finally {
+      Element.prototype.scrollIntoView = original
+    }
+
+    expect(scrollIntoView).toHaveBeenCalled()
+    const target = scrollIntoView.mock.instances[0] as unknown as HTMLElement
+    expect(target.getAttribute('aria-current')).toBe('page')
+    expect(target.getAttribute('href')).toBe('/dashboard/tools/cross-border-compliance')
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
+  })
+
+  it('auto-expands the group that owns the next route without collapsing the others', async () => {
+    installMatchMedia(false)
+
+    const { rerender } = render(<WarmLedgerShell>Dashboard</WarmLedgerShell>)
+    let navigation = screen.getByRole('navigation', { name: '业务域和快捷入口' })
+    expect(groupToggle(navigation, 'CRM 客户与合作伙伴')).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    )
+
+    shellMocks.pathname = '/dashboard/crm/leads'
+    rerender(<WarmLedgerShell>Dashboard</WarmLedgerShell>)
+    navigation = screen.getByRole('navigation', { name: '业务域和快捷入口' })
+    await waitFor(() =>
+      expect(groupToggle(navigation, 'CRM 客户与合作伙伴')).toHaveAttribute(
+        'aria-expanded',
+        'true'
+      )
+    )
+    expect(groupToggle(navigation, '运营')).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('toggles a group from the keyboard', async () => {
+    installMatchMedia(false)
+    const user = userEvent.setup()
+
+    render(<WarmLedgerShell>Dashboard</WarmLedgerShell>)
+
+    const navigation = screen.getByRole('navigation', { name: '业务域和快捷入口' })
+    const toggle = groupToggle(navigation, '工具箱')
+    toggle.focus()
+
+    await user.keyboard('{Enter}')
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+
+    await user.keyboard(' ')
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('marks exactly one configured navigation target current for every Warm route', () => {
@@ -382,20 +550,17 @@ describe('WarmLedgerShell', () => {
       shellMocks.pathname = pathname
       const { unmount } = render(<WarmLedgerShell>Dashboard</WarmLedgerShell>)
       const navigation = screen.getByRole('navigation', { name: '业务域和快捷入口' })
-      const matchingLinks = within(navigation)
+      const scroller = within(getNavScroller(navigation))
+      const matchingLinks = scroller
         .getAllByRole('link')
         .filter((link) => link.getAttribute('href') === navHref)
-      const currentLinks = within(navigation)
+      const currentLinks = scroller
         .getAllByRole('link')
         .filter((link) => link.getAttribute('aria-current') === 'page')
 
       expect(matchingLinks).toHaveLength(1)
       expect(currentLinks).toHaveLength(1)
       expect(currentLinks[0]).toHaveAttribute('href', navHref)
-      expect(within(navigation).getAllByRole('link', { name: '销售数据' })).toHaveLength(1)
-      expect(within(navigation).getAllByRole('link', { name: '订单信息' })).toHaveLength(1)
-      expect(within(navigation).getAllByRole('link', { name: '库存分析' })).toHaveLength(1)
-      expect(within(navigation).getAllByRole('link', { name: '客户消息' })).toHaveLength(1)
       unmount()
     }
   })

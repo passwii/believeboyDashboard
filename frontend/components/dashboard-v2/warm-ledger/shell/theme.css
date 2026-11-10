@@ -262,7 +262,23 @@
 }
 
 .warm-ledger__quick-access {
+  display: flex;
   flex: 0 0 auto;
+  flex-direction: column;
+  gap: var(--warm-ledger-space-2);
+  padding-top: var(--warm-ledger-space-4);
+}
+
+/*
+ * 快捷入口以卡片网格为内容，分割线、小标题、网格必须共用同一条左缘；
+ * 通用 .warm-ledger__nav-label 的 40px 缩进（对齐导航图标列）在这里不适用。
+ */
+.warm-ledger__quick-access .warm-ledger__nav-separator {
+  margin: 0;
+}
+
+.warm-ledger__quick-access .warm-ledger__nav-label {
+  margin: 0;
 }
 
 .warm-ledger__nav-label {
@@ -275,6 +291,90 @@
   display: flex;
   flex-direction: column;
   gap: var(--warm-ledger-space-1);
+}
+
+.warm-ledger__nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--warm-ledger-space-1);
+}
+
+.warm-ledger__nav-group-toggle {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--warm-ledger-nav-icon-column) minmax(0, 1fr) 16px;
+  min-height: var(--warm-ledger-nav-height);
+  flex: 0 0 var(--warm-ledger-nav-height);
+  align-items: center;
+  gap: var(--warm-ledger-space-2);
+  padding: 0 var(--warm-ledger-space-3);
+  text-align: left;
+  background: transparent;
+  border: var(--warm-ledger-border-width) solid transparent;
+  border-radius: var(--warm-ledger-radius-inner);
+  transition:
+    color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease),
+    background-color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease),
+    border-color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease);
+}
+
+/*
+ * 共享壳对 button 的 font/color 重置优先级更高，会盖掉组件级字体；
+ * 组头与条目的字体/颜色因此用 .warm-ledger 前缀提高优先级（2026-11-10 排版修正）。
+ */
+.warm-ledger .warm-ledger__nav-group-toggle {
+  color: var(--warm-ledger-color-text-soft);
+  font-size: var(--warm-ledger-font-size-control);
+  font-weight: var(--warm-ledger-font-weight-medium);
+}
+
+.warm-ledger .warm-ledger__nav-group-toggle[aria-expanded='true'] {
+  color: var(--warm-ledger-color-text);
+  background: var(--warm-ledger-color-panel);
+  border-color: var(--warm-ledger-color-hairline);
+}
+
+.warm-ledger .warm-ledger__nav-group-toggle[data-current='true'][aria-expanded='false'] {
+  color: var(--warm-ledger-color-text);
+}
+
+.warm-ledger .warm-ledger__nav-group-toggle[data-current='true'][aria-expanded='false']
+  .warm-ledger__nav-indicator {
+  background: var(--warm-ledger-color-accent);
+}
+
+.warm-ledger__nav-group-toggle:hover {
+  color: var(--warm-ledger-color-text);
+  background: var(--warm-ledger-color-raised);
+  border-color: var(--warm-ledger-color-hairline);
+}
+
+.warm-ledger__nav-group-toggle .warm-ledger__nav-chevron {
+  display: grid;
+  place-items: center;
+  color: var(--warm-ledger-color-text-muted);
+}
+
+.warm-ledger__nav-chevron > svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke-width: 1.7;
+  transition: transform var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease);
+}
+
+.warm-ledger__nav-group-toggle[aria-expanded='true'] .warm-ledger__nav-chevron > svg {
+  transform: rotate(90deg);
+}
+
+.warm-ledger__nav-group-panel[hidden] {
+  display: none;
+}
+
+.warm-ledger__nav-group:not(:first-child) {
+  margin-top: var(--warm-ledger-space-1);
+  padding-top: var(--warm-ledger-space-2);
+  border-top: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
 }
 
 .warm-ledger__nav-item {
@@ -296,6 +396,20 @@
     border-color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease),
     box-shadow var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease),
     transform var(--warm-ledger-motion-duration-press) var(--warm-ledger-motion-ease);
+}
+
+/* 同组头：条目基色需压过共享的 a 标签 color 重置，悬停/当前态在后续规则覆盖。 */
+.warm-ledger .warm-ledger__nav-item {
+  color: var(--warm-ledger-color-text-soft);
+}
+
+.warm-ledger .warm-ledger__nav-group-toggle .warm-ledger__nav-chevron {
+  color: var(--warm-ledger-color-text-muted);
+  transition: color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease);
+}
+
+.warm-ledger .warm-ledger__nav-group-toggle[aria-expanded='true'] .warm-ledger__nav-chevron {
+  color: var(--warm-ledger-color-text-soft);
 }
 
 .warm-ledger__nav-item:hover {
@@ -1199,12 +1313,17 @@
     display: inline-flex;
   }
 
-  .warm-ledger__nav-item {
+  .warm-ledger__nav-item,
+  .warm-ledger__nav-group-toggle {
     grid-template-columns: var(--warm-ledger-nav-icon-column) minmax(0, 1fr);
     min-height: var(--warm-ledger-nav-height-touch);
     flex-basis: var(--warm-ledger-nav-height-touch);
     justify-content: flex-start;
     padding: 0 var(--warm-ledger-space-3);
+  }
+
+  .warm-ledger__nav-group-toggle {
+    grid-template-columns: var(--warm-ledger-nav-icon-column) minmax(0, 1fr) 16px;
   }
 
   .warm-ledger__quick-list {

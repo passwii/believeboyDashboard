@@ -388,3 +388,36 @@ A1 owns Warm controls wrapper and Dashboard token consumption. A2–A5 may work 
 - The desktop matrix now covers all 94 dashboard page routes: 90 Warm framed entries, 3 Warm standalone pages, `/dashboard` home, plus the Office presentation query exception. Redirect aliases are followed and checked.
 - Final verification at `57872e8c`: `374 files / 2631 tests`; lint `0 errors / 8 existing warnings`; production build `97/97` pages; desktop Playwright `4/4` cases; `check:mocks`, `check:motion`, and `git diff --check` passed.
 - The final Luna/max whole-batch gate returned **PASS** at `57872e8c`. Full evidence: [`2026-11-05-v4-final-closeout/README.md`](../../../superpowers/plans/2026-11-05-v4-final-closeout/README.md). Existing authorization, data-consistency, retention, and accessibility follow-ups stay open and are not claimed as fixed by this visual shell closeout.
+
+## 20. 库存与履约侧栏补录补货分析 (2026-11-10)
+
+- 问题：`/dashboard/operations/inventory-replenishment`（补货分析）在 C8 已迁入 Warm Ledger，但 Warm 侧栏只在 C2 增加了「库存与履约」四页分组，该页没有侧栏入口，只能从总览页或搜索进入。
+- 修复：把 `inventory-replenishment` 加入 `INVENTORY_FULFILLMENT_ROUTES`，分组按 库存分类账 → 补货分析 → 发货规划 → 货件管理 → SKU 信息 的顺序展示；标题与图标继续从 `frontend/lib/sidebar-config.ts` 派生，不新增第二份导航配置。
+- TDD：先在 `warm-ledger-shell.test.tsx` 为「库存与履约」补齐五项链接断言，并为 `inventory-replenishment` 增加 `aria-current` 用例，观察到 2 例 RED 后再改侧栏转绿。
+- 验证：`pnpm exec vitest run` 376 文件 / 2656 例通过；改动文件 ESLint 0 错误；`pnpm build` 97/97 静态页成功；`check:mocks` 与 `check:motion` 通过。
+- 已知基线失败：`node --test scripts/check-deployment-config.test.mjs` 的 "remote deploy keeps the SSH script stream out of Compose run" 断言工作流含 `deploy-remote.sh.next`，但工作流在 `9c3fff1c` 之后已不再出现该串；本次未改该测试与工作流，属既有失败、非本次回归，且会让 `pnpm test` 的 `node --test` 前置步骤阻断 vitest。
+- 仍缺侧栏入口的运营页（同一成因，本次未处理）：季节性补货分析、退货分析、平台巡检、项目目标、调研分析、评论追踪、按周产品分析、站点导航、店铺导航。是否扩展侧栏范围待用户确认。
+
+## 21. 侧栏改为两级可折叠业务域 (2026-11-10)
+
+- 背景：§20 只补回一页。审计发现 `sidebar-config.ts` 的 64 条导航项里有 15 条在 Warm 侧栏没有任何入口（运营 10 / 报表中心 4 / 广告 1），根因是 C1 的「主分组只渲染首项 + 精选簇」与 C8「只注册路由」叠加；V4 收尾删除 `TerminalShell` 后，旧侧栏的完整列表也随之消失。
+- 新 IA：侧栏 = 「运营总览」1 条 + 9 个业务域分组（运营 / 项目管理 / 报表中心 / 财务资金 / 广告 / AI 智能 / CRM / 工具箱 / 系统管理）。分组头是可折叠按钮（`aria-expanded` + `aria-controls`，原生键盘可操作），组内列出该分组全部条目；底部「快捷入口」4 个固定不变。
+- 默认只展开当前页所在分组（首页展开「运营」）；用户手动展开/折叠写入 `localStorage`（key `warm-ledger-sidebar-expanded-groups`）；路由切换时目标分组自动展开，其他分组保持用户选择。
+- 移除 3 个重复精选簇（顶层「产品分析」「组合分析」与 C2 的「库存与履约」分组）：这些条目现在都在所属分组内，导航滚动区内不再出现重复 href；快捷入口与组内条目可以重复，属固定捷径。
+- 数据源仍是 `lib/sidebar-config.ts`，未新增第二份导航配置。
+- TDD：先改 `warm-ledger-shell.test.tsx` 得到 7 例 RED（缺分组按钮 / 面板 / 持久化 / 覆盖率），实现后 25 例全绿；新增「展开全部分组后 64 项导航一条不缺」的覆盖率守卫，防止再次静默消失。
+- `tests/dashboard/cross-border-compliance.spec.ts` 已改为先展开「工具箱」分组再点合规链接。
+- 未处理：`流程模板管理` 仍被 `filterByRole` 的角色过滤隐藏（roles 字段已弃用），是否按权限展示或写入显式 allowlist 待确认。
+
+## 22. 流程模板管理入口放开与侧栏视觉打磨 (2026-11-10)
+
+- `流程模板管理` 不再被 `roles: ['admin']` 隐藏：侧栏入口对所有人可见，写权限由 `workflow-template-editor` 的 `isAdmin` 判断接管，与「权限由单页接管」口径一致。
+- unslop 打磨（截图 + 几何审计 → 修复 → 复测）：
+  - 排版：共享壳对 button / a 的 `font: inherit; color: inherit` 重置优先级高于组件规则，组头与条目实际全部渲染成 14px / 400 同色。改用 `.warm-ledger` 前缀提高优先级：组头 12px / 500 / text-soft（展开时 text），条目 14px / 400 / text-soft，当前条目仍 text。
+  - 层级与节奏：组头展开态使用 `--warm-ledger-color-panel` 表面 + hairline 表达「已打开」；域与域之间加 1px hairline 与 8px 间距，形成账本式分组节奏，展开面板不再直接贴住下一个组头。
+  - 状态：当前页所在分组折叠时，组头保留 2px 琥珀书签（`data-current` 且 `aria-expanded='false'`），避免「当前页高亮彻底消失」；展开时由条目书签负责，不出现双书签。
+  - 入场：路由变化时把 `aria-current` 条目 `scrollIntoView({ block: 'nearest' })`，深链打开不再把当前条目留在可视区外。
+  - 对齐与居中：图标列 20px、行高 36px、箭头 16px 列均垂直居中；父子行保持同一左缘（沿用 20px 图标列规范，不额外缩进）。
+  - 快捷入口：分割线、小标题与卡片网格统一到同一条左缘（25px），纵向改为「分隔线 → 8px → 小标题 → 8px → 网格」。修复前小标题缩进 40px（沿用导航图标列缩进）、距卡片仅 2px，视觉上悬在网格上方。
+- 验证：`warm-ledger-shell.test.tsx` 28 例（新增 `data-current` 标记、排版优先级规则、当前条目自动滚动），全量 `vitest`、`lint`、`build`、`check:mocks`、`check:motion` 与 cross-border 浏览器用例均通过。
+- 未应用的精修建议（超出本次范围）：组内条目缩进 8px（会改动既有 20px 图标列对齐与 `alignment.spec.ts` 断言）、侧栏滚动条 hover 显现、快捷入口改单列。

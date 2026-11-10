@@ -45,16 +45,17 @@ describe('SIDEBAR_TOP_GROUPS — 运营统一分组', () => {
         .find((group) => group.id === 'project-management')
         ?.items.map((item) => item.url)
     ).toContain('/dashboard/operations/project-launch/templates')
+    // 2026-11-10：模板管理的侧栏入口对所有人可见；写权限由页面 isAdmin 接管，不再靠导航隐藏。
     expect(
       getVisibleGroups(SIDEBAR_TOP_GROUPS, 'operator')
         .find((group) => group.id === 'project-management')
         ?.items.map((item) => item.url)
-    ).not.toContain('/dashboard/operations/project-launch/templates')
+    ).toContain('/dashboard/operations/project-launch/templates')
     expect(
       getVisibleGroups(SIDEBAR_TOP_GROUPS)
         .find((group) => group.id === 'project-management')
         ?.items.map((item) => item.url)
-    ).not.toContain('/dashboard/operations/project-launch/templates')
+    ).toContain('/dashboard/operations/project-launch/templates')
     // 项目启动台不挂进运营分组（设计稿 §7：独立顶级分组，唯一入口）。
     expect(urlsOf('operations')).not.toContain('/dashboard/operations/project-launch')
     expect(findGroupByPathname(SIDEBAR_TOP_GROUPS, '/dashboard/operations/project-launch')).toBe(

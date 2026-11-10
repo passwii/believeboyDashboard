@@ -84,7 +84,7 @@ describe('SearchCommand — ⌘K 最近访问（BLF-833）', () => {
     })
   })
 
-  it('管理员可以搜索到受限的流程模板管理入口', async () => {
+  it('管理员可以搜索到流程模板管理入口', async () => {
     mockUseSession.mockReturnValue({
       data: { user: { roleType: 'admin' } },
       status: 'authenticated',
@@ -96,12 +96,15 @@ describe('SearchCommand — ⌘K 最近访问（BLF-833）', () => {
     expect(await screen.findByRole('option', { name: '流程模板管理' })).toBeInTheDocument()
   })
 
-  it('非管理员在搜索面板中看不到受限的流程模板管理入口', async () => {
+  // 2026-11-10：模板入口不再按角色隐藏，写权限由页面 isAdmin 判断接管。
+  it('非管理员的搜索面板同样能看到模板入口', async () => {
     render(<SearchCommand />)
     await openPanel()
 
     expect(await screen.findByRole('dialog')).toBeInTheDocument()
-    expect(screen.queryByRole('option', { name: '流程模板管理' })).not.toBeInTheDocument()
+    expect(
+      await screen.findByRole('option', { name: '流程模板管理' })
+    ).toBeInTheDocument()
   })
 
   it('recents 为空时整组不渲染、无占位文案', async () => {

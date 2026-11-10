@@ -5,7 +5,7 @@ import { addBLF611FixtureAuth } from '../setup/blf611-fixture'
  * 跨境电商合规页（/dashboard/tools/cross-border-compliance）用户流程 E2E —— BLF-1393 阶段 3 收口。
  *
  * 覆盖设计稿《跨境电商合规操作台》的 7 条验收标准里可自动化的部分：
- * 1. 从「工具箱」进入合规页（L1 主轨「工具箱」→ L2 子导航「跨境电商合规」）；
+ * 1. 从「工具箱」进入合规页（两级侧栏：先展开「工具箱」分组，再点「跨境电商合规」）；
  * 2. 顶部标题显示「跨境电商合规」而非默认 `Dashboard`（面包屑 + 页内 <h1>）；
  * 3. 来源提示「根据用户提供的课件整理」与限制性提示可见；
  * 4. 勾选首单材料 → 进度文本变化（已核对 n/N · 完成 p%）；
@@ -91,9 +91,12 @@ test.describe('跨境电商合规页用户流程（BLF-1393）', () => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/dashboard')
 
-    // 1. V4 主导航按业务域展开，工具箱下的合规链接直接可见。
+    // 1. V4 主导航是两级可折叠业务域：先展开「工具箱」分组，再点组内合规链接。
     const navigation = page.getByRole('navigation', { name: '业务域和快捷入口' })
-    await expect(navigation.getByText('工具箱', { exact: true })).toBeVisible()
+    const toolboxToggle = navigation.getByRole('button', { name: '工具箱' })
+    await expect(toolboxToggle).toHaveAttribute('aria-expanded', 'false')
+    await toolboxToggle.click()
+    await expect(toolboxToggle).toHaveAttribute('aria-expanded', 'true')
     const complianceLink = navigation.getByRole('link', { name: '跨境电商合规' })
     await expect(complianceLink).toBeVisible()
     await complianceLink.click()

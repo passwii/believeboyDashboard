@@ -213,11 +213,11 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
         icon: IconMap.Layers,
       },
       {
+        // 2026-11-10：入口对所有人可见；写权限由 workflow-template-editor 的 isAdmin 判断接管。
         title: '流程模板管理',
         url: '/dashboard/operations/project-launch/templates',
         matchPrefixes: ['/dashboard/operations/project-launch/templates'],
         icon: IconMap.FileText,
-        roles: ['admin'],
       },
     ],
   },
