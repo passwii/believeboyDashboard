@@ -167,7 +167,7 @@ Body 同 §3.1 的 company 对象（不含 external_id 也可）。响应：
 
 允许字段（严格白名单，出现未知字段返回 422）：
 
-- credit_code、legal_person、province、city、founded_year、registered_capital_wan、products、category、trademarks、trademark_count、intent_level、intent_score、intent_basis、amazon_fit、walmart_fit、sources、risks、screened_at、phone_note
+- credit_code、legal_person、province、city、founded_year、registered_capital_wan、products、category、channel、channels、channel_source、trademarks、trademark_count、intent_level、intent_score、intent_basis、amazon_fit、walmart_fit、sources、risks、screened_at、phone_note
 - phones：**仅追加**新号码（不允许删除/覆盖；删除与覆盖是人工动作）
 
 禁止字段（忽略或 422）：name、external_id、batch_id、owner_id、human_touched_*、converted_*、以及任何跟进字段。

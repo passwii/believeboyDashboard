@@ -580,7 +580,12 @@ WarmCrmPage
 | deploy/go.env.example、deploy/local.env.example | opt-in 列表示例加入 crm_intent |
 | docs/deployment/dashboard-vps-compose.md | 样例与说明同步 |
 
-> **生产切流是显式 opt-in**（main 1b1105f2 起 `GO_API_OWNED` 默认空 = 网关全部回退 FastAPI）。新页面要真正可用，部署时必须设置 <code>GO_API_OWNED_MODULES</code> 包含 <code>crm_intent</code>，并同时设置 <code>GO_API_INTERNAL_URL=http://127.0.0.1:8200</code>；否则 <code>/api/v1/crm/intent</code> 会被反代到 FastAPI（不存在该路由 → 404）。
+> **生产切流是显式 opt-in**（main 1b1105f2 起 `GO_API_OWNED` 默认空 = 网关全部回退 FastAPI）。两个变量名不要混：
+> - 部署编排入口（`deploy/local.env.example` / `~/.config/.../deploy.env`）用的是 <code>GO_API_OWNED_MODULES=crm_intent</code>，脚本会写入容器 `go.env` 的 <code>GO_API_OWNED=crm_intent</code>；
+> - 直接改容器 `go.env` 时用 <code>GO_API_OWNED=crm_intent</code>；
+> - 同时设置 <code>GO_API_INTERNAL_URL=http://127.0.0.1:8200</code>，否则 Web 仍直连 FastAPI，<code>/api/v1/crm/intent</code> 会 404。
+> - 导入依赖 R2：未配置 `R2_ENDPOINT_URL/R2_BUCKET_NAME/R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY` 时 AI/人工导入均返回 503 <code>INTENT_R2_UNAVAILABLE</code>；只读页面不受影响。
+> - 部署冻结（2026-11-10）：`DEPLOYMENTS_ENABLED=true` 前禁止部署；本功能先按 `bash deploy/validate-local-go-api.sh` 做本地 Docker 验证。
 
 - 顺序：迁移（compose migrate）→ Go 镜像（含新模块）→ Web 镜像。旧镜像不认识 crm_intent 也不会报错（OwnedModules 是 map），但页面会 404，所以 Web 必须后上或同批。
 - 本地开发：默认 GO_API_OWNED 为空时网关会把该路径反代 FastAPI（404）；本地需在 env 中显式加入 crm_intent 并指向 8200。
@@ -614,13 +619,23 @@ WarmCrmPage
 | backend-go <code>go test ./...</code> | 全 PASS（含 stage10 crm_intent 契约测试 + agentauth 回归测试） |
 | backend <code>scripts/check_alembic.py</code> | 单 head 285、命名合规 |
 | backend <code>pytest</code> | 4509 passed / 16 skipped / 2 failed（均为 <code>tests/services/test_project_reorder_grouping.py</code> 依赖 BLF_test 中 <code>is_active=false</code> 项目种子；与本次改动无关，属测试库数据基线问题） |
-| frontend <code>pnpm exec vitest run</code> | 381 文件 / 2708 例全 PASS |
+| frontend <code>pnpm exec vitest run</code> | 383 文件 / 2721 例全 PASS（Review 修复后复跑） |
 | frontend <code>pnpm lint</code> | 0 error（8 条仓库既有 warning） |
-| frontend <code>pnpm build</code> | PASS（<code>/dashboard/crm/intent</code> 已生成） |
+| frontend <code>pnpm build</code> | PASS（<code>/dashboard/crm/intent</code> 已生成；Review 修复后复跑） |
+| 独立 Review | 2 P0 + 9 P1 + 20 P2；P0/P1 与安全/正确性 P2 已修（详见下方「Review 修复」），复跑 Go/前端全绿 |
 | 接口冒烟（真实 PG：BLF_TEST） | meta/companies/detail/facets/board/pool 200；PATCH followup 200 + version=1 + 自动认领 + human_touched=true；AI PATCH 未锁记录 200、同 Idempotency-Key 重放 200、已锁记录 409 <code>INTENT_RECORD_LOCKED</code>；convert 200 写 crm_customers ∪ crm_contacts；CSV 导出 28 列 + RFC5987 文件名 |
 | Playwright 桌面路由矩阵 | 未执行成功：本地 <code>pnpm dev</code> 冷启动超 120s、<code>CI=1 pnpm start</code> 与 <code>output: standalone</code> 不兼容（既有测试基建问题）；路由注册已由 vitest 路由矩阵 + build 产物覆盖 |
 
 实施中发现并修复：① <code>GetFacets</code> 在 scope=all 时把 <code>and ...</code> 直接拼到无 <code>where</code> 的 SQL 上导致 meta/facets 500（改用 <code>andWhere</code>）；② 渠道 facet 查询返回两列但按单列扫描导致 500（改为单列）；③ Go <code>agentauth.TouchLastUsed</code> 缺少 <code>::timestamptz</code> 强制转换，导致 agent 凭据首次使用 401（已加回归测试）。
+
+### 12.2 Review 修复（2026-11-10）
+
+独立 Reviewer（只读）结论「需修复后合并」，2 个 P0 与 9 个 P1 已全部处理：
+
+- **P0-1**：详情支持可选 <code>?scope=mine|all|sea</code>；非 admin 空 scope 使用「我的 ∪ 待领取」可见性，恢复 sea 详情与领取链路（前端同步透传 scope）。
+- **P0-2**：<code>dup=true</code> 改为 <code>phone_normalized in (select ... group by having count(distinct company_id) &gt;= 2)</code>，与 <code>stats.dup_groups</code> 同口径，并加真实 PG 集成测试。
+- **P1**：convert 时 sea 记录客户 owner 回退为操作人；抽屉新增「编辑资料」（含 channel/channels/channel_source，BE 已支持）；customer_radar 同步 CRM zod/导入映射；公司/池搜索支持手机号；批量导入改为逐行 SAVEPOINT + external_id/phone_raw/资本上限校验；Agent 审计补齐（成功 upsert 的 agent_id、PATCH/screen 锁定 ai_write_blocked）；导出文件名改用批次日期；CSV 公式注入防护；AI 不再改 batch_id；R2 附着失败清理；模型 CHECK 约束改为 SQLite 兼容写法；validPhones 去重；facet 渠道 pool 分支按 scope 收敛。
+- 复跑：<code>go test ./...</code> 全 PASS（含真实 PG 门控的 dup/savepoint 测试）；前端 <code>pnpm test</code> 383 文件 / 2721 例 PASS；<code>pnpm lint</code> 0 error；<code>pnpm build</code> PASS；<code>pytest</code> 4509 passed / 16 skipped / 2 failed（仍为 BLF_test 缺 <code>is_active=false</code> 项目种子的既有基线，与本功能无关）。
 
 ---
 
