@@ -10,8 +10,10 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/internal_keys"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/audit"
 )
 
 func TestAPIKeyStoreCreatesHashOnlyAgentKey(t *testing.T) {
@@ -445,5 +447,200 @@ func TestAPIKeyStoreRotateUpdatesExistingUserSlot(t *testing.T) {
 	hash := sha256.Sum256([]byte(plaintext))
 	if got := db.queryRowCalls[0].args[0]; got != hex.EncodeToString(hash[:]) {
 		t.Errorf("stored key_hash = %#v, want SHA-256 of plaintext", got)
+	}
+}
+
+// trackedAPIKeyDB begins a transaction that records commit/rollback so the
+// create-with-audit path can assert its all-or-nothing behavior.
+type trackedAPIKeyDB struct {
+	*fakeWriteDB
+	tx *trackedAPIKeyTx
+}
+
+func (db *trackedAPIKeyDB) Begin(context.Context) (pgx.Tx, error) {
+	db.tx = &trackedAPIKeyTx{fakeTx: &fakeTx{fakeWriteDB: db.fakeWriteDB}}
+	return db.tx, nil
+}
+
+type trackedAPIKeyTx struct {
+	*fakeTx
+	commitErr  error
+	committed  bool
+	rolledBack bool
+}
+
+func (tx *trackedAPIKeyTx) Commit(context.Context) error {
+	if tx.commitErr != nil {
+		return tx.commitErr
+	}
+	tx.committed = true
+	return nil
+}
+
+func (tx *trackedAPIKeyTx) Rollback(context.Context) error {
+	tx.rolledBack = true
+	return nil
+}
+
+func apiKeyInsertRow(createdAt time.Time) fakeRow {
+	return fakeRow{values: []any{
+		int64(7),
+		"bbx_12345678",
+		"agent",
+		"read",
+		"1,2",
+		"reports",
+		pgtype.Text{},
+		pgtype.Text{},
+		false,
+		nil,
+		createdAt,
+		nil,
+		nil,
+	}}
+}
+
+func TestAPIKeyStoreCreateWithAuditCommitsInsertAndAuditInOneTransaction(t *testing.T) {
+	createdAt := time.Date(2026, 11, 9, 2, 3, 4, 0, time.UTC)
+	db := &trackedAPIKeyDB{fakeWriteDB: &fakeWriteDB{fakeDB: &fakeDB{
+		rowsQueue: []pgx.Row{apiKeyInsertRow(createdAt)},
+	}}}
+	auditor := audit.NewService(db)
+	operator := "admin"
+
+	record, plaintext, err := NewAPIKeyStore(db).CreateAPIKeyWithAudit(
+		context.Background(),
+		internal_keys.APIKeyCreateInput{
+			Label:         " agent ",
+			Scope:         "read",
+			ProjectScope:  "1,2",
+			BusinessScope: "reports",
+		},
+		"",
+		auditor,
+		func(*internal_keys.APIKey) audit.Entry {
+			return audit.Entry{Action: "api_key.create", TargetType: "agent_api_key", Operator: &operator}
+		},
+	)
+	if err != nil {
+		t.Fatalf("CreateAPIKeyWithAudit() error = %v", err)
+	}
+	if record == nil || record.ID != 7 || plaintext == "" || !strings.HasPrefix(plaintext, "bbx_") {
+		t.Fatalf("CreateAPIKeyWithAudit() = (%#v, %q), want persisted record and bbx key", record, plaintext)
+	}
+	if db.tx == nil || !db.tx.committed {
+		t.Fatalf("transaction was not committed: %#v", db.tx)
+	}
+	if len(db.queryRowCalls) != 1 {
+		t.Fatalf("insert calls = %d, want exactly one insert", len(db.queryRowCalls))
+	}
+	insert := db.queryRowCalls[0]
+	if insert.args[2] != "agent" || insert.args[5] != "reports" || insert.args[7] != "admin" {
+		t.Fatalf("insert args = %#v, want normalized label/scope/operator", insert.args)
+	}
+	if len(db.execCalls) != 1 || !strings.Contains(strings.ToLower(db.execCalls[0].sql), "operation_audit_logs") {
+		t.Fatalf("audit exec calls = %#v, want one operation_audit_logs insert", db.execCalls)
+	}
+	for _, arg := range insert.args {
+		if arg == plaintext {
+			t.Fatal("plaintext API key was passed to the database")
+		}
+	}
+}
+
+func TestAPIKeyStoreCreateWithAuditRollsBackInsertWhenAuditFails(t *testing.T) {
+	createdAt := time.Date(2026, 11, 9, 2, 3, 4, 0, time.UTC)
+	auditErr := errors.New("audit log write failed")
+	db := &trackedAPIKeyDB{fakeWriteDB: &fakeWriteDB{
+		fakeDB:  &fakeDB{rowsQueue: []pgx.Row{apiKeyInsertRow(createdAt)}},
+		execErr: auditErr,
+	}}
+
+	record, plaintext, err := NewAPIKeyStore(db).CreateAPIKeyWithAudit(
+		context.Background(),
+		internal_keys.APIKeyCreateInput{Label: "agent", BusinessScope: "reports"},
+		"admin",
+		audit.NewService(db),
+		func(*internal_keys.APIKey) audit.Entry {
+			return audit.Entry{Action: "api_key.create", TargetType: "agent_api_key"}
+		},
+	)
+	if !errors.Is(err, auditErr) {
+		t.Fatalf("CreateAPIKeyWithAudit() error = %v, want the audit failure", err)
+	}
+	if record != nil || plaintext != "" {
+		t.Fatalf("CreateAPIKeyWithAudit() returned (%#v, %q) after a failed audit write", record, plaintext)
+	}
+	if db.tx == nil || db.tx.committed || !db.tx.rolledBack {
+		t.Fatalf("transaction state = %#v, want rollback without commit", db.tx)
+	}
+	if len(db.queryRowCalls) != 1 {
+		t.Fatalf("insert calls = %d, want the insert staged before the failing audit", len(db.queryRowCalls))
+	}
+	if len(db.execCalls) != 1 {
+		t.Fatalf("audit exec calls = %d, want one attempted audit write", len(db.execCalls))
+	}
+}
+
+func TestAPIKeyStoreCreateWithAuditMapsUniqueViolationToConflict(t *testing.T) {
+	db := &trackedAPIKeyDB{fakeWriteDB: &fakeWriteDB{fakeDB: &fakeDB{
+		rowsQueue: []pgx.Row{
+			fakeRow{values: []any{false}},
+			fakeRow{err: &pgconn.PgError{
+				Code:           "23505",
+				ConstraintName: "uq_aak_active_provisioning",
+				Message:        "duplicate key value violates unique constraint",
+			}},
+		},
+	}}}
+
+	_, _, err := NewAPIKeyStore(db).CreateAPIKeyWithAudit(
+		context.Background(),
+		internal_keys.APIKeyCreateInput{Label: "agent", BusinessScope: "reports,agent_provisioning"},
+		"admin",
+		audit.NewService(db),
+		func(*internal_keys.APIKey) audit.Entry {
+			return audit.Entry{Action: "api_key.create", TargetType: "agent_api_key"}
+		},
+	)
+	if !errors.Is(err, internal_keys.ErrAPIKeyConflict) {
+		t.Fatalf("CreateAPIKeyWithAudit() error = %v, want ErrAPIKeyConflict", err)
+	}
+	if db.tx == nil || db.tx.committed || !db.tx.rolledBack {
+		t.Fatalf("transaction state = %#v, want rollback without commit", db.tx)
+	}
+	if len(db.queryRowCalls) != 2 {
+		t.Fatalf("QueryRow calls = %d, want singleton pre-check + insert", len(db.queryRowCalls))
+	}
+	if len(db.execCalls) != 0 {
+		t.Fatalf("audit exec calls = %d, want no audit after a rejected insert", len(db.execCalls))
+	}
+}
+
+func TestAPIKeyStoreCreateWithAuditRejectsSecondProvisioningHolderBeforeInsert(t *testing.T) {
+	db := &trackedAPIKeyDB{fakeWriteDB: &fakeWriteDB{fakeDB: &fakeDB{
+		rowsQueue: []pgx.Row{fakeRow{values: []any{true}}},
+	}}}
+
+	_, _, err := NewAPIKeyStore(db).CreateAPIKeyWithAudit(
+		context.Background(),
+		internal_keys.APIKeyCreateInput{Label: "agent", BusinessScope: "agent_provisioning"},
+		"admin",
+		audit.NewService(db),
+		func(*internal_keys.APIKey) audit.Entry {
+			return audit.Entry{Action: "api_key.create", TargetType: "agent_api_key"}
+		},
+	)
+	if !errors.Is(err, internal_keys.ErrAPIKeyConflict) {
+		t.Fatalf("CreateAPIKeyWithAudit() error = %v, want ErrAPIKeyConflict", err)
+	}
+	if db.tx == nil || db.tx.committed || !db.tx.rolledBack {
+		t.Fatalf("transaction state = %#v, want rollback without commit", db.tx)
+	}
+	if len(db.queryRowCalls) != 1 {
+		t.Fatalf("QueryRow calls = %d, want the pre-check only (no insert)", len(db.queryRowCalls))
+	}
+	if len(db.execCalls) != 0 {
+		t.Fatalf("audit exec calls = %d, want none for a rejected create", len(db.execCalls))
 	}
 }

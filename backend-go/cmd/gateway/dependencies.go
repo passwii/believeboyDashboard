@@ -187,7 +187,7 @@ func newDependencies(ctx context.Context, cfg config.Config) (*dependencies, err
 		}
 		pools = append(pools, primary)
 		primaryDB := store.NewPGXDB(primary)
-		auditSvc := audit.NewService(primaryDB)
+		auditSvc := audit.BestEffort(audit.NewService(primaryDB))
 		projectStore := store.NewProjectStore(primaryDB)
 		if cfg.OwnedModules["profile"] ||
 			cfg.OwnedModules["uploads"] ||

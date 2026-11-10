@@ -16,6 +16,7 @@ import (
 	productreports "github.com/passwii/believeboyDashboard/backend-go/internal/api/product_analysis_reports"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/queue"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/store"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/testutil"
 )
 
 type remediationProductAnalysisExecutor struct {
@@ -401,6 +402,7 @@ func TestProductAnalysisExecutorWritesRealXLSX(t *testing.T) {
 }
 
 func TestProductAnalysisExecutorRejectsTraversalAndSymlink(t *testing.T) {
+	testutil.RequireSymlink(t)
 	uploadRoot := t.TempDir()
 	resultRoot := t.TempDir()
 	files := createProductAnalysisInputFiles(t, uploadRoot)

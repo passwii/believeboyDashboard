@@ -2,6 +2,7 @@ package internal_keys
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/audit"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/auth"
 )
@@ -82,8 +84,68 @@ func TestCreateAPIKeyReturnsPlaintextOnceAndAudits(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), `"plaintext_key":"bbx_once_only"`) {
 		t.Errorf("create response omits one-time key: %s", rec.Body.String())
 	}
+	if !store.createAPIKeyAudited || !store.createAPIKeyCommitted {
+		t.Errorf("CreateAPIKey() did not run the transactional insert+audit path: %#v", store)
+	}
 	if len(auditor.Entries) != 1 || auditor.Entries[0].Action != "api_key.create" {
 		t.Errorf("audit entries = %#v, want api_key.create", auditor.Entries)
+	}
+}
+
+func TestCreateAPIKeyMapsProvisioningSingletonConflictToConflictStatus(t *testing.T) {
+	store := &fakeStore{createAPIKeyWithAuditErr: ErrAPIKeyConflict}
+	auditor := audit.NewMockService()
+	req := adminRequest(
+		http.MethodPost,
+		"/api/v1/internal/api-keys",
+		`{"label":"agent","business_scope":"agent_provisioning"}`,
+	)
+	rec := httptest.NewRecorder()
+
+	NewHandler(store, auditor).CreateAPIKey(rec, req)
+
+	assertResponse(t, rec, http.StatusConflict, `{"detail":"`+provisioningSingletonConflictMessage+`"}`)
+	if !store.createAPIKeyAudited {
+		t.Errorf("CreateAPIKey() bypassed the transactional store")
+	}
+	if store.createAPIKeyCommitted {
+		t.Errorf("CreateAPIKey() committed despite the provisioning singleton conflict")
+	}
+	if len(auditor.Entries) != 0 {
+		t.Errorf("audit entries = %#v, want none for a rejected create", auditor.Entries)
+	}
+	if strings.Contains(rec.Body.String(), "plaintext_key") {
+		t.Errorf("conflict response leaked a plaintext key: %s", rec.Body.String())
+	}
+}
+
+func TestCreateAPIKeyDoesNotCommitWhenAuditWriteFails(t *testing.T) {
+	store := &fakeStore{createdAPIKey: &APIKey{
+		ID:            9,
+		KeyPrefix:     "bbx_abcd1234",
+		Label:         "daily agent",
+		Scope:         "read",
+		ProjectScope:  "*",
+		BusinessScope: "*",
+		CreatedAt:     time.Date(2026, 10, 1, 2, 3, 4, 0, time.UTC),
+	}}
+	auditor := failingAPIKeyAuditor{}
+	req := adminRequest(http.MethodPost, "/api/v1/internal/api-keys", `{"label":"daily agent"}`)
+	rec := httptest.NewRecorder()
+
+	NewHandler(store, auditor).CreateAPIKey(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500; body = %s", rec.Code, rec.Body.String())
+	}
+	if store.createAPIKeyCommitted {
+		t.Fatal("CreateAPIKey() committed a key even though the audit write failed")
+	}
+	if !store.createAPIKeyAuditFailed {
+		t.Fatal("CreateAPIKey() never attempted the in-transaction audit write")
+	}
+	if strings.Contains(rec.Body.String(), "plaintext_key") {
+		t.Errorf("failed create response leaked a plaintext key: %s", rec.Body.String())
 	}
 }
 
@@ -240,23 +302,69 @@ func TestRotateUserAPIKeyDefaultsToAllDeviceSlotsAndReturnsNotFoundWhenMissing(t
 }
 
 type fakeStore struct {
-	apiKeys              []APIKey
-	createdAPIKey        *APIKey
-	deletedAPIKey        *APIKey
-	revokedAPIKey        *APIKey
-	activatedAPIKey      *APIKey
-	userAPIKeys          []UserAPIKey
-	createdUserAPIKey    *UserAPIKey
-	deletedUserAPIKey    *UserAPIKey
-	rotatedUserAPIKey    *UserAPIKey
-	rotateClientID       *string
-	createAPIKeyInput    APIKeyCreateInput
-	createAPIKeyOperator string
-	deleteAPIKeyID       int64
-	createUserID         string
-	createClientID       string
-	deleteUserAPIKeyID   int64
-	err                  error
+	apiKeys                  []APIKey
+	createdAPIKey            *APIKey
+	deletedAPIKey            *APIKey
+	revokedAPIKey            *APIKey
+	activatedAPIKey          *APIKey
+	userAPIKeys              []UserAPIKey
+	createdUserAPIKey        *UserAPIKey
+	deletedUserAPIKey        *UserAPIKey
+	rotatedUserAPIKey        *UserAPIKey
+	rotateClientID           *string
+	createAPIKeyInput        APIKeyCreateInput
+	createAPIKeyOperator     string
+	createAPIKeyWithAuditErr error
+	createAPIKeyAudited      bool
+	createAPIKeyCommitted    bool
+	createAPIKeyAuditFailed  bool
+	deleteAPIKeyID           int64
+	createUserID             string
+	createClientID           string
+	deleteUserAPIKeyID       int64
+	err                      error
+}
+
+// failingAPIKeyAuditor simulates an audit backend outage; the handler must not
+// return a created key when this fires inside the create transaction.
+type failingAPIKeyAuditor struct{}
+
+func (failingAPIKeyAuditor) LogAction(context.Context, audit.Entry) error {
+	return errors.New("audit backend unavailable")
+}
+
+func (failingAPIKeyAuditor) LogActionTx(context.Context, pgx.Tx, audit.Entry) error {
+	return errors.New("audit backend unavailable")
+}
+
+func (failingAPIKeyAuditor) LogView(context.Context, string, string, *string, any, *http.Request) error {
+	return nil
+}
+
+func (s *fakeStore) CreateAPIKeyWithAudit(
+	ctx context.Context,
+	input APIKeyCreateInput,
+	operator string,
+	auditor audit.Service,
+	entryFor func(*APIKey) audit.Entry,
+) (*APIKey, string, error) {
+	s.createAPIKeyAudited = true
+	s.createAPIKeyInput = input
+	s.createAPIKeyOperator = operator
+	if s.createAPIKeyWithAuditErr != nil {
+		return nil, "", s.createAPIKeyWithAuditErr
+	}
+	if s.err != nil || s.createdAPIKey == nil {
+		return s.createdAPIKey, "bbx_once_only", s.err
+	}
+	if auditor != nil && entryFor != nil {
+		if err := auditor.LogActionTx(ctx, nil, entryFor(s.createdAPIKey)); err != nil {
+			s.createAPIKeyAuditFailed = true
+			return nil, "", err
+		}
+	}
+	s.createAPIKeyCommitted = true
+	return s.createdAPIKey, "bbx_once_only", nil
 }
 
 func (s *fakeStore) ListAPIKeys(context.Context, bool) ([]APIKey, error) {

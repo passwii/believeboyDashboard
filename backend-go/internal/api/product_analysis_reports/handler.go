@@ -193,7 +193,7 @@ func (handler *Handler) Result(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, parsed.String(), http.StatusFound)
 		return
 	}
-	if parsed, parseErr := url.Parse(rawResult); parseErr == nil && parsed.Scheme != "" {
+	if parsed, parseErr := url.Parse(rawResult); parseErr == nil && hasURLScheme(parsed.Scheme) {
 		handler.resultNotFound(w, r, task.ID, "Result file not found")
 		return
 	}
@@ -202,7 +202,7 @@ func (handler *Handler) Result(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if filepath.IsAbs(rawResult) {
+	if isLocalAbsolutePath(rawResult) {
 		if strings.TrimSpace(handler.resultRoot) == "" {
 			httpapi.WriteDetail(w, http.StatusServiceUnavailable, "Result storage is not configured")
 			return

@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/audit"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/auth"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/testutil"
 )
 
 type fakeStore struct {
@@ -776,6 +777,7 @@ func TestProductAnalysisReportResultRejectsUnsafePaths(t *testing.T) {
 }
 
 func TestProductAnalysisReportResultRejectsSymlinkEscape(t *testing.T) {
+	testutil.RequireSymlink(t)
 	root := t.TempDir()
 	outside := filepath.Join(t.TempDir(), "secret.xlsx")
 	if err := os.WriteFile(outside, []byte("secret"), 0o600); err != nil {

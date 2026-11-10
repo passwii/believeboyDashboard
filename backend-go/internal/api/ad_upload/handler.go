@@ -43,7 +43,7 @@ func (h *Handler) Recognize(w http.ResponseWriter, r *http.Request) {
 		httpapi.WriteDetail(w, http.StatusBadRequest, "Missing filename")
 		return
 	}
-	if filepath.IsAbs(filename) || strings.Contains(filename, `\`) || strings.Contains(filename, "/") || strings.Contains(filename, "..") {
+	if !validUploadFilename(filename) {
 		httpapi.WriteDetail(w, http.StatusBadRequest, "Invalid filename path")
 		return
 	}
@@ -178,4 +178,22 @@ func (h *Handler) Status(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = httpapi.WriteJSON(w, http.StatusOK, resp)
+}
+
+// validUploadFilename reports whether filename carries no directory component.
+// It defends against clients that send a traversal path in the multipart
+// Content-Disposition header.
+//
+// The guard cannot be exercised end-to-end through net/http's multipart parser:
+// Part.FileName applies filepath.Base, so "../evil.csv" and `..\evil.csv` both
+// arrive already reduced to "evil.csv" on every platform. That is why the
+// predicate is unit-tested directly instead of through a multipart request.
+func validUploadFilename(filename string) bool {
+	if filename == "" {
+		return false
+	}
+	return !filepath.IsAbs(filename) &&
+		!strings.Contains(filename, `\`) &&
+		!strings.Contains(filename, "/") &&
+		!strings.Contains(filename, "..")
 }

@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -34,8 +36,12 @@ func (m *mockProjectReader) ListManage(_ context.Context, _ string, _ bool, _ bo
 }
 
 type mockShipmentStore struct {
-	detail  ShipmentScheduleDetail
-	fbaResp ShipmentFbaBoxDetailResponse
+	detail               ShipmentScheduleDetail
+	fbaResp              ShipmentFbaBoxDetailResponse
+	importSchedulesCalls int
+	importSchedulesBytes []byte
+	importItemsCalls     int
+	importItemsBytes     []byte
 }
 
 func (m *mockShipmentStore) ListShipmentSchedules(_ context.Context, _ ShipmentFilter) (ShipmentScheduleListResponse, error) {
@@ -84,10 +90,14 @@ func (m *mockShipmentStore) UpdateShipmentSchedule(_ context.Context, _ int64, _
 func (m *mockShipmentStore) DeleteShipmentSchedule(_ context.Context, _ int64) (bool, error) {
 	return true, nil
 }
-func (m *mockShipmentStore) ImportSchedulesCSV(_ context.Context, _ []byte, _ string, _ bool) (ShipmentSchedulesImportResponse, error) {
+func (m *mockShipmentStore) ImportSchedulesCSV(_ context.Context, data []byte, _ string, _ bool) (ShipmentSchedulesImportResponse, error) {
+	m.importSchedulesCalls++
+	m.importSchedulesBytes = data
 	return ShipmentSchedulesImportResponse{Inserted: 1, ShipmentNos: []string{"FBA123456"}}, nil
 }
-func (m *mockShipmentStore) ImportItemsCSV(_ context.Context, _ int64, _ []byte, _ string) (ShipmentItemsImportResponse, error) {
+func (m *mockShipmentStore) ImportItemsCSV(_ context.Context, _ int64, data []byte, _ string) (ShipmentItemsImportResponse, error) {
+	m.importItemsCalls++
+	m.importItemsBytes = data
 	return ShipmentItemsImportResponse{Inserted: 1}, nil
 }
 func (m *mockShipmentStore) CalculateCosts(_ context.Context, _ int64, _ ShipmentCostCalculateRequest) (*ShipmentScheduleDetail, error) {
@@ -320,4 +330,129 @@ func TestShipmentSchedulesProjectScopeAndCSVImport(t *testing.T) {
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("expected 403 for cross-project target shipment in FBA box details, got %d", rec.Code)
 	}
+}
+
+func TestShipmentScheduleCSVImportsAcceptWithinUploadLimit(t *testing.T) {
+	const csv = "shipment_no,project_id\nFBA123456,10\n"
+	for _, testCase := range []struct {
+		name  string
+		path  string
+		calls func(*mockShipmentStore) (int, []byte)
+	}{
+		{
+			name: "schedules",
+			path: "/api/v1/shipment-schedules/import-csv",
+			calls: func(store *mockShipmentStore) (int, []byte) {
+				return store.importSchedulesCalls, store.importSchedulesBytes
+			},
+		},
+		{
+			name: "items",
+			path: "/api/v1/shipment-schedules/1/items/import-csv",
+			calls: func(store *mockShipmentStore) (int, []byte) {
+				return store.importItemsCalls, store.importItemsBytes
+			},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			store := &mockShipmentStore{detail: ShipmentScheduleDetail{ID: 1, ProjectID: 10, ProjectName: "Project10"}}
+			router := shipmentCSVImportRouter(store)
+			body, contentType := multipartCSVUpload(t, csv)
+
+			req := httptest.NewRequest(http.MethodPost, testCase.path, body).WithContext(shipmentAdminContext())
+			req.Header.Set("Content-Type", contentType)
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+			}
+			calls, payload := testCase.calls(store)
+			if calls != 1 || string(payload) != csv {
+				t.Fatalf("store import calls/bytes = (%d, %q), want the uploaded CSV payload", calls, payload)
+			}
+		})
+	}
+}
+
+func TestShipmentScheduleCSVImportsRejectOversizedUpload(t *testing.T) {
+	for _, testCase := range []struct {
+		name  string
+		path  string
+		calls func(*mockShipmentStore) int
+	}{
+		{
+			name:  "schedules",
+			path:  "/api/v1/shipment-schedules/import-csv",
+			calls: func(store *mockShipmentStore) int { return store.importSchedulesCalls },
+		},
+		{
+			name:  "items",
+			path:  "/api/v1/shipment-schedules/1/items/import-csv",
+			calls: func(store *mockShipmentStore) int { return store.importItemsCalls },
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			store := &mockShipmentStore{detail: ShipmentScheduleDetail{ID: 1, ProjectID: 10, ProjectName: "Project10"}}
+			auditor := audit.NewMockService()
+			router := chi.NewRouter()
+			NewRegistrar(store, auditor).RegisterRoutes(router, func(next http.Handler) http.Handler { return next })
+			body, contentType := multipartCSVUpload(t, strings.Repeat("x", int(maxShipmentCSVImportBytes)+1))
+
+			req := httptest.NewRequest(http.MethodPost, testCase.path, body).WithContext(shipmentAdminContext())
+			req.Header.Set("Content-Type", contentType)
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusRequestEntityTooLarge {
+				t.Fatalf("status = %d, want 413; body = %s", rec.Code, rec.Body.String())
+			}
+			var payload struct {
+				Detail string `json:"detail"`
+			}
+			if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+				t.Fatalf("decode 413 body: %v (body = %s)", err, rec.Body.String())
+			}
+			if payload.Detail != shipmentCSVTooLargeDetail {
+				t.Fatalf("detail = %q, want %q", payload.Detail, shipmentCSVTooLargeDetail)
+			}
+			if calls := testCase.calls(store); calls != 0 {
+				t.Fatalf("store import calls = %d, want 0 for an oversized upload", calls)
+			}
+			if len(auditor.Entries) != 0 {
+				t.Fatalf("oversized upload was audited: %#v", auditor.Entries)
+			}
+		})
+	}
+}
+
+func shipmentCSVImportRouter(store *mockShipmentStore) *chi.Mux {
+	router := chi.NewRouter()
+	NewRegistrar(store, audit.NewMockService()).RegisterRoutes(router, func(next http.Handler) http.Handler { return next })
+	return router
+}
+
+func shipmentAdminContext() context.Context {
+	return auth.WithUserContext(context.Background(), auth.UserContext{
+		UserID:   "admin",
+		Operator: "admin_op",
+		IsAdmin:  true,
+	})
+}
+
+func multipartCSVUpload(t *testing.T, content string) (*bytes.Buffer, string) {
+	t.Helper()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("file", "upload.csv")
+	if err != nil {
+		t.Fatalf("CreateFormFile() error = %v", err)
+	}
+	if _, err := io.WriteString(part, content); err != nil {
+		t.Fatalf("write file part error = %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("multipart close error = %v", err)
+	}
+	return &body, writer.FormDataContentType()
 }

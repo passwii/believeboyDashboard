@@ -12,6 +12,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/ad_upload"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/testutil"
 )
 
 const validAdCampaignCSV = "开始日期,结束日期,广告活动名称,预算,定位类型,竞价策略\n" +
@@ -115,6 +116,7 @@ func TestAdUploadRecognizeRejectsPathTraversalFilename(t *testing.T) {
 }
 
 func TestAdUploadTempPathRejectsTraversalAndSymlink(t *testing.T) {
+	testutil.RequireSymlink(t)
 	store := newAdUploadTestStore(t, &fakeWriteDB{fakeDB: &fakeDB{}})
 	validID := strings.Repeat("a", 32)
 	if _, err := store.writeAdUploadTempFile(validID, ".csv", []byte("a,b\n1,2\n")); err != nil {

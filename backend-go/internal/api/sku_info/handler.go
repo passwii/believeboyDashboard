@@ -17,6 +17,14 @@ import (
 	"github.com/passwii/believeboyDashboard/backend-go/internal/httpapi"
 )
 
+// maxSKUImportBytes caps SKU CSV uploads at 20 MiB. The FastAPI implementation of
+// the same upload family already enforces a 20 MB limit
+// (backend/app/api/v1/endpoints/sku_info.py: max_size = 20 * 1024 * 1024), so the
+// Go gateway must not accept unbounded bodies that would OOM the process.
+const maxSKUImportBytes int64 = 20 << 20
+
+const skuImportTooLargeDetail = "文件大小不能超过 20MB"
+
 type Handler struct {
 	store    Store
 	auditor  audit.Service
@@ -437,8 +445,14 @@ func (h *Handler) MoveSkuRecord(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) ImportCSV(w http.ResponseWriter, r *http.Request) {
 	identity, _ := auth.UserContextFromContext(r.Context())
+	r.Body = http.MaxBytesReader(w, r.Body, maxSKUImportBytes)
 	file, _, err := r.FormFile("file")
 	if err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			httpapi.WriteDetail(w, http.StatusRequestEntityTooLarge, skuImportTooLargeDetail)
+			return
+		}
 		httpapi.WriteDetail(w, http.StatusBadRequest, "Missing file in multipart form")
 		return
 	}

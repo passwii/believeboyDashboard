@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/testutil"
 )
 
 type productAnalysisReportTestDB struct {
@@ -140,6 +141,7 @@ func TestRunProductAnalysisFilesRejectsPathOutsideUploadRoot(t *testing.T) {
 }
 
 func TestRunProductAnalysisFilesRejectsSymlinkReport(t *testing.T) {
+	testutil.RequireSymlink(t)
 	uploadRoot := t.TempDir()
 	outside := filepath.Join(t.TempDir(), "outside.csv")
 	if err := os.WriteFile(outside, []byte("outside"), 0o600); err != nil {
