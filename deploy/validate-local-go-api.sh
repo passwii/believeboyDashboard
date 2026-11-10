@@ -6,34 +6,82 @@
 # pgxpool AfterConnect. Otherwise every DB-backed route returns 500 while
 # /health/live stays green.
 #
+# Default mode runs the freshly built linux binary inside an existing local
+# image that has NO /usr/share/zoneinfo, so it proves the embedded time/tzdata
+# rather than the host's zoneinfo. This also works offline (Docker Hub metadata
+# fetches can time out, as seen on 2026-11-10).
+#
 # Usage:
 #   bash deploy/validate-local-go-api.sh
+#   GO_API_VALIDATE_MODE=image bash deploy/validate-local-go-api.sh  # full Dockerfile build
 #
 # Environment overrides:
-#   GO_API_VALIDATE_IMAGE   image tag (default: believeboy-dashboard-go-api:local-validate)
-#   GO_API_VALIDATE_PORT    host port (default: 18299)
-#   GO_API_VALIDATE_ENV     env file for DB credentials (default: backend/.env.test)
-#   DATABASE_URL_VALIDATE   full SQLAlchemy-style DB URL (overrides env file)
+#   GO_API_VALIDATE_MODE     binary (default) | image
+#   GO_API_VALIDATE_IMAGE    image tag for image mode
+#   GO_API_VALIDATE_BASE_IMAGE  base image for binary mode (must lack zoneinfo)
+#   GO_API_VALIDATE_PORT     host port (default: 18299)
+#   GO_API_VALIDATE_ENV      env file for DB credentials (default: backend/.env.test)
+#   DATABASE_URL_VALIDATE    full SQLAlchemy-style DB URL (overrides env file)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+MODE="${GO_API_VALIDATE_MODE:-binary}"
 IMAGE="${GO_API_VALIDATE_IMAGE:-believeboy-dashboard-go-api:local-validate}"
 PORT="${GO_API_VALIDATE_PORT:-18299}"
 ENV_FILE="${GO_API_VALIDATE_ENV:-$ROOT/backend/.env.test}"
 CONTAINER="believeboy-go-api-validate"
+TMP_DIR="$(mktemp -d /tmp/go-api-validate.XXXXXX)"
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 
 command -v docker >/dev/null 2>&1 || die "docker is required."
 docker info >/dev/null 2>&1 || die "Docker daemon is not running."
 
-echo "==> Building Go API runtime image: $IMAGE"
-docker build --file "$ROOT/backend-go/Dockerfile" --target runtime --tag "$IMAGE" "$ROOT"
+pick_base_image() {
+  local candidate
+  for candidate in "${GO_API_VALIDATE_BASE_IMAGE:-}" believeboy-go-api:local believeboy-go-api:local-amd64 alpine:3.22 alpine:latest; do
+    [[ -n "$candidate" ]] || continue
+    docker image inspect "$candidate" >/dev/null 2>&1 || continue
+    if docker run --rm --entrypoint sh "$candidate" \
+      -c 'test -x /bin/sh && test ! -e /usr/share/zoneinfo/Asia/Shanghai' >/dev/null 2>&1; then
+      printf '%s' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
 
-echo "==> Checking tzdata inside the runtime image"
-docker run --rm --entrypoint sh "$IMAGE" \
-  -c 'test -e /usr/share/zoneinfo/Asia/Shanghai' ||
-  die "runtime image is missing /usr/share/zoneinfo/Asia/Shanghai"
+if [[ "$MODE" == "image" ]]; then
+  echo "==> Building Go API runtime image: $IMAGE"
+  docker build --file "$ROOT/backend-go/Dockerfile" --target runtime --tag "$IMAGE" "$ROOT"
+  echo "==> Checking tzdata inside the runtime image"
+  docker run --rm --entrypoint sh "$IMAGE" \
+    -c 'test -e /usr/share/zoneinfo/Asia/Shanghai' ||
+    die "runtime image is missing /usr/share/zoneinfo/Asia/Shanghai"
+  BASE_IMAGE="$IMAGE"
+  ENTRYPOINT="/usr/local/bin/go-api"
+  EXTRA_ARGS=()
+  BINARY_TO_COPY=""
+elif [[ "$MODE" == "binary" ]]; then
+  command -v go >/dev/null 2>&1 || die "go is required for binary mode (or set GO_API_VALIDATE_MODE=image)."
+  case "$(uname -m)" in
+    arm64 | aarch64) GOARCH=arm64 ;;
+    x86_64 | amd64) GOARCH=amd64 ;;
+    *) die "unsupported host architecture: $(uname -m)" ;;
+  esac
+  BASE_IMAGE="$(pick_base_image)" ||
+    die "no local image without tzdata found; set GO_API_VALIDATE_BASE_IMAGE or GO_API_VALIDATE_MODE=image."
+  echo "==> Building linux/$GOARCH gateway binary (embedded time/tzdata)"
+  (cd "$ROOT/backend-go" && CGO_ENABLED=0 GOOS=linux GOARCH="$GOARCH" \
+    go build -trimpath -o "$TMP_DIR/go-api" ./cmd/gateway)
+  chmod 0755 "$TMP_DIR/go-api"
+  echo "==> Running the binary inside $BASE_IMAGE (base image has no zoneinfo; proves embedded tzdata)"
+  ENTRYPOINT="/tmp/go-api"
+  EXTRA_ARGS=()
+  BINARY_TO_COPY="$TMP_DIR/go-api"
+else
+  die "GO_API_VALIDATE_MODE must be 'binary' or 'image' (current: $MODE)"
+fi
 
 DB_URL="${DATABASE_URL_VALIDATE:-}"
 if [[ -z "$DB_URL" ]]; then
@@ -65,20 +113,31 @@ DB_URL="$(printf '%s' "$DB_URL" | sed -E 's#@(localhost|127\.0\.0\.1):#@host.doc
 API_KEY="local-validate-key"
 PROXY_SECRET="$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
 
-cleanup() { docker rm -f "$CONTAINER" >/dev/null 2>&1 || true; }
+remove_container() { docker rm -f "$CONTAINER" >/dev/null 2>&1 || true; }
+cleanup() {
+  remove_container
+  rm -rf "$TMP_DIR"
+}
 trap cleanup EXIT
 
-echo "==> Starting gateway (health + exchange_rates owned, DB: $DB_URL)"
-cleanup
-docker run -d --name "$CONTAINER" \
+DB_DISPLAY="$(printf '%s' "$DB_URL" | sed -E 's#://[^@/]+@#://***@#')"
+echo "==> Starting gateway (health + exchange_rates owned, DB: $DB_DISPLAY)"
+remove_container
+docker create --name "$CONTAINER" \
   -p "127.0.0.1:$PORT:18299" \
+  "${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}" \
   -e "GO_API_ADDR=0.0.0.0:18299" \
   -e "FASTAPI_ORIGIN=http://127.0.0.1:8100" \
   -e "GO_API_OWNED=health,exchange_rates" \
   -e "API_KEY=$API_KEY" \
   -e "GO_API_TRUSTED_PROXY_SECRET=$PROXY_SECRET" \
   -e "DATABASE_URL=$DB_URL" \
-  "$IMAGE" >/dev/null
+  --entrypoint "$ENTRYPOINT" \
+  "$BASE_IMAGE" >/dev/null
+if [[ -n "$BINARY_TO_COPY" ]]; then
+  docker cp "$BINARY_TO_COPY" "$CONTAINER:/tmp/go-api" >/dev/null
+fi
+docker start "$CONTAINER" >/dev/null
 
 echo "==> Waiting for DB-aware readiness"
 ready=0
@@ -106,7 +165,7 @@ case "$health" in
 esac
 
 echo "==> Owned route smoke: /api/v1/exchange-rates"
-rates_status="$(curl -sS --max-time 5 -o /tmp/go-api-validate-rates.json -w '%{http_code}' \
+rates_status="$(curl -sS --max-time 5 -o "$TMP_DIR/rates.json" -w '%{http_code}' \
   -H "X-API-Key: $API_KEY" \
   -H "X-Trusted-Proxy-Secret: $PROXY_SECRET" \
   "http://127.0.0.1:$PORT/api/v1/exchange-rates?page=1&page_size=1")"
@@ -114,6 +173,6 @@ case "$rates_status" in
   200) ;;
   *) docker logs "$CONTAINER" >&2 || true; die "exchange-rates returned HTTP $rates_status" ;;
 esac
-head -c 200 /tmp/go-api-validate-rates.json; echo
+head -c 200 "$TMP_DIR/rates.json"; echo
 
-echo "LOCAL VALIDATION PASSED: tzdata present, gateway DB-ready, owned route 200."
+echo "LOCAL VALIDATION PASSED: embedded tzdata, gateway DB-ready, owned route 200."

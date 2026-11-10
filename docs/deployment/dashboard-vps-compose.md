@@ -180,16 +180,15 @@ ssh guitar-vps '
 bash deploy/validate-local-go-api.sh
 ```
 
-脚本会：① 本地构建 `backend-go/Dockerfile` runtime 镜像并断言 `/usr/share/zoneinfo/Asia/Shanghai` 存在；② 用该镜像启动 gateway（`GO_API_OWNED=health,exchange_rates`）连本机 `BLF_test`；③ 带 `API_KEY` + `GO_API_TRUSTED_PROXY_SECRET` 请求 `/api/v1/health`（要求 `database: ok`）和 `/api/v1/exchange-rates`（要求 200）。
+默认（`binary` 模式，离线可用）：① 本机交叉编译 linux gateway 二进制（含 `time/tzdata`）；② 选一个**本地已有、且没有 `/usr/share/zoneinfo`** 的镜像（优先 `believeboy-go-api:local*`）作为基座运行它，证明时区数据来自二进制内嵌而不是宿主机；③ 连本机 `BLF_test`，带 `API_KEY` + `GO_API_TRUSTED_PROXY_SECRET` 请求 `/api/v1/health`（要求 `database: ok`）和 `/api/v1/exchange-rates`（要求 200）。
 
-手工只验 tzdata 时：
+需要验证完整 Dockerfile（含 apk tzdata）时：
 
 ```bash
-cd backend-go
-docker build -f Dockerfile -t believeboy-dashboard-go-api:local .
-docker run --rm --entrypoint sh believeboy-dashboard-go-api:local \
-  -c 'test -e /usr/share/zoneinfo/Asia/Shanghai && echo tzdata-ok'
+GO_API_VALIDATE_MODE=image bash deploy/validate-local-go-api.sh
 ```
+
+该模式需要能访问 Docker Hub；本机 2026-11-10 出现过 `auth.docker.io` 元数据超时，因此默认用离线 binary 模式。
 
 ## 回滚
 
