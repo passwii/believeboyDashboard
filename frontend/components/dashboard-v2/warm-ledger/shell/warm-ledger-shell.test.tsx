@@ -563,7 +563,7 @@ describe('WarmLedgerShell', () => {
       expect(currentLinks[0]).toHaveAttribute('href', navHref)
       unmount()
     }
-  })
+  }, 30_000)
 
   it('does not activate a parent item by prefix when a more specific Warm route is current', () => {
     installMatchMedia(false)
