@@ -84,11 +84,15 @@ test('remote deploy keeps the SSH script stream out of Compose run', async () =>
   assert.match(localDeploy, /IMAGE_BUILD_SECONDS/ )
   assert.match(script, /PUBLIC_WEB_HEALTH_URL/)
   assert.match(script, /PUBLIC_API_HEALTH_URL/)
-  assert.match(workflow, /deploy-remote\.sh\.next/)
+  // 2026-11-10：远程脚本改为「暂存目录 + .deploy.lock」方案，工作流按原名上传 deploy-remote.sh。
+  assert.match(workflow, /deploy\/deploy-remote\.sh/)
+  assert.match(workflow, /STAGING_DIR\/deploy-remote\.sh/)
   assert.match(workflow, /PUBLIC_WEB_HEALTH_URL/)
   assert.match(workflow, /PUBLIC_API_HEALTH_URL/)
-  assert.match(localDeploy, /docker-compose\.yml\.next/)
-  assert.match(localDeploy, /go\.env\.next/)
+  assert.match(localDeploy, /\.deploy-staging\./)
+  assert.match(localDeploy, /\.deploy\.lock/)
+  assert.match(localDeploy, /TMP_DIR\/web\.env/)
+  assert.match(localDeploy, /TMP_DIR\/go\.env/)
 })
 
 test('server-side backend calls prefer loopback while browser metadata stays public', async () => {
