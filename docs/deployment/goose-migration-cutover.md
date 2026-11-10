@@ -21,7 +21,6 @@
 | --- | --- |
 | 空库 | 执行 baseline + seed 迁移，建立 schema 与基础种子 |
 | 有 `alembic_version = 285`、无 Goose 表 | stamp baseline，再执行尚未应用的 seed 迁移 |
-| 有 `alembic_version = 285`、无 Goose 表 | stamp baseline，不重放 DDL |
 | 有 `alembic_version < 285` | 拒绝执行，提示先跑 `deploy/prepare-goose-cutover.sh` |
 | 无 `alembic_version` 且 public schema 非空 | 拒绝执行，避免覆盖未知库 |
 | 已有 Goose 表且 version ≥ 1 | 继续执行未应用的 Goose 迁移 |
