@@ -441,8 +441,9 @@ func (s *CRMIntentStore) facets(
 	}
 	builder := &argsBuilder{}
 	scopeCondition(builder, "c", scope)
-	rows, err := db.Query(ctx, `select distinct c.category from public.crm_intent_companies c`+
-		builder.where()+` and c.category is not null and c.category <> '' order by c.category`, builder.args...)
+	rows, err := db.Query(ctx, `select distinct c.category from public.crm_intent_companies c
+		where c.category is not null and c.category <> ''`+
+		andWhere(builder)+` order by c.category`, builder.args...)
 	if err != nil {
 		return facets, err
 	}
@@ -452,9 +453,9 @@ func (s *CRMIntentStore) facets(
 	}
 	provinceBuilder := &argsBuilder{}
 	scopeCondition(provinceBuilder, "c", scope)
-	rows, err = db.Query(ctx, `select distinct c.province from public.crm_intent_companies c`+
-		provinceBuilder.where()+` and c.province is not null and c.province <> '' order by c.province`,
-		provinceBuilder.args...)
+	rows, err = db.Query(ctx, `select distinct c.province from public.crm_intent_companies c
+		where c.province is not null and c.province <> ''`+
+		andWhere(provinceBuilder)+` order by c.province`, provinceBuilder.args...)
 	if err != nil {
 		return facets, err
 	}
@@ -464,8 +465,9 @@ func (s *CRMIntentStore) facets(
 	}
 	cityBuilder := &argsBuilder{}
 	scopeCondition(cityBuilder, "c", scope)
-	rows, err = db.Query(ctx, `select c.province, c.city from public.crm_intent_companies c`+
-		cityBuilder.where()+` and c.province is not null and c.city is not null and c.city <> ''
+	rows, err = db.Query(ctx, `select c.province, c.city from public.crm_intent_companies c
+		where c.province is not null and c.city is not null and c.city <> ''`+
+		andWhere(cityBuilder)+`
 		group by c.province, c.city order by c.province, c.city`, cityBuilder.args...)
 	if err != nil {
 		return facets, err
@@ -494,8 +496,8 @@ func (s *CRMIntentStore) facets(
 	}
 	channelBuilder := &argsBuilder{}
 	scopeCondition(channelBuilder, "c", scope)
-	companyCondition := strings.Replace(channelBuilder.where(), " where ", " and ", 1)
-	channelQuery := `select value, count(*) from (
+	companyCondition := andWhere(channelBuilder)
+	channelQuery := `select value from (
 		select c.channel as value from public.crm_intent_companies c
 			where c.channel is not null and c.channel <> ''` + companyCondition + `
 		union all

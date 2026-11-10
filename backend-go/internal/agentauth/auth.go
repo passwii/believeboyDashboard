@@ -117,13 +117,13 @@ func (s *PGXCredentialStore) TouchLastUsed(ctx context.Context, keyID int64, at 
 	_, err := s.db.Exec(
 		ctx,
 		`update public.agent_api_keys
-		    set last_used_at = $2
+		    set last_used_at = $2::timestamptz
 		  where id = $1
 		    and deleted_at is null
 		    and is_revoked = false
 		    and (
 		      last_used_at is null
-		      or last_used_at <= $2 - interval '60 seconds'
+		      or last_used_at <= $2::timestamptz - interval '60 seconds'
 		    )`,
 		keyID,
 		at,
