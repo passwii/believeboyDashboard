@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/internal_jobs"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/store"
 )
@@ -803,32 +804,39 @@ func (runner *Runner) finishSuccess(
 	if err != nil {
 		return fmt.Errorf("encode internal job completion log: %w", err)
 	}
-	tag, err := db.Exec(
-		ctx,
-		markInternalJobSuccessSQL,
-		started.jobID,
-		now,
-	)
-	if err != nil {
-		return fmt.Errorf("mark internal job success: %w", err)
-	}
-	if err := requireOneRow(tag, "mark internal job success"); err != nil {
-		return err
-	}
-	tag, err = db.Exec(
-		ctx,
-		finishInternalJobRunSuccessSQL,
-		started.runID,
-		now,
-		string(logExcerpt),
-	)
-	if err != nil {
-		return fmt.Errorf("finish internal job run success: %w", err)
-	}
-	if err := requireOneRow(tag, "finish internal job run success"); err != nil {
-		return err
-	}
-	return nil
+	// Job status and run completion are one state. Write both inside a single
+	// transaction (a nested savepoint when the runner already executes inside a
+	// caller transaction) so a failed second UPDATE cannot commit a success job
+	// whose run is still open.
+	return store.RunInTx(ctx, db, func(tx pgx.Tx) error {
+		txDB := store.NewTxDB(tx)
+		tag, err := txDB.Exec(
+			ctx,
+			markInternalJobSuccessSQL,
+			started.jobID,
+			now,
+		)
+		if err != nil {
+			return fmt.Errorf("mark internal job success: %w", err)
+		}
+		if err := requireOneRow(tag, "mark internal job success"); err != nil {
+			return err
+		}
+		tag, err = txDB.Exec(
+			ctx,
+			finishInternalJobRunSuccessSQL,
+			started.runID,
+			now,
+			string(logExcerpt),
+		)
+		if err != nil {
+			return fmt.Errorf("finish internal job run success: %w", err)
+		}
+		if err := requireOneRow(tag, "finish internal job run success"); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 func (runner *Runner) finishFailure(
@@ -850,34 +858,39 @@ func (runner *Runner) finishFailure(
 		"progress": 100,
 		"message":  message,
 	})
-	var errs []error
-	tag, err := db.Exec(
-		ctx,
-		markInternalJobFailedSQL,
-		started.jobID,
-		now,
-	)
-	if err != nil {
-		errs = append(errs, fmt.Errorf("mark internal job failed: %w", err))
-	} else if rowErr := requireOneRow(tag, "mark internal job failed"); rowErr != nil {
-		errs = append(errs, rowErr)
-	}
-	if started.runID != 0 {
-		tag, err := db.Exec(
+	// Failure bookkeeping is one state as well: job and run are marked together so
+	// a half-applied failure cannot leave a failed job with an open run.
+	return store.RunInTx(ctx, db, func(tx pgx.Tx) error {
+		txDB := store.NewTxDB(tx)
+		var errs []error
+		tag, err := txDB.Exec(
 			ctx,
-			finishInternalJobRunFailedSQL,
-			started.runID,
+			markInternalJobFailedSQL,
+			started.jobID,
 			now,
-			string(logExcerpt),
-			message,
 		)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("finish internal job run failed: %w", err))
-		} else if rowErr := requireOneRow(tag, "finish internal job run failed"); rowErr != nil {
+			errs = append(errs, fmt.Errorf("mark internal job failed: %w", err))
+		} else if rowErr := requireOneRow(tag, "mark internal job failed"); rowErr != nil {
 			errs = append(errs, rowErr)
 		}
-	}
-	return errors.Join(errs...)
+		if started.runID != 0 {
+			tag, err := txDB.Exec(
+				ctx,
+				finishInternalJobRunFailedSQL,
+				started.runID,
+				now,
+				string(logExcerpt),
+				message,
+			)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("finish internal job run failed: %w", err))
+			} else if rowErr := requireOneRow(tag, "finish internal job run failed"); rowErr != nil {
+				errs = append(errs, rowErr)
+			}
+		}
+		return errors.Join(errs...)
+	})
 }
 
 func rollbackToBusinessSavepoint(ctx context.Context, db store.FullDB) error {

@@ -572,26 +572,8 @@ func (handler *TaskHandler) executeProductAnalysisRunJob(
 		return errors.New("product analysis executor returned no result path")
 	}
 	resultPath := strings.TrimSpace(result.ResultPath)
-	if _, err := db.Exec(ctx, markJobSuccessSQL, job.ID, now); err != nil {
-		return fmt.Errorf("mark product analysis job success: %w", err)
-	}
-	logExcerpt, err := json.Marshal(map[string]any{
-		"stage":    "completed",
-		"progress": 100,
-		"message":  "处理完成：报表已生成，可下载",
-	})
-	if err != nil {
-		return fmt.Errorf("encode product analysis completion: %w", err)
-	}
-	if _, err := db.Exec(
-		ctx,
-		finishJobRunSuccessSQL,
-		runID,
-		now,
-		resultPath,
-		string(logExcerpt),
-	); err != nil {
-		return fmt.Errorf("finish product analysis job run: %w", err)
+	if err := handler.completeRunJobSuccess(ctx, db, job.ID, runID, now, resultPath); err != nil {
+		return err
 	}
 	return handler.writeResult(task, taskResult{
 		TaskType: queue.TypeRunJob,

@@ -130,6 +130,81 @@ func TestScheduleInsightDomainMigratedIsSkipped(t *testing.T) {
 	}
 }
 
+
+func TestInsightIDTakesPrecedenceOverScheduleID(t *testing.T) {
+	generator := &insightScheduleGenerator{
+		result: ai_insight.GenerationResult{Title: "title", Content: "content"},
+	}
+	fallback := &remediationExecutor{result: map[string]any{"unexpected": true}}
+	handler := NewTaskHandlerWithDB(&remediationDB{}, HandlerConfig{
+		InsightGenerator: generator,
+		Executor:         fallback,
+	})
+	// RunScheduleNow pre-creates the insight row and enqueues both ids; the
+	// pre-created insight must be generated in place, never duplicated.
+	task := remediationTask(t, queue.TypeGenerateInsight, GenerateInsightPayload{
+		ScheduleID: remediationInt64Pointer(17),
+		InsightID:  remediationInt64Pointer(33),
+	})
+
+	if err := handler.HandleGenerateInsight(context.Background(), task); err != nil {
+		t.Fatalf("HandleGenerateInsight() error = %v", err)
+	}
+	if generator.generateCalls != 1 || generator.generateID != 33 {
+		t.Fatalf(
+			"Generate calls=%d insightID=%d, want 1/33",
+			generator.generateCalls,
+			generator.generateID,
+		)
+	}
+	if generator.scheduleCalls != 0 {
+		t.Fatalf(
+			"GenerateSchedule calls = %d, want 0 (it would create a second insight row)",
+			generator.scheduleCalls,
+		)
+	}
+	if fallback.calls != 0 {
+		t.Fatalf("fallback Executor calls = %d, want 0", fallback.calls)
+	}
+}
+
+func TestInsightOnlyPayloadUsesGenerator(t *testing.T) {
+	generator := &insightGeneratorOnly{
+		result: ai_insight.GenerationResult{Title: "title", Content: "content"},
+	}
+	handler := NewTaskHandlerWithDB(&remediationDB{}, HandlerConfig{
+		InsightGenerator: generator,
+	})
+	task := remediationTask(t, queue.TypeGenerateInsight, GenerateInsightPayload{
+		InsightID: remediationInt64Pointer(34),
+	})
+
+	if err := handler.HandleGenerateInsight(context.Background(), task); err != nil {
+		t.Fatalf("HandleGenerateInsight() error = %v", err)
+	}
+	if generator.generateCalls != 1 || generator.generateID != 34 {
+		t.Fatalf("Generate calls=%d insightID=%d, want 1/34", generator.generateCalls, generator.generateID)
+	}
+}
+
+func TestDualIDPayloadWithoutInsightGeneratorSkipsScheduledInsight(t *testing.T) {
+	fallback := &remediationExecutor{result: map[string]any{"fallback": true}}
+	handler := NewTaskHandlerWithDB(&remediationDB{}, HandlerConfig{
+		Executor: fallback,
+	})
+	task := remediationTask(t, queue.TypeGenerateInsight, GenerateInsightPayload{
+		ScheduleID: remediationInt64Pointer(18),
+		InsightID:  remediationInt64Pointer(35),
+	})
+
+	if err := handler.HandleGenerateInsight(context.Background(), task); err != nil {
+		t.Fatalf("HandleGenerateInsight() error = %v", err)
+	}
+	if fallback.calls != 1 {
+		t.Fatalf("fallback Executor calls = %d, want 1", fallback.calls)
+	}
+}
+
 func TestScheduleInsightPropagatesGeneratorError(t *testing.T) {
 	sentinel := errors.New("schedule generation failed")
 	generator := &insightScheduleGenerator{scheduleErr: sentinel}

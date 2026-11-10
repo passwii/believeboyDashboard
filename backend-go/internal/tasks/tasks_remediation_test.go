@@ -15,6 +15,8 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
+	productreports "github.com/passwii/believeboyDashboard/backend-go/internal/api/product_analysis_reports"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/queue"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/store"
 )
@@ -48,6 +50,14 @@ type remediationDB struct {
 	queryResponses    []remediationQueryResponse
 	queryRowCalls     []remediationQueryCall
 	queryRowResponses []pgx.Row
+
+	// Transaction bookkeeping. Job/run state is only applied when a transaction
+	// commits, which lets tests assert that a failed completion write rolled back.
+	txCommits    int
+	txRollbacks  int
+	jobStatuses  map[int64]string
+	runStates    map[int64]string
+	runResultPaths map[int64]string
 }
 
 func (db *remediationDB) Query(ctx context.Context, sql string, args ...any) (store.Rows, error) {
@@ -81,16 +91,170 @@ func (db *remediationDB) Exec(ctx context.Context, sql string, args ...any) (pgc
 	defer db.mu.Unlock()
 	db.execCalls = append(db.execCalls, remediationExecCall{sql: sql, args: append([]any(nil), args...)})
 	if len(db.execResponses) == 0 {
+		db.applyJobState(sql, args)
 		return pgconn.NewCommandTag("UPDATE 1"), nil
 	}
 	response := db.execResponses[0]
 	db.execResponses = db.execResponses[1:]
+	if response.err == nil {
+		db.applyJobState(sql, args)
+	}
 	return response.tag, response.err
 }
 
 func (db *remediationDB) Begin(context.Context) (pgx.Tx, error) {
-	return nil, errors.New("transactions are not used by remediation tests")
+	return &remediationTx{db: db}, nil
 }
+
+// applyJobState models the tiny slice of job/run state the completion tests assert
+// on. Must be called with db.mu held.
+func (db *remediationDB) applyJobState(sql string, args []any) {
+	if len(args) == 0 {
+		return
+	}
+	jobID, jobOK := args[0].(int64)
+	if !jobOK {
+		return
+	}
+	if db.jobStatuses == nil {
+		db.jobStatuses = map[int64]string{}
+	}
+	if db.runStates == nil {
+		db.runStates = map[int64]string{}
+	}
+	if db.runResultPaths == nil {
+		db.runResultPaths = map[int64]string{}
+	}
+	switch sql {
+	case markJobRunningSQL:
+		db.jobStatuses[jobID] = "running"
+	case markJobSuccessSQL:
+		db.jobStatuses[jobID] = "success"
+	case markJobFailedSQL:
+		if db.jobStatuses[jobID] != "success" {
+			db.jobStatuses[jobID] = "failed"
+		}
+	case finishJobRunSuccessSQL:
+		db.runStates[jobID] = "success"
+		if len(args) > 2 {
+			db.runResultPaths[jobID], _ = args[2].(string)
+		}
+	case finishJobRunFailedSQL:
+		if db.runStates[jobID] != "success" {
+			db.runStates[jobID] = "failed"
+		}
+	}
+}
+
+type remediationTxOp struct {
+	sql  string
+	args []any
+}
+
+type remediationTx struct {
+	db   *remediationDB
+	ops  []remediationTxOp
+	done bool
+}
+
+func (tx *remediationTx) Begin(context.Context) (pgx.Tx, error) {
+	return nil, errors.New("nested transactions are not supported by remediation tests")
+}
+
+func (tx *remediationTx) Commit(context.Context) error {
+	if tx.done {
+		return nil
+	}
+	tx.done = true
+	db := tx.db
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	db.txCommits++
+	for _, op := range tx.ops {
+		db.applyJobState(op.sql, op.args)
+	}
+	return nil
+}
+
+func (tx *remediationTx) Rollback(context.Context) error {
+	if tx.done {
+		return nil
+	}
+	tx.done = true
+	db := tx.db
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	db.txRollbacks++
+	return nil
+}
+
+func (tx *remediationTx) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	db := tx.db
+	db.mu.Lock()
+	db.execCalls = append(db.execCalls, remediationExecCall{sql: sql, args: append([]any(nil), args...)})
+	if len(db.execResponses) == 0 {
+		db.mu.Unlock()
+		tx.ops = append(tx.ops, remediationTxOp{sql: sql, args: append([]any(nil), args...)})
+		return pgconn.NewCommandTag("UPDATE 1"), nil
+	}
+	response := db.execResponses[0]
+	db.execResponses = db.execResponses[1:]
+	db.mu.Unlock()
+	if response.err == nil {
+		tx.ops = append(tx.ops, remediationTxOp{sql: sql, args: append([]any(nil), args...)})
+	}
+	return response.tag, response.err
+}
+
+func (tx *remediationTx) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+	rows, err := tx.db.Query(ctx, sql, args...)
+	if err != nil || rows == nil {
+		return nil, err
+	}
+	return &remediationTxRows{rows: rows}, nil
+}
+
+type remediationTxRows struct {
+	rows store.Rows
+}
+
+func (rows *remediationTxRows) Close()                              { rows.rows.Close() }
+func (rows *remediationTxRows) Err() error                          { return rows.rows.Err() }
+func (rows *remediationTxRows) CommandTag() pgconn.CommandTag       { return pgconn.CommandTag{} }
+func (rows *remediationTxRows) FieldDescriptions() []pgconn.FieldDescription { return nil }
+func (rows *remediationTxRows) Next() bool                          { return rows.rows.Next() }
+func (rows *remediationTxRows) Scan(dest ...any) error              { return rows.rows.Scan(dest...) }
+func (rows *remediationTxRows) Values() ([]any, error)              { return nil, errors.New("rows values are not used by remediation tests") }
+func (rows *remediationTxRows) RawValues() [][]byte                 { return nil }
+func (rows *remediationTxRows) Conn() *pgx.Conn                     { return nil }
+func (rows *remediationTxRows) TypeMap() *pgtype.Map                { return nil }
+
+func (tx *remediationTx) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	return tx.db.QueryRow(ctx, sql, args...)
+}
+
+func (tx *remediationTx) CopyFrom(
+	context.Context,
+	pgx.Identifier,
+	[]string,
+	pgx.CopyFromSource,
+) (int64, error) {
+	return 0, errors.New("copy from is not used by remediation tests")
+}
+
+func (tx *remediationTx) SendBatch(context.Context, *pgx.Batch) pgx.BatchResults {
+	return nil
+}
+
+func (tx *remediationTx) LargeObjects() pgx.LargeObjects {
+	return pgx.LargeObjects{}
+}
+
+func (tx *remediationTx) Prepare(context.Context, string, string) (*pgconn.StatementDescription, error) {
+	return nil, errors.New("prepare is not used by remediation tests")
+}
+
+func (tx *remediationTx) Conn() *pgx.Conn { return nil }
 
 func (db *remediationDB) execArgsContain(predicate func([]any) bool) bool {
 	db.mu.Lock()
@@ -628,6 +792,135 @@ func TestRemediationRunJobFinalizerFailureMarksReportAndRunFailed(t *testing.T) 
 	}
 	if !reportFailed || !runAppended || !jobFailed {
 		t.Fatalf("failure updates missing: report=%v run=%v job=%v calls=%#v", reportFailed, runAppended, jobFailed, db.execCalls)
+	}
+}
+
+func TestRunJobMonthlyCompletionIsAtomicAndRetryHeals(t *testing.T) {
+	payload := []byte(`{"job_type":"monthly_report","file_id":"tx.csv","params":{"report_id":5,"project_id":7,"project_name":"Project A","country":"US","report_month":"2026-10","transaction_file_id":"tx.csv"}}`)
+	// The monthly report is already finalized, so only the job/run completion writes run.
+	db := &remediationDB{
+		queryRowResponses: []pgx.Row{
+			remediationRow{values: []any{int64(42), "monthly_report", "pending", payload, (*string)(nil)}},
+			remediationRow{values: []any{int64(77)}},
+			remediationRow{values: []any{int64(5), "success", "/tmp/report.xlsx", int64(7), "Project A", "US", "2026-10"}},
+		},
+		execResponses: []remediationExecResponse{
+			{tag: pgconn.NewCommandTag("UPDATE 1")},
+			{tag: pgconn.NewCommandTag("UPDATE 1")},
+			{tag: pgconn.NewCommandTag("UPDATE 1"), err: errors.New("finish job run update failed")},
+		},
+	}
+	handler := NewTaskHandlerWithDB(db, HandlerConfig{})
+	task := remediationTask(t, queue.TypeRunJob, RunJobPayload{JobID: 42})
+
+	err := handler.HandleRunJob(context.Background(), task)
+	if err == nil || !strings.Contains(err.Error(), "finish successful job run") {
+		t.Fatalf("HandleRunJob() error = %v, want completion update failure", err)
+	}
+	db.mu.Lock()
+	if db.jobStatuses[42] == "success" {
+		t.Fatal("job stayed success after the run completion update failed")
+	}
+	if db.runResultPaths[77] != "" {
+		t.Fatalf("run 77 committed result path %q before the transaction failed", db.runResultPaths[77])
+	}
+	if db.txCommits != 0 || db.txRollbacks != 1 {
+		t.Fatalf("completion transaction commits/rollbacks = %d/%d, want 0/1", db.txCommits, db.txRollbacks)
+	}
+	db.mu.Unlock()
+
+	// A retry must not be short-circuited by an already_done job; it re-runs the
+	// completion writes and heals the missing job/run state.
+	db.mu.Lock()
+	db.queryRowResponses = []pgx.Row{
+		remediationRow{values: []any{int64(42), "monthly_report", "failed", payload, (*string)(nil)}},
+		remediationRow{values: []any{int64(78)}},
+		remediationRow{values: []any{int64(5), "success", "/tmp/report.xlsx", int64(7), "Project A", "US", "2026-10"}},
+	}
+	db.mu.Unlock()
+	if err := handler.HandleRunJob(context.Background(), task); err != nil {
+		t.Fatalf("retried HandleRunJob() error = %v", err)
+	}
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	if db.txCommits != 1 {
+		t.Fatalf("retried completion commits = %d, want 1", db.txCommits)
+	}
+	if db.jobStatuses[42] != "success" {
+		t.Fatalf("job status after retry = %q, want success", db.jobStatuses[42])
+	}
+	if db.runResultPaths[78] != "/tmp/report.xlsx" {
+		t.Fatalf("retried run result path = %q, want /tmp/report.xlsx", db.runResultPaths[78])
+	}
+}
+
+func TestRunJobProductAnalysisCompletionIsAtomicAndRetryHeals(t *testing.T) {
+	payload := []byte(`{
+		"job_type":"product_analysis",
+		"params":{
+			"project_id":7,
+			"project_name":"Project A",
+			"country":"US",
+			"report_start_date":"2026-10-26",
+			"report_end_date":"2026-11-01",
+			"file_ids":{"business_report":"business.csv","payment_report":"payment.csv","ad_report":"ad.xlsx"}
+		}
+	}`)
+	executor := &remediationProductAnalysisExecutor{
+		result: &ProductAnalysisReportExecutionResult{
+			ResultPath: "/tmp/product-analysis.xlsx",
+			Filename:   "product-analysis.xlsx",
+		},
+	}
+	db := &remediationDB{
+		queryRowResponses: []pgx.Row{
+			remediationRow{values: []any{int64(42), productreports.JobType, productreports.StatusPending, payload, (*string)(nil)}},
+			remediationRow{values: []any{int64(77)}},
+		},
+		execResponses: []remediationExecResponse{
+			{tag: pgconn.NewCommandTag("UPDATE 1")},
+			{tag: pgconn.NewCommandTag("UPDATE 1")},
+			{tag: pgconn.NewCommandTag("UPDATE 1")},
+			{tag: pgconn.NewCommandTag("UPDATE 1"), err: errors.New("finish product analysis run update failed")},
+		},
+	}
+	handler := NewTaskHandlerWithDB(db, HandlerConfig{
+		ProductAnalysisReportExecutor: executor,
+	})
+	task := remediationTask(t, queue.TypeRunJob, RunJobPayload{JobID: 42})
+
+	err := handler.HandleRunJob(context.Background(), task)
+	if err == nil || !strings.Contains(err.Error(), "finish successful job run") {
+		t.Fatalf("HandleRunJob() error = %v, want completion update failure", err)
+	}
+	db.mu.Lock()
+	if db.jobStatuses[42] == "success" {
+		t.Fatal("product analysis job stayed success after the run completion update failed")
+	}
+	if db.runResultPaths[77] != "" {
+		t.Fatalf("run 77 committed result path %q before the transaction failed", db.runResultPaths[77])
+	}
+	if db.txCommits != 0 || db.txRollbacks != 1 {
+		t.Fatalf("completion transaction commits/rollbacks = %d/%d, want 0/1", db.txCommits, db.txRollbacks)
+	}
+	db.mu.Unlock()
+
+	db.mu.Lock()
+	db.queryRowResponses = []pgx.Row{
+		remediationRow{values: []any{int64(42), productreports.JobType, productreports.StatusFailed, payload, (*string)(nil)}},
+		remediationRow{values: []any{int64(78)}},
+	}
+	db.mu.Unlock()
+	if err := handler.HandleRunJob(context.Background(), task); err != nil {
+		t.Fatalf("retried HandleRunJob() error = %v", err)
+	}
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	if db.txCommits != 1 || db.jobStatuses[42] != "success" {
+		t.Fatalf("retried commits/status = %d/%q", db.txCommits, db.jobStatuses[42])
+	}
+	if db.runResultPaths[78] != "/tmp/product-analysis.xlsx" {
+		t.Fatalf("retried run result path = %q", db.runResultPaths[78])
 	}
 }
 

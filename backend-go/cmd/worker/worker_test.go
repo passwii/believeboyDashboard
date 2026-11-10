@@ -95,6 +95,38 @@ func TestServeWorkerReturnsStartupErrorImmediately(t *testing.T) {
 	}
 }
 
+func TestValidateOwnedModulesRejectsScheduledReports(t *testing.T) {
+	cfg := config.Config{
+		OwnedModules: map[string]bool{
+			"health":            true,
+			"scheduled_reports": true,
+		},
+	}
+
+	err := validateOwnedModules(cfg)
+	if err == nil {
+		t.Fatal("validateOwnedModules() error = nil, want scheduled_reports gate error")
+	}
+	if !errors.Is(err, errScheduledReportsNotPorted) {
+		t.Fatalf("validateOwnedModules() error = %v, want errScheduledReportsNotPorted", err)
+	}
+}
+
+func TestValidateOwnedModulesAllowsDefaultModules(t *testing.T) {
+	cfg := config.Config{
+		OwnedModules: map[string]bool{
+			"health":         true,
+			"exchange_rates": true,
+			"notifications":  true,
+			"alerts":         true,
+			"profile":        true,
+		},
+	}
+	if err := validateOwnedModules(cfg); err != nil {
+		t.Fatalf("validateOwnedModules() error = %v, want nil for default modules", err)
+	}
+}
+
 func TestTaskHandlerConfigMapsBusinessSettings(t *testing.T) {
 	cfg := config.Config{
 		CRMSeaReclaimDays:           30,

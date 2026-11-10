@@ -62,9 +62,15 @@ type Scheduler struct {
 	jobs  map[string]*scheduledJob
 	order []string
 
-	started bool
-	ctx     context.Context
-	cancel  context.CancelFunc
+	intervalJobs  map[string]*intervalJob
+	intervalOrder []string
+	intervalWG    sync.WaitGroup
+
+	started        bool
+	ctx            context.Context
+	cancel         context.CancelFunc
+	intervalCtx    context.Context
+	intervalCancel context.CancelFunc
 }
 
 // New creates a scheduler. Without an explicit locker, the scheduler uses an
@@ -152,6 +158,9 @@ func (s *Scheduler) addJob(name, cronExpr, taskName string, command func() error
 	if _, exists := s.jobs[name]; exists {
 		return fmt.Errorf("%w: %s", ErrDuplicateJobName, name)
 	}
+	if _, exists := s.intervalJobs[name]; exists {
+		return fmt.Errorf("%w: %s", ErrDuplicateJobName, name)
+	}
 	schedule, err := s.parser.Parse(cronExpr)
 	if err != nil {
 		return fmt.Errorf("parse cron expression for %s: %w", name, err)
@@ -185,7 +194,20 @@ func (s *Scheduler) Start() {
 	}
 	s.started = true
 	s.cron.Start()
-	s.logger.Info("scheduler started", "timezone", s.location.String(), "jobs", len(s.jobs))
+	if s.intervalCancel == nil || s.intervalCtx == nil || s.intervalCtx.Err() != nil {
+		s.intervalCtx, s.intervalCancel = context.WithCancel(context.Background())
+	}
+	for _, name := range s.intervalOrder {
+		if job := s.intervalJobs[name]; job != nil {
+			s.startIntervalLocked(job, s.intervalCtx)
+		}
+	}
+	s.logger.Info(
+		"scheduler started",
+		"timezone", s.location.String(),
+		"jobs", len(s.jobs),
+		"interval_jobs", len(s.intervalJobs),
+	)
 }
 
 // Stop stops scheduling new jobs and waits for in-flight commands to finish.
@@ -202,11 +224,16 @@ func (s *Scheduler) Stop() {
 		s.cancel()
 		s.cancel = nil
 	}
+	if s.intervalCancel != nil {
+		s.intervalCancel()
+		s.intervalCancel = nil
+	}
 	s.ctx = nil
 	done := s.cron.Stop()
 	s.mu.Unlock()
 
 	<-done.Done()
+	s.intervalWG.Wait()
 }
 
 // ListJobs returns jobs in registration order.
@@ -323,6 +350,9 @@ func (s *Scheduler) initLocked() {
 	}
 	if s.jobs == nil {
 		s.jobs = make(map[string]*scheduledJob)
+	}
+	if s.intervalJobs == nil {
+		s.intervalJobs = make(map[string]*intervalJob)
 	}
 	if s.cron == nil {
 		s.parser = cron.NewParser(

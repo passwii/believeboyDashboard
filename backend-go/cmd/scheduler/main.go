@@ -11,9 +11,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/config"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/queue"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/scheduler"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/store"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -67,6 +69,64 @@ func run(logger *slog.Logger) error {
 		return enqueueErr
 	}), locker)
 
+	// Dynamic scheduling (due insight schedules + minutely scheduled-report
+	// scan) needs the primary database. Missing DATABASE_URL degrades safely to
+	// the fixed Beat-compatible catalog instead of crashing the process.
+	if dynamicSchedulingEnabled(cfg.DatabaseURL) {
+		pool, err := openSchedulerPool(cfg.DatabaseURL)
+		if err != nil {
+			return err
+		}
+		defer pool.Close()
+
+		enqueuer := scheduler.PayloadEnqueuerFunc(func(
+			ctx context.Context,
+			taskName string,
+			payload any,
+		) error {
+			_, enqueueErr := queueClient.Enqueue(ctx, taskName, payload)
+			return enqueueErr
+		})
+		reconciler, err := scheduler.NewInsightReconciler(scheduler.InsightReconcilerConfig{
+			Source:           store.NewAIInsightStore(store.NewPGXDB(pool), nil),
+			Enqueuer:         enqueuer,
+			CanonicalDomains: cfg.InsightCanonicalDomains,
+			Logger:           logger,
+		})
+		if err != nil {
+			return fmt.Errorf("create insight schedule reconciler: %w", err)
+		}
+		dynamicConfig := scheduler.DynamicJobsConfig{
+			InsightReconciler: reconciler,
+		}
+		if cfg.OwnedModules["scheduled_reports"] {
+			scanner, err := scheduler.NewScheduledReportScanner(
+				scheduler.ScheduledReportScannerConfig{
+					Source:   store.NewScheduledReportStore(store.NewPGXDB(pool)),
+					Enqueuer: enqueuer,
+					Logger:   logger,
+				},
+			)
+			if err != nil {
+				return fmt.Errorf("create scheduled report scanner: %w", err)
+			}
+			dynamicConfig.ScheduledReportScanner = scanner
+		} else {
+			logger.Info(
+				"scheduled report minutely scan disabled",
+				slog.String("reason", "scheduled_reports module is not owned"),
+			)
+		}
+		if err := scheduler.RegisterDynamicJobs(sched, dynamicConfig); err != nil {
+			return err
+		}
+	} else {
+		logger.Warn(
+			"database-backed scheduler jobs disabled",
+			slog.String("reason", "DATABASE_URL is empty"),
+		)
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -80,4 +140,20 @@ func run(logger *slog.Logger) error {
 
 	<-ctx.Done()
 	return nil
+}
+
+// dynamicSchedulingEnabled reports whether DB-backed dynamic jobs can run.
+func dynamicSchedulingEnabled(databaseURL string) bool {
+	return strings.TrimSpace(databaseURL) != ""
+}
+
+// openSchedulerPool bounds startup so a misconfigured database fails fast.
+func openSchedulerPool(databaseURL string) (*pgxpool.Pool, error) {
+	startupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	pool, err := store.OpenPool(startupCtx, databaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("open scheduler database: %w", err)
+	}
+	return pool, nil
 }

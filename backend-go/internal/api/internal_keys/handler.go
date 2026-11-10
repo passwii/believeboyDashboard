@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/audit"
 	requestauth "github.com/passwii/believeboyDashboard/backend-go/internal/auth"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/httpapi"
@@ -102,26 +103,31 @@ func (h *Handler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
 	if operator != nil {
 		createdBy = *operator
 	}
-	record, plaintext, err := h.store.CreateAPIKey(r.Context(), input, createdBy)
+	var record *APIKey
+	var plaintext string
+	err := h.runInTx(r.Context(), func(ctx context.Context, tx pgx.Tx, txStore Store) error {
+		created, plain, err := txStore.CreateAPIKey(ctx, input, createdBy)
+		if err != nil {
+			return err
+		}
+		if created == nil {
+			return errMutationRecordMissing
+		}
+		record = created
+		plaintext = plain
+		return h.auditTx(ctx, r, tx, audit.Entry{
+			Action:     "api_key.create",
+			TargetType: "agent_api_key",
+			TargetID:   int64Pointer(created.ID),
+			Operator:   operator,
+			AfterJSON:  serializeAPIKey(*created),
+		})
+	})
 	if err != nil {
 		httpapi.WriteInternalServerError(w)
 		return
 	}
-	if record == nil {
-		httpapi.WriteInternalServerError(w)
-		return
-	}
 	item := serializeAPIKey(*record)
-	if !h.logAction(r, audit.Entry{
-		Action:     "api_key.create",
-		TargetType: "agent_api_key",
-		TargetID:   int64Pointer(record.ID),
-		Operator:   operator,
-		AfterJSON:  item,
-	}) {
-		httpapi.WriteInternalServerError(w)
-		return
-	}
 	_ = httpapi.WriteJSON(w, http.StatusCreated, APIKeyCreateResponse{
 		ID:            item.ID,
 		KeyPrefix:     item.KeyPrefix,
@@ -155,12 +161,28 @@ func (h *Handler) UpdateAPIKey(w http.ResponseWriter, r *http.Request) {
 		httpapi.WriteDetail(w, http.StatusUnprocessableEntity, detail)
 		return
 	}
-	store, ok := h.store.(updateStore)
-	if !ok {
-		httpapi.WriteInternalServerError(w)
-		return
-	}
-	record, err := store.UpdateAPIKey(r.Context(), id, input)
+	var record *APIKey
+	err := h.runInTx(r.Context(), func(ctx context.Context, tx pgx.Tx, txStore Store) error {
+		updater, ok := txStore.(updateStore)
+		if !ok {
+			return errMutationUnsupported
+		}
+		updated, err := updater.UpdateAPIKey(ctx, id, input)
+		if err != nil {
+			return err
+		}
+		if updated == nil {
+			return ErrAPIKeyNotFound
+		}
+		record = updated
+		return h.auditTx(ctx, r, tx, audit.Entry{
+			Action:     "api_key.update",
+			TargetType: "agent_api_key",
+			TargetID:   int64Pointer(id),
+			Operator:   operator,
+			AfterJSON:  serializeAPIKey(*updated),
+		})
+	})
 	if err != nil {
 		if errors.Is(err, ErrAPIKeyUpdateConflict) {
 			httpapi.WriteDetail(w, http.StatusConflict, provisioningSingletonConflictMessage)
@@ -173,22 +195,7 @@ func (h *Handler) UpdateAPIKey(w http.ResponseWriter, r *http.Request) {
 		httpapi.WriteInternalServerError(w)
 		return
 	}
-	if record == nil {
-		httpapi.WriteDetail(w, http.StatusNotFound, "API key not found")
-		return
-	}
-	item := serializeAPIKey(*record)
-	if !h.logAction(r, audit.Entry{
-		Action:     "api_key.update",
-		TargetType: "agent_api_key",
-		TargetID:   int64Pointer(id),
-		Operator:   operator,
-		AfterJSON:  item,
-	}) {
-		httpapi.WriteInternalServerError(w)
-		return
-	}
-	_ = httpapi.WriteJSON(w, http.StatusOK, item)
+	_ = httpapi.WriteJSON(w, http.StatusOK, serializeAPIKey(*record))
 }
 
 func (h *Handler) DeleteAPIKey(w http.ResponseWriter, r *http.Request) {
@@ -200,23 +207,27 @@ func (h *Handler) DeleteAPIKey(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	record, err := h.store.DeleteAPIKey(r.Context(), id)
+	err := h.runInTx(r.Context(), func(ctx context.Context, tx pgx.Tx, txStore Store) error {
+		deleted, err := txStore.DeleteAPIKey(ctx, id)
+		if err != nil {
+			return err
+		}
+		if deleted == nil {
+			return ErrAPIKeyNotFound
+		}
+		return h.auditTx(ctx, r, tx, audit.Entry{
+			Action:     "api_key.delete",
+			TargetType: "agent_api_key",
+			TargetID:   int64Pointer(id),
+			Operator:   operator,
+			AfterJSON:  serializeAPIKey(*deleted),
+		})
+	})
 	if err != nil {
-		httpapi.WriteInternalServerError(w)
-		return
-	}
-	if record == nil {
-		httpapi.WriteDetail(w, http.StatusNotFound, "API key not found")
-		return
-	}
-	item := serializeAPIKey(*record)
-	if !h.logAction(r, audit.Entry{
-		Action:     "api_key.delete",
-		TargetType: "agent_api_key",
-		TargetID:   int64Pointer(id),
-		Operator:   operator,
-		AfterJSON:  item,
-	}) {
+		if errors.Is(err, ErrAPIKeyNotFound) {
+			httpapi.WriteDetail(w, http.StatusNotFound, "API key not found")
+			return
+		}
 		httpapi.WriteInternalServerError(w)
 		return
 	}
@@ -240,30 +251,36 @@ func (h *Handler) mutateAPIKeyStatus(w http.ResponseWriter, r *http.Request, act
 	if !ok {
 		return
 	}
-	store, ok := h.store.(revokeStore)
-	if !ok {
-		httpapi.WriteInternalServerError(w)
-		return
-	}
-	record, err := store.RevokeAPIKey(r.Context(), id)
+	var record *APIKey
+	err := h.runInTx(r.Context(), func(ctx context.Context, tx pgx.Tx, txStore Store) error {
+		revoker, ok := txStore.(revokeStore)
+		if !ok {
+			return errMutationUnsupported
+		}
+		updated, err := revoker.RevokeAPIKey(ctx, id)
+		if err != nil {
+			return err
+		}
+		if updated == nil {
+			return ErrAPIKeyNotFound
+		}
+		record = updated
+		return h.auditTx(ctx, r, tx, audit.Entry{
+			Action:     action,
+			TargetType: "agent_api_key",
+			TargetID:   int64Pointer(id),
+			Operator:   operator,
+			AfterJSON: map[string]any{
+				"id":         updated.ID,
+				"is_revoked": updated.IsRevoked,
+			},
+		})
+	})
 	if err != nil {
-		httpapi.WriteInternalServerError(w)
-		return
-	}
-	if record == nil {
-		httpapi.WriteDetail(w, http.StatusNotFound, "API key not found")
-		return
-	}
-	if !h.logAction(r, audit.Entry{
-		Action:     action,
-		TargetType: "agent_api_key",
-		TargetID:   int64Pointer(id),
-		Operator:   operator,
-		AfterJSON: map[string]any{
-			"id":         record.ID,
-			"is_revoked": record.IsRevoked,
-		},
-	}) {
+		if errors.Is(err, ErrAPIKeyNotFound) {
+			httpapi.WriteDetail(w, http.StatusNotFound, "API key not found")
+			return
+		}
 		httpapi.WriteInternalServerError(w)
 		return
 	}
@@ -282,30 +299,36 @@ func (h *Handler) ActivateAPIKey(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	store, ok := h.store.(activateStore)
-	if !ok {
-		httpapi.WriteInternalServerError(w)
-		return
-	}
-	record, err := store.ActivateAPIKey(r.Context(), id)
+	var record *APIKey
+	err := h.runInTx(r.Context(), func(ctx context.Context, tx pgx.Tx, txStore Store) error {
+		activator, ok := txStore.(activateStore)
+		if !ok {
+			return errMutationUnsupported
+		}
+		updated, err := activator.ActivateAPIKey(ctx, id)
+		if err != nil {
+			return err
+		}
+		if updated == nil {
+			return ErrAPIKeyNotFound
+		}
+		record = updated
+		return h.auditTx(ctx, r, tx, audit.Entry{
+			Action:     "api_key.activate",
+			TargetType: "agent_api_key",
+			TargetID:   int64Pointer(id),
+			Operator:   operator,
+			AfterJSON: map[string]any{
+				"id":         updated.ID,
+				"is_revoked": updated.IsRevoked,
+			},
+		})
+	})
 	if err != nil {
-		httpapi.WriteInternalServerError(w)
-		return
-	}
-	if record == nil {
-		httpapi.WriteDetail(w, http.StatusNotFound, "API key not found")
-		return
-	}
-	if !h.logAction(r, audit.Entry{
-		Action:     "api_key.activate",
-		TargetType: "agent_api_key",
-		TargetID:   int64Pointer(id),
-		Operator:   operator,
-		AfterJSON: map[string]any{
-			"id":         record.ID,
-			"is_revoked": record.IsRevoked,
-		},
-	}) {
+		if errors.Is(err, ErrAPIKeyNotFound) {
+			httpapi.WriteDetail(w, http.StatusNotFound, "API key not found")
+			return
+		}
 		httpapi.WriteInternalServerError(w)
 		return
 	}
@@ -350,30 +373,35 @@ func (h *Handler) CreateUserAPIKey(w http.ResponseWriter, r *http.Request) {
 		httpapi.WriteDetail(w, http.StatusUnprocessableEntity, "Invalid client_id")
 		return
 	}
-	record, plaintext, err := h.store.CreateUserAPIKey(r.Context(), userID, clientID)
+	var record *UserAPIKey
+	var plaintext string
+	err := h.runInTx(r.Context(), func(ctx context.Context, tx pgx.Tx, txStore Store) error {
+		created, plain, err := txStore.CreateUserAPIKey(ctx, userID, clientID)
+		if err != nil {
+			return err
+		}
+		if created == nil {
+			return errMutationRecordMissing
+		}
+		record = created
+		plaintext = plain
+		return h.auditTx(ctx, r, tx, audit.Entry{
+			Action:     "user_api_key.create",
+			TargetType: "user_api_key",
+			TargetID:   int64Pointer(created.ID),
+			Operator:   operator,
+			AfterJSON: map[string]any{
+				"user_id":    created.UserID,
+				"client_id":  created.ClientID,
+				"key_prefix": created.KeyPrefix,
+			},
+		})
+	})
 	if err != nil {
 		httpapi.WriteInternalServerError(w)
 		return
 	}
-	if record == nil {
-		httpapi.WriteInternalServerError(w)
-		return
-	}
 	item := serializeUserAPIKey(*record)
-	if !h.logAction(r, audit.Entry{
-		Action:     "user_api_key.create",
-		TargetType: "user_api_key",
-		TargetID:   int64Pointer(record.ID),
-		Operator:   operator,
-		AfterJSON: map[string]any{
-			"user_id":    record.UserID,
-			"client_id":  record.ClientID,
-			"key_prefix": record.KeyPrefix,
-		},
-	}) {
-		httpapi.WriteInternalServerError(w)
-		return
-	}
 	_ = httpapi.WriteJSON(w, http.StatusCreated, UserAPIKeyCreateResponse{
 		UserID:       item.UserID,
 		ClientID:     item.ClientID,
@@ -391,26 +419,31 @@ func (h *Handler) DeleteUserAPIKey(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	record, err := h.store.DeleteUserAPIKey(r.Context(), id)
+	err := h.runInTx(r.Context(), func(ctx context.Context, tx pgx.Tx, txStore Store) error {
+		deleted, err := txStore.DeleteUserAPIKey(ctx, id)
+		if err != nil {
+			return err
+		}
+		if deleted == nil {
+			return errUserAPIKeyNotFound
+		}
+		return h.auditTx(ctx, r, tx, audit.Entry{
+			Action:     "user_api_key.revoke",
+			TargetType: "user_api_key",
+			TargetID:   int64Pointer(id),
+			Operator:   operator,
+			AfterJSON: map[string]any{
+				"user_id":    deleted.UserID,
+				"client_id":  deleted.ClientID,
+				"key_prefix": deleted.KeyPrefix,
+			},
+		})
+	})
 	if err != nil {
-		httpapi.WriteInternalServerError(w)
-		return
-	}
-	if record == nil {
-		httpapi.WriteDetail(w, http.StatusNotFound, "User API key not found")
-		return
-	}
-	if !h.logAction(r, audit.Entry{
-		Action:     "user_api_key.revoke",
-		TargetType: "user_api_key",
-		TargetID:   int64Pointer(id),
-		Operator:   operator,
-		AfterJSON: map[string]any{
-			"user_id":    record.UserID,
-			"client_id":  record.ClientID,
-			"key_prefix": record.KeyPrefix,
-		},
-	}) {
+		if errors.Is(err, errUserAPIKeyNotFound) {
+			httpapi.WriteDetail(w, http.StatusNotFound, "User API key not found")
+			return
+		}
 		httpapi.WriteInternalServerError(w)
 		return
 	}
@@ -436,34 +469,36 @@ func (h *Handler) RevokeUserAPIKeys(w http.ResponseWriter, r *http.Request) {
 		}
 		clientID = &value
 	}
-	rows, err := h.store.RevokeUserAPIKeys(r.Context(), userID, clientID)
-	if err != nil {
-		httpapi.WriteInternalServerError(w)
-		return
-	}
-	if len(rows) == 0 {
-		httpapi.WriteDetail(w, http.StatusNotFound, "User API key not found")
-		return
-	}
-	changed := 0
-	for _, row := range rows {
-		if row.RevokedNow {
-			changed++
+	var rows []UserAPIKey
+	err := h.runInTx(r.Context(), func(ctx context.Context, tx pgx.Tx, txStore Store) error {
+		matched, err := txStore.RevokeUserAPIKeys(ctx, userID, clientID)
+		if err != nil {
+			return err
 		}
-	}
-	if !h.logAction(r, audit.Entry{
-		Action:     "user_api_key.revoke",
-		TargetType: "user_api_key",
-		Operator:   operator,
-		AfterJSON: map[string]any{
-			"user_id":       userID,
-			"client_id":     clientID,
-			"revoked_count": changed,
-		},
-	}) {
+		if len(matched) == 0 {
+			return errUserAPIKeyNotFound
+		}
+		rows = matched
+		return h.auditTx(ctx, r, tx, audit.Entry{
+			Action:     "user_api_key.revoke",
+			TargetType: "user_api_key",
+			Operator:   operator,
+			AfterJSON: map[string]any{
+				"user_id":       userID,
+				"client_id":     clientID,
+				"revoked_count": revokedNowCount(matched),
+			},
+		})
+	})
+	if err != nil {
+		if errors.Is(err, errUserAPIKeyNotFound) {
+			httpapi.WriteDetail(w, http.StatusNotFound, "User API key not found")
+			return
+		}
 		httpapi.WriteInternalServerError(w)
 		return
 	}
+	changed := revokedNowCount(rows)
 	_ = httpapi.WriteJSON(w, http.StatusOK, map[string]any{
 		"user_id":       userID,
 		"revoked":       true,
@@ -491,26 +526,35 @@ func (h *Handler) RotateUserAPIKey(w http.ResponseWriter, r *http.Request) {
 		}
 		clientID = &value
 	}
-	record, plaintext, err := h.store.RotateUserAPIKey(r.Context(), userID, clientID)
+	var record *UserAPIKey
+	var plaintext string
+	err := h.runInTx(r.Context(), func(ctx context.Context, tx pgx.Tx, txStore Store) error {
+		rotated, plain, err := txStore.RotateUserAPIKey(ctx, userID, clientID)
+		if err != nil {
+			return err
+		}
+		if rotated == nil {
+			return errUserAPIKeyNotFound
+		}
+		record = rotated
+		plaintext = plain
+		return h.auditTx(ctx, r, tx, audit.Entry{
+			Action:     "user_api_key.rotate",
+			TargetType: "user_api_key",
+			TargetID:   int64Pointer(rotated.ID),
+			Operator:   operator,
+			AfterJSON: map[string]any{
+				"user_id":    rotated.UserID,
+				"client_id":  rotated.ClientID,
+				"key_prefix": rotated.KeyPrefix,
+			},
+		})
+	})
 	if err != nil {
-		httpapi.WriteInternalServerError(w)
-		return
-	}
-	if record == nil {
-		httpapi.WriteDetail(w, http.StatusNotFound, "User API key not found")
-		return
-	}
-	if !h.logAction(r, audit.Entry{
-		Action:     "user_api_key.rotate",
-		TargetType: "user_api_key",
-		TargetID:   int64Pointer(record.ID),
-		Operator:   operator,
-		AfterJSON: map[string]any{
-			"user_id":    record.UserID,
-			"client_id":  record.ClientID,
-			"key_prefix": record.KeyPrefix,
-		},
-	}) {
+		if errors.Is(err, errUserAPIKeyNotFound) {
+			httpapi.WriteDetail(w, http.StatusNotFound, "User API key not found")
+			return
+		}
 		httpapi.WriteInternalServerError(w)
 		return
 	}
@@ -520,14 +564,6 @@ func (h *Handler) RotateUserAPIKey(w http.ResponseWriter, r *http.Request) {
 		KeyPrefix:    record.KeyPrefix,
 		PlaintextKey: plaintext,
 	})
-}
-
-func (h *Handler) logAction(r *http.Request, entry audit.Entry) bool {
-	if h.auditor == nil {
-		return true
-	}
-	entry.PopulateFromRequest(r)
-	return h.auditor.LogAction(r.Context(), entry) == nil
 }
 
 func validateAPIKeyCreate(body APIKeyCreateRequest) (APIKeyCreateInput, string) {

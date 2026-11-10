@@ -47,6 +47,9 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
+	if err := validateOwnedModules(cfg); err != nil {
+		return fmt.Errorf("validate owned modules: %w", err)
+	}
 	if cfg.RedisURL == "" {
 		return errors.New("REDIS_URL is required for the worker")
 	}
@@ -140,6 +143,27 @@ func run(logger *slog.Logger) error {
 	defer stop()
 
 	return serveWorker(ctx, logger, server)
+}
+
+// errScheduledReportsNotPorted marks modules whose native worker path is not
+// implemented. scheduled_reports dispatch_one/generate_delivery_summary call
+// tasks.HandlerConfig.Executor, which this worker never configures, so enabling
+// the module would make every enqueued task fail; it must stay on the FastAPI
+// fallback until the native dispatcher migration lands.
+var errScheduledReportsNotPorted = errors.New(
+	`GO_API_OWNED includes "scheduled_reports", but the native task dispatcher ` +
+		`(tasks.HandlerConfig.Executor) is not wired in cmd/worker; keep ` +
+		`scheduled_reports on the FastAPI fallback until the dispatcher migration lands`,
+)
+
+// validateOwnedModules rejects owned modules whose native worker path is
+// incomplete. It runs before database/queue connections are opened so a
+// misconfigured GO_API_OWNED fails the worker at startup.
+func validateOwnedModules(cfg config.Config) error {
+	if cfg.OwnedModules["scheduled_reports"] {
+		return errScheduledReportsNotPorted
+	}
+	return nil
 }
 
 func serveWorker(ctx context.Context, logger *slog.Logger, server workerServer) error {

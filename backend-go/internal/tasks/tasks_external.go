@@ -46,6 +46,24 @@ func (handler *TaskHandler) HandleGenerateInsight(ctx context.Context, task *asy
 		if err := payload.Validate(); err != nil {
 			return err
 		}
+		// RunScheduleNow creates the insight row first and then enqueues both ids.
+		// The insight id must win: GenerateSchedule would create a second row and
+		// leave the pre-created insight pending forever. Only schedule-only jobs
+		// may create a scheduled insight.
+		if payload.InsightID != nil {
+			if handler.config.InsightGenerator != nil {
+				result, err := handler.config.InsightGenerator.Generate(ctx, *payload.InsightID)
+				if err != nil {
+					return fmt.Errorf("generate insight %d: %w", *payload.InsightID, err)
+				}
+				return handler.writeResult(task, taskResult{
+					TaskType: "generate_insight",
+					Status:   "completed",
+					Data:     result,
+				})
+			}
+			return handler.execute(ctx, task, "generate_insight", &payload)
+		}
 		if payload.ScheduleID != nil {
 			generator, ok := handler.config.InsightGenerator.(ai_insight.ScheduleGenerator)
 			if !ok || generator == nil {
@@ -71,17 +89,6 @@ func (handler *TaskHandler) HandleGenerateInsight(ctx context.Context, task *asy
 					*payload.ScheduleID,
 					err,
 				)
-			}
-			return handler.writeResult(task, taskResult{
-				TaskType: "generate_insight",
-				Status:   "completed",
-				Data:     result,
-			})
-		}
-		if handler.config.InsightGenerator != nil && payload.InsightID != nil {
-			result, err := handler.config.InsightGenerator.Generate(ctx, *payload.InsightID)
-			if err != nil {
-				return fmt.Errorf("generate insight %d: %w", *payload.InsightID, err)
 			}
 			return handler.writeResult(task, taskResult{
 				TaskType: "generate_insight",

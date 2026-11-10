@@ -356,26 +356,8 @@ func (handler *TaskHandler) executeRunJob(
 		transactionCount = len(computed.Transactions)
 	}
 
-	if _, err := db.Exec(ctx, markJobSuccessSQL, job.ID, now); err != nil {
-		return fmt.Errorf("mark job success: %w", err)
-	}
-	logExcerpt, err := json.Marshal(map[string]any{
-		"stage":    "completed",
-		"progress": 100,
-		"message":  "处理完成：报表已生成，可下载",
-	})
-	if err != nil {
-		return fmt.Errorf("encode job completion: %w", err)
-	}
-	if _, err := db.Exec(
-		ctx,
-		finishJobRunSuccessSQL,
-		runID,
-		now,
-		resultPath,
-		string(logExcerpt),
-	); err != nil {
-		return fmt.Errorf("finish successful job run: %w", err)
+	if err := handler.completeRunJobSuccess(ctx, db, job.ID, runID, now, resultPath); err != nil {
+		return err
 	}
 	return handler.writeResult(task, taskResult{
 		TaskType: queue.TypeRunJob,
@@ -527,6 +509,45 @@ func monthlyReportTransactionFileID(envelope jobPayloadEnvelope) (string, error)
 		return value, nil
 	}
 	return "", errRequired("params.transaction_file_id")
+}
+
+// completeRunJobSuccess marks the job successful and finishes its run inside one
+// transaction. Both rows form a single completion state: if either UPDATE fails the
+// whole transaction rolls back, the job stays retryable, and a retry cannot be
+// short-circuited by an already_done job that still has an unfinished run.
+func (handler *TaskHandler) completeRunJobSuccess(
+	ctx context.Context,
+	db store.FullDB,
+	jobID int64,
+	runID int64,
+	now time.Time,
+	resultPath string,
+) error {
+	logExcerpt, err := json.Marshal(map[string]any{
+		"stage":    "completed",
+		"progress": 100,
+		"message":  "处理完成：报表已生成，可下载",
+	})
+	if err != nil {
+		return fmt.Errorf("encode job completion: %w", err)
+	}
+	return store.RunInTx(ctx, db, func(tx pgx.Tx) error {
+		txDB := store.NewTxDB(tx)
+		if _, err := txDB.Exec(ctx, markJobSuccessSQL, jobID, now); err != nil {
+			return fmt.Errorf("mark job success: %w", err)
+		}
+		if _, err := txDB.Exec(
+			ctx,
+			finishJobRunSuccessSQL,
+			runID,
+			now,
+			resultPath,
+			string(logExcerpt),
+		); err != nil {
+			return fmt.Errorf("finish successful job run: %w", err)
+		}
+		return nil
+	})
 }
 
 func (handler *TaskHandler) markRunJobFailedBestEffort(

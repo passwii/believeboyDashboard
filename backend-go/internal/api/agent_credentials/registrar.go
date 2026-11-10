@@ -39,7 +39,16 @@ func (registrar *Registrar) RegisterRoutes(
 	if registrar == nil || registrar.handler == nil {
 		return
 	}
-	router.Route("/api/v1/agent", func(agent chi.Router) {
+	router.Route("/api/v1/agent", registrar.RegisterAgentRoutes)
+}
+
+// RegisterAgentRoutes registers this module's routes on the shared
+// /api/v1/agent subrouter, which is mounted exactly once by httpserver.
+func (registrar *Registrar) RegisterAgentRoutes(agent chi.Router) {
+	if registrar == nil || registrar.handler == nil {
+		return
+	}
+	agent.Group(func(agent chi.Router) {
 		agent.Use(registrar.auth)
 
 		provisioning := func(method, path string, handler http.HandlerFunc) {

@@ -91,7 +91,33 @@ type dependencies struct {
 	Close  func()
 }
 
+// errScheduledReportsNotPorted marks modules whose native implementation is
+// not complete. scheduled_reports API handlers enqueue work that is dispatched
+// through tasks.HandlerConfig.Executor, but cmd/worker never configures that
+// executor, so every enqueued job would fail. The module must stay on the
+// FastAPI fallback until the native dispatcher migration lands.
+var errScheduledReportsNotPorted = errors.New(
+	`GO_API_OWNED includes "scheduled_reports", but the native task dispatcher ` +
+		`(tasks.HandlerConfig.Executor) has not been ported and cmd/worker never ` +
+		`configures it; keep scheduled_reports on the FastAPI fallback until the ` +
+		`dispatcher migration lands`,
+)
+
+// validateOwnedModuleSupport rejects owned modules whose Go implementation is
+// incomplete. It runs before any dependency is opened so a misconfigured
+// GO_API_OWNED fails the gateway at startup instead of returning false
+// successes at request time.
+func validateOwnedModuleSupport(cfg config.Config) error {
+	if cfg.OwnedModules["scheduled_reports"] {
+		return errScheduledReportsNotPorted
+	}
+	return nil
+}
+
 func newDependencies(ctx context.Context, cfg config.Config) (*dependencies, error) {
+	if err := validateOwnedModuleSupport(cfg); err != nil {
+		return nil, err
+	}
 	deps := &dependencies{Close: func() {}}
 	var pools []*pgxpool.Pool
 	var queueClients []*queue.QueueClient

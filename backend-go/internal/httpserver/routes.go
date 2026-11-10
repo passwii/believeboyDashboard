@@ -19,6 +19,15 @@ type ModuleRegistrar interface {
 	RegisterRoutes(router chi.Router, requireAPIKey func(http.Handler) http.Handler)
 }
 
+// AgentModuleRegistrar is a ModuleRegistrar that contributes routes under the
+// shared /api/v1/agent subrouter. The Agent subrouter is mounted exactly once
+// by registerOwnedRoutes; implementing modules must not mount it themselves,
+// otherwise chi panics on the duplicate mount pattern.
+type AgentModuleRegistrar interface {
+	ModuleRegistrar
+	RegisterAgentRoutes(agent chi.Router)
+}
+
 // FuncModuleRegistrar adapts a name and function into a ModuleRegistrar.
 type FuncModuleRegistrar struct {
 	Name     string
@@ -116,9 +125,22 @@ func registerOwnedRoutes(
 		router.With(requireAPIKey).Delete("/api/v1/system-management/profile/avatar", profileHandler.DeleteAvatar)
 	}
 
+	var agentModules []AgentModuleRegistrar
 	for _, registrar := range stores.CustomRegistrars {
-		if registrar != nil && cfg.OwnedModules[registrar.ModuleName()] {
-			registrar.RegisterRoutes(router, requireAPIKey)
+		if registrar == nil || !cfg.OwnedModules[registrar.ModuleName()] {
+			continue
 		}
+		if agentRegistrar, ok := registrar.(AgentModuleRegistrar); ok {
+			agentModules = append(agentModules, agentRegistrar)
+			continue
+		}
+		registrar.RegisterRoutes(router, requireAPIKey)
+	}
+	if len(agentModules) > 0 {
+		router.Route("/api/v1/agent", func(agent chi.Router) {
+			for _, module := range agentModules {
+				module.RegisterAgentRoutes(agent)
+			}
+		})
 	}
 }

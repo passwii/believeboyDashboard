@@ -497,7 +497,7 @@ func (handler *Handler) ResendLedgerEntry(w http.ResponseWriter, r *http.Request
 	}
 
 	var response LedgerResendResponse
-	enqueueFailed := false
+	var pending []EnqueueRequest
 	err := handler.store.RunInTx(r.Context(), func(
 		ctx context.Context,
 		tx pgx.Tx,
@@ -512,20 +512,29 @@ func (handler *Handler) ResendLedgerEntry(w http.ResponseWriter, r *http.Request
 		if err != nil {
 			return err
 		}
-		if !result.Reused {
+		if result.Reused {
+			// PrepareResend found a delivery that is still in progress. A previous
+			// attempt may have committed that row and then failed to enqueue (the
+			// Asynq client has no transactional outbox), so re-dispatch it with the
+			// delivery-log-scoped stable task key: a task that is still queued
+			// deduplicates, while an unqueued task restores the committed row instead
+			// of leaving it stuck in the preparing stage forever.
+			if result.Email != nil && strings.TrimSpace(*result.Email) != "" {
+				pending = append(pending, EnqueueRequest{
+					TaskType:       queue.TypeDispatchOne,
+					Payload:        dispatchOnePayload(result),
+					IdempotencyKey: resendTaskKey(key, ledgerKey, result.DeliveryLogID),
+				})
+			}
+		} else {
 			if result.Email == nil || strings.TrimSpace(*result.Email) == "" {
 				return NewAPIError(http.StatusConflict, "订阅未配置邮箱，无法补发")
 			}
-			payload := dispatchOnePayload(result)
-			_, err = handler.runner.Run(ctx, EnqueueRequest{
+			pending = append(pending, EnqueueRequest{
 				TaskType:       queue.TypeDispatchOne,
-				Payload:        payload,
+				Payload:        dispatchOnePayload(result),
 				IdempotencyKey: resendTaskKey(key, ledgerKey, result.DeliveryLogID),
 			})
-			if err != nil {
-				enqueueFailed = true
-				return fmt.Errorf("enqueue scheduled report resend: %w", err)
-			}
 		}
 		response = LedgerResendResponse{
 			Success:       true,
@@ -534,23 +543,38 @@ func (handler *Handler) ResendLedgerEntry(w http.ResponseWriter, r *http.Request
 			Status:        result.Status,
 			Message:       result.Message,
 		}
-		targetID := ledgerKey
-		return handler.logActionTx(ctx, tx, r, audit.Entry{
-			Action:     "scheduled_reports.ledger.resend",
-			TargetType: "scheduled_report_ledger",
-			TargetID:   &targetID,
-			Operator:   optionalString(scope.Operator),
-			Result:     "success",
-			BeforeJSON: map[string]string{"fingerprint": fingerprint},
-			AfterJSON:  response,
-		})
+		return nil
 	})
 	if err != nil {
-		if enqueueFailed {
-			handler.auditFailure(r, "scheduled_reports.ledger.resend", "scheduled_report_ledger", ledgerKey, err)
-			httpapi.WriteDetail(w, http.StatusServiceUnavailable, "scheduled report queue unavailable")
-			return
-		}
+		handler.writeError(w, err)
+		return
+	}
+	// The bare Asynq client cannot be rolled back, so the collected request is
+	// published only after the transaction committed. On failure the committed
+	// delivery log stays in place: report an explicit queue error and write no
+	// success audit (which backs idempotent replays), so a retry re-enters the
+	// Reused branch above and restores the missing task.
+	if err := dispatchEnqueues(r.Context(), handler.runner.Run, pending); err != nil {
+		handler.auditFailure(
+			r,
+			"scheduled_reports.ledger.resend",
+			"scheduled_report_ledger",
+			ledgerKey,
+			fmt.Errorf("enqueue scheduled report resend: %w", err),
+		)
+		httpapi.WriteDetail(w, http.StatusServiceUnavailable, "scheduled report queue unavailable")
+		return
+	}
+	targetID := ledgerKey
+	if err := handler.logAction(r.Context(), r, audit.Entry{
+		Action:     "scheduled_reports.ledger.resend",
+		TargetType: "scheduled_report_ledger",
+		TargetID:   &targetID,
+		Operator:   optionalString(scope.Operator),
+		Result:     "success",
+		BeforeJSON: map[string]string{"fingerprint": fingerprint},
+		AfterJSON:  response,
+	}); err != nil {
 		handler.writeError(w, err)
 		return
 	}
@@ -593,7 +617,7 @@ func (handler *Handler) RegenerateAISummary(w http.ResponseWriter, r *http.Reque
 	}
 
 	var response LedgerRegenerateSummaryResponse
-	enqueueFailed := false
+	var pending []EnqueueRequest
 	err := handler.store.RunInTx(r.Context(), func(
 		ctx context.Context,
 		tx pgx.Tx,
@@ -608,20 +632,15 @@ func (handler *Handler) RegenerateAISummary(w http.ResponseWriter, r *http.Reque
 			return err
 		}
 		if !result.Reused {
-			payload := map[string]any{
-				"log_id":            result.DeliveryLogID,
-				"ledger_key":        ledgerKey,
-				"override_ai_model": override,
-			}
-			_, err = handler.runner.Run(ctx, EnqueueRequest{
-				TaskType:       queue.TypeGenerateDeliverySummary,
-				Payload:        payload,
+			pending = append(pending, EnqueueRequest{
+				TaskType: queue.TypeGenerateDeliverySummary,
+				Payload: map[string]any{
+					"log_id":            result.DeliveryLogID,
+					"ledger_key":        ledgerKey,
+					"override_ai_model": override,
+				},
 				IdempotencyKey: summaryTaskKey(key, ledgerKey, result.DeliveryLogID, handler.now().UnixNano()),
 			})
-			if err != nil {
-				enqueueFailed = true
-				return fmt.Errorf("enqueue scheduled report ai summary: %w", err)
-			}
 		}
 		response = LedgerRegenerateSummaryResponse{
 			Success:       true,
@@ -631,23 +650,38 @@ func (handler *Handler) RegenerateAISummary(w http.ResponseWriter, r *http.Reque
 			InsightRunID:  result.InsightRunID,
 			Message:       result.Message,
 		}
-		targetID := ledgerKey
-		return handler.logActionTx(ctx, tx, r, audit.Entry{
-			Action:     "scheduled_reports.ledger.ai_summary.regenerate",
-			TargetType: "scheduled_report_ledger",
-			TargetID:   &targetID,
-			Operator:   optionalString(scope.Operator),
-			Result:     "success",
-			BeforeJSON: map[string]string{"fingerprint": fingerprint},
-			AfterJSON:  response,
-		})
+		return nil
 	})
 	if err != nil {
-		if enqueueFailed {
-			handler.auditFailure(r, "scheduled_reports.ledger.ai_summary.regenerate", "scheduled_report_ledger", ledgerKey, err)
-			httpapi.WriteDetail(w, http.StatusServiceUnavailable, "scheduled report queue unavailable")
-			return
-		}
+		handler.writeError(w, err)
+		return
+	}
+	// Publish only after the transaction committed: the Asynq client has no
+	// transactional outbox, so a rolled-back summary row must never have a queued
+	// task behind it. A queue failure after commit is retriable: the committed row
+	// is already back in ai_summary_status=pending and no success audit row exists
+	// yet, so a retry re-prepares and enqueues again.
+	if err := dispatchEnqueues(r.Context(), handler.runner.Run, pending); err != nil {
+		handler.auditFailure(
+			r,
+			"scheduled_reports.ledger.ai_summary.regenerate",
+			"scheduled_report_ledger",
+			ledgerKey,
+			fmt.Errorf("enqueue scheduled report ai summary: %w", err),
+		)
+		httpapi.WriteDetail(w, http.StatusServiceUnavailable, "scheduled report queue unavailable")
+		return
+	}
+	targetID := ledgerKey
+	if err := handler.logAction(r.Context(), r, audit.Entry{
+		Action:     "scheduled_reports.ledger.ai_summary.regenerate",
+		TargetType: "scheduled_report_ledger",
+		TargetID:   &targetID,
+		Operator:   optionalString(scope.Operator),
+		Result:     "success",
+		BeforeJSON: map[string]string{"fingerprint": fingerprint},
+		AfterJSON:  response,
+	}); err != nil {
 		handler.writeError(w, err)
 		return
 	}
@@ -698,7 +732,7 @@ func (handler *Handler) TriggerReportDispatch(w http.ResponseWriter, r *http.Req
 		Frequency: frequency,
 		Message:   fmt.Sprintf("%s 报告调度已启动（后台执行中），请查看日志或推送记录确认结果。", frequency),
 	}
-	enqueueFailed := false
+	var pending []EnqueueRequest
 	err = handler.store.RunInTx(r.Context(), func(
 		ctx context.Context,
 		tx pgx.Tx,
@@ -716,35 +750,46 @@ func (handler *Handler) TriggerReportDispatch(w http.ResponseWriter, r *http.Req
 				response.Skipped++
 				continue
 			}
-			payload := triggerDispatchPayload(subscription, reportDate)
-			_, err := handler.enqueuer.Enqueue(ctx, EnqueueRequest{
+			pending = append(pending, EnqueueRequest{
 				TaskType:       queue.TypeDispatchOne,
-				Payload:        payload,
+				Payload:        triggerDispatchPayload(subscription, reportDate),
 				IdempotencyKey: fmt.Sprintf("scheduled-report-trigger:%d:%s", subscription.ID, reportDate),
 			})
-			if err != nil {
-				enqueueFailed = true
-				return fmt.Errorf("enqueue scheduled report trigger: %w", err)
-			}
 			response.SubscriptionsAffected++
 		}
-		targetID := frequency
-		return handler.logActionTx(ctx, tx, r, audit.Entry{
-			Action:     "scheduled_reports.trigger",
-			TargetType: "scheduled_report_frequency",
-			TargetID:   &targetID,
-			Operator:   optionalString(scope.Operator),
-			Result:     "success",
-			BeforeJSON: map[string]string{"fingerprint": fingerprint},
-			AfterJSON:  response,
-		})
+		return nil
 	})
 	if err != nil {
-		if enqueueFailed {
-			handler.auditFailure(r, "scheduled_reports.trigger", "scheduled_report_frequency", frequency, err)
-			httpapi.WriteDetail(w, http.StatusServiceUnavailable, "scheduled report queue unavailable")
-			return
-		}
+		handler.writeError(w, err)
+		return
+	}
+	// Collect every request inside the transaction, then publish them only after
+	// the commit so no task can reference a rolled-back subscription. The
+	// transaction-scoped trigger lock is released at commit, but every request
+	// carries the per-subscription/per-date task ID that converges concurrent
+	// trigger/beat dispatches onto one Asynq task; a retry re-lists subscriptions
+	// and deduplicates tasks that were already published.
+	if err := dispatchEnqueues(r.Context(), handler.enqueuer.Enqueue, pending); err != nil {
+		handler.auditFailure(
+			r,
+			"scheduled_reports.trigger",
+			"scheduled_report_frequency",
+			frequency,
+			fmt.Errorf("enqueue scheduled report trigger: %w", err),
+		)
+		httpapi.WriteDetail(w, http.StatusServiceUnavailable, "scheduled report queue unavailable")
+		return
+	}
+	targetID := frequency
+	if err := handler.logAction(r.Context(), r, audit.Entry{
+		Action:     "scheduled_reports.trigger",
+		TargetType: "scheduled_report_frequency",
+		TargetID:   &targetID,
+		Operator:   optionalString(scope.Operator),
+		Result:     "success",
+		BeforeJSON: map[string]string{"fingerprint": fingerprint},
+		AfterJSON:  response,
+	}); err != nil {
 		handler.writeError(w, err)
 		return
 	}

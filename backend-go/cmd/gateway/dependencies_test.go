@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/passwii/believeboyDashboard/backend-go/internal/config"
@@ -34,6 +35,51 @@ func TestNewDependenciesWiresOwnedModules(t *testing.T) {
 		deps.Stores.Profile == nil || deps.Stores.HealthDatabase == nil ||
 		deps.Stores.HealthReplica == nil || deps.Stores.HealthRedis == nil {
 		t.Fatalf("NewRouter stores were not fully wired: %#v", deps.Stores)
+	}
+}
+
+func TestNewDependenciesRejectsScheduledReportsModule(t *testing.T) {
+	cfg := config.Config{
+		APIKey:      "test-api-key",
+		DatabaseURL: "postgres://localhost/test",
+		RedisURL:    "redis://localhost:6379/0",
+		OwnedModules: map[string]bool{
+			"health":            true,
+			"exchange_rates":    true,
+			"notifications":     true,
+			"alerts":            true,
+			"profile":           true,
+			"scheduled_reports": true,
+		},
+	}
+
+	deps, err := newDependencies(context.Background(), cfg)
+	if err == nil {
+		if deps != nil {
+			deps.Close()
+		}
+		t.Fatal("newDependencies() error = nil, want scheduled_reports gate error")
+	}
+	if !errors.Is(err, errScheduledReportsNotPorted) {
+		t.Fatalf("newDependencies() error = %v, want errScheduledReportsNotPorted", err)
+	}
+	if deps != nil {
+		t.Fatalf("newDependencies() deps = %#v, want nil on rejected module", deps)
+	}
+}
+
+func TestValidateOwnedModuleSupportAllowsDefaultModules(t *testing.T) {
+	cfg := config.Config{
+		OwnedModules: map[string]bool{
+			"health":         true,
+			"exchange_rates": true,
+			"notifications":  true,
+			"alerts":         true,
+			"profile":        true,
+		},
+	}
+	if err := validateOwnedModuleSupport(cfg); err != nil {
+		t.Fatalf("validateOwnedModuleSupport() error = %v, want nil for default modules", err)
 	}
 }
 

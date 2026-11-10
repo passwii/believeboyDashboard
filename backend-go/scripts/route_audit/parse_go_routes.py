@@ -1,41 +1,18 @@
 from __future__ import annotations
 from pathlib import Path
 from collections import Counter
-import re,json
+import re,json,os
 
-ROOT=Path(__file__).resolve().parents[3]
+# ROUTE_AUDIT_ROOT lets the offline self-check run the parser against a
+# synthetic source tree; ROUTE_AUDIT_GO_OUT redirects the parsed route JSON.
+DEFAULT_ROOT=Path(__file__).resolve().parents[3]
+ROOT=Path(os.environ.get('ROUTE_AUDIT_ROOT') or DEFAULT_ROOT).resolve()
+GO_OUT=Path(os.environ.get('ROUTE_AUDIT_GO_OUT') or '/tmp/go-routes.json')
 FILES=sorted([p for base in ['backend-go/internal/api','backend-go/internal/httpserver/routes.go'] for p in ((ROOT/base).rglob('*.go') if (ROOT/base).is_dir() else [ROOT/base]) if not p.name.endswith('_test.go')])
 
 HTTP_SELECTORS={'Get':'GET','Post':'POST','Put':'PUT','Patch':'PATCH','Delete':'DELETE','Head':'HEAD','Options':'OPTIONS','Trace':'TRACE'}
-ACTIVE_DIRS={
-'ad_analysis','ad_upload','agent','alerts','auth','category_research','complaints','daily_analysis',
-'exchange_rates','health','internal_ad_data','internal_keys','inventory_ledger','inventory_replenishment',
-'monthly_reports','new_product_calculations','notification_settings','notifications','order_info',
-'platform_revenues','pricing_calculation','pricing_calculation_snapshots','product_label','profile',
-'project_goals','projects','report_reconciliation','return_analysis','rpa_reports','shipment_schedules',
-'shipping_plan','shop_calculation','sku_info','users','vat_invoices','workflows',
-'agent_commerce','agent_credentials','agent_inspection','agent_monthly_reports','agent_ops',
-'agent_review_tracking',
-'ai_chat','ai_chat_usage','ai_chat_v2','ai_file_upload','ai_insight','insight_runs',
-'insight_domains','insight_observation','amazon_review_tracking','crm','digital_display',
-'digital_employees','digital_office','external_retired','inspections','jobs','page_render',
-'presence','product_analysis','product_analysis_reports','scheduled_reports',
-'system_management','uploads','internal_jobs'
-}
-UNWIRED_HINTS={
-'agent_ops':'cmd/gateway/dependencies.go 未构造 Registrar',
-'ai_chat':'cmd/gateway/dependencies.go 未构造 Registrar；SSE/会话域仍走 FastAPI',
-'crm':'cmd/gateway/dependencies.go 未构造 Registrar；当前 handler 为 notImplemented',
-'digital_display':'cmd/gateway/dependencies.go 未构造 Registrar',
-'digital_employees':'cmd/gateway/dependencies.go 未构造 Registrar',
-'digital_office':'cmd/gateway/dependencies.go 未构造 Registrar',
-'external_retired':'cmd/gateway/dependencies.go 未构造 Registrar',
-'jobs':'cmd/gateway/dependencies.go 未构造 Registrar',
-'page_render':'cmd/gateway/dependencies.go 未构造 Registrar',
-'presence':'cmd/gateway/dependencies.go 未构造 Registrar',
-'system_management':'cmd/gateway/dependencies.go 未构造 Registrar',
-'uploads':'cmd/gateway/dependencies.go 未构造 Registrar',
-}
+UNWIRED_HINT='cmd/gateway/dependencies.go 未构造该模块 registrar（GO_API_OWNED 无对应接线），路由当前只能走 FastAPI fallback'
+REQUIRED_AGENT_MOUNT_FILE='backend-go/internal/httpserver/routes.go'
 DEFAULT_AGENT_SCOPES={
 'agent_monthly_reports':'monthly_reports',
 }
@@ -261,7 +238,83 @@ def group_for_pos(groups,pos):
 
 def pos_in_ranges(ranges,pos): return any(a<=pos<=b for a,b in ranges)
 
-records=[]; unresolved=[]
+# ---------------------------------------------------------------------------
+# Wiring gate: a module is "active" only when cmd/gateway/dependencies.go
+# actually constructs its registrar (or httpserver/routes.go wires it as a
+# built-in), never because its directory merely contains routes. This keeps
+# route parity honest: a registrar that is never constructed is reported as
+# source-only instead of silently counting as wired.
+# ---------------------------------------------------------------------------
+MODULE_CONST_RE=re.compile(r'(?m)^\s*(Module[A-Za-z0-9_]+)\s*=\s*"([^"]+)"')
+OWNED_KEY_RE=re.compile(r'OwnedModules\s*\[\s*(?:"([^"]+)"|([A-Za-z_][\w.]*))\s*\]')
+REGISTRAR_RE=re.compile(r'\b([a-z][a-z0-9_]*)\.NewRegistrar\w*\s*\(')
+AGENT_MOUNT_RE=re.compile(r'\.(?:Route|Mount)\s*\(\s*"([^"]*)"')
+AGENT_REGISTRAR_METHOD_RE=re.compile(r'func\s*\([^)]*\)\s*RegisterAgentRoutes\s*\(')
+VALIDATE_FUNC_RE=re.compile(r'func\s+validate\w*\s*\(')
+
+def _read_text(path):
+    try: return path.read_text(encoding='utf-8')
+    except OSError: return ''
+
+def _module_constants():
+    return dict(MODULE_CONST_RE.findall(_read_text(ROOT/'backend-go/internal/config/config.go')))
+
+def _owned_keys(text,constants):
+    keys=[]
+    for m in OWNED_KEY_RE.finditer(text):
+        if m.group(1): keys.append(m.group(1)); continue
+        name=m.group(2).split('.')[-1]
+        if name in constants: keys.append(constants[name])
+    return keys
+
+def _module_dirs():
+    base=ROOT/'backend-go/internal/api'
+    return sorted({p.name for p in base.iterdir() if p.is_dir()}) if base.is_dir() else []
+
+def _runtime_gated_modules(constants):
+    """Owned-module keys rejected by validate* startup guards (e.g. P1-2 gate)."""
+    text=mask_comments(_read_text(ROOT/'backend-go/cmd/gateway/dependencies.go'))
+    gated=set()
+    for m in VALIDATE_FUNC_RE.finditer(text):
+        brace=text.find('{',m.end())
+        if brace<0: continue
+        end=find_close(text,brace)
+        if end<0: continue
+        gated.update(_owned_keys(text[m.end():end+1],constants))
+    return sorted(gated)
+
+def parse_wiring():
+    dirs=set(_module_dirs()); constants=_module_constants()
+    deps=mask_comments(_read_text(ROOT/'backend-go/cmd/gateway/dependencies.go'))
+    routes=mask_comments(_read_text(ROOT/'backend-go/internal/httpserver/routes.go'))
+    gateway_wired={alias for alias in REGISTRAR_RE.findall(deps) if alias in dirs}
+    if re.search(r'\bnewWorkflowRegistrar\s*\(',deps): gateway_wired.add('workflows')
+    builtin_wired={key for key in _owned_keys(routes,constants) if key in dirs}
+    mounts=[]
+    for path in sorted((ROOT/'backend-go').rglob('*.go')):
+        if path.name.endswith('_test.go'): continue
+        text=mask_comments(_read_text(path))
+        for m in AGENT_MOUNT_RE.finditer(text):
+            if m.group(1).rstrip('/')!='/api/v1/agent': continue
+            mounts.append({'file':str(path.relative_to(ROOT)),'line':text.count('\n',0,m.start())+1})
+    central_mounts=[m for m in mounts if m['file']==REQUIRED_AGENT_MOUNT_FILE]
+    unsafe_mounts=[m for m in mounts if m['file']!=REQUIRED_AGENT_MOUNT_FILE]
+    return {
+      'gateway_wired_modules':sorted(gateway_wired),
+      'builtin_wired_modules':sorted(builtin_wired),
+      'wired_modules':sorted(gateway_wired|builtin_wired),
+      'runtime_gated_modules':_runtime_gated_modules(constants),
+      'agent_subrouter_central_mounts':central_mounts,
+      'agent_subrouter_standalone_mounts':unsafe_mounts,
+      'duplicate_agent_subrouter_mounts':central_mounts[1:]+unsafe_mounts,
+    }
+
+WIRING=parse_wiring()
+WIRED_MODULES=set(WIRING['wired_modules'])
+# Agent modules expose RegisterAgentRoutes; the central httpserver mount adds
+# the /api/v1/agent prefix, so their relative registrations must be prefixed.
+AGENT_MODULE_DIRS={module_dir(path) for path in FILES if AGENT_REGISTRAR_METHOD_RE.search(mask_comments(_read_text(path)))}
+RECORDS=[]; UNRESOLVED=[]
 
 def route_guards(text, abs_pos):
     prefix=text[max(0,abs_pos-900):abs_pos]
@@ -284,7 +337,7 @@ def emit_call(call, offset, env, path, groups, diagnostic=False, source_line=Non
     p=eval_path(path_expr,env)
     if p is None:
         if diagnostic and ('/' in path_expr or '+' in path_expr):
-            unresolved.append({'file':str(path.relative_to(ROOT)),'line':call['line'],'selector':selector,'expr':path_expr,'reason':'unresolved path expression'})
+            UNRESOLVED.append({'file':str(path.relative_to(ROOT)),'line':call['line'],'selector':selector,'expr':path_expr,'reason':'unresolved path expression'})
         return
     if method is None:
         if diagnostic: unresolved.append({'file':str(path.relative_to(ROOT)),'line':call['line'],'selector':selector,'expr':path_expr,'reason':'unresolved method'})
