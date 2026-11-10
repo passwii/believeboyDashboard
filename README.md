@@ -61,7 +61,7 @@ BelieveBoy Dashboard 是一个**垂直领域的跨境电商运营工具**，旨�
 | **前端** | ESLint 14.2.21 (next config) | 代码风格（`eslint-config-next` 故意锁 14，配合 Next 16 仍可工作） |
 | **后端** | FastAPI | 现代高性能 Python Web 框架 |
 | **后端** | SQLAlchemy | Python SQL 工具包和 ORM |
-| **后端** | Alembic | 数据库迁移工具 |
+| **后端** | Goose | 数据库迁移工具（Alembic 历史已冻结） |
 | **后端** | Celery | 分布式任务队列（broker 走 Redis） |
 | **数据库** | PostgreSQL | 强大的开源关系数据库 |
 | **部署** | GHCR + Docker Compose | Web/API/Celery/beat 统一应用镜像栈 |
@@ -144,7 +144,7 @@ believeboyDashboard/
 │   │   ├── schemas/              # Pydantic 数据模型
 │   │   ├── services/             # 业务逻辑服务
 │   │   └── tasks/                # 后台任务
-│   ├── alembic/                  # 数据库迁移
+│   ├── alembic/                  # Alembic 历史归档（已冻结）
 │   ├── scripts/                  # 数据导入 + 运维脚本
 │   ├── tests/                    # pytest 测试
 │   ├── docs/                     # 后端设计/口径手册
@@ -208,8 +208,10 @@ source .venv/bin/activate
 python scripts/setup_test_db.py
 
 # 2) 仅当本机还没有生产快照 BLF 时，才需要从零建库：
-# 运行数据库迁移
-alembic upgrade head
+# 运行数据库迁移（Goose；空库会执行 285 基线）
+cd ../backend-go
+DATABASE_URL=postgresql://damon@127.0.0.1:5432/BLF go run ./cmd/migrate up
+cd ../backend
 
 # 创建初始管理员用户
 python scripts/seed_admin_user.py

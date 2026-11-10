@@ -110,31 +110,30 @@ curl -fsS http://127.0.0.1:3200/healthz
 
 ## 数据库与迁移（Database）
 
-PostgreSQL only，无 SQLite 回退。模型在 `backend/app/models/`，迁移用 Alembic。
+PostgreSQL only，无 SQLite 回退。模型仍在 `backend/app/models/`（FastAPI 使用），迁移已从 Alembic 切换到 **Goose**。
 
-**迁移命名**：`YYYYMMDD_NNN_description.py`（`NNN` 为三位序号，从最新迁移递增，如 `121`、`122`，不从 1 重计）。
-**Revision ID**：纯数字短 ID（`'131'`），严禁长格式 / 随机 hash；严禁改已运行迁移的 `revision`；`down_revision` 指向前一短 ID，保持单链。
+**Cutover 基线（2026-11-10，详见 [docs/deployment/goose-migration-cutover.md](./deployment/goose-migration-cutover.md)）**：Alembic 历史冻结在 revision 285；`backend/alembic/versions` 只归档、不再新增。`backend-go/internal/migrations/sql/00001_baseline.sql` 是 285 的完整 schema 快照，**禁止修改**。已有库（有 `alembic_version` = 285）运行 `migrate up` 时自动 stamp 为 Goose version 1，不重放 baseline；空库执行 baseline；无 `alembic_version` 且非空的未知 schema 会拒绝执行。
+
+**新迁移命名**：`YYYYMMDDHHMMSS_slug.sql`（14 位 UTC 时间戳 + 小写 snake_case），例如 `20261110153000_add_customer_tag.sql`；版本号必须唯一，已应用迁移禁止改名/改内容，修正一律用新迁移。
 
 ```bash
-cd backend && ls alembic/versions/ | grep "^2026" | sort | tail -5
-cd backend && .venv/bin/alembic heads
+python3 backend-go/scripts/new_go_migration.py add_customer_tag
+# 编辑 Up/Down 后：
+python3 backend-go/scripts/check_go_migrations.py
 ```
 
-**多 worktree 并行迁移流程（防撞 + 不抢跑 prod）**：
+**本地执行**（`DATABASE_URL` 必须指向目标库；`cmd/migrate` 会自动把 `postgresql+psycopg://` 转成 pgx DSN 并启用 simple protocol）：
 
-迁移碰撞的根因是"建迁移时 `down_revision` 选错"，不是 merge 时机。因此核心是**建前先同步 main 取单链**，而非"建完立即合 main"（立即合会让 schema 先于业务代码上 prod——`git deploy` 命中 `backend/` 即自动 `alembic upgrade head`，易造成列与代码错位）。
+```bash
+cd backend-go
+DATABASE_URL=postgresql://damon@127.0.0.1:5432/BLF_test go run ./cmd/migrate status
+DATABASE_URL=postgresql://damon@127.0.0.1:5432/BLF_test go run ./cmd/migrate up
+go run ./cmd/migrate version
+```
 
-1. **建迁移前（强制防撞）**：先同步 main 并确认单链，再以此 head 为 `down_revision`：
-   ```bash
-   git fetch origin && git rebase origin/main   # 或 merge
-   cd backend && .venv/bin/alembic heads         # 必须只有一个 head
-   # 然后才 alembic revision --rev-id <下一序号> -m "<中文说明>"
-   ```
-2. **建完随 feature 分支走**：迁移文件和用它代码同批 review、同批合 main，避免 schema 裸奔提前触发 prod 部署。
-3. **真撞了（出现两个 head）**：在 main 侧 `alembic merge heads --rev-id <下一序号> -m "merge xxx"` 合回单链（见下）。
-4. **其他 worktree 要用迁移**：先 rebase/pull main 拿到最新单链，再重复步骤 1。
+**多 worktree**：没有 revision graph / merge heads；建迁移前先 `git fetch origin && git rebase origin/main`，时间戳撞车由后建者改名，绝不复用已存在版本号。迁移随 feature 分支同批 review/合并，保持向后兼容（生产回滚不自动回滚 DB）。
 
-**机械强制检查（BLF-492）**：`backend/scripts/check_alembic.py` 在 push / 部署前自动跑（git deploy、pre-push hook、VPS deploy 的 `alembic upgrade head` 之前），检查：单 head、文件名 `YYYYMMDD_NNN_...` 且 revision id 纯数字（兼容历史日期风格 `20260718_214`）、无重复 id、无孤儿/坏链。失败会阻断 push / 部署并给出 `alembic merge heads` 修复提示；历史遗留违规文件在白名单 `LEGACY_EXCEPTIONS`（只减不增）。手动运行：`cd backend && python scripts/check_alembic.py`。
+**机械检查**：`backend-go/scripts/check_go_migrations.py` 校验 baseline SHA、Alembic 归档 manifest（任何变动即失败）、文件名/重复版本、goose Up/Down 标记；已接入 `git deploy`、`deploy/deploy-local.sh` 与 `deploy-dashboard.yml`。`backend/scripts/check_alembic.py` 仍可跑，仅用于校验冻结归档的图完整性。
 
 ---
 
@@ -250,7 +249,7 @@ cd backend && make lint   # 等价于 ruff check app tests scripts alembic --sta
 
 ### Workflow
 - 推送前：按 §测试规则 的分级跑（**不默认全量**）；前端 T1/T2 优先带路径过滤，全量 `pnpm test` 已可裸跑（BLF-1238 已修，~43s 起）；后端 T3 才跑全量并做失败集对账。
-- 推送 + 部署：`git deploy` 先校验 main、Alembic 图和 push，再执行 `deploy/deploy-local.sh`。
+- 推送 + 部署：`git deploy` 先校验 main、Goose 迁移（含 Alembic 冻结归档）和 push，再执行 `deploy/deploy-local.sh`。
 - `deploy/deploy-local.sh` 构建并推送 `believeboydashboard-web` / `believeboydashboard-api`，使用镜像 digest 部署 `/opt/believeboy-dashboard/docker-compose.yml`。
 - PostgreSQL、Redis、Caddy 不进入 Compose；应用容器使用 host network 访问现有回环端口。
 - Actions 只作手动备用：`gh workflow run deploy-dashboard.yml --ref main`。

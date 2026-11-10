@@ -4,6 +4,8 @@
 > 适用项目：`believeboyDashboard`（Next.js 16 前端 + FastAPI 后端 + Celery worker + PostgreSQL + Redis）
 > 部署目标：单 VPS（Ubuntu 26.04 / 20C / 32G）
 
+> ⚠️ 迁移说明（2026-11-10）：数据库迁移已切换为 Goose；本文中的 `alembic` 命令仅作历史参考，现行流程见 [Goose 迁移切换](./goose-migration-cutover.md)。
+
 ## 1. 概述 & 架构图
 
 ```

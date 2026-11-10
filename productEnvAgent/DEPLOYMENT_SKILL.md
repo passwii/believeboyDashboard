@@ -36,7 +36,7 @@ Skill 在 VPS 上执行以下步骤：
 2. **拉取最新代码** → `git pull`（从 origin/main 获取）
 3. **切换到后端目录** → `cd backend/`
 4. **激活虚拟环境** → `source .venv/bin/activate`
-5. **运行数据库迁移** → `alembic upgrade head`
+5. **运行数据库迁移** → Compose `migrate` 服务执行 `go-migrate up`
 6. **重启服务** → `systemctl restart believeboy-api`
 7. **验证服务状态** → `systemctl status believeboy-api`
 9. **显示最近日志** → `journalctl -u believeboy-api -n 20`
@@ -68,7 +68,7 @@ journalctl -u believeboy-api -f   # 实时日志
 
 `git deploy` 是 `productEnvAgent/deploy.sh` 的 git alias，一次完成 push + 本地镜像栈发布：
 
-- **行为**：当前必须在 `main` 分支；先跑 Alembic 图检查并 push，再执行 `deploy/deploy-local.sh` 构建 Web/API 双镜像并部署统一 Compose。
+- **行为**：当前必须在 `main` 分支；先跑 Goose 迁移检查并 push，再执行 `deploy/deploy-local.sh` 构建 Web/API 双镜像并部署统一 Compose。
 - **只推代码**：`PUSH_ONLY=1 git deploy`。
 - **执行流程**：① 校验分支 → ② `git push origin main` → ③ 若命中 backend/，跑 `python productEnvAgent/deploy_vps.py --auto`。
 - **临时跳过 deploy**：`git push origin main`（直接 push，绕开 alias）。
@@ -99,7 +99,7 @@ journalctl -u believeboy-api -f   # 实时日志
 |-------|------|---------|
 | SSH 连接 | `ssh root@145.79.143.98 echo ok` | `ok` |
 | Git pull | `git pull` | 无冲突，快速前进 |
-| 数据库迁移 | `alembic upgrade head` | INFO: Context impl PostgresqlImpl |
+| 数据库迁移 | `go-migrate up` | goose: successfully migrated database |
 | 服务停止 | `systemctl stop believeboy-api` | `Deactivated successfully` |
 | 服务启动 | `systemctl start believeboy-api` | `active (running)` |
 | API 健康检查 | `curl -w '%{http_code}' http://127.0.0.1:8100/api/v1/health` | `200`（健康）；`401` 表示服务已起但 `/health` 需 API key（探活视为通过） |

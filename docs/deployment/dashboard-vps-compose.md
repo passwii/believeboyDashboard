@@ -1,6 +1,6 @@
 # Dashboard VPS Compose 部署
 
-最后更新：2026-11-07
+最后更新：2026-11-10
 
 生产入口：
 
@@ -16,7 +16,7 @@
   Caddy            80/443
 
 Dashboard Compose（network_mode: host）
-  migrate
+  migrate     Go API 镜像内的 go-migrate（Goose）
   api         127.0.0.1:8100  FastAPI 回退
   go-api      127.0.0.1:8200  Go Gateway
   celery
@@ -41,6 +41,20 @@ PostgreSQL、Redis、Caddy 不进入 Dashboard Compose。Go API 从 `backend.env
 
 发布使用同一 commit 构建的三个镜像；部署参数使用 registry digest，而不是可变标签。
 Web、FastAPI 和 Go API 必须同版本切换与回滚。
+
+## 数据库迁移
+
+`migrate` 服务使用 Go API 镜像里的 `/usr/local/bin/go-migrate up`（Goose），不再运行 Alembic。
+Alembic 历史已冻结在 revision 285：
+
+- 已有库（`alembic_version = 285`）首次执行时自动 stamp 为 Goose version 1，不重放基线；
+- 空库执行 `00001_baseline.sql` 建立完整 schema；
+- 无 `alembic_version` 且 public schema 非空时拒绝执行，避免误覆盖未知库；
+- 迁移只向前，生产回滚不自动回滚 DB；迁移必须保持向后兼容。
+- **首次切换前置条件**：若库仍是 Alembic，先运行一次 `bash deploy/prepare-goose-cutover.sh`（用 API 镜像将库升到冻结 head 285）；全新库无需执行。随后正常部署，`go-migrate up` 会 stamp 并运行后续 Goose 迁移。
+
+本机验证命令见 `docs/REFERENCE.md` §数据库与迁移；发布前由 `git deploy` / CI 运行
+`backend-go/scripts/check_go_migrations.py`。
 
 ## VPS 文件
 
@@ -135,7 +149,7 @@ Actions 和 SSH 调用端只创建部署根目录与唯一暂存目录、上传�
 
 每次远端部署会先仅回收三个 Dashboard GHCR 仓库中未被容器或当前镜像清单引用的镜像，再读取部署分区总容量与可用空间。空间门槛是可配置的**绝对下限**（原版固定 10% 在 15 GB VPS 上、两套镜像共存时不可达）：`DEPLOY_FREE_SPACE_MIN_BYTES`（默认 1 GiB）与 `DEPLOY_FREE_SPACE_POST_PULL_MIN_BYTES`（默认 512 MiB，目标镜像拉取后）；可选 `DEPLOY_FREE_SPACE_PERCENT`（默认 0 表示关闭）。需要复制 legacy 数据时，仍会按“估算已分配空间 + 10% + 512 MiB 缓冲”预检；目标镜像拉取后、停机复制前会再次执行精确检查。空间不足时在运行 migration 前中止；数据复制预检不通过时不会停止旧服务。日志记录源码 SHA、三个镜像 digest、分区总容量、各项门槛、可用空间、清理的镜像引用数量以及各阶段的 Docker 镜像占用。
 
-成功部署后只回收没有容器引用的旧 Dashboard 镜像。失败后若应用回滚成功，会恢复 `.storage-migrated` / `.celerybeat-migrated` 的部署前状态，使旧写入方恢复后产生的新数据能在下一次部署重新复制；同时重启部署前处于运行状态的旧 systemd 服务和旧单体容器。回滚会清理未被恢复中的容器或当前镜像清单引用的失败目标镜像；若回滚失败，则保留回滚副本和可用镜像供人工恢复。自动回滚失败时会先停止失败的 Compose 写入服务，再尝试恢复部署前活动的 legacy 写入方，避免新 API/Celery/beat 与旧写入方并行。数据库 migration 不会自动回滚；迁移后的应用回滚使用 `--no-deps` 只启动 API、Go API、Celery、beat 和 Web，跳过旧 `migrate`，避免旧 Alembic 不识别数据库中的新 revision。新版本健康后会禁用旧 systemd 单元并逐个确认已 disabled；若仍有单元 enabled，部署以失败结束，并保留 rollback 副本和旧镜像供人工处理。其他应用镜像、Docker volumes、上传目录和数据库文件都不会被自动删除。不要在自动部署中使用全局 `docker image prune -a` 或 `docker system prune`。
+成功部署后只回收没有容器引用的旧 Dashboard 镜像。失败后若应用回滚成功，会恢复 `.storage-migrated` / `.celerybeat-migrated` 的部署前状态，使旧写入方恢复后产生的新数据能在下一次部署重新复制；同时重启部署前处于运行状态的旧 systemd 服务和旧单体容器。回滚会清理未被恢复中的容器或当前镜像清单引用的失败目标镜像；若回滚失败，则保留回滚副本和可用镜像供人工恢复。自动回滚失败时会先停止失败的 Compose 写入服务，再尝试恢复部署前活动的 legacy 写入方，避免新 API/Celery/beat 与旧写入方并行。数据库 migration 不会自动回滚；迁移后的应用回滚使用 `--no-deps` 只启动 API、Go API、Celery、beat 和 Web，跳过 `migrate`，避免旧迁移 runner 不识别数据库中的新版本。新版本健康后会禁用旧 systemd 单元并逐个确认已 disabled；若仍有单元 enabled，部署以失败结束，并保留 rollback 副本和旧镜像供人工处理。其他应用镜像、Docker volumes、上传目录和数据库文件都不会被自动删除。不要在自动部署中使用全局 `docker image prune -a` 或 `docker system prune`。
 
 远端环境文件通过权限受限的唯一暂存目录传输。部署成功或回滚结束后清除暂存密钥和回滚副本；若 SSH 中断导致 VPS 暂不可达，下一次部署会清理超过 24 小时的残留暂存目录。活动 `backend.env`、`web.env`、`go.env`、`backend-storage` 和 `celerybeat` 保留。
 

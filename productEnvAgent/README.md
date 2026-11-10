@@ -24,7 +24,7 @@ python deploy_vps.py --dry-run
 
 - ✓ 自动 SSH 连接（使用 Key 认证，无需密码）
 - ✓ Git pull 拉取最新代码
-- ✓ Alembic 数据库迁移
+- ✓ Goose 数据库迁移（go-migrate）
 - ✓ Systemd 服务重启
 - ✓ 部署失败自动诊断
 - ✓ 收集 journalctl 日志
@@ -38,7 +38,7 @@ python deploy_vps.py --dry-run
 3. 执行 `git pull`
 4. 切换到后端目录 `cd backend/`
 5. 激活虚拟环境 `source .venv/bin/activate`
-6. 运行数据库迁移 `alembic upgrade head`
+6. 运行数据库迁移（Compose `migrate` 服务执行 `go-migrate up`）
 7. 停止服务 `systemctl stop believeboy-api`
 8. 启动服务 `systemctl start believeboy-api`
 9. 验证服务状态 `systemctl status believeboy-api`

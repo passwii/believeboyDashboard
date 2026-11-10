@@ -4,6 +4,8 @@
 > 适用项目：`believeboyDashboard`（Next.js 16 前端 + FastAPI 后端 + Celery worker + PostgreSQL + Redis）
 > 部署目标：单 VPS（Ubuntu 26.04 / 20C / 32G）
 
+> ⚠️ 迁移说明（2026-11-10）：数据库迁移已切换为 Goose；本文中的 `alembic` 命令仅作历史参考，现行流程见 [Goose 迁移切换](./goose-migration-cutover.md)。
+
 > 📄 **这是和 [Coolify 方案](./coolify-deployment.md) 平行写的方案**。两份文档结构一致，可以二选一。Coolify 生态更成熟（16k Discord / 200k+ instances），Dokploy 更新更现代（MIT 协议、强通知系统、remote server 管理）。读这两份前，先看 §1 的"两个方案的关键差异"决定。
 
 ## 1. 概述 & 架构图
