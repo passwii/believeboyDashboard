@@ -8,6 +8,14 @@ if [[ -f "$CONFIG_FILE" ]]; then
   source "$CONFIG_FILE"
 fi
 
+# 2026-11-10：Go 后端全量迁移完成前冻结部署，只做本地 Docker 验证。
+# 重新启用：DEPLOYMENTS_ENABLED=true（见 deploy/local.env.example）。
+if [[ "${DEPLOYMENTS_ENABLED:-false}" != "true" ]]; then
+  echo "Deployments are paused. Validate locally with Docker only until the Go backend migration is complete." >&2
+  echo "Set DEPLOYMENTS_ENABLED=true to re-enable deployment." >&2
+  exit 1
+fi
+
 DEPLOY_METHOD="${DEPLOY_METHOD:-actions}"
 case "$DEPLOY_METHOD" in
   actions | ssh) ;;
@@ -27,6 +35,9 @@ GO_API_IMAGE_NAME="${GO_API_IMAGE_NAME:-ghcr.io/passwii/believeboydashboard-go-a
 # enabled for a verified release.
 GO_API_OWNED_MODULES="${GO_API_OWNED_MODULES:-}"
 GO_API_INTERNAL_URL="${GO_API_INTERNAL_URL:-http://127.0.0.1:8100}"
+DEPLOY_FREE_SPACE_MIN_BYTES="${DEPLOY_FREE_SPACE_MIN_BYTES:-1073741824}"
+DEPLOY_FREE_SPACE_POST_PULL_MIN_BYTES="${DEPLOY_FREE_SPACE_POST_PULL_MIN_BYTES:-536870912}"
+DEPLOY_FREE_SPACE_PERCENT="${DEPLOY_FREE_SPACE_PERCENT:-0}"
 PIP_INDEX_URL="${PIP_INDEX_URL:-https://pypi.org/simple}"
 GO_MODULE_PROXY="${GO_MODULE_PROXY:-https://proxy.golang.org,direct}"
 INTERNAL_AI_PROVIDER_BASE_URL="${INTERNAL_AI_PROVIDER_BASE_URL:-http://127.0.0.1:3100/v1}"
@@ -395,6 +406,9 @@ printf -v remote_web_image '%q' "$WEB_IMAGE"
 printf -v remote_ai_provider_base_url '%q' "$INTERNAL_AI_PROVIDER_BASE_URL"
 printf -v remote_go_owned '%q' "$GO_API_OWNED_MODULES"
 printf -v remote_go_internal_url '%q' "$GO_API_INTERNAL_URL"
+printf -v remote_space_min '%q' "$DEPLOY_FREE_SPACE_MIN_BYTES"
+printf -v remote_space_post_pull '%q' "$DEPLOY_FREE_SPACE_POST_PULL_MIN_BYTES"
+printf -v remote_space_percent '%q' "$DEPLOY_FREE_SPACE_PERCENT"
 
 echo "Deploying FastAPI, Go API, and Web..."
 if ! ssh "$DEPLOY_HOST" \
@@ -402,6 +416,9 @@ if ! ssh "$DEPLOY_HOST" \
     SOURCE_SHA=$remote_source_sha STAGING_DIR=$remote_staging_dir \
     INTERNAL_AI_PROVIDER_BASE_URL=$remote_ai_provider_base_url \
     GO_API_OWNED_MODULES=$remote_go_owned GO_API_INTERNAL_URL=$remote_go_internal_url \
+    DEPLOY_FREE_SPACE_MIN_BYTES=$remote_space_min \
+    DEPLOY_FREE_SPACE_POST_PULL_MIN_BYTES=$remote_space_post_pull \
+    DEPLOY_FREE_SPACE_PERCENT=$remote_space_percent \
     API_IMAGE=$remote_api_image GO_API_IMAGE=$remote_go_api_image WEB_IMAGE=$remote_web_image DEPLOY_PATH=$remote_deploy_path \
       bash $remote_script_path"; then
   echo "Compose deployment failed; remote deploy script attempted config and image rollback." >&2

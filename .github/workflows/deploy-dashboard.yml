@@ -74,8 +74,21 @@ jobs:
       DOCKER_PLATFORM: linux/amd64
       PUBLIC_WEB_HEALTH_URL: https://dash.believeboy.com/healthz
       PUBLIC_API_HEALTH_URL: https://dash-api.believeboy.com/api/v1/health/ready
+      # Space policy knobs (repo variables, see deploy/local.env.example).
+      DEPLOY_FREE_SPACE_MIN_BYTES: ${{ vars.DEPLOY_FREE_SPACE_MIN_BYTES || '1073741824' }}
+      DEPLOY_FREE_SPACE_POST_PULL_MIN_BYTES: ${{ vars.DEPLOY_FREE_SPACE_POST_PULL_MIN_BYTES || '536870912' }}
+      DEPLOY_FREE_SPACE_PERCENT: ${{ vars.DEPLOY_FREE_SPACE_PERCENT || '0' }}
 
     steps:
+      # 2026-11-10：Go 后端全量迁移完成前冻结部署，只做本地 Docker 验证。
+      # 重新启用：在仓库 Settings → Variables 设置 DEPLOYMENTS_ENABLED=true。
+      - name: Deployment pause guard
+        if: ${{ vars.DEPLOYMENTS_ENABLED != 'true' }}
+        shell: bash
+        run: |
+          echo "::error::Deployments are paused (DEPLOYMENTS_ENABLED != true). Validate locally with Docker until the Go backend migration is complete."
+          exit 1
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -437,6 +450,9 @@ jobs:
           printf -v remote_public_api_url '%q' "$PUBLIC_API_HEALTH_URL"
           printf -v remote_go_owned '%q' "$GO_API_OWNED_INPUT"
           printf -v remote_go_internal_url '%q' "$GO_API_INTERNAL_URL_INPUT"
+          printf -v remote_space_min '%q' "$DEPLOY_FREE_SPACE_MIN_BYTES"
+          printf -v remote_space_post_pull '%q' "$DEPLOY_FREE_SPACE_POST_PULL_MIN_BYTES"
+          printf -v remote_space_percent '%q' "$DEPLOY_FREE_SPACE_PERCENT"
 
           ssh -i "$SSH_DIR/believeboy-dashboard" \
             -o IdentitiesOnly=yes \
@@ -445,6 +461,9 @@ jobs:
             "$SSH_USER@$SSH_HOST" \
             "PUBLIC_WEB_HEALTH_URL=$remote_public_web_url PUBLIC_API_HEALTH_URL=$remote_public_api_url \
              GO_API_OWNED_MODULES=$remote_go_owned GO_API_INTERNAL_URL=$remote_go_internal_url \
+             DEPLOY_FREE_SPACE_MIN_BYTES=$remote_space_min \
+             DEPLOY_FREE_SPACE_POST_PULL_MIN_BYTES=$remote_space_post_pull \
+             DEPLOY_FREE_SPACE_PERCENT=$remote_space_percent \
              SOURCE_SHA=$remote_source_sha STAGING_DIR=$remote_staging_dir DEPLOY_PATH=$remote_deploy_path \
              API_DIGEST=$remote_api_digest GO_API_DIGEST=$remote_go_api_digest WEB_DIGEST=$remote_web_digest \
              API_IMAGE=$remote_api_image GO_API_IMAGE=$remote_go_api_image WEB_IMAGE=$remote_web_image \

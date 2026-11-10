@@ -71,6 +71,23 @@ test('Go binaries embed their required timezone data', async () => {
   assert.match(worker, /tzcheck\.Ensure\(\)/)
 })
 
+test('deployments stay paused until explicitly re-enabled', async () => {
+  const workflow = await read('.github/workflows/deploy-dashboard.yml')
+  const localDeploy = await read('deploy/deploy-local.sh')
+  assert.match(workflow, /DEPLOYMENTS_ENABLED/)
+  assert.match(workflow, /Deployments are paused/)
+  assert.match(localDeploy, /DEPLOYMENTS_ENABLED/)
+  assert.match(localDeploy, /Deployments are paused/)
+})
+
+test('deploy free-space policy uses configurable absolute floors', async () => {
+  const script = await read('deploy/deploy-remote.sh')
+  assert.match(script, /DEPLOY_FREE_SPACE_MIN_BYTES/)
+  assert.match(script, /DEPLOY_FREE_SPACE_POST_PULL_MIN_BYTES/)
+  assert.match(script, /DEPLOY_FREE_SPACE_PERCENT/)
+  assert.doesNotMatch(script, /DEPLOY_FREE_SPACE_PERCENT=10/)
+})
+
 test('dashboard deployment workflow is manual-only and publishes all three images', async () => {
   const workflow = await read('.github/workflows/deploy-dashboard.yml')
   assert.match(workflow, /workflow_dispatch:/)

@@ -131,7 +131,9 @@ gh run list --workflow deploy-dashboard.yml --limit 3
 
 Actions 和 SSH 调用端只创建部署根目录与唯一暂存目录、上传本次部署文件；所有 VPS 活动状态修改都由持有 `.deploy.lock` 的远端脚本完成。锁内流程包含 legacy 环境 bootstrap、目录初始化、镜像拉取与 revision 校验、旧写入方停机、legacy 数据复制与权限调整、migration、健康检查、回滚和清理。legacy storage/celerybeat 只在旧服务停止后复制，避免把仍在写入的不一致快照切到新运行目录。Actions 的 `always()` 暂存清理也会先取得同一把锁；远端事务仍在运行时延后清理，由远端退出逻辑或下一次部署回收。
 
-每次远端部署会先仅回收三个 Dashboard GHCR 仓库中未被容器或当前镜像清单引用的镜像，再读取部署分区总容量与可用空间，要求可用字节严格大于总容量的 10%；例如 15 GB 分区的门槛约为 1.5 GB。需要复制 legacy 数据时，会估算已分配空间，并额外要求覆盖估算数据量、估算值的 10% 和 512 MiB 缓冲；目标镜像拉取后、停机复制前会再次执行这次精确检查，复制完成及拉取目标镜像后也会检查 10% 门槛。空间不足时，在运行 migration 前中止；数据复制预检不通过时，不会停止旧服务。日志记录源码 SHA、三个镜像 digest、分区总容量、10% 门槛、可用空间、清理的镜像引用数量，以及各阶段的 Docker 镜像占用。
+**部署冻结（2026-11-10 起）**：仓库变量 `DEPLOYMENTS_ENABLED` 不为 `true` 时，`deploy-dashboard.yml` 和 `deploy/deploy-local.sh` 都会立即失败退出。Go 后端全量迁移完成前不要解除冻结，只在本地 Docker 验证；重新启用时在仓库 Settings → Variables 设置 `DEPLOYMENTS_ENABLED=true`。
+
+每次远端部署会先仅回收三个 Dashboard GHCR 仓库中未被容器或当前镜像清单引用的镜像，再读取部署分区总容量与可用空间。空间门槛是可配置的**绝对下限**（原版固定 10% 在 15 GB VPS 上、两套镜像共存时不可达）：`DEPLOY_FREE_SPACE_MIN_BYTES`（默认 1 GiB）与 `DEPLOY_FREE_SPACE_POST_PULL_MIN_BYTES`（默认 512 MiB，目标镜像拉取后）；可选 `DEPLOY_FREE_SPACE_PERCENT`（默认 0 表示关闭）。需要复制 legacy 数据时，仍会按“估算已分配空间 + 10% + 512 MiB 缓冲”预检；目标镜像拉取后、停机复制前会再次执行精确检查。空间不足时在运行 migration 前中止；数据复制预检不通过时不会停止旧服务。日志记录源码 SHA、三个镜像 digest、分区总容量、各项门槛、可用空间、清理的镜像引用数量以及各阶段的 Docker 镜像占用。
 
 成功部署后只回收没有容器引用的旧 Dashboard 镜像。失败后若应用回滚成功，会恢复 `.storage-migrated` / `.celerybeat-migrated` 的部署前状态，使旧写入方恢复后产生的新数据能在下一次部署重新复制；同时重启部署前处于运行状态的旧 systemd 服务和旧单体容器。回滚会清理未被恢复中的容器或当前镜像清单引用的失败目标镜像；若回滚失败，则保留回滚副本和可用镜像供人工恢复。自动回滚失败时会先停止失败的 Compose 写入服务，再尝试恢复部署前活动的 legacy 写入方，避免新 API/Celery/beat 与旧写入方并行。数据库 migration 不会自动回滚；迁移后的应用回滚使用 `--no-deps` 只启动 API、Go API、Celery、beat 和 Web，跳过旧 `migrate`，避免旧 Alembic 不识别数据库中的新 revision。新版本健康后会禁用旧 systemd 单元并逐个确认已 disabled；若仍有单元 enabled，部署以失败结束，并保留 rollback 副本和旧镜像供人工处理。其他应用镜像、Docker volumes、上传目录和数据库文件都不会被自动删除。不要在自动部署中使用全局 `docker image prune -a` 或 `docker system prune`。
 
@@ -169,6 +171,25 @@ ssh guitar-vps '
 - 两个 Celery worker 响应 `celery inspect ping`。
 - `beat` 持续运行。
 - `5432`、`6379`、`8100`、`8200`、`3200` 只监听宿主机回环；Caddy 的 API upstream 当前指向 `8100`（FastAPI），Go Gateway `8200` 仅由 Web 在启用切流时使用。
+
+## 本地 Docker 验证（部署冻结期）
+
+不触达 VPS、不推 GHCR；只在本机构建并验证 Go API runtime：
+
+```bash
+bash deploy/validate-local-go-api.sh
+```
+
+脚本会：① 本地构建 `backend-go/Dockerfile` runtime 镜像并断言 `/usr/share/zoneinfo/Asia/Shanghai` 存在；② 用该镜像启动 gateway（`GO_API_OWNED=health,exchange_rates`）连本机 `BLF_test`；③ 带 `API_KEY` + `GO_API_TRUSTED_PROXY_SECRET` 请求 `/api/v1/health`（要求 `database: ok`）和 `/api/v1/exchange-rates`（要求 200）。
+
+手工只验 tzdata 时：
+
+```bash
+cd backend-go
+docker build -f Dockerfile -t believeboy-dashboard-go-api:local .
+docker run --rm --entrypoint sh believeboy-dashboard-go-api:local \
+  -c 'test -e /usr/share/zoneinfo/Asia/Shanghai && echo tzdata-ok'
+```
 
 ## 回滚
 

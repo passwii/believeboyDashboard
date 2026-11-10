@@ -379,10 +379,12 @@ class DeployRemoteTests(unittest.TestCase):
             self.assertLess(stop_index, copy_index)
 
     def test_legacy_copy_space_margin_fails_before_copy(self):
+        # General floors now pass (1.2 GiB > 1 GiB) so this exercises the copy
+        # safety margin itself, not the pre-pull space gate.
         temp, deploy_path, docker_log, env = self.prepare_runtime(
             previous_compose=False,
-            total_bytes=1_000_000_000,
-            available_bytes=638_024_344,
+            total_bytes=10_000_000_000,
+            available_bytes=1_200_000_000,
             legacy_storage=True,
         )
         with temp:
@@ -419,30 +421,59 @@ class DeployRemoteTests(unittest.TestCase):
                 Path(env["OPERATION_LOG"]).read_text(),
             )
 
-    def test_space_threshold_is_ten_percent_of_partition_size(self):
+    def test_space_policy_uses_absolute_floor(self):
         temp, _, _, env = self.prepare_runtime(
             previous_compose=False,
             total_bytes=15_000_000_000,
-            available_bytes=1_500_000_001,
+            available_bytes=1_100_000_000,
         )
         with temp:
             result = self.run_deploy(env)
 
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertIn("partition total: 15000000000 bytes", result.stdout)
-            self.assertIn("10% threshold: 1500000000 bytes", result.stdout)
+            self.assertIn("general floor=1073741824 bytes", result.stdout)
 
-    def test_space_threshold_rejects_exactly_ten_percent(self):
+    def test_space_policy_rejects_below_absolute_floor(self):
         temp, _, _, env = self.prepare_runtime(
             previous_compose=False,
             total_bytes=15_000_000_000,
-            available_bytes=1_500_000_000,
+            available_bytes=1_000_000_000,
         )
         with temp:
             result = self.run_deploy(env)
 
             self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
-            self.assertIn("strictly greater than 10%", result.stderr)
+            self.assertIn("strictly greater than the required 1073741824 bytes", result.stderr)
+
+    def test_space_policy_percentage_floor_is_opt_in(self):
+        temp, _, _, env = self.prepare_runtime(
+            previous_compose=False,
+            total_bytes=15_000_000_000,
+            available_bytes=1_400_000_000,
+        )
+        with temp:
+            env["DEPLOY_FREE_SPACE_PERCENT"] = "10"
+            result = self.run_deploy(env)
+
+            self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("strictly greater than the required 1500000000 bytes", result.stderr)
+
+    def test_space_policy_enforces_post_pull_floor_before_stop(self):
+        temp, deploy_path, docker_log, env = self.prepare_runtime(
+            previous_compose=False,
+            total_bytes=15_000_000_000,
+            available_bytes=1_600_000_000,
+        )
+        with temp:
+            env["DF_AVAILABLE_AFTER_PULL"] = "500000000"
+            result = self.run_deploy(env)
+
+            self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("target image pull", result.stderr)
+            self.assertIn("strictly greater than the required 536870912 bytes", result.stderr)
+            self.assertIn("command=compose pull ", docker_log.read_text())
+            self.assertFalse((deploy_path / ".deploy-images").exists())
 
     def test_rollback_skips_migrate_and_uses_saved_go_image(self):
         temp, _, docker_log, env = self.prepare_runtime(previous_compose=True)

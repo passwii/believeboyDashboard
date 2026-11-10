@@ -14,9 +14,14 @@ PUBLIC_WEB_HEALTH_URL="${PUBLIC_WEB_HEALTH_URL-}"
 PUBLIC_API_HEALTH_URL="${PUBLIC_API_HEALTH_URL-}"
 GO_API_OWNED_MODULES="${GO_API_OWNED_MODULES-}"
 GO_API_INTERNAL_URL="${GO_API_INTERNAL_URL:-http://127.0.0.1:8100}"
-DEPLOY_FREE_SPACE_PERCENT=10
+# Space policy: absolute floors are the primary guard (a hard 10% rule is
+# unreachable on a 15 GiB VPS once the running and target image sets coexist).
+DEPLOY_FREE_SPACE_PERCENT="${DEPLOY_FREE_SPACE_PERCENT:-0}"       # optional stricter floor, 0 = disabled
+DEPLOY_FREE_SPACE_MIN_BYTES="${DEPLOY_FREE_SPACE_MIN_BYTES:-1073741824}"           # 1 GiB general floor
+DEPLOY_FREE_SPACE_POST_PULL_MIN_BYTES="${DEPLOY_FREE_SPACE_POST_PULL_MIN_BYTES:-536870912}"  # 512 MiB after pulling target images
 DEPLOY_PARTITION_TOTAL_BYTES=""
 DEPLOY_MIN_FREE_BYTES=""
+DEPLOY_MIN_FREE_POST_PULL_BYTES=""
 INTERNAL_AI_PROVIDER_BASE_URL="${INTERNAL_AI_PROVIDER_BASE_URL:-http://127.0.0.1:3100/v1}"
 BOOTSTRAP_COPY_FIXED_MARGIN_BYTES=536870912
 LEGACY_REPO="${LEGACY_REPO:-/root/believeboyDashboard}"
@@ -220,6 +225,18 @@ fi
 if [[ "$INTERNAL_AI_PROVIDER_BASE_URL" == *$'\n'* ]]; then
   die "INTERNAL_AI_PROVIDER_BASE_URL must be a single-line value."
 fi
+for name in DEPLOY_FREE_SPACE_MIN_BYTES DEPLOY_FREE_SPACE_POST_PULL_MIN_BYTES; do
+  if [[ ! "${!name}" =~ ^[0-9]+$ ]]; then
+    die "$name must be a byte count (digits only)."
+  fi
+  if (( ${!name} < 104857600 )); then
+    die "$name must be at least 104857600 bytes (100 MiB)."
+  fi
+done
+if [[ ! "$DEPLOY_FREE_SPACE_PERCENT" =~ ^[0-9]+$ ]] ||
+  (( DEPLOY_FREE_SPACE_PERCENT > 50 )); then
+  die "DEPLOY_FREE_SPACE_PERCENT must be an integer between 0 and 50 (0 disables the percentage floor)."
+fi
 
 DEPLOY_LOCK="$DEPLOY_PATH/.deploy.lock"
 if ! command -v flock >/dev/null 2>&1; then
@@ -357,9 +374,10 @@ collect_disk_usage() {
 
   DEPLOY_PARTITION_TOTAL_BYTES="$(decimal_normalize "$DEPLOY_PARTITION_TOTAL_BYTES")"
   AVAILABLE_BYTES="$(decimal_normalize "$AVAILABLE_BYTES")"
-  DEPLOY_MIN_FREE_BYTES="$(decimal_divide_by_ten "$DEPLOY_PARTITION_TOTAL_BYTES")"
+  DEPLOY_MIN_FREE_BYTES="$(free_space_requirement "$DEPLOY_FREE_SPACE_MIN_BYTES")"
+  DEPLOY_MIN_FREE_POST_PULL_BYTES="$(free_space_requirement "$DEPLOY_FREE_SPACE_POST_PULL_MIN_BYTES")"
   echo "Deployment partition total: $DEPLOY_PARTITION_TOTAL_BYTES bytes"
-  echo "${DEPLOY_FREE_SPACE_PERCENT}% threshold: $DEPLOY_MIN_FREE_BYTES bytes"
+  echo "Free space policy: general floor=$DEPLOY_MIN_FREE_BYTES bytes; after target pull floor=$DEPLOY_MIN_FREE_POST_PULL_BYTES bytes; percentage floor=${DEPLOY_FREE_SPACE_PERCENT}% (0 = disabled)"
   echo "Available disk bytes: $AVAILABLE_BYTES"
   echo "Docker image occupancy summary:"
   printf '%s\n' "$DOCKER_DF_SUMMARY"
@@ -374,10 +392,25 @@ log_disk_usage() {
   collect_disk_usage
 }
 
+free_space_requirement() {
+  local base_bytes="$1"
+  local required="$base_bytes"
+  if (( DEPLOY_FREE_SPACE_PERCENT > 0 )); then
+    local percentage_required
+    percentage_required="$(( DEPLOY_PARTITION_TOTAL_BYTES * DEPLOY_FREE_SPACE_PERCENT / 100 ))"
+    if (( percentage_required > required )); then
+      required="$percentage_required"
+    fi
+  fi
+  printf '%s' "$required"
+}
+
 require_free_space() {
   local phase="$1"
-  if ! decimal_is_greater "$AVAILABLE_BYTES" "$DEPLOY_MIN_FREE_BYTES"; then
-    echo "Available disk space after $phase ($AVAILABLE_BYTES bytes) must be strictly greater than ${DEPLOY_FREE_SPACE_PERCENT}% of the deployment partition ($DEPLOY_PARTITION_TOTAL_BYTES bytes, threshold $DEPLOY_MIN_FREE_BYTES bytes); refusing to stop legacy services or run migrations." >&2
+  local required="${2:-$DEPLOY_MIN_FREE_BYTES}"
+  if ! decimal_is_greater "$AVAILABLE_BYTES" "$required"; then
+    echo "Available disk space after $phase ($AVAILABLE_BYTES bytes) must be strictly greater than the required $required bytes (partition total $DEPLOY_PARTITION_TOTAL_BYTES bytes; general floor $DEPLOY_FREE_SPACE_MIN_BYTES, post-pull floor $DEPLOY_FREE_SPACE_POST_PULL_MIN_BYTES, percentage floor ${DEPLOY_FREE_SPACE_PERCENT}%); refusing to stop legacy services or run migrations." >&2
+    echo "Hint: the deploy only prunes unreferenced images from the three Dashboard GHCR repositories; free space manually (legacy repo/cache) or raise DEPLOY_FREE_SPACE_* only if the disk can take it." >&2
     report_space_summaries
     return 1
   fi
@@ -1036,7 +1069,7 @@ check_image_revision "Web" "$WEB_IMAGE" ||
 if ! log_disk_usage "after target image pull"; then
   die "Could not collect disk usage after pulling target images."
 fi
-require_free_space "target image pull" ||
+require_free_space "target image pull" "$DEPLOY_MIN_FREE_POST_PULL_BYTES" ||
   die "Insufficient disk space after pulling target images; migration was not run."
 require_bootstrap_copy_space ||
   die "Insufficient disk space for legacy data copy after pulling target images; legacy services remain untouched."
