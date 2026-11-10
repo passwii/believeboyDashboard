@@ -31,6 +31,7 @@ import (
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/category_research"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/complaints"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/crm"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/api/crm_intent"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/daily_analysis"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/digital_display"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/digital_employees"
@@ -158,6 +159,7 @@ func newDependencies(ctx context.Context, cfg config.Config) (*dependencies, err
 		cfg.OwnedModules["jobs"] ||
 		cfg.OwnedModules["scheduled_reports"] ||
 		cfg.OwnedModules["crm"] ||
+		cfg.OwnedModules[config.ModuleCRMIntent] ||
 		cfg.OwnedModules["system_management"] ||
 		cfg.OwnedModules["digital_employees"] ||
 		cfg.OwnedModules["digital_office"] ||
@@ -195,6 +197,7 @@ func newDependencies(ctx context.Context, cfg config.Config) (*dependencies, err
 			cfg.OwnedModules["agent_inspection"] ||
 			cfg.OwnedModules["agent_commerce"] ||
 			cfg.OwnedModules["sku_info"] ||
+			cfg.OwnedModules[config.ModuleCRMIntent] ||
 			cfg.OwnedModules["exchange_rates_write"] {
 			createdObjectStore, err := newObjectStore(cfg)
 			if err != nil {
@@ -896,6 +899,22 @@ func newDependencies(ctx context.Context, cfg config.Config) (*dependencies, err
 						FollowUpReminderTick: time.Minute,
 						FollowUpReminderDays: cfg.CRMFollowUpReminderDays,
 					},
+				),
+			)
+		}
+
+		if cfg.OwnedModules[config.ModuleCRMIntent] {
+			var intentBlobs crm_intent.BlobStore
+			if objectStore != nil {
+				intentBlobs = objectStore
+			}
+			deps.Stores.CustomRegistrars = append(
+				deps.Stores.CustomRegistrars,
+				crm_intent.NewRegistrar(
+					store.NewCRMIntentStore(primaryDB, auditSvc),
+					intentBlobs,
+					agentauth.NewPGXCredentialStore(primaryDB),
+					auditSvc,
 				),
 			)
 		}

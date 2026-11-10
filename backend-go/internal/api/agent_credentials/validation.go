@@ -36,6 +36,7 @@ var knownBusinessDomains = map[string]struct{}{
 	"complaint_center":         {},
 	"monthly_reports":          {},
 	"review_tracking":          {},
+	"crm_intent":               {},
 }
 
 type agentProblem struct {

@@ -43,6 +43,7 @@ class CrmCustomerSource(str):
     ONLINE_AD = "online_ad"
     COLD_CALL = "cold_call"
     SELF_DEVELOPED = "self_developed"  # 自主开发
+    CUSTOMER_RADAR = "customer_radar"  # 客户雷达（意向客户转为客户）
     OTHER = "other"
 
 

@@ -37,6 +37,7 @@ const (
 	ModuleReturnAnalysis       = "return_analysis"
 	ModuleCategoryResearch     = "category_research"
 	ModuleAgent                = "agent"
+	ModuleCRMIntent            = "crm_intent"
 	ModuleMonthlyReports       = "monthly_reports"
 	ModuleQueue                = "queue"
 	ModuleScheduler            = "scheduler"

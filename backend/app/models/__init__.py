@@ -176,6 +176,16 @@ from app.models.crm import (  # noqa: F401,E402
     CrmRuleCondition,
     CrmWorkflowSetting,
 )
+from app.models.crm_intent import (  # noqa: F401,E402
+    CrmIntentBatch,
+    CrmIntentCompany,
+    CrmIntentFollowup,
+    CrmIntentFollowupEvent,
+    CrmIntentImportRequest,
+    CrmIntentMeta,
+    CrmIntentPhone,
+    CrmIntentPool,
+)
 
 __all__ = [
     "SkuRecord",
@@ -321,6 +331,14 @@ __all__ = [
     "CrmRuleCondition",
     "CrmRuleAction",
     "CrmWorkflowSetting",
+    "CrmIntentBatch",
+    "CrmIntentCompany",
+    "CrmIntentFollowup",
+    "CrmIntentFollowupEvent",
+    "CrmIntentImportRequest",
+    "CrmIntentMeta",
+    "CrmIntentPhone",
+    "CrmIntentPool",
     "ProjectWorkflow",
     "ProjectWorkflowTask",
     "ProjectWorkflowTaskAttachment",
