@@ -576,14 +576,14 @@ WarmCrmPage
 
 | 位置 | 改动 |
 |---|---|
-| deploy/deploy-remote.sh（GO_API_OWNED 硬编码） | 追加 crm_intent |
-| deploy/deploy-local.sh（默认值） | 追加 crm_intent |
-| deploy/go.env.example | 示例追加 crm_intent |
-| docs/deployment/dashboard-vps-compose.md | 样例同步 |
 | backend-go/internal/api/agent_credentials/validation.go | knownBusinessDomains 增加 crm_intent |
+| deploy/go.env.example、deploy/local.env.example | opt-in 列表示例加入 crm_intent |
+| docs/deployment/dashboard-vps-compose.md | 样例与说明同步 |
 
-- 顺序：迁移（compose migrate）→ Go 镜像（含新模块 + GO_API_OWNED 新值）→ Web 镜像。旧镜像不认识 crm_intent 也不会报错（OwnedModules 是 map），但页面会 404，所以 Web 必须后上或同批。
-- 本地开发：GO_API_OWNED 默认不含 crm_intent 时，网关会把该路径反代 FastAPI（404）；本地需显式把它加入自己的 env。
+> **生产切流是显式 opt-in**（main 1b1105f2 起 `GO_API_OWNED` 默认空 = 网关全部回退 FastAPI）。新页面要真正可用，部署时必须设置 <code>GO_API_OWNED_MODULES</code> 包含 <code>crm_intent</code>，并同时设置 <code>GO_API_INTERNAL_URL=http://127.0.0.1:8200</code>；否则 <code>/api/v1/crm/intent</code> 会被反代到 FastAPI（不存在该路由 → 404）。
+
+- 顺序：迁移（compose migrate）→ Go 镜像（含新模块）→ Web 镜像。旧镜像不认识 crm_intent 也不会报错（OwnedModules 是 map），但页面会 404，所以 Web 必须后上或同批。
+- 本地开发：默认 GO_API_OWNED 为空时网关会把该路径反代 FastAPI（404）；本地需在 env 中显式加入 crm_intent 并指向 8200。
 
 ---
 
