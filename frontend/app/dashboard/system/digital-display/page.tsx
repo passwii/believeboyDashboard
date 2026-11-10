@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Monitor, RefreshCw, X } from 'lucide-react'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
+import { forceDarkDocument } from '@/lib/forced-dark'
 import { fetchProjectOptionsCached } from '@/lib/project-client-cache'
 
 import styles from './digital-display-warm.module.css'
@@ -136,7 +137,7 @@ export default function DigitalDisplayPage() {
   }, [])
 
   useEffect(() => {
-    document.documentElement.classList.add('dark')
+    const restoreDocumentTheme = forceDarkDocument()
     if (document.documentElement.requestFullscreen) {
       document.documentElement.requestFullscreen().catch(() => {})
     }
@@ -147,7 +148,7 @@ export default function DigitalDisplayPage() {
     document.addEventListener('keydown', handleEscape)
     return () => {
       document.removeEventListener('keydown', handleEscape)
-      document.documentElement.classList.remove('dark')
+      restoreDocumentTheme()
       clearInterval(ticker)
     }
   }, [exitFullscreen])

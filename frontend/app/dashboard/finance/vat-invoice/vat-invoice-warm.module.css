@@ -357,7 +357,7 @@
   font-size: 12px;
   line-height: 18px;
   background: var(--warm-ledger-color-accent-soft);
-  border: 1px solid rgba(232, 179, 90, 0.36);
+  border: 1px solid color-mix(in srgb, var(--warm-ledger-color-accent) 36%, transparent);
   border-radius: var(--warm-ledger-radius-inner);
 }
 
@@ -509,7 +509,7 @@
 .summaryTotal {
   padding: 12px;
   background: var(--warm-ledger-color-accent-soft);
-  border: 1px solid rgba(232, 179, 90, 0.28);
+  border: 1px solid color-mix(in srgb, var(--warm-ledger-color-accent) 28%, transparent);
   border-radius: var(--warm-ledger-radius-inner);
 }
 

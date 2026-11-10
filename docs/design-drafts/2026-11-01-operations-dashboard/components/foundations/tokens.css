@@ -93,6 +93,11 @@
   --warm-ledger-motion-distance-shell: 10px;
   --warm-ledger-motion-distance-press: 1px;
   --warm-ledger-motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --warm-ledger-radius-pill: 999px;
+  --warm-ledger-color-backdrop: rgba(0, 0, 0, 0.48);
+  --warm-ledger-color-on-accent: #1c1d1d;
+  --warm-ledger-shadow-popover: 0 12px 32px rgba(0, 0, 0, 0.3);
+  --warm-ledger-shadow-dialog: 0 28px 72px rgba(0, 0, 0, 0.58);
 }
 /* Light Mode（2026-11-10 批准）：账本纸白表面 + 绿色一般强调。
  * 与 frontend/components/dashboard-v2/warm-ledger/shell/theme.css 的

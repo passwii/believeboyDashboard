@@ -207,7 +207,7 @@
 }
 
 .statusBadge[data-tone='accent'] {
-  border-color: rgba(232, 179, 90, 0.32);
+  border-color: color-mix(in srgb, var(--warm-ledger-color-accent) 32%, transparent);
   background: var(--warm-ledger-color-accent-soft);
   color: var(--warm-ledger-color-accent-strong);
 }

@@ -10,6 +10,7 @@ import {
   OfficeChatterTicker,
   OfficeSpotlightToast,
 } from '@/components/digital-employee/office/office-chatter'
+import { forceDarkDocument } from '@/lib/forced-dark'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import type { OfficeEmployee } from '@/lib/digital-employee/office-stream-types'
 import styles from '@/components/digital-employee/digital-employee-warm.module.css'
@@ -135,10 +136,7 @@ export default function DigitalOfficePage() {
 
   useEffect(() => {
     if (!isPresentation) return
-    document.documentElement.classList.add('dark')
-    return () => {
-      document.documentElement.classList.remove('dark')
-    }
+    return forceDarkDocument()
   }, [isPresentation])
 
   const exitPresentation = useCallback(() => {

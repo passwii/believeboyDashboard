@@ -185,7 +185,7 @@
   align-items: center;
   gap: var(--warm-ledger-space-3);
   padding: var(--warm-ledger-space-3) var(--warm-ledger-space-4);
-  border: var(--warm-ledger-border-width) solid rgba(232, 179, 90, 0.28);
+  border: var(--warm-ledger-border-width) solid color-mix(in srgb, var(--warm-ledger-color-accent) 28%, transparent);
   border-radius: var(--warm-ledger-radius-control);
   background: var(--warm-ledger-color-accent-soft);
   color: var(--warm-ledger-color-text-soft);
@@ -224,7 +224,7 @@
 }
 
 .projectCard[data-severity='warning'] {
-  border-color: rgba(232, 179, 90, 0.5);
+  border-color: color-mix(in srgb, var(--warm-ledger-color-accent) 50%, transparent);
 }
 
 .projectCard[data-severity='critical'] {
@@ -314,7 +314,7 @@
 }
 
 .statusBadge[data-tone='accent'] {
-  border-color: rgba(232, 179, 90, 0.32);
+  border-color: color-mix(in srgb, var(--warm-ledger-color-accent) 32%, transparent);
   background: var(--warm-ledger-color-accent-soft);
   color: var(--warm-ledger-color-accent-strong);
 }
@@ -334,7 +334,7 @@
 }
 
 .serviceBadge[data-tone='accent'] {
-  border-color: rgba(232, 179, 90, 0.32);
+  border-color: color-mix(in srgb, var(--warm-ledger-color-accent) 32%, transparent);
   background: var(--warm-ledger-color-accent-soft);
   color: var(--warm-ledger-color-accent-strong);
 }
@@ -366,13 +366,13 @@
 }
 
 .ahrBadge[data-rating='good'] {
-  border-color: rgba(232, 179, 90, 0.28);
+  border-color: color-mix(in srgb, var(--warm-ledger-color-accent) 28%, transparent);
   background: var(--warm-ledger-color-accent-soft);
   color: var(--warm-ledger-color-accent-strong);
 }
 
 .ahrBadge[data-rating='at-risk'] {
-  border-color: rgba(232, 179, 90, 0.42);
+  border-color: color-mix(in srgb, var(--warm-ledger-color-accent) 42%, transparent);
   background: var(--warm-ledger-color-accent-soft);
   color: var(--warm-ledger-color-accent-strong);
 }

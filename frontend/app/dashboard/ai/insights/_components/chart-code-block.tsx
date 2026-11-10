@@ -78,7 +78,7 @@ const CHART_COLORS = [
   'var(--warm-ledger-color-accent)',
   'var(--warm-ledger-color-text-soft)',
   'var(--warm-ledger-color-text-muted)',
-  'var(--warm-ledger-color-faint)',
+  'var(--warm-ledger-color-text-faint)',
 ]
 
 // Absolute token values — static SVG data URLs cannot resolve CSS variables.

@@ -61,6 +61,7 @@
   --warm-ledger-radius-panel: 16px;
   --warm-ledger-radius-control: 10px;
   --warm-ledger-radius-inner: 8px;
+  --warm-ledger-radius-pill: 999px;
   --warm-ledger-border-width: 1px;
   --warm-ledger-nav-indicator-width: 2px;
 
@@ -1093,7 +1094,7 @@ html.light .warm-ledger {
 }
 
 .warm-ledger__notification-dialog::backdrop {
-  background: var(--warm-ledger-color-backdrop);
+  background: var(--warm-ledger-color-backdrop, rgba(0, 0, 0, 0.48));
   backdrop-filter: blur(3px);
 }
 

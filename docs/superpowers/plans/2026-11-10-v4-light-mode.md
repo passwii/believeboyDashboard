@@ -31,8 +31,8 @@
 
 | token | Light | 最小对比度 |
 | --- | --- | --- |
-| stage / window / sidebar / panel / panel-strong / raised / raised-hover | `#eff0ed` / `#fbfcfa` / `#f2f2ef` / `#ffffff` / `#f7f8f5` / `#f1f3ef` / `#e9ece7` | — |
-| text / soft / muted / faint | `#242823` / `#4b514a` / `#616a62` / `#81877e` | 13.1 / 6.8 / 4.7 / 3.1 |
+| stage / window / sidebar / panel / panel-strong / raised / raised-hover | `#e8eae4` / `#fbfcfa` / `#f2f2ef` / `#ffffff` / `#f7f8f5` / `#f1f3ef` / `#e9ece7` | — |
+| text / soft / muted / faint | `#242823` / `#4b514a` / `#616a62` / `#81877e` | 12.35 / 6.73 / 4.62 / 3.04（对 stage 最差） |
 | accent / accent-strong | `#0f6b57` / `#0b5746` | 5.4 / 7.1 |
 | positive / negative | `#2a7130` / `#a83c34` | 5.0 / 5.2 |
 | on-accent | `#ffffff` | — |
@@ -43,15 +43,12 @@
 3. 在 `.warm-ledger` 块保留暗色值并新增语义 token；新增 `html.light .warm-ledger` 块覆盖颜色 token、highlight、shadow、scrim、backdrop、on-accent 与 `color-scheme: light`。
 4. 运行测试通过。
 
-## Task 2：替换硬编码深色用法
+## Task 2：替换硬编码深色用法与页面级琥珀
 
-**文件**：同上。
-
-- `.warm-ledger__select-content` 与 `.warm-ledger__date-picker-content` 的 `box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3), …` → `var(--warm-ledger-shadow-popover)`。
-- `.warm-ledger__notification-dialog` 的 `0 28px 72px rgba(0, 0, 0, 0.58)` → `var(--warm-ledger-shadow-dialog)`。
-- `.warm-ledger__notification-dialog::backdrop` 的 `rgba(0, 0, 0, 0.48)` → `var(--warm-ledger-color-backdrop)`。
-- 强调色按钮的 `color: var(--warm-ledger-color-stage)` → `var(--warm-ledger-color-on-accent)`。
-- 保持暗色渲染结果不变（同值替换）。
+- theme.css 内：浮层 / 弹窗阴影、`::backdrop` 遮罩、强调按钮文字色改走语义 token；`::backdrop` 保留内联回退（该伪元素不继承自定义属性）。
+- 页面 CSS Module：6 个 Warm 页面模块共 19 处琥珀描边 / 底纹字面值改为 `color-mix(in srgb, var(--warm-ledger-color-accent) N%, transparent)`，暗色合成结果与原文 `rgba(232, 179, 90, α)` 等价，浅色自动变绿。
+- `frontend/components/dashboard/pricing-calculation/shop-calculation-table-warm.module.css` 的 6 处琥珀底纹 / 描边一并替换。
+- 强制暗色展示页（数字大屏、投屏）改用 `frontend/lib/forced-dark.ts`：进入时移除 `light` class，退出时恢复原 class 与 `color-scheme`，避免 `html.light .warm-ledger` 覆盖强制暗色页。
 
 ## Task 3：文档
 
@@ -64,12 +61,17 @@
 **新增**：`frontend/components/dashboard-v2/warm-ledger/shell/warm-theme.test.ts`
 
 断言：
-1. 暗色块保留 B0 冻结值（accent `#e8b35a`、positive `#65cfa1`、negative `#ee8580`、panel `#2b2c2b` 等）。
+1. 暗色块全部 23 个颜色 token 与 5 个 highlight / shadow token、`focus-color`、`radius-pill` 冻结为 B0 值（accent `#e8b35a`、positive `#65cfa1`、negative `#ee8580`、panel `#2b2c2b` 等）。
 2. 浅色块声明了暗色块全部 `--warm-ledger-color-*` token，且设置 `color-scheme: light`。
 3. 浅色 accent 色相在 140–190、positive 在 100–140、negative 不在 60–180；即浅色强调=绿、正向=另一个绿、负向=红。
 4. 浅色 text / soft / muted 对 stage、window、sidebar、panel、panel-strong、raised、raised-hover 全部 ≥ 4.5；faint ≥ 3。
 5. theme.css 中除 token 定义行外不再出现 `rgba(0, 0, 0,`。
-6. 浅色块与暗色块都不使用 `transition: all`。
+6. 主题文件不使用 `transition: all`。
+7. 全部 `var(--warm-ledger-*)` 引用（app/dashboard 与 components 下的 css / tsx / ts）都能在 theme.css 中找到声明。
+8. Warm 页面 CSS 模块中不再出现琥珀字面值（`rgba(232, 179, 90, …)`、`#e8b35a`、`#f3c875`）。
+9. `app/layout.tsx` 仍保持 next-themes 的 `attribute="class"` / `defaultTheme="system"` / `enableSystem` 契约。
+10. 两个强制暗色展示页使用 `forceDarkDocument`，不再单独 `classList.add('dark')`；helper 同时移除 `light` 并在卸载时恢复。
+11. `lib/forced-dark.test.ts` 验证进入 / 退出时的 class 与 `color-scheme` 行为。
 
 ## Task 5：验证（T3）
 

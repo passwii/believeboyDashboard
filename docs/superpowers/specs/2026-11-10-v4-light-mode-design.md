@@ -1,7 +1,7 @@
 # V4 Warm Ledger Light Mode 设计
 
 日期：2026-11-10  
-状态：设计方向已由用户确认；本文待用户复核  
+状态：设计方向已由用户确认并已实施 Batch 1（2026-11-10）  
 配套文档：[V4 全局设计规范](../../../frontend/docs/design-spec.md)、[Warm Ledger Foundations](../../../docs/design-drafts/2026-11-01-operations-dashboard/components/foundations/spec.md)、[主题模式选择器](../../../frontend/components/terminal/theme-mode-picker.tsx)  
 范围声明：定义 Warm Ledger V4 浅色主题及明暗模式边界；不改变业务数据、业务流程或主题选择器行为。
 
@@ -120,6 +120,11 @@ Light Mode 的目标是在日间环境保持高密度运营信息的扫描性，
 - `frontend/components/dashboard-v2/warm-ledger/shell/theme.css`：新增 `html.light .warm-ledger` 覆盖块（表面、文字、绿色强调、状态色、highlight、阴影、遮罩与 `color-scheme: light`）；暗色块数值未改。
 - 抽出语义 token 并把字面值收敛：`--warm-ledger-color-on-accent`、`--warm-ledger-shadow-popover`、`--warm-ledger-shadow-dialog`、`--warm-ledger-color-backdrop`；替换下拉 / 日期浮层阴影、通知弹窗阴影与遮罩、强调按钮文字色。
 - 新增 `frontend/components/dashboard-v2/warm-ledger/shell/warm-theme.test.ts`：锁暗色基线、浅色 token 完整性、色相分工、WCAG 对比、无残留硬编码阴影、无 `transition: all`。
-- 文档同步：`frontend/docs/design-spec.md` §0.4.5、`components/foundations/spec.md` 的 Light Mode extension、`components/foundations/tokens.css` 的浅色块。
+- 文档同步：`frontend/docs/design-spec.md` §0.4.5、`components/foundations/spec.md` 的 Light Mode extension、`components/foundations/tokens.css` 的暗色新增 token + 浅色块。
+- 审查修复（独立只读 Review）：新增 `frontend/lib/forced-dark.ts` 并接入数字大屏与投屏页，强制暗色时移除 `light` class、卸载时恢复原 class 与 `color-scheme`；19 处页面 CSS Module 琥珀字面值改为 `color-mix(in srgb, var(--warm-ledger-color-accent) N%, transparent)`（暗色合成等价、浅色自动转绿）；修正 `chart-code-block` 的 `--warm-ledger-color-faint` 拼写；补 `--warm-ledger-radius-pill` 与 `::backdrop` 回退。
+- 测试加固：`warm-theme.test.ts` 冻结全部颜色 / 高光 / 阴影 token，扫描未定义 `var(--warm-ledger-*)` 引用与琥珀字面值，校验 next-themes class 契约与强制暗色页；新增 `frontend/lib/forced-dark.test.ts`。
 
-已知边界（Batch 2，待单独确认）：导出 / 截图画布（`return-analysis-client.tsx`、`ai/insights/_components/chart-code-block.tsx`、`ai/insights/page.tsx`、`weekly-product-analysis-client.tsx`）仍按暗色画布渲染图片产物，不随主题变化。
+已知偏差（Batch 2，待单独确认）：
+
+- `--warm-ledger-color-text-faint` 在浅色下对 stage 仅 3.04:1，低于正文 AA 4.5；全仓约 38 处把它用作文字色。需要在 Batch 2 逐处判断是降级为非文本用途还是改用 muted。
+- 导出 / 截图画布（`return-analysis-client.tsx`、`ai/insights/_components/chart-code-block.tsx`、`ai/insights/page.tsx`、`weekly-product-analysis-client.tsx`）仍按暗色画布渲染图片产物，不随主题变化。

@@ -434,7 +434,7 @@
 }
 
 .legendAccent {
-  background: rgba(232, 179, 90, 0.4);
+  background: color-mix(in srgb, var(--warm-ledger-color-accent) 40%, transparent);
 }
 
 .legendNegative {
