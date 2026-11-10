@@ -111,4 +111,15 @@ Light Mode 的目标是在日间环境保持高密度运营信息的扫描性，
 - 2026-11-10：用户确认 Light Mode 覆盖所有 Warm Ledger V4 页面，并沿用现有全局主题偏好。
 - 2026-11-10：用户选择 B“账本纸白”作为 Light Mode 表面方向。
 - 2026-11-10：用户确认 Dark 保留琥珀，Light Mode 中所有琥珀强调角色替换为绿色。
-- 本文当前状态：设计方向已确认，等待用户审阅本文档本身。
+- 本文当前状态：设计方向已确认，用户已批准开始实施。
+
+## 9. 实施记录（Batch 1，2026-11-10）
+
+本轮已完成 token 层与回归加固，页面层通过继承生效：
+
+- `frontend/components/dashboard-v2/warm-ledger/shell/theme.css`：新增 `html.light .warm-ledger` 覆盖块（表面、文字、绿色强调、状态色、highlight、阴影、遮罩与 `color-scheme: light`）；暗色块数值未改。
+- 抽出语义 token 并把字面值收敛：`--warm-ledger-color-on-accent`、`--warm-ledger-shadow-popover`、`--warm-ledger-shadow-dialog`、`--warm-ledger-color-backdrop`；替换下拉 / 日期浮层阴影、通知弹窗阴影与遮罩、强调按钮文字色。
+- 新增 `frontend/components/dashboard-v2/warm-ledger/shell/warm-theme.test.ts`：锁暗色基线、浅色 token 完整性、色相分工、WCAG 对比、无残留硬编码阴影、无 `transition: all`。
+- 文档同步：`frontend/docs/design-spec.md` §0.4.5、`components/foundations/spec.md` 的 Light Mode extension、`components/foundations/tokens.css` 的浅色块。
+
+已知边界（Batch 2，待单独确认）：导出 / 截图画布（`return-analysis-client.tsx`、`ai/insights/_components/chart-code-block.tsx`、`ai/insights/page.tsx`、`weekly-product-analysis-client.tsx`）仍按暗色画布渲染图片产物，不随主题变化。
