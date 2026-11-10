@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sort"
 	"syscall"
 	"time"
 
@@ -48,6 +49,18 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("build router: %w", err)
 	}
+
+	ownedModules := make([]string, 0, len(cfg.OwnedModules))
+	for module := range cfg.OwnedModules {
+		ownedModules = append(ownedModules, module)
+	}
+	sort.Strings(ownedModules)
+	logger.Info(
+		"gateway module ownership",
+		slog.Int("owned_modules", len(ownedModules)),
+		slog.Bool("all_modules", len(ownedModules) == len(config.AllModules)),
+		slog.Any("modules", ownedModules),
+	)
 
 	server := newServer(cfg.Addr, router)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

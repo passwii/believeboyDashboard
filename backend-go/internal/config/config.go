@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -42,6 +43,125 @@ const (
 	ModuleQueue                = "queue"
 	ModuleScheduler            = "scheduler"
 )
+
+// AllModules is the canonical set of module names accepted by GO_API_OWNED.
+// It mirrors the ownership switches wired in cmd/gateway (dependencies.go) and
+// internal/httpserver/routes.go. TestAllModulesWireAndBuildRouter in
+// cmd/gateway fails when the wiring and this list drift apart.
+var AllModules = []string{
+	"ad_analysis",
+	"ad_upload",
+	"agent",
+	"agent_commerce",
+	"agent_credentials",
+	"agent_inspection",
+	"agent_monthly_reports",
+	"agent_ops",
+	"agent_review_tracking",
+	"ai_chat",
+	"ai_chat_usage",
+	"ai_chat_v2",
+	"ai_file_upload",
+	"ai_insight",
+	"alerts",
+	"alerts_write",
+	"amazon_review_tracking",
+	"auth",
+	"category_research",
+	"complaints",
+	"crm",
+	"crm_intent",
+	"daily_analysis",
+	"digital_display",
+	"digital_employees",
+	"digital_office",
+	"exchange_rates",
+	"exchange_rates_write",
+	"external_retired",
+	"health",
+	"insight_domains",
+	"insight_observation",
+	"insight_runs",
+	"inspections",
+	"internal_ad_data",
+	"internal_jobs",
+	"internal_keys",
+	"inventory_ledger",
+	"inventory_replenishment",
+	"jobs",
+	"monthly_reports",
+	"new_product_calculations",
+	"notification_settings",
+	"notifications",
+	"notifications_write",
+	"order_info",
+	"page_render",
+	"platform_revenues",
+	"presence",
+	"pricing_calculation",
+	"pricing_calculation_snapshots",
+	"product_analysis",
+	"product_analysis_reports",
+	"product_label",
+	"profile",
+	"project_goals",
+	"projects",
+	"report_reconciliation",
+	"return_analysis",
+	"rpa_reports",
+	"scheduled_reports",
+	"shipment_schedules",
+	"shipping_plan",
+	"shop_calculation",
+	"sku_info",
+	"system_management",
+	"uploads",
+	"users",
+	"vat_invoices",
+	"workflows",
+}
+
+// AllModulesSet returns every known module as an ownership map.
+func AllModulesSet() map[string]bool {
+	owned := make(map[string]bool, len(AllModules))
+	for _, module := range AllModules {
+		owned[module] = true
+	}
+	return owned
+}
+
+// ExpandOwnedModules resolves the "all" sentinel and rejects module names that
+// no gateway wiring or process configuration would act on. Silent typos used
+// to leave a partially cut-over gateway that looked successful.
+func ExpandOwnedModules(owned map[string]bool) (map[string]bool, error) {
+	if len(owned) == 0 {
+		return owned, nil
+	}
+	if owned["all"] {
+		if len(owned) != 1 {
+			return nil, fmt.Errorf(
+				"GO_API_OWNED=all cannot be combined with other module names; got %d names",
+				len(owned),
+			)
+		}
+		return AllModulesSet(), nil
+	}
+	known := AllModulesSet()
+	unknown := make([]string, 0, len(owned))
+	for module := range owned {
+		if !known[module] {
+			unknown = append(unknown, module)
+		}
+	}
+	if len(unknown) > 0 {
+		sort.Strings(unknown)
+		return nil, fmt.Errorf(
+			"GO_API_OWNED contains unknown module name(s): %s",
+			strings.Join(unknown, ", "),
+		)
+	}
+	return owned, nil
+}
 
 type Config struct {
 	Addr          string
@@ -179,6 +299,14 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 		}
 		*required.target = value
 	}
+
+	// Resolve GO_API_OWNED=all and reject unknown module names before any
+	// process builds its wiring off a silently ignored typo.
+	expandedOwned, expandErr := ExpandOwnedModules(cfg.OwnedModules)
+	if expandErr != nil {
+		return Config{}, expandErr
+	}
+	cfg.OwnedModules = expandedOwned
 
 	// Reuse the host, port, database, and optional password settings used by FastAPI.
 	if cfg.RedisURL == "" {
