@@ -1,6 +1,6 @@
 # 意向客户工作台（CRM · crm_intent）设计稿
 
-> 日期：2026-11-10 ｜ 状态：**设计定稿（待用户 review）**
+> 日期：2026-11-10 ｜ 状态：**已实施**（2026-11-10；验证记录见 §12.1）
 > 配套：[Agent API · crm_intent 域 spec](./2026-11-10-agent-crm-intent-api.md)
 > 迁移：285（实施时以 backend/scripts/check_alembic.py 的 head 为准；若 main 前进则顺延序号）
 > 范围声明：本文只定「做什么、为什么、契约是什么」，实施步骤进后续 plan。不改变任何现有 CRM 表与接口行为。
@@ -606,6 +606,21 @@ WarmCrmPage
 | Review | 独立 Reviewer（Luna/max，只读）按 AGENTS 规则复核最终 diff |
 
 **完成定义**：本地 AI 能按 agent spec 成功导入一批数据并读到 human_touched 标记；页面能展示该批数据、写跟进后被标记人工锁；AI 再改被 409/跳过且有审计；owner 隔离生效；转客户成功并回链。
+
+### 12.1 实施验证记录（2026-11-10）
+
+| 项 | 结果 |
+|---|---|
+| backend-go <code>go test ./...</code> | 全 PASS（含 stage10 crm_intent 契约测试 + agentauth 回归测试） |
+| backend <code>scripts/check_alembic.py</code> | 单 head 285、命名合规 |
+| backend <code>pytest</code> | 4509 passed / 16 skipped / 2 failed（均为 <code>tests/services/test_project_reorder_grouping.py</code> 依赖 BLF_test 中 <code>is_active=false</code> 项目种子；与本次改动无关，属测试库数据基线问题） |
+| frontend <code>pnpm exec vitest run</code> | 381 文件 / 2708 例全 PASS |
+| frontend <code>pnpm lint</code> | 0 error（8 条仓库既有 warning） |
+| frontend <code>pnpm build</code> | PASS（<code>/dashboard/crm/intent</code> 已生成） |
+| 接口冒烟（真实 PG：BLF_TEST） | meta/companies/detail/facets/board/pool 200；PATCH followup 200 + version=1 + 自动认领 + human_touched=true；AI PATCH 未锁记录 200、同 Idempotency-Key 重放 200、已锁记录 409 <code>INTENT_RECORD_LOCKED</code>；convert 200 写 crm_customers ∪ crm_contacts；CSV 导出 28 列 + RFC5987 文件名 |
+| Playwright 桌面路由矩阵 | 未执行成功：本地 <code>pnpm dev</code> 冷启动超 120s、<code>CI=1 pnpm start</code> 与 <code>output: standalone</code> 不兼容（既有测试基建问题）；路由注册已由 vitest 路由矩阵 + build 产物覆盖 |
+
+实施中发现并修复：① <code>GetFacets</code> 在 scope=all 时把 <code>and ...</code> 直接拼到无 <code>where</code> 的 SQL 上导致 meta/facets 500（改用 <code>andWhere</code>）；② 渠道 facet 查询返回两列但按单列扫描导致 500（改为单列）；③ Go <code>agentauth.TouchLastUsed</code> 缺少 <code>::timestamptz</code> 强制转换，导致 agent 凭据首次使用 401（已加回归测试）。
 
 ---
 
