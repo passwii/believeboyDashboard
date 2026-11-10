@@ -125,7 +125,11 @@ func TestDigitalOfficeStreamEmitsFirstFrameAndStopsOnCancel(t *testing.T) {
 		handler.OfficeStream(response, request)
 	}()
 
-	body := waitForStreamText(t, response, "event: snapshot", 2*time.Second)
+	// The tick writes snapshot, chatter and keep-alive as separate writes.
+	// Waiting for the snapshot alone lets the later assertions race with the
+	// remaining writes (observed as a -race CI flake on 2026-11-10); waiting
+	// for the last frame keeps the original assertions deterministic.
+	body := waitForStreamText(t, response, ": keep-alive\n\n", 2*time.Second)
 	if !strings.HasPrefix(body, "event: snapshot\n") {
 		t.Errorf("first frame = %q", body)
 	}
