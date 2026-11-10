@@ -36,6 +36,10 @@ test('VPS compose runs the application stack on host networking without absorbin
   assert.match(compose, /API_IMAGE:\?API_IMAGE must be set/)
   assert.match(compose, /GO_API_IMAGE:\?GO_API_IMAGE must be set/)
   assert.match(compose, /WEB_IMAGE:\?WEB_IMAGE must be set/)
+  // Migration cutover (2026-11-10): migrate runs the Go image's embedded Goose runner.
+  assert.match(compose, /entrypoint: \["\/usr\/local\/bin\/go-migrate"\]/)
+  assert.match(compose, /command: \["up"\]/)
+  assert.doesNotMatch(compose, /alembic upgrade/)
   assert.match(compose, /believeboy-dashboard-api/)
   assert.match(compose, /believeboy-dashboard-go-api/)
   assert.match(compose, /believeboy-dashboard-web/)

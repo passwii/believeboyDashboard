@@ -190,7 +190,10 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Check Alembic migration graph
+      - name: Check Goose migrations (Alembic frozen at 285)
+        run: python3 backend-go/scripts/check_go_migrations.py
+
+      - name: Check frozen Alembic archive
         run: python backend/scripts/check_alembic.py
 
       - name: Setup pnpm

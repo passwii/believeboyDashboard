@@ -16,7 +16,9 @@ COPY backend-go/ ./
 RUN --mount=type=cache,id=believeboy-go-build-cache,target=/root/.cache/go-build,sharing=locked \
     mkdir -p /out \
     && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
-       go build -trimpath -ldflags="-s -w" -o /out/go-api ./cmd/gateway
+       go build -trimpath -ldflags="-s -w" -o /out/go-api ./cmd/gateway \
+    && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+       go build -trimpath -ldflags="-s -w" -o /out/go-migrate ./cmd/migrate
 
 FROM alpine:3.22 AS runtime
 # tzdata is required at runtime, not only at build time: store.OpenPool's
@@ -27,6 +29,7 @@ RUN apk add --no-cache ca-certificates tzdata \
     && addgroup -S -g 10001 app \
     && adduser -S -D -H -u 10001 -G app app
 COPY --from=builder --chown=10001:10001 /out/go-api /usr/local/bin/go-api
+COPY --from=builder --chown=10001:10001 /out/go-migrate /usr/local/bin/go-migrate
 USER 10001:10001
 EXPOSE 8200
 ENTRYPOINT ["/usr/local/bin/go-api"]

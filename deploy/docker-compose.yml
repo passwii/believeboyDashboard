@@ -6,11 +6,12 @@ name: believeboy-dashboard
 # The Go gateway falls back to FastAPI on 127.0.0.1:8100 for unowned routes.
 services:
   migrate:
-    image: "${API_IMAGE:?API_IMAGE must be set}"
+    image: "${GO_API_IMAGE:?GO_API_IMAGE must be set}"
     network_mode: host
     env_file:
       - ./backend.env
-    command: ["alembic", "upgrade", "head"]
+    entrypoint: ["/usr/local/bin/go-migrate"]
+    command: ["up"]
     restart: "no"
     init: true
 

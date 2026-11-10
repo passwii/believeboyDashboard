@@ -2,6 +2,9 @@
 """
 check_alembic.py — Alembic 迁移图守护（BEL-492 / BLF-492，2026-08-07）
 
+已冻结：Alembic 历史在 revision 285（2026-11-10）停止使用，新迁移改用 Goose。
+本脚本仅校验归档图完整性；目录 manifest 由 check_go_migrations.py 校验。
+
 多 Agent 并行开发时迁移冲突的机械防线（把"协调错误"变成"可检测错误"）。
 在 pre-push / git deploy / VPS 部署（alembic upgrade head 之前）运行：
 
