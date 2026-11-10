@@ -19,9 +19,12 @@
 4. 新增加固测试：token 完整性、暗色不变、浅色色相分工、WCAG 对比度、无残留硬编码深色阴影。
 5. 文档：更新 V4 设计规范与 foundations 规范，记录 Light Mode 扩展。
 
-## Batch 2（后续，不在本轮）
+## Batch 2（已按用户确认实施）
 
-- 导出 / 截图画布（`return-analysis-client.tsx`、`chart-code-block.tsx`、`insights/page.tsx`、`weekly-product-analysis-client.tsx`）目前按暗色画布渲染图片产物。是否跟随主题属于独立决策，需单独确认后再改。
+- 新增 `--warm-ledger-color-chart-1..5` 与 `--warm-ledger-color-chart-axis`；退货原因饼图改用 token。
+- 浅色 `text-muted` / `text-faint` 提升到 4.5:1；暗色文字值不变。
+- 新增 `frontend/lib/warm-ledger-colors.ts`；`chart-code-block` 静态 SVG 与 `ai/insights` 的 `toPng` 背景改为按主题取色；周度分析 Tooltip 游标为模式中立墨色，保持原值。
+- 新增 `frontend/lib/warm-ledger-colors.test.ts`；`warm-theme.test.ts` 增补图表色与 faint 对比断言。
 
 ## Task 1：浅色 token 覆盖层
 

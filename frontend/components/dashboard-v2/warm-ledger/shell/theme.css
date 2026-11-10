@@ -19,6 +19,12 @@
   --warm-ledger-color-positive: #65cfa1;
   --warm-ledger-color-negative: #ee8580;
   --warm-ledger-color-chart-grid: rgba(246, 238, 226, 0.09);
+  --warm-ledger-color-chart-axis: #5f5b55;
+  --warm-ledger-color-chart-1: #f1ede5;
+  --warm-ledger-color-chart-2: #d8d0c4;
+  --warm-ledger-color-chart-3: #c2bbaf;
+  --warm-ledger-color-chart-4: #a9a297;
+  --warm-ledger-color-chart-5: #918a80;
 
   --warm-ledger-font-sans: var(--font-sans), 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
   --warm-ledger-font-mono: var(--font-mono), 'SFMono-Regular', 'PingFang SC', monospace;
@@ -124,8 +130,8 @@ html.light .warm-ledger {
   --warm-ledger-color-hairline-strong: rgba(48, 54, 47, 0.23);
   --warm-ledger-color-text: #242823;
   --warm-ledger-color-text-soft: #4b514a;
-  --warm-ledger-color-text-muted: #616a62;
-  --warm-ledger-color-text-faint: #81877e;
+  --warm-ledger-color-text-muted: #565f58;
+  --warm-ledger-color-text-faint: #5f6860;
   --warm-ledger-color-accent: #0f6b57;
   --warm-ledger-color-accent-strong: #0b5746;
   --warm-ledger-color-accent-soft: rgba(15, 107, 87, 0.12);
@@ -133,6 +139,12 @@ html.light .warm-ledger {
   --warm-ledger-color-positive: #2a7130;
   --warm-ledger-color-negative: #a83c34;
   --warm-ledger-color-chart-grid: rgba(48, 54, 47, 0.1);
+  --warm-ledger-color-chart-axis: rgba(48, 54, 47, 0.35);
+  --warm-ledger-color-chart-1: #3f4a42;
+  --warm-ledger-color-chart-2: #525e55;
+  --warm-ledger-color-chart-3: #66736a;
+  --warm-ledger-color-chart-4: #7a877c;
+  --warm-ledger-color-chart-5: #87948b;
   --warm-ledger-color-scrim: rgba(24, 32, 26, 0.55);
   --warm-ledger-color-backdrop: rgba(24, 32, 26, 0.38);
   --warm-ledger-color-on-accent: #ffffff;

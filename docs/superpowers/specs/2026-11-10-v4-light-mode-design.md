@@ -124,7 +124,11 @@ Light Mode 的目标是在日间环境保持高密度运营信息的扫描性，
 - 审查修复（独立只读 Review）：新增 `frontend/lib/forced-dark.ts` 并接入数字大屏与投屏页，强制暗色时移除 `light` class、卸载时恢复原 class 与 `color-scheme`；19 处页面 CSS Module 琥珀字面值改为 `color-mix(in srgb, var(--warm-ledger-color-accent) N%, transparent)`（暗色合成等价、浅色自动转绿）；修正 `chart-code-block` 的 `--warm-ledger-color-faint` 拼写；补 `--warm-ledger-radius-pill` 与 `::backdrop` 回退。
 - 测试加固：`warm-theme.test.ts` 冻结全部颜色 / 高光 / 阴影 token，扫描未定义 `var(--warm-ledger-*)` 引用与琥珀字面值，校验 next-themes class 契约与强制暗色页；新增 `frontend/lib/forced-dark.test.ts`。
 
-已知偏差（Batch 2，待单独确认）：
+## 10. 实施记录（Batch 2，2026-11-10）
 
-- `--warm-ledger-color-text-faint` 在浅色下对 stage 仅 3.04:1，低于正文 AA 4.5；全仓约 38 处把它用作文字色。需要在 Batch 2 逐处判断是降级为非文本用途还是改用 muted。
-- 导出 / 截图画布（`return-analysis-client.tsx`、`ai/insights/_components/chart-code-block.tsx`、`ai/insights/page.tsx`、`weekly-product-analysis-client.tsx`）仍按暗色画布渲染图片产物，不随主题变化。
+按用户确认继续推进，本轮补齐浅色下的图表、导出与文字可读性：
+
+- **分类图表色阶**：新增 `--warm-ledger-color-chart-1..5` 与 `--warm-ledger-color-chart-axis`。暗色沿用既有中性阶（`#f1ede5`…`#918a80`），浅色改为深中性阶（`#3f4a42`…`#87948b`），对白色面板 ≥ 3:1。退货原因饼图改为消费这组 token。
+- **文字可读性**：浅色 `text-muted` 调整为 `#565f58`、`text-faint` 调整为 `#5f6860`，四个文字角色在 7 个浅色表面上均 ≥ 4.5:1；暗色文字值不变（暗色 faint 作为正文的历史偏差保留，需 B0 单独决策）。
+- **导出 / 截图**：新增 `frontend/lib/warm-ledger-colors.ts`，从最近的 `.warm-ledger` 宿主读取已解析 token（SSR 与无宿主时回退暗色基线）。`chart-code-block` 的静态 SVG 与 AI 洞察 `toPng` 背景改为按当前主题取色，导出产物不再固定暗色。周度分析的 Tooltip 游标使用模式中立的半透明墨色（`rgba(15,23,42,0.18)`），两个主题下都成立，因此保持不变。
+- **测试**：`warm-theme.test.ts` 增补 faint 4.5:1 与图表色 3:1 断言；新增 `frontend/lib/warm-ledger-colors.test.ts`（回退值、宿主解析、批量读取、空值处理）；退货分析饼图测试改为断言 token 引用。

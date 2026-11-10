@@ -186,7 +186,7 @@ Direction: “ledger paper white”. Neutral light stage, near-white work window
 | Raised | `#f1f3ef` | Selected controls |
 | Raised hover | `#e9ece7` | Interactive hover |
 | Hairline / strong hairline | `rgba(48, 54, 47, 0.14)` / `(…, 0.23)` | Quiet separators / control outlines |
-| Text / soft / muted / faint | `#242823` / `#4b514a` / `#616a62` / `#81877e` | ≥ 4.5:1 for readable text; faint is non-text only |
+| Text / soft / muted / faint | `#242823` / `#4b514a` / `#565f58` / `#5f6860` | All four ≥ 4.5:1 on the seven surfaces; light faint carries readable labels |
 | Accent | `#0f6b57` | Light-only general emphasis (replaces amber) |
 | Accent strong | `#0b5746` | Focus ring and key numeric accents |
 | Accent soft / area | `rgba(15, 107, 87, 0.12)` / `0.1` | Selected tint / chart area |
@@ -194,6 +194,8 @@ Direction: “ledger paper white”. Neutral light stage, near-white work window
 | Negative | `#a83c34` | Negative comparison or error |
 | On accent | `#ffffff` | Text on accent-filled controls |
 | Chart grid | `rgba(48, 54, 47, 0.1)` | Chart grid lines |
+| Chart axis | `rgba(48, 54, 47, 0.35)` | Comparison axis / export chart guides |
+| Chart 1–5 | `#3f4a42` / `#525e55` / `#66736a` / `#7a877c` / `#87948b` | Neutral categorical ramp; ≥ 3:1 on the panel |
 
 Rules:
 
@@ -201,7 +203,9 @@ Rules:
 - Positive and negative colours always carry a signed value, arrow, or explicit status; colour alone never carries meaning. Pending keeps its text label in both themes.
 - `color-scheme` follows the resolved theme so native controls and scrollbars match.
 - Overlay shadows, backdrop scrim, and accent-filled control text use semantic tokens (`--warm-ledger-shadow-popover`, `--warm-ledger-shadow-dialog`, `--warm-ledger-color-backdrop`, `--warm-ledger-color-on-accent`), not literals.
-- AI Chat, login, the HTML document canvas, and forced-dark display routes keep their own theme behaviour.
+- AI Chat, login, the HTML document canvas, and forced-dark display routes keep their own theme behaviour. Forced-dark routes remove the `light` class and restore it on exit (`frontend/lib/forced-dark.ts`).
+- Export and screenshot canvases resolve their colours from the nearest `.warm-ledger` host (`frontend/lib/warm-ledger-colors.ts`); a static SVG data URL cannot read CSS variables, so export paths read the resolved values at render time and fall back to the dark baseline when no host exists.
+- Dark-only literal accents are not allowed: page CSS modules must derive accent borders with `color-mix(in srgb, var(--warm-ledger-color-accent) N%, transparent)`.
 
 ## Pending and PT date scope
 

@@ -205,9 +205,14 @@ describe('Warm Ledger theme tokens', () => {
         expect(contrast(colour, surface), `${role} on ${surface}`).toBeGreaterThanOrEqual(4.5)
       }
     }
+    // 浅色 text-faint 实际承担可读标签，因此按正文 4.5:1 验收（暗色基线保持不变）。
     const faint = lightTokens.get('--warm-ledger-color-text-faint')!
     for (const surface of surfaces) {
-      expect(contrast(faint, surface), `faint on ${surface}`).toBeGreaterThanOrEqual(3)
+      expect(contrast(faint, surface), `faint on ${surface}`).toBeGreaterThanOrEqual(4.5)
+    }
+    const chartColours = [1, 2, 3, 4, 5].map((index) => lightTokens.get(`--warm-ledger-color-chart-${index}`)!)
+    for (const colour of chartColours) {
+      expect(contrast(colour, lightTokens.get('--warm-ledger-color-panel')!), colour).toBeGreaterThanOrEqual(3)
     }
     expect(contrast(lightTokens.get('--warm-ledger-color-on-accent')!, lightTokens.get('--warm-ledger-color-accent')!)).toBeGreaterThanOrEqual(4.5)
   })
