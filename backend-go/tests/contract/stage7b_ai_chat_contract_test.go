@@ -172,6 +172,27 @@ func TestStage7BAIChatContract(t *testing.T) {
 		!strings.Contains(streamText, `"type":"message_stop"`) {
 		t.Errorf("stream events = %s", streamText)
 	}
+
+	// The v2 runner ends its stream asynchronously (defer backend.End) after
+	// writing message_stop, so a /cancel issued right after the response can
+	// still observe the conversation as live and return {"cancelled":true}.
+	// Wait for the backend to leave the live state before asserting the
+	// post-completion contract.
+	waitDeadline := time.Now().Add(5 * time.Second)
+	for {
+		live, err := backend.IsLive(context.Background(), 7)
+		if err != nil {
+			t.Fatalf("IsLive() error = %v", err)
+		}
+		if !live {
+			break
+		}
+		if time.Now().After(waitDeadline) {
+			t.Fatal("stream did not leave live state before cancel assertion")
+		}
+		time.Sleep(time.Millisecond)
+	}
+
 	cancelRecorder := stage7BRequest(
 		router,
 		http.MethodPost,
