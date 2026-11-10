@@ -5,10 +5,21 @@
 -- +goose Up
 -- +goose StatementBegin
 
--- pgcrypto backs the Go gateway's crypt()/gen_salt() password paths; it is
--- also created by the baseline for fresh databases, and is a no-op on existing
--- 285 databases that already have it.
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+-- pgcrypto backs the Go gateway's crypt()/gen_salt() password paths.
+-- Fresh databases get the extension from the baseline. Existing 285 databases
+-- may have the functions as orphan objects (no pg_extension row), so create the
+-- extension only when neither the extension nor the functions are present.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pgcrypto')
+       AND NOT EXISTS (
+           SELECT 1 FROM pg_proc p
+           JOIN pg_namespace n ON n.oid = p.pronamespace
+           WHERE n.nspname = 'public' AND p.proname IN ('crypt', 'gen_salt')
+       ) THEN
+        EXECUTE 'CREATE EXTENSION pgcrypto';
+    END IF;
+END $$;
 
 -- 285: crm_intent_meta singleton (required by Go write paths).
 INSERT INTO public.crm_intent_meta (id, data_rev, followup_rev)

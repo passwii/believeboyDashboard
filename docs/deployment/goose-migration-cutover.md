@@ -68,7 +68,7 @@ cd backend-go && DATABASE_URL=... go run ./cmd/migrate up
 
 ## 验证记录（2026-11-10，本地）
 
-- 从 revision 285 schema 生成 baseline（151 张表、8 张 crm_intent；剔除 pg_trgm 遗留对象，pgcrypto 以 extension 形式保留/安装，Go 的 `crypt()/gen_salt()` 依赖它）。
+- 从 revision 285 schema 生成 baseline（151 张表、8 张 crm_intent；剔除 pg_trgm 遗留对象，pgcrypto 以 extension 形式保留/安装，Go 的 `crypt()/gen_salt()` 依赖它；已有 285 库若只有孤立函数则不会重复创建 extension）。
 - 新增幂等种子迁移 `20261110170000_seed_baseline_data.sql`：补齐 `crm_intent_meta`、`crm_workflow_settings`、9 个 `crm_categories`、MVP CRM 规则、2 个启动台模板/12 个节点（来自 Alembic 250/251/252/276/285）。
 - 全新库：`migrate up` 执行 baseline + seed，得到 151 张业务表 + `goose_db_version`；`crm_intent_meta=1`、9 类目、1 条 MVP 规则、2 模板/12 节点，`crypt/gen_salt` 可用。
 - 已有 285 库：`migrate up` stamp version 1，不重放 baseline；随后执行 seed 迁移（幂等，已有行保留）。
