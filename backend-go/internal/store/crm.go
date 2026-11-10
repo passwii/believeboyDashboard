@@ -959,7 +959,7 @@ var (
 	crmCustomerRatings  = map[string]bool{"A": true, "B": true, "C": true, "D": true}
 	crmCustomerSources  = map[string]bool{
 		"referral": true, "exhibition": true, "online_ad": true,
-		"cold_call": true, "self_developed": true, "other": true,
+		"cold_call": true, "self_developed": true, "customer_radar": true, "other": true,
 	}
 	crmCustomerTypes      = map[string]bool{"工厂": true, "贸易商": true, "同行": true, "其他": true}
 	crmInterestedServices = map[string]bool{"代运营": true, "AI运营": true, "运营服务": true, "其他": true}

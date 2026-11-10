@@ -55,6 +55,25 @@ func (s *CRMIntentStore) logAIWriteBlocked(
 	return s.logOperation(ctx, tx, entry)
 }
 
+// logAIWriteBlockedBestEffort must be used from locked/rollback paths: the
+// surrounding transaction is rolled back after returning LockedError, so an
+// in-transaction audit row would disappear.
+func (s *CRMIntentStore) logAIWriteBlockedBestEffort(
+	ctx context.Context,
+	actor crm_intent.Actor,
+	targetType string,
+	targetID int64,
+	extra map[string]any,
+) {
+	entry := audit.Entry{
+		Action:     "crm_intent.ai_write_blocked",
+		TargetType: targetType, TargetID: auditTarget(targetID),
+		Result: "failure", AfterJSON: extra,
+	}
+	applyAuditActor(&entry, actor)
+	s.logOperationBestEffort(ctx, entry)
+}
+
 func applyAuditActor(entry *audit.Entry, actor crm_intent.Actor) {
 	identifier := actor.ID
 	if identifier == "" {
@@ -1941,7 +1960,7 @@ func (s *CRMIntentStore) AgentUpsertCompany(
 				AfterJSON: map[string]any{"reason": "human_touched", "mode": "single"},
 			}
 			applyAuditActor(&entry, actor)
-			_ = s.logOperation(ctx, tx, entry)
+			s.logOperationBestEffort(ctx, entry)
 			return crm_intent.NewLockedError(companyID)
 		}
 		dataRev, err := s.bumpRevisions(ctx, db, true, false)
@@ -2104,7 +2123,7 @@ func (s *CRMIntentStore) AgentPatchCompany(
 				}
 				return err
 			}
-			_ = s.logAIWriteBlocked(ctx, tx, actor, "crm_intent_company", companyID,
+			s.logAIWriteBlockedBestEffort(ctx, actor, "crm_intent_company", companyID,
 				map[string]any{"reason": "human_touched", "mode": "patch"})
 			return crm_intent.NewLockedError(companyID)
 		}
@@ -2256,7 +2275,7 @@ func (s *CRMIntentStore) AgentScreenPool(
 			return err
 		}
 		if outcome == upsertSkippedLocked {
-			_ = s.logAIWriteBlocked(ctx, tx, actor, "crm_intent_company", companyID,
+			s.logAIWriteBlockedBestEffort(ctx, actor, "crm_intent_company", companyID,
 				map[string]any{
 					"reason": "human_touched", "mode": "pool_screen", "pool_id": poolID,
 				})

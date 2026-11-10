@@ -319,6 +319,7 @@ _SOURCES = {
     "online_ad",
     "cold_call",
     "self_developed",
+    "customer_radar",
     "other",
 }
 _CUSTOMER_TYPES = {"工厂", "贸易商", "同行", "其他"}
