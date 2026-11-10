@@ -75,6 +75,7 @@ const WARM_CURRENT_ROUTES = [
   ['/dashboard/crm/sea', '/dashboard/crm/customers'],
   ['/dashboard/crm/proposals', '/dashboard/crm/proposals'],
   ['/dashboard/crm/proposals/42', '/dashboard/crm/proposals'],
+  ['/dashboard/crm/intent', '/dashboard/crm/intent'],
   ['/dashboard/crm/leads', '/dashboard/crm/leads'],
   ['/dashboard/crm/tasks', '/dashboard/crm/tasks'],
   ['/dashboard/crm/audit', '/dashboard/crm/audit'],
@@ -779,6 +780,7 @@ describe('WarmLedgerRouteFrame', () => {
     const cases = [
       ['/dashboard/finance/platform-revenue', '平台回款', '财务资金'],
       ['/dashboard/crm/proposals/42', '客户方案详情', 'CRM 客户与合作伙伴'],
+      ['/dashboard/crm/intent', '意向客户', 'CRM 客户与合作伙伴'],
       ['/dashboard/ai/insights', 'AI洞察', 'AI 智能'],
       ['/dashboard/tools/markdown-to-word', 'Markdown 转 Word', '工具箱'],
       ['/dashboard/system/account-management', '系统账号管理', '系统管理'],

@@ -26,6 +26,7 @@ const WARM_ROUTES = [
   '/dashboard/crm/sea',
   '/dashboard/crm/proposals',
   '/dashboard/crm/proposals/42',
+  '/dashboard/crm/intent',
   '/dashboard/crm/leads',
   '/dashboard/crm/tasks',
   '/dashboard/crm/audit',

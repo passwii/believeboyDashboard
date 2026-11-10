@@ -20,6 +20,7 @@ export const CUSTOMER_SOURCE_LABELS: Record<CustomerSource, string> = {
   online_ad: '线上广告',
   cold_call: '陌拜',
   self_developed: '自主开发',
+  customer_radar: '客户雷达',
   other: '其他',
 }
 

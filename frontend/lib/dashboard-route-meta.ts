@@ -52,6 +52,7 @@ export const DASHBOARD_PAGE_TITLES: Array<{ match: string; title: string }> = [
   { match: '/feature-updates', title: '产品更新' },
   { match: '/system/system/changelog', title: '更新日志' },
   { match: '/dashboard/crm/customers', title: '客户管理' },
+  { match: '/dashboard/crm/intent', title: '意向客户' },
   { match: '/dashboard/crm/proposals', title: '客户方案' },
   { match: '/dashboard/crm/leads', title: '线索管理' },
   { match: '/dashboard/crm/sea', title: '客户公海' },
@@ -311,6 +312,11 @@ const WARM_LEDGER_EXACT_ROUTE_META: Record<string, DashboardRouteMeta> = {
   '/dashboard/crm/proposals': {
     ...CRM_SECTION,
     title: '客户方案',
+    warm: true,
+  },
+  '/dashboard/crm/intent': {
+    ...CRM_SECTION,
+    title: '意向客户',
     warm: true,
   },
   '/dashboard/crm/leads': {

@@ -5,6 +5,7 @@ export type CustomerSource =
   | 'online_ad'
   | 'cold_call'
   | 'self_developed'
+  | 'customer_radar'
   | 'other'
 export type CustomerRating = 'A' | 'B' | 'C' | 'D'
 

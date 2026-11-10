@@ -53,6 +53,7 @@ const ROUTES: string[] = [
   '/dashboard/crm/customers',
   '/dashboard/crm/dashboard',
   '/dashboard/crm/follow-ups',
+  '/dashboard/crm/intent',
   '/dashboard/crm/leads',
   '/dashboard/crm/sea',
   '/dashboard/crm/settings',

@@ -367,6 +367,12 @@ export const SIDEBAR_TOP_GROUPS: SidebarTopGroup[] = [
         matchPrefixes: ['/dashboard/crm/proposals'],
       },
       {
+        title: '意向客户',
+        url: '/dashboard/crm/intent',
+        icon: IconMap.Target,
+        matchPrefixes: ['/dashboard/crm/intent'],
+      },
+      {
         title: '线索',
         url: '/dashboard/crm/leads',
         icon: IconMap.Sparkles,
