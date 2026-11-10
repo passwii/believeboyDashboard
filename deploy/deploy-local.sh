@@ -22,7 +22,11 @@ DOMAIN="${DOMAIN:-https://dash.believeboy.com}"
 WEB_IMAGE_NAME="${WEB_IMAGE_NAME:-ghcr.io/passwii/believeboydashboard-web}"
 API_IMAGE_NAME="${API_IMAGE_NAME:-ghcr.io/passwii/believeboydashboard-api}"
 GO_API_IMAGE_NAME="${GO_API_IMAGE_NAME:-ghcr.io/passwii/believeboydashboard-go-api}"
-GO_API_OWNED_MODULES="${GO_API_OWNED_MODULES:-health,exchange_rates,notifications,alerts,profile}"
+# Production cutover is opt-in per deployment. Leave empty (default) so Web
+# talks to FastAPI directly until the Go gateway ownership list is explicitly
+# enabled for a verified release.
+GO_API_OWNED_MODULES="${GO_API_OWNED_MODULES:-}"
+GO_API_INTERNAL_URL="${GO_API_INTERNAL_URL:-http://127.0.0.1:8100}"
 PIP_INDEX_URL="${PIP_INDEX_URL:-https://pypi.org/simple}"
 GO_MODULE_PROXY="${GO_MODULE_PROXY:-https://proxy.golang.org,direct}"
 INTERNAL_AI_PROVIDER_BASE_URL="${INTERNAL_AI_PROVIDER_BASE_URL:-http://127.0.0.1:3100/v1}"
@@ -95,6 +99,20 @@ if [[ "$API_IMAGE_NAME" != "ghcr.io/passwii/believeboydashboard-api" ||
   exit 1
 fi
 
+if [[ ! "$GO_API_OWNED_MODULES" =~ ^([a-z_]+(,[a-z_]+)*)?$ ]]; then
+  echo "GO_API_OWNED_MODULES must be empty or a comma-separated list of lowercase module names." >&2
+  exit 1
+fi
+if [[ "$GO_API_INTERNAL_URL" != "http://127.0.0.1:8100" &&
+  "$GO_API_INTERNAL_URL" != "http://127.0.0.1:8200" ]]; then
+  echo "GO_API_INTERNAL_URL must be http://127.0.0.1:8100 (FastAPI) or http://127.0.0.1:8200 (Go gateway)." >&2
+  exit 1
+fi
+if [[ -n "$GO_API_OWNED_MODULES" && "$GO_API_INTERNAL_URL" != "http://127.0.0.1:8200" ]]; then
+  echo "GO_API_OWNED_MODULES is set but GO_API_INTERNAL_URL does not route Web through the Go gateway (http://127.0.0.1:8200)." >&2
+  exit 1
+fi
+
 : "${NEXTAUTH_SECRET:?NEXTAUTH_SECRET is required in $FRONTEND_ENV_FILE}"
 if [[ "$DEPLOY_METHOD" == "ssh" ]]; then
   : "${BACKEND_API_KEY:?BACKEND_API_KEY is required in $FRONTEND_ENV_FILE}"
@@ -152,7 +170,7 @@ chmod 600 "$TMP_DIR/nextauth_secret"
 
 if [[ "$DEPLOY_METHOD" == "ssh" ]]; then
   printf 'BACKEND_API_BASE_URL=%s\n' "$BACKEND_API_BASE_URL" > "$TMP_DIR/web.env"
-  printf 'BACKEND_INTERNAL_URL=http://127.0.0.1:8200\n' >> "$TMP_DIR/web.env"
+  printf 'BACKEND_INTERNAL_URL=%s\n' "$GO_API_INTERNAL_URL" >> "$TMP_DIR/web.env"
   printf 'BACKEND_PUBLIC_API_BASE_URL=%s\n' "$BACKEND_API_BASE_URL" >> "$TMP_DIR/web.env"
   printf 'BACKEND_API_KEY=%s\n' "$BACKEND_API_KEY" >> "$TMP_DIR/web.env"
   printf 'GO_API_TRUSTED_PROXY_SECRET=%s\n' "$GO_API_TRUSTED_PROXY_SECRET" >> "$TMP_DIR/web.env"
@@ -252,14 +270,22 @@ WEB_IMAGE="$WEB_IMAGE_NAME@$web_digest"
 if [[ "$DEPLOY_METHOD" == "actions" ]]; then
   dispatch_id="$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
   echo "Dispatching prebuilt deployment to GitHub Actions..."
-  if dispatch_output="$(gh workflow run deploy-dashboard.yml \
-    --ref main \
-    -f "deploy_mode=prebuilt" \
-    -f "dispatch_id=$dispatch_id" \
-    -f "source_sha=$SHA" \
-    -f "api_digest=$api_digest" \
-    -f "go_api_digest=$go_api_digest" \
-    -f "web_digest=$web_digest" 2>&1)"; then
+  dispatch_args=(
+    --ref main
+    -f "deploy_mode=prebuilt"
+    -f "dispatch_id=$dispatch_id"
+    -f "source_sha=$SHA"
+    -f "api_digest=$api_digest"
+    -f "go_api_digest=$go_api_digest"
+    -f "web_digest=$web_digest"
+  )
+  if [[ -n "$GO_API_OWNED_MODULES" ]]; then
+    dispatch_args+=(-f "go_api_owned=$GO_API_OWNED_MODULES")
+  fi
+  if [[ "$GO_API_INTERNAL_URL" != "http://127.0.0.1:8100" ]]; then
+    dispatch_args+=(-f "go_api_internal_url=$GO_API_INTERNAL_URL")
+  fi
+  if dispatch_output="$(gh workflow run deploy-dashboard.yml "${dispatch_args[@]}" 2>&1)"; then
     :
   else
     dispatch_status=$?
@@ -344,7 +370,7 @@ for run in runs:
 fi
 
 PUBLIC_WEB_HEALTH_URL="${PUBLIC_WEB_HEALTH_URL:-${DOMAIN%/}/healthz}"
-PUBLIC_API_HEALTH_URL="${PUBLIC_API_HEALTH_URL:-${BACKEND_API_BASE_URL%/}/api/v1/health/live}"
+PUBLIC_API_HEALTH_URL="${PUBLIC_API_HEALTH_URL:-${BACKEND_API_BASE_URL%/}/api/v1/health/ready}"
 printf -v remote_public_web_url '%q' "$PUBLIC_WEB_HEALTH_URL"
 printf -v remote_public_api_url '%q' "$PUBLIC_API_HEALTH_URL"
 printf -v remote_deploy_path '%q' "$DEPLOY_PATH"
@@ -367,12 +393,15 @@ printf -v remote_api_image '%q' "$API_IMAGE"
 printf -v remote_go_api_image '%q' "$GO_API_IMAGE"
 printf -v remote_web_image '%q' "$WEB_IMAGE"
 printf -v remote_ai_provider_base_url '%q' "$INTERNAL_AI_PROVIDER_BASE_URL"
+printf -v remote_go_owned '%q' "$GO_API_OWNED_MODULES"
+printf -v remote_go_internal_url '%q' "$GO_API_INTERNAL_URL"
 
 echo "Deploying FastAPI, Go API, and Web..."
 if ! ssh "$DEPLOY_HOST" \
   "PUBLIC_WEB_HEALTH_URL=$remote_public_web_url PUBLIC_API_HEALTH_URL=$remote_public_api_url \
     SOURCE_SHA=$remote_source_sha STAGING_DIR=$remote_staging_dir \
     INTERNAL_AI_PROVIDER_BASE_URL=$remote_ai_provider_base_url \
+    GO_API_OWNED_MODULES=$remote_go_owned GO_API_INTERNAL_URL=$remote_go_internal_url \
     API_IMAGE=$remote_api_image GO_API_IMAGE=$remote_go_api_image WEB_IMAGE=$remote_web_image DEPLOY_PATH=$remote_deploy_path \
       bash $remote_script_path"; then
   echo "Compose deployment failed; remote deploy script attempted config and image rollback." >&2

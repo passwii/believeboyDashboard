@@ -121,6 +121,23 @@ jobs:
       - name: go vet
         run: go vet ./...
 
+      # 2026-11-10 production incident: the Go gateway image was alpine without
+      # tzdata, so store.OpenPool's AfterConnect time.LoadLocation failed for
+      # "Asia/Shanghai" and every DB-backed Go route returned 500 while
+      # /health/live stayed green. CI runs on ubuntu (system tzdata), so unit
+      # tests cannot catch it — assert the dependency is embedded instead.
+      - name: tzdata embedded in Go binaries
+        run: |
+          set -euo pipefail
+          missing=0
+          for pkg in ./cmd/gateway ./cmd/worker; do
+            if ! go list -deps "$pkg" | grep -qx 'time/tzdata'; then
+              echo "::error::$pkg does not embed time/tzdata; the alpine runtime image would fail every database connection at timezone lookup."
+              missing=1
+            fi
+          done
+          exit "$missing"
+
       - name: go test -race
         run: go test -race ./... -count=1
 

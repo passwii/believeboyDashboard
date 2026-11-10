@@ -270,7 +270,7 @@ class DeployRemoteTests(unittest.TestCase):
                 "DEPLOY_PATH": str(deploy_path),
                 "STAGING_DIR": str(staging_dir),
                 "PUBLIC_WEB_HEALTH_URL": "https://dash.believeboy.com/healthz",
-                "PUBLIC_API_HEALTH_URL": "https://dash-api.believeboy.com/api/v1/health/live",
+                "PUBLIC_API_HEALTH_URL": "https://dash-api.believeboy.com/api/v1/health/ready",
                 "DOCKER_LOG": str(docker_log),
                 "DF_TOTAL_BYTES": str(total_bytes),
                 "DF_AVAILABLE_BYTES": str(available_bytes),
@@ -447,7 +447,7 @@ class DeployRemoteTests(unittest.TestCase):
     def test_rollback_skips_migrate_and_uses_saved_go_image(self):
         temp, _, docker_log, env = self.prepare_runtime(previous_compose=True)
         with temp:
-            env["FAIL_CURL_URL"] = "http://127.0.0.1:8200/api/v1/health/live"
+            env["FAIL_CURL_URL"] = "http://127.0.0.1:8200/api/v1/health/ready"
             result = self.run_deploy(env)
 
             compose_up = self.compose_up_lines(docker_log)
@@ -468,7 +468,7 @@ class DeployRemoteTests(unittest.TestCase):
         with temp:
             active_service = "believeboy-api.service"
             env["ACTIVE_SYSTEMD_SERVICE"] = active_service
-            env["FAIL_CURL_URL"] = "http://127.0.0.1:8200/api/v1/health/live"
+            env["FAIL_CURL_URL"] = "http://127.0.0.1:8200/api/v1/health/ready"
             result = self.run_deploy(env)
 
             operations = Path(env["OPERATION_LOG"]).read_text().splitlines()
@@ -498,7 +498,7 @@ class DeployRemoteTests(unittest.TestCase):
             active_service = "believeboy-api.service"
             env["ACTIVE_SYSTEMD_SERVICE"] = active_service
             env["FAIL_COMPOSE_UP_CALL"] = "2"
-            env["FAIL_CURL_URL"] = "http://127.0.0.1:8200/api/v1/health/live"
+            env["FAIL_CURL_URL"] = "http://127.0.0.1:8200/api/v1/health/ready"
             result = self.run_deploy(env)
 
             operations = Path(env["OPERATION_LOG"]).read_text().splitlines()
@@ -524,7 +524,7 @@ class DeployRemoteTests(unittest.TestCase):
             previous_go=False,
         )
         with temp:
-            env["FAIL_CURL_URL"] = "http://127.0.0.1:8200/api/v1/health/live"
+            env["FAIL_CURL_URL"] = "http://127.0.0.1:8200/api/v1/health/ready"
             result = self.run_deploy(env)
 
             compose_up = self.compose_up_lines(docker_log)
@@ -536,7 +536,7 @@ class DeployRemoteTests(unittest.TestCase):
     def test_external_health_failure_rolls_back_before_manifest_update(self):
         temp, deploy_path, docker_log, env = self.prepare_runtime(previous_compose=True)
         with temp:
-            public_api_url = "https://dash-api.believeboy.com/api/v1/health/live"
+            public_api_url = "https://dash-api.believeboy.com/api/v1/health/ready"
             env["FAIL_CURL_URL"] = public_api_url
             result = self.run_deploy(env)
 
@@ -559,7 +559,7 @@ class DeployRemoteTests(unittest.TestCase):
         )
         with temp:
             env["LEGACY_CONTAINER_RUNNING"] = "true"
-            env["FAIL_CURL_URL"] = "http://127.0.0.1:8100/api/v1/health/live"
+            env["FAIL_CURL_URL"] = "http://127.0.0.1:8100/api/v1/health/ready"
             result = self.run_deploy(env)
 
             docker_commands = docker_log.read_text()

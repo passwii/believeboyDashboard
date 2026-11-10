@@ -63,8 +63,8 @@ Web、FastAPI 和 Go API 必须同版本切换与回滚。
 服务间调用优先使用本机回环：
 
 ```dotenv
-# web.env：Next.js 服务端请求走 Go Gateway
-BACKEND_INTERNAL_URL=http://127.0.0.1:8200
+# web.env：默认直连 FastAPI；显式启用 Go 切流时才改成 http://127.0.0.1:8200
+BACKEND_INTERNAL_URL=http://127.0.0.1:8100
 GO_API_TRUSTED_PROXY_SECRET=<64-character hex secret>
 
 # backend.env：Go 复用 FastAPI 的数据库与 Redis 配置
@@ -77,14 +77,16 @@ REDIS_DB=0
 # go.env
 GO_API_ADDR=127.0.0.1:8200
 FASTAPI_ORIGIN=http://127.0.0.1:8100
-GO_API_OWNED=health,exchange_rates,notifications,alerts,profile
+# 默认空 = 网关只做透明代理（全部回退 FastAPI）。切流是显式 opt-in：
+# 设置后必须让 Web 走 8200，并通过部署后的 owned-route 冒烟检查。
+GO_API_OWNED=
 GO_API_TRUSTED_PROXY_SECRET=<same 64-character hex secret>
 ```
 
 以下地址必须继续使用公开 URL：
 
 - `NEXTAUTH_URL` / `AUTH_URL`：浏览器认证回调与 Cookie origin。
-- `BACKEND_PUBLIC_API_BASE_URL`：前端展示及 Agent 调用说明；`dash-api` 的 Caddy upstream 使用 Go Gateway `8200`。
+- `BACKEND_PUBLIC_API_BASE_URL`：前端展示及 Agent 调用说明；`dash-api` 的 Caddy upstream 当前指向 FastAPI `8100`（Go Gateway `8200` 只在 Web 启用切流时被使用）。
 - `FRONTEND_URL`：CORS 与邮件中的可点击链接。
 - R2、Resend、联网搜索等外部服务地址。
 
@@ -146,22 +148,26 @@ Actions 仍复用 Secrets：`VPS_SSH_KEY`、`VPS_KNOWN_HOSTS`、`VPS_HOST`、
 
 ```bash
 curl -fsS https://dash.believeboy.com/healthz
-curl -fsS https://dash-api.believeboy.com/api/v1/health/live
+curl -fsS https://dash-api.believeboy.com/api/v1/health/ready
 
 ssh guitar-vps '
   cd /opt/believeboy-dashboard
   docker compose ps
   docker compose logs --tail=100 api go-api web celery celery-scheduled beat
+  # DB 感知探活：503/degraded 说明数据库不可达（/health/live 不查库，不能作为门禁）
+  curl -fsS http://127.0.0.1:8100/api/v1/health/ready
+  curl -fsS http://127.0.0.1:8200/api/v1/health/ready
 '
 ```
 
 预期：
 
-- `api`、`go-api`、`web` 为 healthy。
+- `api`、`go-api`、`web` 为 healthy（api/go-api 的 healthcheck 已改为 DB 感知的 `/health/ready`）。
 - `go-api` 读取 `backend.env` 中的 `DATABASE_URL`、`REDIS_HOST`、`REDIS_PORT`、`REDIS_DB`、Redis 凭据和 `API_KEY`，并把未接管路由转发至 `8100`。
+- 启用 `GO_API_OWNED` 时，部署脚本会用 `API_KEY` + `GO_API_TRUSTED_PROXY_SECRET` 冒烟 `/api/v1/health` 与 `/api/v1/exchange-rates`，不通过直接回滚。
 - 两个 Celery worker 响应 `celery inspect ping`。
 - `beat` 持续运行。
-- `5432`、`6379`、`8100`、`8200`、`3200` 只监听宿主机回环；Caddy 的 API upstream 指向 `8200`。
+- `5432`、`6379`、`8100`、`8200`、`3200` 只监听宿主机回环；Caddy 的 API upstream 当前指向 `8100`（FastAPI），Go Gateway `8200` 仅由 Web 在启用切流时使用。
 
 ## 回滚
 

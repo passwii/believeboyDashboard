@@ -3,6 +3,7 @@ package health
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -109,6 +110,11 @@ func (h *Handler) probeDatabase(ctx context.Context) string {
 		return "error: DatabaseNotConfigured"
 	}
 	if err := h.config.Database.Ping(ctx); err != nil {
+		// Keep the HTTP body free of driver details (contract test pins the
+		// typed form) but make the cause visible in container logs: the
+		// 2026-11-10 incident only exposed "error: *fmt.wrapError" and the
+		// real message ("load PostgreSQL TimeZone ...") was unobservable.
+		slog.WarnContext(ctx, "health: database probe failed", slog.Any("error", err))
 		return "error: " + fmt.Sprintf("%T", err)
 	}
 	return "ok"

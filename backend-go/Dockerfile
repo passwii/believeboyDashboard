@@ -19,7 +19,11 @@ RUN --mount=type=cache,id=believeboy-go-build-cache,target=/root/.cache/go-build
        go build -trimpath -ldflags="-s -w" -o /out/go-api ./cmd/gateway
 
 FROM alpine:3.22 AS runtime
-RUN apk add --no-cache ca-certificates \
+# tzdata is required at runtime, not only at build time: store.OpenPool's
+# AfterConnect hook resolves the PostgreSQL TimeZone via time.LoadLocation and
+# fails every DB connection when the zoneinfo database is missing. The binaries
+# also embed time/tzdata (internal/tzcheck) as a second line of defence.
+RUN apk add --no-cache ca-certificates tzdata \
     && addgroup -S -g 10001 app \
     && adduser -S -D -H -u 10001 -G app app
 COPY --from=builder --chown=10001:10001 /out/go-api /usr/local/bin/go-api

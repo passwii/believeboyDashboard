@@ -12,6 +12,8 @@ DEPLOY_PATH="${DEPLOY_PATH-}"
 STAGING_DIR="${STAGING_DIR-}"
 PUBLIC_WEB_HEALTH_URL="${PUBLIC_WEB_HEALTH_URL-}"
 PUBLIC_API_HEALTH_URL="${PUBLIC_API_HEALTH_URL-}"
+GO_API_OWNED_MODULES="${GO_API_OWNED_MODULES-}"
+GO_API_INTERNAL_URL="${GO_API_INTERNAL_URL:-http://127.0.0.1:8100}"
 DEPLOY_FREE_SPACE_PERCENT=10
 DEPLOY_PARTITION_TOTAL_BYTES=""
 DEPLOY_MIN_FREE_BYTES=""
@@ -199,8 +201,18 @@ fi
 if [[ "$PUBLIC_WEB_HEALTH_URL" != "https://dash.believeboy.com/healthz" ]]; then
   die "PUBLIC_WEB_HEALTH_URL must be exactly https://dash.believeboy.com/healthz."
 fi
-if [[ "$PUBLIC_API_HEALTH_URL" != "https://dash-api.believeboy.com/api/v1/health/live" ]]; then
-  die "PUBLIC_API_HEALTH_URL must be exactly https://dash-api.believeboy.com/api/v1/health/live."
+if [[ "$PUBLIC_API_HEALTH_URL" != "https://dash-api.believeboy.com/api/v1/health/ready" ]]; then
+  die "PUBLIC_API_HEALTH_URL must be exactly https://dash-api.believeboy.com/api/v1/health/ready."
+fi
+if [[ ! "$GO_API_OWNED_MODULES" =~ ^([a-z_]+(,[a-z_]+)*)?$ ]]; then
+  die "GO_API_OWNED_MODULES must be empty or a comma-separated list of lowercase module names."
+fi
+if [[ "$GO_API_INTERNAL_URL" != "http://127.0.0.1:8100" &&
+  "$GO_API_INTERNAL_URL" != "http://127.0.0.1:8200" ]]; then
+  die "GO_API_INTERNAL_URL must be http://127.0.0.1:8100 (FastAPI) or http://127.0.0.1:8200 (Go gateway)."
+fi
+if [[ -n "$GO_API_OWNED_MODULES" && "$GO_API_INTERNAL_URL" != "http://127.0.0.1:8200" ]]; then
+  die "GO_API_OWNED_MODULES is set but GO_API_INTERNAL_URL does not route Web through the Go gateway (http://127.0.0.1:8200)."
 fi
 if [[ ! "$HEALTH_ATTEMPTS" =~ ^[1-9][0-9]*$ ]]; then
   die "HEALTH_ATTEMPTS must be a positive integer."
@@ -555,6 +567,46 @@ wait_for_url() {
   return 1
 }
 
+# Owned-route smoke check. /health/live is not enough when the gateway owns
+# modules: on 2026-11-10 the alpine runtime image missed tzdata, so every
+# DB-backed owned route returned 500 while liveness stayed green. Only run
+# this when the deployment actually enables a Go ownership list.
+verify_owned_routes() {
+  local owned="${GO_API_OWNED_MODULES-}"
+  local api_key
+  local proxy_secret
+  local health_body
+
+  if [[ -z "$owned" ]]; then
+    echo "Go gateway owns no modules (GO_API_OWNED is empty); skipping owned-route smoke checks."
+    return 0
+  fi
+
+  api_key="$(sed -n 's/^API_KEY=//p' "$DEPLOY_PATH/backend.env" | head -n 1)"
+  proxy_secret="$(sed -n 's/^GO_API_TRUSTED_PROXY_SECRET=//p' "$DEPLOY_PATH/go.env" | head -n 1)"
+  if [[ -z "$api_key" || -z "$proxy_secret" ]]; then
+    die "Go gateway owns modules ($owned) but API_KEY / GO_API_TRUSTED_PROXY_SECRET is missing; refusing to keep the cutover."
+  fi
+
+  if ! health_body="$(curl -fsS --max-time 10 \
+    -H "X-API-Key: $api_key" \
+    -H "X-Trusted-Proxy-Secret: $proxy_secret" \
+    http://127.0.0.1:8200/api/v1/health)"; then
+    die "Go API gateway DB health request failed while GO_API_OWNED=$owned."
+  fi
+  if [[ "$health_body" != *'"status":"ok"'* ]]; then
+    die "Go API gateway reports degraded health while GO_API_OWNED=$owned: $health_body"
+  fi
+
+  if ! curl -fsS --max-time 10 -o /dev/null \
+    -H "X-API-Key: $api_key" \
+    -H "X-Trusted-Proxy-Secret: $proxy_secret" \
+    "http://127.0.0.1:8200/api/v1/exchange-rates?page=1&page_size=1"; then
+    die "Go API gateway owned-route smoke check failed (/api/v1/exchange-rates) while GO_API_OWNED=$owned."
+  fi
+  echo "Go API owned-route smoke checks passed for: $owned"
+}
+
 prepare_config_file() {
   local source="$1"
   local mode="$2"
@@ -665,6 +717,8 @@ derive_actions_environment() {
   local secret_line_count
   local public_api
   local web_env_tmp
+  local go_owned="${GO_API_OWNED_MODULES-}"
+  local internal_url="${GO_API_INTERNAL_URL:-http://127.0.0.1:8100}"
 
   chmod 600 "$secret_file"
   secret_line_count="$(awk 'END { print NR }' "$secret_file")"
@@ -677,7 +731,7 @@ derive_actions_environment() {
 
   cp -p -- "$DEPLOY_PATH/web.env" "$STAGING_DIR/web.env"
   update_env_value "$STAGING_DIR/web.env" \
-    BACKEND_INTERNAL_URL http://127.0.0.1:8200
+    BACKEND_INTERNAL_URL "$internal_url"
   if ! grep -q '^BACKEND_PUBLIC_API_BASE_URL=' "$STAGING_DIR/web.env"; then
     public_api="$(sed -n 's/^BACKEND_API_BASE_URL=//p' "$STAGING_DIR/web.env" | head -1)"
     if [[ -z "$public_api" ]]; then
@@ -693,7 +747,7 @@ derive_actions_environment() {
   {
     printf 'GO_API_ADDR=127.0.0.1:8200\n'
     printf 'FASTAPI_ORIGIN=http://127.0.0.1:8100\n'
-    printf 'GO_API_OWNED=health,exchange_rates,notifications,alerts,profile\n'
+    printf 'GO_API_OWNED=%s\n' "$go_owned"
     printf 'GO_API_TRUSTED_PROXY_SECRET=%s\n' "$secret_value"
   } > "$STAGING_DIR/go.env"
   chmod 600 "$STAGING_DIR/web.env" "$STAGING_DIR/go.env"
@@ -1001,15 +1055,16 @@ if ! docker compose up -d --no-build --remove-orphans; then
   die "Could not start the new Dashboard image set."
 fi
 
-if ! wait_for_url "FastAPI fallback" "http://127.0.0.1:8100/api/v1/health/live"; then
-  die "FastAPI fallback health check failed."
+if ! wait_for_url "FastAPI readiness" "http://127.0.0.1:8100/api/v1/health/ready"; then
+  die "FastAPI readiness check failed (database unreachable)."
 fi
-if ! wait_for_url "Go API gateway" "http://127.0.0.1:8200/api/v1/health/live"; then
-  die "Go API gateway health check failed."
+if ! wait_for_url "Go API gateway readiness" "http://127.0.0.1:8200/api/v1/health/ready"; then
+  die "Go API gateway readiness check failed (database unreachable)."
 fi
 if ! wait_for_url "Web" "http://127.0.0.1:3200/healthz"; then
   die "Web health check failed."
 fi
+verify_owned_routes
 
 echo "Checking Celery workers..."
 if ! docker compose exec -T celery sh -c \

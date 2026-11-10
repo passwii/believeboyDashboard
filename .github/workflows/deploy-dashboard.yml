@@ -36,6 +36,16 @@ on:
         description: Web image sha256 digest for prebuilt mode
         type: string
         required: false
+      go_api_owned:
+        description: Comma-separated Go module allowlist the gateway owns in production (empty = FastAPI-only)
+        type: string
+        default: ''
+        required: false
+      go_api_internal_url:
+        description: Backend URL injected into Web (8100 = FastAPI only, 8200 = through Go gateway)
+        type: string
+        default: 'http://127.0.0.1:8100'
+        required: false
 
 concurrency:
   group: believeboy-dashboard-stack
@@ -63,7 +73,7 @@ jobs:
       STAGING_DIR: ''
       DOCKER_PLATFORM: linux/amd64
       PUBLIC_WEB_HEALTH_URL: https://dash.believeboy.com/healthz
-      PUBLIC_API_HEALTH_URL: https://dash-api.believeboy.com/api/v1/health/live
+      PUBLIC_API_HEALTH_URL: https://dash-api.believeboy.com/api/v1/health/ready
 
     steps:
       - name: Checkout
@@ -77,6 +87,8 @@ jobs:
           API_DIGEST_INPUT: ${{ inputs.api_digest }}
           GO_API_DIGEST_INPUT: ${{ inputs.go_api_digest }}
           WEB_DIGEST_INPUT: ${{ inputs.web_digest }}
+          GO_API_OWNED_INPUT: ${{ inputs.go_api_owned }}
+          GO_API_INTERNAL_URL_INPUT: ${{ inputs.go_api_internal_url }}
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
           VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
           GO_API_TRUSTED_PROXY_SECRET: ${{ secrets.GO_API_TRUSTED_PROXY_SECRET }}
@@ -144,6 +156,20 @@ jobs:
               echo "::error::NEXTAUTH_SECRET must be at least 32 bytes."
               exit 1
             fi
+          fi
+
+          if [[ ! "$GO_API_OWNED_INPUT" =~ ^([a-z_]+(,[a-z_]+)*)?$ ]]; then
+            echo "::error::go_api_owned must be empty or a comma-separated list of lowercase module names."
+            exit 1
+          fi
+          if [[ "$GO_API_INTERNAL_URL_INPUT" != "http://127.0.0.1:8100" &&
+            "$GO_API_INTERNAL_URL_INPUT" != "http://127.0.0.1:8200" ]]; then
+            echo "::error::go_api_internal_url must be http://127.0.0.1:8100 (FastAPI) or http://127.0.0.1:8200 (Go gateway)."
+            exit 1
+          fi
+          if [[ -n "$GO_API_OWNED_INPUT" && "$GO_API_INTERNAL_URL_INPUT" != "http://127.0.0.1:8200" ]]; then
+            echo "::error::go_api_owned is set but go_api_internal_url does not route Web through the Go gateway (http://127.0.0.1:8200)."
+            exit 1
           fi
 
       - name: Setup Python
@@ -232,6 +258,25 @@ jobs:
           cache-from: type=gha,scope=dashboard-go-api
           cache-to: type=gha,scope=dashboard-go-api,mode=max
           provenance: false
+
+      # Runtime image gate: alpine must ship the zoneinfo database. The Go
+      # binaries also embed time/tzdata (internal/tzcheck), but keeping the apk
+      # makes ad-hoc debugging inside the runtime image work too.
+      - name: Verify Go API runtime image has tzdata
+        if: ${{ inputs.deploy_mode == 'build_and_deploy' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker buildx build \
+            --platform "${{ env.DOCKER_PLATFORM }}" \
+            --target runtime \
+            --load \
+            --build-arg GOPROXY=https://proxy.golang.org,direct \
+            --cache-from type=gha,scope=dashboard-go-api \
+            --tag believeboy-go-api-runtime-check \
+            --file backend-go/Dockerfile .
+          docker run --rm --entrypoint sh believeboy-go-api-runtime-check \
+            -c 'test -e /usr/share/zoneinfo/Asia/Shanghai'
 
       - name: Build and push Web
         if: ${{ inputs.deploy_mode == 'build_and_deploy' }}
@@ -373,6 +418,9 @@ jobs:
 
       - name: Deploy over SSH
         id: deploy
+        env:
+          GO_API_OWNED_INPUT: ${{ inputs.go_api_owned }}
+          GO_API_INTERNAL_URL_INPUT: ${{ inputs.go_api_internal_url }}
         run: |
           set -euo pipefail
           printf -v remote_staging_dir '%q' "$STAGING_DIR"
@@ -387,6 +435,8 @@ jobs:
           printf -v remote_web_image '%q' "$WEB_IMAGE"
           printf -v remote_public_web_url '%q' "$PUBLIC_WEB_HEALTH_URL"
           printf -v remote_public_api_url '%q' "$PUBLIC_API_HEALTH_URL"
+          printf -v remote_go_owned '%q' "$GO_API_OWNED_INPUT"
+          printf -v remote_go_internal_url '%q' "$GO_API_INTERNAL_URL_INPUT"
 
           ssh -i "$SSH_DIR/believeboy-dashboard" \
             -o IdentitiesOnly=yes \
@@ -394,6 +444,7 @@ jobs:
             -o StrictHostKeyChecking=yes \
             "$SSH_USER@$SSH_HOST" \
             "PUBLIC_WEB_HEALTH_URL=$remote_public_web_url PUBLIC_API_HEALTH_URL=$remote_public_api_url \
+             GO_API_OWNED_MODULES=$remote_go_owned GO_API_INTERNAL_URL=$remote_go_internal_url \
              SOURCE_SHA=$remote_source_sha STAGING_DIR=$remote_staging_dir DEPLOY_PATH=$remote_deploy_path \
              API_DIGEST=$remote_api_digest GO_API_DIGEST=$remote_go_api_digest WEB_DIGEST=$remote_web_digest \
              API_IMAGE=$remote_api_image GO_API_IMAGE=$remote_go_api_image WEB_IMAGE=$remote_web_image \

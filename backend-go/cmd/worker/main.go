@@ -21,6 +21,7 @@ import (
 	"github.com/passwii/believeboyDashboard/backend-go/internal/queue"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/store"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/tasks"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/tzcheck"
 )
 
 type workerServer interface {
@@ -41,6 +42,10 @@ func main() {
 func run(logger *slog.Logger) error {
 	if logger == nil {
 		logger = slog.Default()
+	}
+
+	if err := tzcheck.Ensure(); err != nil {
+		return err
 	}
 
 	cfg, err := config.Load()

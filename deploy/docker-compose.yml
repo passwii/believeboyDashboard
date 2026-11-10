@@ -45,7 +45,7 @@ services:
         - -c
         - >-
           import urllib.request as u;
-          u.urlopen('http://127.0.0.1:8100/api/v1/health/live', timeout=3)
+          u.urlopen('http://127.0.0.1:8100/api/v1/health/ready', timeout=3)
       interval: 15s
       timeout: 5s
       retries: 8
@@ -70,7 +70,9 @@ services:
     init: true
     mem_limit: 256m
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8200/api/v1/health/live || exit 1"]
+      # Readiness (DB-aware), not liveness: a gateway that cannot reach the
+      # database must surface as unhealthy instead of silently serving 500s.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8200/api/v1/health/ready || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 8

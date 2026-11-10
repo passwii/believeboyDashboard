@@ -13,6 +13,7 @@ import (
 
 	"github.com/passwii/believeboyDashboard/backend-go/internal/config"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/httpserver"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/tzcheck"
 )
 
 func main() {
@@ -26,6 +27,10 @@ func main() {
 func run(logger *slog.Logger) error {
 	if logger == nil {
 		logger = slog.Default()
+	}
+
+	if err := tzcheck.Ensure(); err != nil {
+		return err
 	}
 
 	cfg, err := config.Load()
