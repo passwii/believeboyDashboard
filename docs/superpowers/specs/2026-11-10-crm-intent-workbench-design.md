@@ -637,6 +637,8 @@ WarmCrmPage
 - **P1**：convert 时 sea 记录客户 owner 回退为操作人；抽屉新增「编辑资料」（含 channel/channels/channel_source，BE 已支持）；customer_radar 同步 CRM zod/导入映射；公司/池搜索支持手机号；批量导入改为逐行 SAVEPOINT + external_id/phone_raw/资本上限校验；Agent 审计补齐（成功 upsert 的 agent_id、PATCH/screen 锁定 ai_write_blocked）；导出文件名改用批次日期；CSV 公式注入防护；AI 不再改 batch_id；R2 附着失败清理；模型 CHECK 约束改为 SQLite 兼容写法；validPhones 去重；facet 渠道 pool 分支按 scope 收敛。
 - 复跑：<code>go test ./...</code> 全 PASS（含真实 PG 门控的 dup/savepoint 测试）；前端 <code>pnpm test</code> 383 文件 / 2721 例 PASS；<code>pnpm lint</code> 0 error；<code>pnpm build</code> PASS；<code>pytest</code> 4509 passed / 16 skipped / 2 failed（仍为 BLF_test 缺 <code>is_active=false</code> 项目种子的既有基线，与本功能无关）。
 
+二次复核发现 P1-6 审计仍会被同一事务回滚，已改为锁定路径使用**事务外 best-effort 审计**并补单测（<code>crm_intent_audit_test.go</code>）；同时把 <code>customer_radar</code> 同步进 Go/Python 公海导入来源白名单，避免前端已接受的「客户雷达」来源被后端拒绝。
+
 ---
 
 ## 13. 分期（设计稿阶段，实施以 plan 为准）
