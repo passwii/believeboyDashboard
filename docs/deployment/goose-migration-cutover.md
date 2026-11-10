@@ -19,7 +19,8 @@
 
 | 数据库状态 | `migrate up` 行为 |
 | --- | --- |
-| 空库 | 执行 baseline，建立完整 schema |
+| 空库 | 执行 baseline + seed 迁移，建立 schema 与基础种子 |
+| 有 `alembic_version = 285`、无 Goose 表 | stamp baseline，再执行尚未应用的 seed 迁移 |
 | 有 `alembic_version = 285`、无 Goose 表 | stamp baseline，不重放 DDL |
 | 有 `alembic_version < 285` | 拒绝执行，提示先跑 `deploy/prepare-goose-cutover.sh` |
 | 无 `alembic_version` 且 public schema 非空 | 拒绝执行，避免覆盖未知库 |
@@ -67,11 +68,12 @@ cd backend-go && DATABASE_URL=... go run ./cmd/migrate up
 
 ## 验证记录（2026-11-10，本地）
 
-- 从 revision 285 schema 生成 baseline（151 张表、8 张 crm_intent；剔除 pgcrypto/pg_trgm 遗留 C 函数，保留应用 function）。
-- 全新库：`migrate up` 执行 baseline，得到 151 张业务表 + `goose_db_version`。
-- 已有 285 库：`migrate up` stamp version 1，无 DDL 重放。
+- 从 revision 285 schema 生成 baseline（151 张表、8 张 crm_intent；剔除 pg_trgm 遗留对象，pgcrypto 以 extension 形式保留/安装，Go 的 `crypt()/gen_salt()` 依赖它）。
+- 新增幂等种子迁移 `20261110170000_seed_baseline_data.sql`：补齐 `crm_intent_meta`、`crm_workflow_settings`、9 个 `crm_categories`、MVP CRM 规则、2 个启动台模板/12 个节点（来自 Alembic 250/251/252/276/285）。
+- 全新库：`migrate up` 执行 baseline + seed，得到 151 张业务表 + `goose_db_version`；`crm_intent_meta=1`、9 类目、1 条 MVP 规则、2 模板/12 节点，`crypt/gen_salt` 可用。
+- 已有 285 库：`migrate up` stamp version 1，不重放 baseline；随后执行 seed 迁移（幂等，已有行保留）。
 - 284 库：`migrate up` 拒绝并提示先跑 cutover；Alembic 285 后再次 `migrate up` stamp 成功。
-- 新增一条测试 Goose 迁移：成功应用到 version 2，验证后已删除测试文件。
+- 临时新增一条测试 Goose 迁移并成功应用，验证后已删除测试文件。
 - `backend-go/scripts/check_go_migrations.py`：baseline SHA + Alembic manifest + 命名/重复/标记校验通过。
 - 部署 Compose 配置测试通过；Go 全量测试 82 包 PASS。
 - Docker 镜像构建因本机到 Docker Hub TLS 超时未完成（Dockerfile 变更待有网环境复验）。

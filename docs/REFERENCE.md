@@ -112,7 +112,7 @@ curl -fsS http://127.0.0.1:3200/healthz
 
 PostgreSQL only，无 SQLite 回退。模型仍在 `backend/app/models/`（FastAPI 使用），迁移已从 Alembic 切换到 **Goose**。
 
-**Cutover 基线（2026-11-10，详见 [docs/deployment/goose-migration-cutover.md](./deployment/goose-migration-cutover.md)）**：Alembic 历史冻结在 revision 285；`backend/alembic/versions` 只归档、不再新增。`backend-go/internal/migrations/sql/00001_baseline.sql` 是 285 的完整 schema 快照，**禁止修改**。已有库（有 `alembic_version` = 285）运行 `migrate up` 时自动 stamp 为 Goose version 1，不重放 baseline；空库执行 baseline；无 `alembic_version` 且非空的未知 schema 会拒绝执行。
+**Cutover 基线（2026-11-10，详见 [docs/deployment/goose-migration-cutover.md](./deployment/goose-migration-cutover.md)）**：Alembic 历史冻结在 revision 285；`backend/alembic/versions` 只归档、不再新增。`backend-go/internal/migrations/sql/00001_baseline.sql` 是 285 的完整 schema 快照，**禁止修改**。已有库（有 `alembic_version` = 285）运行 `migrate up` 时自动 stamp 为 Goose version 1，不重放 baseline，随后执行未应用的 seed/后续迁移；空库执行 baseline + seed；无 `alembic_version` 且非空的未知 schema 会拒绝执行。
 
 **新迁移命名**：`YYYYMMDDHHMMSS_slug.sql`（14 位 UTC 时间戳 + 小写 snake_case），例如 `20261110153000_add_customer_tag.sql`；版本号必须唯一，已应用迁移禁止改名/改内容，修正一律用新迁移。
 

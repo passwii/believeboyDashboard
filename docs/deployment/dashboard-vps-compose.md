@@ -48,7 +48,7 @@ Web、FastAPI 和 Go API 必须同版本切换与回滚。
 Alembic 历史已冻结在 revision 285：
 
 - 已有库（`alembic_version = 285`）首次执行时自动 stamp 为 Goose version 1，不重放基线；
-- 空库执行 `00001_baseline.sql` 建立完整 schema；
+- 空库执行 `00001_baseline.sql` + `20261110170000_seed_baseline_data.sql` 建立完整 schema 与基础种子；
 - 无 `alembic_version` 且 public schema 非空时拒绝执行，避免误覆盖未知库；
 - 迁移只向前，生产回滚不自动回滚 DB；迁移必须保持向后兼容。
 - **首次切换前置条件**：若库仍是 Alembic，先运行一次 `bash deploy/prepare-goose-cutover.sh`（用 API 镜像将库升到冻结 head 285）；全新库无需执行。随后正常部署，`go-migrate up` 会 stamp 并运行后续 Goose 迁移。

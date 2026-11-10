@@ -52,6 +52,11 @@ case "$has_alembic" in
   yes)
     echo "Applying frozen Alembic head (285) once before Goose cutover..."
     docker compose run --rm -T --no-deps --entrypoint alembic api upgrade head
+    current="$(docker compose run --rm -T --no-deps --entrypoint alembic api current 2>/dev/null | tr -d '[:space:]')"
+    if [[ "$current" != *285* ]]; then
+      echo "Alembic upgrade did not reach revision 285 (current: $current)" >&2
+      exit 1
+    fi
     ;;
   no)
     echo "No alembic_version; fresh database. Skipping Alembic; Goose baseline will create the schema."

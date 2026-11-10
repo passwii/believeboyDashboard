@@ -292,7 +292,7 @@ jobs:
             --tag believeboy-go-api-runtime-check \
             --file backend-go/Dockerfile .
           docker run --rm --entrypoint sh believeboy-go-api-runtime-check \
-            -c 'test -e /usr/share/zoneinfo/Asia/Shanghai'
+            -c 'test -e /usr/share/zoneinfo/Asia/Shanghai && test -x /usr/local/bin/go-migrate'
 
       - name: Build and push Web
         if: ${{ inputs.deploy_mode == 'build_and_deploy' }}
