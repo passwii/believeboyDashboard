@@ -40,7 +40,10 @@ test('VPS compose runs the application stack on host networking without absorbin
   assert.match(compose, /believeboy-dashboard-go-api/)
   assert.match(compose, /believeboy-dashboard-web/)
   assert.match(compose, /\.\/go\.env/)
-  assert.match(compose, /8200\/api\/v1\/health\/live/)
+  // 2026-11-10：容器健康检查改为 DB 感知的 readiness；live 探针不查库，
+  // 曾导致 Go 网关 DB 全挂而容器仍显示 healthy。
+  assert.match(compose, /8100\/api\/v1\/health\/ready/)
+  assert.match(compose, /8200\/api\/v1\/health\/ready/)
 })
 
 test('API images contain the required production runtimes', async () => {
@@ -53,6 +56,19 @@ test('API images contain the required production runtimes', async () => {
   assert.match(goDockerfile, /CGO_ENABLED=0/)
   assert.match(goDockerfile, /USER 10001:10001/)
   assert.match(goDockerfile, /EXPOSE 8200/)
+  // 2026-11-10：alpine runtime 必须带 tzdata，否则 pgx AfterConnect 的
+  // time.LoadLocation 失败，所有 DB 路由 500（/health/live 仍绿）。
+  assert.match(goDockerfile, /apk add --no-cache ca-certificates tzdata/)
+})
+
+test('Go binaries embed their required timezone data', async () => {
+  const tzcheck = await read('backend-go/internal/tzcheck/tzcheck.go')
+  const gateway = await read('backend-go/cmd/gateway/main.go')
+  const worker = await read('backend-go/cmd/worker/main.go')
+  assert.match(tzcheck, /_ "time\/tzdata"/)
+  assert.match(tzcheck, /Asia\/Shanghai/)
+  assert.match(gateway, /tzcheck\.Ensure\(\)/)
+  assert.match(worker, /tzcheck\.Ensure\(\)/)
 })
 
 test('dashboard deployment workflow is manual-only and publishes all three images', async () => {
@@ -93,12 +109,22 @@ test('remote deploy keeps the SSH script stream out of Compose run', async () =>
   assert.match(localDeploy, /\.deploy\.lock/)
   assert.match(localDeploy, /TMP_DIR\/web\.env/)
   assert.match(localDeploy, /TMP_DIR\/go\.env/)
+  // 2026-11-10：部署门禁改为 DB 感知，且启用接管时要做 owned-route 冒烟。
+  assert.match(script, /\/api\/v1\/health\/ready/)
+  assert.match(script, /verify_owned_routes/)
+  assert.match(script, /GO_API_OWNED_MODULES/)
+  assert.match(script, /GO_API_INTERNAL_URL/)
+  assert.match(workflow, /health\/ready/)
 })
 
 test('server-side backend calls prefer loopback while browser metadata stays public', async () => {
   const envExample = await read('deploy/web.env.example')
+  const goEnvExample = await read('deploy/go.env.example')
   const backendApi = await read('frontend/lib/server/backend-api.ts')
-  assert.match(envExample, /^BACKEND_INTERNAL_URL=http:\/\/127\.0\.0\.1:8200$/m)
+  // 2026-11-10：默认直连 FastAPI；Go 接管改为显式 opt-in（go.env 的
+  // GO_API_OWNED 非空时才允许 Web 指向 8200）。
+  assert.match(envExample, /^BACKEND_INTERNAL_URL=http:\/\/127\.0\.0\.1:8100$/m)
+  assert.match(goEnvExample, /^GO_API_OWNED=$/m)
   assert.match(envExample, /^BACKEND_PUBLIC_API_BASE_URL=https:\/\/dash-api\.believeboy\.com$/m)
   assert.match(backendApi, /process\.env\.BACKEND_INTERNAL_URL/)
   assert.match(backendApi, /process\.env\.BACKEND_PUBLIC_API_BASE_URL/)
