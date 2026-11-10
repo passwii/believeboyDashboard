@@ -13,6 +13,23 @@ import (
 	"github.com/passwii/believeboyDashboard/backend-go/internal/config"
 )
 
+// CoreModuleNames lists the modules implemented directly in this package's
+// switch block rather than by a ModuleRegistrar. Keep this in sync with
+// registerOwnedRoutes below; cmd/gateway's all-modules test compares it against
+// config.AllModules and the registrar set.
+func CoreModuleNames() []string {
+	return []string{
+		"alerts",
+		"alerts_write",
+		"exchange_rates",
+		"exchange_rates_write",
+		"health",
+		"notifications",
+		"notifications_write",
+		"profile",
+	}
+}
+
 // ModuleRegistrar defines the contract for a self-registering domain module.
 type ModuleRegistrar interface {
 	ModuleName() string

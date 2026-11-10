@@ -551,6 +551,44 @@ func TestLoadRejectsInvalidAIChatSettings(t *testing.T) {
 	}
 }
 
+func TestLoadExpandsAllOwnedModules(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("GO_API_OWNED", "all")
+
+	got, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if len(got.OwnedModules) != len(AllModules) {
+		t.Fatalf("OwnedModules = %d, want %d", len(got.OwnedModules), len(AllModules))
+	}
+	for _, module := range AllModules {
+		if !got.OwnedModules[module] {
+			t.Errorf("OwnedModules[%q] = false, want true", module)
+		}
+	}
+}
+
+func TestLoadRejectsUnknownOwnedModule(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("GO_API_OWNED", "health,typo_module")
+
+	_, err := Load()
+	if err == nil || !strings.Contains(err.Error(), "typo_module") {
+		t.Fatalf("Load() error = %v, want unknown module error", err)
+	}
+}
+
+func TestLoadRejectsAllCombinedWithModules(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("GO_API_OWNED", "all,crm")
+
+	_, err := Load()
+	if err == nil || !strings.Contains(err.Error(), "all") {
+		t.Fatalf("Load() error = %v, want all-combination error", err)
+	}
+}
+
 func setRequiredEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv("API_KEY", "test-api-key")
