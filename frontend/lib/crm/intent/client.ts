@@ -20,10 +20,16 @@ import type {
   IntentMetaRevs,
   IntentPoolPage,
   IntentPoolParams,
+  IntentProfileInput,
   IntentRequestOptions,
   IntentScope,
   IntentWriteOptions,
 } from './types'
+
+/** 详情读取：可带当前 scope（sea 记录对非管理员也可读，P0-1）。 */
+export type IntentCompanyDetailOptions = IntentRequestOptions & {
+  scope?: IntentScope
+}
 
 export interface IntentClient {
   /** GET /meta：批次/统计/facets/rev；revs 相同返回 changed:false。 */
@@ -39,8 +45,8 @@ export interface IntentClient {
     options?: IntentRequestOptions
   ): Promise<IntentCompanyPage>
 
-  /** GET /companies/{id}：详情（含 phones/followup/shared_phones）。 */
-  getCompany(id: number, options?: IntentRequestOptions): Promise<IntentCompanyDetail>
+  /** GET /companies/{id}?scope=：详情（含 phones/followup/shared_phones）。 */
+  getCompany(id: number, options?: IntentCompanyDetailOptions): Promise<IntentCompanyDetail>
 
   /** PATCH /companies/{id}/followup：写跟进，带 If-Match version（409 冲突由调用方处理）。 */
   updateFollowup(
@@ -68,6 +74,13 @@ export interface IntentClient {
   deletePhone(
     id: number,
     phoneId: number,
+    options?: IntentWriteOptions
+  ): Promise<IntentCompanyDetail>
+
+  /** PATCH /companies/{id}/profile：人工编辑资料（写人工锁）；BE 返回整条 Company。 */
+  updateProfile(
+    id: number,
+    input: IntentProfileInput,
     options?: IntentWriteOptions
   ): Promise<IntentCompanyDetail>
 

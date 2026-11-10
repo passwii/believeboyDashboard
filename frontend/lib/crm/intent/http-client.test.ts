@@ -89,6 +89,17 @@ describe('HttpIntentClient 列表与 meta', () => {
   })
 })
 
+describe('HttpIntentClient 详情 scope', () => {
+  it('getCompany 透传 ?scope=（P0-1：非管理员读 sea 记录）', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ id: 42, name: '岚川', followup: { state: 'none', version: 1 } })
+    )
+    const detail = await client.getCompany(42, { scope: 'sea' })
+    expect(String(fetchMock.mock.calls[0][0])).toBe(`${BASE}/companies/42?scope=sea`)
+    expect(detail.name).toBe('岚川')
+  })
+})
+
 describe('HttpIntentClient 写路径', () => {
   it('updateFollowup 发送 PATCH + If-Match + snake_case body', async () => {
     fetchMock.mockResolvedValue(
@@ -115,10 +126,10 @@ describe('HttpIntentClient 写路径', () => {
     expect(followup.stateLabel).toBe('已报价')
   })
 
-  it('version 为 0 时不发 If-Match（缺版本兜底）', async () => {
+  it('version=0 也发送 If-Match: 0（P2-17：并发首写必须可检测）', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ state: 'contacted', version: 1 }))
     await client.updateFollowup(7, { state: 'contacted' }, 0)
-    expect(fetchMock.mock.calls[0][1].headers?.['If-Match']).toBeUndefined()
+    expect(fetchMock.mock.calls[0][1].headers?.['If-Match']).toBe('0')
   })
 
   it('409 INTENT_VERSION_CONFLICT 抛 ApiError，并能取出服务端 current', async () => {
@@ -210,6 +221,37 @@ describe('HttpIntentClient 写路径', () => {
     const converted = await client.convertCompany(42)
     expect(converted).toMatchObject({ companyId: 42, customerId: 88, dataRev: 32 })
     expect(converted.company?.name).toBe('宁波岚川')
+  })
+})
+
+describe('HttpIntentClient 资料编辑', () => {
+  it('updateProfile PATCH /profile 发送 snake_case 字段并映射 Company', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ id: 42, name: '岚川', legal_person: '王五', followup: { state: 'none', version: 1 } })
+    )
+    const updated = await client.updateProfile(42, {
+      creditCode: null, legalPerson: '王五', province: '浙江', city: '宁波',
+      foundedYear: 2012, registeredCapitalWan: 300, products: '懒人沙发',
+      category: '家居用品', channel: '展会', channels: ['展会', '官网'], channelSource: 'batch.csv',
+      trademarks: [], trademarkCount: 0, intentLevel: 'B', intentScore: 70,
+      intentBasis: null, amazonFit: null, walmartFit: null, sources: [],
+      risks: null, screenedAt: '2026-11-09', phoneNote: null,
+    })
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(String(url)).toBe(`${BASE}/companies/42/profile`)
+    expect(init?.method).toBe('PATCH')
+    const body = JSON.parse(String(init?.body))
+    expect(body).toMatchObject({
+      legal_person: '王五',
+      founded_year: 2012,
+      intent_level: 'B',
+      channel: '展会',
+      channels: ['展会', '官网'],
+      channel_source: 'batch.csv',
+      screened_at: '2026-11-09',
+    })
+    expect(updated.legalPerson).toBe('王五')
   })
 })
 

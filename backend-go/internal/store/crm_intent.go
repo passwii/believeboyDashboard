@@ -76,6 +76,9 @@ func scopeCondition(builder *argsBuilder, alias string, scope crm_intent.Scope) 
 		builder.add(alias + ".owner_id = " + builder.arg(scope.UserID))
 	case crm_intent.ScopeSea:
 		builder.add(alias + ".owner_id is null")
+	case crm_intent.ScopeVisible:
+		builder.add("(" + alias + ".owner_id = " + builder.arg(scope.UserID) +
+			" or " + alias + ".owner_id is null)")
 	}
 }
 
@@ -347,6 +350,15 @@ func (s *CRMIntentStore) GetRevisions(ctx context.Context) (int64, int64, error)
 	return dataRev, followupRev, nil
 }
 
+// LatestBatchDate returns the most recent batch's date (YYYY-MM-DD).
+func (s *CRMIntentStore) LatestBatchDate(ctx context.Context) (*string, error) {
+	brief, err := s.latestBatchBrief(ctx)
+	if err != nil || brief == nil {
+		return nil, err
+	}
+	return brief.BatchDate, nil
+}
+
 func (s *CRMIntentStore) latestBatchBrief(ctx context.Context) (*crm_intent.BatchBrief, error) {
 	var (
 		brief     crm_intent.BatchBrief
@@ -497,6 +509,14 @@ func (s *CRMIntentStore) facets(
 	channelBuilder := &argsBuilder{}
 	scopeCondition(channelBuilder, "c", scope)
 	companyCondition := andWhere(channelBuilder)
+	poolBuilder := &argsBuilder{}
+	facetPoolScopeCondition(poolBuilder, scope)
+	poolCondition := andWhere(poolBuilder)
+	if len(poolBuilder.args) > 0 {
+		offset := len(channelBuilder.args)
+		poolCondition = renumberPlaceholders(poolCondition, offset)
+		channelBuilder.args = append(channelBuilder.args, poolBuilder.args...)
+	}
 	channelQuery := `select value from (
 		select c.channel as value from public.crm_intent_companies c
 			where c.channel is not null and c.channel <> ''` + companyCondition + `
@@ -506,10 +526,11 @@ func (s *CRMIntentStore) facets(
 			where true` + companyCondition + `
 		union all
 		select pl.channel from public.crm_intent_pool pl
-			where pl.channel is not null and pl.channel <> ''
+			where pl.channel is not null and pl.channel <> ''` + poolCondition + `
 		union all
 		select pch.value from public.crm_intent_pool pl
 			cross join lateral json_array_elements_text(pl.channels::json) as pch(value)
+			where true` + poolCondition + `
 	) merged group by value order by count(*) desc, value asc`
 	rows, err = db.Query(ctx, channelQuery, channelBuilder.args...)
 	if err != nil {
@@ -520,6 +541,20 @@ func (s *CRMIntentStore) facets(
 		return facets, err
 	}
 	return facets, nil
+}
+
+// facetPoolScopeCondition scopes the pool branch of the channel facet: pool
+// rows have no owner, so scope=mine follows the screened company owner and
+// scope=sea only contributes still-pending pool rows.
+func facetPoolScopeCondition(builder *argsBuilder, scope crm_intent.Scope) {
+	switch scope.Name {
+	case crm_intent.ScopeMine:
+		builder.add(`exists (select 1 from public.crm_intent_companies pc
+			where pc.id = pl.screened_company_id and pc.owner_id = ` +
+			builder.arg(scope.UserID) + `)`)
+	case crm_intent.ScopeSea:
+		builder.add("pl.status = 'pending'")
+	}
 }
 
 func scanStringRows(rows Rows) ([]string, error) {
@@ -647,7 +682,10 @@ func applyCompanyFilters(builder *argsBuilder, filter crm_intent.CompanyFilter) 
 		builder.add(`(c.name ilike ` + builder.arg(pattern) +
 			` or c.credit_code ilike ` + builder.arg(pattern) +
 			` or c.legal_person ilike ` + builder.arg(pattern) +
-			` or c.products ilike ` + builder.arg(pattern) + `)`)
+			` or c.products ilike ` + builder.arg(pattern) +
+			` or exists (select 1 from public.crm_intent_phones p
+				where p.company_id = c.id and (p.phone_raw ilike ` + builder.arg(pattern) +
+			` or p.phone_normalized ilike ` + builder.arg(pattern) + `)))`)
 	}
 	if filter.Level != nil {
 		builder.add("c.intent_level = " + builder.arg(*filter.Level))
@@ -683,18 +721,7 @@ func applyCompanyFilters(builder *argsBuilder, filter crm_intent.CompanyFilter) 
 		}
 	}
 	if filter.Dup != nil && *filter.Dup {
-		dupScope := &argsBuilder{}
-		scopeCondition(dupScope, "c2", filter.Scope)
-		dupCondition := `exists (select 1 from public.crm_intent_phones p
-			join public.crm_intent_companies c2 on c2.id = p.company_id
-			where p.company_id = c.id` + strings.Replace(dupScope.where(), " where ", " and ", 1) + `
-			group by p.phone_normalized having count(distinct p.company_id) >= 2)`
-		if len(dupScope.args) > 0 {
-			offset := len(builder.args)
-			builder.args = append(builder.args, dupScope.args...)
-			dupCondition = renumberPlaceholders(dupCondition, offset)
-		}
-		builder.add(dupCondition)
+		builder.add(dupFilterCondition(builder, filter.Scope))
 	}
 	if filter.Due != nil && *filter.Due {
 		builder.add(`exists (select 1 from public.crm_intent_followups f
@@ -728,6 +755,40 @@ func renumberPlaceholders(condition string, offset int) string {
 		builder.WriteByte(character)
 	}
 	return builder.String()
+}
+
+// dupFilterCondition selects companies whose phone number is shared by at
+// least two companies inside the current scope. The inner GROUP BY must run
+// over all scoped companies (not the outer row), otherwise the HAVING clause
+// can never reach 2.
+func dupFilterCondition(builder *argsBuilder, scope crm_intent.Scope) string {
+	return dupFilterConditionForTables(
+		builder, scope, "public.crm_intent_phones", "public.crm_intent_companies",
+	)
+}
+
+func dupFilterConditionForTables(
+	builder *argsBuilder,
+	scope crm_intent.Scope,
+	phonesTable string,
+	companiesTable string,
+) string {
+	otherScope := &argsBuilder{}
+	scopeCondition(otherScope, "c2", scope)
+	condition := `exists (select 1 from ` + phonesTable + ` p
+		where p.company_id = c.id and p.phone_normalized in (
+			select p2.phone_normalized
+			from ` + phonesTable + ` p2
+			join ` + companiesTable + ` c2 on c2.id = p2.company_id` +
+		strings.Replace(otherScope.where(), " where ", " and ", 1) + `
+			group by p2.phone_normalized
+			having count(distinct p2.company_id) >= 2))`
+	if len(otherScope.args) > 0 {
+		offset := len(builder.args)
+		builder.args = append(builder.args, otherScope.args...)
+		condition = renumberPlaceholders(condition, offset)
+	}
+	return condition
 }
 
 func companyOrderBy(sort string) string {
@@ -961,7 +1022,10 @@ func applyPoolFilters(builder *argsBuilder, filter crm_intent.PoolFilter) {
 	if filter.Query != nil {
 		pattern := "%" + *filter.Query + "%"
 		builder.add(`(pl.name ilike ` + builder.arg(pattern) +
-			` or pl.legal_person ilike ` + builder.arg(pattern) + `)`)
+			` or pl.legal_person ilike ` + builder.arg(pattern) +
+			` or exists (select 1 from public.crm_intent_phones p
+				where p.pool_id = pl.id and (p.phone_raw ilike ` + builder.arg(pattern) +
+			` or p.phone_normalized ilike ` + builder.arg(pattern) + `)))`)
 	}
 	if filter.Status != nil {
 		builder.add("pl.status = " + builder.arg(*filter.Status))

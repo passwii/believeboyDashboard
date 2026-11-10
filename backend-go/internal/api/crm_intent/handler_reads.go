@@ -145,7 +145,7 @@ func (handler *Handler) GetCompany(w http.ResponseWriter, r *http.Request) {
 		writeUserError(w, err)
 		return
 	}
-	scope, err := requestScope(r, actor)
+	scope, err := resolveDetailScope(r, actor)
 	if err != nil {
 		writeUserError(w, err)
 		return

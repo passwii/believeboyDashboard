@@ -90,6 +90,7 @@ func (handler *Handler) executeIngest(
 		return IngestResult{}, r2UnavailableError()
 	}
 	if err := handler.store.AttachBatchArchive(ctx, batchID, key, sha256Hex(payload.Raw)); err != nil {
+		_ = handler.blobs.TryDelete(ctx, key)
 		_ = handler.store.FailBatch(ctx, batchID, "archive attach failed")
 		return IngestResult{}, internalError()
 	}

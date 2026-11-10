@@ -45,6 +45,7 @@ import {
   type IntentFollowupInput,
   type IntentMeta,
   type IntentPoolPage,
+  type IntentProfileInput,
 } from '@/lib/crm/intent/types'
 
 import IntentWorkbench from './_components/intent-workbench'
@@ -113,7 +114,9 @@ function companyFixture(overrides: Partial<IntentCompany> & { id: number; name: 
     registeredCapitalWan: 300,
     products: '懒人沙发、收纳箱',
     category: '家居用品',
+    channel: null,
     channels: [],
+    channelSource: null,
     trademarks: [],
     trademarkCount: 0,
     intentLevel: 'A',
@@ -193,6 +196,27 @@ function createClient(overrides: Partial<IntentClient> = {}): IntentClient {
       pageSize: 50,
     })),
     getCompany: vi.fn(async () => DETAIL),
+    updateProfile: vi.fn(
+      async (_id: number, input: IntentProfileInput) =>
+        ({
+          ...DETAIL,
+          creditCode: input.creditCode,
+          legalPerson: input.legalPerson,
+          province: input.province,
+          city: input.city,
+          products: input.products,
+          category: input.category,
+          channel: input.channel,
+          channels: input.channels,
+          channelSource: input.channelSource,
+          trademarks: input.trademarks,
+          intentLevel: input.intentLevel,
+          intentScore: input.intentScore,
+          sources: input.sources,
+          risks: input.risks,
+          screenedAt: input.screenedAt,
+        }),
+    ),
     updateFollowup: vi.fn(
       async (_id: number, input: IntentFollowupInput, version: number) =>
         followupFixture({
@@ -479,6 +503,113 @@ describe('意向客户工作台', () => {
 
     await waitFor(() => expect(client.convertCompany).toHaveBeenCalledWith(1))
     await waitFor(() => expect(screen.getAllByText('已转客户').length).toBeGreaterThan(0))
+  })
+
+  it('P0-1：待领取（scope=sea）详情带 scope 请求并可领取', async () => {
+    nav.params = new URLSearchParams('scope=sea&record=1')
+    const client = createClient({
+      getCompany: vi.fn(async () => ({ ...DETAIL, owner: null, humanTouched: false })),
+    })
+    renderPage(client)
+
+    await screen.findByText('统一社会信用代码')
+    expect(client.getCompany).toHaveBeenCalledWith(1, expect.objectContaining({ scope: 'sea' }))
+    expect(screen.getByText(/筛于 2026-11-09 · 批次 2026-11-10/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '领取' }))
+    await waitFor(() => expect(client.claimCompany).toHaveBeenCalledWith(1))
+  })
+
+  it('P1-2：编辑资料提交 PATCH profile 字段并整体替换详情', async () => {
+    nav.params = new URLSearchParams('record=1')
+    const client = createClient()
+    renderPage(client)
+
+    await screen.findByText('统一社会信用代码')
+    fireEvent.click(screen.getByRole('button', { name: '编辑资料' }))
+    expect(screen.getByLabelText('统一社会信用代码')).toHaveValue('')
+
+    fireEvent.change(screen.getByLabelText('法人'), { target: { value: '王五' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '省份' }), { target: { value: '江苏' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '渠道' }), { target: { value: '展会' } })
+    fireEvent.change(screen.getByRole('textbox', { name: '渠道明细' }), {
+      target: { value: '展会、官网' },
+    })
+    fireEvent.change(screen.getByRole('textbox', { name: '渠道来源' }), {
+      target: { value: 'batch-2026-11-10.csv' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: '保存资料' }))
+
+    await waitFor(() =>
+      expect(client.updateProfile).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({
+          legalPerson: '王五',
+          province: '江苏',
+          intentLevel: 'A',
+          channel: '展会',
+          channels: ['展会', '官网'],
+          channelSource: 'batch-2026-11-10.csv',
+        })
+      )
+    )
+    await waitFor(() => expect(screen.getByText('王五')).toBeInTheDocument())
+    expect(screen.getByText('展会 / 官网')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '保存资料' })).not.toBeInTheDocument()
+  })
+
+  it('P1-7：溢出计数渲染为 +N（不出现 +$）', async () => {
+    const many = companyFixture({
+      id: 3,
+      name: '多产品企业',
+      products: '甲、乙、丙、丁、戊、己',
+      channels: ['展会', '官网'],
+    })
+    const client = createClient({
+      listCompanies: vi.fn(async () => ({ items: [many], total: 1, page: 1, pageSize: 50 })),
+      getPool: vi.fn(async () => ({
+        ...POOL,
+        items: [
+          {
+            ...POOL.items[0],
+            phones: [
+              { id: 2, raw: '13900000001', normalized: '13900000001', source: 'list' as const, isValid: false },
+              { id: 3, raw: '13900000002', normalized: '13900000002', source: 'list' as const, isValid: false },
+            ],
+            channels: ['展会', '官网'],
+            channel: '展会',
+          },
+        ],
+      })),
+    })
+    const { container } = renderPage(client)
+
+    await screen.findByText('多产品企业')
+    expect(screen.getByText('+2')).toBeInTheDocument()
+    expect(container.textContent).not.toContain('+$')
+
+    fireEvent.click(within(screen.getByRole('group', { name: '列表视图' })).getByText('表格'))
+    await waitFor(() => expect(screen.getByText('+1')).toBeInTheDocument())
+
+    const tabs = screen.getByRole('group', { name: '视图页签' })
+    fireEvent.click(within(tabs).getByText('待筛池 80'))
+    await screen.findByText('池企业甲')
+    await waitFor(() => expect(screen.getAllByText('+1').length).toBeGreaterThanOrEqual(2))
+  })
+
+  it('P2-9：已联系指标按 state=contacted 联动筛选', async () => {
+    const client = createClient()
+    renderPage(client)
+    await screen.findByText('宁波岚川家居用品有限公司')
+
+    fireEvent.click(screen.getByRole('button', { name: /已联系/ }))
+    await waitFor(() =>
+      expect(client.listCompanies).toHaveBeenLastCalledWith(
+        expect.objectContaining({ state: 'contacted', page: 1 }),
+        expect.anything()
+      )
+    )
+    expect(nav.replaced.at(-1)).toContain('state=contacted')
   })
 
   it('导出 CSV 使用服务端文件名触发下载', async () => {

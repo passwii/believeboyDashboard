@@ -356,6 +356,7 @@ function IntentWorkbenchContent() {
       <IntentRecordDrawer
         companyId={state.record}
         open={state.record !== null}
+        scope={state.scope}
         onClose={() => openRecord(null)}
         onFollowupChanged={() => setRefreshSeq((value) => value + 1)}
         onRefreshRequested={handleRefreshRequested}

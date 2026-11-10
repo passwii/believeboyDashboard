@@ -8,6 +8,33 @@ import { CrmFormCreate } from './index'
  * 之前该验收点只有 schema 层断言，UI 渲染层未覆盖 → 此用例补齐。
  */
 describe('CrmFormCreate 来源下拉', () => {
+  it('编辑转出客户：来源下拉含「客户雷达」，初始化 customer_radar 可直接保存', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    render(
+      <CrmFormCreate
+        users={[]}
+        initialValues={{
+          name: '宁波岚川家居用品有限公司',
+          rating: 'A',
+          status: 'active',
+          source: 'customer_radar',
+          ownerId: null,
+        }}
+        onSubmit={onSubmit}
+      />
+    )
+
+    const trigger = screen.getByRole('combobox', { name: /来源/ })
+    await user.click(trigger)
+    expect(await screen.findByRole('option', { name: '客户雷达' })).toBeTruthy()
+    await user.click(screen.getByRole('option', { name: '客户雷达' }))
+
+    await user.click(screen.getByRole('button', { name: /保存/ }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled())
+    expect(onSubmit.mock.calls[0][0].source).toBe('customer_radar')
+  })
+
   it('下拉里出现「自主开发」，且可选中并提交 self_developed', async () => {
     const user = userEvent.setup()
     const onSubmit = vi.fn()

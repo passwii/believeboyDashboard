@@ -1,10 +1,6 @@
 'use client'
 
-import {
-  INTENT_LEVEL_DESCRIPTIONS,
-  INTENT_LEVEL_ORDER,
-  type IntentCompany,
-} from '@/lib/crm/intent/types'
+import { INTENT_LEVEL_ORDER, type IntentCompany } from '@/lib/crm/intent/types'
 import {
   bestPhone,
   dueInfo,
@@ -73,7 +69,7 @@ function IntentCardItem({ company, onOpen }: IntentCardProps) {
                 {product}
               </span>
             ))}
-            {overflowProducts > 0 ? <span className={styles.chipMore}>+${overflowProducts}</span> : null}
+            {overflowProducts > 0 ? <span className={styles.chipMore}>+{overflowProducts}</span> : null}
           </>
         ) : (
           <span className={styles.cardMuted}>主营产品待补</span>
@@ -127,7 +123,6 @@ export function IntentCardGrid({ companies, group, onOpen }: IntentCardGridProps
           <section className={styles.cardGroup} key={level}>
             <header className={styles.cardGroupHeader}>
               <IntentLevelBadge level={level} />
-              <span className={styles.cardGroupDescription}>{INTENT_LEVEL_DESCRIPTIONS[level]}</span>
               <span className={styles.cardGroupCount}>{groupItems.length} 家</span>
             </header>
             <div className={styles.cardGrid}>

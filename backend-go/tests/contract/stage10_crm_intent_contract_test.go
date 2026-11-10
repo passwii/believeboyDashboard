@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -51,6 +52,9 @@ type stage10Store struct {
 	batchCreates    []crm_intent.BatchCreate
 	idempotency     map[string]*stage10Idempotency
 	blobWrites      int
+	attachError     bool
+	lastDetailScope crm_intent.Scope
+	listScopes      []crm_intent.CompanyFilter
 }
 
 func newStage10Store() *stage10Store {
@@ -112,7 +116,10 @@ func (store *stage10Store) GetBoard(context.Context, crm_intent.Scope) ([]crm_in
 	return []crm_intent.BoardColumn{}, nil
 }
 
-func (store *stage10Store) ListCompanies(context.Context, crm_intent.CompanyFilter) (crm_intent.Paginated[crm_intent.Company], error) {
+func (store *stage10Store) ListCompanies(_ context.Context, filter crm_intent.CompanyFilter) (crm_intent.Paginated[crm_intent.Company], error) {
+	store.mu.Lock()
+	store.listScopes = append(store.listScopes, filter)
+	store.mu.Unlock()
 	return crm_intent.Paginated[crm_intent.Company]{
 		Items: []crm_intent.Company{*store.company}, Total: 1, Page: 1, PageSize: 24,
 	}, nil
@@ -122,7 +129,10 @@ func (store *stage10Store) ListCompaniesForExport(context.Context, crm_intent.Co
 	return []crm_intent.Company{*store.company}, nil
 }
 
-func (store *stage10Store) GetCompany(context.Context, int64, crm_intent.Scope) (*crm_intent.Company, error) {
+func (store *stage10Store) GetCompany(_ context.Context, _ int64, scope crm_intent.Scope) (*crm_intent.Company, error) {
+	store.mu.Lock()
+	store.lastDetailScope = scope
+	store.mu.Unlock()
 	return store.company, nil
 }
 
@@ -174,6 +184,11 @@ func (store *stage10Store) ListPool(context.Context, crm_intent.PoolFilter) (crm
 	}, nil
 }
 
+func (store *stage10Store) LatestBatchDate(context.Context) (*string, error) {
+	value := "2026-11-10"
+	return &value, nil
+}
+
 func (store *stage10Store) ListBatches(context.Context, int, int) (crm_intent.Paginated[crm_intent.Batch], error) {
 	return crm_intent.Paginated[crm_intent.Batch]{
 		Items: []crm_intent.Batch{}, Total: 0, Page: 1, PageSize: 20,
@@ -204,6 +219,9 @@ func (store *stage10Store) CreateBatch(_ context.Context, input crm_intent.Batch
 }
 
 func (store *stage10Store) AttachBatchArchive(context.Context, int64, string, string) error {
+	if store.attachError {
+		return errors.New("archive attach failed")
+	}
 	return nil
 }
 
@@ -640,6 +658,107 @@ func TestStage10CrmIntentExportCSV(t *testing.T) {
 	if store.exported != 1 || store.exportRows != 1 {
 		t.Fatalf("export audit = %d rows %d", store.exported, store.exportRows)
 	}
+	disposition := recorder.Header().Get("Content-Disposition")
+	if !strings.Contains(disposition, "20261110") {
+		t.Fatalf("export filename should use batch date, got %q", disposition)
+	}
+}
+
+func TestStage10CrmIntentSeaVisibilityAndClaim(t *testing.T) {
+	store := newStage10Store()
+	router := stage10Router(store, &stage10BlobStore{})
+
+	// Non-admin sea list keeps scope=sea (list visibility was already correct).
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, stage10UserRequest(http.MethodGet,
+		"/api/v1/crm/intent/companies?scope=sea", "", "user-2", false))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("sea list status = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	store.mu.Lock()
+	lastFilter := store.listScopes[len(store.listScopes)-1]
+	store.mu.Unlock()
+	if lastFilter.Scope.Name != crm_intent.ScopeSea || lastFilter.Scope.UserID != "user-2" {
+		t.Fatalf("sea list scope = %+v", lastFilter.Scope)
+	}
+
+	// Detail without scope: non-admin sees own + sea records, not only mine.
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, stage10UserRequest(http.MethodGet,
+		"/api/v1/crm/intent/companies/42", "", "user-2", false))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("detail status = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	store.mu.Lock()
+	detailScope := store.lastDetailScope
+	store.mu.Unlock()
+	if detailScope.Name != crm_intent.ScopeVisible || detailScope.UserID != "user-2" {
+		t.Fatalf("default detail scope = %+v, want visible", detailScope)
+	}
+
+	// Explicit scope=sea is honoured for the drawer fetch.
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, stage10UserRequest(http.MethodGet,
+		"/api/v1/crm/intent/companies/42?scope=sea", "", "user-2", false))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("sea detail status = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	store.mu.Lock()
+	detailScope = store.lastDetailScope
+	store.mu.Unlock()
+	if detailScope.Name != crm_intent.ScopeSea {
+		t.Fatalf("explicit detail scope = %+v", detailScope)
+	}
+
+	// Explicit scope=mine is honoured.
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, stage10UserRequest(http.MethodGet,
+		"/api/v1/crm/intent/companies/42?scope=mine", "", "user-2", false))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("mine detail status = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	store.mu.Lock()
+	detailScope = store.lastDetailScope
+	store.mu.Unlock()
+	if detailScope.Name != crm_intent.ScopeMine {
+		t.Fatalf("explicit mine detail scope = %+v", detailScope)
+	}
+
+	// Non-admin scope=all falls back to own+sea visibility instead of 404.
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, stage10UserRequest(http.MethodGet,
+		"/api/v1/crm/intent/companies/42?scope=all", "", "user-2", false))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("non-admin all detail status = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	store.mu.Lock()
+	detailScope = store.lastDetailScope
+	store.mu.Unlock()
+	if detailScope.Name != crm_intent.ScopeVisible {
+		t.Fatalf("non-admin all detail scope = %+v", detailScope)
+	}
+
+	// Admin without scope still sees everything.
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, stage10UserRequest(http.MethodGet,
+		"/api/v1/crm/intent/companies/42", "", "admin-1", true))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("admin detail status = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	store.mu.Lock()
+	detailScope = store.lastDetailScope
+	store.mu.Unlock()
+	if detailScope.Name != crm_intent.ScopeAll || !detailScope.IsAdmin {
+		t.Fatalf("admin detail scope = %+v", detailScope)
+	}
+
+	// Claim remains reachable for the sea -> mine flow.
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, stage10UserRequest(http.MethodPost,
+		"/api/v1/crm/intent/companies/42/claim", "", "user-2", false))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("claim status = %d: %s", recorder.Code, recorder.Body.String())
+	}
 }
 
 func TestStage10CrmIntentAgentAuthAndScope(t *testing.T) {
@@ -875,6 +994,33 @@ func TestStage10CrmIntentAgentBatchR2Unavailable(t *testing.T) {
 	}
 	if detail := decodeStage10Detail(t, recorder); detail["code"] != "INTENT_R2_UNAVAILABLE" {
 		t.Fatalf("code = %v", detail["code"])
+	}
+}
+
+func TestStage10CrmIntentR2AttachFailureCleansObject(t *testing.T) {
+	store := newStage10Store()
+	store.attachError = true
+	blobs := &stage10BlobStore{}
+	router := stage10Router(store, blobs)
+	body := `{"batch":{"batch_date":"2026-11-10"},"companies":[{"name":"企业甲"}]}`
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, stage10AgentRequest(
+		http.MethodPost, "/api/v1/agent/crm-intent/batches", body,
+		stage10AgentToken, stage10AgentID, "idem-attach-fail"))
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if blobs.puts != 1 {
+		t.Fatalf("R2 puts = %d", blobs.puts)
+	}
+	if blobs.deletes < 1 {
+		t.Fatalf("R2 object should be cleaned up after attach failure, deletes = %d", blobs.deletes)
+	}
+	store.mu.Lock()
+	batchCount := len(store.batchCreates)
+	store.mu.Unlock()
+	if batchCount != 1 {
+		t.Fatalf("batch rows created = %d", batchCount)
 	}
 }
 

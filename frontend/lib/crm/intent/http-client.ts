@@ -19,7 +19,9 @@ import {
   type IntentCompanyPageDto,
   type IntentMetaDto,
 } from './dto-mappers'
+import type { IntentCompanyDetailOptions } from './client'
 import type {
+  IntentCompanyDetail,
   IntentExportFile,
   IntentExportParams,
   IntentFollowup,
@@ -27,6 +29,7 @@ import type {
   IntentListParams,
   IntentMeta,
   IntentMetaRevs,
+  IntentProfileInput,
   IntentRequestOptions,
   IntentScope,
   IntentWriteOptions,
@@ -184,8 +187,13 @@ export class HttpIntentClient implements IntentClient {
     return mapIntentCompanyPage(dto)
   }
 
-  async getCompany(id: number, options?: IntentRequestOptions) {
-    const dto = await request<unknown>(`/companies/${id}`, { signal: options?.signal })
+  async getCompany(id: number, options?: IntentCompanyDetailOptions) {
+    const qs = new URLSearchParams()
+    if (options?.scope) qs.set('scope', options.scope)
+    const query = qs.toString()
+    const dto = await request<unknown>(`/companies/${id}${query ? `?${query}` : ''}`, {
+      signal: options?.signal,
+    })
     return mapIntentCompanyDetail(dto)
   }
 
@@ -195,8 +203,8 @@ export class HttpIntentClient implements IntentClient {
     version: number,
     options?: IntentWriteOptions
   ): Promise<IntentFollowup> {
-    const headers: Record<string, string> = {}
-    if (version > 0) headers['If-Match'] = String(version)
+    // 设计 §4.4：PATCH 必须带 If-Match；version=0（尚无跟进行）也发送，避免并发首写覆盖。
+    const headers: Record<string, string> = { 'If-Match': String(version) }
     const dto = await request<unknown>(
       `/companies/${id}/followup`,
       { method: 'PATCH', headers, body: JSON.stringify(followupBody(input)) },
@@ -241,6 +249,39 @@ export class HttpIntentClient implements IntentClient {
     const dto = await request<unknown>(
       `/companies/${id}/phones/${phoneId}`,
       { method: 'DELETE' },
+      options
+    )
+    return mapIntentCompanyDetail(dto)
+  }
+
+  async updateProfile(id: number, input: IntentProfileInput, options?: IntentWriteOptions) {
+    const body = {
+      credit_code: input.creditCode,
+      legal_person: input.legalPerson,
+      province: input.province,
+      city: input.city,
+      founded_year: input.foundedYear,
+      registered_capital_wan: input.registeredCapitalWan,
+      products: input.products,
+      category: input.category,
+      channel: input.channel,
+      channels: input.channels,
+      channel_source: input.channelSource,
+      trademarks: input.trademarks,
+      trademark_count: input.trademarkCount,
+      intent_level: input.intentLevel,
+      intent_score: input.intentScore,
+      intent_basis: input.intentBasis,
+      amazon_fit: input.amazonFit,
+      walmart_fit: input.walmartFit,
+      sources: input.sources,
+      risks: input.risks,
+      screened_at: input.screenedAt,
+      phone_note: input.phoneNote,
+    }
+    const dto = await request<unknown>(
+      `/companies/${id}/profile`,
+      { method: 'PATCH', body: JSON.stringify(body) },
       options
     )
     return mapIntentCompanyDetail(dto)

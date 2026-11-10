@@ -38,13 +38,6 @@ export const INTENT_LEVEL_LABELS: Record<IntentLevel, string> = {
   D: '暂不匹配',
 }
 
-export const INTENT_LEVEL_DESCRIPTIONS: Record<IntentLevel, string> = {
-  A: '明确跨境 / 代运营采购信号',
-  B: '产品适合零售跨境，暂无采购信号',
-  C: '公开信息不足，待补',
-  D: '形态或渠道不适合零售跨境',
-}
-
 /** 级别只用 Warm 的 accent / neutral 两个 tone + 明确文字（A=accent，其余 neutral）。 */
 export const INTENT_LEVEL_TONES: Record<IntentLevel, 'accent' | 'neutral'> = {
   A: 'accent',
@@ -185,7 +178,9 @@ export interface IntentCompany {
   registeredCapitalWan: number | null
   products: string | null
   category: string | null
+  channel: string | null
   channels: string[]
+  channelSource: string | null
   trademarks: string[]
   trademarkCount: number
   intentLevel: IntentLevel
@@ -347,6 +342,40 @@ export interface IntentFollowupInput {
   lastContactAt?: string | null
   nextContactAt?: string | null
   validPhones?: string[]
+}
+
+/**
+ * PATCH /companies/{id}/profile 的人工资料编辑输入。
+ *
+ * 字段对齐 BE ProfileUpdateInput（credit_code / legal_person / province / city /
+ * founded_year / registered_capital_wan / products / category / trademarks /
+ * trademark_count / intent_level / intent_score / intent_basis / amazon_fit /
+ * walmart_fit / sources / risks / screened_at / phone_note）。
+ * channel / channels / channel_source 已由 BE ProfileUpdateInput 开放人工编辑（写 human_touched）。
+ */
+export interface IntentProfileInput {
+  creditCode: string | null
+  legalPerson: string | null
+  province: string | null
+  city: string | null
+  foundedYear: number | null
+  registeredCapitalWan: number | null
+  products: string | null
+  category: string | null
+  channel: string | null
+  channels: string[]
+  channelSource: string | null
+  trademarks: string[]
+  trademarkCount: number | null
+  intentLevel: IntentLevel
+  intentScore: number | null
+  intentBasis: string | null
+  amazonFit: string | null
+  walmartFit: string | null
+  sources: string[]
+  risks: string | null
+  screenedAt: string | null
+  phoneNote: string | null
 }
 
 /** BE ConvertResult：{company_id, customer_id, company, data_rev}。 */

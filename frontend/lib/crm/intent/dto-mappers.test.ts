@@ -28,6 +28,9 @@ describe('mapIntentCompany', () => {
       registered_capital_wan: '300.00',
       products: '懒人沙发、收纳箱',
       category: '家居用品',
+      channel: '展会',
+      channels: ['展会', '官网'],
+      channel_source: 'batch-2026-11-10.csv',
       trademarks: ['示例商标'],
       trademark_count: 2,
       intent_level: 'A',
@@ -51,6 +54,9 @@ describe('mapIntentCompany', () => {
     expect(company.owner).toEqual({ id: 'u-1', name: '张三' })
     expect(company.humanTouched).toBe(true)
     expect(company.convertedCustomerId).toBe(9)
+    expect(company.channel).toBe('展会')
+    expect(company.channels).toEqual(['展会', '官网'])
+    expect(company.channelSource).toBe('batch-2026-11-10.csv')
   })
 
   it('未知级别归一 D、缺 followup/phones 时给安全默认值', () => {
@@ -263,6 +269,32 @@ describe('mapIntentImportResult', () => {
     expect(result.rows).toHaveLength(2)
     expect(result.rows[0]?.status).toBe('created')
     expect(result.rows[1]?.reason).toBe('缺少 name')
+  })
+})
+
+describe('import rows scope / 去重', () => {
+  it('companies scope 归一为 company，rows 与 rejected 同键只保留一份', () => {
+    const result = mapIntentImportResult({
+      batch_id: 9,
+      created: 1,
+      rejected_count: 1,
+      rows: [
+        { scope: 'companies', index: 2, external_id: 'ext-2', status: 'rejected', reason: '缺少 name' },
+        { scope: 'companies', index: 1, external_id: 'ext-1', status: 'created' },
+      ],
+      rejected: [{ scope: 'companies', index: 2, external_id: 'ext-2', reason: '缺少 name' }],
+    })
+    expect(result.rows).toHaveLength(2)
+    expect(result.rows[0]?.scope).toBe('company')
+    expect(result.rows[0]?.status).toBe('rejected')
+    expect(result.rows[0]?.externalId).toBe('ext-2')
+  })
+
+  it('pool scope 保持不变', () => {
+    const result = mapIntentImportResult({
+      rows: [{ scope: 'pool', index: 3, status: 'created' }],
+    })
+    expect(result.rows[0]?.scope).toBe('pool')
   })
 })
 

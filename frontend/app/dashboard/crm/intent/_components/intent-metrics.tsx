@@ -62,8 +62,13 @@ export function IntentMetrics({ stats, state, patch, resetFilters }: IntentMetri
       />
       <IntentMetricPanel
         label="已联系"
-        active={state.tab === 'board'}
-        onClick={() => patch({ tab: 'board' })}
+        active={state.tab === 'intent' && state.state === 'contacted'}
+        onClick={() =>
+          patch({
+            tab: 'intent',
+            state: state.state === 'contacted' ? null : 'contacted',
+          })
+        }
         value={stats?.contacted ?? null}
       />
       <IntentMetricPanel

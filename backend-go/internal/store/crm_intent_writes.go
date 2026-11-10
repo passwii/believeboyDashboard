@@ -37,6 +37,24 @@ func (s *CRMIntentStore) logOperationBestEffort(ctx context.Context, entry audit
 	_ = s.auditor.LogAction(ctx, entry)
 }
 
+// logAIWriteBlocked records an agent write rejected by the human lock.
+func (s *CRMIntentStore) logAIWriteBlocked(
+	ctx context.Context,
+	tx pgx.Tx,
+	actor crm_intent.Actor,
+	targetType string,
+	targetID int64,
+	extra map[string]any,
+) error {
+	entry := audit.Entry{
+		Action:     "crm_intent.ai_write_blocked",
+		TargetType: targetType, TargetID: auditTarget(targetID),
+		Result: "failure", AfterJSON: extra,
+	}
+	applyAuditActor(&entry, actor)
+	return s.logOperation(ctx, tx, entry)
+}
+
 func applyAuditActor(entry *audit.Entry, actor crm_intent.Actor) {
 	identifier := actor.ID
 	if identifier == "" {
@@ -328,6 +346,12 @@ func buildProfileUpdateSQL(
 		}
 	}
 	if input.RegisteredCapitalWan.Set {
+		if input.RegisteredCapitalWan.Value != nil &&
+			!crm_intent.RegisteredCapitalInRange(*input.RegisteredCapitalWan.Value) {
+			return "", nil, crm_intent.NewValidationError(
+				"registered_capital_wan 超出数值范围（最大 999999999999.99）",
+			)
+		}
 		add("registered_capital_wan", input.RegisteredCapitalWan.Value)
 	}
 	if input.Products.Set {
@@ -335,6 +359,23 @@ func buildProfileUpdateSQL(
 	}
 	if input.Category.Set {
 		addNullable("category", input.Category.Value)
+	}
+	if input.Channel.Set {
+		addNullable("channel", input.Channel.Value)
+	}
+	if input.Channels.Set {
+		values := []string{}
+		if input.Channels.Value != nil {
+			for _, item := range *input.Channels.Value {
+				if trimmed := strings.TrimSpace(item); trimmed != "" {
+					values = append(values, trimmed)
+				}
+			}
+		}
+		add("channels", values)
+	}
+	if input.ChannelSource.Set {
+		addNullable("channel_source", input.ChannelSource.Value)
 	}
 	if input.Trademarks.Set {
 		values := []string{}
@@ -604,13 +645,9 @@ func (s *CRMIntentStore) applyValidPhones(
 	phones []string,
 	actor crm_intent.Actor,
 ) error {
-	normalized := make([]string, 0, len(phones))
-	for _, raw := range phones {
-		value, err := crm_intent.NormalizePhone(raw)
-		if err != nil {
-			return crm_intent.NewValidationError("有效电话格式非法: " + raw)
-		}
-		normalized = append(normalized, value)
+	normalized, err := normalizePhoneList(phones)
+	if err != nil {
+		return err
 	}
 	if len(normalized) > 0 {
 		rows, err := db.Query(ctx, `select phone_normalized from public.crm_intent_phones
@@ -633,7 +670,7 @@ func (s *CRMIntentStore) applyValidPhones(
 	if len(normalized) == 0 {
 		return nil
 	}
-	_, err := db.Exec(ctx, `update public.crm_intent_phones set is_valid = true
+	_, err = db.Exec(ctx, `update public.crm_intent_phones set is_valid = true
 		where company_id = $1 and phone_normalized = any($2)`, companyID, normalized)
 	return err
 }
@@ -871,7 +908,7 @@ func (s *CRMIntentStore) ConvertCompany(
 			value := strings.TrimSpace(*category)
 			industry = &value
 		}
-		ownerID := owner
+		ownerID := effectiveConvertOwner(owner, actor)
 		rating := intentLevel
 		if rating == "" {
 			rating = crm_intent.LevelD
@@ -938,6 +975,37 @@ func (s *CRMIntentStore) ConvertCompany(
 	return &crm_intent.ConvertResult{
 		CompanyID: companyID, CustomerID: customerID, Company: company, DataRev: dataRev,
 	}, nil
+}
+
+// effectiveConvertOwner keeps the existing owner, otherwise assigns the acting
+// user (a sea record converted by a user must not create an unowned customer).
+func effectiveConvertOwner(owner *string, actor crm_intent.Actor) *string {
+	if owner != nil {
+		return owner
+	}
+	trimmed := strings.TrimSpace(actor.ID)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
+// normalizePhoneList normalizes and de-duplicates valid-phone input.
+func normalizePhoneList(values []string) ([]string, error) {
+	normalized := make([]string, 0, len(values))
+	seen := make(map[string]bool, len(values))
+	for _, raw := range values {
+		value, err := crm_intent.NormalizePhone(raw)
+		if err != nil {
+			return nil, crm_intent.NewValidationError("有效电话格式非法: " + raw)
+		}
+		if seen[value] {
+			continue
+		}
+		seen[value] = true
+		normalized = append(normalized, value)
+	}
+	return normalized, nil
 }
 
 func (s *CRMIntentStore) currentDataRev(ctx context.Context) (int64, error) {
@@ -1185,11 +1253,15 @@ func insertCompanyPhones(
 		if err != nil {
 			continue
 		}
+		rawValue := strings.TrimSpace(raw)
+		if len([]rune(rawValue)) > 50 {
+			rawValue = normalized
+		}
 		if _, err := db.Exec(ctx, `insert into public.crm_intent_phones
 			(company_id, phone_raw, phone_normalized, source)
 			values ($1, $2, $3, $4)
 			on conflict (company_id, phone_normalized) where company_id is not null do nothing`,
-			companyID, strings.TrimSpace(raw), normalized, source); err != nil {
+			companyID, rawValue, normalized, source); err != nil {
 			return err
 		}
 	}
@@ -1208,11 +1280,15 @@ func insertPoolPhones(
 		if err != nil {
 			continue
 		}
+		rawValue := strings.TrimSpace(raw)
+		if len([]rune(rawValue)) > 50 {
+			rawValue = normalized
+		}
 		if _, err := db.Exec(ctx, `insert into public.crm_intent_phones
 			(pool_id, phone_raw, phone_normalized, source)
 			values ($1, $2, $3, $4)
 			on conflict (pool_id, phone_normalized) where pool_id is not null do nothing`,
-			poolID, strings.TrimSpace(raw), normalized, source); err != nil {
+			poolID, rawValue, normalized, source); err != nil {
 			return err
 		}
 	}
@@ -1271,18 +1347,19 @@ func (s *CRMIntentStore) upsertCompanyTx(
 		if mode == crm_intent.ModeInsertOnly {
 			return companyID, upsertSkippedExisting, nil
 		}
+		// AI/human ingest never rewrites an existing record's batch attribution
+		// (agent spec: batch_id is not writable by agents).
 		tag, err := db.Exec(ctx, `update public.crm_intent_companies set
-			batch_id = coalesce($2, batch_id),
-			external_id = $3, name = $4, name_key = $5, credit_code = $6,
-			legal_person = $7, province = $8, city = $9, founded_year = $10,
-			registered_capital_wan = $11, products = $12, category = $13,
-			channel = $14, channels = $15, channel_source = $16,
-			trademarks = $17, trademark_count = $18, intent_level = $19,
-			intent_score = $20, intent_basis = $21, amazon_fit = $22,
-			walmart_fit = $23, sources = $24, risks = $25, screened_at = $26,
-			phone_note = $27, updated_at = now()
+			external_id = $2, name = $3, name_key = $4, credit_code = $5,
+			legal_person = $6, province = $7, city = $8, founded_year = $9,
+			registered_capital_wan = $10, products = $11, category = $12,
+			channel = $13, channels = $14, channel_source = $15,
+			trademarks = $16, trademark_count = $17, intent_level = $18,
+			intent_score = $19, intent_basis = $20, amazon_fit = $21,
+			walmart_fit = $22, sources = $23, risks = $24, screened_at = $25,
+			phone_note = $26, updated_at = now()
 			where id = $1 and human_touched_at is null`,
-			companyID, batchID, nullIfEmpty(input.ExternalID), name, nameKey,
+			companyID, nullIfEmpty(input.ExternalID), name, nameKey,
 			nullIfEmpty(input.CreditCode), nullIfEmpty(input.LegalPerson),
 			nullIfEmpty(input.Province), nullIfEmpty(input.City), input.FoundedYear,
 			input.RegisteredCapitalWan, nullIfEmpty(input.Products),
@@ -1359,13 +1436,15 @@ func (s *CRMIntentStore) upsertPoolTx(
 		if len(channels) > 0 {
 			channelsArg = channels
 		}
+		// Batch attribution is set on insert only; re-imports keep the original
+		// batch so agents can never rewrite ownership/attribution.
 		if _, err := db.Exec(ctx, `update public.crm_intent_pool set
-			batch_id = coalesce($2, batch_id), external_id = coalesce($3, external_id),
-			legal_person = coalesce($4, legal_person), website = coalesce($5, website),
-			channel = coalesce($6, channel), channels = coalesce($7, channels),
-			channel_source = coalesce($8, channel_source), updated_at = now()
+			external_id = coalesce($2, external_id),
+			legal_person = coalesce($3, legal_person), website = coalesce($4, website),
+			channel = coalesce($5, channel), channels = coalesce($6, channels),
+			channel_source = coalesce($7, channel_source), updated_at = now()
 			where id = $1`,
-			poolID, batchID, nullIfEmpty(input.ExternalID), nullIfEmpty(input.LegalPerson),
+			poolID, nullIfEmpty(input.ExternalID), nullIfEmpty(input.LegalPerson),
 			nullIfEmpty(input.Website), nullIfEmpty(input.Channel), channelsArg,
 			nullIfEmpty(input.ChannelSource),
 		); err != nil {
@@ -1400,6 +1479,48 @@ func (s *CRMIntentStore) upsertPoolTx(
 	return poolID, upsertCreated, nil
 }
 
+// runRowSavepoint isolates one ingest row so a data error can be rolled back
+// to the savepoint without aborting the whole batch (spec: row-level tx).
+func (s *CRMIntentStore) runRowSavepoint(
+	ctx context.Context,
+	db FullDB,
+	row func() (int64, upsertOutcome, error),
+) (int64, upsertOutcome, error) {
+	if _, err := db.Exec(ctx, "savepoint crm_intent_row"); err != nil {
+		return 0, upsertCreated, err
+	}
+	rowID, outcome, rowErr := row()
+	if rowErr != nil {
+		if _, rollbackErr := db.Exec(ctx, "rollback to savepoint crm_intent_row"); rollbackErr != nil {
+			return 0, outcome, rollbackErr
+		}
+		_, _ = db.Exec(ctx, "release savepoint crm_intent_row")
+		return rowID, outcome, rowErr
+	}
+	if _, err := db.Exec(ctx, "release savepoint crm_intent_row"); err != nil {
+		return rowID, outcome, err
+	}
+	return rowID, outcome, nil
+}
+
+// rowRejectionReason converts expected row-scoped errors into a rejected-row
+// reason; an empty string means the error must abort the batch.
+func rowRejectionReason(err error) string {
+	var domainErr *crm_intent.DomainError
+	if errors.As(err, &domainErr) {
+		switch domainErr.Code {
+		case "INTENT_DUPLICATE_CONFLICT", "VALIDATION_FAILED":
+			return domainErr.Message
+		}
+		return ""
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return "行数据不满足数据库约束（" + pgErr.Code + "）"
+	}
+	return ""
+}
+
 func (s *CRMIntentStore) IngestBatch(
 	ctx context.Context,
 	request crm_intent.IngestRequest,
@@ -1420,23 +1541,27 @@ func (s *CRMIntentStore) IngestBatch(
 	err := s.inTx(ctx, func(db FullDB, tx pgx.Tx) error {
 		dataChanged := false
 		for index, input := range request.Companies {
-			companyID, outcome, err := s.upsertCompanyTx(
-				ctx, db, &request.BatchID, input, request.Mode, phoneSource,
+			companyID, outcome, err := s.runRowSavepoint(ctx, db,
+				func() (int64, upsertOutcome, error) {
+					return s.upsertCompanyTx(
+						ctx, db, &request.BatchID, input, request.Mode, phoneSource,
+					)
+				},
 			)
 			if err != nil {
-				var domainErr *crm_intent.DomainError
-				if errors.As(err, &domainErr) && domainErr.Code == "INTENT_DUPLICATE_CONFLICT" {
-					result.Rejected = append(result.Rejected, crm_intent.RejectedRow{
-						Scope: "companies", Index: index,
-						ExternalID: input.ExternalID, Reason: domainErr.Message,
-					})
-					rows = append(rows, crm_intent.BatchRow{
-						Scope: "companies", Index: index, ExternalID: input.ExternalID,
-						Status: "rejected", Reason: domainErr.Message,
-					})
-					continue
+				reason := rowRejectionReason(err)
+				if reason == "" {
+					return err
 				}
-				return err
+				result.Rejected = append(result.Rejected, crm_intent.RejectedRow{
+					Scope: "companies", Index: index,
+					ExternalID: input.ExternalID, Reason: reason,
+				})
+				rows = append(rows, crm_intent.BatchRow{
+					Scope: "companies", Index: index, ExternalID: input.ExternalID,
+					Status: "rejected", Reason: reason,
+				})
+				continue
 			}
 			switch outcome {
 			case upsertCreated:
@@ -1471,23 +1596,27 @@ func (s *CRMIntentStore) IngestBatch(
 			})
 		}
 		for index, input := range request.Pool {
-			poolID, outcome, err := s.upsertPoolTx(
-				ctx, db, request.BatchID, input, request.Mode, phoneSource,
+			poolID, outcome, err := s.runRowSavepoint(ctx, db,
+				func() (int64, upsertOutcome, error) {
+					return s.upsertPoolTx(
+						ctx, db, request.BatchID, input, request.Mode, phoneSource,
+					)
+				},
 			)
 			if err != nil {
-				var domainErr *crm_intent.DomainError
-				if errors.As(err, &domainErr) && domainErr.Code == "INTENT_DUPLICATE_CONFLICT" {
-					result.Rejected = append(result.Rejected, crm_intent.RejectedRow{
-						Scope: "pool", Index: index,
-						ExternalID: input.ExternalID, Reason: domainErr.Message,
-					})
-					rows = append(rows, crm_intent.BatchRow{
-						Scope: "pool", Index: index, ExternalID: input.ExternalID,
-						Status: "rejected", Reason: domainErr.Message,
-					})
-					continue
+				reason := rowRejectionReason(err)
+				if reason == "" {
+					return err
 				}
-				return err
+				result.Rejected = append(result.Rejected, crm_intent.RejectedRow{
+					Scope: "pool", Index: index,
+					ExternalID: input.ExternalID, Reason: reason,
+				})
+				rows = append(rows, crm_intent.BatchRow{
+					Scope: "pool", Index: index, ExternalID: input.ExternalID,
+					Status: "rejected", Reason: reason,
+				})
+				continue
 			}
 			switch outcome {
 			case upsertCreated:
@@ -1831,7 +1960,7 @@ func (s *CRMIntentStore) AgentUpsertCompany(
 				"created": result.Created, "changed_fields": "profile",
 			},
 		}
-		applyAuditActor(&entry, crm_intent.Actor{Kind: crm_intent.ActorKindAgent})
+		applyAuditActor(&entry, actor)
 		return s.logOperation(ctx, tx, entry)
 	})
 	return result, err
@@ -1874,6 +2003,11 @@ func (s *CRMIntentStore) AgentPatchCompany(
 			add("founded_year", year)
 		}
 		if input.RegisteredCapitalWan != nil {
+			if !crm_intent.RegisteredCapitalInRange(*input.RegisteredCapitalWan) {
+				return crm_intent.NewValidationError(
+					"registered_capital_wan 超出数值范围（最大 999999999999.99）",
+				)
+			}
 			add("registered_capital_wan", *input.RegisteredCapitalWan)
 		}
 		if input.Products != nil {
@@ -1970,6 +2104,8 @@ func (s *CRMIntentStore) AgentPatchCompany(
 				}
 				return err
 			}
+			_ = s.logAIWriteBlocked(ctx, tx, actor, "crm_intent_company", companyID,
+				map[string]any{"reason": "human_touched", "mode": "patch"})
 			return crm_intent.NewLockedError(companyID)
 		}
 		if err := insertCompanyPhones(
@@ -2120,6 +2256,10 @@ func (s *CRMIntentStore) AgentScreenPool(
 			return err
 		}
 		if outcome == upsertSkippedLocked {
+			_ = s.logAIWriteBlocked(ctx, tx, actor, "crm_intent_company", companyID,
+				map[string]any{
+					"reason": "human_touched", "mode": "pool_screen", "pool_id": poolID,
+				})
 			return crm_intent.NewLockedError(companyID)
 		}
 		if _, err := db.Exec(ctx, `update public.crm_intent_pool

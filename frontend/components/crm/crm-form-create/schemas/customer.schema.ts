@@ -9,6 +9,7 @@ const SOURCES: [CustomerSource, ...CustomerSource[]] = [
   'online_ad',
   'cold_call',
   'self_developed',
+  'customer_radar',
   'other',
 ]
 

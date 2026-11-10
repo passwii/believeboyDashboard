@@ -66,7 +66,7 @@ export function IntentTable({ companies, onOpen, onStateChange, pendingIds }: In
                 <td className={styles.tdChannel}>
                   {channelText}
                   {company.channels.length > 1 ? (
-                    <span className={styles.channelMore}>+${company.channels.length - 1}</span>
+                    <span className={styles.channelMore}>+{company.channels.length - 1}</span>
                   ) : null}
                 </td>
                 <td data-numeric>{company.intentScore ?? '—'}</td>

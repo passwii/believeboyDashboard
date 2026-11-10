@@ -220,6 +220,9 @@ const (
 	ScopeMine = "mine"
 	ScopeAll  = "all"
 	ScopeSea  = "sea"
+	// ScopeVisible is used for detail reads: owner = me OR unowned (sea).
+	// Sea records are readable by any authenticated CRM user (spec §4.1).
+	ScopeVisible = "visible"
 )
 
 // ResolveScope mirrors the existing CRM scope semantics: only admins get all.
@@ -650,6 +653,9 @@ type ProfileUpdateInput struct {
 	RegisteredCapitalWan Optional[float64]  `json:"registered_capital_wan"`
 	Products             Optional[string]   `json:"products"`
 	Category             Optional[string]   `json:"category"`
+	Channel              Optional[string]   `json:"channel"`
+	Channels             Optional[[]string] `json:"channels"`
+	ChannelSource        Optional[string]   `json:"channel_source"`
 	Trademarks           Optional[[]string] `json:"trademarks"`
 	TrademarkCount       Optional[int]      `json:"trademark_count"`
 	IntentLevel          Optional[string]   `json:"intent_level"`
@@ -819,6 +825,7 @@ type Store interface {
 
 	ListPool(ctx context.Context, filter PoolFilter) (Paginated[PoolItem], error)
 
+	LatestBatchDate(ctx context.Context) (*string, error)
 	ListBatches(ctx context.Context, page, pageSize int) (Paginated[Batch], error)
 	GetBatch(ctx context.Context, batchID int64) (*BatchDetail, error)
 	CreateBatch(ctx context.Context, input BatchCreate) (int64, error)

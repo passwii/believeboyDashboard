@@ -163,11 +163,7 @@ export function IntentPoolTab({ q, page, revision, onSearch, onPage }: IntentPoo
           </div>
         ) : !poolPage || poolPage.items.length === 0 ? (
           <div className={styles.stateWrap}>
-            <WarmCrmState
-              detail="今天的批次已经把名录筛完了。"
-              kind="empty"
-              title="待筛池是空的"
-            />
+            <WarmCrmState kind="empty" title="待筛池暂无记录" />
           </div>
         ) : (
           <WarmCrmTableScroller ariaLabel="待筛池列表">
@@ -200,7 +196,7 @@ export function IntentPoolTab({ q, page, revision, onSearch, onPage }: IntentPoo
                       <td className={styles.tdChannel}>
                         {channel ?? '未标注'}
                         {item.channels.length > 1 ? (
-                          <span className={styles.channelMore}>+${item.channels.length - 1}</span>
+                          <span className={styles.channelMore}>+{item.channels.length - 1}</span>
                         ) : null}
                       </td>
                       <td>{item.legalPerson ?? '—'}</td>
@@ -213,7 +209,7 @@ export function IntentPoolTab({ q, page, revision, onSearch, onPage }: IntentPoo
                           '—'
                         )}
                         {item.phones.length > 1 ? (
-                          <span className={styles.channelMore}>+${item.phones.length - 1}</span>
+                          <span className={styles.channelMore}>+{item.phones.length - 1}</span>
                         ) : null}
                       </td>
                       <td>

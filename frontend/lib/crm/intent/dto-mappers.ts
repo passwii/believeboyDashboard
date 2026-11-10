@@ -354,7 +354,9 @@ function mapIntentCompanyCore(value: unknown): IntentCompany {
     registeredCapitalWan: asNumber(dto.registered_capital_wan),
     products: asString(dto.products),
     category: asString(dto.category),
+    channel: singleChannel,
     channels,
+    channelSource: asString(dto.channel_source),
     trademarks: asStringList(dto.trademarks),
     trademarkCount: asInt(dto.trademark_count, asStringList(dto.trademarks).length),
     intentLevel: level,
@@ -607,7 +609,12 @@ export function mapIntentBoard(value: unknown): IntentBoard {
 export function mapIntentImportRow(value: unknown): IntentImportRow {
   const dto = rec(value) ?? {}
   const rawScope = asString(dto.scope)
-  const scope = rawScope === 'company' || rawScope === 'pool' ? rawScope : null
+  const scope: IntentImportRow['scope'] =
+    rawScope === 'companies' || rawScope === 'company'
+      ? 'company'
+      : rawScope === 'pool'
+        ? 'pool'
+        : null
   const rawIndex = asNumber(dto.index ?? dto.row ?? dto.line)
   const rawReason = asString(dto.reason) ?? asString(dto.message) ?? asString(dto.error)
   return {
@@ -629,9 +636,17 @@ export function mapIntentImportRows(value: unknown): IntentImportRow[] {
 export function mapIntentImportResult(value: unknown): IntentImportResult {
   const outer = rec(value) ?? {}
   const dto = rec(outer.result) ?? outer
-  const rows = [...recList(dto.rows).map(mapIntentImportRow)]
+  const rows = recList(dto.rows).map(mapIntentImportRow)
   const rejected = recList(dto.rejected).map(mapIntentImportRow)
-  const allRows = [...rows, ...rejected]
+  // BE 的 rows 本身已包含 rejected 行，rejected 数组是其子集：
+  // 按 scope+index+external_id 去重，保留 rows 中带 status 的版本（review P2-1）。
+  const seen = new Set<string>()
+  const allRows = [...rows, ...rejected].filter((row) => {
+    const key = `${row.scope ?? ''}|${row.index ?? ''}|${row.externalId ?? ''}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
   return {
     batchId: asNumber(dto.batch_id) === null ? null : asInt(dto.batch_id),
     status: asString(dto.status) ?? 'completed',

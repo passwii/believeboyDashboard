@@ -42,6 +42,7 @@ export const SOURCE_LABEL_TO_VALUE: Record<string, string> = {
   线上广告: 'online_ad',
   陌拜: 'cold_call',
   自主开发: 'self_developed',
+  客户雷达: 'customer_radar',
   其他: 'other',
 }
 
@@ -53,6 +54,7 @@ export const SOURCE_VALUES = new Set([
   'online_ad',
   'cold_call',
   'self_developed',
+  'customer_radar',
   'other',
 ])
 export const CUSTOMER_TYPE_VALUES = new Set(['工厂', '贸易商', '同行', '其他'])

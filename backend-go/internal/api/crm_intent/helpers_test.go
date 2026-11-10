@@ -183,5 +183,58 @@ func TestExportOptionalFieldsJSONShape(t *testing.T) {
 	}
 }
 
+func TestValidationLimits(t *testing.T) {
+	name := "示例企业"
+	longExternalID := strings.Repeat("a", 129)
+	if _, err := NormalizeCompanyInput(&CompanyInput{
+		Name: &name, ExternalID: &longExternalID,
+	}, true); err == nil || !strings.Contains(err.Error(), "external_id") {
+		t.Fatalf("external_id >128 should fail, got %v", err)
+	}
+	longPhoneRaw := "138" + strings.Repeat(" ", 50) + "00000001"
+	if _, err := NormalizeCompanyInput(&CompanyInput{
+		Name: &name, Phones: []string{longPhoneRaw},
+	}, true); err == nil || !strings.Contains(err.Error(), "50") {
+		t.Fatalf("phone_raw >50 should fail, got %v", err)
+	}
+	tooBig := 1000000000000.0
+	if _, err := NormalizeCompanyInput(&CompanyInput{
+		Name: &name, RegisteredCapitalWan: &tooBig,
+	}, true); err == nil || !strings.Contains(err.Error(), "registered_capital_wan") {
+		t.Fatalf("registered_capital_wan overflow should fail, got %v", err)
+	}
+	if _, err := NormalizePoolInput(&PoolInput{
+		Name: &name, ExternalID: &longExternalID,
+	}); err == nil {
+		t.Fatalf("pool external_id >128 should fail")
+	}
+}
+
+func TestCSVFormulaInjectionGuard(t *testing.T) {
+	cases := map[string]string{
+		"=cmd|'/c calc'!A0": "'=cmd|'/c calc'!A0",
+		"+1+1":              "'+1+1",
+		"-2+3":              "'-2+3",
+		"@SUM(A1)":          "'@SUM(A1)",
+		"正常文本":              "正常文本",
+		"":                  "",
+	}
+	for input, expected := range cases {
+		if got := csvSafeCell(input); got != expected {
+			t.Fatalf("csvSafeCell(%q) = %q, want %q", input, got, expected)
+		}
+	}
+	company := Company{
+		ID: 1, Name: "=HYPERLINK(\"x\")", IntentLevel: "A", IntentLevelLabel: "强意向",
+		Trademarks: []string{}, Sources: []string{}, Phones: []Phone{},
+		Followup:  Followup{State: "none", StateLabel: "未联系"},
+		CreatedAt: "2026-11-10T00:00:00Z",
+	}
+	content := BuildCompaniesCSV([]Company{company})
+	if !strings.Contains(content, "'=HYPERLINK") {
+		t.Fatalf("CSV cell should be escaped: %q", content)
+	}
+}
+
 func intPointer(value int) *int          { return &value }
 func stringPointer(value string) *string { return &value }

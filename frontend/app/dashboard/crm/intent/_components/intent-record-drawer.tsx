@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
-import { Copy, ExternalLink, Phone, UserPlus } from 'lucide-react'
+import { Copy, ExternalLink, Pencil, Phone, UserPlus } from 'lucide-react'
 
 import { useConfirm } from '@/hooks/use-confirm'
 import {
@@ -22,11 +22,14 @@ import {
   type IntentFollowup,
   type IntentFollowupInput,
   type IntentPhone,
+  type IntentProfileInput,
+  type IntentScope,
   type IntentState,
 } from '@/lib/crm/intent/types'
 import {
   dueInfo,
   formatCapitalWan,
+  formatDate,
   formatDateTime,
   fromDateTimeLocalValue,
   intentSummaryText,
@@ -43,6 +46,7 @@ import { useIntentClient } from '@/lib/crm/intent/provider'
 import { cn } from '@/lib/utils'
 
 import { IntentDetailSection, IntentField, IntentLevelBadge, IntentStatePill } from './intent-display'
+import { IntentProfileForm } from './intent-profile-form'
 import { SharedPhonesDialog } from './shared-phones-dialog'
 
 import styles from '../intent-warm.module.css'
@@ -98,6 +102,8 @@ function applyPatchToFollowup(followup: IntentFollowup, patch: IntentFollowupInp
 type IntentRecordDrawerProps = {
   open: boolean
   companyId: number | null
+  /** 当前 URL scope：详情请求透传到 /companies/{id}?scope=（sea 待领取记录可读，P0-1）。 */
+  scope: IntentScope
   onClose: () => void
   onFollowupChanged: (companyId: number, followup: IntentFollowup) => void
   onRefreshRequested: () => void
@@ -115,6 +121,7 @@ type IntentRecordDrawerProps = {
 export function IntentRecordDrawer({
   open,
   companyId,
+  scope,
   onClose,
   onFollowupChanged,
   onRefreshRequested,
@@ -145,6 +152,8 @@ export function IntentRecordDrawer({
   const [claiming, setClaiming] = useState(false)
   const [converting, setConverting] = useState(false)
   const [sharedOpen, setSharedOpen] = useState(false)
+  const [profileEditing, setProfileEditing] = useState(false)
+  const [savingProfile, setSavingProfile] = useState(false)
 
   const currentUserId = (session?.user as { id?: string } | undefined)?.id ?? null
   const isAdmin = (session?.user as { roleType?: string } | undefined)?.roleType === 'admin'
@@ -167,7 +176,7 @@ export function IntentRecordDrawer({
       setLoading(true)
       setError(null)
       try {
-        const next = await client.getCompany(companyId, { signal })
+        const next = await client.getCompany(companyId, { signal, scope })
         setDetail(next)
         detailRef.current = next
         const note = next.followup.note
@@ -182,7 +191,7 @@ export function IntentRecordDrawer({
         setLoading(false)
       }
     },
-    [client, companyId]
+    [client, companyId, scope]
   )
 
   useEffect(() => {
@@ -190,6 +199,7 @@ export function IntentRecordDrawer({
     const controller = new AbortController()
     setDetail(null)
     detailRef.current = null
+    setProfileEditing(false)
     void loadDetail(controller.signal)
     return () => controller.abort()
   }, [open, companyId, retrySeq, loadDetail])
@@ -315,6 +325,7 @@ export function IntentRecordDrawer({
   const handleClose = useCallback(() => {
     flushNote()
     setSharedOpen(false)
+    setProfileEditing(false)
     onClose()
   }, [flushNote, onClose])
 
@@ -436,6 +447,27 @@ export function IntentRecordDrawer({
     }
   }
 
+  const handleProfileSubmit = async (input: IntentProfileInput) => {
+    if (!detail || savingProfile) return
+    setSavingProfile(true)
+    try {
+      // BE 返回更新后的整条 Company（含 followup/phones/shared_phones）。
+      const updated = await client.updateProfile(detail.id, input)
+      updateDetail(() => updated)
+      setProfileEditing(false)
+      notify({ type: 'success', title: '资料已保存', message: detail.name })
+      onRefreshRequested()
+    } catch (reason) {
+      notify({
+        type: 'error',
+        title: '资料保存失败',
+        message: apiErrorMessage(reason, '资料保存失败'),
+      })
+    } finally {
+      setSavingProfile(false)
+    }
+  }
+
   const handleConvert = async () => {
     if (!detail || converting) return
     const ok = await confirm({
@@ -495,6 +527,11 @@ export function IntentRecordDrawer({
           <UserPlus aria-hidden="true" /> 领取
         </WarmButton>
       ) : null}
+      {canWrite && !profileEditing ? (
+        <WarmButton onClick={() => setProfileEditing(true)}>
+          <Pencil aria-hidden="true" /> 编辑资料
+        </WarmButton>
+      ) : null}
     </>
   ) : null
 
@@ -544,25 +581,34 @@ export function IntentRecordDrawer({
             title="企业详情加载失败"
           />
         ) : detail ? (
-          <DetailBody
-            canWrite={canWrite}
-            converted={converted}
-            detail={detail}
-            noteValue={noteValue}
-            onAddPhone={() => void handleAddPhone()}
-            onClearNextContact={handleClearNextContact}
-            onNoteChange={handleNoteChange}
-            onNextContactChange={handleNextContactChange}
-            onOpenShared={() => setSharedOpen(true)}
-            onStateChange={handleStateChange}
-            onTogglePhoneValid={(phone) => void handleTogglePhoneValid(phone)}
-            onPhoneInputChange={setPhoneInput}
-            phoneInput={phoneInput}
-            addingPhone={addingPhone}
-            pendingPhoneId={pendingPhoneId}
-            readOnly={readOnly}
-            saveText={saveIndicatorText(saveIndicator)}
-          />
+          profileEditing ? (
+            <IntentProfileForm
+              detail={detail}
+              submitting={savingProfile}
+              onCancel={() => setProfileEditing(false)}
+              onSubmit={handleProfileSubmit}
+            />
+          ) : (
+            <DetailBody
+              canWrite={canWrite}
+              converted={converted}
+              detail={detail}
+              noteValue={noteValue}
+              onAddPhone={() => void handleAddPhone()}
+              onClearNextContact={handleClearNextContact}
+              onNoteChange={handleNoteChange}
+              onNextContactChange={handleNextContactChange}
+              onOpenShared={() => setSharedOpen(true)}
+              onStateChange={handleStateChange}
+              onTogglePhoneValid={(phone) => void handleTogglePhoneValid(phone)}
+              onPhoneInputChange={setPhoneInput}
+              phoneInput={phoneInput}
+              addingPhone={addingPhone}
+              pendingPhoneId={pendingPhoneId}
+              readOnly={readOnly}
+              saveText={saveIndicatorText(saveIndicator)}
+            />
+          )
         ) : null}
       </WarmCrmRecordDrawer>
 
@@ -637,7 +683,7 @@ function DetailBody({
     <>
       <p className={styles.drawerSubline}>
         {[detail.province, detail.city].filter(Boolean).join(' · ') || '地区待补'} · 筛于{' '}
-        {formatDateTime(detail.screenedAt)} · 批次 {detail.batchDate ?? '待补'}
+        {formatDate(detail.screenedAt)} · 批次 {detail.batchDate ?? '待补'}
       </p>
 
       <IntentDetailSection title="关键信息">
@@ -660,7 +706,7 @@ function DetailBody({
             {detail.channels.length > 0 ? detail.channels.join(' / ') : '未标注'}
           </IntentField>
           <IntentField label="筛选日期" mono>
-            {formatDateTime(detail.screenedAt)}
+            {formatDate(detail.screenedAt)}
           </IntentField>
           <IntentField label="数据批次" mono>
             {detail.batchDate ?? '待补'}
@@ -804,7 +850,7 @@ function DetailBody({
 
       <IntentDetailSection title="疑点" tone={detail.risks ? 'negative' : undefined}>
         <p className={styles.drawerText}>
-          {detail.risks ?? '公开资料未见明确主体疑点，需人工核实。'}
+          {detail.risks ?? '—'}
         </p>
       </IntentDetailSection>
 

@@ -56,6 +56,33 @@ func requestScope(r *http.Request, actor Actor) (Scope, error) {
 	return Scope{Name: resolved, UserID: actor.ID, IsAdmin: actor.IsAdmin}, nil
 }
 
+// resolveDetailScope resolves the optional ?scope= for company detail reads.
+// Empty scope: admins see everything, non-admins see their own records plus
+// unowned (sea) records so the "待领取 → 打开抽屉 → 领取" flow works.
+func resolveDetailScope(r *http.Request, actor Actor) (Scope, error) {
+	if actor.ID == "" {
+		return Scope{}, NewDomainError(http.StatusUnauthorized, "", "Not authenticated")
+	}
+	raw := strings.TrimSpace(r.URL.Query().Get("scope"))
+	if raw == "" {
+		if actor.IsAdmin {
+			return Scope{Name: ScopeAll, UserID: actor.ID, IsAdmin: true}, nil
+		}
+		return Scope{Name: ScopeVisible, UserID: actor.ID}, nil
+	}
+	switch raw {
+	case ScopeMine, ScopeSea:
+		return Scope{Name: raw, UserID: actor.ID, IsAdmin: actor.IsAdmin}, nil
+	case ScopeAll:
+		if actor.IsAdmin {
+			return Scope{Name: ScopeAll, UserID: actor.ID, IsAdmin: true}, nil
+		}
+		return Scope{Name: ScopeVisible, UserID: actor.ID}, nil
+	default:
+		return Scope{}, newValidationError("scope 只接受 mine / all / sea")
+	}
+}
+
 // ---------- parsing helpers ----------
 
 func chiParam(r *http.Request, name string) string {
@@ -298,6 +325,14 @@ func requireIdempotencyKey(r *http.Request) (string, error) {
 
 // ---------- normalization / validation ----------
 
+// MaxRegisteredCapitalWan is the numeric(14,2) ceiling (12 integer digits).
+const MaxRegisteredCapitalWan = 999999999999.99
+
+// RegisteredCapitalInRange validates numeric(14,2) bounds.
+func RegisteredCapitalInRange(value float64) bool {
+	return value <= MaxRegisteredCapitalWan && value >= -MaxRegisteredCapitalWan
+}
+
 // NormalizeNameKey mirrors the spec: TrimSpace + collapse whitespace, no
 // full-width bracket or roman numeral normalization.
 func NormalizeNameKey(name string) string {
@@ -330,10 +365,14 @@ func normalizedPhones(values []string) ([]string, error) {
 	result := make([]string, 0, len(values))
 	seen := map[string]bool{}
 	for _, value := range values {
-		if strings.TrimSpace(value) == "" {
+		raw := strings.TrimSpace(value)
+		if raw == "" {
 			continue
 		}
-		normalized, err := NormalizePhone(value)
+		if len([]rune(raw)) > 50 {
+			return nil, fmt.Errorf("号码原始值不能超过 50 字符")
+		}
+		normalized, err := NormalizePhone(raw)
 		if err != nil {
 			return nil, fmt.Errorf("%s", err.Error())
 		}
@@ -361,6 +400,16 @@ func trimmedRunes(value *string, max int) (*string, error) {
 	trimmed := trimmedPointer(value)
 	if trimmed != nil && len([]rune(*trimmed)) > max {
 		return nil, newValidationError(fmt.Sprintf("字段长度不能超过 %d 字符", max))
+	}
+	return trimmed, nil
+}
+
+// trimmedRunesField is trimmedRunes with a field-specific error message so
+// row-level rejected reasons point at the offending column.
+func trimmedRunesField(value *string, max int, field string) (*string, error) {
+	trimmed := trimmedPointer(value)
+	if trimmed != nil && len([]rune(*trimmed)) > max {
+		return nil, newValidationError(fmt.Sprintf("%s 不能超过 %d 字符", field, max))
 	}
 	return trimmed, nil
 }
@@ -398,8 +447,15 @@ func NormalizeCompanyInput(input *CompanyInput, requireName bool) (*CompanyInput
 	if requireName && normalized.Name == nil {
 		return nil, newValidationError("name 是必填字段")
 	}
+	if normalized.ExternalID, err = trimmedRunesField(input.ExternalID, 128, "external_id"); err != nil {
+		return nil, err
+	}
 	if normalized.CreditCode, err = trimmedRunes(input.CreditCode, 32); err != nil {
 		return nil, err
+	}
+	if normalized.RegisteredCapitalWan != nil &&
+		!RegisteredCapitalInRange(*normalized.RegisteredCapitalWan) {
+		return nil, newValidationError("registered_capital_wan 超出数值范围（最大 999999999999.99）")
 	}
 	if normalized.LegalPerson, err = trimmedRunes(input.LegalPerson, 100); err != nil {
 		return nil, err
@@ -487,6 +543,9 @@ func NormalizePoolInput(input *PoolInput) (*PoolInput, error) {
 	if normalized.Name == nil {
 		return nil, newValidationError("name 是必填字段")
 	}
+	if normalized.ExternalID, err = trimmedRunesField(input.ExternalID, 128, "external_id"); err != nil {
+		return nil, err
+	}
 	if normalized.LegalPerson, err = trimmedRunes(input.LegalPerson, 100); err != nil {
 		return nil, err
 	}
@@ -546,7 +605,7 @@ func BuildCompaniesCSV(items []Company) string {
 		if item.ConvertedCustomerID != nil {
 			converted = "是"
 		}
-		_ = writer.Write([]string{
+		_ = writer.Write(csvSafeRow([]string{
 			item.Name,
 			pointerString(item.ExternalID),
 			pointerString(item.CreditCode),
@@ -575,10 +634,30 @@ func BuildCompaniesCSV(items []Company) string {
 			item.Followup.StateLabel,
 			pointerString(item.Followup.NextContactAt),
 			converted,
-		})
+		}))
 	}
 	writer.Flush()
 	return buffer.String()
+}
+
+// csvSafeCell neutralises spreadsheet formula injection for text cells.
+func csvSafeCell(value string) string {
+	if value == "" {
+		return value
+	}
+	switch value[0] {
+	case '=', '+', '-', '@', '\t', '\r':
+		return "'" + value
+	}
+	return value
+}
+
+func csvSafeRow(values []string) []string {
+	safe := make([]string, len(values))
+	for index, value := range values {
+		safe[index] = csvSafeCell(value)
+	}
+	return safe
 }
 
 func pointerString[T any](value *T) string {

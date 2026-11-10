@@ -317,7 +317,11 @@ func (handler *Handler) ExportCompanies(w http.ResponseWriter, r *http.Request) 
 		writeUserError(w, internalError())
 		return
 	}
-	filename := "客户雷达_意向客户_" +
-		handler.now().In(shanghaiLocation()).Format("20060102") + ".csv"
+	filenameDate := handler.now().In(shanghaiLocation()).Format("20060102")
+	if batchDate, dateErr := handler.store.LatestBatchDate(r.Context()); dateErr == nil &&
+		batchDate != nil && strings.TrimSpace(*batchDate) != "" {
+		filenameDate = strings.ReplaceAll(strings.TrimSpace(*batchDate), "-", "")
+	}
+	filename := "客户雷达_意向客户_" + filenameDate + ".csv"
 	writeCSVResponse(w, filename, BuildCompaniesCSV(items))
 }

@@ -245,6 +245,11 @@ class CrmIntentPhone(Base):
         CheckConstraint(
             "source IN ('list','manual','ai')", name="ck_crm_intent_phones_source"
         ),
+        CheckConstraint(
+            "(CASE WHEN company_id IS NOT NULL THEN 1 ELSE 0 END) "
+            "+ (CASE WHEN pool_id IS NOT NULL THEN 1 ELSE 0 END) = 1",
+            name="ck_crm_intent_phones_owner",
+        ),
         Index("idx_crm_intent_phones_normalized", "phone_normalized"),
         Index(
             "uq_crm_intent_phones_company_phone",
