@@ -402,7 +402,7 @@ func (s *VatInvoiceStore) ListInvoices(ctx context.Context, filter vat_invoices.
 	querySQL := fmt.Sprintf(`
 		select
 			i.id, i.invoice_no, i.project_id, coalesce(p.project_name, ''),
-			i.currency, i.order_id, coalesce(i.buyer->>"name", ''),
+			i.currency, i.order_id, coalesce(i.buyer->>'name', ''),
 			i.invoice_date::text, i.subtotal_excl, i.total_vat, i.total_incl,
 			i.status, (i.r2_key is not null and i.r2_key != ''),
 			i.created_at, i.updated_at
