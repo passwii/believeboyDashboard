@@ -81,7 +81,7 @@ curl -s -H "X-API-Key: $API_KEY" -H "X-Trusted-Proxy-Secret: $GO_API_TRUSTED_PRO
 | 缺口 | 影响 |
 | --- | --- |
 | `dispatch_one` / `generate_delivery_summary` 仍为空壳 | 定时报表能触发但执行必失败 |
-| 定时报表每分钟扫描调度源缺失 | `scheduled_report_subscriptions` 永不触发 |
+| ~~定时报表每分钟扫描调度源缺失~~ | ✅ 已补（`cmd/scheduler` 每分钟扫描，2026-11-11） |
 | PDF 写入 / Playwright 截图 / Pillow 合成仍是 Python 独占 | 产品标签、月报 PDF、邮件截图不可用 |
 | 生产 compose 无 `go-worker` / `go-scheduler` | 只影响部署，本地 runbook 已覆盖 |
 

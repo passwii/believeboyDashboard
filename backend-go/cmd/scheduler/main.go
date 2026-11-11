@@ -11,10 +11,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/passwii/believeboyDashboard/backend-go/internal/api/scheduled_reports"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/config"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/queue"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/scheduler"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/store"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/tasks"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -79,6 +81,9 @@ func run(logger *slog.Logger) error {
 	// API are persisted but never fire, because only the 11 static jobs exist.
 	stopInsightSync := startInsightScheduleSync(ctx, logger, cfg, sched, queueClient)
 	defer stopInsightSync()
+
+	stopScheduledReportScan := startScheduledReportScan(ctx, logger, cfg, sched, queueClient)
+	defer stopScheduledReportScan()
 
 	logger.Info(
 		"scheduler started",
@@ -163,4 +168,84 @@ func startInsightScheduleSync(
 		close(stopSync)
 		pool.Close()
 	}
+}
+
+type scheduledReportStoreSource struct {
+	store    *store.ScheduledReportStore
+	location *time.Location
+}
+
+func (source scheduledReportStoreSource) ListDueSubscriptions(
+	ctx context.Context,
+	now time.Time,
+) ([]scheduled_reports.Subscription, error) {
+	return source.store.ListDueSubscriptions(ctx, now, source.location)
+}
+
+type scheduledReportQueueEnqueuer struct {
+	client *queue.QueueClient
+}
+
+func (enqueuer scheduledReportQueueEnqueuer) EnqueueScheduledReport(
+	ctx context.Context,
+	payload tasks.DispatchOnePayload,
+	delay time.Duration,
+) error {
+	_, err := enqueuer.client.EnqueueIn(ctx, delay, queue.TypeDispatchOne, payload)
+	return err
+}
+
+// startScheduledReportScan registers the per-minute subscription scanner that
+// FastAPI ran through APScheduler (_run_minutely_scan). Without it, scheduled
+// reports created through the API never fire.
+func startScheduledReportScan(
+	ctx context.Context,
+	logger *slog.Logger,
+	cfg config.Config,
+	sched *scheduler.Scheduler,
+	queueClient *queue.QueueClient,
+) func() {
+	if strings.TrimSpace(cfg.DatabaseURL) == "" {
+		logger.Warn("scheduled report scan disabled: DATABASE_URL is not set")
+		return func() {}
+	}
+	pool, err := store.OpenPool(ctx, cfg.DatabaseURL)
+	if err != nil {
+		logger.Error("scheduled report scan disabled: open database", slog.Any("error", err))
+		return func() {}
+	}
+	location, err := time.LoadLocation(scheduler.DefaultTimezone)
+	if err != nil {
+		pool.Close()
+		logger.Error("scheduled report scan disabled: load timezone", slog.Any("error", err))
+		return func() {}
+	}
+	source := scheduledReportStoreSource{
+		store:    store.NewScheduledReportStore(store.NewPGXDB(pool)),
+		location: location,
+	}
+	enqueuer := scheduledReportQueueEnqueuer{client: queueClient}
+
+	if err := sched.AddJob("scheduled-report-minutely-scan", "* * * * *", func() {
+		scanCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		result, scanErr := scheduler.ScanDueScheduledReports(scanCtx, time.Now(), source, enqueuer, logger)
+		if scanErr != nil {
+			logger.Error("scheduled report scan failed", slog.Any("error", scanErr))
+			return
+		}
+		if result.Due > 0 {
+			logger.Info(
+				"scheduled report scan",
+				slog.Int("due", result.Due),
+				slog.Int("enqueued", result.Enqueued),
+				slog.Int("skipped", result.Skipped),
+			)
+		}
+	}); err != nil {
+		pool.Close()
+		logger.Error("scheduled report scan registration failed", slog.Any("error", err))
+		return func() {}
+	}
+	return func() { pool.Close() }
 }
