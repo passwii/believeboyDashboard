@@ -73,11 +73,9 @@ export TEST_DATABASE_URL="$SELECTED_DATABASE_URL"
 
 echo "live contract: seeding deterministic fixtures..."
 (
-  cd "$BACKEND_DIR"
-  LIVE_CONTRACT_ENV_FILE="$ENV_FILE" \
+  cd "$BACKEND_GO_DIR"
   LIVE_CONTRACT_DATABASE_URL="$SELECTED_DATABASE_URL" \
-    "$PYTHON" scripts/seed_live_contract_data.py \
-      --database-url "$SELECTED_DATABASE_URL"
+    go run ./cmd/seedlivecontract --database-url "$SELECTED_DATABASE_URL"
 )
 
 LOG_FILE="$(mktemp -t live-contract.XXXXXX)"
