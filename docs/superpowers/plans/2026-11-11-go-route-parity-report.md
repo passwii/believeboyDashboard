@@ -75,7 +75,7 @@
 ## 3. 关键发现
 
 1. **Go `GET /api/v1/vat-invoices` 500**：`internal/store/vat_invoices.go:405` 使用 `i.buyer->>"name"`，BLF_TEST 报 `column "name" does not exist`。切流后发票列表直接不可用，需要先修 SQL（对齐 FastAPI 的 buyer 取名字段）。
-2. **system-management 全族 403（10 条）**：Go 侧 `requireAdminOperator`（`internal/api/system_management/helpers.go:67`）要求 `IsAdmin`，FastAPI 侧 router 只挂了 `Depends(protected)`（API key 保护），同一 `X-User-Id: 1` 下 FastAPI 200 / Go 403。需要产品确认：是保持 Go 的“管理员限制”还是对齐 FastAPI；无论哪种，都要在切流前明确并补测试。
+2. **system-management 全族 403（10 条）→ 已确认为对账头缺失，非 Go 缺陷**：Go 侧 `requireAdminOperator`（`internal/api/system_management/helpers.go:67`）从 `X-Is-Admin` 头判定管理员（与 Next.js 代理注入一致）；首轮对账没带该头，所以 403。带上 `X-Is-Admin: true` 后应恢复 200。**反向发现**：FastAPI 该族 router 只有 `Depends(protected)`（API key 保护），没有管理员校验——Go 更严格，切流后安全水位提升，但需要产品确认这是期望行为。
 3. **缺参校验漂移（约 20 条）**：FastAPI 对缺失必填 query 返回 422 Pydantic 数组；Go 分两种：返回 400 `{"detail":"..."}`（inventory-ledger / shipping-plan 等），或直接 200 返回数据（inventory-analysis / inventory-replenishment / shipment-schedules/batches / seasonal 等）。**200 的一类风险更高**：前端带参数时行为一致，但任何漏参调用会静默返回全量数据而不是报错。
 4. **形状漂移（4 条）**：`complaints/overview`、`shipment-schedules`、`shipment-schedules/sku-summary`、`sku-info/sync-first-leg-from-shipment`（Go 多返回 `country` / `project_name` 等字段）。多字段一般向后兼容，但需逐条确认是否契约内。
 5. **FastAPI 反向问题**：`GET /api/v1/product-analysis/sources` FastAPI 500、Go 200——FastAPI 侧已有 bug，Go 反而正常。

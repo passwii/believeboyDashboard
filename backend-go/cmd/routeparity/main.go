@@ -48,6 +48,7 @@ func main() {
 	openapiPath := flag.String("openapi", defaultOpenAPI, "OpenAPI JSON file (relative paths resolve from the repo root)")
 	envFile := flag.String("env-file", defaultEnvFile, "env file providing API_KEY (relative paths resolve from the repo root)")
 	userID := flag.String("user-id", "1", "X-User-Id header for user-scoped routes")
+	adminHeader := flag.String("admin-header", "true", "X-Is-Admin header value; empty disables (the web proxy injects it from the session)")
 	proxySecret := flag.String("proxy-secret", "", "X-Trusted-Proxy-Secret; defaults to the running runbook state")
 	stateDir := flag.String("state-dir", defaultStateDir, "localcutover state directory (relative paths resolve from the repo root)")
 	limit := flag.Int("limit", 0, "compare at most N routes (0 = all)")
@@ -102,6 +103,9 @@ func main() {
 	headers.Set("X-Trusted-Proxy-Secret", secret)
 	if *userID != "" {
 		headers.Set("X-User-Id", *userID)
+	}
+	if *adminHeader != "" {
+		headers.Set("X-Is-Admin", *adminHeader)
 	}
 
 	fmt.Printf("comparing %d parameterless GET routes (skipped %d with path params)\n", len(routes), skipped)
