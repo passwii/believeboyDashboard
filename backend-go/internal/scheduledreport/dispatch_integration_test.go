@@ -75,4 +75,25 @@ func TestDispatchOneWritesDeliveryLogAndSendsEmail(t *testing.T) {
 	if status != "sent" || stage != "done" {
 		t.Fatalf("delivery log status=%s stage=%s", status, stage)
 	}
+	for _, frequency := range []string{"weekly", "monthly"} {
+		sender := &captureSender{}
+		monthlyResult, err := DispatchOne(ctx, db, sender, DispatchRequest{
+			SubscriptionID: subscriptionID,
+			Email:          "dispatch-test@example.com",
+			ProjectIDs:     []int64{3748},
+			Country:        "US",
+			Frequency:      frequency,
+			ReportDate:     "2026-11-11",
+			TriggeredBy:    "manual",
+		})
+		if err != nil {
+			t.Fatalf("DispatchOne(%s) error: %v", frequency, err)
+		}
+		if !monthlyResult.Success || monthlyResult.DeliveryLogID == 0 {
+			t.Fatalf("DispatchOne(%s) result = %#v", frequency, monthlyResult)
+		}
+		if sender.message.Subject == "" || !strings.Contains(sender.message.HTML, "运营报告") {
+			t.Fatalf("DispatchOne(%s) email = %#v", frequency, sender.message)
+		}
+	}
 }
