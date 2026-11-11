@@ -60,6 +60,7 @@ func main() {
 	stateDir := flag.String("state-dir", defaultStateDir, "localcutover state directory (relative paths resolve from the repo root)")
 	limit := flag.Int("limit", 0, "compare at most N routes (0 = all)")
 	pathParamID := flag.String("path-param-id", "1", "value substituted for {param} path segments")
+	goOnly := flag.Bool("go-only", false, "call only the Go gateway and fail on 5xx/transport errors")
 	workers := flag.Int("workers", defaultWorkers, "parallel requests")
 	timeout := flag.Duration("timeout", defaultTimeout, "per-request timeout")
 	flag.Parse()
@@ -122,7 +123,12 @@ func main() {
 
 	fmt.Printf("comparing %d GET routes (%d parameterless + %d with path params)\n", len(routes), len(parameterless), len(parameterized))
 	client := &http.Client{Timeout: *timeout}
-	results := compareAll(client, strings.TrimRight(*fastapiURL, "/"), strings.TrimRight(*goURL, "/"), headers, routes, *workers)
+	var results []comparison
+	if *goOnly {
+		results = checkGoOnly(client, strings.TrimRight(*goURL, "/"), headers, routes, *workers)
+	} else {
+		results = compareAll(client, strings.TrimRight(*fastapiURL, "/"), strings.TrimRight(*goURL, "/"), headers, routes, *workers)
+	}
 
 	failures := 0
 	inconclusive := 0
@@ -144,6 +150,49 @@ func main() {
 	if failures > 0 {
 		os.Exit(1)
 	}
+}
+
+func checkGoOnly(client *http.Client, goBase string, headers http.Header, routes []parityRoute, workers int) []comparison {
+	if workers < 1 {
+		workers = 1
+	}
+	type job struct{ route parityRoute }
+	jobs := make(chan parityRoute)
+	results := make(chan comparison, len(routes))
+	var waitGroup sync.WaitGroup
+	for worker := 0; worker < workers; worker++ {
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			for route := range jobs {
+				item := comparison{path: route.path, requestPath: route.requestPath}
+				status, _, err := get(client, goBase+route.requestPath, headers)
+				item.goStatus = status
+				if err != nil {
+					item.problem = "go: " + err.Error()
+				} else if status >= 500 {
+					item.problem = "go returned 5xx"
+				} else {
+					item.fastStatus = status
+				}
+				results <- item
+			}
+		}()
+	}
+	go func() {
+		for _, route := range routes {
+			jobs <- route
+		}
+		close(jobs)
+	}()
+	waitGroup.Wait()
+	close(results)
+	collected := make([]comparison, 0, len(routes))
+	for item := range results {
+		collected = append(collected, item)
+	}
+	sort.Slice(collected, func(left, right int) bool { return collected[left].path < collected[right].path })
+	return collected
 }
 
 func compareAll(client *http.Client, fastapiBase, goBase string, headers http.Header, routes []parityRoute, workers int) []comparison {

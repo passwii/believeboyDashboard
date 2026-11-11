@@ -11,10 +11,13 @@
 # Fails on any unexpected status or any "request fell back to FastAPI" log line.
 set -euo pipefail
 
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BASE="${GO_API_BASE:-http://127.0.0.1:18200}"
 API_KEY_VALUE="${API_KEY:?API_KEY is required}"
 PROXY_SECRET="${GO_API_TRUSTED_PROXY_SECRET:?GO_API_TRUSTED_PROXY_SECRET is required}"
 GATEWAY_LOG="${GATEWAY_LOG:-}"
+STATE_DIR="${CUTOVER_STATE_DIR:-/tmp/localcutover-state}"
+ENV_FILE="${CUTOVER_ENV_FILE:-$ROOT/backend/.env.test}"
 LOG_OFFSET=0
 if [[ -n "$GATEWAY_LOG" && -f "$GATEWAY_LOG" ]]; then
   LOG_OFFSET="$(wc -l < "$GATEWAY_LOG" | tr -d ' ')"
@@ -59,6 +62,17 @@ if [[ -n "$GATEWAY_LOG" && -f "$GATEWAY_LOG" ]]; then
   else
     echo "OK   gateway log: 0 fallback warnings"
   fi
+fi
+
+if [[ "${CUTOVER_ROUTE_PARITY:-0}" == "1" ]]; then
+  echo "running go-only route parity (all OpenAPI GET routes, FastAPI must be stopped)..."
+  ( cd "$ROOT/backend-go" && go run ./cmd/routeparity \
+    --go-only \
+    --go "$BASE" \
+    --openapi "$ROOT/frontend/types/api-generated/openapi.json" \
+    --env-file "$ENV_FILE" \
+    --state-dir "$STATE_DIR" \
+    --proxy-secret "$PROXY_SECRET" ) || failures=$((failures + 1))
 fi
 
 if [[ "$failures" -ne 0 ]]; then
