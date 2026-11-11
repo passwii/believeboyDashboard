@@ -208,6 +208,17 @@ GO_API_VALIDATE_MODE=image bash deploy/validate-local-go-api.sh
 
 该模式需要能访问 Docker Hub；本机 2026-11-10 出现过 `auth.docker.io` 元数据超时，因此默认用离线 binary 模式。
 
+全量切流冒烟（FastAPI 停止、Go 网关 `GO_API_OWNED=all`）用：
+
+```bash
+GO_API_BASE=http://127.0.0.1:18200 \
+API_KEY=... GO_API_TRUSTED_PROXY_SECRET=... \
+GATEWAY_LOG=/tmp/localcutover-state/logs/gateway.log \
+bash deploy/validate-local-go-cutover.sh
+```
+
+脚本校验 8 条代表性路由的状态码，并只统计脚本启动后新增的 `request fell back to FastAPI` 警告（避免历史日志误报）。
+
 ## 回滚
 
 应用回滚要求 FastAPI、Go API、Web 三个 digest 成组恢复。数据库 migration 不会自动回滚，
