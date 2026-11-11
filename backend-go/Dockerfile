@@ -18,7 +18,11 @@ RUN --mount=type=cache,id=believeboy-go-build-cache,target=/root/.cache/go-build
     && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
        go build -trimpath -ldflags="-s -w" -o /out/go-api ./cmd/gateway \
     && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
-       go build -trimpath -ldflags="-s -w" -o /out/go-migrate ./cmd/migrate
+       go build -trimpath -ldflags="-s -w" -o /out/go-migrate ./cmd/migrate \
+    && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+       go build -trimpath -ldflags="-s -w" -o /out/go-worker ./cmd/worker \
+    && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+       go build -trimpath -ldflags="-s -w" -o /out/go-scheduler ./cmd/scheduler
 
 FROM alpine:3.22 AS runtime
 # tzdata is required at runtime, not only at build time: store.OpenPool's
@@ -30,6 +34,8 @@ RUN apk add --no-cache ca-certificates tzdata \
     && adduser -S -D -H -u 10001 -G app app
 COPY --from=builder --chown=10001:10001 /out/go-api /usr/local/bin/go-api
 COPY --from=builder --chown=10001:10001 /out/go-migrate /usr/local/bin/go-migrate
+COPY --from=builder --chown=10001:10001 /out/go-worker /usr/local/bin/go-worker
+COPY --from=builder --chown=10001:10001 /out/go-scheduler /usr/local/bin/go-scheduler
 USER 10001:10001
 EXPOSE 8200
 ENTRYPOINT ["/usr/local/bin/go-api"]

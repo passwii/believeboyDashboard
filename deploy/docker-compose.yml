@@ -80,6 +80,38 @@ services:
       start_period: 15s
     logging: *logging
 
+  go-worker:
+    image: "${GO_API_IMAGE:?GO_API_IMAGE must be set}"
+    container_name: believeboy-dashboard-go-worker
+    network_mode: host
+    env_file:
+      - ./backend.env
+      - ./go.env
+    entrypoint: ["/usr/local/bin/go-worker"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    init: true
+    mem_limit: 512m
+    logging: *logging
+
+  go-scheduler:
+    image: "${GO_API_IMAGE:?GO_API_IMAGE must be set}"
+    container_name: believeboy-dashboard-go-scheduler
+    network_mode: host
+    env_file:
+      - ./backend.env
+      - ./go.env
+    entrypoint: ["/usr/local/bin/go-scheduler"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    init: true
+    mem_limit: 256m
+    logging: *logging
+
   celery:
     image: "${API_IMAGE:?API_IMAGE must be set}"
     container_name: believeboy-dashboard-celery

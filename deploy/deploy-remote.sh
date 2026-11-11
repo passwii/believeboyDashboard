@@ -878,6 +878,12 @@ rollback() {
   if grep -Eq '^[[:space:]]+go-api:' "$DEPLOY_PATH/docker-compose.yml"; then
     rollback_services+=(go-api)
   fi
+  if grep -Eq '^[[:space:]]+go-worker:' "$DEPLOY_PATH/docker-compose.yml"; then
+    rollback_services+=(go-worker)
+  fi
+  if grep -Eq '^[[:space:]]+go-scheduler:' "$DEPLOY_PATH/docker-compose.yml"; then
+    rollback_services+=(go-scheduler)
+  fi
   if ! API_IMAGE="$previous_api_image" GO_API_IMAGE="$rollback_go_api_image" WEB_IMAGE="$previous_web_image" \
     docker compose up -d --no-build --no-deps --remove-orphans "${rollback_services[@]}"; then
     echo "Previous application image set could not be restarted." >&2
@@ -1055,7 +1061,7 @@ mv -f -- "$GO_CONFIG_TMP" "$DEPLOY_PATH/go.env" ||
 TARGET_CONFIG_ACTIVE=1
 
 echo "Pulling FastAPI, Go API, and Web images..."
-if ! docker compose pull migrate api go-api celery celery-scheduled beat web; then
+if ! docker compose pull migrate api go-api go-worker go-scheduler celery celery-scheduled beat web; then
   die "Could not pull the target Dashboard image set."
 fi
 
