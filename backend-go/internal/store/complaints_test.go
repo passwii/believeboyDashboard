@@ -182,7 +182,7 @@ func TestComplaintStoreGetOverviewMissingRunReturnsZeros(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
-	if resp.Date != "2026-11-07" || resp.Metrics.TotalNeedsReply != 0 || len(resp.Projects) != 0 || len(resp.Trend) != 30 {
+	if resp.Date != "2026-11-07" || resp.Metrics.TotalNeedsReply != 0 || len(resp.Projects) != 0 || len(resp.Trend) != 0 {
 		t.Fatalf("unexpected empty overview: %#v", resp)
 	}
 }

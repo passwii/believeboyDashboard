@@ -143,18 +143,6 @@ func slaLevel(status string, sla *complaints.SlaInfo, now time.Time) string {
 	return "ok"
 }
 
-func buildEmptyTrend(targetDate time.Time) []complaints.OverviewTrendPoint {
-	trendStart := targetDate.AddDate(0, 0, -29)
-	trend := make([]complaints.OverviewTrendPoint, 30)
-	for i := 0; i < 30; i++ {
-		trend[i] = complaints.OverviewTrendPoint{
-			Date:       trendStart.AddDate(0, 0, i).Format("2006-01-02"),
-			NeedsReply: 0,
-		}
-	}
-	return trend
-}
-
 func (s *ComplaintStore) GetOverview(ctx context.Context, targetDate string, country *string) (complaints.OverviewResponse, error) {
 	parsedDate, err := time.Parse("2006-01-02", targetDate)
 	if err != nil {
@@ -172,7 +160,7 @@ func (s *ComplaintStore) GetOverview(ctx context.Context, targetDate string, cou
 			return complaints.OverviewResponse{
 				Date:     targetDate,
 				Metrics:  complaints.OverviewMetrics{},
-				Trend:    buildEmptyTrend(parsedDate),
+				Trend:    []complaints.OverviewTrendPoint{},
 				Projects: []complaints.OverviewProjectRow{},
 			}, nil
 		}
@@ -186,7 +174,7 @@ func (s *ComplaintStore) GetOverview(ctx context.Context, targetDate string, cou
 			return complaints.OverviewResponse{
 				Date:     targetDate,
 				Metrics:  complaints.OverviewMetrics{},
-				Trend:    buildEmptyTrend(parsedDate),
+				Trend:    []complaints.OverviewTrendPoint{},
 				Projects: []complaints.OverviewProjectRow{},
 			}, nil
 		}
@@ -199,7 +187,7 @@ func (s *ComplaintStore) GetOverview(ctx context.Context, targetDate string, cou
 			return complaints.OverviewResponse{
 				Date:     targetDate,
 				Metrics:  complaints.OverviewMetrics{},
-				Trend:    buildEmptyTrend(parsedDate),
+				Trend:    []complaints.OverviewTrendPoint{},
 				Projects: []complaints.OverviewProjectRow{},
 			}, nil
 		}

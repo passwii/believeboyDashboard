@@ -580,11 +580,7 @@ func (h *Handler) SyncFirstLegFromShipment(w http.ResponseWriter, r *http.Reques
 		httpapi.WriteDetail(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	_ = httpapi.WriteJSON(w, http.StatusOK, map[string]any{
-		"updated":      count,
-		"project_name": projectName,
-		"country":      country,
-	})
+	_ = httpapi.WriteJSON(w, http.StatusOK, map[string]any{"updated": count})
 }
 
 func (h *Handler) BatchParseFactoryInfo(w http.ResponseWriter, r *http.Request) {
