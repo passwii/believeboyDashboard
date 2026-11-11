@@ -249,14 +249,31 @@ describe('WarmLedgerShell', () => {
       shellThemeCss.match(/\.warm-ledger__app-window\s*\{([^}]*)\}/)?.[1] ?? ''
 
     expect(shellThemeCss).toContain('--warm-ledger-inset-stage: 8px')
-    expect(appWindowRule).toContain(
-      'width: calc(100vw - 2 * var(--warm-ledger-inset-stage))'
-    )
-    expect(appWindowRule).toContain(
-      'height: calc(100dvh - 2 * var(--warm-ledger-inset-stage))'
-    )
+    // 工作窗按父容器内容盒铺满，而不是 100vw：html 的 scrollbar-gutter 会让
+    // body 比视口窄，用 100vw 会把右侧边框挤出 body 并被滚动条遮住。
+    expect(appWindowRule).toContain('width: 100%')
+    expect(appWindowRule).toContain('height: 100%')
+    expect(appWindowRule).not.toContain('100vw')
     expect(appWindowRule).not.toContain('960px')
     expect(shellThemeCss).not.toContain('--warm-ledger-layout-window-max-width')
+  })
+
+  it('keeps the work window right edge clear of the browser scrollbar', () => {
+    // V4 路由取消 html 的 stable gutter 预留，否则文档不滚动时也会白留 10px。
+    expect(shellThemeCss).toContain('html:has(.warm-ledger) {')
+    expect(shellThemeCss).toContain('scrollbar-gutter: auto')
+
+    const scrollRule =
+      shellThemeCss.match(/\.warm-ledger__main-scroll\s*\{([^}]*)\}/)?.[1] ?? ''
+    expect(scrollRule).toContain('scrollbar-width: thin')
+
+    const thumbRule =
+      shellThemeCss.match(
+        /\.warm-ledger__main-scroll::-webkit-scrollbar-thumb\s*\{([^}]*)\}/,
+      )?.[1] ?? ''
+    // thumb 内缩 3px 并只画 content-box，避免贴住窗口 1px 边框。
+    expect(thumbRule).toContain('border: 3px solid transparent')
+    expect(thumbRule).toContain('background-clip: content-box')
   })
 
   it('keeps the dashboard navigation and main content landmarks', () => {
