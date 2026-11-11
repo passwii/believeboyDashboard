@@ -79,7 +79,7 @@ func TestInventoryLedgerHandler(t *testing.T) {
 	}
 
 	// Test 2: snapshot
-	req = httptest.NewRequest(http.MethodGet, "/api/v1/inventory-ledger/snapshot?project_id=1&month=2026-10", nil).WithContext(adminCtx)
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/inventory-ledger/snapshot?project_id=1&period=2026-10", nil).WithContext(adminCtx)
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
@@ -141,11 +141,11 @@ func TestInventoryLedgerHandler(t *testing.T) {
 		t.Fatalf("expected 404 Not Found, got %d", rec.Code)
 	}
 
-	// Test 7: missing or invalid project_id (400)
-	req = httptest.NewRequest(http.MethodGet, "/api/v1/inventory-ledger/snapshot?month=2026-10", nil).WithContext(adminCtx)
+	// Test 7: missing or invalid project_id (422, FastAPI-compatible validation)
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/inventory-ledger/snapshot?period=2026-10", nil).WithContext(adminCtx)
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400 Bad Request, got %d", rec.Code)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422 Unprocessable Entity, got %d", rec.Code)
 	}
 }

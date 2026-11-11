@@ -21,7 +21,7 @@ func NewHandler(store Store) *Handler {
 
 func (h *Handler) checkAccess(w http.ResponseWriter, r *http.Request, projectID int64) bool {
 	if projectID <= 0 {
-		httpapi.WriteDetail(w, http.StatusBadRequest, "Missing or invalid project_id")
+		httpapi.WriteDetail(w, http.StatusUnprocessableEntity, "Missing or invalid project_id")
 		return false
 	}
 	identity, _ := auth.UserContextFromContext(r.Context())
@@ -54,6 +54,14 @@ func parseProjectAndCountry(r *http.Request) (int64, *string) {
 	return projectID, country
 }
 
+func requirePeriodQuery(w http.ResponseWriter, r *http.Request) bool {
+	if strings.TrimSpace(r.URL.Query().Get("period")) == "" {
+		httpapi.WriteDetail(w, http.StatusUnprocessableEntity, "period is required")
+		return false
+	}
+	return true
+}
+
 func parseMonth(r *http.Request) string {
 	m := strings.TrimSpace(r.URL.Query().Get("month"))
 	if m == "" {
@@ -79,6 +87,9 @@ func (h *Handler) ListMonths(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetSnapshot(w http.ResponseWriter, r *http.Request) {
+	if !requirePeriodQuery(w, r) {
+		return
+	}
 	projectID, country := parseProjectAndCountry(r)
 	if !h.checkAccess(w, r, projectID) {
 		return
@@ -93,6 +104,9 @@ func (h *Handler) GetSnapshot(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetEvents(w http.ResponseWriter, r *http.Request) {
+	if !requirePeriodQuery(w, r) {
+		return
+	}
 	projectID, country := parseProjectAndCountry(r)
 	if !h.checkAccess(w, r, projectID) {
 		return
@@ -107,6 +121,9 @@ func (h *Handler) GetEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetClusters(w http.ResponseWriter, r *http.Request) {
+	if !requirePeriodQuery(w, r) {
+		return
+	}
 	projectID, country := parseProjectAndCountry(r)
 	if !h.checkAccess(w, r, projectID) {
 		return
@@ -121,6 +138,9 @@ func (h *Handler) GetClusters(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetLocationDetail(w http.ResponseWriter, r *http.Request) {
+	if !requirePeriodQuery(w, r) {
+		return
+	}
 	projectID, country := parseProjectAndCountry(r)
 	if !h.checkAccess(w, r, projectID) {
 		return
@@ -148,6 +168,9 @@ func (h *Handler) GetTrend(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetDetail(w http.ResponseWriter, r *http.Request) {
+	if !requirePeriodQuery(w, r) {
+		return
+	}
 	projectID, country := parseProjectAndCountry(r)
 	if !h.checkAccess(w, r, projectID) {
 		return
@@ -169,6 +192,9 @@ func (h *Handler) GetDetail(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetSummary(w http.ResponseWriter, r *http.Request) {
+	if !requirePeriodQuery(w, r) {
+		return
+	}
 	projectID, country := parseProjectAndCountry(r)
 	if !h.checkAccess(w, r, projectID) {
 		return
@@ -203,6 +229,9 @@ func (h *Handler) ListBatches(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetConsistency(w http.ResponseWriter, r *http.Request) {
+	if !requirePeriodQuery(w, r) {
+		return
+	}
 	projectID, country := parseProjectAndCountry(r)
 	if !h.checkAccess(w, r, projectID) {
 		return
@@ -217,6 +246,9 @@ func (h *Handler) GetConsistency(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetMonthAnalysis(w http.ResponseWriter, r *http.Request) {
+	if !requirePeriodQuery(w, r) {
+		return
+	}
 	projectID, country := parseProjectAndCountry(r)
 	if !h.checkAccess(w, r, projectID) {
 		return

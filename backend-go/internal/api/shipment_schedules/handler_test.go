@@ -283,19 +283,12 @@ func TestShipmentSchedulesProjectScopeAndCSVImport(t *testing.T) {
 		t.Fatalf("expected 0 shipment count for non-admin without project, got %d", sum.ShipmentCount)
 	}
 
-	// 2. Batches list without project_id for non-admin with 0 accessible projects returns empty list
+	// 2. Batches list without project_id -> 422 (FastAPI requires project_id/country)
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/shipment-schedules/batches", nil).WithContext(nonAdminCtx)
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", rec.Code)
-	}
-	var batches []string
-	if err := json.Unmarshal(rec.Body.Bytes(), &batches); err != nil {
-		t.Fatalf("unmarshal batches: %v", err)
-	}
-	if len(batches) != 0 {
-		t.Fatalf("expected 0 batches for non-admin without project, got %d", len(batches))
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422 for missing project_id/country, got %d", rec.Code)
 	}
 
 	// 3. FBA box details with unauthorized project returns 403 Forbidden
@@ -309,14 +302,15 @@ func TestShipmentSchedulesProjectScopeAndCSVImport(t *testing.T) {
 	}
 	storeWithUnauthorized := &mockShipmentStore{
 		fbaResp: ShipmentFbaBoxDetailResponse{
-			ProjectIDs: []int64{999},
+			ProjectIDs:  []int64{999},
+			ShipmentNos: []string{"FBA-SECRET"},
 		},
 	}
 	regWithUnauthorized := NewRegistrar(storeWithUnauthorized, auditor, secretProjectReader)
 	routerWithUnauthorized := chi.NewRouter()
 	regWithUnauthorized.RegisterRoutes(routerWithUnauthorized, func(next http.Handler) http.Handler { return next })
 
-	req = httptest.NewRequest(http.MethodGet, "/api/v1/shipment-schedules/fba-box-details?project_ids=999", nil).WithContext(nonAdminCtx)
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/shipment-schedules/fba-box-details?project_ids=999&shipment_no=FBA-SECRET", nil).WithContext(nonAdminCtx)
 	rec = httptest.NewRecorder()
 	routerWithUnauthorized.ServeHTTP(rec, req)
 	if rec.Code != http.StatusForbidden {
@@ -324,7 +318,7 @@ func TestShipmentSchedulesProjectScopeAndCSVImport(t *testing.T) {
 	}
 
 	// 4. FBA box details queried by shipment_nos where target shipment belongs to unauthorized project returns 403
-	req = httptest.NewRequest(http.MethodGet, "/api/v1/shipment-schedules/fba-box-details?shipment_nos=FBA-SECRET", nil).WithContext(nonAdminCtx)
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/shipment-schedules/fba-box-details?shipment_no=FBA-SECRET", nil).WithContext(nonAdminCtx)
 	rec = httptest.NewRecorder()
 	routerWithUnauthorized.ServeHTTP(rec, req)
 	if rec.Code != http.StatusForbidden {

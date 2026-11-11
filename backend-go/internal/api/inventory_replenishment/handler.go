@@ -134,6 +134,15 @@ func (h *Handler) resolveScope(w http.ResponseWriter, r *http.Request, filter *R
 	return true
 }
 
+func requireProjectIDQuery(w http.ResponseWriter, r *http.Request) bool {
+	value, err := strconv.ParseInt(strings.TrimSpace(r.URL.Query().Get("project_id")), 10, 64)
+	if err != nil || value <= 0 {
+		httpapi.WriteDetail(w, http.StatusUnprocessableEntity, "project_id is required and must be greater than 0")
+		return false
+	}
+	return true
+}
+
 func (h *Handler) parseFilter(r *http.Request) ReplenishmentFilter {
 	identity, _ := auth.UserContextFromContext(r.Context())
 	query := r.URL.Query()
@@ -265,6 +274,9 @@ func parseSnapshotItemsFilter(r *http.Request) (SnapshotItemsFilter, error) {
 }
 
 func (h *Handler) GetInventoryAnalysis(w http.ResponseWriter, r *http.Request) {
+	if !requireProjectIDQuery(w, r) {
+		return
+	}
 	identity, _ := auth.UserContextFromContext(r.Context())
 	filter := h.parseFilter(r)
 	if !h.resolveScope(w, r, &filter, identity) {
@@ -290,6 +302,9 @@ func (h *Handler) GetInventoryAnalysis(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ListInventorySnapshotOptions(w http.ResponseWriter, r *http.Request) {
+	if !requireProjectIDQuery(w, r) {
+		return
+	}
 	identity, _ := auth.UserContextFromContext(r.Context())
 	filter := h.parseFilter(r)
 	if !h.resolveScope(w, r, &filter, identity) {
@@ -311,6 +326,9 @@ func (h *Handler) ListInventorySnapshotOptions(w http.ResponseWriter, r *http.Re
 }
 
 func (h *Handler) ListInventoryReplenishmentAnalysis(w http.ResponseWriter, r *http.Request) {
+	if !requireProjectIDQuery(w, r) {
+		return
+	}
 	identity, _ := auth.UserContextFromContext(r.Context())
 	filter := h.parseFilter(r)
 	if !h.resolveScope(w, r, &filter, identity) {
@@ -426,6 +444,13 @@ func (h *Handler) UpdateInventoryReplenishmentSetting(w http.ResponseWriter, r *
 }
 
 func (h *Handler) ListInventoryReplenishmentShipments(w http.ResponseWriter, r *http.Request) {
+	if !requireProjectIDQuery(w, r) {
+		return
+	}
+	if strings.TrimSpace(r.URL.Query().Get("sku")) == "" {
+		httpapi.WriteDetail(w, http.StatusUnprocessableEntity, "sku is required")
+		return
+	}
 	identity, _ := auth.UserContextFromContext(r.Context())
 	filter := h.parseFilter(r)
 	if !h.resolveScope(w, r, &filter, identity) {
@@ -444,6 +469,9 @@ func (h *Handler) ListInventoryReplenishmentShipments(w http.ResponseWriter, r *
 }
 
 func (h *Handler) ListInventoryReplenishmentCalendar(w http.ResponseWriter, r *http.Request) {
+	if !requireProjectIDQuery(w, r) {
+		return
+	}
 	identity, _ := auth.UserContextFromContext(r.Context())
 	filter := h.parseFilter(r)
 	if !h.resolveScope(w, r, &filter, identity) {
@@ -462,6 +490,15 @@ func (h *Handler) ListInventoryReplenishmentCalendar(w http.ResponseWriter, r *h
 }
 
 func (h *Handler) ListSeasonalReplenishmentAnalysis(w http.ResponseWriter, r *http.Request) {
+	if !requireProjectIDQuery(w, r) {
+		return
+	}
+	for _, key := range []string{"from_date", "to_date"} {
+		if strings.TrimSpace(r.URL.Query().Get(key)) == "" {
+			httpapi.WriteDetail(w, http.StatusUnprocessableEntity, key+" is required")
+			return
+		}
+	}
 	identity, _ := auth.UserContextFromContext(r.Context())
 	filter := h.parseFilter(r)
 	if !h.resolveScope(w, r, &filter, identity) {
@@ -480,6 +517,9 @@ func (h *Handler) ListSeasonalReplenishmentAnalysis(w http.ResponseWriter, r *ht
 }
 
 func (h *Handler) ListInventoryReplenishmentSnapshots(w http.ResponseWriter, r *http.Request) {
+	if !requireProjectIDQuery(w, r) {
+		return
+	}
 	identity, _ := auth.UserContextFromContext(r.Context())
 	filter := h.parseFilter(r)
 	if !h.resolveScope(w, r, &filter, identity) {
