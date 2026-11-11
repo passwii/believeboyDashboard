@@ -91,12 +91,8 @@ func DispatchOne(ctx context.Context, db store.FullDB, sender EmailSender, reque
 		result.Error = fmt.Sprintf("invalid report_date %q", reportDateText)
 		return result, parseErr
 	}
-	if frequency != "daily" {
-		result.Error = fmt.Sprintf("frequency %s is not ported to Go yet", frequency)
-		return result, errors.New(result.Error)
-	}
 	referenceDate := reportDate
-	if strings.TrimSpace(request.ReportDate) != "" {
+	if frequency == "daily" && strings.TrimSpace(request.ReportDate) != "" {
 		referenceDate = reportDate.AddDate(0, 0, -1)
 	}
 	triggeredBy := strings.TrimSpace(request.TriggeredBy)
@@ -133,13 +129,23 @@ func DispatchOne(ctx context.Context, db store.FullDB, sender EmailSender, reque
 		"update public.scheduled_report_delivery_logs set stage = 'fetching_data' where id = $1", logID); err != nil {
 		return fail(fmt.Sprintf("mark fetching_data: %v", err), err)
 	}
-	reportData, err := BuildDailyReportData(ctx, db, DailyOptions{
-		ProjectIDs:    projectIDs,
-		Country:       country,
-		Frequency:     frequency,
-		ReferenceDate: &referenceDate,
-		Now:           now,
-	})
+	var reportData map[string]any
+	if frequency == "monthly" {
+		reportData, err = BuildMonthlyReportData(ctx, db, MonthlyOptions{
+			ProjectIDs:    projectIDs,
+			Country:       country,
+			ReferenceDate: &referenceDate,
+			Now:           now,
+		})
+	} else {
+		reportData, err = BuildDailyReportData(ctx, db, DailyOptions{
+			ProjectIDs:    projectIDs,
+			Country:       country,
+			Frequency:     frequency,
+			ReferenceDate: &referenceDate,
+			Now:           now,
+		})
+	}
 	if err != nil {
 		return fail(fmt.Sprintf("build report data: %v", err), err)
 	}

@@ -16,6 +16,9 @@ type dailyEmailView struct {
 	CountryLabel string
 	ReportDate   string
 	FrequencyCn  string
+	TodayLabel   string
+	PeriodLabel  string
+	TrendLabel   string
 	DateRange    string
 	Currency     string
 	SummaryHTML  template.HTML
@@ -103,6 +106,9 @@ func buildDailyEmailView(data map[string]any) dailyEmailView {
 		CountryLabel: countryLabel(country),
 		ReportDate:   stringValue(data, "report_date"),
 		FrequencyCn:  frequencyLabel(stringValue(data, "frequency")),
+		TodayLabel:   frequencyTodayLabel(stringValue(data, "frequency")),
+		PeriodLabel:  frequencyPeriodLabel(stringValue(data, "frequency")),
+		TrendLabel:   frequencyTrendLabel(stringValue(data, "frequency")),
 		DateRange:    stringValue(data, "date_range"),
 		Currency:     currencySymbol(country),
 		SummaryHTML:  template.HTML(escapeHTML(stringValue(data, "ai_summary"))),
@@ -240,6 +246,39 @@ func currencySymbol(country string) string {
 		return "£"
 	default:
 		return "$"
+	}
+}
+
+func frequencyTodayLabel(frequency string) string {
+	switch frequency {
+	case "weekly":
+		return "本周"
+	case "monthly":
+		return "本月"
+	default:
+		return "今日"
+	}
+}
+
+func frequencyPeriodLabel(frequency string) string {
+	switch frequency {
+	case "weekly":
+		return "本周"
+	case "monthly":
+		return "本月"
+	default:
+		return "7天"
+	}
+}
+
+func frequencyTrendLabel(frequency string) string {
+	switch frequency {
+	case "weekly":
+		return "本周销量趋势"
+	case "monthly":
+		return "本月销量趋势"
+	default:
+		return "近 7 天销量趋势"
 	}
 }
 
