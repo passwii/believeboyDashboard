@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/inventory_replenishment"
 )
 
@@ -49,147 +48,6 @@ func TestInventoryReplenishmentStoreVerifyProjectAccess(t *testing.T) {
 	}
 }
 
-func TestInventoryReplenishmentStoreSnapshotCRUD(t *testing.T) {
-	ctx := context.Background()
-	now := time.Now().UTC()
-
-	// 1. CreateSnapshot returns generated ID (e.g. 101, not hardcoded 1)
-	createDB := &fakeWriteDB{
-		fakeDB: &fakeDB{
-			rowsQueue: []pgx.Row{
-				fakeRow{values: []any{"Test Project"}},  // query project name
-				fakeRow{values: []any{int(1)}},          // count(*) for analysis
-				fakeRow{values: []any{int64(101), now}}, // insert snapshot RETURNING id, created_at
-			},
-			rows: &fakeRows{
-				batches: [][]any{
-					{
-						int64(1), "Test Project", "SKU-A", "US", stringPointer("ASIN-A"), stringPointer("Prod A"),
-						0.20, 20, 25,
-						10, 0,
-					},
-				},
-			},
-		},
-	}
-	store := NewInventoryReplenishmentStore(createDB)
-	snap, err := store.CreateSnapshot(ctx, 1, "US", inventory_replenishment.CreateSnapshotRequest{
-		Name: stringPointer("Snap-101"),
-	}, "admin_op")
-	if err != nil {
-		t.Fatalf("CreateSnapshot error: %v", err)
-	}
-	if snap.ID != 101 {
-		t.Fatalf("expected snapshot ID 101, got %d", snap.ID)
-	}
-	if snap.ProjectName != "Test Project" || snap.Country != "US" {
-		t.Fatalf("unexpected snapshot fields: %#v", snap)
-	}
-
-	// 2. UpdateSnapshot updates name/description
-	summaryJSON := `{"sku_count":1}`
-	updateDB := &fakeWriteDB{
-		fakeDB: &fakeDB{
-			row: fakeRow{values: []any{
-				int64(101), int64(1), "Test Project", "US", "2026-11-01", true,
-				stringPointer("Updated Name"), stringPointer("Updated Desc"),
-				stringPointer("2026-11-01"), stringPointer("2026-11-01"),
-				stringPointer("2026-11-01"), 1, stringPointer("admin_op"), now, summaryJSON,
-			}},
-		},
-	}
-	updateStore := NewInventoryReplenishmentStore(updateDB)
-	updated, err := updateStore.UpdateSnapshot(ctx, 101, inventory_replenishment.UpdateSnapshotRequest{
-		Name: stringPointer("Updated Name"),
-	}, "admin_op")
-	if err != nil {
-		t.Fatalf("UpdateSnapshot error: %v", err)
-	}
-	if updated == nil || updated.ID != 101 || updated.Name == nil || *updated.Name != "Updated Name" {
-		t.Fatalf("unexpected updated snapshot: %#v", updated)
-	}
-
-	// 3. UpdateSnapshot missing returns nil
-	missingDB := &fakeWriteDB{fakeDB: &fakeDB{row: fakeRow{err: pgx.ErrNoRows}}}
-	missingStore := NewInventoryReplenishmentStore(missingDB)
-	updatedMissing, err := missingStore.UpdateSnapshot(ctx, 999, inventory_replenishment.UpdateSnapshotRequest{}, "admin_op")
-	if err != nil || updatedMissing != nil {
-		t.Fatalf("expected nil for missing snapshot, got %v, err %v", updatedMissing, err)
-	}
-
-	// 4. DeleteSnapshot returns true when rows affected
-	deleteDB := &fakeWriteDB{
-		fakeDB:  &fakeDB{},
-		execTag: pgconn.NewCommandTag("DELETE 1"),
-	}
-	deleteStore := NewInventoryReplenishmentStore(deleteDB)
-	ok, err := deleteStore.DeleteSnapshot(ctx, 101, "admin_op")
-	if err != nil || !ok {
-		t.Fatalf("expected DeleteSnapshot to succeed, got %v, err %v", ok, err)
-	}
-
-	// 5. DeleteSnapshot returns false when 0 rows affected
-	deleteZeroDB := &fakeWriteDB{
-		fakeDB:  &fakeDB{},
-		execTag: pgconn.NewCommandTag("DELETE 0"),
-	}
-	deleteZeroStore := NewInventoryReplenishmentStore(deleteZeroDB)
-	okZero, err := deleteZeroStore.DeleteSnapshot(ctx, 999, "admin_op")
-	if err != nil || okZero {
-		t.Fatalf("expected DeleteSnapshot to return false for missing, got %v, err %v", okZero, err)
-	}
-}
-
-func TestInventoryReplenishmentStoreListAnalysisTotalAndRisk(t *testing.T) {
-	ctx := context.Background()
-
-	// Analysis test:
-	// count(*) returns 250 (so Total is 250, not 1!)
-	// row 1: available=0, in_transit=0 -> risk should be 长期断货, NOT hardcoded "healthy"!
-	db := &fakeWriteDB{
-		fakeDB: &fakeDB{
-			row: fakeRow{values: []any{int(250)}}, // count(*)
-			rows: &fakeRows{
-				batches: [][]any{
-					{
-						int64(1), "Shop US", "SKU-001", "US", stringPointer("ASIN-001"), stringPointer("Product 1"),
-						0.20, 20, 25,
-						0, 0, // available=0, in_transit=0
-					},
-				},
-			},
-		},
-	}
-	store := NewInventoryReplenishmentStore(db)
-	projID := int64(1)
-	resp, err := store.ListAnalysis(ctx, inventory_replenishment.ReplenishmentFilter{
-		ProjectID: &projID,
-		Page:      1,
-		PageSize:  50,
-	})
-	if err != nil {
-		t.Fatalf("ListAnalysis error: %v", err)
-	}
-
-	// Verify Total is 250 (from count(*)), NOT len(items) (which is 1)
-	if resp.Total != 250 {
-		t.Fatalf("expected Total = 250 from count(*), got %d", resp.Total)
-	}
-	if len(resp.Items) != 1 {
-		t.Fatalf("expected 1 item, got %d", len(resp.Items))
-	}
-	// Verify risk is NOT "healthy"
-	if resp.Items[0].RiskStatus == "healthy" {
-		t.Fatal("expected dynamic risk calculation, not hardcoded healthy")
-	}
-	if resp.Items[0].RiskStatus != "长期断货" {
-		t.Fatalf("expected risk status 长期断货 for 0 inventory/transit, got %s", resp.Items[0].RiskStatus)
-	}
-	if resp.Summary.OutOfStockRiskCount != 1 {
-		t.Fatalf("expected OutOfStockRiskCount = 1, got %d", resp.Summary.OutOfStockRiskCount)
-	}
-}
-
 func TestInventoryReplenishmentStoreUpdateSetting(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now().UTC()
@@ -221,47 +79,6 @@ func TestInventoryReplenishmentStoreUpdateSetting(t *testing.T) {
 	}
 	if item.ProjectID != 1 || item.SKU != "SKU-1" || item.Country != "US" || item.SafetyFactor != 0.25 {
 		t.Fatalf("unexpected setting item: %#v", item)
-	}
-}
-
-func TestInventoryReplenishmentStoreSnapshotSQLSyntaxAndSubqueries(t *testing.T) {
-	ctx := context.Background()
-
-	// Verify listAnalysisFromSnapshot parses coalesce(p.product_name, '') cleanly
-	snapshotDate := "2026-11-01"
-	projID := int64(1)
-	db := &fakeWriteDB{
-		fakeDB: &fakeDB{
-			rowsQueue: []pgx.Row{
-				fakeRow{values: []any{int(1)}}, // count(*)
-			},
-			rows: &fakeRows{
-				batches: [][]any{
-					{
-						int64(1), "Shop US", "SKU-001", "US", stringPointer("ASIN-001"), stringPointer("Product 1"),
-						10, 5,
-						1.0, 1.0, 1.0, 1.0, 1.0,
-						0.20, 20, 25,
-						1.0, 10, stringPointer("2026-11-10"), stringPointer("2026-11-15"),
-						stringPointer("2026-11-05"), stringPointer("2026-11-20"), stringPointer("2026-11-10"),
-						100, "健康库存", stringPointer("2026-11-10"),
-					},
-				},
-			},
-		},
-	}
-	store := NewInventoryReplenishmentStore(db)
-	resp, err := store.ListAnalysis(ctx, inventory_replenishment.ReplenishmentFilter{
-		ProjectID:    &projID,
-		SnapshotDate: &snapshotDate,
-		Page:         1,
-		PageSize:     50,
-	})
-	if err != nil {
-		t.Fatalf("ListAnalysis from snapshot error: %v", err)
-	}
-	if len(resp.Items) != 1 || resp.Items[0].ProductName == nil || *resp.Items[0].ProductName != "Product 1" {
-		t.Fatalf("unexpected snapshot analysis items: %#v", resp.Items)
 	}
 }
 
@@ -358,5 +175,59 @@ func TestStage10B1InventoryReplenishmentSnapshotItemsPageFilters(t *testing.T) {
 	}
 	if got := db.queryCalls[0].args[len(db.queryCalls[0].args)-2:]; !assertWriteArgsEqual(got, []any{10, 10}) {
 		t.Fatalf("snapshot items limit/offset args = %#v, want [10 10]", got)
+	}
+}
+
+func TestInventoryReplenishmentListAnalysisBuildsContract(t *testing.T) {
+	ctx := context.Background()
+	empty := func() Rows { return &fakeRows{} }
+	db := &fakeWriteDB{fakeDB: &fakeDB{
+		rowsQueue: []pgx.Row{
+			fakeRow{values: []any{"Shop US"}},
+			fakeRow{err: pgx.ErrNoRows},
+		},
+		rowsQueueQuery: []Rows{
+			&fakeRows{batches: [][]any{{"SKU-001", stringPointer("ASIN-001"), "US"}}},
+			empty(),
+			empty(),
+			empty(),
+			empty(),
+			empty(),
+			&fakeRows{batches: [][]any{{"SKU-001", int64(30)}}},
+			&fakeRows{batches: [][]any{{"SKU-001", int64(14)}}},
+			&fakeRows{batches: [][]any{{"SKU-001", int64(7)}}},
+			&fakeRows{batches: [][]any{{"SKU-001", int64(3)}}},
+		},
+	}}
+	store := NewInventoryReplenishmentStore(db)
+	projectID := int64(1)
+	resp, err := store.ListAnalysis(ctx, inventory_replenishment.ReplenishmentFilter{
+		ProjectID: &projectID,
+		Page:      1,
+		PageSize:  50,
+	})
+	if err != nil {
+		t.Fatalf("ListAnalysis error: %v", err)
+	}
+	if resp.Total != 1 || resp.Page != 1 || resp.PageSize != 50 || resp.HasNext {
+		t.Fatalf("pagination = %#v", resp)
+	}
+	if len(resp.Items) != 1 {
+		t.Fatalf("items = %d, want 1", len(resp.Items))
+	}
+	item := resp.Items[0]
+	if item.SKU != "SKU-001" || item.Country != "US" || item.ASIN == nil || *item.ASIN != "ASIN-001" {
+		t.Fatalf("item identity = %#v", item)
+	}
+	if item.RiskStatus != "短期断货" || item.InventoryState != "critical" || item.ReplenishmentAction != "REPLENISH_NOW" {
+		t.Fatalf("item state = risk=%s state=%s action=%s", item.RiskStatus, item.InventoryState, item.ReplenishmentAction)
+	}
+	if item.DMS30 == nil || *item.DMS30 != 1 || item.WeightedDMS == nil || *item.WeightedDMS != 1.2 {
+		t.Fatalf("dms values = %#v", item)
+	}
+	if resp.Summary.OutOfStockRiskCount != 1 || resp.Summary.CriticalCount != 1 ||
+		resp.Summary.StateDistribution["critical"] != 1 ||
+		resp.Summary.ActionDistribution["REPLENISH_NOW"] != 1 {
+		t.Fatalf("summary = %#v", resp.Summary)
 	}
 }

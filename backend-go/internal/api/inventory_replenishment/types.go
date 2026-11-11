@@ -304,17 +304,22 @@ type UpdateSnapshotRequest struct {
 }
 
 type ReplenishmentFilter struct {
-	ProjectID    *int64
-	ProjectIDs   []int64
-	Country      *string
-	RiskStatus   *string
-	Keyword      *string
-	SnapshotDate *string
-	ReportDate   *string
-	Page         int
-	PageSize     int
-	Operator     string
-	IsAdmin      bool
+	ProjectID           *int64
+	ProjectIDs          []int64
+	Country             *string
+	RiskStatus          *string
+	Keyword             *string
+	SnapshotDate        *string
+	ReportDate          *string
+	InTransitOnly       bool
+	InventoryState      *string
+	ReplenishmentAction *string
+	OrderBy             *string
+	OrderDir            string
+	Page                int
+	PageSize            int
+	Operator            string
+	IsAdmin             bool
 }
 
 type SnapshotItemsFilter struct {
