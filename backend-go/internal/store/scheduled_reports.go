@@ -104,13 +104,11 @@ func (store *ScheduledReportStore) ListSubscriptions(
 	}
 	args := make([]any, 0, 2)
 	where := ""
-	if !scope.IsAdmin {
-		if scope.UserID == nil {
-			return []scheduled_reports.Subscription{}, nil
-		}
-		args = append(args, *scope.UserID)
-		where = fmt.Sprintf(" where user_id = $%d", len(args))
+	if scope.UserID == nil {
+		return []scheduled_reports.Subscription{}, nil
 	}
+	args = append(args, *scope.UserID)
+	where = fmt.Sprintf(" where user_id = $%d", len(args))
 	if frequency != nil && strings.TrimSpace(*frequency) != "" {
 		args = append(args, strings.TrimSpace(*frequency))
 		if where == "" {

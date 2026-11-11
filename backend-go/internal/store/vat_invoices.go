@@ -56,6 +56,10 @@ func validVATInvoiceStatus(status string) bool {
 	}
 }
 
+func formatVATAmount(value float64) string {
+	return strconv.FormatFloat(value, 'f', 2, 64)
+}
+
 func round2(val float64) float64 {
 	return math.Round(val*100) / 100
 }
@@ -424,14 +428,18 @@ func (s *VatInvoiceStore) ListInvoices(ctx context.Context, filter vat_invoices.
 	for rows.Next() {
 		var it vat_invoices.VatInvoiceListItem
 		var createdAt, updatedAt time.Time
+		var subtotalExcl, totalVat, totalIncl float64
 		if err := rows.Scan(
 			&it.ID, &it.InvoiceNo, &it.ProjectID, &it.ProjectName,
 			&it.Currency, &it.OrderID, &it.BuyerName,
-			&it.InvoiceDate, &it.SubtotalExcl, &it.TotalVat, &it.TotalIncl,
+			&it.InvoiceDate, &subtotalExcl, &totalVat, &totalIncl,
 			&it.Status, &it.HasPdf, &createdAt, &updatedAt,
 		); err != nil {
 			return nil, err
 		}
+		it.SubtotalExcl = formatVATAmount(subtotalExcl)
+		it.TotalVat = formatVATAmount(totalVat)
+		it.TotalIncl = formatVATAmount(totalIncl)
 		it.CreatedAt = createdAt.UTC().Format(time.RFC3339Nano)
 		it.UpdatedAt = updatedAt.UTC().Format(time.RFC3339Nano)
 		items = append(items, it)

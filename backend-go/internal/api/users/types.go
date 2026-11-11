@@ -46,10 +46,7 @@ type UserItem struct {
 }
 
 type ListResponse struct {
-	Items    []UserItem `json:"items"`
-	Total    int        `json:"total"`
-	Page     int        `json:"page"`
-	PageSize int        `json:"page_size"`
+	Items []UserItem `json:"items"`
 }
 
 type ItemResponse struct {
