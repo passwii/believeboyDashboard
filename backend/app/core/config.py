@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     test_database_url: str = Field(default="", max_length=1000)
     test_database_read_url: str = Field(default="", max_length=1000)
 
-    # Test accounts seeded into the test DB by `scripts/seed_test_accounts.py`.
+    # Test accounts seeded into the test DB by `backend-go/cmd/seedtestaccounts`.
     # Emails have safe defaults; passwords must come from env (never committed)
     # — see TEST_*_PASSWORD below. These mirror the accounts the agent/E2E
     # test suites authenticate as.

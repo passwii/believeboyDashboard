@@ -32,7 +32,7 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │ Layer 0 · 测试数据与账号基础设施（所有上层共用）                   │
 │   → 独立测试库：scripts/setup_test_db.py                          │
-│   → 测试账号 seed：scripts/seed_test_accounts.py                 │
+│   → 测试账号 seed：backend-go/cmd/seedtestaccounts                 │
 │   → 开关：app/core/config.py 的 TEST_DATABASE_URL                │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -332,7 +332,7 @@ vi.mock('@/components/notifications', () => ({
 2. **密码绝不硬编码、不入 .env.example**——只从 `backend/.env.test`（gitignored）注入。
 3. **测试库 schema 用 `pg_dump --schema-only` 同步**（参见 plan D2）——不要尝试 `alembic upgrade head` 从零建（迁移 bootstrap 冲突）。
 4. **Playwright 登录走 `login_as`（agent_testing/auth.py）**——不要回退到 UI 选择器 `#email` / `#password`。
-5. **新加 E2E 账号时**更新 `agent_testing/conftest.py` 的 `TEST_ACCOUNTS` + `scripts/seed_test_accounts.py` 的 `TEST_ACCOUNTS` 列表；两边必须一致。
+5. **新加 E2E 账号时**更新 `agent_testing/conftest.py` 的 `TEST_ACCOUNTS` + `backend-go/cmd/seedtestaccounts` 的 `TEST_ACCOUNTS` 列表；两边必须一致。
 6. **新加 pytest DB 测试时**用 `tests/conftest.py` 的 `db_session` / `test_admin` / `*_headers` fixture，不要自己 `SessionLocal()` 直连。
 
 ---
@@ -344,7 +344,7 @@ vi.mock('@/components/notifications', () => ({
 ### 加一个新角色 / 一类测试账号
 
 1. `backend/app/core/config.py`：增加 `test_<role>_email` / `test_<role>_password` 字段（带默认值；密码必须从 env 注入）。
-2. `backend/scripts/seed_test_accounts.py`：在 `TEST_ACCOUNTS` 列表加一项，role_type 写准确值（`admin` / `operator` / `businessdev` / 未来新增）。
+2. `backend/backend-go/cmd/seedtestaccounts`：在 `TEST_ACCOUNTS` 列表加一项，role_type 写准确值（`admin` / `operator` / `businessdev` / 未来新增）。
 3. `backend/scripts/agent_testing/conftest.py`：在 `TEST_ACCOUNTS` dict 加一项（**两边都要，且邮箱、密码、env 变量名一致**）。
 4. 重跑 `python scripts/setup_test_db.py --reset-password`。
 

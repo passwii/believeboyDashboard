@@ -248,7 +248,8 @@ jobs:
         run: go run ./cmd/migrate up
 
       - name: 灌测试参考数据
-        run: python scripts/seed_test_reference_data.py
+        working-directory: backend-go
+        run: go run ./cmd/seedtestreference
 
       - name: 灌测试账号
         working-directory: backend-go
@@ -347,8 +348,8 @@ jobs:
         run: go run ./cmd/migrate up
 
       - name: 灌参考数据
-        working-directory: backend
-        run: python scripts/seed_test_reference_data.py
+        working-directory: backend-go
+        run: go run ./cmd/seedtestreference
 
       - name: 灌测试账号
         working-directory: backend-go

@@ -30,7 +30,7 @@ MONTH_LABEL = "2026-07"
 
 
 # ── 三个「人」的 id ──────────────────────────────────────────────────────────
-# ⚠️ 这里**不能写死 UUID**：`scripts/seed_test_accounts.py` 用数据库默认的
+# ⚠️ 这里**不能写死 UUID**：`backend-go/cmd/seedtestaccounts` 用数据库默认的
 # `gen_random_uuid()` 建账号，**每个测试库的账号 id 都不一样**。
 # 写死的历史 UUID 只在"当年那个库"里存在，换个库（CI 的全新库 / 新同事的机器）
 # 就对不上 → `_active_user_roster` 认不出这个人 → 业绩指标全 0、排名错位。
@@ -68,7 +68,7 @@ def _seeded_accounts(db_session, settings):
             out[role] = by_email[email]
     if missing:
         pytest.fail(
-            f"测试账号缺失: {missing} —— 先跑 `python scripts/seed_test_accounts.py`"
+            f"测试账号缺失: {missing} —— 先跑 `python backend-go/cmd/seedtestaccounts`"
         )
     return out
 
