@@ -54,7 +54,7 @@ Alembic 历史已冻结在 revision 285：
 - **首次切换前置条件**：若库仍是 Alembic，先运行一次 `bash deploy/prepare-goose-cutover.sh`（用 API 镜像将库升到冻结 head 285）；全新库无需执行。随后正常部署，`go-migrate up` 会 stamp 并运行后续 Goose 迁移。
 
 本机验证命令见 `docs/REFERENCE.md` §数据库与迁移；发布前由 `git deploy` / CI 运行
-`backend-go/scripts/check_go_migrations.py`。
+`cd backend-go && go run ./cmd/checkmigrations`。
 
 ## VPS 文件
 

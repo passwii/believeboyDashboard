@@ -80,10 +80,10 @@ git rev-list --left-right --count origin/main...HEAD  # 左侧计数为 0，才�
 - **数据库迁移（Goose；Alembic 已于 2026-11-10 冻结，遵循 [docs/REFERENCE.md](./docs/REFERENCE.md) §数据库与迁移）**：
   - **工具**：Goose，SQL 文件在 `backend-go/internal/migrations/sql/`，runner 在 `backend-go/cmd/migrate`；`backend/alembic/versions` 历史归档冻结在 revision 285，**不再新增/修改**（校验脚本会拒绝任何变动）。
   - **baseline**：`00001_baseline.sql` 是 revision 285 的 schema 快照，**禁止修改**；已有库跑 `migrate up` 会自动 stamp（无需重放），空库正常执行 baseline + seed 迁移，未知的非空 schema 会拒绝执行。若库仍停在 Alembic 284 或更早，首次部署前先运行一次 `bash deploy/prepare-goose-cutover.sh` 把库升到 285。
-  - **建迁移**：`python3 backend-go/scripts/new_go_migration.py <slug>` 生成 `YYYYMMDDHHMMSS_<slug>.sql`；手工写 Up/Down。文件名必须 14 位时间戳 + 小写 snake_case slug，版本号唯一；**已应用迁移禁止改名/改内容**，修正用新迁移。
+  - **建迁移**：`cd backend-go && go run ./cmd/newmigration <slug>` 生成 `YYYYMMDDHHMMSS_<slug>.sql`；手工写 Up/Down。文件名必须 14 位时间戳 + 小写 snake_case slug，版本号唯一；**已应用迁移禁止改名/改内容**，修正用新迁移。
   - **多 worktree 防撞**：建迁移前先 `git fetch origin && git rebase origin/main`；若时间戳撞车（同一秒）由后建者改名，**不要复用已存在的版本号**。没有 Alembic 的 revision graph / merge heads 概念，唯一性由时间戳 + 校验脚本保证。
   - **随 feature 分支同批合 main**：迁移与使用它的代码一起 review/合并，避免 schema 先于业务代码上生产；迁移必须向后兼容，生产回滚不自动回滚 DB。
-  - **机械检查**：push / 部署前跑 `python3 backend-go/scripts/check_go_migrations.py`（baseline 哈希、Alembic 冻结 manifest、文件名/重复版本、goose Up/Down 标记）；`backend/scripts/check_alembic.py` 仅用于冻结归档的图完整性。手动：`cd backend-go && python3 scripts/check_go_migrations.py`。
+  - **机械检查**：push / 部署前跑 `cd backend-go && go run ./cmd/checkmigrations`（baseline 哈希、Alembic 冻结 manifest、文件名/重复版本、goose Up/Down 标记；manifest 同时锁死归档文件，Alembic 目录任何变动即失败）。
   - **模型同步**：FastAPI 仍读同一库时，迁移需同步更新 `backend/app/models/`；主键统一 `Integer`（对齐 `alert_rule.py` 屋风与模型 `Mapped[int]`），勿用 `BigInteger`。
 
 ## 仓库根指针

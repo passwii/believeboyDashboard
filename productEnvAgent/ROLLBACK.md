@@ -56,7 +56,7 @@ python productEnvAgent/rollback.py --bad-sha <bad-sha> --auto --force
 2. **merge-aware revert**：merge commit 用 `git revert -m 1`，普通 commit 直接 revert；
 3. 可选 `--push-back`：把 revert 提交推回 `origin/main`，保持 VPS 与远端一致
    （推荐，否则下次部署会因 non-fast-forward 失败）；
-4. Goose 迁移检查（`backend-go/scripts/check_go_migrations.py`，含冻结的 Alembic 归档校验）；
+4. Goose 迁移检查（`cd backend-go && go run ./cmd/checkmigrations`，含冻结的 Alembic 归档校验）；
 5. 需要降库时用 `--downgrade <rev>`（执行前工具会先展示 `alembic history` 供核对）；
 6. 重启 `believeboy-api` + `believeboy-celery` + `believeboy-celery-scheduled`；
 7. 服务状态 + HTTP 健康检查（200/401 视为通过）。
