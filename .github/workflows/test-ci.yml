@@ -243,18 +243,16 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: 建测试库 schema（bootstrap + 迁移）
-        # 迁移链假设 user_accounts / projects 两张"引导表"已存在
-        # （见 backend/scripts/setup_test_db.py 的说明），所以先建这两张表，
-        # 再让 alembic 链把其余表建出来。
-        run: |
-          python scripts/ci_bootstrap_test_db.py
+      - name: 建测试库 schema（Goose 迁移）
+        working-directory: backend-go
+        run: go run ./cmd/migrate up
 
       - name: 灌测试参考数据
         run: python scripts/seed_test_reference_data.py
 
       - name: 灌测试账号
-        run: python scripts/seed_test_accounts.py
+        working-directory: backend-go
+        run: go run ./cmd/seedtestaccounts
 
       - name: pytest 全量（基线对账门禁）
         # 门禁语义：基线内的既有失败不阻断；**基线之外的新失败 = 回归 = 阻断**。
@@ -345,14 +343,16 @@ jobs:
           pip install -r requirements.txt
 
       - name: 建独立测试库 schema
-        working-directory: backend
-        run: python scripts/ci_bootstrap_test_db.py
+        working-directory: backend-go
+        run: go run ./cmd/migrate up
 
-      - name: 灌参考数据与测试账号
+      - name: 灌参考数据
         working-directory: backend
-        run: |
-          python scripts/seed_test_reference_data.py
-          python scripts/seed_test_accounts.py
+        run: python scripts/seed_test_reference_data.py
+
+      - name: 灌测试账号
+        working-directory: backend-go
+        run: go run ./cmd/seedtestaccounts
 
       - name: 灌 live contract 固定数据
         working-directory: backend-go
