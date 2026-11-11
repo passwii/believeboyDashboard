@@ -157,22 +157,14 @@ def _clone_schema(source_url: str, test_url: str) -> None:
 
 
 def _seed_accounts(reset_password: bool) -> None:
+    go_dir = str(ROOT.parent / "backend-go")
     print("[3/4] Seeding test reference data (CRM categories + workflow templates)...")
-    from scripts.seed_test_reference_data import seed_reference_data
-    from app.db.session import engine
-
-    seed_reference_data(engine)
+    subprocess.run(["go", "run", "./cmd/seedtestreference"], cwd=go_dir, env=os.environ, check=True)
     print("[4/4] Seeding test accounts (admin / operator / businessdev)...")
-    from scripts.seed_test_accounts import main as seed_main
-
-    argv = ["seed_test_accounts.py"]
+    command = ["go", "run", "./cmd/seedtestaccounts"]
     if reset_password:
-        argv.append("--reset-password")
-    sys.argv = argv
-    code = seed_main()
-    if code != 0:
-        print("setup_test_db failed: seed_test_accounts exited non-zero.", file=sys.stderr)
-        raise SystemExit(code)
+        command.append("--reset-password")
+    subprocess.run(command, cwd=go_dir, env=os.environ, check=True)
     print("      accounts ready")
 
 

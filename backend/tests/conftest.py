@@ -136,7 +136,7 @@ def _fetch_account(db: Session, email: str) -> dict:
     if row is None:
         pytest.fail(
             f"Test account {email!r} not found in the test DB. "
-            f"Seed it with `python scripts/seed_test_accounts.py`."
+            f"Seed it with `python backend-go/cmd/seedtestaccounts`."
         )
     return dict(row)
 

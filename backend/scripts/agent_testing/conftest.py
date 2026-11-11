@@ -48,7 +48,7 @@ def _require(name: str) -> str:
 
 # Test accounts — credentials MUST come from env, never hardcoded.
 # Defaults point at the dedicated test-database accounts seeded by
-# `scripts/seed_test_accounts.py` (run `scripts/setup_test_db.py` once). To
+# `backend-go/cmd/seedtestaccounts` (run `scripts/setup_test_db.py` once). To
 # exercise these E2E tests against the test DB, start the backend with
 # TEST_DATABASE_URL set to that DB and seed the accounts there.
 #
