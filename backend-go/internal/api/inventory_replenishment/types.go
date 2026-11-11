@@ -152,23 +152,58 @@ type InventoryReplenishmentShipmentResponse struct {
 }
 
 type InventoryAnalysisItem struct {
-	SKU                string   `json:"sku"`
-	ProductName        *string  `json:"product_name"`
-	AvailableInventory int      `json:"available_inventory"`
-	InTransitQuantity  int      `json:"in_transit_quantity"`
-	SellableDays       *float64 `json:"sellable_days"`
-	RiskStatus         string   `json:"risk_status"`
+	ProjectID              int64            `json:"project_id"`
+	ProjectName            string           `json:"project_name"`
+	Country                string           `json:"country"`
+	SKU                    string           `json:"sku"`
+	ASIN                   *string          `json:"asin"`
+	ProductName            *string          `json:"product_name"`
+	AvailableQty           int64            `json:"available_qty"`
+	Age0To90Qty            int64            `json:"age_0_90_qty"`
+	Age91To180Qty          int64            `json:"age_91_180_qty"`
+	Age181To270Qty         int64            `json:"age_181_270_qty"`
+	Age271To365Qty         int64            `json:"age_271_365_qty"`
+	Age365PlusQty          int64            `json:"age_365_plus_qty"`
+	RecommendedAction      *string          `json:"recommended_action"`
+	RecommendedActionLabel string           `json:"recommended_action_label"`
+	StockStatus            string           `json:"stock_status"`
+	AgingStatus            string           `json:"aging_status"`
+	ShipmentQuantities     map[string]int64 `json:"shipment_quantities"`
 }
 
 type InventoryAnalysisSummary struct {
-	TotalSKU                int `json:"total_sku"`
-	OutOfStockRiskCount     int `json:"out_of_stock_risk_count"`
-	TotalAvailableInventory int `json:"total_available_inventory"`
+	SKUCount            int   `json:"sku_count"`
+	OutOfStockCount     int   `json:"out_of_stock_count"`
+	AgingSKUCount       int   `json:"aging_sku_count"`
+	OverAgedSKUCount    int   `json:"over_aged_sku_count"`
+	TotalAvailableQty   int64 `json:"total_available_qty"`
+	TotalAge0To90Qty    int64 `json:"total_age_0_90_qty"`
+	TotalAge91To180Qty  int64 `json:"total_age_91_180_qty"`
+	TotalAge181To270Qty int64 `json:"total_age_181_270_qty"`
+	TotalAge271To365Qty int64 `json:"total_age_271_365_qty"`
+	TotalAge365PlusQty  int64 `json:"total_age_365_plus_qty"`
+	ActionTypeCount     int   `json:"action_type_count"`
+}
+
+type ShipmentColumn struct {
+	ShipmentNo     string  `json:"shipment_no"`
+	Label          string  `json:"label"`
+	ShippingMethod *string `json:"shipping_method"`
+	ForwarderName  *string `json:"forwarder_name"`
+	EtdDate        *string `json:"etd_date"`
+	EtaDate        *string `json:"eta_date"`
 }
 
 type InventoryAnalysisResponse struct {
-	Items   []InventoryAnalysisItem  `json:"items"`
-	Summary InventoryAnalysisSummary `json:"summary"`
+	ProjectID            int64                    `json:"project_id"`
+	ProjectName          string                   `json:"project_name"`
+	Country              string                   `json:"country"`
+	ReportDate           *string                  `json:"report_date"`
+	Summary              InventoryAnalysisSummary `json:"summary"`
+	ActionOptions        []string                 `json:"action_options"`
+	Items                []InventoryAnalysisItem  `json:"items"`
+	ShipmentColumns      []ShipmentColumn         `json:"shipment_columns"`
+	ShipmentColumnTotals map[string]int64         `json:"shipment_column_totals"`
 }
 
 type InventorySnapshotOption struct {
@@ -275,6 +310,7 @@ type ReplenishmentFilter struct {
 	RiskStatus   *string
 	Keyword      *string
 	SnapshotDate *string
+	ReportDate   *string
 	Page         int
 	PageSize     int
 	Operator     string

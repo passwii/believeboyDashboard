@@ -95,10 +95,11 @@ func (stage5InventoryStore) GetInventoryAnalysis(
 ) (inventory_replenishment.InventoryAnalysisResponse, error) {
 	return inventory_replenishment.InventoryAnalysisResponse{
 		Items: []inventory_replenishment.InventoryAnalysisItem{{
-			SKU: "SKU-1", AvailableInventory: 12, RiskStatus: "healthy",
+			ProjectID: 1, ProjectName: "Project A", Country: "US",
+			SKU: "SKU-1", AvailableQty: 12, StockStatus: "in_stock",
 		}},
 		Summary: inventory_replenishment.InventoryAnalysisSummary{
-			TotalSKU: 1, TotalAvailableInventory: 12,
+			SKUCount: 1, TotalAvailableQty: 12,
 		},
 	}, nil
 }
@@ -480,7 +481,7 @@ func TestStage5AgentAuthenticationAndScopeContract(t *testing.T) {
 	assertAgentErrorCode(t, rec, http.StatusForbidden, "AGENT_PROJECT_OUT_OF_SCOPE")
 
 	rec = requestAgent(http.MethodGet, "/api/v1/agent/projects/1/inventory?country=US", nil, nil)
-	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"available_inventory":12`) {
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"available_qty":12`) {
 		t.Fatalf("inventory status=%d body=%s", rec.Code, rec.Body.String())
 	}
 

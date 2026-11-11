@@ -10,14 +10,14 @@ import (
 
 	"errors"
 	"github.com/go-chi/chi/v5"
-	"github.com/passwii/believeboyDashboard/backend-go/internal/audit"
-	"github.com/passwii/believeboyDashboard/backend-go/internal/auth"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/complaints"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/daily_analysis"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/internal_ad_data"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/inventory_replenishment"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/projects"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/rpa_reports"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/audit"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/auth"
 )
 
 type Handler struct {
@@ -676,24 +676,31 @@ func filterInventoryAnalysis(
 ) inventory_replenishment.InventoryAnalysisResponse {
 	needle := strings.ToLower(strings.TrimSpace(sku))
 	items := make([]inventory_replenishment.InventoryAnalysisItem, 0, len(resp.Items))
-	totalAvailable := 0
-	outOfStock := 0
+	summary := inventory_replenishment.InventoryAnalysisSummary{}
 	for _, item := range resp.Items {
 		if !strings.Contains(strings.ToLower(item.SKU), needle) {
 			continue
 		}
 		items = append(items, item)
-		totalAvailable += item.AvailableInventory
-		if item.RiskStatus == "out_of_stock" {
-			outOfStock++
+		summary.SKUCount++
+		if item.StockStatus == "out_of_stock" {
+			summary.OutOfStockCount++
 		}
+		if item.AgingStatus == "aging" || item.AgingStatus == "over_aged" {
+			summary.AgingSKUCount++
+		}
+		if item.AgingStatus == "over_aged" {
+			summary.OverAgedSKUCount++
+		}
+		summary.TotalAvailableQty += item.AvailableQty
+		summary.TotalAge0To90Qty += item.Age0To90Qty
+		summary.TotalAge91To180Qty += item.Age91To180Qty
+		summary.TotalAge181To270Qty += item.Age181To270Qty
+		summary.TotalAge271To365Qty += item.Age271To365Qty
+		summary.TotalAge365PlusQty += item.Age365PlusQty
 	}
 	resp.Items = items
-	resp.Summary = inventory_replenishment.InventoryAnalysisSummary{
-		TotalSKU:                len(items),
-		OutOfStockRiskCount:     outOfStock,
-		TotalAvailableInventory: totalAvailable,
-	}
+	resp.Summary = summary
 	return resp
 }
 
