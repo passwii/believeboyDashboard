@@ -1924,6 +1924,22 @@ func (s *CategoryResearchStore) GetExportData(ctx context.Context, datasetID int
 	if err != nil {
 		return "", nil, err
 	}
+	if exportKey == "summary_pdf" {
+		overview, err := s.GetDatasetOverview(ctx, datasetID, priceBandStandard, priceBandBreaks)
+		if err != nil {
+			return "", nil, err
+		}
+		content, err := s.buildCategorySummaryPDF(ctx, *dataset, *overview)
+		if err != nil {
+			return "", nil, err
+		}
+		keywordSlug := safeStoragePathSegment(dataset.CategoryKeywordEn, "category-research")
+		filename := fmt.Sprintf(
+			"category-research-%s-%s-v%d-summary.pdf",
+			strings.ToLower(dataset.Marketplace), keywordSlug, dataset.Version,
+		)
+		return safeUploadFilename(filename, "category-research-summary.pdf"), content, nil
+	}
 	if exportKey != "overview" && exportKey != "analysis_workbook" && exportKey != "products" && exportKey != "trends" {
 		return "", nil, fmt.Errorf("unsupported export key %q", exportKey)
 	}
