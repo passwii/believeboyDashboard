@@ -59,6 +59,7 @@ import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { useConfirm } from '@/hooks/use-confirm'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { cn } from '@/lib/utils'
+import { readWarmLedgerColor } from '@/lib/warm-ledger-colors'
 
 type ProjectOption = {
   id: number | null
@@ -560,7 +561,11 @@ export default function AIInsightsPage() {
           return
         }
 
-        toPng(dataUrl, { backgroundColor: '#242525', pixelRatio: 2, cacheBust: true })
+        toPng(dataUrl, {
+          backgroundColor: readWarmLedgerColor('window'),
+          pixelRatio: 2,
+          cacheBust: true,
+        })
           .then((url) => {
             const periodLabel =
               viewingInsight?.insight_type === 'monthly' ? '上个月总结' : '上周总结'

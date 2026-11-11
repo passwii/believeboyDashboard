@@ -25,6 +25,7 @@ import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
 
 import styles from '../insights-warm.module.css'
 import { chartSvgRegistry } from './chart-svg-registry'
+import { readWarmLedgerColor } from '@/lib/warm-ledger-colors'
 
 function parseLineChart(content: string) {
   const lines = content.trim().split('\n')
@@ -78,17 +79,11 @@ const CHART_COLORS = [
   'var(--warm-ledger-color-accent)',
   'var(--warm-ledger-color-text-soft)',
   'var(--warm-ledger-color-text-muted)',
-  'var(--warm-ledger-color-faint)',
+  'var(--warm-ledger-color-text-faint)',
 ]
 
-// Absolute token values — static SVG data URLs cannot resolve CSS variables.
-const CHART_COLORS_HEX = [
-  '#f3c875', // accent strong
-  '#e8b35a', // accent
-  '#c2bbaf', // text soft
-  '#a9a297', // text muted
-  '#837d74', // faint
-]
+/** 静态 SVG data URL 不能解析 CSS 变量；导出时按当前主题读取已解析值（渲染时解析，跟随主题切换）。 */
+const CHART_COLOR_ROLES = ['accentStrong', 'accent', 'textSoft', 'textMuted', 'textFaint'] as const
 
 const CHART_CONFIG = {
   value: { label: '数值', color: 'var(--warm-ledger-color-accent-strong)' },
@@ -209,18 +204,18 @@ export function ChartCodeBlock({
         ` ${toX(chartData.length - 1)},${padT + vh}`
 
       const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" font-family="ui-sans-serif,system-ui,sans-serif" font-size="11" text-anchor="middle">
-  <defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#e8b35a" stop-opacity="0.32"/><stop offset="100%" stop-color="#e8b35a" stop-opacity="0.03"/></linearGradient></defs>
-  ${gridYs.map((y) => `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="#5f5b55" stroke-dasharray="4 4"/>`).join('\n  ')}
-  ${yLabels.map((label, i) => `<text x="${padL - 6}" y="${gridYs[i] + 4}" text-anchor="end" fill="#a9a297">${label}</text>`).join('\n  ')}
+  <defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${readWarmLedgerColor('accent')}" stop-opacity="0.32"/><stop offset="100%" stop-color="${readWarmLedgerColor('accent')}" stop-opacity="0.03"/></linearGradient></defs>
+  ${gridYs.map((y) => `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="${readWarmLedgerColor('chartAxis')}" stroke-dasharray="4 4"/>`).join('\n  ')}
+  ${yLabels.map((label, i) => `<text x="${padL - 6}" y="${gridYs[i] + 4}" text-anchor="end" fill="${readWarmLedgerColor('textMuted')}">${label}</text>`).join('\n  ')}
   ${labels
     .filter((_, i) => i % Math.ceil(labels.length / 6) === 0 || i === labels.length - 1)
     .map((l, _, arr) => {
       const idx = labels.indexOf(l)
-      return `<text x="${toX(idx)}" y="${H - 6}" fill="#a9a297">${l}</text>`
+      return `<text x="${toX(idx)}" y="${H - 6}" fill="${readWarmLedgerColor('textMuted')}">${l}</text>`
     })
     .join('\n  ')}
   <polygon points="${area}" fill="url(#lg)"/>
-  <polyline points="${polyline}" fill="none" stroke="#e8b35a" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <polyline points="${polyline}" fill="none" stroke="${readWarmLedgerColor('accent')}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
   <polyline points="${pts}" fill="none" stroke="transparent" stroke-width="8"/>
 </svg>`
       const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgStr)}`
@@ -329,6 +324,7 @@ export function ChartCodeBlock({
 
     // Static SVG donut chart for PNG export — no Recharts SVG dependency.
     if (collectChartSvgs) {
+      const exportColors = CHART_COLOR_ROLES.map((role) => readWarmLedgerColor(role))
       const size = 220
       const cx = size / 2
       const cy = size / 2
@@ -353,13 +349,13 @@ export function ChartCodeBlock({
         const y4 = cy + innerR * Math.sin(startA)
         const large = slice > Math.PI ? 1 : 0
 
-        const color = CHART_COLORS_HEX[i % CHART_COLORS_HEX.length]
+        const color = exportColors[i % exportColors.length]
         const path = `M${x1},${y1} A${outerR},${outerR} 0 ${large},1 ${x2},${y2} L${x3},${y3} A${innerR},${innerR} 0 ${large},0 ${x4},${y4} Z`
         return { path, color }
       })
 
       const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" font-family="ui-sans-serif,system-ui,sans-serif">
-        ${wedges.map((w) => `<path d="${w.path}" fill="${w.color}" stroke="#242525" stroke-width="2"/>`).join('\n        ')}
+        ${wedges.map((w) => `<path d="${w.path}" fill="${w.color}" stroke="${readWarmLedgerColor('window')}" stroke-width="2"/>`).join('\n        ')}
       </svg>`
       const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgStr)}`
       const pieId = `pie-${code.slice(0, 20)}`
@@ -386,7 +382,7 @@ export function ChartCodeBlock({
                 >
                   <div
                     className={styles.legendSwatch}
-                    style={{ backgroundColor: CHART_COLORS_HEX[i % CHART_COLORS_HEX.length] }}
+                    style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}
                   />
                   <span className={styles.legendName}>{item.name}</span>
                   <span className={styles.legendValue}>

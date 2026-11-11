@@ -86,6 +86,19 @@ V4 是 BelieveBoy 运营与业务页面的全新设计语言：暖石墨表面�
 6. loading / empty / error / permission / long-content 状态；
 7. 是否需要动效；没有明确收益就不加。
 
+#### 0.4.5 明暗主题
+
+V4 Warm Ledger 支持暗色、浅色与跟随系统三种模式，主题偏好沿用现有全局选择器（`light` / `dark` / `system`，由 next-themes 写入 `html` 的 `light` / `dark` class）。
+
+1. **暗色是 B0 冻结基线**：暗色 token 值与 `2026-11-01` foundations 记录一致，不因浅色工作改动。
+2. **浅色为“账本纸白”**：浅中性灰舞台、近白工作窗、微暖灰侧栏、白色面板；层级由表面差、细边界和克制阴影表达，不另造布局、圆角或密度。
+3. **强调色按主题分工**：暗色一般强调保持琥珀 `#e8b35a`；浅色一般强调改为森林绿 `#0f6b57`。正向状态在浅色使用 `#2a7130`，与一般强调分开；负向状态保持红色语义。
+4. **实现位置**：浅色覆盖写在 `components/dashboard-v2/warm-ledger/shell/theme.css` 的 `html.light .warm-ledger` 块，只覆盖 `--warm-ledger-*` 语义 token（含 `--warm-ledger-color-on-accent`、浮层阴影、遮罩）。
+5. **不在主题切换中改变业务**：路由、数据、筛选、写操作与导出契约不随之变化。
+6. **不覆盖例外区**：AI Chat、登录、纸张文档画布与强制暗色展示页继续遵循 §1 的独立规则。
+
+新增或修改 V4 组件时，颜色一律走 `--warm-ledger-*` token；禁止在页面或组件里写死暗色 / 浅色字面值。明细见 `docs/superpowers/specs/2026-11-10-v4-light-mode-design.md`。
+
 完整反 AI Slop 规则继续适用于 V4；但 V3 的零圆角、`--term-*`、1px 全平铺和 Terminal 组件清单不再是 V4 的设计要求。
 
 ---

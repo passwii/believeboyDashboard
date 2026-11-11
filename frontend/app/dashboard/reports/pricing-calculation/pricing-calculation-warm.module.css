@@ -439,7 +439,7 @@
 }
 
 .runCard[data-tone='accent'] {
-  border-color: rgba(232, 179, 90, 0.3);
+  border-color: color-mix(in srgb, var(--warm-ledger-color-accent) 30%, transparent);
 }
 
 .runCard[data-tone='positive'] {
@@ -607,7 +607,7 @@
   justify-content: center;
   color: var(--warm-ledger-color-accent-strong);
   background: var(--warm-ledger-color-accent-soft);
-  border: var(--warm-ledger-border-width) solid rgba(232, 179, 90, 0.32);
+  border: var(--warm-ledger-border-width) solid color-mix(in srgb, var(--warm-ledger-color-accent) 32%, transparent);
   border-radius: var(--warm-ledger-radius-control);
 }
 

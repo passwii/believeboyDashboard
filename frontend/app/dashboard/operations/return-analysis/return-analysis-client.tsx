@@ -315,16 +315,16 @@ const TAB_ICONS: Record<ViewTab, LucideIcon> = {
 }
 
 /**
- * Chart-local neutral categorical palette. Each color has >= 4:1 contrast
- * against --warm-ledger-color-panel (#2b2c2b) and intentionally carries no
- * positive/negative/accent meaning.
+ * Chart-local neutral categorical palette. Values come from
+ * --warm-ledger-color-chart-1..5 so both themes keep >= 3:1 contrast against
+ * the panel and stay free of positive/negative/accent meaning.
  */
 export const RETURN_REASON_COLORS = [
-  '#f1ede5',
-  '#d8d0c4',
-  '#c2bbaf',
-  '#a9a297',
-  '#918a80',
+  'var(--warm-ledger-color-chart-1)',
+  'var(--warm-ledger-color-chart-2)',
+  'var(--warm-ledger-color-chart-3)',
+  'var(--warm-ledger-color-chart-4)',
+  'var(--warm-ledger-color-chart-5)',
 ]
 export const RETURN_REASON_SLICE_STROKE = 'var(--warm-ledger-color-panel)'
 export const RETURN_REASON_SLICE_STROKE_WIDTH = 2

@@ -19,6 +19,12 @@
   --warm-ledger-color-positive: #65cfa1;
   --warm-ledger-color-negative: #ee8580;
   --warm-ledger-color-chart-grid: rgba(246, 238, 226, 0.09);
+  --warm-ledger-color-chart-axis: #5f5b55;
+  --warm-ledger-color-chart-1: #f1ede5;
+  --warm-ledger-color-chart-2: #d8d0c4;
+  --warm-ledger-color-chart-3: #c2bbaf;
+  --warm-ledger-color-chart-4: #a9a297;
+  --warm-ledger-color-chart-5: #918a80;
 
   --warm-ledger-font-sans: "Instrument Sans", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
   --warm-ledger-font-mono: "DM Mono", "SFMono-Regular", "PingFang SC", monospace;
@@ -93,4 +99,52 @@
   --warm-ledger-motion-distance-shell: 10px;
   --warm-ledger-motion-distance-press: 1px;
   --warm-ledger-motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --warm-ledger-radius-pill: 999px;
+  --warm-ledger-color-backdrop: rgba(0, 0, 0, 0.48);
+  --warm-ledger-color-on-accent: #1c1d1d;
+  --warm-ledger-shadow-popover: 0 12px 32px rgba(0, 0, 0, 0.3);
+  --warm-ledger-shadow-dialog: 0 28px 72px rgba(0, 0, 0, 0.58);
+}
+/* Light Mode（2026-11-10 批准）：账本纸白表面 + 绿色一般强调。
+ * 与 frontend/components/dashboard-v2/warm-ledger/shell/theme.css 的
+ * html.light .warm-ledger 块保持一致；暗色值保持 B0 冻结不变。 */
+html.light .warm-ledger {
+  --warm-ledger-color-stage: #e8eae4;
+  --warm-ledger-color-window: #fbfcfa;
+  --warm-ledger-color-sidebar: #f2f2ef;
+  --warm-ledger-color-panel: #ffffff;
+  --warm-ledger-color-panel-strong: #f7f8f5;
+  --warm-ledger-color-raised: #f1f3ef;
+  --warm-ledger-color-raised-hover: #e9ece7;
+  --warm-ledger-color-hairline: rgba(48, 54, 47, 0.14);
+  --warm-ledger-color-hairline-strong: rgba(48, 54, 47, 0.23);
+  --warm-ledger-color-text: #242823;
+  --warm-ledger-color-text-soft: #4b514a;
+  --warm-ledger-color-text-muted: #565f58;
+  --warm-ledger-color-text-faint: #5f6860;
+  --warm-ledger-color-accent: #0f6b57;
+  --warm-ledger-color-accent-strong: #0b5746;
+  --warm-ledger-color-accent-soft: rgba(15, 107, 87, 0.12);
+  --warm-ledger-color-accent-area: rgba(15, 107, 87, 0.1);
+  --warm-ledger-color-positive: #2a7130;
+  --warm-ledger-color-negative: #a83c34;
+  --warm-ledger-color-chart-grid: rgba(48, 54, 47, 0.1);
+  --warm-ledger-color-chart-axis: rgba(48, 54, 47, 0.35);
+  --warm-ledger-color-chart-1: #3f4a42;
+  --warm-ledger-color-chart-2: #525e55;
+  --warm-ledger-color-chart-3: #66736a;
+  --warm-ledger-color-chart-4: #7a877c;
+  --warm-ledger-color-chart-5: #87948b;
+  --warm-ledger-color-scrim: rgba(24, 32, 26, 0.55);
+  --warm-ledger-color-backdrop: rgba(24, 32, 26, 0.38);
+  --warm-ledger-color-on-accent: #ffffff;
+  --warm-ledger-highlight-shell: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --warm-ledger-highlight-rest: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --warm-ledger-highlight-hover: inset 0 1px 0 rgba(255, 255, 255, 1);
+  --warm-ledger-highlight-pressed: inset 0 1px 2px rgba(31, 39, 33, 0.1);
+  --warm-ledger-shadow-window: 0 24px 56px rgba(45, 54, 46, 0.16);
+  --warm-ledger-shadow-popover: 0 12px 32px rgba(45, 54, 46, 0.14);
+  --warm-ledger-shadow-dialog: 0 24px 64px rgba(45, 54, 46, 0.24);
+
+  color-scheme: light;
 }
