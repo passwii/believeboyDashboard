@@ -324,6 +324,42 @@ const scheduledReportDeliveryLogColumns = `
 	ai_summary, ai_summary_status, ai_summary_error, ai_summary_model,
 	insight_run_id, ai_summary_updated_at, stage, created_at`
 
+// ListDueSubscriptions returns the enabled subscriptions whose dispatch hour,
+// minute and day match now in the supplied location.
+func (store *ScheduledReportStore) ListDueSubscriptions(
+	ctx context.Context,
+	now time.Time,
+	location *time.Location,
+) ([]scheduled_reports.Subscription, error) {
+	if location == nil {
+		location = time.UTC
+	}
+	subscriptions, err := store.ListActiveSubscriptions(ctx, "all")
+	if err != nil {
+		return nil, err
+	}
+	return filterDueSubscriptions(subscriptions, now.In(location)), nil
+}
+
+// filterDueSubscriptions keeps enabled subscriptions whose dispatch hour and
+// minute match local and whose frequency-specific day rule matches too.
+func filterDueSubscriptions(
+	subscriptions []scheduled_reports.Subscription,
+	local time.Time,
+) []scheduled_reports.Subscription {
+	due := make([]scheduled_reports.Subscription, 0, len(subscriptions))
+	for _, subscription := range subscriptions {
+		if subscription.DispatchHour != local.Hour() || subscription.DispatchMinute != local.Minute() {
+			continue
+		}
+		if !subscriptionMatchesDate(subscription, local) {
+			continue
+		}
+		due = append(due, subscription)
+	}
+	return due
+}
+
 func (store *ScheduledReportStore) ListDeliveryLogs(
 	ctx context.Context,
 	scope scheduled_reports.Scope,
@@ -1266,7 +1302,9 @@ func subscriptionMatchesDate(subscription scheduled_reports.Subscription, day ti
 		if subscription.DispatchWeekday != nil {
 			weekday = *subscription.DispatchWeekday
 		}
-		return int(day.Weekday()) == weekday
+		// Python's datetime.weekday() and the subscription schema use 0=Monday;
+		// Go's time.Weekday uses 0=Sunday.
+		return (int(day.Weekday())+6)%7 == weekday
 	case scheduled_reports.FrequencyMonthly:
 		expectedDay := 2
 		if subscription.DispatchDay != nil {
