@@ -35,7 +35,7 @@ CI is a hard gate:
 | `GET /api/v1/alerts/stats` | no project, non-admin regression |
 | `GET /api/v1/system-management/profile` | seeded test admin |
 
-`backend/scripts/seed_live_contract_data.py` creates these deterministic rows.
+`backend-go/cmd/seedlivecontract` creates these deterministic rows.
 It refuses any database whose name is not `BLF_test` or `BLF_ci`.
 
 ## Local reproduction
@@ -99,7 +99,7 @@ or status difference must turn CI red.
    `live-contract` job services and the FastAPI log printed on failure.
 2. `live contract requires ...`: restore `FASTAPI_ORIGIN`,
    `GO_API_TEST_DATABASE_URL`, and `LIVE_CONTRACT_API_KEY`.
-3. `load live ... fixture`: rerun `seed_live_contract_data.py`; the test admin
+3. `load live ... fixture`: rerun `go run ./cmd/seedlivecontract --database-url ...`; the test admin
    must already exist via `seed_test_accounts.py`.
 4. `DATABASE_URL and TEST_DATABASE_URL ... different databases`: keep only one
    URL in the custom env file, or make both entries identical.
