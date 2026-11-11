@@ -43,41 +43,6 @@ func (s *InventoryReplenishmentStore) VerifyProjectAccess(ctx context.Context, p
 	return inventory_replenishment.ErrProjectForbidden
 }
 
-func (s *InventoryReplenishmentStore) GetInventoryAnalysis(ctx context.Context, filter inventory_replenishment.ReplenishmentFilter) (inventory_replenishment.InventoryAnalysisResponse, error) {
-	analysisList, err := s.ListAnalysis(ctx, filter)
-	if err != nil {
-		return inventory_replenishment.InventoryAnalysisResponse{}, err
-	}
-
-	items := make([]inventory_replenishment.InventoryAnalysisItem, 0, len(analysisList.Items))
-	totalAvailable := 0
-	outOfStockRiskCount := 0
-
-	for _, it := range analysisList.Items {
-		items = append(items, inventory_replenishment.InventoryAnalysisItem{
-			SKU:                it.SKU,
-			ProductName:        it.ProductName,
-			AvailableInventory: it.AvailableInventory,
-			InTransitQuantity:  it.InTransitQuantity,
-			SellableDays:       it.SellableDays,
-			RiskStatus:         it.RiskStatus,
-		})
-		totalAvailable += it.AvailableInventory
-		if it.RiskStatus == "断货风险" || it.RiskStatus == "短期断货" || it.RiskStatus == "长期断货" {
-			outOfStockRiskCount++
-		}
-	}
-
-	return inventory_replenishment.InventoryAnalysisResponse{
-		Items: items,
-		Summary: inventory_replenishment.InventoryAnalysisSummary{
-			TotalSKU:                len(items),
-			OutOfStockRiskCount:     outOfStockRiskCount,
-			TotalAvailableInventory: totalAvailable,
-		},
-	}, nil
-}
-
 func (s *InventoryReplenishmentStore) ListSnapshotOptions(ctx context.Context, projectID *int64, country *string) ([]inventory_replenishment.InventorySnapshotOption, error) {
 	today := time.Now().Format("2006-01-02")
 	options := []inventory_replenishment.InventorySnapshotOption{

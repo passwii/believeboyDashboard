@@ -163,6 +163,10 @@ func (h *Handler) parseFilter(r *http.Request) ReplenishmentFilter {
 	if v := strings.TrimSpace(query.Get("snapshot_date")); v != "" {
 		snapshotDate = &v
 	}
+	var reportDate *string
+	if v := strings.TrimSpace(query.Get("report_date")); v != "" {
+		reportDate = &v
+	}
 	page := 1
 	if v, err := strconv.Atoi(query.Get("page")); err == nil && v >= 1 {
 		page = v
@@ -177,6 +181,7 @@ func (h *Handler) parseFilter(r *http.Request) ReplenishmentFilter {
 		RiskStatus:   riskStatus,
 		Keyword:      keyword,
 		SnapshotDate: snapshotDate,
+		ReportDate:   reportDate,
 		Page:         page,
 		PageSize:     pageSize,
 		Operator:     identity.Operator,
@@ -282,19 +287,16 @@ func (h *Handler) GetInventoryAnalysis(w http.ResponseWriter, r *http.Request) {
 	if !h.resolveScope(w, r, &filter, identity) {
 		return
 	}
-	if !identity.IsAdmin && filter.ProjectID == nil && len(filter.ProjectIDs) == 1 && filter.ProjectIDs[0] == -1 {
-		_ = httpapi.WriteJSON(w, http.StatusOK, InventoryAnalysisResponse{
-			Items: []InventoryAnalysisItem{},
-			Summary: InventoryAnalysisSummary{
-				TotalSKU:                0,
-				OutOfStockRiskCount:     0,
-				TotalAvailableInventory: 0,
-			},
-		})
-		return
-	}
 	resp, err := h.store.GetInventoryAnalysis(r.Context(), filter)
 	if err != nil {
+		if errors.Is(err, ErrProjectNotFound) {
+			httpapi.WriteDetail(w, http.StatusNotFound, "项目不存在")
+			return
+		}
+		if errors.Is(err, ErrProjectForbidden) {
+			httpapi.WriteDetail(w, http.StatusForbidden, "无权限访问该项目")
+			return
+		}
 		httpapi.WriteInternalServerError(w)
 		return
 	}
