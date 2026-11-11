@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/passwii/believeboyDashboard/backend-go/internal/blob"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/mailer"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/store"
 )
@@ -28,6 +29,22 @@ type DispatchRequest struct {
 }
 
 // DispatchResult reports the outcome of one dispatch.
+type dispatchOptions struct {
+	screenshotStore blob.ObjectStore
+	chromePath      string
+}
+
+// DispatchOption customises DispatchOne.
+type DispatchOption func(*dispatchOptions)
+
+// WithScreenshot enables best-effort screenshot capture + upload.
+func WithScreenshot(store blob.ObjectStore, chromePath string) DispatchOption {
+	return func(options *dispatchOptions) {
+		options.screenshotStore = store
+		options.chromePath = chromePath
+	}
+}
+
 type DispatchResult struct {
 	SubscriptionID int64  `json:"subscription_id"`
 	Success        bool   `json:"success"`
@@ -39,7 +56,12 @@ type DispatchResult struct {
 // DispatchOne sends one scheduled report email and maintains the delivery log.
 // It covers the daily/weekly/monthly email path; AI summaries, screenshots and
 // manual-log guards remain separate follow-ups.
-func DispatchOne(ctx context.Context, db store.FullDB, sender EmailSender, request DispatchRequest) (DispatchResult, error) {
+func DispatchOne(ctx context.Context, db store.FullDB, sender EmailSender, request DispatchRequest, options ...DispatchOption) (DispatchResult, error) {
+	dispatchOptions := dispatchOptions{}
+	for _, option := range options {
+		option(&dispatchOptions)
+	}
+	_ = dispatchOptions
 	result := DispatchResult{SubscriptionID: request.SubscriptionID}
 	if db == nil {
 		return result, errors.New("database is required")
@@ -160,6 +182,22 @@ func DispatchOne(ctx context.Context, db store.FullDB, sender EmailSender, reque
 		return fail("render report html failed", nil)
 	}
 	projectName := stringValue(reportData, "project_name")
+	if dispatchOptions.screenshotStore != nil {
+		if screenshotPNG, captureErr := CaptureReportPNG(ctx, RenderDailyReportHTML(reportData, false), dispatchOptions.chromePath, 420, 6000); captureErr == nil {
+			if thumbPNG, resizeErr := ResizePNG(screenshotPNG, 3); resizeErr == nil {
+				if upload, uploadErr := UploadScreenshot(ctx, dispatchOptions.screenshotStore, screenshotPNG, thumbPNG,
+					projectName, reportDateText, frequency, country, now); uploadErr == nil {
+					reportData["screenshot_r2_key"] = upload.FullKey
+					reportData["screenshot_r2_url"] = upload.FullURL
+					reportData["screenshot_r2_thumb_key"] = upload.ThumbKey
+					reportData["screenshot_r2_thumb_url"] = upload.ThumbURL
+					_, _ = db.Exec(ctx,
+						"update public.scheduled_report_delivery_logs set screenshot_r2_key = $2, screenshot_r2_url = $3, screenshot_r2_thumb_key = $4, screenshot_r2_thumb_url = $5 where id = $1",
+						logID, upload.FullKey, upload.FullURL, upload.ThumbKey, upload.ThumbURL)
+				}
+			}
+		}
+	}
 	subject := fmt.Sprintf("BelieveBoy | %s · %s运营报告 · %s", truncateSubject(projectName), frequencyLabel(frequency), reportDateText)
 
 	if email != "" {

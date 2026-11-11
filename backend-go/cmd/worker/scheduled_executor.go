@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/passwii/believeboyDashboard/backend-go/internal/ai"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/blob"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/mailer"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/scheduledreport"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/store"
@@ -12,9 +13,11 @@ import (
 )
 
 type scheduledDispatchExecutor struct {
-	db       store.FullDB
-	sender   *mailer.Mailer
-	provider ai.Provider
+	db              store.FullDB
+	sender          *mailer.Mailer
+	provider        ai.Provider
+	screenshotStore blob.ObjectStore
+	chromePath      string
 }
 
 func (executor scheduledDispatchExecutor) Execute(ctx context.Context, taskType string, payload any) (any, error) {
@@ -32,7 +35,7 @@ func (executor scheduledDispatchExecutor) Execute(ctx context.Context, taskType 
 			Frequency:      requestPayload.Frequency,
 			ReportDate:     requestPayload.ReportDate,
 			TriggeredBy:    requestPayload.TriggeredBy,
-		})
+		}, scheduledreport.WithScreenshot(executor.screenshotStore, executor.chromePath))
 	case "generate_delivery_summary":
 		requestPayload, ok := payload.(*tasks.GenerateDeliverySummaryPayload)
 		if !ok || requestPayload == nil {

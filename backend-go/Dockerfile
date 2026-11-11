@@ -29,9 +29,10 @@ FROM alpine:3.22 AS runtime
 # AfterConnect hook resolves the PostgreSQL TimeZone via time.LoadLocation and
 # fails every DB connection when the zoneinfo database is missing. The binaries
 # also embed time/tzdata (internal/tzcheck) as a second line of defence.
-RUN apk add --no-cache ca-certificates tzdata \
+RUN apk add --no-cache ca-certificates tzdata chromium font-noto-cjk \
     && addgroup -S -g 10001 app \
     && adduser -S -D -H -u 10001 -G app app
+ENV CHROME_BIN=/usr/bin/chromium-browser
 COPY --from=builder --chown=10001:10001 /out/go-api /usr/local/bin/go-api
 COPY --from=builder --chown=10001:10001 /out/go-migrate /usr/local/bin/go-migrate
 COPY --from=builder --chown=10001:10001 /out/go-worker /usr/local/bin/go-worker

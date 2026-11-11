@@ -16,6 +16,7 @@ import (
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/health"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/insight_runs"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/audit"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/blob"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/config"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/mailer"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/queue"
@@ -133,7 +134,11 @@ func run(logger *slog.Logger) error {
 		50<<20,
 	)
 	handlerConfig.Mailer = workerTextMailer{mailer: newWorkerMailer(cfg)}
-	handlerConfig.Executor = scheduledDispatchExecutor{db: primaryDB, sender: newWorkerMailer(cfg), provider: insightProvider}
+	screenshotStore := newScreenshotStore(cfg)
+	handlerConfig.Executor = scheduledDispatchExecutor{
+		db: primaryDB, sender: newWorkerMailer(cfg), provider: insightProvider,
+		screenshotStore: screenshotStore, chromePath: os.Getenv("CHROME_BIN"),
+	}
 	handler := tasks.NewTaskHandler(pool, handlerConfig)
 	if err := handler.ValidateRuntime(); err != nil {
 		return fmt.Errorf("validate task runtime: %w", err)
@@ -178,6 +183,22 @@ func taskHandlerConfig(cfg config.Config) tasks.HandlerConfig {
 		cfg.MonthlyReportResultRoot,
 	)
 	return handlerConfig
+}
+
+func newScreenshotStore(cfg config.Config) blob.ObjectStore {
+	if cfg.R2EndpointURL == "" || cfg.R2AccessKeyID == "" || cfg.R2SecretAccessKey == "" || cfg.R2BucketName == "" {
+		return nil
+	}
+	store, err := blob.New(blob.Config{
+		EndpointURL: cfg.R2EndpointURL, BucketName: cfg.R2BucketName,
+		AccessKeyID: cfg.R2AccessKeyID, SecretAccessKey: cfg.R2SecretAccessKey,
+		Region: cfg.R2Region, PublicURL: cfg.R2PublicURL,
+		MaxPutBytes: 50 << 20, Timeout: 60 * time.Second,
+	})
+	if err != nil {
+		return nil
+	}
+	return store
 }
 
 func newWorkerMailer(cfg config.Config) *mailer.Mailer {
