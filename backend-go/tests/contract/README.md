@@ -100,7 +100,7 @@ or status difference must turn CI red.
 2. `live contract requires ...`: restore `FASTAPI_ORIGIN`,
    `GO_API_TEST_DATABASE_URL`, and `LIVE_CONTRACT_API_KEY`.
 3. `load live ... fixture`: rerun `go run ./cmd/seedlivecontract --database-url ...`; the test admin
-   must already exist via `seed_test_accounts.py`.
+   must already exist via `go run ./cmd/seedtestaccounts`.
 4. `DATABASE_URL and TEST_DATABASE_URL ... different databases`: keep only one
    URL in the custom env file, or make both entries identical.
 5. `status mismatch` or `JSON ... mismatch`: compare the two response bodies in
