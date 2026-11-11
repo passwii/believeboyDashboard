@@ -106,8 +106,8 @@ func ComputeCoverageTimeline(
 	if weightedDMS == nil || *weightedDMS <= 0 {
 		return nil, nil, 0, nil
 	}
-	coverageDays := float64(availableInventory) / *weightedDMS
-	continuous := addDaysTime(today, coverageDays)
+	coverageDays := int(math.Floor(float64(availableInventory) / *weightedDMS))
+	continuous := today.AddDate(0, 0, coverageDays)
 	extended := continuous
 	var gap *time.Time
 	gapLength := 0

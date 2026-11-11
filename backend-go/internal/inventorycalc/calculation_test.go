@@ -82,3 +82,20 @@ func TestEstimateReplenishmentQuantity(t *testing.T) {
 		t.Fatalf("EstimateReplenishmentQuantity() = %v, want nil", *got)
 	}
 }
+
+func TestComputeCoverageTimelineUsesDateArithmetic(t *testing.T) {
+	today := time.Date(2026, 11, 11, 0, 0, 0, 0, time.UTC)
+	eta := time.Date(2026, 11, 21, 0, 0, 0, 0, time.UTC)
+	end, gapStart, gapDays, _ := ComputeCoverageTimeline(
+		today, 10, floatPtr(1.7074), []TransitBatch{{Quantity: 4, ETADate: &eta}}, 25,
+	)
+	if end == nil || *end != time.Date(2026, 11, 16, 0, 0, 0, 0, time.UTC) {
+		t.Fatalf("continuousEnd = %v, want 2026-11-16", end)
+	}
+	if gapStart == nil || *gapStart != time.Date(2026, 11, 16, 0, 0, 0, 0, time.UTC) {
+		t.Fatalf("gapStart = %v", gapStart)
+	}
+	if gapDays != 5 {
+		t.Fatalf("gapDays = %d, want 5", gapDays)
+	}
+}

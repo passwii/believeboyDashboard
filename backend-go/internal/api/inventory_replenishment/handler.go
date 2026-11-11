@@ -167,6 +167,21 @@ func (h *Handler) parseFilter(r *http.Request) ReplenishmentFilter {
 	if v := strings.TrimSpace(query.Get("report_date")); v != "" {
 		reportDate = &v
 	}
+	inTransitOnly := false
+	if v := strings.ToLower(strings.TrimSpace(query.Get("in_transit_only"))); v == "1" || v == "true" || v == "yes" {
+		inTransitOnly = true
+	}
+	var inventoryState, replenishmentAction, orderBy *string
+	if v := strings.TrimSpace(query.Get("inventory_state")); v != "" {
+		inventoryState = &v
+	}
+	if v := strings.TrimSpace(query.Get("replenishment_action")); v != "" {
+		replenishmentAction = &v
+	}
+	if v := strings.TrimSpace(query.Get("order_by")); v != "" {
+		orderBy = &v
+	}
+	orderDir := strings.TrimSpace(query.Get("order_dir"))
 	page := 1
 	if v, err := strconv.Atoi(query.Get("page")); err == nil && v >= 1 {
 		page = v
@@ -176,16 +191,21 @@ func (h *Handler) parseFilter(r *http.Request) ReplenishmentFilter {
 		pageSize = v
 	}
 	return ReplenishmentFilter{
-		ProjectID:    projectID,
-		Country:      country,
-		RiskStatus:   riskStatus,
-		Keyword:      keyword,
-		SnapshotDate: snapshotDate,
-		ReportDate:   reportDate,
-		Page:         page,
-		PageSize:     pageSize,
-		Operator:     identity.Operator,
-		IsAdmin:      identity.IsAdmin,
+		ProjectID:           projectID,
+		Country:             country,
+		RiskStatus:          riskStatus,
+		Keyword:             keyword,
+		SnapshotDate:        snapshotDate,
+		ReportDate:          reportDate,
+		InTransitOnly:       inTransitOnly,
+		InventoryState:      inventoryState,
+		ReplenishmentAction: replenishmentAction,
+		OrderBy:             orderBy,
+		OrderDir:            orderDir,
+		Page:                page,
+		PageSize:            pageSize,
+		Operator:            identity.Operator,
+		IsAdmin:             identity.IsAdmin,
 	}
 }
 
