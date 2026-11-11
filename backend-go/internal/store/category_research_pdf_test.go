@@ -1,6 +1,8 @@
 package store
 
 import (
+	"archive/zip"
+	"bytes"
 	"strings"
 	"testing"
 
@@ -33,5 +35,22 @@ func TestBuildCategorySummaryHTML(t *testing.T) {
 		if !strings.Contains(html, expected) {
 			t.Fatalf("html missing %q", expected)
 		}
+	}
+}
+
+func TestBuildCategoryBundleArchive(t *testing.T) {
+	content, err := buildCategoryBundleArchive([]categoryBundlePart{
+		{Name: "a.csv", Data: []byte("x,y\n1,2\n")},
+		{Name: "b.pdf", Data: []byte("%PDF-1.4 test")},
+	})
+	if err != nil {
+		t.Fatalf("build bundle: %v", err)
+	}
+	reader, err := zip.NewReader(bytes.NewReader(content), int64(len(content)))
+	if err != nil {
+		t.Fatalf("open zip: %v", err)
+	}
+	if len(reader.File) != 2 || reader.File[0].Name != "a.csv" || reader.File[1].Name != "b.pdf" {
+		t.Fatalf("entries = %#v", reader.File)
 	}
 }

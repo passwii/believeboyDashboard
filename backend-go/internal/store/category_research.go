@@ -1924,6 +1924,27 @@ func (s *CategoryResearchStore) GetExportData(ctx context.Context, datasetID int
 	if err != nil {
 		return "", nil, err
 	}
+	if exportKey == "export_bundle_zip" {
+		overview, err := s.GetDatasetOverview(ctx, datasetID, priceBandStandard, priceBandBreaks)
+		if err != nil {
+			return "", nil, err
+		}
+		products, err := s.listAllCategoryProducts(ctx, datasetID)
+		if err != nil {
+			return "", nil, err
+		}
+		trends, err := s.listAllCategoryTrends(ctx, datasetID)
+		if err != nil {
+			return "", nil, err
+		}
+		content, err := s.buildCategoryBundleZip(ctx, *dataset, *overview, products, trends)
+		if err != nil {
+			return "", nil, err
+		}
+		filename := fmt.Sprintf("category-research-%s-%s-v%d-bundle.zip",
+			strings.ToLower(dataset.Marketplace), safeStoragePathSegment(dataset.CategoryKeywordEn, "category-research"), dataset.Version)
+		return safeUploadFilename(filename, "category-research-bundle.zip"), content, nil
+	}
 	if exportKey == "summary_pdf" {
 		overview, err := s.GetDatasetOverview(ctx, datasetID, priceBandStandard, priceBandBreaks)
 		if err != nil {
