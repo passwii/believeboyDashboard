@@ -1,3 +1,9 @@
+/* V4 页面由工作窗内部滚动，文档本身不滚动；html 的 `scrollbar-gutter: stable`
+ * 只会白留 10px，并把工作窗右侧边框挤到滚动条下面，所以 V4 路由取消预留。 */
+html:has(.warm-ledger) {
+  scrollbar-gutter: auto;
+}
+
 .warm-ledger {
   --warm-ledger-color-stage: #1c1d1d;
   --warm-ledger-color-window: #242525;
@@ -219,9 +225,11 @@ html.light .warm-ledger {
   display: grid;
   grid-template-columns: var(--warm-ledger-layout-sidebar-width) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
-  width: calc(100vw - 2 * var(--warm-ledger-inset-stage));
-  height: calc(100dvh - 2 * var(--warm-ledger-inset-stage));
-  min-height: min(480px, calc(100dvh - 2 * var(--warm-ledger-inset-stage)));
+  /* 用父容器内容盒而不是 100vw：html 的 scrollbar-gutter 会让 body 比视口窄，
+   * 100vw 会让窗口右侧溢出，边框被滚动条/裁切遮住。 */
+  width: 100%;
+  height: 100%;
+  min-height: min(480px, 100%);
   overflow: hidden;
   background: var(--warm-ledger-color-window);
   border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline-strong);
@@ -864,12 +872,37 @@ html.light .warm-ledger {
   color: var(--warm-ledger-color-text-muted);
 }
 
+/* 主滚动区：滚动条槽位留给内容，thumb 内缩 3px，避免贴住工作窗右边框。 */
 .warm-ledger__main-scroll {
   min-width: 0;
   min-height: 0;
   padding: var(--warm-ledger-inset-content) var(--warm-ledger-inset-content) var(--warm-ledger-space-8);
   overflow: auto;
   overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--warm-ledger-color-hairline-strong) transparent;
+}
+
+.warm-ledger__main-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+  background: transparent;
+}
+
+.warm-ledger__main-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.warm-ledger__main-scroll::-webkit-scrollbar-thumb {
+  background: var(--warm-ledger-color-hairline-strong);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+}
+
+.warm-ledger__main-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--warm-ledger-color-text-muted);
+  background-clip: content-box;
 }
 
 .warm-ledger__button,
