@@ -19,6 +19,8 @@ Dashboard Compose（network_mode: host）
   migrate     Go API 镜像内的 go-migrate（Goose）
   api         127.0.0.1:8100  FastAPI 回退
   go-api      127.0.0.1:8200  Go Gateway
+  go-worker   Go 异步任务 worker（同一 Go 镜像）
+  go-scheduler Go 定时任务调度器（同一 Go 镜像）
   celery
   celery-scheduled
   beat
@@ -40,7 +42,8 @@ PostgreSQL、Redis、Caddy 不进入 Dashboard Compose。Go API 从 `backend.env
 | Go Gateway | `ghcr.io/passwii/believeboydashboard-go-api` |
 
 发布使用同一 commit 构建的三个镜像；部署参数使用 registry digest，而不是可变标签。
-Web、FastAPI 和 Go API 必须同版本切换与回滚。
+Web、FastAPI 和 Go API 必须同版本切换与回滚。`go-worker` 与 `go-scheduler` 复用 Go API 镜像，
+通过 entrypoint 分别运行 `/usr/local/bin/go-worker` 与 `/usr/local/bin/go-scheduler`，不额外构建镜像。
 
 ## 数据库迁移
 
@@ -170,7 +173,7 @@ curl -fsS https://dash-api.believeboy.com/api/v1/health/ready
 ssh guitar-vps '
   cd /opt/believeboy-dashboard
   docker compose ps
-  docker compose logs --tail=100 api go-api web celery celery-scheduled beat
+  docker compose logs --tail=100 api go-api go-worker go-scheduler web celery celery-scheduled beat
   # DB 感知探活：503/degraded 说明数据库不可达（/health/live 不查库，不能作为门禁）
   curl -fsS http://127.0.0.1:8100/api/v1/health/ready
   curl -fsS http://127.0.0.1:8200/api/v1/health/ready
@@ -181,6 +184,7 @@ ssh guitar-vps '
 
 - `api`、`go-api`、`web` 为 healthy（api/go-api 的 healthcheck 已改为 DB 感知的 `/health/ready`）。
 - `go-api` 读取 `backend.env` 中的 `DATABASE_URL`、`REDIS_HOST`、`REDIS_PORT`、`REDIS_DB`、Redis 凭据和 `API_KEY`，并把未接管路由转发至 `8100`。
+- `go-worker` 消费 Go 任务队列（alerts / CRM / 月度报表等）；`go-scheduler` 注册 11 条静态 job + insight 同步 + 定时报表分钟扫描。两者与 `go-api` 使用同一个 `GO_API_IMAGE` 和 `backend.env` / `go.env`，无独立 HTTP 健康检查，用 `docker compose ps` 确认 Running。
 - 启用 `GO_API_OWNED` 时，部署脚本会用 `API_KEY` + `GO_API_TRUSTED_PROXY_SECRET` 冒烟 `/api/v1/health` 与 `/api/v1/exchange-rates`，不通过直接回滚。
 - 两个 Celery worker 响应 `celery inspect ping`。
 - `beat` 持续运行。
