@@ -428,8 +428,11 @@ func (h *Handler) DownloadExport(w http.ResponseWriter, r *http.Request) {
 
 	encodedFilename := url.QueryEscape(filename)
 	contentType := "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-	if strings.HasSuffix(strings.ToLower(filename), ".pdf") {
+	switch {
+	case strings.HasSuffix(strings.ToLower(filename), ".pdf"):
 		contentType = "application/pdf"
+	case strings.HasSuffix(strings.ToLower(filename), ".zip"):
+		contentType = "application/zip"
 	}
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"; filename*=UTF-8'%s", filename, encodedFilename))
