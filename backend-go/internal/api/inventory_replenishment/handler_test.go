@@ -274,6 +274,7 @@ func (m *mockProjectReader) ListManage(_ context.Context, _ string, _ bool, _ bo
 
 func TestInventoryReplenishmentScopeConvergence(t *testing.T) {
 	var capturedFilter ReplenishmentFilter
+	_ = capturedFilter
 	store := &mockReplenishmentStoreWithFilter{
 		onListAnalysis: func(filter ReplenishmentFilter) {
 			capturedFilter = filter
@@ -292,7 +293,7 @@ func TestInventoryReplenishmentScopeConvergence(t *testing.T) {
 	reg := NewRegistrar(store, auditor, projectReader)
 	reg.RegisterRoutes(router, func(next http.Handler) http.Handler { return next })
 
-	// Authorized operator "alice" without project_id -> should converge to [10]
+	// Missing project_id -> 422 (FastAPI requires project_id Query(gt=0))
 	aliceCtx := auth.WithUserContext(context.Background(), auth.UserContext{
 		UserID:   "alice_user",
 		Operator: "alice",
@@ -301,11 +302,8 @@ func TestInventoryReplenishmentScopeConvergence(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/inventory-replenishment-analysis", nil).WithContext(aliceCtx)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", rec.Code)
-	}
-	if len(capturedFilter.ProjectIDs) != 1 || capturedFilter.ProjectIDs[0] != 10 {
-		t.Fatalf("expected ProjectIDs = [10], got %v", capturedFilter.ProjectIDs)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422 for missing project_id, got %d", rec.Code)
 	}
 
 	// Unauthorized operator "bob" with project_id=10 -> 403 Forbidden

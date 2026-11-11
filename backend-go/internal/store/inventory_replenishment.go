@@ -187,7 +187,7 @@ func (s *InventoryReplenishmentStore) ListAnalysis(ctx context.Context, filter i
 
 	querySQL := fmt.Sprintf(`
 		select
-			p.project_id, coalesce(proj.project_name, # || p.project_id::text), p.sku, p.country, p.asin, p.product_name,
+			p.project_id, coalesce(proj.project_name, '#' || p.project_id::text), p.sku, p.country, p.asin, p.product_name,
 			coalesce(s.safety_factor, 0.20), coalesce(s.production_lead_days, 20), coalesce(s.shipping_days, 25),
 			coalesce(inv.available_qty, 0), coalesce(t.in_transit_qty, 0)
 		from public.product_costs p

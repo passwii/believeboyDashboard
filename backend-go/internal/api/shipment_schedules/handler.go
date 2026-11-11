@@ -263,13 +263,19 @@ func (h *Handler) ListShipmentFbaBoxDetails(w http.ResponseWriter, r *http.Reque
 		}
 	}
 	var shipmentNos []string
-	for _, val := range query["shipment_nos"] {
-		for _, part := range strings.Split(val, ",") {
-			part = strings.TrimSpace(part)
-			if part != "" {
-				shipmentNos = append(shipmentNos, part)
+	for _, key := range []string{"shipment_no", "shipment_nos"} {
+		for _, val := range query[key] {
+			for _, part := range strings.Split(val, ",") {
+				part = strings.TrimSpace(part)
+				if part != "" {
+					shipmentNos = append(shipmentNos, part)
+				}
 			}
 		}
+	}
+	if len(shipmentNos) == 0 {
+		httpapi.WriteDetail(w, http.StatusUnprocessableEntity, "shipment_no is required")
+		return
 	}
 
 	if len(projectIDs) == 0 && !identity.IsAdmin && h.projects != nil {
@@ -298,6 +304,20 @@ func (h *Handler) ListShipmentFbaBoxDetails(w http.ResponseWriter, r *http.Reque
 		httpapi.WriteDetail(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	found := make(map[string]bool, len(details.ShipmentNos))
+	for _, shipmentNo := range details.ShipmentNos {
+		found[shipmentNo] = true
+	}
+	missing := make([]string, 0)
+	for _, shipmentNo := range shipmentNos {
+		if !found[shipmentNo] {
+			missing = append(missing, shipmentNo)
+		}
+	}
+	if len(missing) > 0 {
+		httpapi.WriteDetail(w, http.StatusNotFound, "未找到对应的 FBA 货件编号: "+strings.Join(missing, "、"))
+		return
+	}
 
 	if !identity.IsAdmin {
 		for _, pid := range details.ProjectIDs {
@@ -319,7 +339,24 @@ func (h *Handler) ListShipmentFbaBoxDetails(w http.ResponseWriter, r *http.Reque
 	_ = httpapi.WriteJSON(w, http.StatusOK, details)
 }
 
+func requireShipmentBatchQuery(w http.ResponseWriter, r *http.Request) bool {
+	query := r.URL.Query()
+	projectID, err := strconv.ParseInt(strings.TrimSpace(query.Get("project_id")), 10, 64)
+	if err != nil || projectID <= 0 {
+		httpapi.WriteDetail(w, http.StatusUnprocessableEntity, "project_id is required and must be greater than 0")
+		return false
+	}
+	if strings.TrimSpace(query.Get("country")) == "" {
+		httpapi.WriteDetail(w, http.StatusUnprocessableEntity, "country is required")
+		return false
+	}
+	return true
+}
+
 func (h *Handler) ListShipmentBatches(w http.ResponseWriter, r *http.Request) {
+	if !requireShipmentBatchQuery(w, r) {
+		return
+	}
 	identity, _ := auth.UserContextFromContext(r.Context())
 	filter := h.parseFilter(r)
 	if filter.ProjectID != nil {
@@ -361,7 +398,7 @@ func (h *Handler) ListShipmentBatches(w http.ResponseWriter, r *http.Request) {
 	if batches == nil {
 		batches = []string{}
 	}
-	_ = httpapi.WriteJSON(w, http.StatusOK, batches)
+	_ = httpapi.WriteJSON(w, http.StatusOK, map[string]any{"batches": batches})
 }
 
 func (h *Handler) HideShipmentBatch(w http.ResponseWriter, r *http.Request) {

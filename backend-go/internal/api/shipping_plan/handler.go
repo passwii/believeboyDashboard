@@ -188,7 +188,7 @@ func (h *Handler) GetShippingPlanSkus(w http.ResponseWriter, r *http.Request) {
 	identity, _ := auth.UserContextFromContext(r.Context())
 	projectID, _ := strconv.ParseInt(r.URL.Query().Get("project_id"), 10, 64)
 	if projectID <= 0 {
-		httpapi.WriteDetail(w, http.StatusBadRequest, "Missing or invalid project_id")
+		httpapi.WriteDetail(w, http.StatusUnprocessableEntity, "Missing or invalid project_id")
 		return
 	}
 	if err := h.checkAccess(r.Context(), projectID, identity); err != nil {
@@ -219,7 +219,7 @@ func (h *Handler) GetShippingPlanForecast(w http.ResponseWriter, r *http.Request
 	identity, _ := auth.UserContextFromContext(r.Context())
 	projectID, _ := strconv.ParseInt(r.URL.Query().Get("project_id"), 10, 64)
 	if projectID <= 0 {
-		httpapi.WriteDetail(w, http.StatusBadRequest, "Missing or invalid project_id")
+		httpapi.WriteDetail(w, http.StatusUnprocessableEntity, "Missing or invalid project_id")
 		return
 	}
 	if err := h.checkAccess(r.Context(), projectID, identity); err != nil {
@@ -330,7 +330,7 @@ func (h *Handler) GetShippingPlanShipmentHistory(w http.ResponseWriter, r *http.
 	identity, _ := auth.UserContextFromContext(r.Context())
 	projectID, _ := strconv.ParseInt(r.URL.Query().Get("project_id"), 10, 64)
 	if projectID <= 0 {
-		httpapi.WriteDetail(w, http.StatusBadRequest, "Missing or invalid project_id")
+		httpapi.WriteDetail(w, http.StatusUnprocessableEntity, "Missing or invalid project_id")
 		return
 	}
 	if err := h.checkAccess(r.Context(), projectID, identity); err != nil {
@@ -355,7 +355,7 @@ func (h *Handler) GetShippingPlanBatches(w http.ResponseWriter, r *http.Request)
 	identity, _ := auth.UserContextFromContext(r.Context())
 	projectID, _ := strconv.ParseInt(r.URL.Query().Get("project_id"), 10, 64)
 	if projectID <= 0 {
-		httpapi.WriteDetail(w, http.StatusBadRequest, "Missing or invalid project_id")
+		httpapi.WriteDetail(w, http.StatusUnprocessableEntity, "Missing or invalid project_id")
 		return
 	}
 	if err := h.checkAccess(r.Context(), projectID, identity); err != nil {
