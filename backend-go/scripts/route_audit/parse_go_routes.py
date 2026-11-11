@@ -17,7 +17,7 @@ ACTIVE_DIRS={
 'agent_commerce','agent_credentials','agent_inspection','agent_monthly_reports','agent_ops',
 'agent_review_tracking',
 'ai_chat','ai_chat_usage','ai_chat_v2','ai_file_upload','ai_insight','insight_runs',
-'insight_domains','insight_observation','amazon_review_tracking','crm','digital_display',
+'insight_domains','insight_observation','amazon_review_tracking','crm','crm_intent','digital_display',
 'digital_employees','digital_office','external_retired','inspections','jobs','page_render',
 'presence','product_analysis','product_analysis_reports','scheduled_reports',
 'system_management','uploads','internal_jobs'
@@ -311,7 +311,13 @@ def emit_call(call, offset, env, path, groups, diagnostic=False, source_line=Non
     records.append({'method':method,'path':full,'handler':handler_value,'file':str(path.relative_to(ROOT)),'line':actual_line,'module':mod,'active':active,'auth':auth,'agent_domain':agent_domain,'project_scope_guard':project_guard})
 
 for path in FILES:
-    raw=path.read_text(); text=mask_comments(raw); code=mask_strings(text); env0=parse_global_literals(text); groups=group_ranges(text)
+    raw=path.read_text(); text=mask_comments(raw); code=mask_strings(text); groups=group_ranges(text)
+    # Package-level constants may live in a sibling file (crm_intent defines
+    # userPrefix/agentPrefix in types.go while registrar.go registers routes).
+    env0={}
+    for sibling in sorted(path.parent.glob('*.go')):
+        if sibling.name.endswith('_test.go'): continue
+        env0.update(parse_global_literals(sibling.read_text()))
     calls=extract_calls(text); non_direct=[]
     # loops
     for lm in re.finditer(r'\bfor\b',code):
