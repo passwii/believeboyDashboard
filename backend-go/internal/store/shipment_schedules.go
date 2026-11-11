@@ -108,13 +108,18 @@ func (s *ShipmentScheduleStore) ListShipmentSchedules(ctx context.Context, filte
 			s.shipment_no, s.tracking_no, s.warehouse_code, s.forwarder_name,
 			s.shipping_method, s.created_date::text, s.etd_date::text, s.eta_date::text, s.actual_inbound_date::text,
 			s.shipment_status, s.remark,
-			coalesce(s.sku_count, 0), coalesce(s.total_quantity, 0),
+			coalesce(item_agg.sku_count, 0), coalesce(item_agg.total_quantity, 0),
 			coalesce(s.logistics_unit_price, 0), coalesce(s.total_volume_m3, 0),
 			coalesce(s.total_chargeable_weight_kg, 0), coalesce(s.logistics_total_price, 0),
 			coalesce(s.include_in_history_shipping_calc, true),
 			s.updated_at, s.shipment_batch
 		from public.shipment_schedules s
 		left join public.projects p on p.id = s.project_id
+		left join (
+			select shipment_schedule_id, count(*) as sku_count, coalesce(sum(quantity), 0) as total_quantity
+			from public.shipment_schedule_items
+			group by shipment_schedule_id
+		) item_agg on item_agg.shipment_schedule_id = s.id
 		%s
 		order by s.id desc
 		limit $%d offset $%d
@@ -127,7 +132,7 @@ func (s *ShipmentScheduleStore) ListShipmentSchedules(ctx context.Context, filte
 	}
 	defer rows.Close()
 
-	var items []shipment_schedules.ShipmentScheduleListItem
+	items := make([]shipment_schedules.ShipmentScheduleListItem, 0)
 	for rows.Next() {
 		var item shipment_schedules.ShipmentScheduleListItem
 		var updatedAt time.Time
@@ -251,11 +256,16 @@ func (s *ShipmentScheduleStore) SummarizeCosts(ctx context.Context, projectID *i
 	querySQL := fmt.Sprintf(`
 		select
 			count(*),
-			coalesce(sum(sku_count), 0),
-			coalesce(sum(total_quantity), 0),
-			coalesce(sum(total_chargeable_weight_kg), 0),
-			coalesce(sum(logistics_total_price), 0)
-		from public.shipment_schedules
+			coalesce(sum(item_agg.sku_count), 0),
+			coalesce(sum(item_agg.total_quantity), 0),
+			coalesce(sum(s.total_chargeable_weight_kg), 0),
+			coalesce(sum(s.logistics_total_price), 0)
+		from public.shipment_schedules s
+		left join (
+			select shipment_schedule_id, count(*) as sku_count, coalesce(sum(quantity), 0) as total_quantity
+			from public.shipment_schedule_items
+			group by shipment_schedule_id
+		) item_agg on item_agg.shipment_schedule_id = s.id
 		%s
 	`, where)
 	var summary shipment_schedules.ShipmentScheduleCostSummary
@@ -304,7 +314,7 @@ func (s *ShipmentScheduleStore) ListSkuSummary(ctx context.Context, projectID *i
 	}
 	defer rows.Close()
 
-	var items []shipment_schedules.ShipmentSkuSummaryItem
+	items := make([]shipment_schedules.ShipmentSkuSummaryItem, 0)
 	for rows.Next() {
 		var it shipment_schedules.ShipmentSkuSummaryItem
 		if err := rows.Scan(
@@ -584,9 +594,9 @@ func (s *ShipmentScheduleStore) ListFbaBoxDetails(ctx context.Context, projectID
 
 			lengthCM = math.Round(lengthCM*100) / 100
 			widthCM = math.Round(widthCM*100) / 100
-		heightCM = math.Round(heightCM*100) / 100
-		totalWeightKG = math.Round(totalWeightKG*100) / 100
-		totalVolumeM3 = math.Round(totalVolumeM3*10000) / 10000
+			heightCM = math.Round(heightCM*100) / 100
+			totalWeightKG = math.Round(totalWeightKG*100) / 100
+			totalVolumeM3 = math.Round(totalVolumeM3*10000) / 10000
 
 			var prodName, asin, fnsku *string
 			var pkgL, pkgW, pkgH, wt, cwt *float64
@@ -734,13 +744,18 @@ func (s *ShipmentScheduleStore) GetShipmentSchedule(ctx context.Context, id int6
 			s.shipment_no, s.tracking_no, s.warehouse_code, s.forwarder_name,
 			s.shipping_method, s.created_date::text, s.etd_date::text, s.eta_date::text, s.actual_inbound_date::text,
 			s.remark, s.shipment_status,
-			coalesce(s.sku_count, 0), coalesce(s.total_quantity, 0),
+			coalesce(item_agg.sku_count, 0), coalesce(item_agg.total_quantity, 0),
 			coalesce(s.logistics_unit_price, 0), coalesce(s.total_volume_m3, 0),
 			coalesce(s.total_chargeable_weight_kg, 0), coalesce(s.logistics_total_price, 0),
 			coalesce(s.include_in_history_shipping_calc, true),
 			s.updated_at, s.shipment_batch
 		from public.shipment_schedules s
 		left join public.projects p on p.id = s.project_id
+		left join (
+			select shipment_schedule_id, count(*) as sku_count, coalesce(sum(quantity), 0) as total_quantity
+			from public.shipment_schedule_items
+			group by shipment_schedule_id
+		) item_agg on item_agg.shipment_schedule_id = s.id
 		where s.id = $1
 	`
 	row := s.db.QueryRow(ctx, querySQL, id)
@@ -815,9 +830,7 @@ func (s *ShipmentScheduleStore) CreateShipmentSchedule(ctx context.Context, crea
 			return err
 		}
 
-		totalQty := 0
 		for _, it := range create.Items {
-			totalQty += it.Quantity
 			_, err := txDB.Exec(ctx, `
 				insert into public.shipment_schedule_items (
 					shipment_schedule_id, project_id, shipment_no, item_date, sku,
@@ -829,13 +842,6 @@ func (s *ShipmentScheduleStore) CreateShipmentSchedule(ctx context.Context, crea
 			if err != nil {
 				return err
 			}
-		}
-		if len(create.Items) > 0 {
-			_, _ = txDB.Exec(ctx, `
-				update public.shipment_schedules
-				set sku_count = $2, total_quantity = $3, updated_at = now()
-				where id = $1
-			`, id, len(create.Items), totalQty)
 		}
 		return nil
 	})
@@ -878,9 +884,7 @@ func (s *ShipmentScheduleStore) UpdateShipmentSchedule(ctx context.Context, id i
 
 		if update.Items != nil {
 			_, _ = txDB.Exec(ctx, `delete from public.shipment_schedule_items where shipment_schedule_id = $1`, id)
-			totalQty := 0
 			for _, it := range update.Items {
-				totalQty += it.Quantity
 				_, err := txDB.Exec(ctx, `
 					insert into public.shipment_schedule_items (
 						shipment_schedule_id, project_id, shipment_no, item_date, sku,
@@ -893,11 +897,6 @@ func (s *ShipmentScheduleStore) UpdateShipmentSchedule(ctx context.Context, id i
 					return err
 				}
 			}
-			_, _ = txDB.Exec(ctx, `
-				update public.shipment_schedules
-				set sku_count = $2, total_quantity = $3, updated_at = now()
-				where id = $1
-			`, id, len(update.Items), totalQty)
 		}
 		return nil
 	})
@@ -1148,13 +1147,6 @@ func (s *ShipmentScheduleStore) ImportItemsCSV(ctx context.Context, id int64, da
 			insertedCount++
 		}
 
-		_, _ = txDB.Exec(ctx, `
-			update public.shipment_schedules
-			set sku_count = (select count(distinct sku) from public.shipment_schedule_items where shipment_schedule_id = $1),
-			    total_quantity = (select coalesce(sum(quantity), 0) from public.shipment_schedule_items where shipment_schedule_id = $1),
-			    updated_at = now()
-			where id = $1
-		`, id)
 		return nil
 	})
 	if err != nil {
