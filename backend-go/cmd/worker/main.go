@@ -133,6 +133,7 @@ func run(logger *slog.Logger) error {
 		50<<20,
 	)
 	handlerConfig.Mailer = workerTextMailer{mailer: newWorkerMailer(cfg)}
+	handlerConfig.Executor = scheduledDispatchExecutor{db: primaryDB, sender: newWorkerMailer(cfg)}
 	handler := tasks.NewTaskHandler(pool, handlerConfig)
 	if err := handler.ValidateRuntime(); err != nil {
 		return fmt.Errorf("validate task runtime: %w", err)

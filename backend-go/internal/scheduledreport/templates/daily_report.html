@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>{{.FrequencyCn}}运营报告 · {{.ProjectName}}</title></head>
+<body style="margin:0;padding:0;background:#F3F4F6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F3F4F6;padding:16px 0;"><tr><td align="center">
+<table width="680" cellpadding="0" cellspacing="0" border="0" style="max-width:680px;width:100%;background:#FFFFFF;border-radius:20px;overflow:hidden;">
+  <tr><td style="background:#1F2937;padding:26px 24px;">
+    <div style="font-size:22px;font-weight:700;color:#FFFFFF;">{{.FrequencyCn}}运营报告</div>
+    <div style="font-size:14px;color:#9CA3AF;margin-top:6px;">{{.ProjectName}} · {{.CountryLabel}} · {{.ReportDate}}</div>
+  </td></tr>
+  {{if .ShowSummary}}<tr><td style="padding:18px 24px;background:#EFF6FF;border-bottom:1px solid #BFDBFE;">
+    <div style="font-size:16px;font-weight:700;color:#111827;margin-bottom:8px;">运营摘要</div>
+    <div style="font-size:14px;color:#1E3A5F;line-height:1.7;">{{.SummaryHTML}}</div>
+  </td></tr>{{end}}
+  <tr><td style="padding:20px 24px 8px;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+      <td width="50%" style="padding:14px;border:1px solid #E5E7EB;border-radius:12px;text-align:center;">
+        <div style="font-size:13px;color:#6B7280;">今日销量</div>
+        <div style="font-size:32px;font-weight:800;color:#111827;margin-top:6px;">{{.YesterdayQty}} <span style="font-size:16px;font-weight:600;">件</span></div>
+        <div style="font-size:13px;color:{{if .ChangeUp}}#16A34A{{else}}#DC2626{{end}};margin-top:4px;">{{if .ChangeUp}}↑{{else}}↓{{end}} {{.ChangePct}}% vs 昨日</div>
+      </td>
+      <td width="50%" style="padding:14px;border:1px solid #E5E7EB;border-radius:12px;text-align:center;">
+        <div style="font-size:13px;color:#6B7280;">今日销售额</div>
+        <div style="font-size:32px;font-weight:800;color:#059669;margin-top:6px;">{{currency .YesterdayAmt .Currency}}</div>
+        <div style="font-size:13px;color:#6B7280;margin-top:4px;">{{.Currency}}</div>
+      </td>
+    </tr><tr>
+      <td width="50%" style="padding:14px;border:1px solid #E5E7EB;border-radius:12px;text-align:center;">
+        <div style="font-size:13px;color:#6B7280;">7天累计销量</div>
+        <div style="font-size:32px;font-weight:800;color:#111827;margin-top:6px;">{{.WeekQty}} <span style="font-size:16px;font-weight:600;">件</span></div>
+        <div style="font-size:12px;color:#6B7280;margin-top:4px;">{{.DateRange}}</div>
+      </td>
+      <td width="50%" style="padding:14px;border:1px solid #10B981;background:#F0FDF4;border-radius:12px;text-align:center;">
+        <div style="font-size:13px;color:#6B7280;">7天累计销售额</div>
+        <div style="font-size:32px;font-weight:800;color:#059669;margin-top:6px;">{{currency .WeekAmount .Currency}}</div>
+        <div style="font-size:13px;color:#6B7280;margin-top:4px;">{{.Currency}}</div>
+      </td>
+    </tr></table>
+  </td></tr>
+  <tr><td style="padding:16px 24px 4px;">
+    <div style="font-size:16px;font-weight:700;color:#111827;margin-bottom:10px;">近 7 天销量趋势</div>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+      {{range .Trend}}<td width="14%" style="text-align:center;vertical-align:bottom;padding:0 2px;">
+        <div style="font-size:13px;font-weight:700;color:#1D4ED8;">{{.Qty}}</div>
+        <div style="background:#DBEAFE;border-radius:3px 3px 0 0;height:{{.Height}}px;min-height:4px;margin:3px auto 0;"></div>
+        <div style="font-size:11px;color:#9CA3AF;margin-top:3px;white-space:nowrap;">{{.Date}}</div>
+      </td>{{end}}
+    </tr></table>
+  </td></tr>
+  <tr><td style="padding:16px 24px 4px;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+      <td width="50%" valign="top" style="padding-right:8px;">
+        <div style="font-size:15px;font-weight:700;color:#111827;margin-bottom:8px;">库存</div>
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px;color:#374151;">
+          <tr><td style="padding:5px 0;">SKU 总数</td><td align="right">{{.SKUCount}}</td></tr>
+          <tr><td style="padding:5px 0;">可用总量</td><td align="right">{{.AvailableQty}}</td></tr>
+          <tr><td style="padding:5px 0;">在途库存</td><td align="right">{{.InTransitQty}}</td></tr>
+          <tr><td style="padding:5px 0;color:#DC2626;">缺货</td><td align="right" style="color:#DC2626;">{{.OOSCount}}</td></tr>
+          <tr><td style="padding:5px 0;color:#D97706;">告急 ≤10 件</td><td align="right" style="color:#D97706;">{{.LowCount}}</td></tr>
+        </table>
+      </td>
+      <td width="50%" valign="top" style="padding-left:8px;">
+        <div style="font-size:15px;font-weight:700;color:#111827;margin-bottom:8px;">广告 / 退货</div>
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px;color:#374151;">
+          <tr><td style="padding:5px 0;">广告花费</td><td align="right">{{currency .AdSpend .Currency}}</td></tr>
+          <tr><td style="padding:5px 0;">广告占比</td><td align="right">{{pct .AdRatio}}</td></tr>
+          <tr><td style="padding:5px 0;">ROAS</td><td align="right">{{printf "%.2f" .AdROAS}}</td></tr>
+          <tr><td style="padding:5px 0;">ACOS</td><td align="right">{{pct .AdACOS}}</td></tr>
+          <tr><td style="padding:5px 0;">退货</td><td align="right">{{.ReturnQty}} 件 / {{pct .ReturnRate}}</td></tr>
+        </table>
+      </td>
+    </tr></table>
+  </td></tr>
+  {{if .ReturnTop}}<tr><td style="padding:12px 24px 0;">
+    <div style="font-size:15px;font-weight:700;color:#111827;margin-bottom:8px;">退货原因 Top3</div>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px;color:#374151;">
+      {{range .ReturnTop}}<tr><td style="padding:5px 0;border-bottom:1px solid #F3F4F6;">{{.Name}}</td><td align="right" style="padding:5px 0;border-bottom:1px solid #F3F4F6;color:#DC2626;font-weight:600;">{{.Qty}} 件</td></tr>{{end}}
+    </table>
+  </td></tr>{{end}}
+  <tr><td style="padding:16px 24px 4px;">
+    <div style="font-size:15px;font-weight:700;color:#111827;margin-bottom:8px;">Top SKU</div>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px;">
+      <tr style="background:#F9FAFB;color:#6B7280;"><th align="left" style="padding:8px 10px;font-weight:600;">SKU</th><th align="center" style="padding:8px 10px;font-weight:600;">7天销量</th><th align="right" style="padding:8px 10px;font-weight:600;">7天销售额</th></tr>
+      {{range .TopSKUs}}<tr><td style="padding:8px 10px;border-bottom:1px solid #F3F4F6;">{{.SKU}}</td><td align="center" style="padding:8px 10px;border-bottom:1px solid #F3F4F6;color:#1D4ED8;font-weight:600;">{{.Qty}} 件</td><td align="right" style="padding:8px 10px;border-bottom:1px solid #F3F4F6;color:#059669;">{{currency .Amount $.Currency}}</td></tr>{{end}}
+    </table>
+  </td></tr>
+  {{if .Alerts}}<tr><td style="padding:14px 24px 4px;">
+    <div style="font-size:15px;font-weight:700;color:#111827;margin-bottom:8px;">库存提醒</div>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px;color:#374151;">
+      {{range .Alerts}}<tr><td style="padding:5px 0;border-bottom:1px solid #F3F4F6;">{{.SKU}}</td><td align="right" style="padding:5px 0;border-bottom:1px solid #F3F4F6;">剩余 {{.Qty}} 件</td></tr>{{end}}
+    </table>
+  </td></tr>{{end}}
+  <tr><td style="padding:24px;text-align:center;background:#F9FAFB;border-top:1px solid #E5E7EB;">
+    <div style="font-size:14px;font-weight:700;color:#374151;">BelieveBoy Dashboard</div>
+    <div style="font-size:12px;color:#9CA3AF;margin-top:6px;">{{.ProjectName}} · {{.ReportDate}}</div>
+  </td></tr>
+</table>
+</td></tr></table>
+</body>
+</html>
