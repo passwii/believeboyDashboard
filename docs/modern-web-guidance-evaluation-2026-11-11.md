@@ -12,7 +12,7 @@
 | 能否在用户本地部署（安装）？ | **可以。** 不需要服务端、账号或 API key；已在本机隔离目录验证 Codex 插件和 `npx skills` 两条安装路径。 |
 | 安装后做“A 点调用”是否有用？ | **有，但先要定义“A 点”。** 如果指“在某个具体前端改动点调用”，它适合在写 UI 前查指南、取代码模式；如果指“对整个前端做一次性体检”，它只能做静态启发式扫描，不是完整审计。 |
 | 能否更好地审视当前前端？ | **能发现问题，但不能替代人工判断。** 本次扫描出 14 条 / 4 类，人工复核后 3 条是明确误报、11 条可评估；其中 6 条 IME 输入问题和 1 条 `field-sizing` 最值得做试点。 |
-| 能否更好地集成现代组件？ | **能给出现代实现方案、Baseline 数据和降级策略，但它不是组件库，也不会自动改代码。** 原生 `<dialog>` / Popover 可按场景采用；Anchor Positioning 目前只有 Safari 27 支持，不适合现在替换 Radix/Floating UI。 |
+| 能否更好地集成现代组件？ | **能给出现代实现方案、Baseline 数据和降级策略，但它不是组件库，也不会自动改代码。** 原生 `<dialog>` / Popover 可按场景采用；Anchor Positioning 已在 Chrome/Edge 125+、Firefox 147+、Safari 26+ 部分支持（Safari 27 完整），不能按指南旧数据“仅 Safari 27”排除，但替换 Radix/Floating UI 仍需评估迁移成本。 |
 | 建议 | 团队 Codex 优先装插件；把“UI 改动前先 `search` / `retrieve`”写进前端工作流；`legacy-scan` 只做周期性体检，不接 CI 阻断门禁。 |
 
 一句话：**它适合当“前端实现前的规范查询器 + 季度体检工具”，不适合当“自动重构器”或“组件库”。**
@@ -233,18 +233,20 @@ textarea {
 | Popover API | `dialog`、`viewport-aware-dropdowns` | Baseline 2025-01-27；Chrome 116 / Edge 116 / Firefox 125 / Safari 17 支持 | 适合菜单、tooltip、非模态面板；可作为 Radix Popover 的渐进增强候选，不建议一次性替换现有实现。 |
 | Invoker Commands（`command` / `commandfor`） | `declarative-dialog-popover-control` | Baseline 2025-12-12；Safari 26.2 起支持 | 可用声明式开合代替部分 JS；旧浏览器需要 polyfill 或保留 JS 路径。 |
 | `closedby` | `dialog` | Chrome 134 / Edge 134 / Firefox 141；Safari 不支持 | 只能当渐进增强；点击外部关闭仍需兼容路径。 |
-| Anchor Positioning | `viewport-aware-dropdowns` | **仅 Safari 27 支持，Chrome / Edge / Firefox 不支持** | **现在不要替换** Radix / Floating UI 的定位逻辑；用 `@supports` 渐进尝试即可。 |
+| Anchor Positioning | `viewport-aware-dropdowns` | Chrome/Edge 125+、Firefox 147+、Safari 26+ 部分支持；Safari 27 完整支持。指南的“仅 Safari 27”是完整支持口径，与 Chrome 125 发布说明不一致 | 基础能力可用于低风险 tooltip / dropdown 试点；替换 Radix / Floating UI 前逐项验证 `position-area`、`position-try-*` 等子特性，并保留现有实现回退。 |
 | `field-sizing: content` | `form-fields-automatically-fit-contents` | Baseline 2026-06-16；四大引擎均支持 | 聊天输入框最适合先试；保留 JS fallback 或用 `@supports` 渐进增强。 |
 | IME-safe Enter | `ime-safe-enter-submit` | `isComposing` Chrome/Edge/Firefox 支持；Safari 有事件顺序 bug | 所有自定义 Enter 提交都应加 `isComposing` + `keyCode === 229` 检查；这是本次最高价值修复。 |
 | `interpolate-size` | `animate-to-intrinsic-sizes` | 仅 Chrome 129+ / Edge 129+ | 只在 Chromium 目标下用；否则保留 `max-height` 或 `@supports` 双路径。 |
 | Container Queries | `responsive-design`、`size-aware-styling` | 指南推荐；按目标浏览器基线验证 | 适合 dashboard 卡片按容器宽度自适应；与当前桌面端范围不冲突，可作为后续渐进改造。 |
 | `:user-invalid` | `forms`、`required-field-feedback` | 指南推荐；按目标浏览器基线验证 | 可用于表单校验态，减少“刚打开就报错”；需与现有错误提示组件契约对齐。 |
 
+复核说明：本报告初稿引用指南数据称 Anchor Positioning 仅 Safari 27 支持；Codex review 指出这与 Chrome 125 发布说明不符。复核 caniuse（2026-11-11）后按上表修正为“部分支持 / 完整支持”口径。
+
 ### 4.3 不建议做的事
 
 - 不要因为指南推荐原生 `<dialog>` 就把所有 Radix Dialog 替换掉：现有组件已经处理焦点、嵌套、动画和受控状态，替换成本高。
 - 不要给原生 `<dialog>` 加 `role="dialog"` / `aria-modal` 或手写 focus trap，指南明确说浏览器已经提供。
-- 不要在 Chrome / Edge / Firefox 上强推 Anchor Positioning；当前支持面不够。
+- 不要在没有逐项验证子特性与目标浏览器前，用 Anchor Positioning 替换现有 Radix / Floating UI 定位；基础能力已跨浏览器，但完整性与迁移成本仍需评估。
 - 不要让指南覆盖 V4 Warm Ledger 的视觉决定；指南管平台能力和可访问性，不管品牌与布局规范。
 - 不要把 `legacy-scan` 接成 CI 阻断门禁：它有误报，且只覆盖约 20% 语料，适合周期性体检。
 
@@ -302,7 +304,7 @@ DISABLE_TELEMETRY=1 npx -y modern-web-guidance@latest legacy-scan frontend --jso
 - **覆盖不全**：只覆盖 33/250 个 guide 的确定性规则；`dialog`、`popover`、`responsive-table` 等能力不会被 `legacy-scan` 发现。
 - **不是组件库**：它给实现模式和代码片段，不提供可直接安装的 React 组件。
 - **不是自动重构器**：不会改代码、不会提 PR、不会跑测试。
-- **浏览器支持差异大**：Anchor Positioning 目前仅 Safari 27；`interpolate-size` 仅 Chromium；`closedby` 不支持 Safari。必须按产品浏览器基线决定，不能只看“modern”。
+- **浏览器支持差异大**：Anchor Positioning 的基础能力已在 Chrome/Edge 125+、Firefox 147+、Safari 26+ 部分支持（Safari 27 完整），但子特性支持不一致；`interpolate-size` 仅 Chromium；`closedby` 不支持 Safari。必须按产品浏览器基线决定，不能只看“modern”。
 - **与现有设计系统冲突的风险**：指南推荐原生控件，但本仓库的 Warm Ledger、Radix 封装和交互契约优先；任何替换都要单独评审。
 - **供应链与遥测**：npm 包会执行安装脚本/CLI；建议 pin 版本、审查来源，生产环境关闭遥测。
 - **供应商 eval 数据**：README 中的 uplift（例如 codex_cli 54% → 82%）是 vendor 自测结果，未在本仓库独立复现，只能作为参考。
