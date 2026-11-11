@@ -86,21 +86,21 @@ type VatInvoiceCreate struct {
 }
 
 type VatInvoiceListItem struct {
-	ID           int64   `json:"id"`
-	InvoiceNo    string  `json:"invoice_no"`
-	ProjectID    int64   `json:"project_id"`
-	ProjectName  string  `json:"project_name"`
-	Currency     string  `json:"currency"`
-	OrderID      string  `json:"order_id"`
-	BuyerName    string  `json:"buyer_name"`
-	InvoiceDate  string  `json:"invoice_date"`
-	SubtotalExcl float64 `json:"subtotal_excl"`
-	TotalVat     float64 `json:"total_vat"`
-	TotalIncl    float64 `json:"total_incl"`
-	Status       string  `json:"status"`
-	HasPdf       bool    `json:"has_pdf"`
-	CreatedAt    string  `json:"created_at"`
-	UpdatedAt    string  `json:"updated_at"`
+	ID           int64  `json:"id"`
+	InvoiceNo    string `json:"invoice_no"`
+	ProjectID    int64  `json:"project_id"`
+	ProjectName  string `json:"project_name"`
+	Currency     string `json:"currency"`
+	OrderID      string `json:"order_id"`
+	BuyerName    string `json:"buyer_name"`
+	InvoiceDate  string `json:"invoice_date"`
+	SubtotalExcl string `json:"subtotal_excl"`
+	TotalVat     string `json:"total_vat"`
+	TotalIncl    string `json:"total_incl"`
+	Status       string `json:"status"`
+	HasPdf       bool   `json:"has_pdf"`
+	CreatedAt    string `json:"created_at"`
+	UpdatedAt    string `json:"updated_at"`
 }
 
 type VatInvoiceResponse struct {

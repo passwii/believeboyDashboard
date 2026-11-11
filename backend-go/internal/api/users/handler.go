@@ -69,7 +69,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	pagination := httpapi.ParsePagination(r, 20, 200)
-	items, total, err := h.store.List(r.Context(), pagination.Page, pagination.PageSize)
+	items, _, err := h.store.List(r.Context(), pagination.Page, pagination.PageSize)
 	if err != nil {
 		httpapi.WriteInternalServerError(w)
 		return
@@ -78,12 +78,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	for _, item := range items {
 		responseItems = append(responseItems, serializeUser(item))
 	}
-	_ = httpapi.WriteJSON(w, http.StatusOK, ListResponse{
-		Items:    responseItems,
-		Total:    total,
-		Page:     pagination.Page,
-		PageSize: pagination.PageSize,
-	})
+	_ = httpapi.WriteJSON(w, http.StatusOK, ListResponse{Items: responseItems})
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {

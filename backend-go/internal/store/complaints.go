@@ -505,7 +505,7 @@ func (s *ComplaintStore) ListComplaints(ctx context.Context, filter complaints.C
 	}
 	defer rows.Close()
 
-	var items []complaints.ComplaintListItem
+	items := make([]complaints.ComplaintListItem, 0)
 	for rows.Next() {
 		var it complaints.ComplaintListItem
 		var triageJSON, orderInfoJSON, slaJSON, historyJSON *string

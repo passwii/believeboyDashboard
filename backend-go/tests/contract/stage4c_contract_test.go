@@ -78,7 +78,7 @@ func (s *stage4CVatStore) GetEntity(_ context.Context, entityID int64) (*vat_inv
 }
 func (s *stage4CVatStore) ListInvoices(context.Context, vat_invoices.VatInvoiceFilter) ([]vat_invoices.VatInvoiceListItem, error) {
 	return []vat_invoices.VatInvoiceListItem{
-		{ID: 10, InvoiceNo: "INV-DE-2026-000010", ProjectID: 1, Currency: "EUR", TotalIncl: 119.0, Status: "draft"},
+		{ID: 10, InvoiceNo: "INV-DE-2026-000010", ProjectID: 1, Currency: "EUR", TotalIncl: "119.00", Status: "draft"},
 	}, nil
 }
 func (s *stage4CVatStore) GetInvoice(_ context.Context, invoiceID int64) (*vat_invoices.VatInvoiceResponse, error) {
@@ -154,7 +154,7 @@ func (s *stage4CReturnStore) VerifyProjectAccess(context.Context, int64, string,
 func (s *stage4CReturnStore) GetReturnAnalysis(context.Context, return_analysis.ReturnAnalysisFilter) (*return_analysis.ReturnAnalysisResponse, error) {
 	return &return_analysis.ReturnAnalysisResponse{
 		ProjectID: 1, ProjectName: "Project A", Country: "US", StartDate: "2026-10-01", EndDate: "2026-10-31",
-		Summary: return_analysis.ReturnAnalysisSummary{TotalReturns: 5, TotalQuantity: 5, OverallReturnRate: 1.5, DataAvailable: true},
+		Summary:     return_analysis.ReturnAnalysisSummary{TotalReturns: 5, TotalQuantity: 5, OverallReturnRate: 1.5, DataAvailable: true},
 		SummaryText: "表现稳定",
 	}, nil
 }

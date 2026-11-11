@@ -63,7 +63,7 @@ func (handler *Handler) RetirementReadiness(w http.ResponseWriter, r *http.Reque
 		MetricsOK:            metricsOK,
 		MetricsReasons:       report.RetirementReasons,
 		CanonicalDomains:     domains,
-		FrozenLegacyDomains:  append([]string(nil), domains...),
+		FrozenLegacyDomains:  append([]string{}, domains...),
 		RollbackSwitch:       "清空 Settings.insight_canonical_domains 即回滚到旧写链路",
 		LegacyReadsPreserved: true,
 		CodegraphVerified:    nil,

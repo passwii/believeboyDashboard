@@ -39,7 +39,7 @@ func TestListUsesPaginationAndSerializesSnakeCaseTimestamps(t *testing.T) {
 	if store.page != 2 || store.pageSize != 5 {
 		t.Errorf("pagination = (%d, %d), want (2, 5)", store.page, store.pageSize)
 	}
-	want := `{"items":[{"id":"user-123","name":"operator","email":"person@example.com","full_name":"Person Name","is_admin":false,"is_active":true,"role_type":"operator","created_at":"2026-10-01T02:03:04.123000Z","updated_at":"2026-10-01T02:03:04.123000Z"}],"total":11,"page":2,"page_size":5}`
+	want := `{"items":[{"id":"user-123","name":"operator","email":"person@example.com","full_name":"Person Name","is_admin":false,"is_active":true,"role_type":"operator","created_at":"2026-10-01T02:03:04.123000Z","updated_at":"2026-10-01T02:03:04.123000Z"}]}`
 	if got := rec.Body.String(); got != want {
 		t.Errorf("body = %s, want %s", got, want)
 	}
