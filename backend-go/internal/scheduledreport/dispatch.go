@@ -150,6 +150,7 @@ func DispatchOne(ctx context.Context, db store.FullDB, sender EmailSender, reque
 		return fail(fmt.Sprintf("build report data: %v", err), err)
 	}
 	reportData["frequency"] = frequency
+	reportData["ai_summary"] = fallbackReportSummary(reportData)
 	if _, err := db.Exec(ctx,
 		"update public.scheduled_report_delivery_logs set stage = 'rendering_html' where id = $1", logID); err != nil {
 		return fail(fmt.Sprintf("mark rendering_html: %v", err), err)
