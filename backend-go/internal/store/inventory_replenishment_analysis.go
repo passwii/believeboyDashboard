@@ -47,6 +47,11 @@ type replenishmentSetting struct {
 	TargetDays         int
 }
 
+type seasonalDMS struct {
+	DMS30YoY *float64
+	DMS7YoY  *float64
+}
+
 type replenishmentSnapshot struct {
 	AvailableQty      int
 	Age0To90Qty       int
@@ -153,6 +158,10 @@ func (s *InventoryReplenishmentStore) ListAnalysis(ctx context.Context, filter i
 	if err != nil {
 		return inventory_replenishment.InventoryReplenishmentListResponse{}, err
 	}
+	seasonalDMSMap, err := s.loadReplenishmentSeasonalDMS(ctx, projectID, country, today)
+	if err != nil {
+		return inventory_replenishment.InventoryReplenishmentListResponse{}, err
+	}
 
 	keyword := ""
 	if filter.Keyword != nil {
@@ -180,7 +189,7 @@ func (s *InventoryReplenishmentStore) ListAnalysis(ctx context.Context, filter i
 		item := buildReplenishmentItem(
 			projectID, projectName, base, setting, snap, available, inTransit,
 			dms30[base.SKU], dms14[base.SKU], dms7[base.SKU], dms3[base.SKU],
-			transitBatches[base.SKU], today, snapshotAgeDays, productNames[base.SKU], historical,
+			transitBatches[base.SKU], today, snapshotAgeDays, productNames[base.SKU], historical, seasonalDMSMap[base.SKU],
 		)
 		item.ASIN = asin
 
@@ -252,6 +261,7 @@ func buildReplenishmentItem(
 	snapshotAgeDays int,
 	productName *string,
 	historical bool,
+	seasonal *seasonalDMS,
 ) inventory_replenishment.InventoryReplenishmentListItem {
 	safetyFactor := replenishmentDefaultSafetyFactor
 	productionLead := replenishmentDefaultProductionLead
@@ -361,13 +371,23 @@ func buildReplenishmentItem(
 	}
 	trendLabel := inventorycalc.ComputeTrendLabel(dms7Rounded, dms30Rounded)
 	trendMomentum := inventorycalc.ComputeTrendMomentum(dms7Rounded, dms14Rounded, dms30Rounded)
-	state, criticalSubtype, stateRule := inventorycalc.ComputeInventoryState(itemInput, trendLabel, sellableDays, orderBufferDays)
+	var yoy30, yoy7 *float64
+	if seasonal != nil {
+		yoy30 = seasonal.DMS30YoY
+		yoy7 = seasonal.DMS7YoY
+	}
+	seasonalFactor, seasonalPhase, seasonalSource := inventorycalc.ComputeSeasonalFactor(dms30Rounded, dms7Rounded, yoy30, yoy7)
+	adjustedSellableDays := sellableDays
+	if seasonalFactor != nil && *seasonalFactor > 0 && sellableDays != nil {
+		value := *sellableDays / *seasonalFactor
+		adjustedSellableDays = &value
+	}
+	state, criticalSubtype, stateRule := inventorycalc.ComputeInventoryState(itemInput, trendLabel, adjustedSellableDays, orderBufferDays)
 	transitRatio := 0.0
 	if available > 0 {
 		transitRatio = float64(inTransit) / float64(available)
 	}
-	action, actionRule, seasonalOverride := inventorycalc.ComputeReplenishmentAction(state, criticalSubtype, trendLabel, transitRatio, "unknown", sellableDays, orderBufferDays)
-	seasonalFactor, seasonalPhase, seasonalSource := inventorycalc.ComputeSeasonalFactor(nil, nil, nil, nil)
+	action, actionRule, seasonalOverride := inventorycalc.ComputeReplenishmentAction(state, criticalSubtype, trendLabel, transitRatio, seasonalPhase, adjustedSellableDays, orderBufferDays)
 	signals := inventorycalc.ComputeSignals(itemInput, trendLabel, trendMomentum, snapshotAgeDays, seasonalFactor, seasonalPhase, seasonalSource)
 
 	item := inventory_replenishment.InventoryReplenishmentListItem{
@@ -834,4 +854,57 @@ func normalizeDatePointer(value *time.Time, location *time.Location) *time.Time 
 	year, month, day := value.Date()
 	normalized := time.Date(year, month, day, 0, 0, 0, 0, location)
 	return &normalized
+}
+
+func (s *InventoryReplenishmentStore) loadReplenishmentSeasonalDMS(ctx context.Context, projectID int64, country string, today time.Time) (map[string]*seasonalDMS, error) {
+	dms30Since := today.AddDate(0, 0, -29).Format("2006-01-02")
+	dms7Since := today.AddDate(0, 0, -6).Format("2006-01-02")
+	yoyEnd := today.AddDate(0, 0, -365)
+	yoy30Since := yoyEnd.AddDate(0, 0, -29).Format("2006-01-02")
+	yoy7Since := yoyEnd.AddDate(0, 0, -6).Format("2006-01-02")
+	outerSince := yoy30Since
+	outerUntil := today.Format("2006-01-02")
+	query := "select r.sku, " +
+		"coalesce(sum(case when r.purchase_date_pt >= $3::date and r.purchase_date_pt <= $4::date then r.quantity else 0 end), 0), " +
+		"coalesce(sum(case when r.purchase_date_pt >= $5::date and r.purchase_date_pt <= $4::date then r.quantity else 0 end), 0), " +
+		"coalesce(sum(case when r.purchase_date_pt >= $6::date and r.purchase_date_pt <= $7::date then r.quantity else 0 end), 0), " +
+		"coalesce(sum(case when r.purchase_date_pt >= $8::date and r.purchase_date_pt <= $7::date then r.quantity else 0 end), 0) " +
+		"from public.analysis_sales_order_rows r " +
+		"join public.analysis_source_files f on f.id = r.source_file_id " +
+		"where f.project_id = $1 and f.country = $2 and f.report_type = 'sales_report' and f.is_current = true " +
+		"and r.is_counted_sales = true and r.purchase_date_pt >= $9::date and r.purchase_date_pt <= $4::date " +
+		"group by r.sku"
+	rows, err := s.db.Query(ctx, query,
+		projectID, country, dms30Since, outerUntil, dms7Since, yoy30Since, yoyEnd.Format("2006-01-02"), yoy7Since, outerSince)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make(map[string]*seasonalDMS)
+	for rows.Next() {
+		var sku *string
+		var main30, main7, yoy30, yoy7 int64
+		if err := rows.Scan(&sku, &main30, &main7, &yoy30, &yoy7); err != nil {
+			return nil, err
+		}
+		normalized := strings.TrimSpace(valueOrEmpty(sku))
+		if normalized == "" {
+			continue
+		}
+		entry := &seasonalDMS{}
+		if main30 > 0 && yoy30 > 0 {
+			value := float64(yoy30) / 30.0
+			entry.DMS30YoY = &value
+		}
+		if main7 > 0 && yoy7 > 0 {
+			value := float64(yoy7) / 7.0
+			entry.DMS7YoY = &value
+		}
+		_ = main30
+		_ = main7
+		if entry.DMS30YoY != nil || entry.DMS7YoY != nil {
+			result[normalized] = entry
+		}
+	}
+	return result, rows.Err()
 }

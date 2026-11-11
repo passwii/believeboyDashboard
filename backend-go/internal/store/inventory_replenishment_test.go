@@ -197,6 +197,7 @@ func TestInventoryReplenishmentListAnalysisBuildsContract(t *testing.T) {
 			&fakeRows{batches: [][]any{{"SKU-001", int64(14)}}},
 			&fakeRows{batches: [][]any{{"SKU-001", int64(7)}}},
 			&fakeRows{batches: [][]any{{"SKU-001", int64(3)}}},
+			empty(),
 		},
 	}}
 	store := NewInventoryReplenishmentStore(db)
@@ -229,5 +230,21 @@ func TestInventoryReplenishmentListAnalysisBuildsContract(t *testing.T) {
 		resp.Summary.StateDistribution["critical"] != 1 ||
 		resp.Summary.ActionDistribution["REPLENISH_NOW"] != 1 {
 		t.Fatalf("summary = %#v", resp.Summary)
+	}
+}
+
+func TestLoadReplenishmentSeasonalDMS(t *testing.T) {
+	db := &fakeWriteDB{fakeDB: &fakeDB{
+		rows: &fakeRows{batches: [][]any{{"SKU-001", int64(30), int64(14), int64(60), int64(21)}}},
+	}}
+	store := NewInventoryReplenishmentStore(db)
+	today := time.Date(2026, 11, 11, 0, 0, 0, 0, time.Local)
+	seasonal, err := store.loadReplenishmentSeasonalDMS(context.Background(), 1, "US", today)
+	if err != nil {
+		t.Fatalf("load seasonal: %v", err)
+	}
+	entry := seasonal["SKU-001"]
+	if entry == nil || entry.DMS30YoY == nil || *entry.DMS30YoY != 2.0 || entry.DMS7YoY == nil || *entry.DMS7YoY != 3.0 {
+		t.Fatalf("seasonal = %#v", entry)
 	}
 }
