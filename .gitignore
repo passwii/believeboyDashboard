@@ -191,3 +191,5 @@ productEnvAgent/logs/
 
 # 根级 node_modules（此前仅忽略 frontend/backend 子目录，根目录漏网）
 node_modules/
+
+deploy/tests/__pycache__/

@@ -149,8 +149,7 @@ if [[ ! -d "$ROOT/frontend/node_modules" ||
   (cd "$ROOT/frontend" && pnpm install --frozen-lockfile)
 fi
 
-python3 "$ROOT/backend-go/scripts/check_go_migrations.py"
-python3 "$ROOT/backend/scripts/check_alembic.py"
+(cd "$ROOT/backend-go" && go run ./cmd/checkmigrations)
 (cd "$ROOT/frontend" && pnpm lint && pnpm test)
 
 TMP_DIR="$(mktemp -d)"

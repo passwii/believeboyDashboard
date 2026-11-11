@@ -21,8 +21,7 @@ fi
 changed_files="$(git diff --name-only origin/main..HEAD 2>/dev/null || true)"
 if printf '%s\n' "$changed_files" | grep -qE '^(backend|backend-go)/'; then
   echo "Checking Goose migrations (Alembic is frozen at 285)..."
-  python3 "$repo_root/backend-go/scripts/check_go_migrations.py"
-  python "$repo_root/backend/scripts/check_alembic.py"
+  (cd "$repo_root/backend-go" && go run ./cmd/checkmigrations)
 fi
 
 echo "Pushing main to origin..."

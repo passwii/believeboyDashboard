@@ -45,9 +45,9 @@
 
 ```bash
 git fetch origin && git rebase origin/main
-python3 backend-go/scripts/new_go_migration.py add_customer_tag
+cd backend-go && go run ./cmd/newmigration add_customer_tag
 # 编辑 Up/Down
-python3 backend-go/scripts/check_go_migrations.py
+go run ./cmd/checkmigrations
 cd backend-go && DATABASE_URL=... go run ./cmd/migrate up
 ```
 
@@ -73,6 +73,6 @@ cd backend-go && DATABASE_URL=... go run ./cmd/migrate up
 - 已有 285 库：`migrate up` stamp version 1，不重放 baseline；随后执行 seed 迁移（幂等，已有行保留）。
 - 284 库：`migrate up` 拒绝并提示先跑 cutover；Alembic 285 后再次 `migrate up` stamp 成功。
 - 临时新增一条测试 Goose 迁移并成功应用，验证后已删除测试文件。
-- `backend-go/scripts/check_go_migrations.py`：baseline SHA + Alembic manifest + 命名/重复/标记校验通过。
+- `cd backend-go && go run ./cmd/checkmigrations`：baseline SHA + Alembic manifest + 命名/重复/标记校验通过。
 - 部署 Compose 配置测试通过；Go 全量测试 82 包 PASS。
 - 本机 Docker 构建/运行（2026-11-10）：用本机 `golang:1.27-alpine` + `--build-arg GO_VERSION=1.27` 构建 `blf-go-migrate-test` 成功（镜像 47.5 MB，同时含 `go-api`/`go-migrate`，运行 UID 10001）；默认 `1.27.3` 仍因 Docker Hub IPv6/TLS 拉取失败。容器实测：空库 `up`（151 张业务表 + seed 计数正确、`crypt` 可用）、285 库 stamp+seed、Compose `migrate` 服务执行成功、`go-api` 在 `GO_API_OWNED=health` 下 `/api/v1/health/live|ready` 均 200。生产 `linux/amd64` 镜像待 CI/有网环境复验。

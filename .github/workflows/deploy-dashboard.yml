@@ -185,16 +185,13 @@ jobs:
             exit 1
           fi
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Setup Go
+        uses: actions/setup-go@v5
         with:
-          python-version: "3.13"
+          go-version-file: backend-go/go.mod
 
       - name: Check Goose migrations (Alembic frozen at 285)
-        run: python3 backend-go/scripts/check_go_migrations.py
-
-      - name: Check frozen Alembic archive
-        run: python backend/scripts/check_alembic.py
+        run: cd backend-go && go run ./cmd/checkmigrations
 
       - name: Setup pnpm
         if: ${{ inputs.deploy_mode == 'build_and_deploy' }}

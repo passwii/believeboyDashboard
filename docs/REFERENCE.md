@@ -117,9 +117,9 @@ PostgreSQL only，无 SQLite 回退。模型仍在 `backend/app/models/`（FastA
 **新迁移命名**：`YYYYMMDDHHMMSS_slug.sql`（14 位 UTC 时间戳 + 小写 snake_case），例如 `20261110153000_add_customer_tag.sql`；版本号必须唯一，已应用迁移禁止改名/改内容，修正一律用新迁移。
 
 ```bash
-python3 backend-go/scripts/new_go_migration.py add_customer_tag
+cd backend-go && go run ./cmd/newmigration add_customer_tag
 # 编辑 Up/Down 后：
-python3 backend-go/scripts/check_go_migrations.py
+go run ./cmd/checkmigrations
 ```
 
 **本地执行**（`DATABASE_URL` 必须指向目标库；`cmd/migrate` 会自动把 `postgresql+psycopg://` 转成 pgx DSN 并启用 simple protocol）：
@@ -133,7 +133,7 @@ go run ./cmd/migrate version
 
 **多 worktree**：没有 revision graph / merge heads；建迁移前先 `git fetch origin && git rebase origin/main`，时间戳撞车由后建者改名，绝不复用已存在版本号。迁移随 feature 分支同批 review/合并，保持向后兼容（生产回滚不自动回滚 DB）。
 
-**机械检查**：`backend-go/scripts/check_go_migrations.py` 校验 baseline SHA、Alembic 归档 manifest（任何变动即失败）、文件名/重复版本、goose Up/Down 标记；已接入 `git deploy`、`deploy/deploy-local.sh` 与 `deploy-dashboard.yml`。`backend/scripts/check_alembic.py` 仍可跑，仅用于校验冻结归档的图完整性。
+**机械检查**：`cd backend-go && go run ./cmd/checkmigrations` 校验 baseline SHA、Alembic 归档 manifest（任何变动即失败）、文件名/重复版本、goose Up/Down 标记；已接入 `git deploy`、`deploy/deploy-local.sh`、`productEnvAgent/deploy.sh` 与 `deploy-dashboard.yml`。
 
 ---
 
