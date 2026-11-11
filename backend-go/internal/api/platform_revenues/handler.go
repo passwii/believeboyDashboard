@@ -385,19 +385,17 @@ func (h *Handler) GetProjectCountries(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !identity.IsAdmin {
-		if err := h.store.VerifyProjectAccess(r.Context(), projectID, identity.Operator, false); err != nil {
-			if errors.Is(err, ErrProjectNotFound) {
-				httpapi.WriteDetail(w, http.StatusNotFound, "项目不存在")
-				return
-			}
-			if errors.Is(err, ErrProjectForbidden) {
-				httpapi.WriteDetail(w, http.StatusForbidden, "无权限访问该项目")
-				return
-			}
-			httpapi.WriteDetail(w, http.StatusInternalServerError, err.Error())
+	if err := h.store.VerifyProjectAccess(r.Context(), projectID, identity.Operator, identity.IsAdmin); err != nil {
+		if errors.Is(err, ErrProjectNotFound) {
+			httpapi.WriteDetail(w, http.StatusNotFound, "项目不存在")
 			return
 		}
+		if errors.Is(err, ErrProjectForbidden) {
+			httpapi.WriteDetail(w, http.StatusForbidden, "无权限访问该项目")
+			return
+		}
+		httpapi.WriteDetail(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 
 	countries, err := h.store.GetProjectCountries(r.Context(), projectID)

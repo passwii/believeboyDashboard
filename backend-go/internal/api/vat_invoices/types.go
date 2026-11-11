@@ -57,12 +57,16 @@ type VatInvoiceLineIn struct {
 }
 
 type VatInvoiceLineResponse struct {
-	VatInvoiceLineIn
-	ID       int64   `json:"id"`
-	LineNo   int     `json:"line_no"`
-	LineExcl float64 `json:"line_excl"`
-	LineVat  float64 `json:"line_vat"`
-	LineIncl float64 `json:"line_incl"`
+	Description      string `json:"description"`
+	ASIN             string `json:"asin"`
+	Qty              int    `json:"qty"`
+	UnitPriceInclVat string `json:"unit_price_incl_vat"`
+	VatRate          string `json:"vat_rate"`
+	ID               int64  `json:"id"`
+	LineNo           int    `json:"line_no"`
+	LineExcl         string `json:"line_excl"`
+	LineVat          string `json:"line_vat"`
+	LineIncl         string `json:"line_incl"`
 }
 
 type VatBuyerIn struct {
@@ -113,10 +117,10 @@ type VatInvoiceResponse struct {
 	Currency        string                   `json:"currency"`
 	OrderID         string                   `json:"order_id"`
 	InvoiceDate     string                   `json:"invoice_date"`
-	ShippingInclVat float64                  `json:"shipping_incl_vat"`
-	SubtotalExcl    float64                  `json:"subtotal_excl"`
-	TotalVat        float64                  `json:"total_vat"`
-	TotalIncl       float64                  `json:"total_incl"`
+	ShippingInclVat string                   `json:"shipping_incl_vat"`
+	SubtotalExcl    string                   `json:"subtotal_excl"`
+	TotalVat        string                   `json:"total_vat"`
+	TotalIncl       string                   `json:"total_incl"`
 	SummaryByRate   []any                    `json:"summary_by_rate"`
 	R2Key           *string                  `json:"r2_key"`
 	R2URL           *string                  `json:"r2_url"`

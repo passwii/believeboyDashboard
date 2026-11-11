@@ -30,16 +30,23 @@ const (
 	shapePreviewSize = 120
 )
 
+type parityRoute struct {
+	path        string
+	requestPath string
+}
+
 type comparison struct {
-	path       string
-	fastStatus int
-	goStatus   int
-	fastShape  string
-	goShape    string
-	problem    string
-	fastIsJSON bool
-	goIsJSON   bool
-	requestErr string
+	path         string
+	requestPath  string
+	fastStatus   int
+	goStatus     int
+	fastShape    string
+	goShape      string
+	problem      string
+	fastIsJSON   bool
+	goIsJSON     bool
+	requestErr   string
+	incomparable bool
 }
 
 func main() {
@@ -52,6 +59,7 @@ func main() {
 	proxySecret := flag.String("proxy-secret", "", "X-Trusted-Proxy-Secret; defaults to the running runbook state")
 	stateDir := flag.String("state-dir", defaultStateDir, "localcutover state directory (relative paths resolve from the repo root)")
 	limit := flag.Int("limit", 0, "compare at most N routes (0 = all)")
+	pathParamID := flag.String("path-param-id", "1", "value substituted for {param} path segments")
 	workers := flag.Int("workers", defaultWorkers, "parallel requests")
 	timeout := flag.Duration("timeout", defaultTimeout, "per-request timeout")
 	flag.Parse()
@@ -79,21 +87,25 @@ func main() {
 	if err != nil {
 		fail(fmt.Errorf("read openapi: %w", err))
 	}
-	routes, skipped, err := extractGETRoutes(payload)
+	parameterless, parameterized, err := extractAllGETRoutes(payload)
 	if err != nil {
 		fail(fmt.Errorf("parse openapi: %w", err))
 	}
 	// SSE endpoints never finish on their own; comparing them would always hit
 	// the per-request timeout instead of a contract difference.
-	finite := routes[:0]
-	for _, path := range routes {
+	routes := make([]parityRoute, 0, len(parameterless)+len(parameterized))
+	for _, path := range parameterless {
 		if strings.HasSuffix(path, "/stream") {
-			skipped++
 			continue
 		}
-		finite = append(finite, path)
+		routes = append(routes, parityRoute{path: path, requestPath: path})
 	}
-	routes = finite
+	for _, path := range parameterized {
+		if strings.HasSuffix(path, "/stream") {
+			continue
+		}
+		routes = append(routes, parityRoute{path: path, requestPath: substitutePathParams(path, *pathParamID)})
+	}
 	if *limit > 0 && len(routes) > *limit {
 		routes = routes[:*limit]
 	}
@@ -108,12 +120,17 @@ func main() {
 		headers.Set("X-Is-Admin", *adminHeader)
 	}
 
-	fmt.Printf("comparing %d parameterless GET routes (skipped %d with path params)\n", len(routes), skipped)
+	fmt.Printf("comparing %d GET routes (%d parameterless + %d with path params)\n", len(routes), len(parameterless), len(parameterized))
 	client := &http.Client{Timeout: *timeout}
 	results := compareAll(client, strings.TrimRight(*fastapiURL, "/"), strings.TrimRight(*goURL, "/"), headers, routes, *workers)
 
 	failures := 0
+	inconclusive := 0
 	for _, item := range results {
+		if item.incomparable {
+			inconclusive++
+			continue
+		}
 		if item.problem == "" {
 			continue
 		}
@@ -122,31 +139,32 @@ func main() {
 			item.path, item.fastStatus, preview(item.fastShape), item.goStatus, preview(item.goShape), item.problem)
 	}
 
-	fmt.Printf("\ncompared %d routes: %d matched, %d mismatched\n", len(results), len(results)-failures, failures)
+	fmt.Printf("\ncompared %d routes: %d matched, %d mismatched, %d inconclusive (both sides 4xx/5xx with different status)\n",
+		len(results), len(results)-failures-inconclusive, failures, inconclusive)
 	if failures > 0 {
 		os.Exit(1)
 	}
 }
 
-func compareAll(client *http.Client, fastapiBase, goBase string, headers http.Header, routes []string, workers int) []comparison {
+func compareAll(client *http.Client, fastapiBase, goBase string, headers http.Header, routes []parityRoute, workers int) []comparison {
 	if workers < 1 {
 		workers = 1
 	}
-	jobs := make(chan string)
+	jobs := make(chan parityRoute)
 	results := make(chan comparison, len(routes))
 	var waitGroup sync.WaitGroup
 	for worker := 0; worker < workers; worker++ {
 		waitGroup.Add(1)
 		go func() {
 			defer waitGroup.Done()
-			for path := range jobs {
-				results <- compareRoute(client, fastapiBase, goBase, headers, path)
+			for route := range jobs {
+				results <- compareRoute(client, fastapiBase, goBase, headers, route)
 			}
 		}()
 	}
 	go func() {
-		for _, path := range routes {
-			jobs <- path
+		for _, route := range routes {
+			jobs <- route
 		}
 		close(jobs)
 	}()
@@ -157,18 +175,23 @@ func compareAll(client *http.Client, fastapiBase, goBase string, headers http.He
 	for item := range results {
 		collected = append(collected, item)
 	}
-	sort.Slice(collected, func(left, right int) bool { return collected[left].path < collected[right].path })
+	sort.Slice(collected, func(left, right int) bool {
+		if collected[left].path == collected[right].path {
+			return collected[left].requestPath < collected[right].requestPath
+		}
+		return collected[left].path < collected[right].path
+	})
 	return collected
 }
 
-func compareRoute(client *http.Client, fastapiBase, goBase string, headers http.Header, path string) comparison {
-	item := comparison{path: path}
+func compareRoute(client *http.Client, fastapiBase, goBase string, headers http.Header, route parityRoute) comparison {
+	item := comparison{path: route.path, requestPath: route.requestPath}
 
-	fastStatus, fastBody, fastErr := get(client, fastapiBase+path, headers)
+	fastStatus, fastBody, fastErr := get(client, fastapiBase+route.requestPath, headers)
 	if fastErr != nil {
 		item.requestErr = "fastapi: " + fastErr.Error()
 	}
-	goStatus, goBody, goErr := get(client, goBase+path, headers)
+	goStatus, goBody, goErr := get(client, goBase+route.requestPath, headers)
 	if goErr != nil {
 		if item.requestErr != "" {
 			item.requestErr += "; "
@@ -183,7 +206,11 @@ func compareRoute(client *http.Client, fastapiBase, goBase string, headers http.
 		return item
 	}
 	if fastStatus != goStatus {
-		item.problem = "status differs"
+		if fastStatus >= 400 && goStatus >= 400 {
+			item.incomparable = true
+		} else {
+			item.problem = "status differs"
+		}
 	}
 	if fastValue, ok := decodeJSON(fastBody); ok {
 		item.fastIsJSON = true

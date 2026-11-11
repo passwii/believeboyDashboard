@@ -16,7 +16,7 @@ func TestPlatformRevenueStoreVerifyAccess(t *testing.T) {
 	ctx := context.Background()
 
 	// 1. Admin passes
-	store := NewPlatformRevenueStore(&fakeWriteDB{fakeDB: &fakeDB{}})
+	store := NewPlatformRevenueStore(&fakeWriteDB{fakeDB: &fakeDB{row: fakeRow{values: []any{nil, nil}}}})
 	if err := store.VerifyProjectAccess(ctx, 1, "op", true); err != nil {
 		t.Fatalf("expected admin to pass, got %v", err)
 	}

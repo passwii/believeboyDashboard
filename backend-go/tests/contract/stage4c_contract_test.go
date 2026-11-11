@@ -84,12 +84,12 @@ func (s *stage4CVatStore) ListInvoices(context.Context, vat_invoices.VatInvoiceF
 func (s *stage4CVatStore) GetInvoice(_ context.Context, invoiceID int64) (*vat_invoices.VatInvoiceResponse, error) {
 	url := "https://r2/inv.pdf"
 	return &vat_invoices.VatInvoiceResponse{
-		ID: invoiceID, InvoiceNo: "INV-DE-2026-000010", ProjectID: 1, Currency: "EUR", TotalIncl: 119.0, R2URL: &url, Status: "issued",
+		ID: invoiceID, InvoiceNo: "INV-DE-2026-000010", ProjectID: 1, Currency: "EUR", TotalIncl: "119.00", R2URL: &url, Status: "issued",
 	}, nil
 }
 func (s *stage4CVatStore) CreateInvoice(_ context.Context, payload vat_invoices.VatInvoiceCreate, _ string) (*vat_invoices.VatInvoiceResponse, error) {
 	return &vat_invoices.VatInvoiceResponse{
-		ID: 10, InvoiceNo: "INV-DE-2026-000010", ProjectID: payload.ProjectID, Currency: payload.Currency, TotalIncl: 119.0, Status: "draft",
+		ID: 10, InvoiceNo: "INV-DE-2026-000010", ProjectID: payload.ProjectID, Currency: payload.Currency, TotalIncl: "119.00", Status: "draft",
 	}, nil
 }
 func (s *stage4CVatStore) AttachInvoicePdf(_ context.Context, invoiceID int64, _ string, _ []byte) (*vat_invoices.VatInvoicePdfUploadResponse, error) {
