@@ -644,12 +644,16 @@ func (s *VatInvoiceStore) CreateInvoice(ctx context.Context, payload vat_invoice
 			}
 
 			linesResp = append(linesResp, vat_invoices.VatInvoiceLineResponse{
-				VatInvoiceLineIn: ln,
+				Description:      ln.Description,
+				ASIN:             ln.ASIN,
+				Qty:              ln.Qty,
+				UnitPriceInclVat: formatVATAmount(ln.UnitPriceInclVat),
+				VatRate:          formatVATAmount(ln.VatRate),
 				ID:               lineID,
 				LineNo:           lineNo,
-				LineExcl:         excl,
-				LineVat:          vat,
-				LineIncl:         incl,
+				LineExcl:         formatVATAmount(excl),
+				LineVat:          formatVATAmount(vat),
+				LineIncl:         formatVATAmount(incl),
 			})
 		}
 
@@ -666,10 +670,10 @@ func (s *VatInvoiceStore) CreateInvoice(ctx context.Context, payload vat_invoice
 			Currency:        payload.Currency,
 			OrderID:         payload.OrderID,
 			InvoiceDate:     payload.InvoiceDate,
-			ShippingInclVat: payload.ShippingInclVat,
-			SubtotalExcl:    subtotalExcl,
-			TotalVat:        totalVat,
-			TotalIncl:       totalIncl,
+			ShippingInclVat: formatVATAmount(payload.ShippingInclVat),
+			SubtotalExcl:    formatVATAmount(subtotalExcl),
+			TotalVat:        formatVATAmount(totalVat),
+			TotalIncl:       formatVATAmount(totalIncl),
 			SummaryByRate:   summaryByRate,
 			Status:          status,
 			CreatedBy:       &createdBy,

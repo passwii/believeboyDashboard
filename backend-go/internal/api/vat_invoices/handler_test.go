@@ -25,14 +25,14 @@ type mockVatStore struct {
 	pdfResp   *VatInvoicePdfUploadResponse
 	voidResp  *VatInvoiceResponse
 
-	getEntityErr   error
-	upsertErr      error
-	updateErr      error
-	deleteErr      error
-	getInvoiceErr  error
-	createInvErr   error
-	attachPdfErr   error
-	voidInvErr     error
+	getEntityErr  error
+	upsertErr     error
+	updateErr     error
+	deleteErr     error
+	getInvoiceErr error
+	createInvErr  error
+	attachPdfErr  error
+	voidInvErr    error
 }
 
 func (m *mockVatStore) VerifyProjectAccess(_ context.Context, _ int64, _ string, _ bool) error {
@@ -92,17 +92,17 @@ func (m *mockVatStore) CreateInvoice(_ context.Context, payload VatInvoiceCreate
 		return nil, m.createInvErr
 	}
 	return &VatInvoiceResponse{
-		ID:          10,
-		InvoiceNo:   "INV-TEST-2026-000010",
-		ProjectID:   payload.ProjectID,
-		Currency:    payload.Currency,
-		OrderID:     payload.OrderID,
-		TotalIncl:   119.0,
-		Status:      "draft",
-		CreatedBy:   &createdBy,
-		CreatedAt:   "2026-11-08T00:00:00Z",
-		UpdatedAt:   "2026-11-08T00:00:00Z",
-		Lines:       []VatInvoiceLineResponse{},
+		ID:        10,
+		InvoiceNo: "INV-TEST-2026-000010",
+		ProjectID: payload.ProjectID,
+		Currency:  payload.Currency,
+		OrderID:   payload.OrderID,
+		TotalIncl: "119.00",
+		Status:    "draft",
+		CreatedBy: &createdBy,
+		CreatedAt: "2026-11-08T00:00:00Z",
+		UpdatedAt: "2026-11-08T00:00:00Z",
+		Lines:     []VatInvoiceLineResponse{},
 	}, nil
 }
 func (m *mockVatStore) AttachInvoicePdf(_ context.Context, invoiceID int64, filename string, _ []byte) (*VatInvoicePdfUploadResponse, error) {
@@ -221,7 +221,7 @@ func TestVatInvoicesOperations(t *testing.T) {
 			ID:        10,
 			InvoiceNo: "INV-10",
 			ProjectID: 10,
-			TotalIncl: 119.0,
+			TotalIncl: "119.00",
 			R2URL:     &pdfURL,
 			Status:    "issued",
 		},

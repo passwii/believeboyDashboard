@@ -49,9 +49,6 @@ func NewPlatformRevenueStore(db FullDB) *PlatformRevenueStore {
 }
 
 func (s *PlatformRevenueStore) VerifyProjectAccess(ctx context.Context, projectID int64, op string, isAdmin bool) error {
-	if isAdmin {
-		return nil
-	}
 	var projOp, asstOp *string
 	err := s.db.QueryRow(ctx, "select project_operator, assistant_operator from public.projects where id = $1", projectID).Scan(&projOp, &asstOp)
 	if err != nil {
@@ -59,6 +56,9 @@ func (s *PlatformRevenueStore) VerifyProjectAccess(ctx context.Context, projectI
 			return platform_revenues.ErrProjectNotFound
 		}
 		return err
+	}
+	if isAdmin {
+		return nil
 	}
 	op = strings.TrimSpace(op)
 	if op == "" {

@@ -68,7 +68,7 @@ func TestCompareRouteReportsMismatches(t *testing.T) {
 	}))
 	t.Cleanup(goServer.Close)
 
-	item := compareRoute(http.DefaultClient, fastapi.URL, goServer.URL, http.Header{}, "/api/v1/x")
+	item := compareRoute(http.DefaultClient, fastapi.URL, goServer.URL, http.Header{}, parityRoute{path: "/api/v1/x", requestPath: "/api/v1/x"})
 	if item.problem != "JSON shape differs" {
 		t.Fatalf("problem = %q", item.problem)
 	}
@@ -77,7 +77,7 @@ func TestCompareRouteReportsMismatches(t *testing.T) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	t.Cleanup(statusMismatch.Close)
-	item = compareRoute(http.DefaultClient, fastapi.URL, statusMismatch.URL, http.Header{}, "/api/v1/x")
+	item = compareRoute(http.DefaultClient, fastapi.URL, statusMismatch.URL, http.Header{}, parityRoute{path: "/api/v1/x", requestPath: "/api/v1/x"})
 	if item.problem != "status differs" {
 		t.Fatalf("problem = %q", item.problem)
 	}

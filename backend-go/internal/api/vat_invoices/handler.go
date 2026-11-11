@@ -401,7 +401,7 @@ func (h *Handler) CreateInvoice(w http.ResponseWriter, r *http.Request) {
 			AfterJSON: map[string]any{
 				"invoice_no": inv.InvoiceNo,
 				"status":     inv.Status,
-				"total_incl": strconv.FormatFloat(inv.TotalIncl, 'f', 2, 64),
+				"total_incl": inv.TotalIncl,
 			},
 			Result: "success",
 		}
