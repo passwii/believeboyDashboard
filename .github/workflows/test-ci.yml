@@ -25,6 +25,7 @@ on:
       - "desktop/**"
       - "productEnvAgent/**"
       - "frontend/**"
+      - "deploy/**"
       - ".github/workflows/test-ci.yml"
   pull_request:
     branches: [main]
@@ -34,6 +35,7 @@ on:
       - "desktop/**"
       - "productEnvAgent/**"
       - "frontend/**"
+      - "deploy/**"
       - ".github/workflows/test-ci.yml"
   workflow_dispatch: {}
   schedule:
@@ -61,6 +63,7 @@ jobs:
       frontend: ${{ steps.frontend_filter.outputs.frontend }}
       live_contract: ${{ steps.filter.outputs.live_contract }}
       go_parity: ${{ steps.filter.outputs.go_parity }}
+      deploy: ${{ steps.filter.outputs.deploy }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -87,6 +90,9 @@ jobs:
               - "backend-go/**"
               - "frontend/types/api-generated/openapi.json"
               - "deploy/validate-local-go-cutover.sh"
+              - ".github/workflows/test-ci.yml"
+            deploy:
+              - "deploy/**"
               - ".github/workflows/test-ci.yml"
       - uses: dorny/paths-filter@v3
         id: frontend_filter
@@ -526,6 +532,62 @@ jobs:
               kill "$pid" 2>/dev/null || true
             fi
           fi
+  deploy-scripts:
+    name: deploy scripts (shellcheck + compose config)
+    runs-on: ubuntu-latest
+    needs: changes
+    if: >-
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      needs.changes.outputs.deploy == 'true' ||
+      needs.changes.outputs.backend == 'true'
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: shellcheck 部署脚本
+        run: shellcheck -S error deploy/*.sh productEnvAgent/*.sh
+
+      - name: 校验 Compose 默认栈（纯 Go）
+        working-directory: deploy
+        env:
+          GO_API_IMAGE: example/go-api
+          API_IMAGE: example/api
+          WEB_IMAGE: example/web
+        run: |
+          set -euo pipefail
+          services="$(docker compose -f docker-compose.yml config --services | sort | tr '\n' ' ')"
+          echo "default services: $services"
+          for required in migrate go-api go-worker go-scheduler web; do
+            case " $services " in
+              *" $required "*) ;;
+              *) echo "::error::default stack is missing $required" >&2; exit 1 ;;
+            esac
+          done
+          for forbidden in api celery celery-scheduled beat; do
+            case " $services " in
+              *" $forbidden "*) echo "::error::$forbidden must stay behind the legacy-python profile" >&2; exit 1 ;;
+              *) ;;
+            esac
+          done
+
+      - name: 校验 legacy-python profile 完整
+        working-directory: deploy
+        env:
+          GO_API_IMAGE: example/go-api
+          API_IMAGE: example/api
+          WEB_IMAGE: example/web
+        run: |
+          set -euo pipefail
+          services="$(docker compose -f docker-compose.yml --profile legacy-python config --services | sort | tr '\n' ' ')"
+          echo "legacy services: $services"
+          for required in api celery celery-scheduled beat; do
+            case " $services " in
+              *" $required "*) ;;
+              *) echo "::error::legacy-python profile is missing $required" >&2; exit 1 ;;
+            esac
+          done
+
   frontend:
     name: frontend vitest (全量)
     runs-on: ubuntu-latest

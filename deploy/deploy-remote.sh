@@ -14,6 +14,10 @@ PUBLIC_WEB_HEALTH_URL="${PUBLIC_WEB_HEALTH_URL-}"
 PUBLIC_API_HEALTH_URL="${PUBLIC_API_HEALTH_URL-}"
 GO_API_OWNED_MODULES="${GO_API_OWNED_MODULES-all}"
 GO_API_INTERNAL_URL="${GO_API_INTERNAL_URL:-http://127.0.0.1:8200}"
+# FastAPI + Celery are an opt-in Compose profile now (the Go gateway and Go
+# worker/scheduler are the default stack). Deployments keep the Python services
+# running until they are retired, so every Compose call passes the profile.
+COMPOSE_PROFILE_ARGS=(--profile legacy-python)
 # Space policy: absolute floors are the primary guard (a hard 10% rule is
 # unreachable on a 15 GiB VPS once the running and target image sets coexist).
 DEPLOY_FREE_SPACE_PERCENT="${DEPLOY_FREE_SPACE_PERCENT:-0}"       # optional stricter floor, 0 = disabled
@@ -846,7 +850,7 @@ rollback() {
   if [[ -z "$previous_api_image" || -z "$previous_web_image" ]]; then
     echo "No previous FastAPI/Web image set exists; restoring the empty deployment state." >&2
     if ! API_IMAGE="$API_IMAGE" GO_API_IMAGE="$GO_API_IMAGE" WEB_IMAGE="$WEB_IMAGE" \
-      docker compose down --remove-orphans; then
+      docker compose "${COMPOSE_PROFILE_ARGS[@]}" down --remove-orphans; then
       echo "Could not stop the failed first deployment." >&2
       rollback_ok=1
     fi
@@ -885,7 +889,7 @@ rollback() {
     rollback_services+=(go-scheduler)
   fi
   if ! API_IMAGE="$previous_api_image" GO_API_IMAGE="$rollback_go_api_image" WEB_IMAGE="$previous_web_image" \
-    docker compose up -d --no-build --no-deps --remove-orphans "${rollback_services[@]}"; then
+    docker compose "${COMPOSE_PROFILE_ARGS[@]}" up -d --no-build --no-deps --remove-orphans "${rollback_services[@]}"; then
     echo "Previous application image set could not be restarted." >&2
     return 1
   fi
@@ -977,7 +981,7 @@ stop_failed_compose() {
     return 1
   fi
   API_IMAGE="$API_IMAGE" GO_API_IMAGE="$GO_API_IMAGE" WEB_IMAGE="$WEB_IMAGE" \
-    docker compose -f "$compose_file" down
+    docker compose -f "$compose_file" "${COMPOSE_PROFILE_ARGS[@]}" down
 }
 
 check_image_revision() {
@@ -1061,7 +1065,7 @@ mv -f -- "$GO_CONFIG_TMP" "$DEPLOY_PATH/go.env" ||
 TARGET_CONFIG_ACTIVE=1
 
 echo "Pulling FastAPI, Go API, and Web images..."
-if ! docker compose pull migrate api go-api go-worker go-scheduler celery celery-scheduled beat web; then
+if ! docker compose "${COMPOSE_PROFILE_ARGS[@]}" pull migrate api go-api go-worker go-scheduler celery celery-scheduled beat web; then
   die "Could not pull the target Dashboard image set."
 fi
 
@@ -1090,7 +1094,7 @@ if ! docker compose run --rm -T migrate < /dev/null; then
   die "Database migration failed."
 fi
 
-if ! docker compose up -d --no-build --remove-orphans; then
+if ! docker compose "${COMPOSE_PROFILE_ARGS[@]}" up -d --no-build --remove-orphans; then
   die "Could not start the new Dashboard image set."
 fi
 
@@ -1106,11 +1110,11 @@ fi
 verify_owned_routes
 
 echo "Checking Celery workers..."
-if ! docker compose exec -T celery sh -c \
+if ! docker compose "${COMPOSE_PROFILE_ARGS[@]}" exec -T celery sh -c \
   'celery -A app.tasks.celery_app inspect ping -d "celery@$(hostname)" --timeout=10'; then
   die "Celery worker health check failed."
 fi
-if ! docker compose exec -T celery-scheduled sh -c \
+if ! docker compose "${COMPOSE_PROFILE_ARGS[@]}" exec -T celery-scheduled sh -c \
   'celery -A app.tasks.celery_app inspect ping -d "celery@$(hostname)" --timeout=10'; then
   die "Scheduled Celery worker health check failed."
 fi

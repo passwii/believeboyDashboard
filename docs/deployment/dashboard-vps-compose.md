@@ -183,7 +183,8 @@ ssh guitar-vps '
 
 预期：
 
-- `api`、`go-api`、`web` 为 healthy（api/go-api 的 healthcheck 已改为 DB 感知的 `/health/ready`）。
+- 默认 Compose 栈是 **Go-only**（`migrate`、`go-api`、`go-worker`、`go-scheduler`、`web`）；FastAPI + Celery 三个服务改由 `legacy-python` profile 提供，需要时显式 `docker compose --profile legacy-python up -d`。部署脚本（`deploy/deploy-remote.sh`）在 Python 完全退役前始终带上该 profile。
+- 带 profile 时 `api`、`go-api`、`web` 为 healthy（api/go-api 的 healthcheck 已改为 DB 感知的 `/health/ready`）。
 - `go-api` 读取 `backend.env` 中的 `DATABASE_URL`、`REDIS_HOST`、`REDIS_PORT`、`REDIS_DB`、Redis 凭据和 `API_KEY`，并把未接管路由转发至 `8100`。
 - `go-worker` 消费 Go 任务队列（alerts / CRM / 月度报表等）；`go-scheduler` 注册 11 条静态 job + insight 同步 + 定时报表分钟扫描。两者与 `go-api` 使用同一个 `GO_API_IMAGE` 和 `backend.env` / `go.env`，无独立 HTTP 健康检查，用 `docker compose ps` 确认 Running。
 - 启用 `GO_API_OWNED` 时，部署脚本会用 `API_KEY` + `GO_API_TRUSTED_PROXY_SECRET` 冒烟 `/api/v1/health` 与 `/api/v1/exchange-rates`，不通过直接回滚。
