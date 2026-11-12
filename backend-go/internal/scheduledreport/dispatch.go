@@ -182,8 +182,13 @@ func DispatchOne(ctx context.Context, db store.FullDB, sender EmailSender, reque
 		return fail("render report html failed", nil)
 	}
 	projectName := stringValue(reportData, "project_name")
+	// The PNG doubles as the email attachment and the R2 artefact. Python sets
+	// the attachment before attempting the upload, so a failed upload still
+	// delivers the inline preview; keep that ordering.
+	var attachmentPNG []byte
 	if dispatchOptions.screenshotStore != nil {
 		if screenshotPNG, captureErr := CaptureReportPNG(ctx, RenderDailyReportHTML(reportData, false), dispatchOptions.chromePath, 420, 6000); captureErr == nil {
+			attachmentPNG = screenshotPNG
 			if thumbPNG, resizeErr := ResizePNG(screenshotPNG, 3); resizeErr == nil {
 				if upload, uploadErr := UploadScreenshot(ctx, dispatchOptions.screenshotStore, screenshotPNG, thumbPNG,
 					projectName, reportDateText, frequency, country, now); uploadErr == nil {
@@ -208,7 +213,8 @@ func DispatchOne(ctx context.Context, db store.FullDB, sender EmailSender, reque
 			"update public.scheduled_report_delivery_logs set stage = 'sending' where id = $1", logID); err != nil {
 			return fail(fmt.Sprintf("mark sending: %v", err), err)
 		}
-		if _, err := sender.Send(ctx, mailer.Message{To: email, Subject: subject, HTML: html}); err != nil {
+		message := buildDispatchMessage(email, subject, html, attachmentPNG, projectName, country, reportDateText, frequency)
+		if _, err := sender.Send(ctx, message); err != nil {
 			return fail(fmt.Sprintf("send email: %v", err), err)
 		}
 	}
@@ -234,6 +240,19 @@ func nullableString(value string) *string {
 		return nil
 	}
 	return &value
+}
+
+// buildDispatchMessage assembles the Resend request, attaching the rendered
+// report PNG when the screenshot step produced one.
+func buildDispatchMessage(email, subject, html string, attachmentPNG []byte, projectName, country, reportDate, frequency string) mailer.Message {
+	message := mailer.Message{To: email, Subject: subject, HTML: html}
+	if len(attachmentPNG) > 0 {
+		message.Attachments = []mailer.Attachment{{
+			Filename: reportAttachmentFilename(projectName, country, reportDate, frequency),
+			Content:  attachmentPNG,
+		}}
+	}
+	return message
 }
 
 func truncateSubject(projectName string) string {

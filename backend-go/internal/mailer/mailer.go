@@ -3,6 +3,7 @@ package mailer
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -21,6 +22,11 @@ const (
 	defaultMaxResponseBytes = int64(1 * 1024 * 1024)
 	defaultMaxMessageBytes  = int64(10 * 1024 * 1024)
 	maxIdempotencyKeyBytes  = 256
+	// maxAttachmentBytes caps one attachment so a runaway screenshot cannot
+	// inflate the request past the provider limit.
+	maxAttachmentBytes = int64(20 * 1024 * 1024)
+	// maxAttachmentNameBytes keeps filenames inside what mail clients render.
+	maxAttachmentNameBytes = 255
 )
 
 // Config controls Resend delivery. BaseURL is injectable so tests and
@@ -43,6 +49,14 @@ type Message struct {
 	HTML           string
 	Text           string
 	IdempotencyKey string
+	Attachments    []Attachment
+}
+
+// Attachment is one base64-encoded file carried with the message. Content is
+// raw bytes; encoding happens at request build time.
+type Attachment struct {
+	Filename string
+	Content  []byte
 }
 
 // Result is returned after a successful provider response.
@@ -190,18 +204,25 @@ func (mailer *Mailer) Send(
 		}
 	}
 
+	attachments, err := encodeAttachments(message.Attachments)
+	if err != nil {
+		return Result{}, err
+	}
+
 	payload := struct {
-		From    string   `json:"from"`
-		To      []string `json:"to"`
-		Subject string   `json:"subject"`
-		HTML    string   `json:"html,omitempty"`
-		Text    string   `json:"text,omitempty"`
+		From        string              `json:"from"`
+		To          []string            `json:"to"`
+		Subject     string              `json:"subject"`
+		HTML        string              `json:"html,omitempty"`
+		Text        string              `json:"text,omitempty"`
+		Attachments []encodedAttachment `json:"attachments,omitempty"`
 	}{
-		From:    mailer.from,
-		To:      []string{to},
-		Subject: subject,
-		HTML:    message.HTML,
-		Text:    message.Text,
+		From:        mailer.from,
+		To:          []string{to},
+		Subject:     subject,
+		HTML:        message.HTML,
+		Text:        message.Text,
+		Attachments: attachments,
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -258,6 +279,41 @@ func (mailer *Mailer) Send(
 		return Result{}, fmt.Errorf("%w: response id is empty", ErrMalformedResponse)
 	}
 	return Result{ID: payloadResponse.ID, StatusCode: response.StatusCode}, nil
+}
+
+type encodedAttachment struct {
+	Filename string `json:"filename"`
+	Content  string `json:"content"`
+}
+
+// encodeAttachments validates and base64-encodes message attachments. Rejecting
+// empty, oversized, or unsafe filenames here keeps the provider request
+// well-formed instead of failing mid-flight.
+func encodeAttachments(attachments []Attachment) ([]encodedAttachment, error) {
+	if len(attachments) == 0 {
+		return nil, nil
+	}
+	encoded := make([]encodedAttachment, 0, len(attachments))
+	for index, attachment := range attachments {
+		name := strings.TrimSpace(attachment.Filename)
+		if name == "" {
+			return nil, invalidMessage(fmt.Sprintf("attachment %d: filename is required", index))
+		}
+		if len(name) > maxAttachmentNameBytes || containsControl(name) || strings.ContainsAny(name, "/\\") {
+			return nil, invalidMessage(fmt.Sprintf("attachment %d: filename is unsafe", index))
+		}
+		if len(attachment.Content) == 0 {
+			return nil, invalidMessage(fmt.Sprintf("attachment %d: content is empty", index))
+		}
+		if int64(len(attachment.Content)) > maxAttachmentBytes {
+			return nil, fmt.Errorf("%w: attachment %d exceeds %d bytes", ErrInvalidMessage, index, maxAttachmentBytes)
+		}
+		encoded = append(encoded, encodedAttachment{
+			Filename: name,
+			Content:  base64.StdEncoding.EncodeToString(attachment.Content),
+		})
+	}
+	return encoded, nil
 }
 
 // SendText is a convenience wrapper for text-only transactional messages.
