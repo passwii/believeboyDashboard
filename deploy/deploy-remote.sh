@@ -12,8 +12,8 @@ DEPLOY_PATH="${DEPLOY_PATH-}"
 STAGING_DIR="${STAGING_DIR-}"
 PUBLIC_WEB_HEALTH_URL="${PUBLIC_WEB_HEALTH_URL-}"
 PUBLIC_API_HEALTH_URL="${PUBLIC_API_HEALTH_URL-}"
-GO_API_OWNED_MODULES="${GO_API_OWNED_MODULES-}"
-GO_API_INTERNAL_URL="${GO_API_INTERNAL_URL:-http://127.0.0.1:8100}"
+GO_API_OWNED_MODULES="${GO_API_OWNED_MODULES-all}"
+GO_API_INTERNAL_URL="${GO_API_INTERNAL_URL:-http://127.0.0.1:8200}"
 # Space policy: absolute floors are the primary guard (a hard 10% rule is
 # unreachable on a 15 GiB VPS once the running and target image sets coexist).
 DEPLOY_FREE_SPACE_PERCENT="${DEPLOY_FREE_SPACE_PERCENT:-0}"       # optional stricter floor, 0 = disabled
@@ -751,7 +751,7 @@ derive_actions_environment() {
   local public_api
   local web_env_tmp
   local go_owned="${GO_API_OWNED_MODULES-}"
-  local internal_url="${GO_API_INTERNAL_URL:-http://127.0.0.1:8100}"
+  local internal_url="${GO_API_INTERNAL_URL:-http://127.0.0.1:8200}"
 
   chmod 600 "$secret_file"
   secret_line_count="$(awk 'END { print NR }' "$secret_file")"

@@ -94,10 +94,11 @@ REDIS_DB=0
 # go.env
 GO_API_ADDR=127.0.0.1:8200
 FASTAPI_ORIGIN=http://127.0.0.1:8100
-# 默认空 = 网关只做透明代理（全部回退 FastAPI）。切流是显式 opt-in：
-# 设置后必须让 Web 走 8200，并通过部署后的 owned-route 冒烟检查。
-GO_API_OWNED=
-# 意向客户工作台（crm_intent）需显式加入，例如：health,exchange_rates,notifications,alerts,profile,crm_intent
+# 默认 all = 网关承接它已实现的全部路由；未实现的路由仍回退 FastAPI 并写日志。
+# 需要分阶段切流时才改成显式模块列表（例如 health,exchange_rates,alerts），
+# 同时必须让 Web 走 8200，并通过部署后的 owned-route 冒烟检查。
+GO_API_OWNED=all
+# 分阶段示例：health,exchange_rates,notifications,alerts,profile,crm_intent
 GO_API_TRUSTED_PROXY_SECRET=<same 64-character hex secret>
 ```
 

@@ -114,7 +114,9 @@ func TestFallbackLoggerRecordsProxiedRequest(t *testing.T) {
 	}
 }
 
-func TestFallbackLoggerIsSilentWhenNoModulesOwned(t *testing.T) {
+// Every proxied request is now a migration gap, so an empty GO_API_OWNED list
+// (nothing owned, everything proxied) still logs the fallback.
+func TestFallbackLoggerRecordsEvenWhenNoModulesOwned(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("fastapi"))
 	}))
@@ -129,8 +131,8 @@ func TestFallbackLoggerIsSilentWhenNoModulesOwned(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/api/v1/anything", nil))
 
-	if _, ok := logs.find("request fell back to FastAPI"); ok {
-		t.Fatal("fallback log emitted while GO_API_OWNED is empty")
+	if _, ok := logs.find("request fell back to FastAPI"); !ok {
+		t.Fatal("fallback log missing while GO_API_OWNED is empty")
 	}
 }
 
