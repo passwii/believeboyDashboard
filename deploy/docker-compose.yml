@@ -16,6 +16,8 @@ services:
     init: true
 
   api:
+    # FastAPI + Celery stay opt-in while the Go worker/scheduler take over.
+    profiles: ["legacy-python"]
     image: "${API_IMAGE:?API_IMAGE must be set}"
     container_name: believeboy-dashboard-api
     network_mode: host
@@ -64,9 +66,11 @@ services:
     env_file:
       - ./backend.env
       - ./go.env
+    # Only the migration must finish first; FastAPI is optional now (the gateway
+    # owns every route it implements and proxies the rest).
     depends_on:
-      api:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
     init: true
     mem_limit: 256m
@@ -113,6 +117,8 @@ services:
     logging: *logging
 
   celery:
+    # FastAPI + Celery stay opt-in while the Go worker/scheduler take over.
+    profiles: ["legacy-python"]
     image: "${API_IMAGE:?API_IMAGE must be set}"
     container_name: believeboy-dashboard-celery
     network_mode: host
@@ -143,6 +149,8 @@ services:
     logging: *logging
 
   celery-scheduled:
+    # FastAPI + Celery stay opt-in while the Go worker/scheduler take over.
+    profiles: ["legacy-python"]
     image: "${API_IMAGE:?API_IMAGE must be set}"
     container_name: believeboy-dashboard-celery-scheduled
     network_mode: host
@@ -174,6 +182,8 @@ services:
     logging: *logging
 
   beat:
+    # FastAPI + Celery stay opt-in while the Go worker/scheduler take over.
+    profiles: ["legacy-python"]
     image: "${API_IMAGE:?API_IMAGE must be set}"
     container_name: believeboy-dashboard-beat
     network_mode: host
@@ -209,8 +219,6 @@ services:
       HOSTNAME: 127.0.0.1
       PORT: "3200"
     depends_on:
-      api:
-        condition: service_healthy
       go-api:
         condition: service_healthy
     restart: unless-stopped
