@@ -60,6 +60,7 @@ jobs:
       desktop: ${{ steps.filter.outputs.desktop }}
       frontend: ${{ steps.frontend_filter.outputs.frontend }}
       live_contract: ${{ steps.filter.outputs.live_contract }}
+      go_parity: ${{ steps.filter.outputs.go_parity }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -81,6 +82,11 @@ jobs:
             live_contract:
               - "backend/**"
               - "backend-go/**"
+              - ".github/workflows/test-ci.yml"
+            go_parity:
+              - "backend-go/**"
+              - "frontend/types/api-generated/openapi.json"
+              - "deploy/validate-local-go-cutover.sh"
               - ".github/workflows/test-ci.yml"
       - uses: dorny/paths-filter@v3
         id: frontend_filter
@@ -402,6 +408,124 @@ jobs:
             fi
           fi
 
+  go-parity:
+    name: go-only route parity (no FastAPI)
+    runs-on: ubuntu-latest
+    needs: changes
+    if: >-
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      needs.changes.outputs.go_parity == 'true'
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: blf_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d blf_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      API_KEY: ci-go-parity-key
+      GO_API_TRUSTED_PROXY_SECRET: ci-go-parity-proxy-secret
+      GO_API_OWNED: all
+      GO_API_ADDR: 127.0.0.1:18200
+      FASTAPI_ORIGIN: http://127.0.0.1:18100
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/blf_ci
+      REDIS_URL: redis://localhost:6379/0
+      APP_ENV: ci
+      # 网关默认根目录是仓库相对路径，这里改成绝对路径（步骤工作目录是 backend-go）
+      UPLOAD_ROOT: ${{ github.workspace }}/go-parity-uploads
+      MONTHLY_REPORT_RESULT_ROOT: ${{ github.workspace }}/go-parity-uploads/results
+      AGENT_MONTHLY_REPORT_ROOT: ${{ github.workspace }}/go-parity-uploads/agent-monthly-reports
+      PROJECT_LAUNCH_DOCUMENTS_ROOT: ${{ github.workspace }}/backend/app/resources/project_launch_documents
+      TEST_ADMIN_PASSWORD: "ci-admin-password"
+      TEST_OPERATOR_PASSWORD: "ci-operator-password"
+      TEST_BUSINESSDEV_PASSWORD: "ci-businessdev-password"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend-go/go.mod
+          cache-dependency-path: backend-go/go.sum
+
+      - name: 建测试库 schema
+        working-directory: backend-go
+        run: go run ./cmd/migrate up
+
+      - name: 灌参考数据与测试账号
+        working-directory: backend-go
+        run: |
+          go run ./cmd/seedtestreference
+          go run ./cmd/seedtestaccounts
+
+      - name: 构建 Go 网关
+        working-directory: backend-go
+        run: go build -o "$RUNNER_TEMP/go-gateway" ./cmd/gateway
+
+      - name: 启动 Go 网关（all 模块，无 FastAPI）
+        working-directory: backend-go
+        run: |
+          set -euo pipefail
+          nohup "$RUNNER_TEMP/go-gateway" >"$RUNNER_TEMP/go-gateway.log" 2>&1 &
+          echo $! >"$RUNNER_TEMP/go-gateway.pid"
+          for _ in $(seq 1 60); do
+            if curl -fsS "http://127.0.0.1:18200/api/v1/health/ready" >/dev/null 2>&1; then
+              exit 0
+            fi
+            if ! kill -0 "$(cat "$RUNNER_TEMP/go-gateway.pid")" 2>/dev/null; then
+              echo "Go gateway exited during startup" >&2
+              cat "$RUNNER_TEMP/go-gateway.log" >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          echo "Go gateway did not become ready" >&2
+          cat "$RUNNER_TEMP/go-gateway.log" >&2
+          exit 1
+
+      - name: Go-only 全量 GET 路由对账
+        working-directory: backend-go
+        run: |
+          go run ./cmd/routeparity \
+            --go-only \
+            --go http://127.0.0.1:18200 \
+            --openapi frontend/types/api-generated/openapi.json \
+            --admin-header true \
+            --user-id 1 \
+            --api-key "$API_KEY" \
+            --proxy-secret "$GO_API_TRUSTED_PROXY_SECRET"
+
+      - name: 网关日志（失败时）
+        if: failure()
+        run: tail -200 "$RUNNER_TEMP/go-gateway.log" || true
+
+      - name: 停止 Go 网关
+        if: always()
+        run: |
+          if [[ -f "$RUNNER_TEMP/go-gateway.pid" ]]; then
+            pid="$(cat "$RUNNER_TEMP/go-gateway.pid")"
+            if kill -0 "$pid" 2>/dev/null; then
+              kill "$pid" 2>/dev/null || true
+            fi
+          fi
   frontend:
     name: frontend vitest (全量)
     runs-on: ubuntu-latest

@@ -54,6 +54,7 @@ func main() {
 	goURL := flag.String("go", "http://127.0.0.1:18200", "Go gateway base URL")
 	openapiPath := flag.String("openapi", defaultOpenAPI, "OpenAPI JSON file (relative paths resolve from the repo root)")
 	envFile := flag.String("env-file", defaultEnvFile, "env file providing API_KEY (relative paths resolve from the repo root)")
+	apiKeyFlag := flag.String("api-key", "", "X-API-Key value; when set the env file is not read")
 	userID := flag.String("user-id", "1", "X-User-Id header for user-scoped routes")
 	adminHeader := flag.String("admin-header", "true", "X-Is-Admin header value; empty disables (the web proxy injects it from the session)")
 	proxySecret := flag.String("proxy-secret", "", "X-Trusted-Proxy-Secret; defaults to the running runbook state")
@@ -73,9 +74,13 @@ func main() {
 	resolvedEnv := resolvePath(repoRoot, *envFile)
 	resolvedState := resolvePath(repoRoot, *stateDir)
 
-	apiKey, err := readAPIKey(resolvedEnv)
-	if err != nil {
-		fail(err)
+	apiKey := strings.TrimSpace(*apiKeyFlag)
+	if apiKey == "" {
+		resolvedKey, keyErr := readAPIKey(resolvedEnv)
+		if keyErr != nil {
+			fail(keyErr)
+		}
+		apiKey = resolvedKey
 	}
 	secret := *proxySecret
 	if secret == "" {
