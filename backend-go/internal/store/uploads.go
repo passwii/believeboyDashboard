@@ -3627,7 +3627,9 @@ func (store *UploadStore) projectIdentifiers(
 ) (identifierSet, error) {
 	rows, err := store.db.Query(
 		ctx,
-		`SELECT sku, asin FROM public.sku_records
+		// SkuRecord maps to product_costs (backend/app/models/sku_info.py); there
+		// is no sku_records table, so the old query failed at runtime.
+		`SELECT sku, asin FROM public.product_costs
 		 WHERE project_name = $1 AND country = $2`,
 		project.Name,
 		country,

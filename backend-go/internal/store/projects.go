@@ -54,10 +54,13 @@ func (s *ProjectStore) ListOptions(ctx context.Context) ([]projects.ProjectOptio
 		return options, nil
 	}
 
+	// Backward-compatible fallback, matching project_service.list_project_options:
+	// SkuRecord maps to product_costs, so an empty projects table still yields the
+	// distinct store names seen in product costs.
 	rows, err := s.db.Query(
 		ctx,
 		`select distinct project_name
-		 from public.sku_records
+		 from public.product_costs
 		 where project_name is not null and trim(project_name) <> ''
 		 order by project_name asc`,
 	)
