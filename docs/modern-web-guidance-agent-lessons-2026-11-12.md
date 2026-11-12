@@ -4,7 +4,7 @@
 > 评估对象：`GoogleChrome/modern-web-guidance` v1.0.0（release commit `4dd9683`，209 篇 guide）
 > 评估口径：**把它当作一个「Agent 知识产品」拆解**，不是逐篇评估 Web 指南的技术正确性
 > 前置事实：安装方式、`legacy-scan` 结果与 14 条命中已在 [`modern-web-guidance-evaluation-2026-11-11.md`](./modern-web-guidance-evaluation-2026-11-11.md)（PR #840，已合入 `main`）
-> 代码引用基于本 worktree 起点 `4997b87`；若 `main` 已前进，以符号名与章节为准
+> 代码引用基于 `origin/main`（2026-11-12，PR #850 打开时）；行号若随 `main` 漂移，以符号名与章节为准
 
 ## 0. 一句话结论
 
@@ -53,7 +53,7 @@ Modern Web Guidance 真正值得借鉴的不是 209 篇指南，而是它解决�
 
 **我们的对照**
 
-- 仓库侧 `AGENTS.md` 约 135 行（不含 Multica 运行时注入的约 180 行），其中 37 行是 pi-lens LSP 误报的处置说明——每个 Agent 每轮都读，但只在碰 TypeScript 诊断时有用。
+- 仓库侧 `AGENTS.md` 131 行（不含 Multica 运行时注入的约 180 行），其中 33 行是 pi-lens LSP 误报的处置说明——每个 Agent 每轮都读，但只在碰 TypeScript 诊断时有用。
 - 前端设计知识总量：`design-spec.md` 162 行 + `foundations/spec.md` 214 行 + `design.md` 409 行 + `motion-system.md` 342 行 = **1127 行**，没有任何「任务类型 → 必读 / 可跳过」的路由。
 - 结果：Agent 要么不读（凭印象写 UI），要么全读（上下文被吃掉），两种都不稳定。
 
@@ -85,7 +85,7 @@ Modern Web Guidance 真正值得借鉴的不是 209 篇指南，而是它解决�
 
 **可借鉴动作**
 
-- 给 §2 的 8 条红线分配稳定 ID：`V4-TOKEN-01` … `V4-DESKTOP-08`，后续只增不改号。
+- 给 §2 的 8 条红线分配稳定 ID：`V4-RULE-01` … `V4-RULE-08`，后续只增不改号。
 - 每条红线补一行 `适用范围 / 反例 / 验收方式`，让它同时是「规则」和「可引用证据」。
 - 文档头部加「本文速查」：5–8 条一句话结论 + 指向章节，供 Agent 先扫。
 
@@ -105,7 +105,7 @@ Modern Web Guidance 真正值得借鉴的不是 209 篇指南，而是它解决�
 **我们的对照**
 
 - `design-spec §0.4.4` 已有很好的**事前**七问（用户任务、页面基准、唯一主角、布局、token、状态、动效），但没有**事后**引用要求。
-- 现有 PR 模板只有「变更说明 / 验证」，没有「设计依据」。
+- 现有 PR 模板只有 CodeGraph 确认、变更说明与验证三块，没有「设计依据」。
 - 结果：review 时只能看代码像不像，无法快速判断「这条圆角 / 颜色 / 留白是规范要求还是随手写的」。
 
 **可借鉴动作**
@@ -114,7 +114,7 @@ Modern Web Guidance 真正值得借鉴的不是 209 篇指南，而是它解决�
 
   ```text
   ## 设计依据（仅 UI 改动）
-  - 规则：`V4-TOKEN-03`（原文：「不得为了单页效果改 components/ui/* …」）
+  - 规则：`V4-RULE-03`（原文：「不得为了单页效果改 components/ui/* …」）
   - 落点：`xxx.module.css:42`，只覆盖本页 `.warm-...` 作用域
   - 未采用：`field-sizing`（Safari 基线未达，保留 JS 高度 fallback）
   ```
@@ -139,7 +139,7 @@ Modern Web Guidance 真正值得借鉴的不是 209 篇指南，而是它解决�
 - 我们已经有两个成熟的硬门禁：`check-unstable-mocks`（591 行 + 自测）和 `check-motion-tokens`（714 行 + 自测），都遵循「判据机械化 + 正反例自测 + 不给白名单」的屋风。这是很好的基础。
 - 但 **V4 设计红线没有对应的检查层**：`--term-*`、硬编码色、移动端 media query、随机圆角，全靠 review 记忆。
 - 同时，现有代码已经存在「合法例外」：`warm-ledger/shell/theme.css` 里有 21 处 Terminal 工具类桥接（`[class~='border-term-*']` / `bg-term-*` / `text-term-*`），用于把 Terminal 控件拉回 Warm token——naive 的全仓 gate 会直接误报。
-- V4 页面里还有 23 处 `max-width` media query（分布在 7 个 `*-warm.module.css`），与「desktop-only、不新增手机适配」的规则并存；没有 provenance 标记，无法区分存量例外与新违规。
+- V4 相关样式里还有 24 处 `max-width` media query（分布在 8 个 `*-warm.module.css`；其中页面级 `frontend/app/dashboard/**` 为 23 处 / 7 个文件，`components/dashboard/portfolio/portfolio-filters-warm.module.css` 另有 1 处），与「desktop-only、不新增手机适配」的规则并存；没有 provenance 标记，无法区分存量例外与新违规。
 
 **可借鉴动作：两层检查**
 
@@ -151,7 +151,7 @@ Modern Web Guidance 真正值得借鉴的不是 209 篇指南，而是它解决�
 
 关键三点（都是从 MWG 学的）：
 
-1. **diff 范围**，不扫全仓——否则存量 23 处 `max-width` media query 和 21 处 Terminal 桥接会立刻把门禁打红。
+1. **diff 范围**，不扫全仓——否则存量 24 处 `max-width` media query 和 21 处 Terminal 桥接会立刻把门禁打红。
 2. **先 report-only 建立基线**，再逐条升级为 gate；每条规则必须有正反例自测。
 3. **不要用白名单绕过**（与 `check:mocks` 的既有约定一致）；例外写进规则的 `keepWhen`，不是脚本里的 path 列表。
 
@@ -253,7 +253,7 @@ Modern Web Guidance 真正值得借鉴的不是 209 篇指南，而是它解决�
 
 1. `frontend/docs/design-spec.md`
    - 新增「Agent 路由表」：任务类型 → 必读章节 → 可跳过。
-   - §2 八条红线加稳定 ID（`V4-TOKEN-01` … `V4-DESKTOP-08`），每条补 `适用范围 / 反例 / 验收`。
+   - §2 八条红线加稳定 ID（`V4-RULE-01` … `V4-RULE-08`），每条补 `适用范围 / 反例 / 验收`。
    - 文首加「5 条速查」。
 2. `.github/pull_request_template.md`
    - 新增「设计依据（仅 UI 改动）」：规则 ID + 原文引用 + 落点 + 未采用项。
@@ -267,10 +267,10 @@ Modern Web Guidance 真正值得借鉴的不是 209 篇指南，而是它解决�
 
 1. 新增 `frontend/scripts/check-design.mjs` + `check-design.test.mjs`，接入 `pnpm test` 入口（先 report-only）。
 2. 规则集（先 4 条）：
-   - `V4-TOKEN-01`：diff 新增行出现 `--term-*` / `text-term-*` / `bg-term-*`（排除 `shell/theme.css` 的既有桥接）。
-   - `V4-TOKEN-02`：新增 V4 CSS Module 出现硬编码 hex / rgb（图表文件需注释豁免）。
-   - `V4-DESKTOP-08`：新增 V4 页面 CSS 出现 `max-width` media query（先 report-only，存量 23 处作为基线）。
-   - `V4-TOKEN-07`：新增随机 radius 字面量（非 token），report-only。
+   - `V4-RULE-01`：diff 新增行出现 `--term-*` / `text-term-*` / `bg-term-*`（仅豁免 `shell/theme.css` 内 `.warm-ledger__route-slot-row` / `.warm-ledger__mobile-strip` / `.warm-ledger__date-picker-content` 三个作用域中的既有 Terminal 桥接，不放宽整文件）。
+   - `V4-RULE-02`：新增 V4 CSS Module 出现硬编码 hex / rgb（图表文件需注释豁免）。
+   - `V4-RULE-08`：新增 V4 页面 CSS 出现 `max-width` media query（先 report-only，存量 24 处 / 8 文件作为基线，其中页面级 23 处 / 7 文件）。
+   - `V4-RULE-07`：新增随机 radius 字面量（非 token），report-only。
 3. 每条规则带正例 / 反例自测；不设 path 白名单，例外写进 `keepWhen`。
 4. 试点 MWG：在本机装 Codex 插件（前篇已验证路径），在 `AGENTS.md` 加「UI 改动前查 MWG」的路由；只在 V4 UI 任务触发，不接 CI。
 
@@ -329,6 +329,7 @@ if (e.key === 'Enter' && !e.shiftKey) {
 - `isComposing: false` → 正常发送一次；
 - `keyCode: 229` → 不发送（Safari 降级）；
 - `Shift+Enter` → 不发送、保留换行。
+- 人工验收：真实中文输入法在 Chrome 与 Safari 各确认一次候选词提交（真实 IME 的事件时序与合成事件不同，WebKit 165004 的乱序单测覆盖不到）。
 
 再加 `pnpm lint`。
 
