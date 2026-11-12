@@ -193,7 +193,7 @@ cd backend && make lint   # 等价于 ruff check app tests scripts alembic --sta
 | **T0** | 只改 `docs/`、注释或文案，且不改变运行行为 | 不跑 | 不跑 |
 | **T1** | 叶子改动：单个工具函数 / 单个组件，仅影响局部实现，未触发 T3 条件 | 目标文件（~8s） | `vitest run <该文件/目录>`（~10s） |
 | **T2** | 局部功能：新增端点 / 新页面，未触发 T3 条件 | 目标集 + 该目录回归 | Vitest 目标用例 + 该目录回归 + `pnpm lint` |
-| **T3** | 跨模块 / 高风险：公共 hook、schema、model、**迁移**、权限、共享 utils | **全量（单次；耗时以当次实测为准）+ 失败集对账** | 全量（BLF-1238 已修好：235 文件 / 1660 例 / **~43s**，同机满载约 2 分钟）+ lint + `pnpm build` |
+| **T3** | 跨模块 / 高风险：公共 hook、schema、model、**迁移**、权限、共享 utils | **全量由 CI 承担**（`test-ci` 的 4 个 pytest shard）+ 失败集对账；本地跑目标集 + 目录回归 | 全量（BLF-1238 已修好：235 文件 / 1660 例 / **~43s**，同机满载约 2 分钟）+ lint + `pnpm build` |
 
 **E2E 不按 T 档一刀切：** 涉及登录、权限隔离、NextAuth、前后端代理或关键跨服务用户流程时，跑对应 Playwright 用例；纯业务逻辑 / API 行为优先用 pytest 覆盖，不为凑档位盲目跑 E2E。运行前按入口文档准备测试数据库和前后端服务：前端见 [TESTING.md](../TESTING.md)，后端见 [agent_testing README](../backend/scripts/agent_testing/README.md)。前端命令：`cd frontend && pnpm test:ui -- tests/<area>/<name>.spec.ts`；后端 agent E2E：`cd backend && pytest scripts/agent_testing/<test_file>.py -v`。
 
@@ -205,7 +205,7 @@ cd backend && make lint   # 等价于 ruff check app tests scripts alembic --sta
 
 **失败集对账（替代基线全量）**：PR 上全量只跑一次并记录失败项；仅对 main 上存在的失败用例文件，在相同命令 / 环境下对账一次，不再跑第二遍全量。PR 与 main 出现相同失败时，记录为既有失败，不误报为本次回归；新增用例无法在 main 对账，需单独复现。若失败不稳定，只定向重跑失败用例确认并记录；修复本次引入的问题，不用 `skip` / `xfail` 隐藏失败。BLF-1237 那轮 26 个既有失败只落在 8 个文件上，对账 10 秒，省掉一整轮 6 分钟。
 
-**后端 T3 为什么不能省全量**：仓库**没有后端 CI**（`.github/workflows` 只有 `cache-governance` / `lighthouse-ci` / `motion-system-ci`），本地全量是唯一信号源。耗时受环境、测试库和收集情况影响，不提供固定时间估计。
+**后端全量为什么放在 CI**：用户 2026-10-22 明确要求全局套件跑在 GitHub Action（避免本地 CPU 负载）。`.github/workflows/test-ci.yml` 的 `backend` job 把 pytest 全量拆成 4 个 shard（agent-api / crm / api-core / services-tooling），跑在 CI 的隔离 Postgres 上，并用 `backend/scripts/ci_pytest_gate.py` 做基线对账（基线内既有失败不阻断；基线之外的新失败 = 回归 = 阻断）。本地不再强制跑后端全量：T1/T2 跑目标集 + 目录回归，T3 的全量证据取 PR 上 `test-ci` 的运行结果，CI 不可用时才在本地补跑。CI 触发策略、门禁现状与调整建议见 [ci/ci-trigger-strategy.md](./ci/ci-trigger-strategy.md)。
 若遇到 [backend/tests/README.md](../backend/tests/README.md) 记录的 `PROD_DATABASE_URL` 导入期收集失败，视为测试收集阻塞、不能报全绿；记录具体错误并修复或隔离导入链后再确认覆盖。
 
 **不要用 `pytest -n auto`**：共享 `BLF_test` 上 `tests/api/crm/conftest.py` 的 autouse `TRUNCATE ... RESTART IDENTITY CASCADE` 会让 worker 互相死锁（`psycopg.errors.DeadlockDetected`，实测 225 failed / 155 errors）。曾有一次 10 worker 运行在 5 分 02 秒后因错误提前退出（380 例未完成）；该次结果不能作为有效全量耗时或性能对比。要用并行测试，先做每 worker 独立库，另开任务。
@@ -248,7 +248,8 @@ cd backend && make lint   # 等价于 ruff check app tests scripts alembic --sta
 中文 + Conventional Commits：`<type>(<scope>): <subject>`。type 保留英文（feat/fix/docs/test/chore/refactor/perf/style/ci/revert），scope/subject 中文，subject 动宾短语 ≤50 字无句号，正文中文。详细见 `chinese-commit-conventions` 技能。
 
 ### Workflow
-- 推送前：按 §测试规则 的分级跑（**不默认全量**）；前端 T1/T2 优先带路径过滤，全量 `pnpm test` 已可裸跑（BLF-1238 已修，~43s 起）；后端 T3 才跑全量并做失败集对账。
+- 推送前：按 §测试规则 的分级跑（**不默认全量**）；前端 T1/T2 优先带路径过滤，全量 `pnpm test` 已可裸跑（BLF-1238 已修，~43s 起）；后端全量由 CI 的 `test-ci`（4 shard）承担，本地 T1/T2 跑目标集，T3 的失败集对账取 PR 的 CI 运行结果。
+- CI 触发与门禁现状：PR 与 main 的 `push` 触发 `test-ci`，每日 nightly 全量兜底；main 目前无分支保护，绿灯是人工 review 的证据。评估见 [ci/ci-trigger-strategy.md](./ci/ci-trigger-strategy.md)。
 - 推送 + 部署：`git deploy` 先校验 main、Goose 迁移（含 Alembic 冻结归档）和 push，再执行 `deploy/deploy-local.sh`。
 - `deploy/deploy-local.sh` 构建并推送 `believeboydashboard-web` / `believeboydashboard-api`，使用镜像 digest 部署 `/opt/believeboy-dashboard/docker-compose.yml`。
 - PostgreSQL、Redis、Caddy 不进入 Compose；应用容器使用 host network 访问现有回环端口。

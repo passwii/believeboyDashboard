@@ -195,6 +195,50 @@ BELIEVEBOY_ENV_FILE=../backend/.env.test \
 
 ---
 
+## CI 门禁（GitHub Actions）
+
+> 用户 2026-10-22 的要求：**本地只做单元测试，全局套件放 GitHub Action**（避免本地 CPU 负载）。
+> 触发策略的评估结论、门禁现状与调整建议见 [`docs/ci/ci-trigger-strategy.md`](docs/ci/ci-trigger-strategy.md)。
+
+### 谁跑什么
+
+| 内容 | 本地 | CI（`.github/workflows/test-ci.yml`） |
+| --- | --- | --- |
+| backend pytest 全量（约 4400 例） | **不跑**（`pytest -n auto` 会死锁，见 §不要用 `-n auto`） | `backend` job：4 个 shard 跑在隔离 Postgres 上 |
+| backend 基线对账 | 不跑 | `backend/scripts/ci_pytest_gate.py` + `backend/tests/ci_known_failures.txt` |
+| frontend vitest 全量 + lint + `check:mocks` | 可裸跑（~43s 起，满载 ~2 分钟） | `frontend` job |
+| backend-go / desktop `go test` + `go vet`（+ `-race`） | 不跑 | `backend-go` / `desktop` job |
+| FastAPI ↔ Go live contract、Go-only 路由对账 | `backend-go/scripts/run-live-contract.sh` 可复现 | `live-contract` / `go-parity` job |
+| 部署脚本 shellcheck + Compose 配置校验 | 本地可跑 | `deploy-scripts` job |
+
+### 触发
+
+- `pull_request`→main（带 paths 过滤）、`push`→main（带 paths 过滤）、每日 18:00 UTC 的
+  `schedule` 全量兜底、`workflow_dispatch` 手动。
+- **push 到 feat 分支不会触发** `test-ci`；开 PR 才会触发一次全量（PR 跑的是 merge ref，
+  约等于合并结果）。
+- `lighthouse-ci` 与 `motion-system-ci` 当前是 `disabled_manually`，不会真的运行。
+
+### 门禁现状（2026-11-12）
+
+- main **没有** branch protection / ruleset（`gh api repos/passwii/believeboyDashboard/branches/main/protection`
+  → 404），所以 CI 绿灯是**人工 review 的证据**，不是 GitHub 侧强制门禁。
+- 路径过滤会让未受影响的 job 记为 skipped：看到绿灯不等于全量绿。
+  nightly 是唯一的全量兜底，它红过（2026-11-12 frontend vitest：部署配置不变量断言过期）。
+- **改 `deploy/**` 也要看 frontend job**：部署配置不变量测试在
+  `frontend/scripts/check-deployment-config.test.mjs`（`pnpm test` 入口），断言的是
+  `deploy/docker-compose.yml` 与 `deploy/deploy-remote.sh`。
+
+### CI 红了怎么判断
+
+1. backend job 红了先看 `backend/scripts/ci_pytest_gate.py` 的输出：基线内的既有失败不阻断，
+   新增失败才是回归（对照 `backend/tests/ci_known_failures.txt`）。
+2. 确认失败是否与本次改动相关：同一 commit 在 main 上是否也失败（失败集对账）。
+3. 前端 job 红了先分清是 `node --test scripts/*.test.mjs` 阶段还是 vitest 阶段
+   （前者是配置不变量，后者才是单测）。
+
+---
+
 ## 前端单测（Vitest）— 全量耗时口径与「卡住」排查
 
 > 前端单测是 `frontend/` 下的 `*.test.ts(x)`（Vitest + jsdom，配置 `frontend/vitest.config.ts`），

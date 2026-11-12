@@ -61,6 +61,7 @@ jobs:
       backend_go: ${{ steps.filter.outputs.backend_go }}
       desktop: ${{ steps.filter.outputs.desktop }}
       frontend: ${{ steps.frontend_filter.outputs.frontend }}
+      deploy_config: ${{ steps.deploy_config_filter.outputs.deploy_config }}
       live_contract: ${{ steps.filter.outputs.live_contract }}
       go_parity: ${{ steps.filter.outputs.go_parity }}
       deploy: ${{ steps.filter.outputs.deploy }}
@@ -105,6 +106,17 @@ jobs:
               - "frontend/**"
               - "!frontend/docs/**"
               - "!frontend/**/*.md"
+      - uses: dorny/paths-filter@v3
+        id: deploy_config_filter
+        with:
+          # 部署配置不变量测试放在 frontend/scripts（pnpm test 入口），
+          # 但断言的是 deploy/** 与部署 workflow。只按 frontend/** 过滤会漏跑：
+          # 改 compose / 部署脚本时这些断言从未执行，main 绿灯因此失真（BLF-1489）。
+          filters: |
+            deploy_config:
+              - "deploy/**"
+              - ".github/workflows/deploy-dashboard.yml"
+              - ".github/workflows/test-ci.yml"
 
   backend-go:
     name: backend-go test + vet
@@ -595,7 +607,8 @@ jobs:
     if: >-
       github.event_name == 'schedule' ||
       github.event_name == 'workflow_dispatch' ||
-      needs.changes.outputs.frontend == 'true'
+      needs.changes.outputs.frontend == 'true' ||
+      needs.changes.outputs.deploy_config == 'true'
     timeout-minutes: 30
     defaults:
       run:
