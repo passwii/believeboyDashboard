@@ -17,20 +17,16 @@
 
 Dashboard Compose（network_mode: host）
   migrate     Go API 镜像内的 go-migrate（Goose）
-  api         127.0.0.1:8100  FastAPI 回退
   go-api      127.0.0.1:8200  Go Gateway
   go-worker   Go 异步任务 worker（同一 Go 镜像）
   go-scheduler Go 定时任务调度器（同一 Go 镜像）
-  celery
-  celery-scheduled
-  beat
   web         127.0.0.1:3200
 ```
 
 PostgreSQL、Redis、Caddy 不进入 Dashboard Compose。Go API 从 `backend.env` 读取
-`DATABASE_URL`、`API_KEY` 和 FastAPI 使用的 Redis host/port/db/credential。显式 `REDIS_URL`
+`DATABASE_URL`、`API_KEY` 和 Redis host/port/db/credential。显式 `REDIS_URL`
 优先；未设置时 Go 会按这些 Redis 字段构造连接 URL。Go 通过宿主机网络访问 `127.0.0.1`。Go Gateway
-监听 `8200`，把未接管路由反向代理到 FastAPI `8100`。Caddy 的 `dash-api` upstream
+监听 `8200` 并承接全部 623 个 OpenAPI operation。FastAPI 已下线，Compose 不再有 api/celery 服务。Caddy 的 `dash-api` upstream
 指向 Go Gateway；当前示例见 `deploy/Caddyfile.example`。首次切换时需更新 VPS Caddyfile 并 reload。
 
 ## 镜像
@@ -38,11 +34,10 @@ PostgreSQL、Redis、Caddy 不进入 Dashboard Compose。Go API 从 `backend.env
 | 组件 | GHCR |
 | --- | --- |
 | Web | `ghcr.io/passwii/believeboydashboard-web` |
-| FastAPI 与全部 Celery 进程 | `ghcr.io/passwii/believeboydashboard-api` |
 | Go Gateway | `ghcr.io/passwii/believeboydashboard-go-api` |
 
-发布使用同一 commit 构建的三个镜像；部署参数使用 registry digest，而不是可变标签。
-Web、FastAPI 和 Go API 必须同版本切换与回滚。`go-worker` 与 `go-scheduler` 复用 Go API 镜像，
+发布使用同一 commit 构建的两个镜像；部署参数使用 registry digest，而不是可变标签。
+Web 与 Go API 必须同版本切换与回滚。`go-worker` 与 `go-scheduler` 复用 Go API 镜像，
 通过 entrypoint 分别运行 `/usr/local/bin/go-worker` 与 `/usr/local/bin/go-scheduler`，不额外构建镜像。
 
 ## 数据库迁移
@@ -80,11 +75,11 @@ Alembic 历史已冻结在 revision 285：
 服务间调用优先使用本机回环：
 
 ```dotenv
-# web.env：默认直连 FastAPI；显式启用 Go 切流时才改成 http://127.0.0.1:8200
-BACKEND_INTERNAL_URL=http://127.0.0.1:8100
+# web.env：直连 Go Gateway（FastAPI 已下线，8100 不再有服务）
+BACKEND_INTERNAL_URL=http://127.0.0.1:8200
 GO_API_TRUSTED_PROXY_SECRET=<64-character hex secret>
 
-# backend.env：Go 复用 FastAPI 的数据库与 Redis 配置
+# backend.env：Go 网关与 worker/scheduler 的数据库与 Redis 配置
 DATABASE_URL=postgresql+psycopg://...@127.0.0.1:5432/BLF
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
@@ -93,8 +88,8 @@ REDIS_DB=0
 
 # go.env
 GO_API_ADDR=127.0.0.1:8200
-FASTAPI_ORIGIN=http://127.0.0.1:8100
-# 默认 all = 网关承接它已实现的全部路由；未实现的路由仍回退 FastAPI 并写日志。
+FASTAPI_ORIGIN=http://127.0.0.1:8100  # 仅为满足网关配置校验保留，无服务监听
+# all = 网关承接全部 623 个 OpenAPI operation；未接管的未知路径仍会尝试代理并写日志。
 # 需要分阶段切流时才改成显式模块列表（例如 health,exchange_rates,alerts），
 # 同时必须让 Web 走 8200，并通过部署后的 owned-route 冒烟检查。
 GO_API_OWNED=all
@@ -105,7 +100,7 @@ GO_API_TRUSTED_PROXY_SECRET=<same 64-character hex secret>
 以下地址必须继续使用公开 URL：
 
 - `NEXTAUTH_URL` / `AUTH_URL`：浏览器认证回调与 Cookie origin。
-- `BACKEND_PUBLIC_API_BASE_URL`：前端展示及 Agent 调用说明；`dash-api` 的 Caddy upstream 当前指向 FastAPI `8100`（Go Gateway `8200` 只在 Web 启用切流时被使用）。
+- `BACKEND_PUBLIC_API_BASE_URL`：前端展示及 Agent 调用说明；`dash-api` 的 Caddy upstream 指向 Go Gateway `8200`。
 - `FRONTEND_URL`：CORS 与邮件中的可点击链接。
 - R2、Resend、联网搜索等外部服务地址。
 
@@ -176,21 +171,19 @@ ssh guitar-vps '
   docker compose ps
   docker compose logs --tail=100 api go-api go-worker go-scheduler web celery celery-scheduled beat
   # DB 感知探活：503/degraded 说明数据库不可达（/health/live 不查库，不能作为门禁）
-  curl -fsS http://127.0.0.1:8100/api/v1/health/ready
+  curl -fsS http://127.0.0.1:8200/api/v1/health/ready
   curl -fsS http://127.0.0.1:8200/api/v1/health/ready
 '
 ```
 
 预期：
 
-- 默认 Compose 栈是 **Go-only**（`migrate`、`go-api`、`go-worker`、`go-scheduler`、`web`）；FastAPI + Celery 三个服务改由 `legacy-python` profile 提供，需要时显式 `docker compose --profile legacy-python up -d`。部署脚本（`deploy/deploy-remote.sh`）在 Python 完全退役前始终带上该 profile。
-- 带 profile 时 `api`、`go-api`、`web` 为 healthy（api/go-api 的 healthcheck 已改为 DB 感知的 `/health/ready`）。
-- `go-api` 读取 `backend.env` 中的 `DATABASE_URL`、`REDIS_HOST`、`REDIS_PORT`、`REDIS_DB`、Redis 凭据和 `API_KEY`，并把未接管路由转发至 `8100`。
+- Compose 栈是 **纯 Go**（`migrate`、`go-api`、`go-worker`、`go-scheduler`、`web`）；`api` / `celery` / `celery-scheduled` / `beat` 已随 Python 运行时删除，`deploy/deploy-remote.sh` 的 `COMPOSE_PROFILE_ARGS` 现为空数组。
+- `go-api` 与 `web` 为 healthy（healthcheck 是 DB 感知的 `/health/ready`）。
+- `go-api` 读取 `backend.env` 中的 `DATABASE_URL`、`REDIS_HOST`、`REDIS_PORT`、`REDIS_DB`、Redis 凭据和 `API_KEY`。
 - `go-worker` 消费 Go 任务队列（alerts / CRM / 月度报表等）；`go-scheduler` 注册 11 条静态 job + insight 同步 + 定时报表分钟扫描。两者与 `go-api` 使用同一个 `GO_API_IMAGE` 和 `backend.env` / `go.env`，无独立 HTTP 健康检查，用 `docker compose ps` 确认 Running。
 - 启用 `GO_API_OWNED` 时，部署脚本会用 `API_KEY` + `GO_API_TRUSTED_PROXY_SECRET` 冒烟 `/api/v1/health` 与 `/api/v1/exchange-rates`，不通过直接回滚。
-- 两个 Celery worker 响应 `celery inspect ping`。
-- `beat` 持续运行。
-- `5432`、`6379`、`8100`、`8200`、`3200` 只监听宿主机回环；Caddy 的 API upstream 当前指向 `8100`（FastAPI），Go Gateway `8200` 仅由 Web 在启用切流时使用。
+- `5432`、`6379`、`8200`、`3200` 只监听宿主机回环；Caddy 的 API upstream 指向 Go Gateway `8200`。
 
 ## 本地 Docker 验证（部署冻结期）
 
@@ -210,7 +203,7 @@ GO_API_VALIDATE_MODE=image bash deploy/validate-local-go-api.sh
 
 该模式需要能访问 Docker Hub；本机 2026-11-10 出现过 `auth.docker.io` 元数据超时，因此默认用离线 binary 模式。
 
-全量切流冒烟（FastAPI 停止、Go 网关 `GO_API_OWNED=all`）用：
+全量切流冒烟（纯 Go 栈、`GO_API_OWNED=all`）用：
 
 ```bash
 GO_API_BASE=http://127.0.0.1:18200 \
@@ -223,7 +216,7 @@ bash deploy/validate-local-go-cutover.sh
 
 ## 回滚
 
-应用回滚要求 FastAPI、Go API、Web 三个 digest 成组恢复。数据库 migration 不会自动回滚，
+应用回滚要求 Go API 与 Web 两个 digest 成组恢复。数据库 migration 不会自动回滚，
 后续迁移必须保持向后兼容。
 
 首次切流后的短期回退：

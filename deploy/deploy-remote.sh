@@ -4,7 +4,6 @@ set -euo pipefail
 export LC_ALL=C
 umask 077
 
-API_IMAGE="${API_IMAGE-}"
 GO_API_IMAGE="${GO_API_IMAGE-}"
 WEB_IMAGE="${WEB_IMAGE-}"
 SOURCE_SHA="${SOURCE_SHA-}"
@@ -14,10 +13,10 @@ PUBLIC_WEB_HEALTH_URL="${PUBLIC_WEB_HEALTH_URL-}"
 PUBLIC_API_HEALTH_URL="${PUBLIC_API_HEALTH_URL-}"
 GO_API_OWNED_MODULES="${GO_API_OWNED_MODULES-all}"
 GO_API_INTERNAL_URL="${GO_API_INTERNAL_URL:-http://127.0.0.1:8200}"
-# FastAPI + Celery are an opt-in Compose profile now (the Go gateway and Go
-# worker/scheduler are the default stack). Deployments keep the Python services
-# running until they are retired, so every Compose call passes the profile.
-COMPOSE_PROFILE_ARGS=(--profile legacy-python)
+# The Python stack (FastAPI + Celery) is retired: the Compose file has no api,
+# celery, celery-scheduled or beat service. The array is kept empty so every
+# call site stays unchanged and a profile can be reintroduced in one place.
+COMPOSE_PROFILE_ARGS=()
 # Space policy: absolute floors are the primary guard (a hard 10% rule is
 # unreachable on a 15 GiB VPS once the running and target image sets coexist).
 DEPLOY_FREE_SPACE_PERCENT="${DEPLOY_FREE_SPACE_PERCENT:-0}"       # optional stricter floor, 0 = disabled
@@ -36,7 +35,6 @@ API_REPOSITORY="ghcr.io/passwii/believeboydashboard-api"
 GO_API_REPOSITORY="ghcr.io/passwii/believeboydashboard-go-api"
 WEB_REPOSITORY="ghcr.io/passwii/believeboydashboard-web"
 
-CONTAINER_API="believeboy-dashboard-api"
 CONTAINER_GO_API="believeboy-dashboard-go-api"
 CONTAINER_WEB="believeboy-dashboard-web"
 HEALTH_ATTEMPTS="${HEALTH_ATTEMPTS:-30}"
@@ -165,7 +163,7 @@ cleanup_exit() {
   else
     if [[ -n "$SOURCE_SHA" ]]; then
       echo "Deployment source SHA: $SOURCE_SHA"
-      echo "Deployment image digests: FastAPI=${API_IMAGE##*@} Go API=${GO_API_IMAGE##*@} Web=${WEB_IMAGE##*@}"
+      echo "Deployment image digests: Go API=${GO_API_IMAGE##*@} Web=${WEB_IMAGE##*@}"
     fi
     echo "Successfully removed Dashboard image refs: $TOTAL_IMAGE_REFS_REMOVED"
   fi
@@ -198,9 +196,6 @@ fi
 if [[ ! "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
   die "SOURCE_SHA must be a full 40-character lowercase Git commit SHA."
 fi
-if [[ ! "$API_IMAGE" =~ ^ghcr\.io/passwii/believeboydashboard-api@sha256:[0-9a-f]{64}$ ]]; then
-  die "API_IMAGE must be a digest reference for $API_REPOSITORY."
-fi
 if [[ ! "$GO_API_IMAGE" =~ ^ghcr\.io/passwii/believeboydashboard-go-api@sha256:[0-9a-f]{64}$ ]]; then
   die "GO_API_IMAGE must be a digest reference for $GO_API_REPOSITORY."
 fi
@@ -216,12 +211,8 @@ fi
 if [[ ! "$GO_API_OWNED_MODULES" =~ ^([a-z_]+(,[a-z_]+)*)?$ ]]; then
   die "GO_API_OWNED_MODULES must be empty or a comma-separated list of lowercase module names."
 fi
-if [[ "$GO_API_INTERNAL_URL" != "http://127.0.0.1:8100" &&
-  "$GO_API_INTERNAL_URL" != "http://127.0.0.1:8200" ]]; then
-  die "GO_API_INTERNAL_URL must be http://127.0.0.1:8100 (FastAPI) or http://127.0.0.1:8200 (Go gateway)."
-fi
-if [[ -n "$GO_API_OWNED_MODULES" && "$GO_API_INTERNAL_URL" != "http://127.0.0.1:8200" ]]; then
-  die "GO_API_OWNED_MODULES is set but GO_API_INTERNAL_URL does not route Web through the Go gateway (http://127.0.0.1:8200)."
+if [[ "$GO_API_INTERNAL_URL" != "http://127.0.0.1:8200" ]]; then
+  die "GO_API_INTERNAL_URL must be http://127.0.0.1:8200 (Go gateway); FastAPI is retired."
 fi
 if [[ ! "$HEALTH_ATTEMPTS" =~ ^[1-9][0-9]*$ ]]; then
   die "HEALTH_ATTEMPTS must be a positive integer."
@@ -391,7 +382,7 @@ log_disk_usage() {
   local phase="$1"
   echo "Disk and Docker usage [$phase]:"
   echo "Deployment source SHA: $SOURCE_SHA"
-  echo "Deployment image digests: FastAPI=${API_IMAGE##*@} Go API=${GO_API_IMAGE##*@} Web=${WEB_IMAGE##*@}"
+  echo "Deployment image digests: Go API=${GO_API_IMAGE##*@} Web=${WEB_IMAGE##*@}"
   echo "Successfully removed Dashboard image refs: $TOTAL_IMAGE_REFS_REMOVED"
   collect_disk_usage
 }
@@ -536,7 +527,7 @@ prune_dashboard_images() {
   PROTECTED_IMAGE_IDS=()
   PROTECTED_REFS=()
   if [[ "$protect_target_refs" == "1" ]]; then
-    PROTECTED_REFS+=("$API_IMAGE" "$GO_API_IMAGE" "$WEB_IMAGE")
+    PROTECTED_REFS+=("$GO_API_IMAGE" "$WEB_IMAGE")
   fi
 
   if ! container_ids="$(docker ps -aq --no-trunc 2>&1)"; then
@@ -829,12 +820,12 @@ restore_config() {
 rollback() {
   local rollback_go_api_image
   local rollback_ok=0
-  local -a rollback_services=(api celery celery-scheduled beat web)
+  local -a rollback_services=(web)
 
   if (( TARGET_CONFIG_ACTIVE == 0 )); then
     echo "Restoring runtime config changed during bootstrap..."
     restore_config || rollback_ok=1
-    if [[ -z "$previous_api_image" || -z "$previous_web_image" ]] &&
+    if [[ -z "$previous_web_image" ]] &&
       (( LEGACY_RUNTIME_STOPPED == 1 )); then
       restart_legacy_runtime || rollback_ok=1
     fi
@@ -847,9 +838,9 @@ rollback() {
     return 0
   fi
 
-  if [[ -z "$previous_api_image" || -z "$previous_web_image" ]]; then
+  if [[ -z "$previous_web_image" ]]; then
     echo "No previous FastAPI/Web image set exists; restoring the empty deployment state." >&2
-    if ! API_IMAGE="$API_IMAGE" GO_API_IMAGE="$GO_API_IMAGE" WEB_IMAGE="$WEB_IMAGE" \
+    if ! GO_API_IMAGE="$GO_API_IMAGE" WEB_IMAGE="$WEB_IMAGE" \
       docker compose "${COMPOSE_PROFILE_ARGS[@]}" down --remove-orphans; then
       echo "Could not stop the failed first deployment." >&2
       rollback_ok=1
@@ -888,7 +879,7 @@ rollback() {
   if grep -Eq '^[[:space:]]+go-scheduler:' "$DEPLOY_PATH/docker-compose.yml"; then
     rollback_services+=(go-scheduler)
   fi
-  if ! API_IMAGE="$previous_api_image" GO_API_IMAGE="$rollback_go_api_image" WEB_IMAGE="$previous_web_image" \
+  if ! GO_API_IMAGE="$rollback_go_api_image" WEB_IMAGE="$previous_web_image" \
     docker compose "${COMPOSE_PROFILE_ARGS[@]}" up -d --no-build --no-deps --remove-orphans "${rollback_services[@]}"; then
     echo "Previous application image set could not be restarted." >&2
     return 1
@@ -898,7 +889,6 @@ rollback() {
     return 1
   fi
 
-  wait_for_url "API rollback" "http://127.0.0.1:8100/api/v1/health/live" || return 1
   if [[ -n "$previous_go_api_image" ]]; then
     wait_for_url "Go API rollback" "http://127.0.0.1:8200/api/v1/health/live" || return 1
   fi
@@ -1015,10 +1005,8 @@ fi
 require_free_space "pre-pull cleanup" ||
   die "Insufficient disk space after pre-pull image cleanup."
 
-previous_api_image="$(saved_image API_IMAGE)"
 previous_go_api_image="$(saved_image GO_API_IMAGE)"
 previous_web_image="$(saved_image WEB_IMAGE)"
-previous_api_image="${previous_api_image:-$(docker inspect --format '{{.Config.Image}}' "$CONTAINER_API" 2>/dev/null || true)}"
 previous_go_api_image="${previous_go_api_image:-$(docker inspect --format '{{.Config.Image}}' "$CONTAINER_GO_API" 2>/dev/null || true)}"
 previous_web_image="${previous_web_image:-$(docker inspect --format '{{.Config.Image}}' "$CONTAINER_WEB" 2>/dev/null || true)}"
 
@@ -1064,13 +1052,11 @@ mv -f -- "$GO_CONFIG_TMP" "$DEPLOY_PATH/go.env" ||
   die "Could not activate staged Go environment."
 TARGET_CONFIG_ACTIVE=1
 
-echo "Pulling FastAPI, Go API, and Web images..."
-if ! docker compose "${COMPOSE_PROFILE_ARGS[@]}" pull migrate api go-api go-worker go-scheduler celery celery-scheduled beat web; then
+echo "Pulling Go API and Web images..."
+if ! docker compose "${COMPOSE_PROFILE_ARGS[@]}" pull migrate go-api go-worker go-scheduler web; then
   die "Could not pull the target Dashboard image set."
 fi
 
-check_image_revision "FastAPI" "$API_IMAGE" ||
-  die "Target FastAPI image does not match SOURCE_SHA; migration was not run."
 check_image_revision "Go API" "$GO_API_IMAGE" ||
   die "Target Go API image does not match SOURCE_SHA; migration was not run."
 check_image_revision "Web" "$WEB_IMAGE" ||
@@ -1098,9 +1084,6 @@ if ! docker compose "${COMPOSE_PROFILE_ARGS[@]}" up -d --no-build --remove-orpha
   die "Could not start the new Dashboard image set."
 fi
 
-if ! wait_for_url "FastAPI readiness" "http://127.0.0.1:8100/api/v1/health/ready"; then
-  die "FastAPI readiness check failed (database unreachable)."
-fi
 if ! wait_for_url "Go API gateway readiness" "http://127.0.0.1:8200/api/v1/health/ready"; then
   die "Go API gateway readiness check failed (database unreachable)."
 fi
@@ -1108,21 +1091,6 @@ if ! wait_for_url "Web" "http://127.0.0.1:3200/healthz"; then
   die "Web health check failed."
 fi
 verify_owned_routes
-
-echo "Checking Celery workers..."
-if ! docker compose "${COMPOSE_PROFILE_ARGS[@]}" exec -T celery sh -c \
-  'celery -A app.tasks.celery_app inspect ping -d "celery@$(hostname)" --timeout=10'; then
-  die "Celery worker health check failed."
-fi
-if ! docker compose "${COMPOSE_PROFILE_ARGS[@]}" exec -T celery-scheduled sh -c \
-  'celery -A app.tasks.celery_app inspect ping -d "celery@$(hostname)" --timeout=10'; then
-  die "Scheduled Celery worker health check failed."
-fi
-
-echo "Checking Celery beat..."
-if [[ "$(docker inspect --format '{{.State.Running}}' believeboy-dashboard-beat)" != "true" ]]; then
-  die "Celery beat is not running."
-fi
 
 if ! wait_for_url "Public Web" "$PUBLIC_WEB_HEALTH_URL"; then
   die "Public Web health check failed."
