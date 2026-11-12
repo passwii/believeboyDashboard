@@ -31,7 +31,7 @@
 └─────────────────────────────────────────────────────────────────┘
 ┌─────────────────────────────────────────────────────────────────┐
 │ Layer 0 · 测试数据与账号基础设施（所有上层共用）                   │
-│   → 独立测试库：scripts/setup_test_db.py                          │
+│   → 独立测试库：backend-go/cmd/setuptestdb                          │
 │   → 测试账号 seed：backend-go/cmd/seedtestaccounts                 │
 │   → 开关：app/core/config.py 的 TEST_DATABASE_URL                │
 └─────────────────────────────────────────────────────────────────┘
@@ -63,7 +63,7 @@ redis-cli ping                      # 期望 → PONG
 ```
 
 - 首次跑测试还需先初始化独立测试库（见下方「一次性搭建」）：
-  `python scripts/setup_test_db.py`（会自动建 `BLF_test` + seed 账号）。
+  `cd backend-go && go run ./cmd/setuptestdb`（会自动建 `BLF_test` + seed 账号）。
 - 仅跑纯 pytest 单元、不涉及后台任务的用例，Redis 可不起；
   一旦用例触发 Celery 任务（定时报告 / AI 摘要 / 鉴权缓存），Redis broker 必须在线，否则任务派发失败。
 
@@ -138,7 +138,7 @@ pg_restore -U damon -d BLF -j 4 --no-owner --no-privileges ~/db_backups/BLF_prod
 │      TEST_ADMIN_PASSWORD=...                              │
 │      TEST_OPERATOR_PASSWORD=...                           │
 │      TEST_BUSINESSDEV_PASSWORD=...                        │
-│ 2. python scripts/setup_test_db.py                        │
+│ 2. python backend-go/cmd/setuptestdb                        │
 │    → 建库（如不存在）+ pg_dump --schema-only 克隆 schema    │
 │      + seed admin / operator / businessdev                │
 └──────────────────────────────────────────────────────────┘
@@ -168,7 +168,7 @@ Playwright E2E (Layer 2):
      → login_as(page, "admin") 直接复用缓存的 NextAuth session
 ```
 
-> **本地测试是标准流程（2026-08 更新）**：本地 PG 常驻两个库——`BLF`（生产快照，每日自动同步远程 VPS，BEL-376 起常驻，数据可满足集成/手动读写验证）与 `BLF_test`（自动化 pytest 隔离专用，`scripts/setup_test_db.py` 创建）。pytest 一律走 `BLF_test`，绝不写 `BLF`；未设 `TEST_DATABASE_URL` 时跳过只是"防误连开发/生产库"的保护机制，本机已配置好，正常情况不会触发。
+> **本地测试是标准流程（2026-08 更新）**：本地 PG 常驻两个库——`BLF`（生产快照，每日自动同步远程 VPS，BEL-376 起常驻，数据可满足集成/手动读写验证）与 `BLF_test`（自动化 pytest 隔离专用，`backend-go/cmd/setuptestdb` 创建）。pytest 一律走 `BLF_test`，绝不写 `BLF`；未设 `TEST_DATABASE_URL` 时跳过只是"防误连开发/生产库"的保护机制，本机已配置好，正常情况不会触发。
 
 ---
 
@@ -346,7 +346,7 @@ vi.mock('@/components/notifications', () => ({
 1. `backend/app/core/config.py`：增加 `test_<role>_email` / `test_<role>_password` 字段（带默认值；密码必须从 env 注入）。
 2. `backend/backend-go/cmd/seedtestaccounts`：在 `TEST_ACCOUNTS` 列表加一项，role_type 写准确值（`admin` / `operator` / `businessdev` / 未来新增）。
 3. `backend/scripts/agent_testing/conftest.py`：在 `TEST_ACCOUNTS` dict 加一项（**两边都要，且邮箱、密码、env 变量名一致**）。
-4. 重跑 `python scripts/setup_test_db.py --reset-password`。
+4. 重跑 `cd backend-go && go run ./cmd/setuptestdb --reset-password`。
 
 ### Playwright motion/a11y CI 覆盖边界（BLF-1253）
 

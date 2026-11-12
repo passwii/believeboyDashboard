@@ -63,7 +63,7 @@ git rev-list --left-right --count origin/main...HEAD  # 左侧计数为 0，才�
 - **失败集对账（替代基线全量）**：PR 上全量只跑一次并记录失败项；仅对 main 上存在的失败用例文件，在相同命令 / 环境下对账一次，不再跑第二遍全量。PR 与 main 出现相同失败时，记录为既有失败，不误报为本次回归；新增用例无法在 main 对账，需单独复现。若失败不稳定，只定向重跑失败用例确认并记录；修复本次引入的问题，不用 `skip` / `xfail` 隐藏失败。
 - 后端没有 CI（`.github/workflows` 无后端任务），T3 的后端全量仍不能省。若遇到 [backend/tests/README.md](./backend/tests/README.md) 记录的 `PROD_DATABASE_URL` 导入期收集失败，视为测试收集阻塞、不能报全绿；记录具体错误并修复或隔离导入链后再确认覆盖。**不要用 `pytest -n auto`**：共享 `BLF_test` 上 autouse `TRUNCATE` 会让 worker 互相死锁（实测 225 failed / 155 errors）。
 - 命令：后端 `cd backend && pytest`（单个 `pytest tests/path::test_x`）；前端 `pnpm lint` / `pnpm build` / `vitest run <路径>`（Vitest，jsdom，已放开；`*.test.ts(x)` 放单元断言，组件用 `@testing-library/react`）。
-- **本地数据库测试（BLF-472）**：前后端测试一律在本地完成、不依赖远程 VPS——本地 Postgres（端口 5432）常驻 `BLF`（生产快照，每日与生产拉取同步，数据完备，供集成 / 手动读写 / 真实数据验证）与 `BLF_test`（pytest 隔离库，`scripts/setup_test_db.py` 创建）。pytest 一律走 `BLF_test`，绝不写 `BLF`。详见 [TESTING.md](./TESTING.md)。
+- **本地数据库测试（BLF-472）**：前后端测试一律在本地完成、不依赖远程 VPS——本地 Postgres（端口 5432）常驻 `BLF`（生产快照，每日与生产拉取同步，数据完备，供集成 / 手动读写 / 真实数据验证）与 `BLF_test`（pytest 隔离库，`backend-go/cmd/setuptestdb` 创建）。pytest 一律走 `BLF_test`，绝不写 `BLF`。详见 [TESTING.md](./TESTING.md)。
 - 新增失败立即修；确认是基线既有失败的，按上面的失败集对账规则记录，不误报为本次回归。新增问题修复并完成对应技术验证后，再走业务测试清单（交用户手动验）。
 
 > 本节引用的实测数字（420s / 900s、225 failed / 155 errors、前端全量 43s / 59s / 79s / 124s 等）为 **Damon 本机（macOS）2026-10-05 / 10-06 单次实测**，只作量级参考，**不是通用基准**；本机常与其他 agent 并发，前端全量耗时对同机负载很敏感，换机器 / 换时段请以当次实测为准。

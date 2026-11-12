@@ -16,8 +16,8 @@ cd backend && source .venv/bin/activate
 #   TEST_ADMIN_PASSWORD=...   TEST_OPERATOR_PASSWORD=...   TEST_BUSINESSDEV_PASSWORD=...
 # （测试账号邮箱默认值：test_admin@ / test_operator@ / test_businessdev@believeboy.com）
 
-python scripts/setup_test_db.py            # 建库 + 克隆 schema + seed 测试账号
-# 重设密码时： python scripts/setup_test_db.py --reset-password
+cd backend-go && go run ./cmd/setuptestdb            # 建库 + 克隆 schema + seed 测试账号
+# 重设密码时： cd backend-go && go run ./cmd/setuptestdb --reset-password
 ```
 
 测试账号（写入测试库的 `user_accounts`）：
@@ -78,5 +78,5 @@ pytest scripts/agent_testing/test_ui_permissions.py -v
 
 - **还是连到了本地库？** backend 启动时没设 `TEST_DATABASE_URL`——配置
   `backend/.env.test` 并在启动命令里导出它。
-- **登录 401？** 测试库里没有对应测试账号，重跑 `python scripts/setup_test_db.py`。
+- **登录 401？** 测试库里没有对应测试账号，重跑 `cd backend-go && go run ./cmd/setuptestdb`。
 - **会话过期？** 设 `AGENT_TEST_REFRESH_AUTH=1` 强制刷新缓存。

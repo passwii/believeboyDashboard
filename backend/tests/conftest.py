@@ -11,7 +11,7 @@ DB. It:
   * exposes `db_session` (rolled back per test) and fixtures for the seeded
     test accounts (admin / operator / businessdev) plus ready-made auth headers.
 
-The target DB is configured once via ``scripts/setup_test_db.py`` and is
+The target DB is configured once via `backend-go/cmd/setuptestdb` and is
 persistent — it is NOT dropped/recreated per run.
 """
 from __future__ import annotations
@@ -88,7 +88,7 @@ def _require_test_database() -> None:
     if not HAS_TEST_DATABASE:
         pytest.skip(
             "TEST_DATABASE_URL is not set — tests would hit the dev/prod DB. "
-            "Run `python scripts/setup_test_db.py` (creates + migrates + seeds "
+            "Run `cd backend-go && go run ./cmd/setuptestdb` (creates + migrates + seeds "
             "the test DB) and set TEST_DATABASE_URL in backend/.env.test."
         )
 

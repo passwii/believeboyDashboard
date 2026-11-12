@@ -12,7 +12,7 @@ as a Playwright ``storage_state``, so:
 
 Prerequisites (the test DB + accounts must exist):
   * backend started with ``TEST_DATABASE_URL`` pointing at the test DB;
-  * ``python scripts/setup_test_db.py`` has seeded the test accounts;
+  * ``cd backend-go && go run ./cmd/setuptestdb`` has seeded the test accounts;
   * the frontend is running (``FRONTEND_URL``) and proxies to that backend;
   * ``TEST_ADMIN_PASSWORD`` / ``TEST_OPERATOR_PASSWORD`` /
     ``TEST_BUSINESSDEV_PASSWORD`` are set (e.g. in ``backend/.env.test``).

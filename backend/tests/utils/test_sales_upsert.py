@@ -12,7 +12,7 @@ and ``app.services.sales_query.counted_sales_where``:
 - counted_sales_where filters directly on rows, no is_current join.
 
 Runs against real PostgreSQL (schema cloned from DATABASE_URL via
-setup_test_db.py). The 5-column unique constraint must exist in the
+cmd/setuptestdb). The 5-column unique constraint must exist in the
 test DB -- ensure ``alembic upgrade head`` has been run on the source
 DATABASE_URL before cloning the test DB.
 """

@@ -196,7 +196,7 @@ API 服务器将在 `http://localhost:8100` 启动。
 本地 PostgreSQL（端口 5432）**常驻两个库**，绝大多数本地开发 / 测试**无需从零初始化**：
 
 - **`BLF`（主库 · 生产快照）** — 与生产端每日拉取同步的真实数据，用于本地 backend 读写 / 外部 API 集成 / 真实数据验证测试（详见 [TESTING.md](./TESTING.md#本地生产快照库bel-376-集成--手动读写测试)）。
-- **`BLF_test`（测试库）** — 自动化 pytest 隔离专用，由 `backend/scripts/setup_test_db.py` 自动创建并 seed 测试账号。
+- **`BLF_test`（测试库）** — 自动化 pytest 隔离专用，由 `backend/backend-go/cmd/setuptestdb` 自动创建并 seed 测试账号。
 
 首次搭建（新机器 / 快照缺失时）：
 
@@ -205,7 +205,7 @@ cd backend
 source .venv/bin/activate
 
 # 1) 初始化隔离测试库 + seed 测试账号（pytest 依赖）
-python scripts/setup_test_db.py
+python backend-go/cmd/setuptestdb
 
 # 2) 仅当本机还没有生产快照 BLF 时，才需要从零建库：
 # 运行数据库迁移（Goose；空库会执行 285 基线）
@@ -226,7 +226,7 @@ python scripts/init_and_import_projects.py
 
 - **本地 Postgres（端口 5432）常驻两个库**：
   - `BLF` — **生产快照**：每天自动与生产端拉取同步，数据较为完备（真实项目 / 报表 / 广告 / 库存数据），适合本地进行**大量读写、外部 API 集成和真实数据验证**测试。
-  - `BLF_test` — **自动化测试隔离库**（pytest 用）：由 `backend/scripts/setup_test_db.py` 创建，schema 与生产同步、seed 测试账号。
+  - `BLF_test` — **自动化测试隔离库**（pytest 用）：由 `backend/backend-go/cmd/setuptestdb` 创建，schema 与生产同步、seed 测试账号。
 - **pytest 一律走 `BLF_test`，绝不写 `BLF`**（防止污染快照）；`BLF` 用于本地 backend 起服后的集成 / 手动读写 / Playwright 真实数据测试。
 - 前端测试（Vitest 单测 + Playwright E2E）与后端测试（pytest）的具体命令、架构与约定见 [TESTING.md](./TESTING.md)。
 
