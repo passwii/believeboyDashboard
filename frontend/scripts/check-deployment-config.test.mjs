@@ -27,12 +27,25 @@ test('Docker build keeps the runtime secret out of image layers', async () => {
 
 test('VPS compose runs the application stack on host networking without absorbing shared infrastructure', async () => {
   const compose = await read('deploy/docker-compose.yml')
-  for (const service of ['migrate', 'api', 'go-api', 'celery', 'celery-scheduled', 'beat', 'web']) {
+  // 2026-11-11：Compose 默认栈加入 Go worker / scheduler（edfb1f35），
+  // 2026-11-12：FastAPI 与 Celery 改由 legacy-python profile 提供（d4c449e7）。
+  // 服务清单与 host 网络数量必须跟这两个改动同步，否则断言会变成假红/假绿。
+  for (const service of [
+    'migrate',
+    'api',
+    'go-api',
+    'go-worker',
+    'go-scheduler',
+    'celery',
+    'celery-scheduled',
+    'beat',
+    'web',
+  ]) {
     assert.match(compose, new RegExp(`^  ${service}:`, 'm'))
   }
   assert.doesNotMatch(compose, /^  postgres:/m)
   assert.doesNotMatch(compose, /^  redis:/m)
-  assert.equal((compose.match(/network_mode: host/g) ?? []).length, 7)
+  assert.equal((compose.match(/network_mode: host/g) ?? []).length, 9)
   assert.match(compose, /API_IMAGE:\?API_IMAGE must be set/)
   assert.match(compose, /GO_API_IMAGE:\?GO_API_IMAGE must be set/)
   assert.match(compose, /WEB_IMAGE:\?WEB_IMAGE must be set/)
@@ -116,7 +129,9 @@ test('remote deploy keeps the SSH script stream out of Compose run', async () =>
   assert.doesNotMatch(script, /docker compose run --rm migrate/)
   assert.doesNotMatch(workflow, /bash -s/)
   assert.doesNotMatch(localDeploy, /bash -s/)
-  assert.match(script, /docker compose pull migrate api go-api/ )
+  // 2026-11-12：远程脚本的 Compose 调用统一带 legacy-python profile，
+  // 且默认栈新增 Go worker / scheduler，pull 列表随之变长。
+  assert.match(script, /docker compose "\$\{COMPOSE_PROFILE_ARGS\[@\]\}" pull migrate api go-api go-worker go-scheduler/ )
   assert.match(localDeploy, /build_go_api/ )
   assert.match(localDeploy, /IMAGE_BUILD_SECONDS/ )
   assert.match(script, /PUBLIC_WEB_HEALTH_URL/)
