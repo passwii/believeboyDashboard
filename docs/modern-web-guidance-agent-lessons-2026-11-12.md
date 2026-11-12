@@ -54,7 +54,7 @@ Modern Web Guidance 真正值得借鉴的不是 209 篇指南，而是它解决�
 **我们的对照**
 
 - 仓库侧 `AGENTS.md` 131 行（不含 Multica 运行时注入的约 180 行），其中 33 行是 pi-lens LSP 误报的处置说明——每个 Agent 每轮都读，但只在碰 TypeScript 诊断时有用。
-- 前端设计知识总量：`design-spec.md` 162 行 + `foundations/spec.md` 214 行 + `design.md` 409 行 + `motion-system.md` 342 行 = **1127 行**，没有任何「任务类型 → 必读 / 可跳过」的路由。
+- 前端设计知识总量：`frontend/docs/design-spec.md` 162 行 + `docs/design-drafts/2026-11-01-operations-dashboard/components/foundations/spec.md` 214 行 + `docs/design-drafts/2026-11-01-operations-dashboard/design.md` 409 行 + `frontend/docs/motion-system.md` 342 行 = **1127 行**，没有任何「任务类型 → 必读 / 可跳过」的路由（后文为可读性使用短名指代）。
 - 结果：Agent 要么不读（凭印象写 UI），要么全读（上下文被吃掉），两种都不稳定。
 
 **可借鉴动作**
@@ -138,14 +138,14 @@ Modern Web Guidance 真正值得借鉴的不是 209 篇指南，而是它解决�
 
 - 我们已经有两个成熟的硬门禁：`check-unstable-mocks`（591 行 + 自测）和 `check-motion-tokens`（714 行 + 自测），都遵循「判据机械化 + 正反例自测 + 不给白名单」的屋风。这是很好的基础。
 - 但 **V4 设计红线没有对应的检查层**：`--term-*`、硬编码色、移动端 media query、随机圆角，全靠 review 记忆。
-- 同时，现有代码已经存在「合法例外」：`warm-ledger/shell/theme.css` 里有 21 处 Terminal 工具类桥接（`[class~='border-term-*']` / `bg-term-*` / `text-term-*`），用于把 Terminal 控件拉回 Warm token——naive 的全仓 gate 会直接误报。
-- V4 相关样式里还有 24 处 `max-width` media query（分布在 8 个 `*-warm.module.css`；其中页面级 `frontend/app/dashboard/**` 为 23 处 / 7 个文件，`components/dashboard/portfolio/portfolio-filters-warm.module.css` 另有 1 处），与「desktop-only、不新增手机适配」的规则并存；没有 provenance 标记，无法区分存量例外与新违规。
+- 同时，现有代码已经存在「合法例外」：`frontend/components/dashboard-v2/warm-ledger/shell/theme.css` 里有 21 处 Terminal 工具类桥接（`[class~='border-term-*']` / `bg-term-*` / `text-term-*`），用于把 Terminal 控件拉回 Warm token——naive 的全仓 gate 会直接误报。
+- V4 相关样式里还有 24 处 `max-width` media query（分布在 8 个 `*-warm.module.css`；其中页面级 `frontend/app/dashboard/**` 为 23 处 / 7 个文件，`frontend/components/dashboard/portfolio/portfolio-filters-warm.module.css` 另有 1 处），与「desktop-only、不新增手机适配」的规则并存；没有 provenance 标记，无法区分存量例外与新违规。
 
 **可借鉴动作：两层检查**
 
 | 层 | 判据 | 范围 | 输出 |
 | --- | --- | --- | --- |
-| Gate（exit 1） | 新增行出现 `--term-*` / `text-term-*` / `bg-term-*`，且文件在 V4 页面或 `warm-ledger/*` 的非 shell 文件 | 只扫 diff 新增行 | 阻断，附 file:line + 修法 |
+| Gate（exit 1） | 新增行出现 `--term-*` / `text-term-*` / `bg-term-*`，且文件属于枚举的 `V4_SCOPE`：`frontend/app/dashboard/**/*-warm.module.css` + `frontend/components/dashboard-v2/warm-ledger/**` | 只扫 diff 新增行 | 阻断，附 file:line + 修法 |
 | Gate（exit 1） | 新增 V4 CSS Module 出现硬编码 hex / rgb（图表或第三方样式需显式注释豁免） | 只扫 diff 新增行 | 阻断 |
 | Report-only | 紫色 / 彩虹渐变、glow、装饰性卡片、随机 radius、无来源数字 | diff 或全仓 | 计数 + 清单，不阻断 |
 
@@ -154,6 +154,8 @@ Modern Web Guidance 真正值得借鉴的不是 209 篇指南，而是它解决�
 1. **diff 范围**，不扫全仓——否则存量 24 处 `max-width` media query 和 21 处 Terminal 桥接会立刻把门禁打红。
 2. **先 report-only 建立基线**，再逐条升级为 gate；每条规则必须有正反例自测。
 3. **不要用白名单绕过**（与 `check:mocks` 的既有约定一致）；例外写进规则的 `keepWhen`，不是脚本里的 path 列表。
+
+当前 `origin/main` 上仍有 **44 个前端文件**在使用 `--term-*`（V3 存量合法）。因此 `check:design` 不能扫 `frontend/**` 全量，必须先把 `V4_SCOPE` 的路径前缀写成可枚举常量，并用自测钉住；否则上线第一天就会把 V3 页面全部打红。`V4_SCOPE` 以上述两类路径为起点，P1 定稿时还要把不带 `-warm` 后缀、但仍属 V4 的页面级 `page.tsx` / client 组件逐个补入，不能退化成 `frontend/**`。
 
 ### 2.5 用 uplift 评测，而不是凭感觉加规则
 
@@ -170,7 +172,7 @@ Modern Web Guidance 真正值得借鉴的不是 209 篇指南，而是它解决�
 
 **我们的对照**
 
-- 仓库里没有 Agent 效果评测的记录或脚本（`rg 'agent eval|guided.*unguided|uplift'` 无命中）；我们有 1660 个单测，但它们测的是代码，不是「Agent 是否按规范写代码」。
+- 仓库里没有 Agent 效果评测的记录或脚本（`rg 'agent eval|guided.*unguided|uplift'` 无命中）；前端单测很多，但它们测的是代码，不是「Agent 是否按规范写代码」。单测规模在仓库内已有两套口径（`AGENTS.md` 写 235 文件 / 1660 例，`test-ci.yml` 注释写 276 文件 / 2136 例），引用前以当前 `pnpm test` 实测为准。
 - 结果：我们无法回答「加了这段 AGENTS.md / 设计规范后，Agent 的首轮质量有没有提升」。
 
 **可借鉴动作（轻量版，不建 Playwright grader）**
@@ -260,6 +262,7 @@ Modern Web Guidance 真正值得借鉴的不是 209 篇指南，而是它解决�
 3. `AGENTS.md`
    - 把「先读 design-spec §0.4 与 foundations」改为「按路由表读对应章节」。
    - 加一行 Browser Support Policy（需用户确认目标浏览器）。
+   - **拆成独立 PR**：平台每次启动会向 workdir 的 `AGENTS.md` 追加约 184 行运行时块（含 `<!-- BEGIN MULTICA-RUNTIME ... -->`）；只提交正文改动，绝不把注入块带入仓库。
 
 **验收**：文档 diff 可读；新增 PR 模板不改变运行行为（T0，不跑测试）；用 2 个真实任务试填，确认路由表能在 30 秒内指向正确章节。
 
@@ -267,7 +270,7 @@ Modern Web Guidance 真正值得借鉴的不是 209 篇指南，而是它解决�
 
 1. 新增 `frontend/scripts/check-design.mjs` + `check-design.test.mjs`，接入 `pnpm test` 入口（先 report-only）。
 2. 规则集（先 4 条）：
-   - `V4-RULE-01`：diff 新增行出现 `--term-*` / `text-term-*` / `bg-term-*`（仅豁免 `shell/theme.css` 内 `.warm-ledger__route-slot-row` / `.warm-ledger__mobile-strip` / `.warm-ledger__date-picker-content` 三个作用域中的既有 Terminal 桥接，不放宽整文件）。
+   - `V4-RULE-01`：diff 新增行出现 `--term-*` / `text-term-*` / `bg-term-*`。扫描范围限定为 `V4_SCOPE`（`frontend/app/dashboard/**/*-warm.module.css` + `frontend/components/dashboard-v2/warm-ledger/**`）；`frontend/components/dashboard-v2/warm-ledger/shell/theme.css` 仅豁免 `.warm-ledger__route-slot-row` / `.warm-ledger__mobile-strip` / `.warm-ledger__date-picker-content` 三个作用域内的既有桥接，不放宽整文件。
    - `V4-RULE-02`：新增 V4 CSS Module 出现硬编码 hex / rgb（图表文件需注释豁免）。
    - `V4-RULE-08`：新增 V4 页面 CSS 出现 `max-width` media query（先 report-only，存量 24 处 / 8 文件作为基线，其中页面级 23 处 / 7 文件）。
    - `V4-RULE-07`：新增随机 radius 字面量（非 token），report-only。
@@ -307,7 +310,7 @@ const handleKeyDown = (e: React.KeyboardEvent) => {
 **MWG 的规则**（`ime-safe-enter-submit`）：
 
 - 必须先 `preventDefault`，再检查 `event.isComposing`；
-- Safari 有 `compositionend` 早于确认 `Enter` 的 WebKit bug（165004），标准检查会失效；需要 `event.keyCode === 229` 兜底；
+- Safari 有 `compositionend` 早于确认 `Enter` 的 WebKit bug（165004），标准检查会失效；需要 `event.keyCode === 229` 兜底。该检查必须保持嵌套在 `e.key === 'Enter'` 条件内——指南明确说明，脱离 Enter 判断会让移动端软键盘的普通 229 输入被误判为提交；
 - 单行 `<input>` 同样适用；`Cmd / Ctrl + Enter` 不需要检查。
 
 **扫描面**：`legacy-scan` 在 `frontend` 命中 10 条 IME 规则；全仓 `key === 'Enter'` 处理共 16 处，`isComposing` 出现 0 次——这不是单文件 bug，是一类模式缺失。
