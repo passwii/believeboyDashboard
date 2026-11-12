@@ -383,45 +383,37 @@ jobs:
       - name: shellcheck 部署脚本
         run: shellcheck -S error deploy/*.sh productEnvAgent/*.sh
 
-      - name: 校验 Compose 默认栈（纯 Go）
+      - name: 校验 Compose 栈（纯 Go，无 Python 服务）
         working-directory: deploy
         env:
           GO_API_IMAGE: example/go-api
-          API_IMAGE: example/api
           WEB_IMAGE: example/web
         run: |
           set -euo pipefail
           services="$(docker compose -f docker-compose.yml config --services | sort | tr '\n' ' ')"
-          echo "default services: $services"
+          echo "services: $services"
           for required in migrate go-api go-worker go-scheduler web; do
             case " $services " in
               *" $required "*) ;;
-              *) echo "::error::default stack is missing $required" >&2; exit 1 ;;
+              *) echo "::error::stack is missing $required" >&2; exit 1 ;;
             esac
           done
           for forbidden in api celery celery-scheduled beat; do
             case " $services " in
-              *" $forbidden "*) echo "::error::$forbidden must stay behind the legacy-python profile" >&2; exit 1 ;;
+              *" $forbidden "*) echo "::error::$forbidden must not exist: the Python runtime is retired" >&2; exit 1 ;;
               *) ;;
             esac
           done
 
-      - name: 校验 legacy-python profile 完整
+      - name: 校验 Compose 不引用 Python 镜像
         working-directory: deploy
-        env:
-          GO_API_IMAGE: example/go-api
-          API_IMAGE: example/api
-          WEB_IMAGE: example/web
         run: |
           set -euo pipefail
-          services="$(docker compose -f docker-compose.yml --profile legacy-python config --services | sort | tr '\n' ' ')"
-          echo "legacy services: $services"
-          for required in api celery celery-scheduled beat; do
-            case " $services " in
-              *" $required "*) ;;
-              *) echo "::error::legacy-python profile is missing $required" >&2; exit 1 ;;
-            esac
-          done
+          if grep -qE '\$\{API_IMAGE' docker-compose.yml; then
+            echo "::error::docker-compose.yml still references API_IMAGE" >&2
+            exit 1
+          fi
+          echo "docker-compose.yml has no FastAPI image reference"
 
   frontend:
     name: frontend vitest (全量)

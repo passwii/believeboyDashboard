@@ -24,10 +24,6 @@ on:
         description: Full source commit SHA for prebuilt images
         type: string
         required: false
-      api_digest:
-        description: FastAPI image sha256 digest for prebuilt mode
-        type: string
-        required: false
       go_api_digest:
         description: Go API image sha256 digest for prebuilt mode
         type: string
@@ -56,7 +52,6 @@ permissions:
   packages: write
 
 env:
-  API_IMAGE_NAME: ghcr.io/passwii/believeboydashboard-api
   GO_API_IMAGE_NAME: ghcr.io/passwii/believeboydashboard-go-api
   WEB_IMAGE_NAME: ghcr.io/passwii/believeboydashboard-web
 
@@ -97,7 +92,6 @@ jobs:
           DEPLOY_MODE: ${{ inputs.deploy_mode }}
           DISPATCH_ID_INPUT: ${{ inputs.dispatch_id }}
           SOURCE_SHA_INPUT: ${{ inputs.source_sha }}
-          API_DIGEST_INPUT: ${{ inputs.api_digest }}
           GO_API_DIGEST_INPUT: ${{ inputs.go_api_digest }}
           WEB_DIGEST_INPUT: ${{ inputs.web_digest }}
           GO_API_OWNED_INPUT: ${{ inputs.go_api_owned }}
@@ -234,25 +228,6 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GHCR_TOKEN }}
 
-      - name: Build and push API
-        if: ${{ inputs.deploy_mode == 'build_and_deploy' }}
-        id: api
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: backend/Dockerfile
-          platforms: ${{ env.DOCKER_PLATFORM }}
-          push: true
-          tags: |
-            ${{ env.API_IMAGE_NAME }}:sha-${{ github.sha }}
-          labels: |
-            org.opencontainers.image.revision=${{ github.sha }}
-          build-args: |
-            PIP_INDEX_URL=https://pypi.org/simple
-          cache-from: type=gha,scope=dashboard-api
-          cache-to: type=gha,scope=dashboard-api,mode=max
-          provenance: false
-
       - name: Build and push Go API
         if: ${{ inputs.deploy_mode == 'build_and_deploy' }}
         id: go_api
@@ -314,10 +289,8 @@ jobs:
         env:
           DEPLOY_MODE: ${{ inputs.deploy_mode }}
           SOURCE_SHA_INPUT: ${{ inputs.source_sha }}
-          API_DIGEST_INPUT: ${{ inputs.api_digest }}
           GO_API_DIGEST_INPUT: ${{ inputs.go_api_digest }}
           WEB_DIGEST_INPUT: ${{ inputs.web_digest }}
-          BUILT_API_DIGEST: ${{ steps.api.outputs.digest }}
           BUILT_GO_API_DIGEST: ${{ steps.go_api.outputs.digest }}
           BUILT_WEB_DIGEST: ${{ steps.web.outputs.digest }}
         shell: bash
@@ -326,12 +299,10 @@ jobs:
 
           if [[ "$DEPLOY_MODE" == "prebuilt" ]]; then
             source_sha="$SOURCE_SHA_INPUT"
-            api_digest="$API_DIGEST_INPUT"
             go_api_digest="$GO_API_DIGEST_INPUT"
             web_digest="$WEB_DIGEST_INPUT"
           else
             source_sha="$GITHUB_SHA"
-            api_digest="$BUILT_API_DIGEST"
             go_api_digest="$BUILT_GO_API_DIGEST"
             web_digest="$BUILT_WEB_DIGEST"
           fi
@@ -340,7 +311,7 @@ jobs:
             echo "::error::SOURCE_SHA must be a full 40-character lowercase Git SHA."
             exit 1
           fi
-          for digest in "$api_digest" "$go_api_digest" "$web_digest"; do
+          for digest in "$go_api_digest" "$web_digest"; do
             if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
               echo "::error::Image build or supplied digest is invalid."
               exit 1
@@ -349,10 +320,8 @@ jobs:
 
           {
             printf 'SOURCE_SHA=%s\n' "$source_sha"
-            printf 'API_DIGEST=%s\n' "$api_digest"
             printf 'GO_API_DIGEST=%s\n' "$go_api_digest"
             printf 'WEB_DIGEST=%s\n' "$web_digest"
-            printf 'API_IMAGE=%s@%s\n' "$API_IMAGE_NAME" "$api_digest"
             printf 'GO_API_IMAGE=%s@%s\n' "$GO_API_IMAGE_NAME" "$go_api_digest"
             printf 'WEB_IMAGE=%s@%s\n' "$WEB_IMAGE_NAME" "$web_digest"
           } >> "$GITHUB_ENV"
@@ -440,10 +409,8 @@ jobs:
           printf -v remote_deploy_path '%q' "$DEPLOY_PATH"
           printf -v remote_script_path '%q' "$STAGING_DIR/deploy-remote.sh"
           printf -v remote_source_sha '%q' "$SOURCE_SHA"
-          printf -v remote_api_digest '%q' "$API_DIGEST"
           printf -v remote_go_api_digest '%q' "$GO_API_DIGEST"
           printf -v remote_web_digest '%q' "$WEB_DIGEST"
-          printf -v remote_api_image '%q' "$API_IMAGE"
           printf -v remote_go_api_image '%q' "$GO_API_IMAGE"
           printf -v remote_web_image '%q' "$WEB_IMAGE"
           printf -v remote_public_web_url '%q' "$PUBLIC_WEB_HEALTH_URL"
@@ -465,8 +432,8 @@ jobs:
              DEPLOY_FREE_SPACE_POST_PULL_MIN_BYTES=$remote_space_post_pull \
              DEPLOY_FREE_SPACE_PERCENT=$remote_space_percent \
              SOURCE_SHA=$remote_source_sha STAGING_DIR=$remote_staging_dir DEPLOY_PATH=$remote_deploy_path \
-             API_DIGEST=$remote_api_digest GO_API_DIGEST=$remote_go_api_digest WEB_DIGEST=$remote_web_digest \
-             API_IMAGE=$remote_api_image GO_API_IMAGE=$remote_go_api_image WEB_IMAGE=$remote_web_image \
+             GO_API_DIGEST=$remote_go_api_digest WEB_DIGEST=$remote_web_digest \
+             GO_API_IMAGE=$remote_go_api_image WEB_IMAGE=$remote_web_image \
              bash $remote_script_path"
 
       - name: Diagnose deployment failure
@@ -474,7 +441,6 @@ jobs:
         run: |
           set -euo pipefail
           printf -v remote_deploy_path '%q' "$DEPLOY_PATH"
-          printf -v remote_api_image '%q' "$API_IMAGE"
           printf -v remote_go_api_image '%q' "$GO_API_IMAGE"
           printf -v remote_web_image '%q' "$WEB_IMAGE"
           ssh -i "$SSH_DIR/believeboy-dashboard" \
@@ -484,8 +450,8 @@ jobs:
             "$SSH_USER@$SSH_HOST" \
             "set -euo pipefail
              cd $remote_deploy_path
-             API_IMAGE=$remote_api_image GO_API_IMAGE=$remote_go_api_image WEB_IMAGE=$remote_web_image docker compose ps || true
-             API_IMAGE=$remote_api_image GO_API_IMAGE=$remote_go_api_image WEB_IMAGE=$remote_web_image docker compose logs --tail=200 || true
+             GO_API_IMAGE=$remote_go_api_image WEB_IMAGE=$remote_web_image docker compose ps || true
+             GO_API_IMAGE=$remote_go_api_image WEB_IMAGE=$remote_web_image docker compose logs --tail=200 || true
              systemctl is-active believeboy-api believeboy-celery \
                believeboy-celery-scheduled believeboy-beat 2>/dev/null || true"
 

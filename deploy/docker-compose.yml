@@ -1,9 +1,17 @@
 name: believeboy-dashboard
 
 # PostgreSQL, Redis and Caddy stay on the host. Host networking preserves the
-# current host contract: Go and FastAPI can reach loopback-only PostgreSQL and
-# Redis; Caddy uses 127.0.0.1:3200 for Web and 127.0.0.1:8200 for the Go gateway.
-# The Go gateway falls back to FastAPI on 127.0.0.1:8100 for unowned routes.
+# current host contract: the Go gateway reaches loopback-only PostgreSQL and
+# Redis; Caddy uses 127.0.0.1:3200 for Web and 127.0.0.1:8200 for the gateway.
+# There is no FastAPI or Celery service: the Python runtime is retired.
+
+# Shared log rotation for every service.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   migrate:
     image: "${GO_API_IMAGE:?GO_API_IMAGE must be set}"
@@ -14,50 +22,6 @@ services:
     command: ["up"]
     restart: "no"
     init: true
-
-  api:
-    # FastAPI + Celery stay opt-in while the Go worker/scheduler take over.
-    profiles: ["legacy-python"]
-    image: "${API_IMAGE:?API_IMAGE must be set}"
-    container_name: believeboy-dashboard-api
-    network_mode: host
-    env_file:
-      - ./backend.env
-    command:
-      - uvicorn
-      - app.main:app
-      - --host
-      - 127.0.0.1
-      - --port
-      - "8100"
-      - --no-access-log
-      - --workers
-      - "1"
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-    restart: unless-stopped
-    init: true
-    mem_limit: 1g
-    volumes:
-      - ./backend-storage:/app/backend/storage
-    healthcheck:
-      test:
-        - CMD
-        - python
-        - -c
-        - >-
-          import urllib.request as u;
-          u.urlopen('http://127.0.0.1:8100/api/v1/health/ready', timeout=3)
-      interval: 15s
-      timeout: 5s
-      retries: 8
-      start_period: 30s
-    logging: &logging
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
 
   go-api:
     image: "${GO_API_IMAGE:?GO_API_IMAGE must be set}"
@@ -114,98 +78,6 @@ services:
     restart: unless-stopped
     init: true
     mem_limit: 256m
-    logging: *logging
-
-  celery:
-    # FastAPI + Celery stay opt-in while the Go worker/scheduler take over.
-    profiles: ["legacy-python"]
-    image: "${API_IMAGE:?API_IMAGE must be set}"
-    container_name: believeboy-dashboard-celery
-    network_mode: host
-    env_file:
-      - ./backend.env
-    command:
-      - celery
-      - -A
-      - app.tasks.celery_app
-      - worker
-      - -l
-      - info
-      - -Q
-      - default,reports,insights,ai_summary
-      - --concurrency=1
-      - --max-tasks-per-child=50
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-    restart: unless-stopped
-    init: true
-    stop_grace_period: 90s
-    mem_limit: 512m
-    mem_reservation: 384m
-    memswap_limit: 640m
-    volumes:
-      - ./backend-storage:/app/backend/storage
-    logging: *logging
-
-  celery-scheduled:
-    # FastAPI + Celery stay opt-in while the Go worker/scheduler take over.
-    profiles: ["legacy-python"]
-    image: "${API_IMAGE:?API_IMAGE must be set}"
-    container_name: believeboy-dashboard-celery-scheduled
-    network_mode: host
-    env_file:
-      - ./backend.env
-    command:
-      - celery
-      - -A
-      - app.tasks.celery_app
-      - worker
-      - -Q
-      - scheduled
-      - -c
-      - "2"
-      - --loglevel=info
-      - --max-tasks-per-child=50
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-    restart: unless-stopped
-    init: true
-    stop_grace_period: 90s
-    mem_limit: 768m
-    mem_reservation: 640m
-    memswap_limit: 1g
-    shm_size: 512m
-    volumes:
-      - ./backend-storage:/app/backend/storage
-    logging: *logging
-
-  beat:
-    # FastAPI + Celery stay opt-in while the Go worker/scheduler take over.
-    profiles: ["legacy-python"]
-    image: "${API_IMAGE:?API_IMAGE must be set}"
-    container_name: believeboy-dashboard-beat
-    network_mode: host
-    env_file:
-      - ./backend.env
-    command:
-      - celery
-      - -A
-      - app.tasks.celery_beat_app
-      - beat
-      - -l
-      - info
-      - --schedule=/var/lib/believeboy/celerybeat-schedule
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-    restart: unless-stopped
-    init: true
-    stop_grace_period: 30s
-    mem_limit: 256m
-    volumes:
-      - ./celerybeat:/var/lib/believeboy
     logging: *logging
 
   web:

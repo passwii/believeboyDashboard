@@ -28,7 +28,6 @@ esac
 DEPLOY_PATH="${DEPLOY_PATH:-/opt/believeboy-dashboard}"
 DOMAIN="${DOMAIN:-https://dash.believeboy.com}"
 WEB_IMAGE_NAME="${WEB_IMAGE_NAME:-ghcr.io/passwii/believeboydashboard-web}"
-API_IMAGE_NAME="${API_IMAGE_NAME:-ghcr.io/passwii/believeboydashboard-api}"
 GO_API_IMAGE_NAME="${GO_API_IMAGE_NAME:-ghcr.io/passwii/believeboydashboard-go-api}"
 # The Go gateway now implements every OpenAPI operation, so the default is a
 # full cutover: Web talks to 8200 and the gateway owns all modules. Unmatched
@@ -48,7 +47,7 @@ if [[ "$DEPLOY_METHOD" == "ssh" ]]; then
   : "${DEPLOY_HOST:?Set DEPLOY_HOST in $CONFIG_FILE or the shell environment}"
 fi
 
-REQUIRED_COMMANDS=(git pnpm docker python3)
+REQUIRED_COMMANDS=(git pnpm docker)
 if [[ "$DEPLOY_METHOD" == "actions" ]]; then
   REQUIRED_COMMANDS+=(gh)
 else
@@ -104,8 +103,7 @@ set -a
 source "$FRONTEND_ENV_FILE"
 set +a
 
-if [[ "$API_IMAGE_NAME" != "ghcr.io/passwii/believeboydashboard-api" ||
-  "$GO_API_IMAGE_NAME" != "ghcr.io/passwii/believeboydashboard-go-api" ||
+if [[ "$GO_API_IMAGE_NAME" != "ghcr.io/passwii/believeboydashboard-go-api" ||
   "$WEB_IMAGE_NAME" != "ghcr.io/passwii/believeboydashboard-web" ]]; then
   echo "Deployment requires the fixed GHCR image names used by the VPS deploy script." >&2
   exit 1
@@ -221,18 +219,6 @@ build_with_retry() {
   done
 }
 
-build_api() {
-  docker buildx build \
-    --platform "$PLATFORM" \
-    --push \
-    --build-arg "PIP_INDEX_URL=$PIP_INDEX_URL" \
-    --tag "$API_IMAGE_NAME:$IMAGE_TAG" \
-    --label "org.opencontainers.image.revision=$SHA" \
-    --metadata-file "$TMP_DIR/api-meta.json" \
-    --file "$ROOT/backend/Dockerfile" \
-    "$ROOT"
-}
-
 build_go_api() {
   docker buildx build \
     --platform "$PLATFORM" \
@@ -257,10 +243,6 @@ build_web() {
 }
 
 IMAGE_BUILD_STARTED_AT=$SECONDS
-API_BUILD_STARTED_AT=$SECONDS
-echo "Building API image for $PLATFORM..."
-build_with_retry "API image build" build_api
-API_BUILD_SECONDS=$((SECONDS - API_BUILD_STARTED_AT))
 GO_API_BUILD_STARTED_AT=$SECONDS
 echo "Building Go API image for $PLATFORM..."
 build_with_retry "Go API image build" build_go_api
@@ -270,24 +252,27 @@ echo "Building Web image for $PLATFORM..."
 build_with_retry "Web image build" build_web
 WEB_BUILD_SECONDS=$((SECONDS - WEB_BUILD_STARTED_AT))
 IMAGE_BUILD_SECONDS=$((SECONDS - IMAGE_BUILD_STARTED_AT))
-echo "Image build times: FastAPI ${API_BUILD_SECONDS}s, Go API ${GO_API_BUILD_SECONDS}s, Web ${WEB_BUILD_SECONDS}s, total ${IMAGE_BUILD_SECONDS}s."
+echo "Image build times: Go API ${GO_API_BUILD_SECONDS}s, Web ${WEB_BUILD_SECONDS}s, total ${IMAGE_BUILD_SECONDS}s."
 
-api_digest="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["containerimage.digest"])' "$TMP_DIR/api-meta.json")"
-go_api_digest="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["containerimage.digest"])' "$TMP_DIR/go-api-meta.json")"
-web_digest="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["containerimage.digest"])' "$TMP_DIR/web-meta.json")"
-API_IMAGE="$API_IMAGE_NAME@$api_digest"
-GO_API_IMAGE="$GO_API_IMAGE_NAME@$go_api_digest"
-WEB_IMAGE="$WEB_IMAGE_NAME@$web_digest"
+# Digests come from the buildx metadata file. Extraction is pure shell so the
+# deploy path needs no Python interpreter.
+image_digest() {
+  sed -n 's/.*"containerimage\.digest"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$1"
+}
+
+go_api_digest="$(image_digest "$TMP_DIR/go-api-meta.json")"
+web_digest="$(image_digest "$TMP_DIR/web-meta.json")"
+GO_API_IMAGE="$GO_API_IMAGE_NAME${go_api_digest}"
+WEB_IMAGE="$WEB_IMAGE_NAME${web_digest}"
 
 if [[ "$DEPLOY_METHOD" == "actions" ]]; then
-  dispatch_id="$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
+  dispatch_id="$(openssl rand -hex 16)"
   echo "Dispatching prebuilt deployment to GitHub Actions..."
   dispatch_args=(
     --ref main
     -f "deploy_mode=prebuilt"
     -f "dispatch_id=$dispatch_id"
     -f "source_sha=$SHA"
-    -f "api_digest=$api_digest"
     -f "go_api_digest=$go_api_digest"
     -f "web_digest=$web_digest"
   )
@@ -322,32 +307,16 @@ if [[ "$DEPLOY_METHOD" == "actions" ]]; then
   if [[ -z "$run_id" ]]; then
     echo "Dispatch returned no Actions URL; waiting for this run to appear..."
     for ((attempt = 1; attempt <= 15; attempt++)); do
-      if run_list="$(gh run list \
-        --workflow deploy-dashboard.yml \
-        --commit "$SHA" \
-        --event workflow_dispatch \
-        --limit 20 \
-        --json databaseId,url,displayTitle)"; then
-        run_record="$(python3 -c '
-import json
-import sys
-
-expected_title = f"Deploy Dashboard ({sys.argv[1]})"
-runs = json.load(sys.stdin)
-for run in runs:
-    if run.get("displayTitle") != expected_title:
-        continue
-    try:
-        run_id = int(run["databaseId"])
-    except (KeyError, TypeError, ValueError):
-        continue
-    run_url = run.get("url")
-    if isinstance(run_url, str) and run_url:
-        print(f"{run_id}\t{run_url}")
-        break
-' "$dispatch_id" <<< "$run_list")"
+if run_record="$(gh run list \
+          --workflow deploy-dashboard.yml \
+          --commit "$SHA" \
+          --event workflow_dispatch \
+          --limit 20 \
+          --json databaseId,url,displayTitle \
+          --jq '.[] | select(.displayTitle == "Deploy Dashboard ('"$dispatch_id"')") | "\(.databaseId)\t\(.url)"' \
+          | head -n 1)"; then
         if [[ -n "$run_record" ]]; then
-          IFS=$'\t' read -r run_id run_url <<< "$run_record"
+          IFS=$'	' read -r run_id run_url <<< "$run_record"
           break
         fi
       fi
@@ -401,7 +370,6 @@ scp "$TMP_DIR/go.env" "$DEPLOY_HOST:$REMOTE_STAGING_DIR/go.env"
 scp "$ROOT/deploy/docker-compose.yml" "$DEPLOY_HOST:$REMOTE_STAGING_DIR/docker-compose.yml"
 scp "$ROOT/deploy/deploy-remote.sh" "$DEPLOY_HOST:$REMOTE_STAGING_DIR/deploy-remote.sh"
 printf -v remote_source_sha '%q' "$SHA"
-printf -v remote_api_image '%q' "$API_IMAGE"
 printf -v remote_go_api_image '%q' "$GO_API_IMAGE"
 printf -v remote_web_image '%q' "$WEB_IMAGE"
 printf -v remote_ai_provider_base_url '%q' "$INTERNAL_AI_PROVIDER_BASE_URL"
@@ -420,12 +388,11 @@ if ! ssh "$DEPLOY_HOST" \
     DEPLOY_FREE_SPACE_MIN_BYTES=$remote_space_min \
     DEPLOY_FREE_SPACE_POST_PULL_MIN_BYTES=$remote_space_post_pull \
     DEPLOY_FREE_SPACE_PERCENT=$remote_space_percent \
-    API_IMAGE=$remote_api_image GO_API_IMAGE=$remote_go_api_image WEB_IMAGE=$remote_web_image DEPLOY_PATH=$remote_deploy_path \
+    GO_API_IMAGE=$remote_go_api_image WEB_IMAGE=$remote_web_image DEPLOY_PATH=$remote_deploy_path \
       bash $remote_script_path"; then
   echo "Compose deployment failed; remote deploy script attempted config and image rollback." >&2
   exit 1
 fi
 
 echo "Deployed $DOMAIN from $WEB_IMAGE"
-echo "Deployed FastAPI fallback from $API_IMAGE"
 echo "Deployed Go API gateway from $GO_API_IMAGE"
