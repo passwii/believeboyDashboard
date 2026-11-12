@@ -247,13 +247,17 @@ func Load() (Config, error) {
 
 func load(lookup func(string) (string, bool)) (Config, error) {
 	cfg := Config{
-		Addr:                         valueOrDefault(lookup, "GO_API_ADDR", defaultAddr),
-		FastAPIOrigin:                valueOrDefault(lookup, "FASTAPI_ORIGIN", defaultFastAPIOrigin),
-		TrustedProxySecret:           valueOrDefault(lookup, "GO_API_TRUSTED_PROXY_SECRET", ""),
-		RedisURL:                     firstNonEmpty(lookup, "REDIS_URL"),
-		RedisKeyPrefix:               valueOrDefault(lookup, "REDIS_KEY_PREFIX", "bb"),
-		AppEnv:                       valueOrDefault(lookup, "APP_ENV", "development"),
-		OwnedModules:                 parseOwnedModules(valueOrDefault(lookup, "GO_API_OWNED", "")),
+		Addr:               valueOrDefault(lookup, "GO_API_ADDR", defaultAddr),
+		FastAPIOrigin:      valueOrDefault(lookup, "FASTAPI_ORIGIN", defaultFastAPIOrigin),
+		TrustedProxySecret: valueOrDefault(lookup, "GO_API_TRUSTED_PROXY_SECRET", ""),
+		RedisURL:           firstNonEmpty(lookup, "REDIS_URL"),
+		RedisKeyPrefix:     valueOrDefault(lookup, "REDIS_KEY_PREFIX", "bb"),
+		AppEnv:             valueOrDefault(lookup, "APP_ENV", "development"),
+		// Default to serving every route the Go gateway implements. Unmatched
+		// paths still proxy to FastAPI through the catch-all handler, so this
+		// yields "Go first, FastAPI for what is left" without any opt-in; an
+		// explicit list narrows it back to a staged cutover.
+		OwnedModules:                 parseOwnedModules(valueOrDefault(lookup, "GO_API_OWNED", "all")),
 		UploadRoot:                   valueOrDefault(lookup, "UPLOAD_ROOT", defaultUploadRoot),
 		MonthlyReportResultRoot:      valueOrDefault(lookup, "MONTHLY_REPORT_RESULT_ROOT", defaultMonthlyReportResultRoot),
 		AgentMonthlyReportRoot:       valueOrDefault(lookup, "AGENT_MONTHLY_REPORT_ROOT", defaultAgentMonthlyReportRoot),

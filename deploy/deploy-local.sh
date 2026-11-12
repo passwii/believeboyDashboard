@@ -30,11 +30,12 @@ DOMAIN="${DOMAIN:-https://dash.believeboy.com}"
 WEB_IMAGE_NAME="${WEB_IMAGE_NAME:-ghcr.io/passwii/believeboydashboard-web}"
 API_IMAGE_NAME="${API_IMAGE_NAME:-ghcr.io/passwii/believeboydashboard-api}"
 GO_API_IMAGE_NAME="${GO_API_IMAGE_NAME:-ghcr.io/passwii/believeboydashboard-go-api}"
-# Production cutover is opt-in per deployment. Leave empty (default) so Web
-# talks to FastAPI directly until the Go gateway ownership list is explicitly
-# enabled for a verified release.
-GO_API_OWNED_MODULES="${GO_API_OWNED_MODULES:-}"
-GO_API_INTERNAL_URL="${GO_API_INTERNAL_URL:-http://127.0.0.1:8100}"
+# The Go gateway now implements every OpenAPI operation, so the default is a
+# full cutover: Web talks to 8200 and the gateway owns all modules. Unmatched
+# paths still proxy to FastAPI and are logged. Set GO_API_OWNED_MODULES to a
+# short list (or GO_API_INTERNAL_URL=8100) to fall back to a staged rollout.
+GO_API_OWNED_MODULES="${GO_API_OWNED_MODULES:-all}"
+GO_API_INTERNAL_URL="${GO_API_INTERNAL_URL:-http://127.0.0.1:8200}"
 DEPLOY_FREE_SPACE_MIN_BYTES="${DEPLOY_FREE_SPACE_MIN_BYTES:-1073741824}"
 DEPLOY_FREE_SPACE_POST_PULL_MIN_BYTES="${DEPLOY_FREE_SPACE_POST_PULL_MIN_BYTES:-536870912}"
 DEPLOY_FREE_SPACE_PERCENT="${DEPLOY_FREE_SPACE_PERCENT:-0}"

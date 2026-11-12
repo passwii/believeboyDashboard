@@ -110,7 +110,7 @@ func TestLoadRejectsInvalidInsightFallbackRatio(t *testing.T) {
 	}
 }
 
-func TestLoadDefaultsOwnedModulesToEmpty(t *testing.T) {
+func TestLoadDefaultsOwnedModulesToAll(t *testing.T) {
 	unsetEnv(t, "GO_API_OWNED")
 	setRequiredEnv(t)
 
@@ -118,8 +118,13 @@ func TestLoadDefaultsOwnedModulesToEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
-	if len(got.OwnedModules) != 0 {
-		t.Errorf("OwnedModules = %#v, want empty map", got.OwnedModules)
+	if len(got.OwnedModules) != len(AllModules) {
+		t.Fatalf("OwnedModules = %d, want %d (default is all modules)", len(got.OwnedModules), len(AllModules))
+	}
+	for _, module := range AllModules {
+		if !got.OwnedModules[module] {
+			t.Errorf("OwnedModules[%q] = false, want true", module)
+		}
 	}
 }
 

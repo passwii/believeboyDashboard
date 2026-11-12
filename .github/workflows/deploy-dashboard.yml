@@ -37,14 +37,14 @@ on:
         type: string
         required: false
       go_api_owned:
-        description: Comma-separated Go module allowlist the gateway owns in production (empty = FastAPI-only)
+        description: Comma-separated Go module allowlist the gateway owns in production (all = every Go route, the default)
         type: string
-        default: ''
+        default: 'all'
         required: false
       go_api_internal_url:
-        description: Backend URL injected into Web (8100 = FastAPI only, 8200 = through Go gateway)
+        description: Backend URL injected into Web (8200 = Go gateway, 8100 = FastAPI directly)
         type: string
-        default: 'http://127.0.0.1:8100'
+        default: 'http://127.0.0.1:8200'
         required: false
 
 concurrency:

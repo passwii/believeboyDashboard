@@ -25,11 +25,11 @@ func NewRouter(cfg config.Config, logger *slog.Logger, stores OwnedStores) (chi.
 	registerOwnedRoutes(router, cfg, stores)
 	trustedProxyOnly := auth.RequireTrustedProxyForMasterKey(cfg.APIKey, cfg.TrustedProxySecret)
 	var proxyHandler http.Handler = proxy
-	if len(cfg.OwnedModules) > 0 {
-		// Only log fallbacks while a cutover is active: with GO_API_OWNED empty
-		// every request goes to FastAPI by design and the log would be noise.
-		proxyHandler = logFallbackToFastAPI(logger, proxyHandler)
-	}
+	// FastAPI is now only reached for routes the Go gateway does not implement,
+	// so every fallback is a migration gap worth logging. A fully-owned router
+	// never reaches the catch-all; a partial GO_API_OWNED list still logs each
+	// proxy hit.
+	proxyHandler = logFallbackToFastAPI(logger, proxyHandler)
 	router.Handle("/*", trustedProxyOnly(proxyHandler))
 
 	return router, nil
