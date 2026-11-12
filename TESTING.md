@@ -177,18 +177,19 @@ Playwright E2E (Layer 2):
 `backend-go/` 与 `desktop/` 由 `.github/workflows/test-ci.yml` 独立跑
 `go test ./...` + `go vet ./...`；`backend-go` 额外跑 `go test -race ./...`。
 
-FastAPI ↔ Go 的 14 条 Week 1 GET 语义对账在专用 CI job 中启动 FastAPI、
-Postgres、Redis，并强制设置 `LIVE_CONTRACT_REQUIRED=1`。缺环境、服务不可用、
+Week 1 的 14 条 GET 语义对账以**已录制的 FastAPI golden** 为基准
+（`backend-go/tests/contract/testdata/week1_live_golden.json`），CI 只起 Postgres
+与 Redis、强制 `LIVE_CONTRACT_REQUIRED=1`，**不再启动 FastAPI**。缺环境、服务不可用、
 fixture 缺失、status 或 JSON 任一差异都会失败。
 
-本地一键复现（只写 `BLF_test`，不会碰 `BLF`）：
+本地一键复现（只写 `BLF_test`，不会碰 `BLF`，不需要 Python）：
 
 ```bash
 cd backend-go
-BELIEVEBOY_PYTHON=../backend/.venv/bin/python \
-BELIEVEBOY_ENV_FILE=../backend/.env.test \
-./scripts/run-live-contract.sh
+BELIEVEBOY_ENV_FILE=../backend/.env.test ./scripts/run-live-contract.sh
 ```
+
+需要重新录制 golden（仅在 FastAPI 行为有意变更时）才需要 Python，步骤见该 README。
 
 覆盖清单、归一化规则、已知差异和失败排查见
 [`backend-go/tests/contract/README.md`](backend-go/tests/contract/README.md)。

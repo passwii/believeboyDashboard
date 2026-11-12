@@ -1,19 +1,53 @@
-# FastAPI <-> Go live contract
+# FastAPI golden ↔ Go live contract
 
-`live_contract_test.go` starts the Go gateway in-process against a running
-FastAPI instance and the same disposable Postgres database. Every case checks
-both the HTTP status and the parsed JSON response. The suite covers all 14
-Week 1 GET routes and adds a non-admin global `/alerts/stats` regression case.
+`live_contract_test.go` starts the Go gateway in-process against a disposable
+Postgres database and asserts it against **a recording of the real FastAPI
+responses** (`testdata/week1_live_golden.json`). Every case checks both the
+HTTP status and the parsed JSON response. The suite covers all 14 Week 1 GET
+routes and adds a non-admin global `/alerts/stats` regression case.
+
+The recording replaces the old "start FastAPI and diff the two services"
+setup: after the migration the CI gate must not depend on a Python runtime.
+The golden file is produced by `backend-go/cmd/livegolden`.
 
 CI is a hard gate:
 
 - `backend-go/**` changes run `go test ./...`, `go vet ./...`, and
   `go test -race ./...`.
-- `backend/**` or `backend-go/**` changes run the live contract job with
-  Postgres and Redis services.
+- `backend/**` or `backend-go/**` changes run the live-contract job with
+  Postgres and Redis services (no Python steps).
 - Missing environment, an unavailable service, a missing fixture, or any
   status/JSON difference fails the dedicated job. Outside that job the test
-  skips only when the live environment is entirely absent.
+  skips only when the environment is entirely absent.
+
+## Re-recording the golden file
+
+Only do this when the FastAPI behaviour intentionally changes, and review the
+diff: it is the reference the Go side is held to.
+
+```bash
+# 1. seed the deterministic fixtures into a disposable DB
+cd backend-go
+go run ./cmd/migrate up
+go run ./cmd/seedtestreference
+go run ./cmd/seedtestaccounts
+go run ./cmd/seedlivecontract --database-url "$GO_API_TEST_DATABASE_URL"
+
+# 2. start FastAPI against the same DB (last Python step; not needed in CI)
+cd ../backend && .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 18100
+
+# 3. record
+cd ../backend-go
+go run ./cmd/livegolden \
+  --fastapi http://127.0.0.1:18100 \
+  --database-url "$GO_API_TEST_DATABASE_URL" \
+  --api-key "$LIVE_CONTRACT_API_KEY" \
+  --out tests/contract/testdata/week1_live_golden.json
+```
+
+Database identifiers are replaced with `__PROJECT_ID__`-style placeholders, so
+the recording survives a re-seeded database. Handlers that echo ids resolve the
+placeholders back at test time.
 
 ## Covered routes
 
@@ -38,36 +72,20 @@ CI is a hard gate:
 `backend-go/cmd/seedlivecontract` creates these deterministic rows.
 It refuses any database whose name is not `BLF_test` or `BLF_ci`.
 
-## Local reproduction
-
-The local runner reads a test environment file, seeds the fixtures, starts
-FastAPI on `127.0.0.1:18100`, runs the contract, and always stops FastAPI.
-It validates one disposable database URL, exports it as both
-`DATABASE_URL` and `TEST_DATABASE_URL`, and passes it to the fixture seeder
-with `--database-url`. A custom `BELIEVEBOY_ENV_FILE` is authoritative;
-`backend/.env.test` cannot redirect the fixture to a different database.
+## Running the contract locally
 
 ```bash
 cd backend-go
-BELIEVEBOY_PYTHON=../backend/.venv/bin/python \
-BELIEVEBOY_ENV_FILE=../backend/.env.test \
-./scripts/run-live-contract.sh
-```
-
-To run only the Go side later, set the complete environment:
-
-```bash
-cd backend-go
-FASTAPI_ORIGIN=http://127.0.0.1:18100 \
 GO_API_TEST_DATABASE_URL="$TEST_DATABASE_URL" \
 LIVE_CONTRACT_API_KEY="$API_KEY" \
 LIVE_CONTRACT_REQUIRED=1 \
-go test ./tests/contract -run TestWeek1LiveContractFastAPIAgainstGo -count=1 -v
+REDIS_URL=redis://localhost:6379/0 \
+go test ./tests/contract -run TestWeek1LiveContractAgainstGolden -count=1 -v
 ```
 
-`go test ./...` skips the live test when all three required variables are
-absent. Partial configuration or `LIVE_CONTRACT_REQUIRED=1` turns that skip
-into a failure.
+`go test ./...` skips the live test when the required variables are absent.
+Partial configuration or `LIVE_CONTRACT_REQUIRED=1` turns that skip into a
+failure.
 
 ## Semantic normalization
 
@@ -77,6 +95,7 @@ Only inherently run-specific values are normalized:
 - health `timestamp` values are compared as present, not equal instants;
 - successful Redis latency (`ok (1.2ms)`) is compared as `ok`;
 - `redis_memory` is compared for presence/nullability, not byte drift;
+- `version` reflects `APP_ENV` and is not a contract property;
 - JSON numbers allow `max(1e-9, 1e-9 * value)` tolerance;
 - parseable ISO-8601 strings allow a one-second clock skew.
 
@@ -92,18 +111,3 @@ non-runtime values remain strict.
 Any new expected difference must be added here with an issue reference and an
 explicit comparison rule. Do not add a blanket skip or key filter: a new field
 or status difference must turn CI red.
-
-## Failure triage
-
-1. `FastAPI unavailable` / `test database unavailable`: inspect the
-   `live-contract` job services and the FastAPI log printed on failure.
-2. `live contract requires ...`: restore `FASTAPI_ORIGIN`,
-   `GO_API_TEST_DATABASE_URL`, and `LIVE_CONTRACT_API_KEY`.
-3. `load live ... fixture`: rerun `go run ./cmd/seedlivecontract --database-url ...`; the test admin
-   must already exist via `go run ./cmd/seedtestaccounts`.
-4. `DATABASE_URL and TEST_DATABASE_URL ... different databases`: keep only one
-   URL in the custom env file, or make both entries identical.
-5. `status mismatch` or `JSON ... mismatch`: compare the two response bodies in
-   the failure output, then update FastAPI/Go behavior. Do not weaken the
-   assertion unless the difference is genuinely runtime-only and documented
-   above.

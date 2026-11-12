@@ -1,0 +1,95 @@
+{
+  "source": "fastapi http://127.0.0.1:18100 captured 2026-11-12T06:50:23Z",
+  "cases": [
+    {
+      "name": "health",
+      "route": "/api/v1/health",
+      "status": 200,
+      "body": "{\"database\":\"ok\",\"database_replica\":\"not configured\",\"redis\":\"ok (1.8ms)\",\"redis_memory\":\"1.65M\",\"status\":\"ok\",\"timestamp\":1794466223.509043,\"version\":\"test\"}"
+    },
+    {
+      "name": "health live",
+      "route": "/api/v1/health/live",
+      "status": 200,
+      "body": "{\"status\":\"ok\",\"timestamp\":1794466223.516302}"
+    },
+    {
+      "name": "health ready",
+      "route": "/api/v1/health/ready",
+      "status": 200,
+      "body": "{\"status\":\"ok\",\"timestamp\":1794466223.519816}"
+    },
+    {
+      "name": "exchange rates list",
+      "route": "/api/v1/exchange-rates",
+      "status": 200,
+      "body": "{\"items\":[{\"created_at\":\"2026-10-01T09:02:03.456000+08:00\",\"currency\":\"LVC\",\"currency_name\":\"Live Contract Currency\",\"description\":\"live contract exchange rate\",\"id\":\"__EXCHANGE_RATE_ID__\",\"note_images\":[],\"rate\":7.12345678,\"updated_at\":\"2026-10-01T09:02:03.456000+08:00\",\"year_month\":\"2026-10\"}],\"page\":1,\"page_size\":50,\"total\":1}"
+    },
+    {
+      "name": "exchange rate resolve",
+      "route": "/api/v1/exchange-rates/resolve",
+      "status": 200,
+      "body": "{\"currency\":\"LVC\",\"description\":\"live contract exchange rate\",\"note_images\":[],\"rate\":7.12345678,\"source\":\"exact\",\"year_month\":\"2026-10\"}"
+    },
+    {
+      "name": "exchange rate options",
+      "route": "/api/v1/exchange-rates/options",
+      "status": 200,
+      "body": "{\"currencies\":[{\"label\":\"LVC - Live Contract Currency\",\"value\":\"LVC\"}],\"months\":[{\"label\":\"1月\",\"value\":1},{\"label\":\"2月\",\"value\":2},{\"label\":\"3月\",\"value\":3},{\"label\":\"4月\",\"value\":4},{\"label\":\"5月\",\"value\":5},{\"label\":\"6月\",\"value\":6},{\"label\":\"7月\",\"value\":7},{\"label\":\"8月\",\"value\":8},{\"label\":\"9月\",\"value\":9},{\"label\":\"10月\",\"value\":10},{\"label\":\"11月\",\"value\":11},{\"label\":\"12月\",\"value\":12}],\"years\":[{\"label\":\"2026年\",\"value\":2026}]}"
+    },
+    {
+      "name": "exchange rate detail",
+      "route": "/api/v1/exchange-rates/{exchange_rate_id}",
+      "status": 200,
+      "body": "{\"created_at\":\"2026-10-01T09:02:03.456000+08:00\",\"currency\":\"LVC\",\"currency_name\":\"Live Contract Currency\",\"description\":\"live contract exchange rate\",\"id\":\"__EXCHANGE_RATE_ID__\",\"note_images\":[],\"rate\":7.12345678,\"updated_at\":\"2026-10-01T09:02:03.456000+08:00\",\"year_month\":\"2026-10\"}"
+    },
+    {
+      "name": "notifications list",
+      "route": "/api/v1/notifications",
+      "status": 200,
+      "body": "{\"items\":[{\"created_at\":\"2026-10-01T10:03:04.123000+08:00\",\"data\":{\"project_id\":\"__PROJECT_ID__\"},\"id\":\"__NOTIFICATION_ID__\",\"message\":\"live contract notification\",\"read\":false,\"read_at\":null,\"title\":\"__live_contract_notification__\",\"type\":\"alert\",\"user_id\":\"__NOTIFICATION_USER_ID__\"}],\"page\":1,\"page_size\":100,\"total\":1}"
+    },
+    {
+      "name": "notifications unread count",
+      "route": "/api/v1/notifications/unread-count",
+      "status": 200,
+      "body": "{\"count\":1}"
+    },
+    {
+      "name": "alert metrics",
+      "route": "/api/v1/alerts/metrics",
+      "status": 200,
+      "body": "{\"metrics\":[{\"description\":\"每日销售总额\",\"label\":\"销售额\",\"value\":\"sales_amount\"},{\"description\":\"每日订单总数\",\"label\":\"订单量\",\"value\":\"order_qty\"},{\"description\":\"每日广告总支出\",\"label\":\"广告花费\",\"value\":\"ad_spend\"},{\"description\":\"广告销售成本比\",\"label\":\"ACOS\",\"value\":\"acos\"},{\"description\":\"退货占总订单比例\",\"label\":\"退货率\",\"value\":\"return_rate\"},{\"description\":\"库存缺货风险等级\",\"label\":\"库存风险\",\"value\":\"inventory_risk\"},{\"description\":\"PDF与数据库数据匹配率低于阈值\",\"label\":\"报表核对异常\",\"value\":\"reconciliation_mismatch\"}]}"
+    },
+    {
+      "name": "alert rules",
+      "route": "/api/v1/alerts/rules",
+      "status": 200,
+      "body": "[{\"condition\":\"above\",\"country\":\"US\",\"created_at\":\"2026-10-01T10:03:04.123000+08:00\",\"created_by\":\"live-contract-operator\",\"id\":\"__ALERT_RULE_ID__\",\"is_active\":true,\"metric\":\"acos\",\"name\":\"__live_contract_rule__\",\"notification_channels\":\"in_app\",\"project_id\":\"__PROJECT_ID__\",\"severity\":\"warning\",\"threshold\":0.25,\"trigger_type\":\"threshold\",\"updated_at\":\"2026-10-01T10:03:04.123000+08:00\",\"window_days\":7}]"
+    },
+    {
+      "name": "alert events",
+      "route": "/api/v1/alerts/events",
+      "status": 200,
+      "body": "{\"items\":[{\"acknowledged_at\":null,\"acknowledged_by\":null,\"baseline_value\":0.2,\"current_value\":0.3,\"deviation_pct\":50.0,\"id\":\"__ALERT_EVENT_ID__\",\"match_rate\":null,\"message\":\"[live-contract] fixture event\",\"metric\":\"acos\",\"mismatched_items\":null,\"project_id\":\"__PROJECT_ID__\",\"report_id\":null,\"report_month\":null,\"rule_id\":\"__ALERT_RULE_ID__\",\"severity\":\"warning\",\"status\":\"active\",\"total_diff\":null,\"triggered_at\":\"2026-10-01T10:03:04.123000+08:00\"}],\"page\":1,\"page_size\":100,\"total\":1}"
+    },
+    {
+      "name": "alert stats with project",
+      "route": "/api/v1/alerts/stats",
+      "status": 200,
+      "body": "{\"acknowledged_today\":0,\"critical_count\":0,\"info_count\":0,\"resolved_today\":0,\"total_active\":1,\"warning_count\":1}"
+    },
+    {
+      "name": "alert stats global non-admin",
+      "route": "/api/v1/alerts/stats",
+      "status": 200,
+      "body": "{\"acknowledged_today\":0,\"critical_count\":0,\"info_count\":0,\"resolved_today\":0,\"total_active\":1,\"warning_count\":1}"
+    },
+    {
+      "name": "profile",
+      "route": "/api/v1/system-management/profile",
+      "status": 200,
+      "body": "{\"avatar_url\":null,\"created_at\":\"2026-10-21T12:47:33.663049+08:00\",\"email\":\"test_admin@believeboy.com\",\"full_name\":\"测试管理员\",\"id\":\"__PROFILE_USER_ID__\",\"is_active\":true,\"is_admin\":true,\"name\":\"测试管理员\",\"password_changed_at\":\"2026-10-21T12:47:33.663049+08:00\",\"role_type\":\"admin\",\"updated_at\":\"2026-11-11T23:38:41.415450+08:00\"}"
+    }
+  ]
+}
