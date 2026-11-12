@@ -1,3 +1,10 @@
+// Command seedlivecontract creates the deterministic fixtures the Week 1 live
+// contract asserts on.
+//
+// Every fixture uses a fixed primary key from a private id range instead of a
+// sequence value. The golden recording replaces ids with placeholders, so two
+// fixtures sharing a number would make that mapping ambiguous — on a fresh CI
+// database every sequence starts at 1, which is exactly what happened.
 package main
 
 import (
@@ -20,6 +27,14 @@ const (
 	liveExchangeCurrency  = "LVC"
 	liveExchangeYearMonth = "2026-10"
 	liveProfileEmail      = "test_admin@believeboy.com"
+
+	// Fixture ids live in a reserved range so they never collide with each other
+	// or with sequence-generated rows.
+	liveProjectID      = int64(910001)
+	liveAlertRuleID    = int64(910002)
+	liveAlertEventID   = int64(910003)
+	liveNotificationID = int64(910004)
+	liveExchangeRateID = int64(910005)
 )
 
 func main() {
@@ -55,8 +70,10 @@ func main() {
 		fmt.Fprintln(os.Stderr, "seed_live_contract_data failed:", err)
 		os.Exit(1)
 	}
-	fmt.Printf("Live contract fixture ready: project=%s, user_id=%d, exchange=%s/%s, profile=%s\n",
-		liveProjectName, liveNotificationUser, liveExchangeCurrency, liveExchangeYearMonth, liveProfileEmail)
+	fmt.Printf(
+		"Live contract fixture ready: project=%s, user_id=%d, exchange=%s/%s, profile=%s\n",
+		liveProjectName, liveNotificationUser, liveExchangeCurrency, liveExchangeYearMonth, liveProfileEmail,
+	)
 }
 
 func validateDatabaseName(url string) error {
@@ -79,74 +96,74 @@ func seed(ctx context.Context, db store.FullDB) error {
 	if err := db.QueryRow(ctx,
 		"select id::text from public.user_accounts where lower(email) = lower($1) limit 1",
 		liveProfileEmail).Scan(&profileID); err != nil {
-		return fmt.Errorf("test admin account is missing; run seed_test_accounts first: %w", err)
+		return fmt.Errorf("test admin account is missing; run seedtestaccounts first: %w", err)
 	}
 
-	var projectID int64
-	err := db.QueryRow(ctx,
-		"select id from public.projects where project_name = $1 limit 1", liveProjectName).Scan(&projectID)
-	if err != nil {
-		projectID, err = insertReturningID(ctx, db,
-			"insert into public.projects (project_name, project_operator, sort_order, is_active, country) "+
-				"values ($1, 'live-contract-operator', 0, true, 'US') returning id", liveProjectName)
-		if err != nil {
-			return err
-		}
-	} else {
-		if _, err := db.Exec(ctx,
-			"update public.projects set project_operator = 'live-contract-operator', sort_order = 0, is_active = true, country = 'US', updated_at = now() where id = $1",
-			projectID); err != nil {
-			return err
-		}
-	}
-
-	if _, err := db.Exec(ctx, "delete from public.alert_events where message = '[live-contract] fixture event'"); err != nil {
-		return err
-	}
-	if _, err := db.Exec(ctx, "delete from public.alert_rules where name = $1", liveRuleName); err != nil {
-		return err
-	}
-	ruleID, err := insertReturningID(ctx, db,
-		"insert into public.alert_rules (name, project_id, country, metric, trigger_type, condition, threshold, window_days, severity, notification_channels, is_active, created_by, created_at, updated_at) "+
-			"values ($1, $2, 'US', 'acos', 'threshold', 'above', 0.25, 7, 'warning', 'in_app', true, 'live-contract-operator', '2026-10-01T02:03:04.123+00:00', '2026-10-01T02:03:04.123+00:00') returning id",
-		liveRuleName, projectID)
-	if err != nil {
+	// A row seeded by an earlier run may hold the same project name under a
+	// different id; clear it so the fixed id wins.
+	if _, err := db.Exec(ctx, "delete from public.projects where project_name = $1 and id <> $2", liveProjectName, liveProjectID); err != nil {
 		return err
 	}
 	if _, err := db.Exec(ctx,
-		"insert into public.alert_events (rule_id, project_id, metric, current_value, baseline_value, deviation_pct, severity, message, status, triggered_at) "+
-			"values ($1, $2, 'acos', 0.3, 0.2, 50, 'warning', '[live-contract] fixture event', 'active', '2026-10-01T02:03:04.123+00:00')",
-		ruleID, projectID); err != nil {
+		// projects.id is GENERATED ALWAYS AS IDENTITY, so an explicit id needs
+		// OVERRIDING SYSTEM VALUE.
+		"insert into public.projects (id, project_name, project_operator, sort_order, is_active, country) "+
+			"overriding system value "+
+			"values ($1, $2, 'live-contract-operator', 0, true, 'US') "+
+			"on conflict (id) do update set project_name = excluded.project_name, "+
+			"project_operator = excluded.project_operator, sort_order = 0, is_active = true, "+
+			"country = 'US', updated_at = now()",
+		liveProjectID, liveProjectName); err != nil {
 		return err
 	}
 
-	if _, err := db.Exec(ctx, "delete from public.notifications where title = $1", liveNotificationTitle); err != nil {
+	if _, err := db.Exec(ctx, "delete from public.alert_events where id = $1 or message = '[live-contract] fixture event'", liveAlertEventID); err != nil {
 		return err
 	}
-	payload, _ := json.Marshal(map[string]any{"project_id": projectID})
+	if _, err := db.Exec(ctx, "delete from public.alert_rules where id = $1 or name = $2", liveAlertRuleID, liveRuleName); err != nil {
+		return err
+	}
 	if _, err := db.Exec(ctx,
-		"insert into public.notifications (user_id, type, title, message, data, read, created_at) "+
-			"values ($1, 'alert', $2, 'live contract notification', $3::json, false, '2026-10-01T02:03:04.123+00:00')",
-		liveNotificationUser, liveNotificationTitle, string(payload)); err != nil {
+		"insert into public.alert_rules (id, name, project_id, country, metric, trigger_type, condition, threshold, "+
+			"window_days, severity, notification_channels, is_active, created_by, created_at, updated_at) "+
+			"values ($1, $2, $3, 'US', 'acos', 'threshold', 'above', 0.25, 7, 'warning', 'in_app', true, "+
+			"'live-contract-operator', '2026-10-01T02:03:04.123+00:00', '2026-10-01T02:03:04.123+00:00')",
+		liveAlertRuleID, liveRuleName, liveProjectID); err != nil {
+		return err
+	}
+	if _, err := db.Exec(ctx,
+		"insert into public.alert_events (id, rule_id, project_id, metric, current_value, baseline_value, deviation_pct, "+
+			"severity, message, status, triggered_at) "+
+			"values ($1, $2, $3, 'acos', 0.3, 0.2, 50, 'warning', '[live-contract] fixture event', 'active', "+
+			"'2026-10-01T02:03:04.123+00:00')",
+		liveAlertEventID, liveAlertRuleID, liveProjectID); err != nil {
 		return err
 	}
 
-	if _, err := db.Exec(ctx, "delete from public.exchange_rates where currency = $1 and year_month = $2", liveExchangeCurrency, liveExchangeYearMonth); err != nil {
+	if _, err := db.Exec(ctx, "delete from public.notifications where id = $1 or title = $2", liveNotificationID, liveNotificationTitle); err != nil {
+		return err
+	}
+	payload, _ := json.Marshal(map[string]any{"project_id": liveProjectID})
+	if _, err := db.Exec(ctx,
+		"insert into public.notifications (id, user_id, type, title, message, data, read, created_at) "+
+			"values ($1, $2, 'alert', $3, 'live contract notification', $4::json, false, '2026-10-01T02:03:04.123+00:00')",
+		liveNotificationID, liveNotificationUser, liveNotificationTitle, string(payload)); err != nil {
+		return err
+	}
+
+	// Delete every row for the fixture currency, not just the expected month: a
+	// leftover row from an earlier run would show up in the list endpoint and
+	// silently change the recorded response.
+	if _, err := db.Exec(ctx, "delete from public.exchange_rates where currency = $1 or id = $2", liveExchangeCurrency, liveExchangeRateID); err != nil {
 		return err
 	}
 	if _, err := db.Exec(ctx,
-		"insert into public.exchange_rates (currency, currency_name, year_month, rate, description, note_images, created_at, updated_at) "+
-			"values ($1, 'Live Contract Currency', $2, 7.12345678, 'live contract exchange rate', '[]'::json, '2026-10-01T01:02:03.456+00:00', '2026-10-01T01:02:03.456+00:00')",
-		liveExchangeCurrency, liveExchangeYearMonth); err != nil {
+		"insert into public.exchange_rates (id, currency, currency_name, year_month, rate, description, note_images, "+
+			"created_at, updated_at) "+
+			"values ($1, $2, 'Live Contract Currency', $3, 7.12345678, 'live contract exchange rate', '[]'::json, "+
+			"'2026-10-01T01:02:03.456+00:00', '2026-10-01T01:02:03.456+00:00')",
+		liveExchangeRateID, liveExchangeCurrency, liveExchangeYearMonth); err != nil {
 		return err
 	}
 	return nil
-}
-
-func insertReturningID(ctx context.Context, db store.FullDB, query string, args ...any) (int64, error) {
-	var id int64
-	if err := db.QueryRow(ctx, query, args...).Scan(&id); err != nil {
-		return 0, err
-	}
-	return id, nil
 }

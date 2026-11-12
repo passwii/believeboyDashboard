@@ -9,9 +9,8 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
-	"sort"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -21,34 +20,24 @@ import (
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/health"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/config"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/httpserver"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/livecontract"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/store"
 )
 
 const liveTrustedProxySecret = "live-contract-proxy-secret"
 
-const (
-	liveProjectName       = "__live_contract_project__"
-	liveNotificationTitle = "__live_contract_notification__"
-	liveExchangeCurrency  = "LVC"
-	liveExchangeYearMonth = "2026-10"
-	liveProfileEmail      = "test_admin@believeboy.com"
-)
+// goldenPath is the FastAPI recording produced by cmd/livegolden. The contract
+// asserts the Go gateway against that recording instead of a live FastAPI
+// process, so CI no longer needs a Python runtime to prove parity.
+const goldenPath = "testdata/week1_live_golden.json"
 
 type liveContractConfig struct {
-	fastAPIOrigin string
-	databaseURL   string
-	apiKey        string
-	redisURL      string
+	databaseURL string
+	apiKey      string
+	redisURL    string
 }
 
-type liveFixture struct {
-	notificationUserID string
-	projectID          string
-	exchangeRateID     string
-	profileUserID      string
-}
-
-func TestWeek1LiveContractFastAPIAgainstGo(t *testing.T) {
+func TestWeek1LiveContractAgainstGolden(t *testing.T) {
 	cfg := liveConfig(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -62,217 +51,112 @@ func TestWeek1LiveContractFastAPIAgainstGo(t *testing.T) {
 		t.Fatalf("test database unavailable: %v", err)
 	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	healthRequest, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodGet,
-		cfg.fastAPIOrigin+"/api/v1/health/live",
-		nil,
-	)
-	if err != nil {
-		t.Fatalf("build FastAPI health request: %v", err)
-	}
-	healthResponse, err := client.Do(healthRequest)
-	if err != nil {
-		t.Fatalf("FastAPI unavailable at %s: %v", cfg.fastAPIOrigin, err)
-	}
-	_ = healthResponse.Body.Close()
-	if healthResponse.StatusCode != http.StatusOK {
-		t.Fatalf("FastAPI health status = %d, want 200", healthResponse.StatusCode)
+	golden := loadGolden(t)
+	goServer := newLiveGoServer(t, cfg, pool)
+	fixtures := loadLiveFixture(t, ctx, pool)
+	cases := livecontract.BuildCases(fixtures)
+	if len(cases) != len(golden.Cases) {
+		t.Fatalf("case count mismatch: code=%d golden=%d (re-record with cmd/livegolden)", len(cases), len(golden.Cases))
 	}
 
-	goServer := newLiveGoServer(t, cfg, pool)
-	fixture := loadLiveFixture(t, ctx, pool)
+	client := &http.Client{Timeout: 10 * time.Second}
 	baseHeaders := map[string]string{
 		"X-API-Key":              cfg.apiKey,
 		"X-Trusted-Proxy-Secret": liveTrustedProxySecret,
 	}
-	notificationHeaders := cloneHeaders(baseHeaders)
-	notificationHeaders["X-User-Id"] = fixture.notificationUserID
-	alertAdminHeaders := cloneHeaders(baseHeaders)
-	alertAdminHeaders["X-Is-Admin"] = "true"
-	alertOperatorHeaders := cloneHeaders(baseHeaders)
-	alertOperatorHeaders["X-Operator"] = "live-contract-operator"
-	alertOperatorHeaders["X-Is-Admin"] = "false"
-	profileHeaders := cloneHeaders(baseHeaders)
-	profileHeaders["X-User-Id"] = fixture.profileUserID
-
-	alertProjectFilters := url.Values{
-		"project_id": []string{fixture.projectID},
-		"metric":     []string{"acos"},
-		"is_active":  []string{"true"},
-	}
-	alertEventFilters := url.Values{
-		"project_id": []string{fixture.projectID},
-		"severity":   []string{"warning"},
-		"status":     []string{"active"},
-		"page":       []string{"1"},
-		"page_size":  []string{"100"},
-	}
-
-	cases := []struct {
-		name    string
-		route   string
-		path    string
-		headers map[string]string
-	}{
-		{
-			name:    "health",
-			route:   "/api/v1/health",
-			path:    "/api/v1/health",
-			headers: baseHeaders,
-		},
-		{
-			name:    "health live",
-			route:   "/api/v1/health/live",
-			path:    "/api/v1/health/live",
-			headers: baseHeaders,
-		},
-		{
-			name:    "health ready",
-			route:   "/api/v1/health/ready",
-			path:    "/api/v1/health/ready",
-			headers: baseHeaders,
-		},
-		{
-			name:  "exchange rates list",
-			route: "/api/v1/exchange-rates",
-			path: "/api/v1/exchange-rates?" + url.Values{
-				"currency":   []string{liveExchangeCurrency},
-				"year_month": []string{liveExchangeYearMonth},
-				"page":       []string{"1"},
-				"page_size":  []string{"50"},
-			}.Encode(),
-			headers: baseHeaders,
-		},
-		{
-			name:  "exchange rate resolve",
-			route: "/api/v1/exchange-rates/resolve",
-			path: "/api/v1/exchange-rates/resolve?" + url.Values{
-				"currency":   []string{liveExchangeCurrency},
-				"year_month": []string{liveExchangeYearMonth},
-			}.Encode(),
-			headers: baseHeaders,
-		},
-		{
-			name:    "exchange rate options",
-			route:   "/api/v1/exchange-rates/options",
-			path:    "/api/v1/exchange-rates/options",
-			headers: baseHeaders,
-		},
-		{
-			name:    "exchange rate detail",
-			route:   "/api/v1/exchange-rates/{exchange_rate_id}",
-			path:    "/api/v1/exchange-rates/" + fixture.exchangeRateID,
-			headers: baseHeaders,
-		},
-		{
-			name:  "notifications list",
-			route: "/api/v1/notifications",
-			path: "/api/v1/notifications?" + url.Values{
-				"type":      []string{"alert"},
-				"read":      []string{"false"},
-				"page":      []string{"1"},
-				"page_size": []string{"100"},
-			}.Encode(),
-			headers: notificationHeaders,
-		},
-		{
-			name:    "notifications unread count",
-			route:   "/api/v1/notifications/unread-count",
-			path:    "/api/v1/notifications/unread-count",
-			headers: notificationHeaders,
-		},
-		{
-			name:    "alert metrics",
-			route:   "/api/v1/alerts/metrics",
-			path:    "/api/v1/alerts/metrics",
-			headers: baseHeaders,
-		},
-		{
-			name:    "alert rules",
-			route:   "/api/v1/alerts/rules",
-			path:    "/api/v1/alerts/rules?" + alertProjectFilters.Encode(),
-			headers: alertAdminHeaders,
-		},
-		{
-			name:    "alert events",
-			route:   "/api/v1/alerts/events",
-			path:    "/api/v1/alerts/events?" + alertEventFilters.Encode(),
-			headers: alertAdminHeaders,
-		},
-		{
-			name:  "alert stats with project",
-			route: "/api/v1/alerts/stats",
-			path: "/api/v1/alerts/stats?" + url.Values{
-				"project_id": []string{fixture.projectID},
-			}.Encode(),
-			headers: alertAdminHeaders,
-		},
-		{
-			name:    "alert stats global non-admin",
-			route:   "/api/v1/alerts/stats",
-			path:    "/api/v1/alerts/stats",
-			headers: alertOperatorHeaders,
-		},
-		{
-			name:    "profile",
-			route:   "/api/v1/system-management/profile",
-			path:    "/api/v1/system-management/profile",
-			headers: profileHeaders,
-		},
-	}
-
-	coveredRoutes := make(map[string]bool)
-	for _, liveCase := range cases {
-		liveCase := liveCase
-		t.Run(liveCase.name, func(t *testing.T) {
-			fastAPIResponse := fetchLiveJSON(t, client, cfg.fastAPIOrigin+liveCase.path, liveCase.headers)
-			goResponse := fetchLiveJSON(t, client, goServer.URL+liveCase.path, liveCase.headers)
-			if fastAPIResponse.status != goResponse.status {
-				t.Fatalf(
-					"status mismatch: FastAPI=%d Go=%d FastAPI body=%s Go body=%s",
-					fastAPIResponse.status,
-					goResponse.status,
-					fastAPIResponse.body,
-					goResponse.body,
-				)
+	for index, goldenCase := range golden.Cases {
+		liveCase := cases[index]
+		if liveCase.Name != goldenCase.Name {
+			t.Fatalf("case %d mismatch: code=%q golden=%q (re-record with cmd/livegolden)", index, liveCase.Name, goldenCase.Name)
+		}
+		liveCase, goldenCase := liveCase, goldenCase
+		t.Run(goldenCase.Name, func(t *testing.T) {
+			headers := cloneHeaders(baseHeaders)
+			for key, value := range headersForRole(liveCase.HeaderRole, fixtures) {
+				headers[key] = value
 			}
-			assertLiveJSONEqual(t, fastAPIResponse.value, goResponse.value)
-			t.Logf(
-				"contract matched: %s status=%d FastAPI bytes=%d Go bytes=%d",
-				liveCase.route,
-				fastAPIResponse.status,
-				len(fastAPIResponse.body),
-				len(goResponse.body),
-			)
+			goResponse := fetchLiveJSON(t, client, goServer.URL+liveCase.RequestPath, headers)
+			if goResponse.status != goldenCase.Status {
+				t.Fatalf("status mismatch: golden=%d Go=%d body=%s", goldenCase.Status, goResponse.status, goResponse.body)
+			}
+			// Both sides are tokenized: numeric ids keep their JSON type on the
+			// golden side, so comparing tokens (instead of resolving the golden
+			// ids) is the only type-stable option.
+			want := decodeGolden(t, goldenCase)
+			got := livecontract.ApplyTokensValue(goResponse.value, fixtures)
+			for _, key := range liveCase.MaskedKeys {
+				deleteKey(want, key)
+				deleteKey(got, key)
+			}
+			assertLiveJSONEqual(t, want, got)
+			t.Logf("contract matched: %s status=%d", liveCase.Route, goResponse.status)
 		})
-		coveredRoutes[liveCase.route] = true
 	}
 
-	if len(coveredRoutes) != 14 {
-		t.Fatalf("covered %d Week 1 GET routes, want 14", len(coveredRoutes))
-	}
-	routes := make([]string, 0, len(coveredRoutes))
-	for route := range coveredRoutes {
-		routes = append(routes, route)
-	}
-	sort.Strings(routes)
+	routes := livecontract.DistinctRoutes(cases)
 	t.Logf(
 		"Week 1 live contract coverage: %d routes / %d cases\n%s",
-		len(routes),
-		len(cases),
-		strings.Join(routes, "\n"),
+		len(routes), len(cases), strings.Join(routes, "\n"),
 	)
+}
+
+func loadGolden(t *testing.T) livecontract.GoldenFile {
+	t.Helper()
+	payload, err := os.ReadFile(filepath.Join(".", goldenPath))
+	if err != nil {
+		t.Fatalf("read golden file: %v (regenerate with go run ./cmd/livegolden)", err)
+	}
+	var golden livecontract.GoldenFile
+	if err := json.Unmarshal(payload, &golden); err != nil {
+		t.Fatalf("decode golden file: %v", err)
+	}
+	if err := golden.Validate(); err != nil {
+		t.Fatalf("invalid golden file: %v", err)
+	}
+	return golden
+}
+
+// deleteKey removes one top-level field so environment bookkeeping does not
+// become part of the contract.
+func deleteKey(value any, key string) {
+	if object, ok := value.(map[string]any); ok {
+		delete(object, key)
+	}
+}
+
+func decodeGolden(t *testing.T, goldenCase livecontract.GoldenCase) any {
+	t.Helper()
+	decoder := json.NewDecoder(strings.NewReader(goldenCase.Body))
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		t.Fatalf("decode golden body for %q: %v", goldenCase.Name, err)
+	}
+	return normalizeLiveJSON(value)
+}
+
+func headersForRole(role livecontract.HeaderRole, fixtures livecontract.Fixtures) map[string]string {
+	headers := map[string]string{}
+	switch role {
+	case livecontract.RoleNotification:
+		headers["X-User-Id"] = fixtures.NotificationUserID
+	case livecontract.RoleAlertAdmin:
+		headers["X-Is-Admin"] = "true"
+	case livecontract.RoleAlertOperator:
+		headers["X-Operator"] = "live-contract-operator"
+		headers["X-Is-Admin"] = "false"
+	case livecontract.RoleProfile:
+		headers["X-User-Id"] = fixtures.ProfileUserID
+	}
+	return headers
 }
 
 func liveConfig(t *testing.T) liveContractConfig {
 	t.Helper()
 	cfg := liveContractConfig{
-		fastAPIOrigin: strings.TrimRight(strings.TrimSpace(os.Getenv("FASTAPI_ORIGIN")), "/"),
-		databaseURL:   strings.TrimSpace(os.Getenv("GO_API_TEST_DATABASE_URL")),
-		apiKey:        strings.TrimSpace(os.Getenv("LIVE_CONTRACT_API_KEY")),
-		redisURL:      strings.TrimSpace(os.Getenv("REDIS_URL")),
+		databaseURL: strings.TrimSpace(os.Getenv("GO_API_TEST_DATABASE_URL")),
+		apiKey:      strings.TrimSpace(os.Getenv("LIVE_CONTRACT_API_KEY")),
+		redisURL:    strings.TrimSpace(os.Getenv("REDIS_URL")),
 	}
 	if cfg.redisURL == "" {
 		host := strings.TrimSpace(os.Getenv("REDIS_HOST"))
@@ -289,10 +173,7 @@ func liveConfig(t *testing.T) liveContractConfig {
 		}
 	}
 
-	missing := make([]string, 0, 3)
-	if cfg.fastAPIOrigin == "" {
-		missing = append(missing, "FASTAPI_ORIGIN")
-	}
+	missing := make([]string, 0, 2)
 	if cfg.databaseURL == "" {
 		missing = append(missing, "GO_API_TEST_DATABASE_URL")
 	}
@@ -305,7 +186,7 @@ func liveConfig(t *testing.T) liveContractConfig {
 		if required {
 			t.Fatal(message)
 		}
-		if len(missing) < 3 {
+		if len(missing) < 2 {
 			t.Fatalf("incomplete live contract environment: %s", message)
 		}
 		t.Skip(message + " (set LIVE_CONTRACT_REQUIRED=1 to make this a gate)")
@@ -372,7 +253,9 @@ func newLiveGoServer(
 
 	router, err := httpserver.NewRouter(
 		config.Config{
-			FastAPIOrigin:      cfg.fastAPIOrigin,
+			// The router always builds a FastAPI proxy handler; this test never
+			// exercises it because every selected module is owned by Go.
+			FastAPIOrigin:      "http://127.0.0.1:8100",
 			APIKey:             cfg.apiKey,
 			TrustedProxySecret: liveTrustedProxySecret,
 			DatabaseURL:        cfg.databaseURL,
@@ -397,44 +280,60 @@ func newLiveGoServer(
 	return server
 }
 
-func loadLiveFixture(t *testing.T, ctx context.Context, db rowQuerier) liveFixture {
+func loadLiveFixture(t *testing.T, ctx context.Context, db rowQuerier) livecontract.Fixtures {
 	t.Helper()
-	fixture := liveFixture{}
+	fixtures := livecontract.Fixtures{}
 	if err := db.QueryRow(
 		ctx,
 		"select user_id::text from public.notifications where title = $1",
-		liveNotificationTitle,
-	).Scan(&fixture.notificationUserID); err != nil {
-		t.Fatalf("load live notification fixture: %v", err)
+		livecontract.NotificationTitle,
+	).Scan(&fixtures.NotificationUserID); err != nil {
+		t.Fatalf("load live notification fixture: %v (seed with go run ./cmd/seedlivecontract)", err)
 	}
 	if err := db.QueryRow(
 		ctx,
 		"select id::text from public.projects where project_name = $1",
-		liveProjectName,
-	).Scan(&fixture.projectID); err != nil {
+		livecontract.ProjectName,
+	).Scan(&fixtures.ProjectID); err != nil {
 		t.Fatalf("load live project fixture: %v", err)
 	}
 	if err := db.QueryRow(
 		ctx,
-		`select id::text
-		 from public.exchange_rates
-		 where currency = $1 and year_month = $2`,
-		liveExchangeCurrency,
-		liveExchangeYearMonth,
-	).Scan(&fixture.exchangeRateID); err != nil {
+		"select id::text from public.exchange_rates where currency = $1 and year_month = $2",
+		livecontract.ExchangeCurrency,
+		livecontract.ExchangeYearMonth,
+	).Scan(&fixtures.ExchangeRateID); err != nil {
 		t.Fatalf("load live exchange-rate fixture: %v", err)
 	}
 	if err := db.QueryRow(
 		ctx,
-		`select id::text
-		 from public.user_accounts
-		 where lower(email) = lower($1)
-		 limit 1`,
-		liveProfileEmail,
-	).Scan(&fixture.profileUserID); err != nil {
+		"select id::text from public.user_accounts where lower(email) = lower($1) limit 1",
+		livecontract.ProfileEmail,
+	).Scan(&fixtures.ProfileUserID); err != nil {
 		t.Fatalf("load live profile fixture: %v", err)
 	}
-	return fixture
+	if err := db.QueryRow(
+		ctx,
+		"select id::text from public.notifications where title = $1",
+		livecontract.NotificationTitle,
+	).Scan(&fixtures.NotificationID); err != nil {
+		t.Fatalf("load live notification id: %v", err)
+	}
+	if err := db.QueryRow(
+		ctx,
+		"select id::text from public.alert_rules where name = $1",
+		livecontract.AlertRuleName,
+	).Scan(&fixtures.AlertRuleID); err != nil {
+		t.Fatalf("load live alert rule fixture: %v", err)
+	}
+	if err := db.QueryRow(
+		ctx,
+		"select id::text from public.alert_events where message = $1",
+		livecontract.AlertEventMessage,
+	).Scan(&fixtures.AlertEventID); err != nil {
+		t.Fatalf("load live alert event fixture: %v", err)
+	}
+	return fixtures
 }
 
 func cloneHeaders(source map[string]string) map[string]string {
@@ -506,6 +405,10 @@ func normalizeLiveJSON(value any) any {
 				} else {
 					result[key] = normalizeLiveJSON(item)
 				}
+			case "version":
+				// APP_ENV differs per environment, so the reported version is not
+				// a contract property.
+				result[key] = "<runtime>"
 			case "redis_memory":
 				// Redis reports process-wide memory, which can move between calls.
 				if item == nil {
@@ -541,10 +444,10 @@ func assertLiveJSONEqual(t *testing.T, want, got any) {
 	case map[string]any:
 		typedGot, ok := got.(map[string]any)
 		if !ok {
-			t.Fatalf("JSON type mismatch: FastAPI map, Go %T", got)
+			t.Fatalf("JSON type mismatch: golden map, Go %T", got)
 		}
 		if len(typedWant) != len(typedGot) {
-			t.Fatalf("JSON key count mismatch: FastAPI=%v Go=%v", typedWant, typedGot)
+			t.Fatalf("JSON key count mismatch: golden=%v Go=%v", typedWant, typedGot)
 		}
 		for key, wantValue := range typedWant {
 			gotValue, present := typedGot[key]
@@ -556,10 +459,10 @@ func assertLiveJSONEqual(t *testing.T, want, got any) {
 	case []any:
 		typedGot, ok := got.([]any)
 		if !ok {
-			t.Fatalf("JSON type mismatch: FastAPI array, Go %T", got)
+			t.Fatalf("JSON type mismatch: golden array, Go %T", got)
 		}
 		if len(typedWant) != len(typedGot) {
-			t.Fatalf("array length mismatch: FastAPI=%d Go=%d", len(typedWant), len(typedGot))
+			t.Fatalf("array length mismatch: golden=%d Go=%d", len(typedWant), len(typedGot))
 		}
 		for index := range typedWant {
 			assertLiveJSONEqual(t, typedWant[index], typedGot[index])
@@ -567,31 +470,31 @@ func assertLiveJSONEqual(t *testing.T, want, got any) {
 	case float64:
 		typedGot, ok := got.(float64)
 		if !ok {
-			t.Fatalf("number type mismatch: FastAPI=number Go=%T", got)
+			t.Fatalf("number type mismatch: golden=number Go=%T", got)
 		}
 		tolerance := math.Max(1e-9, math.Abs(typedWant)*1e-9)
 		if math.Abs(typedWant-typedGot) > tolerance {
-			t.Fatalf("number mismatch: FastAPI=%v Go=%#v", typedWant, got)
+			t.Fatalf("number mismatch: golden=%v Go=%#v", typedWant, got)
 		}
 	case string:
 		typedGot, ok := got.(string)
 		if !ok {
-			t.Fatalf("string mismatch: FastAPI=%q Go=%#v", typedWant, got)
+			t.Fatalf("string mismatch: golden=%q Go=%#v", typedWant, got)
 		}
 		wantTime, wantErr := time.Parse(time.RFC3339Nano, typedWant)
 		gotTime, gotErr := time.Parse(time.RFC3339Nano, typedGot)
 		if wantErr == nil && gotErr == nil {
 			if math.Abs(wantTime.Sub(gotTime).Seconds()) > 1 {
-				t.Fatalf("timestamp mismatch: FastAPI=%q Go=%q", typedWant, typedGot)
+				t.Fatalf("timestamp mismatch: golden=%q Go=%q", typedWant, typedGot)
 			}
 			return
 		}
 		if typedWant != typedGot {
-			t.Fatalf("string mismatch: FastAPI=%q Go=%q", typedWant, typedGot)
+			t.Fatalf("string mismatch: golden=%q Go=%q", typedWant, typedGot)
 		}
 	default:
 		if want != got {
-			t.Fatalf("value mismatch: FastAPI=%#v Go=%#v", want, got)
+			t.Fatalf("value mismatch: golden=%#v Go=%#v", want, got)
 		}
 	}
 }
