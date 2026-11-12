@@ -17,7 +17,7 @@ const (
 	defaultUploadRoot              = "backend/storage/uploads"
 	defaultMonthlyReportResultRoot = "backend/storage/results"
 	defaultAgentMonthlyReportRoot  = "backend/storage/agent_monthly_reports"
-	defaultProjectLaunchDocsRoot   = "backend/app/resources/project_launch_documents"
+	defaultProjectLaunchDocsRoot   = "backend-go/resources/project_launch_documents"
 	defaultAlertFromEmail          = "alerts@believeboy.com"
 	defaultAlertFromName           = "BelieveBoy Dashboard"
 

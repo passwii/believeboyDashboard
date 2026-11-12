@@ -14,9 +14,7 @@
 └─────────────────────────────────────────────────────────────────┘
 ┌─────────────────────────────────────────────────────────────────┐
 │ Layer 2 · Playwright E2E（端到端真实浏览器鉴权 + UI 流程）         │
-│   · Python (pytest + agent)                                       │
-│     → backend/scripts/agent_testing/README.md                    │
-│     → 鉴权核心：backend/scripts/agent_testing/auth.py             │
+│   · Python agent E2E 已随 FastAPI 退役删除                        │
 │   · TypeScript (frontend/tests)                                   │
 │     → smoke 例：frontend/tests/ai-chat/smoke.spec.ts              │
 │     → 该 spec 内联了 NextAuth credentials REST 流（参见 spec      │
@@ -25,9 +23,9 @@
 │       跨文件 Node built-in 模块时存在 quirk。                    │
 └─────────────────────────────────────────────────────────────────┘
 ┌─────────────────────────────────────────────────────────────────┐
-│ Layer 1 · pytest 单元 / 集成（FastAPI TestClient + 真实 DB）      │
-│   → backend/tests/README.md                                      │
-│   → 入口 conftest：backend/tests/conftest.py                     │
+│ Layer 1 · Go 单元 / 契约测试（go test + 真实 DB）                 │
+│   → backend-go/internal/**/*_test.go                             │
+│   → 契约：backend-go/tests/contract（623 operation 覆盖）         │
 └─────────────────────────────────────────────────────────────────┘
 ┌─────────────────────────────────────────────────────────────────┐
 │ Layer 0 · 测试数据与账号基础设施（所有上层共用）                   │
@@ -147,28 +145,25 @@ pg_restore -U damon -d BLF -j 4 --no-owner --no-privileges ~/db_backups/BLF_prod
                           ↓
    ┌──────────────────────┴──────────────────────┐
    ↓                                             ↓
-Layer 1 pytest                          Layer 2 Playwright
+Layer 1 go test                          Layer 2 Playwright
    ↓                                             ↓
-backend/tests/conftest.py                agent_testing/auth.py
-自动加载 .env.test → 走 BLF_test        NextAuth REST 登录 + 缓存
+BLF_test + 隔离 fixture                  frontend/tests/*.spec.ts
 ```
 
 ### 每次跑测试
 
 ```
-pytest (Layer 1):
-  pytest backend/tests/api/test_profile_endpoints.py -v
-  → conftest 自动加载 .env.test → engine 指向 BLF_test
-  → 本机已配 TEST_DATABASE_URL（backend/.env.test）→ 直接跑，不会 skip
+Go 测试 (Layer 1)：
+  cd backend-go && go test ./internal/api/profile -count=1
+  cd backend-go && go run ./cmd/migrate up   # 首次准备 BLF_test
 
-Playwright E2E (Layer 2):
-  1. TEST_DATABASE_URL=... uvicorn app.main:app  ← backend 指向测试库
-  2. pnpm dev                                       ← frontend 启动
-  3. pytest backend/scripts/agent_testing -v
-     → login_as(page, "admin") 直接复用缓存的 NextAuth session
+Playwright E2E (Layer 2)：
+  1. backend-go 网关指向 BLF_test（cmd/localcutover up）
+  2. pnpm dev
+  3. pnpm test:ui -- tests/<area>/<name>.spec.ts
 ```
 
-> **本地测试是标准流程（2026-08 更新）**：本地 PG 常驻两个库——`BLF`（生产快照，每日自动同步远程 VPS，BEL-376 起常驻，数据可满足集成/手动读写验证）与 `BLF_test`（自动化 pytest 隔离专用，`backend-go/cmd/setuptestdb` 创建）。pytest 一律走 `BLF_test`，绝不写 `BLF`；未设 `TEST_DATABASE_URL` 时跳过只是"防误连开发/生产库"的保护机制，本机已配置好，正常情况不会触发。
+> **本地测试是标准流程**：本地 PG 常驻两个库——`BLF`（生产快照，每日自动同步远程 VPS）与 `BLF_test`（自动化测试隔离专用，`backend-go/cmd/setuptestdb` 创建）。所有测试一律走 `BLF_test`，绝不写 `BLF`。
 
 ---
 
