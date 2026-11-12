@@ -249,7 +249,7 @@ func TestLoadUsesBusinessDefaults(t *testing.T) {
 	if got.MonthlyReportResultRoot != "backend/storage/results" {
 		t.Errorf("MonthlyReportResultRoot = %q, want %q", got.MonthlyReportResultRoot, "backend/storage/results")
 	}
-	if got.ProjectLaunchDocumentsRoot != "backend/app/resources/project_launch_documents" {
+	if got.ProjectLaunchDocumentsRoot != "backend-go/resources/project_launch_documents" {
 		t.Errorf("ProjectLaunchDocumentsRoot = %q, want default launch docs root", got.ProjectLaunchDocumentsRoot)
 	}
 	if got.R2Region != "auto" {
