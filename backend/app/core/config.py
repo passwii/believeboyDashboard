@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     # whole test suite transparently use this DB instead of `database_url`,
     # so tests never touch the dev/prod database. The test DB is a separate
     # persistent Postgres database, created + migrated + seeded once via
-    # `python scripts/setup_test_db.py` (see AGENTS.md / .env.example).
+    # `cd backend-go && go run ./cmd/setuptestdb` (see AGENTS.md / .env.example).
     # ------------------------------------------------------------------
     test_database_url: str = Field(default="", max_length=1000)
     test_database_read_url: str = Field(default="", max_length=1000)

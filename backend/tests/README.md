@@ -29,7 +29,7 @@ pytest -v                                            # 跑全部（DB 测试需�
 #    TEST_BUSINESSDEV_PASSWORD=...
 #
 # 2. 一键建库 + seed：
-python scripts/setup_test_db.py
+cd backend-go && go run ./cmd/setuptestdb
 ```
 
 详见根 `TESTING.md` 的"流程总图"。
@@ -171,7 +171,7 @@ pytest -m "recognition and not ad_report"
 
 | 现象 | 原因 | 解决 |
 |---|---|---|
-| `pytest.skip: TEST_DATABASE_URL is not set...` | 未配置测试库 | 跑 `scripts/setup_test_db.py` + 配 `backend/.env.test` |
+| `pytest.skip: TEST_DATABASE_URL is not set...` | 未配置测试库 | 跑 `backend-go/cmd/setuptestdb` + 配 `backend/.env.test` |
 | 测试连到了本地库，污染了开发数据 | 直接用了 `SessionLocal` 或没配 `TEST_DATABASE_URL` | 检查 fixture 链 + conftest 的 `db_session` |
 | 鉴权 401 | header 缺 `X-API-Key` 或 `X-User-Id` | 用 `*_headers` fixture |
 | 鉴权 403 | 用了错的角色 fixture（如 operator 调 admin-only 端点） | 检查 `*_headers` 与端点要求是否匹配 |

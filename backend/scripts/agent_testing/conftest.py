@@ -3,7 +3,7 @@
 End-to-end flow (all defined in this repo, so AI agents can self-serve):
 
   1. One-time: build the dedicated test database + seed the test accounts
-     (admin / operator / businessdev). See ``scripts/setup_test_db.py``
+     (admin / operator / businessdev). See `backend-go/cmd/setuptestdb`
      (it clones the dev schema via pg_dump and seeds the accounts). The
      accounts and their passwords come from ``backend/.env.test``
      (TEST_ADMIN_EMAIL / TEST_*_PASSWORD, etc.).
@@ -48,7 +48,7 @@ def _require(name: str) -> str:
 
 # Test accounts — credentials MUST come from env, never hardcoded.
 # Defaults point at the dedicated test-database accounts seeded by
-# `backend-go/cmd/seedtestaccounts` (run `scripts/setup_test_db.py` once). To
+# `backend-go/cmd/seedtestaccounts` (run `backend-go/cmd/setuptestdb` once). To
 # exercise these E2E tests against the test DB, start the backend with
 # TEST_DATABASE_URL set to that DB and seed the accounts there.
 #

@@ -11,7 +11,7 @@ JOIN analysis_source_files 且过滤 is_current=True，只会统计「最后上�
 经 upsert 后表里保留 A,B,C,D 四行（C 来自 v1、v2 没重传故留存）。
 断言快照聚合出**全部 4 单**，而非仅 is_current 版本 v2 的 3 单（A,B,D）。
 
-真实 Postgres（schema 由 setup_test_db.py 从 DATABASE_URL 克隆，含 5 列唯一约束）。
+真实 Postgres（schema 由 cmd/setuptestdb 从 DATABASE_URL 克隆，含 5 列唯一约束）。
 """
 from __future__ import annotations
 
