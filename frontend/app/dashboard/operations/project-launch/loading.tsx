@@ -9,7 +9,7 @@ export default function ProjectLaunchLoading() {
       aria-label="正在加载项目启动台"
     >
       <div className={styles.workspace}>
-        <div className={styles.panel}>
+        <div className={`${styles.panel} ${styles.projectPanel}`}>
           <div className={styles.panelHeader}>
             <span className={styles.loadingTitle} />
           </div>

@@ -1033,3 +1033,354 @@
     animation: none;
   }
 }
+
+@media (max-width: 768px) {
+  .mobilePicker {
+    display: flex;
+  }
+
+  .projectPanel {
+    display: none;
+  }
+
+  .workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .page {
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .adminAction,
+  .productActions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .adminAction a,
+  .adminAction button,
+  .productActions button {
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .mobilePickerRow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--warm-ledger-space-1);
+  }
+
+  .mobilePickerRow .label {
+    align-self: flex-start;
+  }
+
+  .mobilePicker .select {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+    font-size: 16px;
+  }
+
+  .mobilePicker .buttonQuiet {
+    align-self: stretch;
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+    justify-content: center;
+  }
+
+  .detailPanel {
+    min-height: auto;
+  }
+
+  .detailPanelBody {
+    padding: var(--warm-ledger-space-2);
+  }
+
+  .tabsList {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .tabsList [role='tab'] {
+    min-height: var(--warm-ledger-control-target-touch, 44px) !important;
+    padding: 0 var(--warm-ledger-space-1) !important;
+    justify-content: center !important;
+    text-align: center !important;
+    font-size: var(--warm-ledger-font-size-label) !important;
+  }
+
+  .statusStrip {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--warm-ledger-space-1);
+  }
+
+  .statusSchedule {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .overviewRow {
+    padding: var(--warm-ledger-space-3) var(--warm-ledger-space-2);
+  }
+
+  .overviewNext,
+  .overviewSchedule {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .empty {
+    padding: var(--warm-ledger-space-4);
+  }
+
+  .emptyActions {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    max-width: 100%;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .emptyActions .field {
+    width: 100%;
+  }
+
+  .emptyActions .input,
+  .emptyActions .button {
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .schedulePanel {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .schedulePanel .input,
+  .schedulePanel .button {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .schedulePanel .button {
+    width: 100%;
+  }
+
+  .taskMain {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .taskIdentity {
+    flex-direction: row;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .taskTitleLine {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--warm-ledger-space-1);
+  }
+
+  .taskTitle {
+    width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .taskActions {
+    width: 100%;
+    justify-content: flex-start;
+    gap: var(--warm-ledger-space-2);
+    margin-top: var(--warm-ledger-space-1);
+  }
+
+  .taskActions .button,
+  .taskActions .buttonCompact,
+  .taskActions .statusSelect {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .taskActions .statusSelect {
+    font-size: 16px;
+    padding-inline: var(--warm-ledger-space-2);
+  }
+
+  .editorGrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .fieldWide,
+  .editorActions {
+    grid-column: auto;
+  }
+
+  .editorGrid .input,
+  .editorGrid .textarea,
+  .editorActions .button {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .editorGrid .input,
+  .editorGrid .textarea {
+    font-size: 16px;
+  }
+
+  .editorActions .button {
+    width: 100%;
+  }
+
+  .contentGrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .contentCard {
+    padding: var(--warm-ledger-space-2);
+  }
+
+  .contentEditor .input,
+  .contentEditor .textarea {
+    font-size: 16px;
+  }
+
+  .inlineActions {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .inlineActions .button,
+  .inlineActions .buttonCompact {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+    flex: 1 1 calc(50% - var(--warm-ledger-space-2));
+  }
+
+  .contentCreateGrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .contentCreateGrid .input,
+  .contentCreateGrid .textarea,
+  .contentCreateGrid .button {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .contentCreateGrid .input,
+  .contentCreateGrid .textarea {
+    font-size: 16px;
+  }
+
+  .contentCreateGrid .button {
+    width: 100%;
+  }
+
+  .attachmentHeader {
+    flex-wrap: wrap;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .attachmentHeader .uploadButton {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+    padding-inline: var(--warm-ledger-space-3);
+  }
+
+  .attachmentRow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--warm-ledger-space-2);
+    padding: var(--warm-ledger-space-3) 0;
+  }
+
+  .attachmentName {
+    width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .attachmentRow .button,
+  .attachmentRow .buttonCompact {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+    width: 100%;
+  }
+
+  .taskCreateGrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .taskCreateGrid .input,
+  .taskCreateGrid .button {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .taskCreateGrid .input {
+    font-size: 16px;
+  }
+
+  .taskCreateGrid .button {
+    width: 100%;
+  }
+
+  .createDialog {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-width: 100% !important;
+    max-height: calc(100dvh - env(safe-area-inset-top));
+    padding: var(--warm-ledger-space-4);
+    padding-bottom: calc(var(--warm-ledger-space-4) + env(safe-area-inset-bottom));
+    overflow-y: auto;
+    transform: none;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+  }
+
+  .dialogClose {
+    top: calc(var(--warm-ledger-space-3) + env(safe-area-inset-top));
+    width: var(--warm-ledger-control-target-touch, 44px);
+    height: var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .dialogForm .input,
+  .dialogForm .select {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+    font-size: 16px;
+  }
+
+  .dialogFooter {
+    position: sticky;
+    bottom: calc(-1 * var(--warm-ledger-space-4));
+    z-index: 2;
+    flex-direction: column-reverse;
+    gap: var(--warm-ledger-space-2);
+    padding: var(--warm-ledger-space-2) 0;
+    padding-bottom: calc(var(--warm-ledger-space-2) + env(safe-area-inset-bottom));
+    background: var(--warm-ledger-color-window);
+  }
+
+  .dialogFooter button {
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+}
+
+@media (max-width: 380px) {
+  .tabsList [role='tab'] {
+    padding: 0 2px !important;
+    font-size: 11px !important;
+  }
+
+  .taskActions .button,
+  .taskActions .buttonCompact,
+  .inlineActions .button,
+  .inlineActions .buttonCompact {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+}
