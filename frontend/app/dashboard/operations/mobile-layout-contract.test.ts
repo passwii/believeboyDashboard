@@ -14,13 +14,21 @@ const routeStyles = [
   ['research-analysis', 'research-analysis/research-analysis-warm.module.css'],
   ['platform-inspection', 'platform-inspection/platform-inspection-warm.module.css'],
   ['review-tracking', 'review-tracking/review-tracking-warm.module.css'],
+  ['inventory-ledger', 'inventory-ledger/inventory-ledger-warm.module.css'],
+  ['inventory-replenishment', 'inventory-replenishment/inventory-replenishment-warm.module.css'],
+  ['seasonal-replenishment', 'seasonal-replenishment/seasonal-replenishment-warm.module.css'],
+  ['shipment-management', 'shipment-management/shipment-management-warm.module.css'],
+  ['shipping-plan', 'shipping-plan/shipping-plan-warm.module.css'],
+  ['sku-info', 'sku-info/sku-info-warm.module.css'],
+  ['site-navigation', 'site-navigation/site-navigation-warm.module.css'],
+  ['store-navigation', 'store-navigation/store-navigation-warm.module.css'],
 ] as const
 
 const expectedOperationsRoutes = routeStyles.map(
   ([route]) => `/dashboard/operations/${route}`
 )
 
-describe('V4 operations phone layout contract', () => {
+describe('V4 operations phone layout contract (Stage 2 & Stage 3)', () => {
   it.each(routeStyles)('%s keeps wide data in a route-local scroller', (_route, stylesheet) => {
     const css = readFileSync(join(__dirname, stylesheet), 'utf8')
 
@@ -28,7 +36,7 @@ describe('V4 operations phone layout contract', () => {
     expect(css).toMatch(/\.tableScroll\s*\{[^}]*overflow(?:-x)?:\s*auto/s)
   })
 
-  it('keeps all nine scoped routes in the operations navigation source', () => {
+  it('keeps all 17 scoped routes in the operations navigation source', () => {
     const operations = SIDEBAR_TOP_GROUPS.find((group) => group.id === 'operations')
     const configuredRoutes = operations?.items.map((item) => item.url) ?? []
 

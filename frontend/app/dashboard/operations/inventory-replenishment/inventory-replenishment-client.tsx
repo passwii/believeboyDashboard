@@ -1808,6 +1808,21 @@ export default function InventoryReplenishmentPage() {
                         <div>发货指令: {formatDate(row.shipment_order_date)}</div>
                       </div>
 
+                      {/* 详细指标与建仓详情（展开保证完整字段不丢失） */}
+                      <details className="text-xs text-[var(--warm-ledger-color-text-muted)]">
+                        <summary className="cursor-pointer py-1 font-medium text-[var(--warm-ledger-color-text-soft)] hover:text-[var(--warm-ledger-color-text)]">
+                          查看更多明细 (历史销量 / 建仓 / 基础量)
+                        </summary>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-1.5 pb-1 text-xs">
+                          <div>30D 销量: {formatNumber(row.dms_30)}</div>
+                          <div>14D 销量: {formatNumber(row.dms_14)}</div>
+                          <div>7D 销量: {formatNumber(row.dms_7)}</div>
+                          <div>3D 销量: {formatNumber(row.dms_3)}</div>
+                          <div>基础 DMS: {formatNumber(row.base_dms)}</div>
+                          <div>建仓指令: {formatDate(row.warehouse_entry_date)}</div>
+                        </div>
+                      </details>
+
                       {/* 可编辑字段 */}
                       <div className="border-t border-[color:var(--warm-ledger-color-hairline)] pt-3">
                         <div className="grid grid-cols-3 gap-2">
@@ -1889,7 +1904,7 @@ export default function InventoryReplenishmentPage() {
                         {!isSnapshotMode && (
                           <WarmButton
                             variant="secondary"
-                            className="h-9 flex-1 gap-1.5 text-xs dark:bg-[var(--warm-ledger-color-raised)] dark:text-[var(--warm-ledger-color-text)]"
+                            className="min-h-[44px] flex-1 gap-1.5 text-xs dark:bg-[var(--warm-ledger-color-raised)] dark:text-[var(--warm-ledger-color-text)]"
                             onClick={() => void saveRow(row)}
                             disabled={savingSku === key}
                           >
@@ -1904,7 +1919,7 @@ export default function InventoryReplenishmentPage() {
                         <WarmButton
                           variant="secondary"
                           className={cn(
-                            'h-9 gap-1.5 text-xs dark:border-[color:var(--warm-ledger-color-hairline)] dark:bg-[var(--warm-ledger-color-raised)] dark:text-[var(--warm-ledger-color-text)]',
+                            'min-h-[44px] gap-1.5 text-xs dark:border-[color:var(--warm-ledger-color-hairline)] dark:bg-[var(--warm-ledger-color-raised)] dark:text-[var(--warm-ledger-color-text)]',
                             isSnapshotMode ? 'w-full' : 'flex-1'
                           )}
                           onClick={() => void openShipments(row)}
@@ -1942,7 +1957,7 @@ export default function InventoryReplenishmentPage() {
 
           {selectedRow ? (
             <div className="mt-6 space-y-4">
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className={cn('grid gap-3 md:grid-cols-3', styles.drawerSummary)}>
                 <Card className={styles.summaryCard}>
                   <CardContent className="pt-6">
                     <div className="text-xs text-[var(--warm-ledger-color-text-muted)]">SKU</div>
