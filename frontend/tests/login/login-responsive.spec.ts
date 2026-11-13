@@ -11,6 +11,23 @@ const themes = ['light', 'dark'] as const
 type Theme = (typeof themes)[number]
 
 function parseColor(color: string) {
+  // Chromium can serialize a resolved color as color(srgb r g b / a), where the
+  // channels are 0–1 rather than 0–255. Normalize that form before the generic
+  // rgb()/rgba() parser so contrast assertions cannot silently compare 1 with 255.
+  const srgb = color.match(/color\(\s*srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*([\d.]+%?))?\s*\)/)
+  if (srgb) {
+    const [, r, g, b, alpha] = srgb
+    let parsedAlpha = 1
+    if (alpha !== undefined) {
+      parsedAlpha = alpha.endsWith('%') ? Number(alpha.slice(0, -1)) / 100 : Number(alpha)
+    }
+    return {
+      r: Number(r) * 255,
+      g: Number(g) * 255,
+      b: Number(b) * 255,
+      a: parsedAlpha,
+    }
+  }
   const channels = color.match(/[\d.]+/g)?.map(Number)
   if (!channels || channels.length < 3) throw new Error(`Unexpected computed color: ${color}`)
   const [r, g, b, a = 1] = channels

@@ -152,6 +152,9 @@
 .login-entry .accent-field {
   position: absolute;
   inset: 0;
+  /* color-mix() is the enhancement; this single-layer gradient keeps the field visible
+   * when the browser does not support color-mix(). */
+  background: radial-gradient(520px 460px at 18% 28%, var(--login-accent-area), transparent 72%);
   background:
     radial-gradient(520px 460px at 18% 28%, var(--login-accent-area), transparent 72%),
     radial-gradient(620px 520px at 82% 74%, color-mix(in srgb, var(--login-accent) 6%, transparent), transparent 74%);
@@ -337,6 +340,7 @@
 
 .login-entry .route-wire-live {
   fill: none;
+  stroke: var(--login-accent);
   stroke: color-mix(in srgb, var(--login-accent) 64%, transparent);
   stroke-width: 1;
   stroke-dasharray: 2 16;
@@ -360,7 +364,9 @@
 }
 
 .login-entry .route-hub {
+  fill: var(--login-stage);
   fill: color-mix(in srgb, var(--login-stage) 82%, transparent);
+  stroke: var(--login-accent);
   stroke: color-mix(in srgb, var(--login-accent) 55%, transparent);
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
@@ -401,6 +407,7 @@
   place-items: center;
   border: 1px solid var(--login-hairline-strong);
   border-radius: 10px;
+  background: var(--login-panel);
   background: color-mix(in srgb, var(--login-panel) 64%, transparent);
   color: var(--login-text-muted);
   cursor: pointer;
@@ -675,7 +682,13 @@
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .login-entry .login-slab {
-    background: color-mix(in srgb, var(--login-panel) 94%, var(--login-stage));
+    /* Explicit opaque fallback: never leave the slab at 56% / 46% when both
+     * backdrop-filter and color-mix() are unavailable. */
+    background: var(--login-panel);
+  }
+
+  .dark .login-entry .login-slab {
+    background: var(--login-stage);
   }
 }
 
