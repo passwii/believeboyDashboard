@@ -323,8 +323,14 @@
   text-align: left;
 }
 
-.mobileLastActivity {
-  grid-column: 1 / -1;
+.mobileActivityGrid dd.negativeValue,
+.mobileActivityGrid dd[data-tone='negative'] {
+  color: var(--warm-ledger-color-negative);
+}
+
+.mobileActivityGrid dd.mutedValue,
+.mobileActivityGrid dd[data-tone='muted'] {
+  color: var(--warm-ledger-color-text-muted);
 }
 
 .mobileDetails {
@@ -462,9 +468,5 @@
   .mobileActivityGrid,
   .mobileDetailsGrid {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .mobileLastActivity {
-    grid-column: auto;
   }
 }

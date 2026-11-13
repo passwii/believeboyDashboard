@@ -138,6 +138,24 @@ describe('AgentEmployeesClient 员工花名册(P3)', () => {
     expect(within(table).getAllByText('2 / 30')).toHaveLength(1)
     expect(within(table).getByText('30 天内无调用')).toBeInTheDocument()
     expect(within(table).getAllByRole('cell')[14]).toHaveTextContent('0')
+
+    // 手机卡片可见写入量与非零错误负向颜色回归断言
+    const mobileCards = container.querySelectorAll<HTMLElement>(
+      '[data-mobile-employee-list] article'
+    )
+    expect(mobileCards).toHaveLength(2)
+    const activeCard = mobileCards[0]
+    expect(within(activeCard).getByText('24h/30d 调用')).toBeInTheDocument()
+    expect(within(activeCard).getByText('2 / 30')).toBeInTheDocument()
+    expect(within(activeCard).getByText('24h/30d 写入')).toBeInTheDocument()
+    expect(within(activeCard).getByText('1 / 10')).toBeInTheDocument()
+    const errorDd = within(activeCard).getByText('2')
+    expect(errorDd).toHaveAttribute('data-tone', 'negative')
+    expect(errorDd.className).toContain('negativeValue')
+
+    const inactiveCard = mobileCards[1]
+    expect(within(inactiveCard).getAllByText('30 天内无调用')).toHaveLength(2)
+    expect(within(inactiveCard).getByText('0')).toHaveAttribute('data-tone', 'muted')
   })
 
   it('活动统计请求失败时显示未知占位而不误报无调用', async () => {
@@ -205,6 +223,8 @@ describe('Agent Employees Warm styling contract', () => {
     expect(css).toContain('var(--warm-ledger-font-variant-numeric)')
     expect(css).toContain('position: sticky')
     expect(css).toContain('overflow: auto')
+    expect(css).toContain('.mobileActivityGrid dd.negativeValue')
+    expect(css).toContain('color: var(--warm-ledger-color-negative)')
     expect(css).not.toContain('--term-')
     expect(css).not.toContain('rounded-none')
     expect(css).toContain('@media (max-width: 767px)')

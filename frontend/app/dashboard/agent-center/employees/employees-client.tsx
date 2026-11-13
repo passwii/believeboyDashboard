@@ -267,6 +267,16 @@ export default function AgentEmployeesClient() {
                         </dd>
                       </div>
                       <div>
+                        <dt>24h/30d 写入</dt>
+                        <dd className={styles.numeric}>
+                          {row
+                            ? `${row.writes_24h} / ${row.writes_30d}`
+                            : summary.data
+                              ? '30 天内无调用'
+                              : '—'}
+                        </dd>
+                      </div>
+                      <div>
                         <dt>30d 错误</dt>
                         <dd
                           className={
@@ -279,7 +289,7 @@ export default function AgentEmployeesClient() {
                           {row ? row.errors_30d : summary.data ? 0 : '—'}
                         </dd>
                       </div>
-                      <div className={styles.mobileLastActivity}>
+                      <div>
                         <dt>最近活动</dt>
                         <dd className={styles.freshness}>
                           <span
