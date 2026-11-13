@@ -48,6 +48,15 @@ export default function AgentEmployeesLoading() {
             </tbody>
           </table>
         </div>
+        <div className={styles.mobileLoadingList} aria-hidden="true">
+          {Array.from({ length: 7 }).map((_, index) => (
+            <div className={styles.mobileLoadingCard} key={index}>
+              <span className={`${styles.skeletonBar} ${styles.skeletonTitle}`} />
+              <span className={`${styles.skeletonBar} ${styles.skeletonHeaderBar}`} />
+              <span className={`${styles.skeletonBar} ${styles.skeletonCellBar}`} />
+            </div>
+          ))}
+        </div>
       </section>
     </div>
   )

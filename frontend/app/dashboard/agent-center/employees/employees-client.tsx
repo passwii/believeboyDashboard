@@ -126,108 +126,208 @@ export default function AgentEmployeesClient() {
             创建凭据后自动出现。
           </p>
         ) : (
-          <div
-            className={styles.tableScroll}
-            data-agent-employees-table-scroll
-            role="region"
-            aria-labelledby="agent-employees-title"
-            tabIndex={0}
-          >
-            <table className={styles.table}>
-              <colgroup>
-                <col className={styles.colEmployee} />
-                <col className={styles.colAgentId} />
-                <col className={styles.colCapability} />
-                <col className={styles.colProject} />
-                <col className={styles.colStatus} />
-                <col className={styles.colCalls} />
-                <col className={styles.colErrors} />
-                <col className={styles.colActivity} />
-              </colgroup>
-              <thead>
-                <tr>
-                  <th scope="col">员工</th>
-                  <th scope="col">Agent ID</th>
-                  <th scope="col">能力域</th>
-                  <th scope="col">项目范围</th>
-                  <th scope="col">状态</th>
-                  <th scope="col">24h/30d 调用</th>
-                  <th scope="col">30d 错误</th>
-                  <th scope="col">最近活动</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((item) => {
-                  const status = employeeStatus(item)
-                  const statusMeta = STATUS_META[status]
-                  const row = summary.data?.[String(item.id)]
-                  const lastActive = row?.last_active_at ?? item.last_used_at
-                  return (
-                    <tr key={item.id}>
-                      <td>
-                        <span className={styles.employeeName}>{item.label}</span>
-                      </td>
-                      <td>
-                        {item.agent_id ? (
-                          <code className={styles.monoText}>{item.agent_id}</code>
-                        ) : (
-                          <span className={styles.secondaryText}>—（未绑定）</span>
-                        )}
-                      </td>
-                      <td className={styles.secondaryText}>
-                        {formatBusinessScope(item.business_scope)}
-                      </td>
-                      <td className={styles.secondaryText}>
-                        {projectScopeText(item.project_scope)}
-                      </td>
-                      <td>
-                        <span className={`${styles.statusBadge} ${statusMeta.className}`}>
-                          {statusMeta.label}
-                        </span>
-                      </td>
-                      <td>
-                        {row ? (
-                          <span
-                            className={`${styles.numeric} ${styles.mutedValue}`}
-                            title={`写 24h:${row.writes_24h} · 写 30d:${row.writes_30d}`}
-                          >
-                            {row.calls_24h} / {row.calls_30d}
+          <>
+            <div
+              className={styles.tableScroll}
+              data-agent-employees-table-scroll
+              role="region"
+              aria-labelledby="agent-employees-title"
+              tabIndex={0}
+            >
+              <table className={styles.table}>
+                <colgroup>
+                  <col className={styles.colEmployee} />
+                  <col className={styles.colAgentId} />
+                  <col className={styles.colCapability} />
+                  <col className={styles.colProject} />
+                  <col className={styles.colStatus} />
+                  <col className={styles.colCalls} />
+                  <col className={styles.colErrors} />
+                  <col className={styles.colActivity} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th scope="col">员工</th>
+                    <th scope="col">Agent ID</th>
+                    <th scope="col">能力域</th>
+                    <th scope="col">项目范围</th>
+                    <th scope="col">状态</th>
+                    <th scope="col">24h/30d 调用</th>
+                    <th scope="col">30d 错误</th>
+                    <th scope="col">最近活动</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((item) => {
+                    const status = employeeStatus(item)
+                    const statusMeta = STATUS_META[status]
+                    const row = summary.data?.[String(item.id)]
+                    const lastActive = row?.last_active_at ?? item.last_used_at
+                    return (
+                      <tr key={item.id}>
+                        <td>
+                          <span className={styles.employeeName}>{item.label}</span>
+                        </td>
+                        <td>
+                          {item.agent_id ? (
+                            <code className={styles.monoText}>{item.agent_id}</code>
+                          ) : (
+                            <span className={styles.secondaryText}>—（未绑定）</span>
+                          )}
+                        </td>
+                        <td className={styles.secondaryText}>
+                          {formatBusinessScope(item.business_scope)}
+                        </td>
+                        <td className={styles.secondaryText}>
+                          {projectScopeText(item.project_scope)}
+                        </td>
+                        <td>
+                          <span className={`${styles.statusBadge} ${statusMeta.className}`}>
+                            {statusMeta.label}
                           </span>
-                        ) : summary.data ? (
-                          <span className={styles.placeholder}>30 天内无调用</span>
-                        ) : (
-                          <span className={styles.placeholder}>—</span>
-                        )}
-                      </td>
-                      <td>
-                        {row ? (
-                          <span
-                            className={`${styles.numeric} ${row.errors_30d > 0 ? styles.negativeValue : styles.mutedValue}`}
-                            data-tone={row.errors_30d > 0 ? 'negative' : 'muted'}
-                          >
-                            {row.errors_30d}
+                        </td>
+                        <td>
+                          {row ? (
+                            <span
+                              className={`${styles.numeric} ${styles.mutedValue}`}
+                              title={`写 24h:${row.writes_24h} · 写 30d:${row.writes_30d}`}
+                            >
+                              {row.calls_24h} / {row.calls_30d}
+                            </span>
+                          ) : summary.data ? (
+                            <span className={styles.placeholder}>30 天内无调用</span>
+                          ) : (
+                            <span className={styles.placeholder}>—</span>
+                          )}
+                        </td>
+                        <td>
+                          {row ? (
+                            <span
+                              className={`${styles.numeric} ${row.errors_30d > 0 ? styles.negativeValue : styles.mutedValue}`}
+                              data-tone={row.errors_30d > 0 ? 'negative' : 'muted'}
+                            >
+                              {row.errors_30d}
+                            </span>
+                          ) : summary.data ? (
+                            <span className={`${styles.numeric} ${styles.mutedValue}`}>0</span>
+                          ) : (
+                            <span className={styles.placeholder}>—</span>
+                          )}
+                        </td>
+                        <td>
+                          <span className={styles.freshness}>
+                            <span
+                              aria-hidden
+                              className={`${styles.freshnessDot} ${FRESHNESS_STYLE[freshnessFor(lastActive)]}`}
+                            />
+                            <span>{formatRelativeTime(lastActive)}</span>
                           </span>
-                        ) : summary.data ? (
-                          <span className={`${styles.numeric} ${styles.mutedValue}`}>0</span>
-                        ) : (
-                          <span className={styles.placeholder}>—</span>
-                        )}
-                      </td>
-                      <td>
-                        <span className={styles.freshness}>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div
+              className={styles.mobileList}
+              data-mobile-employee-list="true"
+              role="list"
+              aria-label="Agent 员工"
+            >
+              {rows.map((item) => {
+                const status = employeeStatus(item)
+                const statusMeta = STATUS_META[status]
+                const row = summary.data?.[String(item.id)]
+                const lastActive = row?.last_active_at ?? item.last_used_at
+                return (
+                  <article className={styles.mobileCard} key={`mobile-${item.id}`} role="listitem">
+                    <header className={styles.mobileCardHeader}>
+                      <h3 className={styles.mobileEmployeeName}>{item.label}</h3>
+                      <span className={`${styles.statusBadge} ${statusMeta.className}`}>
+                        {statusMeta.label}
+                      </span>
+                    </header>
+                    <dl className={styles.mobileActivityGrid}>
+                      <div>
+                        <dt>24h/30d 调用</dt>
+                        <dd
+                          className={styles.numeric}
+                          title={
+                            row
+                              ? `写 24h:${row.writes_24h} · 写 30d:${row.writes_30d}`
+                              : undefined
+                          }
+                        >
+                          {row
+                            ? `${row.calls_24h} / ${row.calls_30d}`
+                            : summary.data
+                              ? '30 天内无调用'
+                              : '—'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>24h/30d 写入</dt>
+                        <dd className={styles.numeric}>
+                          {row
+                            ? `${row.writes_24h} / ${row.writes_30d}`
+                            : summary.data
+                              ? '30 天内无调用'
+                              : '—'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>30d 错误</dt>
+                        <dd
+                          className={
+                            row?.errors_30d
+                              ? `${styles.numeric} ${styles.negativeValue}`
+                              : styles.numeric
+                          }
+                          data-tone={row?.errors_30d ? 'negative' : 'muted'}
+                        >
+                          {row ? row.errors_30d : summary.data ? 0 : '—'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>最近活动</dt>
+                        <dd className={styles.freshness}>
                           <span
                             aria-hidden
                             className={`${styles.freshnessDot} ${FRESHNESS_STYLE[freshnessFor(lastActive)]}`}
                           />
                           <span>{formatRelativeTime(lastActive)}</span>
-                        </span>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </dd>
+                      </div>
+                    </dl>
+                    <details className={styles.mobileDetails}>
+                      <summary>员工详情</summary>
+                      <dl className={styles.mobileDetailsGrid}>
+                        <div>
+                          <dt>Agent ID</dt>
+                          <dd>
+                            {item.agent_id ? (
+                              <code className={styles.monoText}>{item.agent_id}</code>
+                            ) : (
+                              '—（未绑定）'
+                            )}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>能力域</dt>
+                          <dd>{formatBusinessScope(item.business_scope)}</dd>
+                        </div>
+                        <div>
+                          <dt>项目范围</dt>
+                          <dd>{projectScopeText(item.project_scope)}</dd>
+                        </div>
+                      </dl>
+                    </details>
+                  </article>
+                )
+              })}
+            </div>
+          </>
         )}
       </section>
     </div>

@@ -363,6 +363,23 @@ export default function ComplaintListClient() {
         placeholder="状态"
         className={styles.mobileSelect}
       />
+      <WarmSelect
+        id="complaint-list-mobile-category-filter"
+        label="分类"
+        value={category || ALL_FILTER}
+        onChange={(value) => {
+          setPage(1)
+          setCategory(value === ALL_FILTER ? '' : (value as ComplaintCategory))
+        }}
+        options={[
+          { value: ALL_FILTER, label: '全部分类' },
+          { value: 'with_order', label: '有订单' },
+          { value: 'no_order_info', label: '无订单' },
+          { value: 'spam', label: '垃圾' },
+        ]}
+        placeholder="分类"
+        className={styles.mobileSelect}
+      />
       <MobileFilterWide>
         <input
           type="search"
@@ -459,6 +476,84 @@ export default function ComplaintListClient() {
             </div>
           ) : data && data.items.length > 0 ? (
             <>
+              <div
+                className={styles.mobileList}
+                data-mobile-complaint-list="true"
+                role="list"
+                aria-label="客诉消息"
+              >
+                {data.items.map((item) => {
+                  const StatusIcon = STATUS_ICON[item.status]
+                  return (
+                    <article className={styles.mobileCard} key={`mobile-${item.id}`} role="listitem">
+                      <header className={styles.mobileCardHeader}>
+                        <div className={styles.mobileProjectLine}>
+                          <span className={styles.mobileProjectName}>{item.project_name}</span>
+                          <span className={styles.mobileCountry}>{item.country}</span>
+                        </div>
+                        <span className={styles.categoryBadge}>{item.category_badge}</span>
+                      </header>
+                      <div className={styles.mobileSignals}>
+                        <span className={styles.statusPill} data-tone={STATUS_TONE[item.status]}>
+                          <StatusIcon size={12} aria-hidden="true" />
+                          {STATUS_LABEL[item.status]}
+                        </span>
+                        <span className={styles.sla} data-tone={SLA_TONE[item.sla_level]}>
+                          <Clock size={12} aria-hidden="true" />
+                          {item.sla_remaining}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className={styles.mobileMessage}
+                        onClick={() => handleRowClick(item.id)}
+                        aria-label={`查看 ${item.buyer_name} 的消息详情：${item.subject}`}
+                      >
+                        <span className={styles.mobileMessageMeta}>
+                          <span className={styles.buyerName}>{item.buyer_name}</span>
+                          <span className={styles.meta}>{item.message_date}</span>
+                        </span>
+                        <span className={styles.mobileSubject} title={item.subject}>
+                          {item.subject}
+                        </span>
+                        <span className={styles.mobileOpenLabel}>
+                          <Eye size={14} aria-hidden="true" />
+                          查看详情
+                        </span>
+                      </button>
+                      <dl className={styles.mobileRecordDetails}>
+                        <div>
+                          <dt>关联订单</dt>
+                          <dd>
+                            {item.has_order ? '有' : '无'}
+                            {item.order_id ? (
+                              <>
+                                <code>{item.order_id}</code>
+                                <button
+                                  type="button"
+                                  className={styles.mobileCopyButton}
+                                  onClick={() => handleCopyOrder(item.order_id!)}
+                                  aria-label={`复制订单号 ${item.order_id}`}
+                                >
+                                  <ClipboardCopy size={15} aria-hidden="true" />
+                                </button>
+                              </>
+                            ) : null}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>ASIN</dt>
+                          <dd>{item.asin || '—'}</dd>
+                        </div>
+                        <div className={styles.mobileProduct}>
+                          <dt>商品</dt>
+                          <dd>{item.product_title || '—'}</dd>
+                        </div>
+                      </dl>
+                    </article>
+                  )
+                })}
+              </div>
               <div className={styles.tableScroll} data-warm-table-scroll="true">
                 <table className={styles.table}>
                   <thead>

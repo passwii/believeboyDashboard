@@ -255,6 +255,115 @@
   outline-offset: var(--warm-ledger-focus-offset);
 }
 
+.mobileList {
+  display: none;
+}
+
+.mobileCard {
+  display: grid;
+  min-width: 0;
+  gap: var(--warm-ledger-space-3);
+  padding: var(--warm-ledger-space-3);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-panel);
+  background: var(--warm-ledger-color-panel);
+  box-shadow: var(--warm-ledger-highlight-rest);
+}
+
+.mobileCardHeader {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--warm-ledger-space-2);
+}
+
+.mobileEmployeeName {
+  min-width: 0;
+  margin: 0;
+  color: var(--warm-ledger-color-text);
+  font-size: var(--warm-ledger-font-size-body);
+  font-weight: var(--warm-ledger-font-weight-medium);
+  overflow-wrap: anywhere;
+}
+
+.mobileActivityGrid,
+.mobileDetailsGrid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--warm-ledger-space-3);
+  margin: 0;
+}
+
+.mobileActivityGrid > div,
+.mobileDetailsGrid > div {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: var(--warm-ledger-space-1);
+}
+
+.mobileActivityGrid dt,
+.mobileDetailsGrid dt {
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-label);
+}
+
+.mobileActivityGrid dd,
+.mobileDetailsGrid dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--warm-ledger-color-text-soft);
+  font-size: var(--warm-ledger-font-size-control);
+  overflow-wrap: anywhere;
+}
+
+.mobileActivityGrid dd.numeric {
+  text-align: left;
+}
+
+.mobileActivityGrid dd.negativeValue,
+.mobileActivityGrid dd[data-tone='negative'] {
+  color: var(--warm-ledger-color-negative);
+}
+
+.mobileActivityGrid dd.mutedValue,
+.mobileActivityGrid dd[data-tone='muted'] {
+  color: var(--warm-ledger-color-text-muted);
+}
+
+.mobileDetails {
+  min-width: 0;
+  padding-top: var(--warm-ledger-space-2);
+  border-top: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+}
+
+.mobileDetails > summary {
+  display: flex;
+  min-height: var(--warm-ledger-control-target-touch);
+  align-items: center;
+  color: var(--warm-ledger-color-text-soft);
+  font-size: var(--warm-ledger-font-size-control);
+  cursor: pointer;
+}
+
+.mobileDetails > summary:focus-visible {
+  outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color);
+  outline-offset: var(--warm-ledger-focus-offset);
+}
+
+.mobileDetailsGrid {
+  padding-block: var(--warm-ledger-space-2);
+}
+
+.mobileDetailsGrid code {
+  font-family: var(--warm-ledger-font-mono);
+  font-size: var(--warm-ledger-font-size-label);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+  overflow-wrap: anywhere;
+}
+
 .visuallyHidden {
   position: absolute;
   width: 1px;
@@ -290,4 +399,74 @@
   display: block;
   width: 76%;
   height: 10px;
+}
+
+.mobileLoadingList {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .page {
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .panelHeader {
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .panelDescription {
+    max-width: none;
+  }
+
+  .tableScroll {
+    display: none;
+  }
+
+  .mobileList {
+    display: grid;
+    gap: var(--warm-ledger-space-2);
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .mobileCard {
+    gap: var(--warm-ledger-space-3);
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .mobileActivityGrid,
+  .mobileDetailsGrid {
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .mobileLoadingList {
+    display: grid;
+    gap: var(--warm-ledger-space-2);
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .mobileLoadingCard {
+    display: grid;
+    min-height: 128px;
+    align-content: center;
+    gap: var(--warm-ledger-space-3);
+    padding: var(--warm-ledger-space-3);
+    border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+    border-radius: var(--warm-ledger-radius-panel);
+    background: var(--warm-ledger-color-panel);
+  }
+
+  .mobileLoadingCard .skeletonTitle {
+    width: 40%;
+  }
+
+  .mobileLoadingCard .skeletonHeaderBar {
+    width: 68%;
+  }
+}
+
+@media (max-width: 359px) {
+  .mobileActivityGrid,
+  .mobileDetailsGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

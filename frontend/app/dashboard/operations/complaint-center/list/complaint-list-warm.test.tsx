@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { ReactNode } from 'react'
@@ -21,7 +21,9 @@ vi.mock('@/components/notifications', () => ({
 vi.mock('@/components/terminal/terminal-header-slot', () => ({
   useHeaderRefresh: vi.fn(),
   useHeaderSlot: (node: ReactNode) => node,
-  useMobileFilterStrip: () => null,
+  useMobileFilterStrip: (node: ReactNode) => (
+    <div data-testid="complaint-mobile-filters">{node}</div>
+  ),
 }))
 
 vi.mock('@/lib/hooks/use-managed-projects', () => ({
@@ -82,22 +84,32 @@ describe('Complaint List Warm Ledger contract', () => {
     expect(header).toHaveAttribute('data-warm-header-filters', 'true')
     expect(header.querySelector('[class*="term-"]')).toBeNull()
     expect(header.querySelector('.rounded-none')).toBeNull()
-    expect(screen.getByLabelText('状态')).toBeInTheDocument()
-    expect(screen.getByLabelText('分类')).toBeInTheDocument()
-    expect(screen.getByLabelText('搜索买家或主题')).toBeInTheDocument()
+    const mobileFilters = screen.getByTestId('complaint-mobile-filters')
+    expect(header.querySelector('#complaint-list-status-filter')).toBeInTheDocument()
+    expect(header.querySelector('#complaint-list-category-filter')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '切换页面筛选' }))
+    expect(mobileFilters.querySelector('#complaint-list-mobile-status-filter')).toBeInTheDocument()
+    expect(
+      mobileFilters.querySelector('#complaint-list-mobile-category-filter')
+    ).toBeInTheDocument()
+    expect(within(mobileFilters).getByLabelText('搜索买家或主题')).toBeInTheDocument()
+    expect(container.querySelector('[data-mobile-complaint-list]')).toBeInTheDocument()
 
     const table = await screen.findByRole('table')
     expect(table.parentElement).toHaveAttribute('data-warm-table-scroll', 'true')
-    expect(screen.getByText('买家甲')).toBeInTheDocument()
+    expect(within(table).getByText('买家甲')).toBeInTheDocument()
+    const mobileList = container.querySelector<HTMLElement>('[data-mobile-complaint-list]')!
+    expect(within(mobileList).getByText('包裹破损')).toBeInTheDocument()
+    expect(within(mobileList).getByText('B0TEST1234')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByText('买家甲').closest('tr')!)
+    fireEvent.click(within(table).getByText('买家甲').closest('tr')!)
     await waitFor(() =>
       expect(screen.getByTestId('complaint-detail-drawer')).toHaveAttribute('data-open', 'true')
     )
-    expect(container.querySelector('[class*="term-"]')).toBeNull()
+    expect(page.querySelector('[class*="term-"]')).toBeNull()
   })
 
-  it('keeps the list stylesheet on Warm tokens with no Terminal aliases or new breakpoints', () => {
+  it('keeps the list stylesheet on Warm tokens with a phone breakpoint', () => {
     const cssPath = join(__dirname, 'complaint-list-warm.module.css')
     expect(() => readFileSync(cssPath, 'utf8')).not.toThrow()
     const css = readFileSync(cssPath, 'utf8')
@@ -105,6 +117,6 @@ describe('Complaint List Warm Ledger contract', () => {
     expect(css).toContain('var(--warm-ledger-color-panel)')
     expect(css).toContain('var(--warm-ledger-radius-panel)')
     expect(css).not.toContain('--term-')
-    expect(css).not.toContain('@media')
+    expect(css).toContain('@media (max-width: 767px)')
   })
 })

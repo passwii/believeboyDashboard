@@ -139,7 +139,7 @@ describe('Complaint Center Warm Ledger contract', () => {
     expect(await screen.findByTestId('complaint-trend-chart')).toBeInTheDocument()
   })
 
-  it('keeps the page-local stylesheet on Warm tokens with no Terminal aliases or new breakpoints', () => {
+  it('keeps the page-local stylesheet on Warm tokens with a phone breakpoint', () => {
     const cssPath = join(__dirname, 'complaint-center-warm.module.css')
     expect(() => readFileSync(cssPath, 'utf8')).not.toThrow()
     const css = readFileSync(cssPath, 'utf8')
@@ -147,6 +147,6 @@ describe('Complaint Center Warm Ledger contract', () => {
     expect(css).toContain('var(--warm-ledger-color-panel)')
     expect(css).toContain('var(--warm-ledger-radius-panel)')
     expect(css).not.toContain('--term-')
-    expect(css).not.toContain('@media')
+    expect(css).toContain('@media (max-width: 767px)')
   })
 })
