@@ -578,6 +578,8 @@ describe('项目启动台 · 手机端适配契约（BLF-1505）', () => {
     expect(css).toMatch(/--warm-ledger-control-target-touch/)
     expect(css).toMatch(/safe-area-inset-top/)
     expect(css).toMatch(/safe-area-inset-bottom/)
+    expect(css).toMatch(/\.dialogHeader\s*\{[^}]*padding-right:\s*calc/s)
+    expect(css).not.toMatch(/\.dialogClose\s*\{[^}]*env\(safe-area-inset-top\)/s)
   })
 
   it('手机端选择器与历史切换按钮具备完整无障碍与操作属性', async () => {

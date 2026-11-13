@@ -1341,8 +1341,13 @@
     border-bottom-right-radius: 0 !important;
   }
 
+  .dialogHeader {
+    padding-right: calc(var(--warm-ledger-control-target-touch, 44px) + var(--warm-ledger-space-2));
+  }
+
   .dialogClose {
-    top: calc(var(--warm-ledger-space-3) + env(safe-area-inset-top));
+    top: var(--warm-ledger-space-3);
+    right: var(--warm-ledger-space-3);
     width: var(--warm-ledger-control-target-touch, 44px);
     height: var(--warm-ledger-control-target-touch, 44px);
   }
