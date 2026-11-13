@@ -25,6 +25,7 @@ var printableKeys = []string{
 	"REDIS_HOST",
 	"REDIS_PORT",
 	"REDIS_DB",
+	"REDIS_PASSWORD",
 	"APP_ENV",
 	"GO_API_TEST_DATABASE_URL",
 	"LIVE_CONTRACT_API_KEY",

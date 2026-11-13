@@ -137,6 +137,11 @@ pg_restore -U damon -d BLF -j 4 --no-owner --no-privileges ~/db_backups/BLF_prod
 │ 2. cd backend-go && go run ./cmd/setuptestdb                │
 │    → 建库（如不存在）+ pg_dump --schema-only 克隆 schema    │
 │      + seed admin / operator / businessdev                │
+│                                                          │
+│ 若 BLF 快照落后 Alembic 285（crm_intent_meta 等表缺失），   │
+│ 克隆后 seed 迁移会失败：改用空库 + go run ./cmd/migrate up │
+│ （baseline 自带 285 全量 schema），再跑 seedtestreference   │
+│ 与 seedtestaccounts。                                     │
 └──────────────────────────────────────────────────────────┘
                           ↓
               独立的 BLF_test 测试库已就绪

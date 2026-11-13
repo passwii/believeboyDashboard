@@ -9,6 +9,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -169,7 +170,14 @@ func liveConfig(t *testing.T) liveContractConfig {
 			if database == "" {
 				database = "0"
 			}
-			cfg.redisURL = fmt.Sprintf("redis://%s:%s/%s", host, port, database)
+			// Password-protected Redis (the production config supports
+			// REDIS_PASSWORD; the test harness must build the same URL).
+			password := strings.TrimSpace(os.Getenv("REDIS_PASSWORD"))
+			if password != "" {
+				cfg.redisURL = fmt.Sprintf("redis://:%s@%s:%s/%s", url.QueryEscape(password), host, port, database)
+			} else {
+				cfg.redisURL = fmt.Sprintf("redis://%s:%s/%s", host, port, database)
+			}
 		}
 	}
 

@@ -90,7 +90,9 @@ func TestCRMStoreIntegrationAgainstBLFTest(t *testing.T) {
 	if err != nil || noOpContact == nil {
 		t.Fatalf("UpdateContact(no-op) = %#v, %v", noOpContact, err)
 	}
-	missingID := int64(1 << 62)
+	// Negative ids cannot exist; using 1<<62 would overflow the int4 column
+	// before the query even runs.
+	missingID := int64(-1)
 	if missing, err := store.UpdateContact(ctx, missingID, crm.ContactUpdateInput{}, userID); err != nil || missing != nil {
 		t.Fatalf("UpdateContact(missing) = %#v, %v", missing, err)
 	}

@@ -135,7 +135,9 @@ func TestAgentReviewTrackingStoreRollbackOnlyIntegration(t *testing.T) {
 		)
 	}
 
-	capturedAt := time.Now().UTC().Add(-2 * time.Minute)
+	// timestamptz keeps microsecond precision; truncate so round-trip equality
+	// does not depend on nanosecond leftovers from time.Now().
+	capturedAt := time.Now().UTC().Truncate(time.Microsecond).Add(-2 * time.Minute)
 	average := 4.4
 	ratingCount := int64(120)
 	reviewCount := int64(90)
@@ -356,22 +358,31 @@ func agentReviewTrackingFixture(
 	tx pgx.Tx,
 ) (projectID int64, productID int64, country string, asin string) {
 	t.Helper()
-	err := tx.QueryRow(
+	// Self-seeding fixture: the rollback-only transaction creates its own
+	// project + product cost so the test does not depend on production data.
+	name := fmt.Sprintf("review-fixture-%d", time.Now().UnixNano())
+	if err := tx.QueryRow(
 		ctx,
-		`select p.id, pc.id, pc.country, pc.asin
-		   from public.projects p
-		   join public.product_costs pc
-		     on pc.project_id = p.id
-		    and pc.country = p.country
-		    and pc.is_active = true
-		  where p.is_active = true
-		  order by p.id asc, pc.id asc
-		  limit 1`,
-	).Scan(&projectID, &productID, &country, &asin)
-	if err != nil {
-		t.Fatalf("select review tracking fixture: %v", err)
+		`insert into public.projects (project_name, sort_order, country, is_active)
+		 values ($1, 0, 'US', true)
+		 returning id`,
+		name,
+	).Scan(&projectID); err != nil {
+		t.Fatalf("insert review tracking project: %v", err)
 	}
-	return projectID, productID, country, asin
+	sku := "FIXTURE-SKU"
+	asin = "FIXTURE-ASIN"
+	if err := tx.QueryRow(
+		ctx,
+		`insert into public.product_costs
+		   (project_name, project_id, sku, asin, fob_unit_cost, country, is_active)
+		 values ($1, $2, $3, $4, 0, 'US', true)
+		 returning id`,
+		name, projectID, sku, asin,
+	).Scan(&productID); err != nil {
+		t.Fatalf("insert review tracking product cost: %v", err)
+	}
+	return projectID, productID, "US", asin
 }
 
 func agentReviewTrackingStringPtr(value string) *string {
