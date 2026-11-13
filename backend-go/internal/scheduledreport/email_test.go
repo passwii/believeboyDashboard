@@ -44,3 +44,16 @@ func TestRenderDailyReportHTML(t *testing.T) {
 		t.Fatal("summary should be hidden when includeSummary=false")
 	}
 }
+
+func TestRenderDailyReportHTMLSetsExplicitLeftAlignment(t *testing.T) {
+	html := RenderDailyReportHTML(sampleReportData(), false)
+	for _, expected := range []string{
+		"background:#1F2937;padding:26px 24px;text-align:left;",
+		"padding:20px 24px 8px;text-align:left;",
+		"padding:16px 24px 4px;text-align:left;",
+	} {
+		if !strings.Contains(html, expected) {
+			t.Fatalf("rendered HTML missing explicit alignment %q", expected)
+		}
+	}
+}

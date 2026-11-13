@@ -15,7 +15,7 @@
 | 定时任务 | `cmd/go-scheduler` + `internal/scheduler` | 同上 |
 | 数据库迁移（Goose） | `cmd/migrate` + `internal/migrations/sql` | `cmd/checkmigrations` |
 | PDF 生成 | `internal/pdf` | 单测 + 定时报表端到端 |
-| 报表截图 | `internal/scheduledreport` | 单测 + 邮件附件用例 |
+| 报表截图 | `internal/scheduledreport`（Obscura CDP） | 单测 + 邮件附件用例 |
 | 邮件（含附件） | `internal/mailer` | `attachment_test.go` |
 | 契约测试（FastAPI golden） | `internal/livecontract` + `tests/contract` | 15 用例 / 14 路由，无 Python |
 | 测试库准备 | `cmd/setuptestdb` | 克隆 schema + seed 账号 |

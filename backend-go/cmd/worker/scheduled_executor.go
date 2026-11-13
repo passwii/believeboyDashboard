@@ -13,11 +13,11 @@ import (
 )
 
 type scheduledDispatchExecutor struct {
-	db              store.FullDB
-	sender          *mailer.Mailer
-	provider        ai.Provider
-	screenshotStore blob.ObjectStore
-	chromePath      string
+	db                 store.FullDB
+	sender             *mailer.Mailer
+	provider           ai.Provider
+	screenshotStore    blob.ObjectStore
+	screenshotRenderer scheduledreport.ScreenshotRenderer
 }
 
 func (executor scheduledDispatchExecutor) Execute(ctx context.Context, taskType string, payload any) (any, error) {
@@ -35,7 +35,7 @@ func (executor scheduledDispatchExecutor) Execute(ctx context.Context, taskType 
 			Frequency:      requestPayload.Frequency,
 			ReportDate:     requestPayload.ReportDate,
 			TriggeredBy:    requestPayload.TriggeredBy,
-		}, scheduledreport.WithScreenshot(executor.screenshotStore, executor.chromePath))
+		}, scheduledreport.WithScreenshot(executor.screenshotStore, executor.screenshotRenderer))
 	case "generate_delivery_summary":
 		requestPayload, ok := payload.(*tasks.GenerateDeliverySummaryPayload)
 		if !ok || requestPayload == nil {

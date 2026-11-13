@@ -101,6 +101,15 @@ FASTAPI_ORIGIN=http://127.0.0.1:8100  # 仅为满足网关配置校验保留，�
 GO_API_OWNED=all
 # 分阶段示例：health,exchange_rates,notifications,alerts,profile,crm_intent
 GO_API_TRUSTED_PROXY_SECRET=<same 64-character hex secret>
+# go-worker 通过宿主机上的 Obscura CDP 截图。服务需加载 CJK 字体；
+# `off` 时回退到镜像内的 CHROME_BIN。
+OBSCURA_CDP_URL=http://127.0.0.1:9222
+```
+
+定时报表截图依赖宿主机监听 `127.0.0.1:9222` 的 Obscura：
+
+```bash
+obscura serve --port 9222 --stealth --font-dir frontend/public/fonts
 ```
 
 以下地址必须继续使用公开 URL：
