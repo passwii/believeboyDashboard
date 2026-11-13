@@ -24,4 +24,4 @@ go test ./... -count=1           # 全部后端测试
 
 Goose baseline（`backend-go/internal/migrations/sql/00001_baseline.sql`）是 revision 285
 的 schema 快照。归档保留是为了在库版本落后时用
-`bash deploy/prepare-goose-cutover.sh` 升到 285，以及让 manifest 校验有可比对的基准。
+`bash deploy/prepare-goose-cutover.sh`（需 `LEGACY_API_IMAGE`）升到 285，以及让 manifest 校验有可比对的基准。
