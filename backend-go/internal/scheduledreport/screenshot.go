@@ -24,8 +24,35 @@ type ScreenshotResult struct {
 	ThumbURL string
 }
 
+// ScreenshotRenderer captures a rendered HTML report as PNG.
+type ScreenshotRenderer interface {
+	Capture(ctx context.Context, html string, width, height int) ([]byte, error)
+}
+
+// ChromeScreenshotRenderer is the legacy headless-Chrome CLI renderer.
+type ChromeScreenshotRenderer struct {
+	ChromePath string
+}
+
+func (renderer ChromeScreenshotRenderer) Capture(ctx context.Context, html string, width, height int) ([]byte, error) {
+	return CaptureReportPNG(ctx, html, renderer.ChromePath, width, height)
+}
+
+// NewScreenshotRenderer selects the configured browser backend. Obscura is
+// preferred; Chrome remains a compatibility fallback for older deployments.
+func NewScreenshotRenderer(obscuraCDPURL, chromePath string) ScreenshotRenderer {
+	if strings.TrimSpace(obscuraCDPURL) != "" {
+		return ObscuraScreenshotRenderer{CDPURL: obscuraCDPURL}
+	}
+	if strings.TrimSpace(chromePath) != "" {
+		return ChromeScreenshotRenderer{ChromePath: chromePath}
+	}
+	return nil
+}
+
 // CaptureReportPNG renders an HTML document to PNG with headless Chrome.
-// The HTML is expected to be a self-contained report page.
+// The HTML is expected to be a self-contained report page. Scheduled reports
+// use CaptureReportPNGWithObscura when OBSCURA_CDP_URL is configured.
 func CaptureReportPNG(ctx context.Context, html string, chromePath string, width, height int) ([]byte, error) {
 	if strings.TrimSpace(html) == "" {
 		return nil, fmt.Errorf("screenshot html is empty")

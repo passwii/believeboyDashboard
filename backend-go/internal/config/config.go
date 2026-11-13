@@ -20,6 +20,7 @@ const (
 	defaultProjectLaunchDocsRoot   = "backend-go/resources/project_launch_documents"
 	defaultAlertFromEmail          = "alerts@believeboy.com"
 	defaultAlertFromName           = "BelieveBoy Dashboard"
+	defaultObscuraCDPURL           = "http://127.0.0.1:9222"
 
 	ModulePricingCalculation          = "pricing_calculation"
 	ModulePricingCalculationSnapshots = "pricing_calculation_snapshots"
@@ -198,6 +199,7 @@ type Config struct {
 	ResendBaseURL               string
 	AlertFromEmail              string
 	AlertFromName               string
+	ObscuraCDPURL               string
 
 	AIChatProviderBaseURL          string
 	AIChatProviderAPIKey           string
@@ -272,6 +274,7 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 		ResendBaseURL:                firstNonEmpty(lookup, "RESEND_BASE_URL"),
 		AlertFromEmail:               valueOrDefault(lookup, "ALERT_FROM_EMAIL", defaultAlertFromEmail),
 		AlertFromName:                valueOrDefault(lookup, "ALERT_FROM_NAME", defaultAlertFromName),
+		ObscuraCDPURL:                valueOrDefault(lookup, "OBSCURA_CDP_URL", defaultObscuraCDPURL),
 		AIChatProviderBaseURL:        valueOrDefault(lookup, "AI_CHAT_PROVIDER_BASE_URL", ""),
 		AIChatProviderAPIKey:         valueOrDefault(lookup, "AI_CHAT_PROVIDER_API_KEY", ""),
 		AIChatDefaultModel:           valueOrDefault(lookup, "AI_CHAT_DEFAULT_MODEL", ""),
@@ -335,6 +338,10 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 	}
 	if origin.Scheme != "http" && origin.Scheme != "https" {
 		return Config{}, fmt.Errorf("FASTAPI_ORIGIN must use http or https")
+	}
+
+	if cfg.ObscuraCDPURL, err = normalizeObscuraCDPURL(cfg.ObscuraCDPURL); err != nil {
+		return Config{}, err
 	}
 
 	if cfg.CRMSeaReclaimDays, err = intFromEnvironment(lookup, "CRM_SEA_RECLAIM_DAYS", 15, 0, 365); err != nil {
@@ -478,6 +485,25 @@ func firstNonEmpty(lookup func(string) (string, bool), keys ...string) string {
 		}
 	}
 	return ""
+}
+
+func normalizeObscuraCDPURL(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	switch strings.ToLower(raw) {
+	case "", "off", "none", "disabled":
+		return "", nil
+	default:
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Host == "" {
+		return "", fmt.Errorf("OBSCURA_CDP_URL must be an absolute URL")
+	}
+	switch parsed.Scheme {
+	case "http", "https", "ws", "wss":
+		return raw, nil
+	default:
+		return "", fmt.Errorf("OBSCURA_CDP_URL must use http, https, ws, or wss")
+	}
 }
 
 func valueOrDefault(lookup func(string) (string, bool), key, fallback string) string {

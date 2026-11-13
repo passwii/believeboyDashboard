@@ -30,18 +30,18 @@ type DispatchRequest struct {
 
 // DispatchResult reports the outcome of one dispatch.
 type dispatchOptions struct {
-	screenshotStore blob.ObjectStore
-	chromePath      string
+	screenshotStore    blob.ObjectStore
+	screenshotRenderer ScreenshotRenderer
 }
 
 // DispatchOption customises DispatchOne.
 type DispatchOption func(*dispatchOptions)
 
 // WithScreenshot enables best-effort screenshot capture + upload.
-func WithScreenshot(store blob.ObjectStore, chromePath string) DispatchOption {
+func WithScreenshot(store blob.ObjectStore, renderer ScreenshotRenderer) DispatchOption {
 	return func(options *dispatchOptions) {
 		options.screenshotStore = store
-		options.chromePath = chromePath
+		options.screenshotRenderer = renderer
 	}
 }
 
@@ -186,8 +186,13 @@ func DispatchOne(ctx context.Context, db store.FullDB, sender EmailSender, reque
 	// the attachment before attempting the upload, so a failed upload still
 	// delivers the inline preview; keep that ordering.
 	var attachmentPNG []byte
-	if dispatchOptions.screenshotStore != nil {
-		if screenshotPNG, captureErr := CaptureReportPNG(ctx, RenderDailyReportHTML(reportData, false), dispatchOptions.chromePath, 420, 6000); captureErr == nil {
+	if dispatchOptions.screenshotStore != nil && dispatchOptions.screenshotRenderer != nil {
+		if screenshotPNG, captureErr := dispatchOptions.screenshotRenderer.Capture(
+			ctx,
+			RenderDailyReportHTML(reportData, false),
+			420,
+			6000,
+		); captureErr == nil {
 			attachmentPNG = screenshotPNG
 			if thumbPNG, resizeErr := ResizePNG(screenshotPNG, 3); resizeErr == nil {
 				if upload, uploadErr := UploadScreenshot(ctx, dispatchOptions.screenshotStore, screenshotPNG, thumbPNG,

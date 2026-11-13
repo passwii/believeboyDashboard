@@ -33,7 +33,7 @@
 - `go-worker`：消费 Redis 队列（alerts / CRM / 月度报表 / AI 摘要等），对应 `backend-go/cmd/go-worker`
 - `go-scheduler`：注册静态 job + insight 同步 + 定时报表分钟扫描，对应 `backend-go/cmd/go-scheduler`
 - 两者与 `go-api` 共用同一个 `GO_API_IMAGE`，通过不同 entrypoint 启动；没有独立 HTTP 健康检查，用 `docker compose ps` 确认 Running。
-- 定时报表截图（Playwright）仍在 worker 内执行，方案见 `2026-07-10-scheduled-report-to-celery.md §4.4` 的历史记录；实现已迁到 Go。
+- 定时报表截图在 `go-worker` 内通过 Obscura CDP 执行（`OBSCURA_CDP_URL`，默认 `http://127.0.0.1:9222`）；Obscura 启动时需用 `--font-dir` 加载 CJK 字体。旧 Playwright Chrome CLI 仅作为显式回退保留。
 
 ### autoReportUpload（遗留 Python，尚未迁移）
 `autoReportUpload/` 是**仓库里最后一个 Python 运行时**，监控目录、识别报表并上传。它的实现依赖

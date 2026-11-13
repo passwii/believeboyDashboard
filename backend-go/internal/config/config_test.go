@@ -36,6 +36,9 @@ func TestLoadUsesDefaultsAndParsesOwnedModules(t *testing.T) {
 	if got.AgentMonthlyReportRoot != "backend/storage/agent_monthly_reports" {
 		t.Errorf("AgentMonthlyReportRoot = %q, want backend/storage/agent_monthly_reports", got.AgentMonthlyReportRoot)
 	}
+	if got.ObscuraCDPURL != "http://127.0.0.1:9222" {
+		t.Errorf("ObscuraCDPURL = %q, want http://127.0.0.1:9222", got.ObscuraCDPURL)
+	}
 	wantOwned := map[string]bool{
 		"health":         true,
 		"exchange_rates": true,
@@ -43,6 +46,42 @@ func TestLoadUsesDefaultsAndParsesOwnedModules(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got.OwnedModules, wantOwned) {
 		t.Errorf("OwnedModules = %#v, want %#v", got.OwnedModules, wantOwned)
+	}
+}
+
+func TestLoadParsesObscuraCDPURL(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("OBSCURA_CDP_URL", "ws://127.0.0.1:9333/devtools/browser")
+
+	got, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if got.ObscuraCDPURL != "ws://127.0.0.1:9333/devtools/browser" {
+		t.Errorf("ObscuraCDPURL = %q", got.ObscuraCDPURL)
+	}
+}
+
+func TestLoadCanDisableObscuraCDP(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("OBSCURA_CDP_URL", "off")
+
+	got, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if got.ObscuraCDPURL != "" {
+		t.Errorf("ObscuraCDPURL = %q, want empty", got.ObscuraCDPURL)
+	}
+}
+
+func TestLoadRejectsInvalidObscuraCDPURL(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("OBSCURA_CDP_URL", "ftp://127.0.0.1:9222")
+
+	_, err := Load()
+	if err == nil || !strings.Contains(err.Error(), "OBSCURA_CDP_URL") {
+		t.Fatalf("Load() error = %v, want OBSCURA_CDP_URL validation error", err)
 	}
 }
 
@@ -632,6 +671,7 @@ func setRequiredEnv(t *testing.T) {
 		"AI_CHAT_STREAM_MAXLEN",
 		"AI_CHAT_STREAM_MAX_DURATION_SECONDS",
 		"AI_CHAT_STREAM_MEMORY_FALLBACK",
+		"OBSCURA_CDP_URL",
 	} {
 		unsetEnv(t, key)
 	}

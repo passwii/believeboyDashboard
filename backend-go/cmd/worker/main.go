@@ -20,6 +20,7 @@ import (
 	"github.com/passwii/believeboyDashboard/backend-go/internal/config"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/mailer"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/queue"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/scheduledreport"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/store"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/tasks"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/tzcheck"
@@ -135,9 +136,10 @@ func run(logger *slog.Logger) error {
 	)
 	handlerConfig.Mailer = workerTextMailer{mailer: newWorkerMailer(cfg)}
 	screenshotStore := newScreenshotStore(cfg)
+	screenshotRenderer := scheduledreport.NewScreenshotRenderer(cfg.ObscuraCDPURL, os.Getenv("CHROME_BIN"))
 	handlerConfig.Executor = scheduledDispatchExecutor{
 		db: primaryDB, sender: newWorkerMailer(cfg), provider: insightProvider,
-		screenshotStore: screenshotStore, chromePath: os.Getenv("CHROME_BIN"),
+		screenshotStore: screenshotStore, screenshotRenderer: screenshotRenderer,
 	}
 	handler := tasks.NewTaskHandler(pool, handlerConfig)
 	if err := handler.ValidateRuntime(); err != nil {
