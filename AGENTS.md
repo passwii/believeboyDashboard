@@ -90,7 +90,8 @@ git rev-list --left-right --count origin/main...HEAD  # 左侧计数为 0，才�
 
 - 深度参考（架构 / 部署 / 环境变量 / 数据库 / 广告数据 / 完整测试与反馈模板 / Git 部署）：[docs/REFERENCE.md](./docs/REFERENCE.md)
 - 旧权威（已弃用）：[CLAUDE.md](./CLAUDE.md)
-- autoReportUpload HTTP ingest 计划：[docs/superpowers/plans/2026-07-02-auto-report-http-ingest.md](./docs/superpowers/plans/2026-07-02-auto-report-http-ingest.md)
+- 迁移状态与剩余事项：[docs/migration-status.md](./docs/migration-status.md)
+- 最后一个 Python 服务（autoReportUpload）现状：[autoReportUpload/README.md](./autoReportUpload/README.md)
 
 ## Platform follow-up（BEL-127）
 

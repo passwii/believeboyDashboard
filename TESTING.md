@@ -62,8 +62,8 @@ redis-cli ping                      # 期望 → PONG
 
 - 首次跑测试还需先初始化独立测试库（见下方「一次性搭建」）：
   `cd backend-go && go run ./cmd/setuptestdb`（会自动建 `BLF_test` + seed 账号）。
-- 仅跑纯 pytest 单元、不涉及后台任务的用例，Redis 可不起；
-  一旦用例触发 Celery 任务（定时报告 / AI 摘要 / 鉴权缓存），Redis broker 必须在线，否则任务派发失败。
+- 纯单元测试（不碰队列）Redis 可不起；
+  一旦用例触发后台任务（定时报告 / AI 摘要 / 鉴权缓存），Redis 必须在线，否则任务派发失败。
 
 ### 2. 关闭（测完释放资源）
 
@@ -82,7 +82,7 @@ pg_isready && redis-cli ping        # 两者都通 → 直接跑测试即可
 
 > 注意（BEL-376 更新）：`backend/.env` 现已**直接写入** `DATABASE_URL`，指向本地生产快照
 > `postgresql+psycopg://damon:<pw>@localhost:5432/BLF`（旧值曾误指向死端口 `55432`，已修正为 `5432`）。
-> `TEST_DATABASE_URL` 仍在 `backend/.env.test`（gitignored）→ `BLF_test`，供自动化 pytest 隔离用。
+> `TEST_DATABASE_URL` / `GO_API_TEST_DATABASE_URL` 仍在 `backend/.env.test`（gitignored）→ `BLF_test`，供 Go 测试隔离用。
 > 连哪个库以 `psql -l` 列出的本地库为准（主库 `BLF`=生产快照，测试库 `BLF_test`）。
 
 ---
@@ -91,21 +91,19 @@ pg_isready && redis-cli ping        # 两者都通 → 直接跑测试即可
 
 > **定位：** `BLF` 是从 VPS 生产库 `pg_dump` 下来、恢复到本地的**真实数据快照**（brew PG，
 > 端口 5432，常驻）。用途是**通过本地 backend 对真实数据做读写 / 外部 API 集成测试**，
-> 不必在 VPS 上操作。**与自动化 pytest 的 `BLF_test` 隔离机制互不影响**——pytest 仍走
+> 不必在 VPS 上操作。**与自动化测试的 `BLF_test` 隔离机制互不影响**——Go 测试仍走
 > `TEST_DATABASE_URL`→`BLF_test`（见上方架构分层），生产快照只用于手动 / 集成验证。
 
 ### 起本地 backend 测外部 API
 
-`backend/.env` 的 `DATABASE_URL` 已指向本地 `BLF`，直接起即可（外部 API 无鉴权，P0 网关隔离）：
+`backend/.env` 的 `DATABASE_URL` 已指向本地 `BLF`，直接起 Go 网关即可：
 
 ```bash
-cd backend && .venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8100
+cd backend-go && go run ./cmd/gateway   # 监听 127.0.0.1:8200
 # 另开终端调用（示例：项目 1 的美国站广告 + 补货分析）
-curl 'http://127.0.0.1:8100/api/v1/external/projects/1/ad-campaigns?period=custom&start_date=2026-07-01&end_date=2026-07-30&country=US&limit=5'
-curl 'http://127.0.0.1:8100/api/v1/external/projects/1/replenishment-analysis?country=US&page_size=5'
+curl 'http://127.0.0.1:8200/api/v1/external/projects/1/ad-campaigns?period=custom&start_date=2026-07-01&end_date=2026-07-30&country=US&limit=5'
+curl 'http://127.0.0.1:8200/api/v1/external/projects/1/replenishment-analysis?country=US&page_size=5'
 ```
-
-端点目录与参数见 [`backend/docs/external-api.md`](backend/docs/external-api.md)。
 
 ### 刷新快照（拉最新生产数据）
 
@@ -136,7 +134,7 @@ pg_restore -U damon -d BLF -j 4 --no-owner --no-privileges ~/db_backups/BLF_prod
 │      TEST_ADMIN_PASSWORD=...                              │
 │      TEST_OPERATOR_PASSWORD=...                           │
 │      TEST_BUSINESSDEV_PASSWORD=...                        │
-│ 2. python backend-go/cmd/setuptestdb                        │
+│ 2. cd backend-go && go run ./cmd/setuptestdb                │
 │    → 建库（如不存在）+ pg_dump --schema-only 克隆 schema    │
 │      + seed admin / operator / businessdev                │
 └──────────────────────────────────────────────────────────┘
@@ -167,7 +165,7 @@ Playwright E2E (Layer 2)：
 
 ---
 
-## Go Gateway 测试与 FastAPI live contract
+## Go Gateway 测试与 golden 契约
 
 `backend-go/` 与 `desktop/` 由 `.github/workflows/test-ci.yml` 独立跑
 `go test ./...` + `go vet ./...`；`backend-go` 额外跑 `go test -race ./...`。
@@ -296,8 +294,8 @@ vi.mock('@/components/notifications', () => ({
 #### 机械拦截：`pnpm check:mocks`（BLF-1247）
 
 「必须用稳定引用」靠人记就会漏（存量 18 处就是这么留下来的），所以加了一道机器拦截——
-`frontend/scripts/check-unstable-mocks.mjs`（屋风对齐后端 `backend/scripts/check_alembic.py`：
-**只用 node 内置模块**、失败 `exit 1`、输出含 `file:line` + 修法提示）：
+`frontend/scripts/check-unstable-mocks.mjs`（屋风对齐后端 `cmd/checkmigrations`：
+**只用标准库**、失败 `exit 1`、输出含 `file:line` + 修法提示）：
 
 | 问题 | 答案 |
 | --- | --- |
@@ -326,10 +324,10 @@ vi.mock('@/components/notifications', () => ({
 
 1. **测试账号只在测试库里 seed**——绝不放进开发/生产库。
 2. **密码绝不硬编码、不入 .env.example**——只从 `backend/.env.test`（gitignored）注入。
-3. **测试库 schema 用 `pg_dump --schema-only` 同步**（参见 plan D2）——不要尝试 `alembic upgrade head` 从零建（迁移 bootstrap 冲突）。
-4. **Playwright 登录走 `login_as`（agent_testing/auth.py）**——不要回退到 UI 选择器 `#email` / `#password`。
-5. **新加 E2E 账号时**更新 `agent_testing/conftest.py` 的 `TEST_ACCOUNTS` + `backend-go/cmd/seedtestaccounts` 的 `TEST_ACCOUNTS` 列表；两边必须一致。
-6. **新加 pytest DB 测试时**用 `tests/conftest.py` 的 `db_session` / `test_admin` / `*_headers` fixture，不要自己 `SessionLocal()` 直连。
+3. **测试库 schema 用 `pg_dump --schema-only` 同步**（`cmd/setuptestdb` 已内置）——不要用 Goose 从零重放 baseline 建测试库。
+4. **Playwright 登录走 `loginAsUser`（真 NextAuth credentials 流）**——不要回退到 UI 选择器 `#email` / `#password`。
+5. **新加 E2E 账号时**只改 `backend-go/cmd/seedtestaccounts` 的 `TEST_ACCOUNTS` 列表 + `backend/.env.test` 的密码变量。
+6. **新加 Go DB 测试时**用 `GO_API_TEST_DATABASE_URL` 显式开启 + 每条用例 `t.Cleanup` 清理写入，绝不连生产库 `BLF`。
 
 ---
 
@@ -339,10 +337,9 @@ vi.mock('@/components/notifications', () => ({
 
 ### 加一个新角色 / 一类测试账号
 
-1. `backend/app/core/config.py`：增加 `test_<role>_email` / `test_<role>_password` 字段（带默认值；密码必须从 env 注入）。
-2. `backend/backend-go/cmd/seedtestaccounts`：在 `TEST_ACCOUNTS` 列表加一项，role_type 写准确值（`admin` / `operator` / `businessdev` / 未来新增）。
-3. `backend/scripts/agent_testing/conftest.py`：在 `TEST_ACCOUNTS` dict 加一项（**两边都要，且邮箱、密码、env 变量名一致**）。
-4. 重跑 `cd backend-go && go run ./cmd/setuptestdb --reset-password`。
+1. `backend-go/cmd/seedtestaccounts`：在 `TEST_ACCOUNTS` 列表加一项，role_type 写准确值（`admin` / `operator` / `businessdev` / 未来新增）。
+2. `backend/.env.test`：补对应的 `TEST_<ROLE>_PASSWORD`（gitignored，绝不入库）。
+3. 重跑 `cd backend-go && go run ./cmd/setuptestdb --reset-password`。
 
 ### Playwright motion/a11y CI 覆盖边界（BLF-1253）
 
@@ -355,29 +352,13 @@ vi.mock('@/components/notifications', () => ({
 
 ### 加一个 Playwright E2E 测试
 
-#### Python (backend agent)
-
-```python
-# backend/scripts/agent_testing/test_xxx.py
-from scripts.agent_testing.auth import login_as
-
-def test_xxx(page):
-    login_as(page, "admin")    # 无 UI 登录，复用缓存
-    page.goto(f"{FRONTEND_URL}/...")
-    # 断言
-```
-
-- **复用** `page` / `browser` fixture（agent_testing/conftest.py）。
-- **不要**自己写 `page.locator("#email").fill(...)`——用 `login_as`。
-- 会话失效？设 `AGENT_TEST_REFRESH_AUTH=1` 重跑一次。
-
 #### TypeScript (frontend)
 
 ```ts
 // frontend/tests/<area>/<name>.spec.ts
 import { expect, test } from '@playwright/test'
 
-// 内联 NextAuth credentials REST 登录（参考 backend/scripts/agent_testing/auth.py）。
+// 内联 NextAuth credentials REST 登录。
 // 复制粘贴很常见——每个 spec 都内联是因为 Playwright 1.59.1 加载跨文件 Node
 // built-in 模块时存在 quirk。读取 backend/.env.test 的 TEST_USER_EMAIL/
 // TEST_USER_PASSWORD（gitignored）来跑真实登录。
@@ -392,23 +373,32 @@ test('AI chat sends a message and renders token footer', async ({ page }) => {
 })
 ```
 
-- **账号来源**：`backend/.env.test`（gitignored）里的 `TEST_USER_EMAIL` / `TEST_USER_PASSWORD`（用户的真实 dev 账号）。也可用 seed 测试账号 `TEST_OPERATOR_EMAIL` 等（需要后端连 test DB）。详细 env var 名称见 `backend/scripts/agent_testing/conftest.py`。
+- **账号来源**：`backend/.env.test`（gitignored）里的 `TEST_USER_EMAIL` / `TEST_USER_PASSWORD`（用户的真实 dev 账号），或用 `cmd/seedtestaccounts` 灌的测试账号（需后端连 `BLF_test`）。
 - **mock AI chat APIs** 保持 spec 快、可重现（真 LLM 又慢又费钱又 flaky）。`page.route('**/api/ai-chat/**')` 拦截 + `route.fulfill({ json })` 返 mock。**不要** mock `/api/auth/**`——让 NextAuth 走真流。
 - 会话失效？设 `E2E_REFRESH_AUTH=1 pnpm test:ui -- tests/<area>/<name>.spec.ts` 重跑一次。
 - 跑：`pnpm test:ui -- tests/<area>/<name>.spec.ts`（前提：后端起 + dev frontend 起，或 `pnpm dev` 由 playwright.config.ts 的 webServer 自启）。
 
-### 加一个 pytest DB 测试
+### 加一个 Go DB 测试
 
-```python
-# backend/tests/api/test_xxx.py
-def test_xxx(client, operator_headers, db_session):
-    resp = client.get("/api/v1/...", headers=operator_headers)
-    assert resp.status_code == 200
+集成测试用 `GO_API_TEST_DATABASE_URL` 显式开启，未设置时 `t.Skip`（默认不碰库）：
+
+```go
+// internal/store/xxx_integration_test.go
+func TestXxxIntegration(t *testing.T) {
+    databaseURL := os.Getenv("GO_API_TEST_DATABASE_URL")
+    if databaseURL == "" {
+        t.Skip("set GO_API_TEST_DATABASE_URL to a BLF_test connection")
+    }
+    db, err := store.OpenPool(context.Background(), databaseURL)
+    if err != nil { t.Fatal(err) }
+    t.Cleanup(db.Close)
+    // ... 断言；每条用例自己 t.Cleanup 清理写入
+}
 ```
 
-- **复用** `tests/conftest.py` 的 fixtures：`client`（FastAPI TestClient）、`db_session`、`test_admin` / `test_operator` / `*_headers`。
-- **不要**写 `from app.db.session import SessionLocal` 然后直连；用 `db_session`。
-- 未配 `TEST_DATABASE_URL` 时该测试自动 skip + 给指引。
+- 纯逻辑测试优先：store 接口是接口类型，可以传假的 `Rows` / `QueryRow` 实现（见 `internal/store/crm_test.go`），不需要真库。
+- 需要固定数据时用 `cmd/seedtestreference` / `cmd/seedtestaccounts` 的 fixture，不要依赖生产快照行。
+- 外部依赖（Redis / 邮件 / LLM）用接口注入假实现，不要起真服务。
 
 ### 加一个权限矩阵 / 场景预设
 
@@ -431,9 +421,8 @@ pnpm test:ui -- tests/crawl/discovery.spec.ts --project=chromium
 - **后续**：报告里的 ❌ 列表 = 写 functional test 的优先级输入。按“高风险页面优先”原则，让 agent 或人工针对具体页面写 functional smoke。
 - **路由列表**：硬编码在 `tests/crawl/discovery.spec.ts` 的 `ROUTES` 数组里。新增页面后手动加一行（或重跑 `find app/dashboard -name page.tsx | sed ...` 重新生成）。
 
-- 在 `backend/scripts/agent_testing/matrices/` 新建数据驱动的矩阵声明。
-- 用 `@pytest.mark.parametrize` 遍历。
-- 不要把矩阵写进 conftest；conftest 只放"如何登录、如何取数据库"的原语。
+- 在 `backend-go/tests/` 下用表驱动测试（`[]struct{...}` + `t.Run`）声明矩阵。
+- 不要复制多份 setup；把「建请求 / 断言形状」抽成 helper。
 
 ---
 
@@ -450,21 +439,19 @@ pnpm test:ui -- tests/crawl/discovery.spec.ts --project=chromium
 
 ## 子文档索引
 
-- pytest 单元/集成使用指南：[`backend/tests/README.md`](backend/tests/README.md)
-- Playwright E2E 使用指南：[`backend/scripts/agent_testing/README.md`](backend/scripts/agent_testing/README.md)
+- 契约测试（golden 对账）使用指南：[`backend-go/tests/contract/README.md`](backend-go/tests/contract/README.md)
+- Playwright E2E：`frontend/tests/`（`pnpm test:ui`）
 - 当前主题的设计 plan：[`docs/superpowers/plans/2026-07-14-test-db-and-playwright-foundation.md`](docs/superpowers/plans/2026-07-14-test-db-and-playwright-foundation.md)
 
 ---
 
-## 按功能运行（避免全盘 pytest）
-
-仓库给测试打了**功能 marker**（详见 `backend/tests/README.md` 末尾「按功能运行」一节），支持：
+## 按包运行（避免全盘 go test）
 
 ```bash
-pytest -m business_report    # 只跑业务报告相关
-pytest -m recognition       # 跨 utils/ + ad/upload 的全部识别测试
-pytest -m upload            # 报表入库/upload 链
-pytest -m "recognition and not ad_report"   # 组合/排除
+cd backend-go
+go test ./internal/api/ad_upload -count=1     # 只跑某个模块
+go test ./internal/store -count=1             # 数据访问层
+go test ./... -run TestSalesUpsert -count=1   # 按测试名跨包筛选
 ```
 
-这样改动某功能（如本月修的 `business_report` 英文表头识别）只需跑对应子集，不必每次全盘 ~22s 且被无关失败噪声淹没。Marker 集合与定义在 `pyproject.toml` 的 `[tool.pytest.ini_options].markers`，不要在测试里用未声明的 marker（pytest 会警告）。
+改动某个模块时先跑该包的测试，T3（跨模块 / 迁移 / 权限）才跑全量 `go test ./...`。

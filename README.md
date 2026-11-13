@@ -134,23 +134,16 @@ believeboyDashboard/
 │   ├── tailwind.config.ts        # Tailwind 配置
 │   ├── playwright.config.ts      # Playwright 配置
 │   └── package.json
-├── backend/                      # FastAPI 后端
-│   ├── app/                      # 应用代码
-│   │   ├── api/                  # API 路由
-│   │   │   └── v1/endpoints/     # v1 API 端点
-│   │   ├── core/                 # 核心配置（security / config / logging）
-│   │   ├── db/                   # 数据库连接
-│   │   ├── models/               # SQLAlchemy 模型
-│   │   ├── schemas/              # Pydantic 数据模型
-│   │   ├── services/             # 业务逻辑服务
-│   │   └── tasks/                # 后台任务
-│   ├── alembic/                  # Alembic 历史归档（已冻结）
-│   ├── scripts/                  # 数据导入 + 运维脚本
-│   ├── tests/                    # pytest 测试
-│   ├── docs/                     # 后端设计/口径手册
-│   └── requirements.txt          # 后端依赖
-├── autoReportUpload/             # 独立服务：自动识别并上传新报表
-├── productEnvAgent/              # VPS 部署辅助脚本
+├── backend-go/                   # Go 后端（网关 + worker + scheduler + 迁移）
+│   ├── cmd/                      # 可执行入口（gateway / migrate / 各类工具）
+│   ├── internal/                 # 业务实现（api/ store/ queue/ scheduledreport/ …）
+│   │   ├── api/                  # 70 个模块的 HTTP handler 与路由注册
+│   │   ├── migrations/sql/       # Goose 迁移（00001_baseline 为 285 schema 快照）
+│   │   └── store/                # PostgreSQL 访问层
+│   └── tests/contract/           # 契约测试（对账 FastAPI golden 录制）
+├── backend/                      # 归档：Alembic 冻结版本 + 旧 systemd 单元（无 Python 运行时）
+├── autoReportUpload/            # 遗留 Python 服务（尚未迁移，暂需旧 commit 运行）
+├── productEnvAgent/              # git deploy 入口（deploy.sh）
 ├── docs/                         # 仓库级文档
 ├── .gitignore                    # Git 忽略配置
 └── README.md                     # 项目文档
@@ -160,7 +153,6 @@ believeboyDashboard/
 
 ### 环境要求
 - Node.js 22.12+（CI 固定 Node 24 LTS，以仓库根 `.nvmrc` 为准）
-- Python 3.9+
 - PostgreSQL 12+（本机 brew `postgresql@18`，常驻运行，本地库即生产快照，详见 [TESTING.md](./TESTING.md#本地生产快照库bel-376-集成--手动读写测试)）
 - Redis（Celery broker；本地 mac 用 `brew install redis`，跑测试前 `brew services start redis`，测完 `brew services stop redis` 省资源；完整启停见 [TESTING.md](./TESTING.md#本地服务mac--brew)）
 - pnpm（推荐）
@@ -178,57 +170,46 @@ pnpm dev
 
 ### 后端设置
 
-```bash
-cd backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env  # 配置环境变量
+后端是纯 Go：`backend-go` 里的网关（8200）+ worker + scheduler，**不需要 Python 环境**。
 
-# 启动 API 服务器
-./run_api.sh
+```bash
+cd backend-go
+cp ../backend/.env.example .env   # 配置数据库 / API_KEY / Redis
+go run ./cmd/migrate up           # 应用 Goose 迁移
+go run ./cmd/gateway              # 启动网关（127.0.0.1:8200）
 ```
 
-API 服务器将在 `http://localhost:8100` 启动。
+网关承接全部 623 个 OpenAPI operation；前端 `BACKEND_API_BASE_URL` 指向 `http://127.0.0.1:8200`。
 
 ### 数据库初始化
 
 本地 PostgreSQL（端口 5432）**常驻两个库**，绝大多数本地开发 / 测试**无需从零初始化**：
 
-- **`BLF`（主库 · 生产快照）** — 与生产端每日拉取同步的真实数据，用于本地 backend 读写 / 外部 API 集成 / 真实数据验证测试（详见 [TESTING.md](./TESTING.md#本地生产快照库bel-376-集成--手动读写测试)）。
-- **`BLF_test`（测试库）** — 自动化 pytest 隔离专用，由 `backend/backend-go/cmd/setuptestdb` 自动创建并 seed 测试账号。
+- **`BLF`（主库 · 生产快照）** — 与生产端每日拉取同步的真实数据，用于本地读写 / 外部 API 集成 / 真实数据验证测试（详见 [TESTING.md](./TESTING.md#本地生产快照库bel-376-集成--手动读写测试)）。
+- **`BLF_test`（测试库）** — 自动化测试隔离专用，由 `backend-go/cmd/setuptestdb` 自动创建并 seed 测试账号。
 
 首次搭建（新机器 / 快照缺失时）：
 
 ```bash
-cd backend
-source .venv/bin/activate
+cd backend-go
 
-# 1) 初始化隔离测试库 + seed 测试账号（pytest 依赖）
-python backend-go/cmd/setuptestdb
+# 1) 初始化隔离测试库 + seed 测试账号
+go run ./cmd/setuptestdb
 
 # 2) 仅当本机还没有生产快照 BLF 时，才需要从零建库：
 # 运行数据库迁移（Goose；空库会执行 285 基线）
-cd ../backend-go
 DATABASE_URL=postgresql://damon@127.0.0.1:5432/BLF go run ./cmd/migrate up
-cd ../backend
-
-# 创建初始管理员用户
-python scripts/seed_admin_user.py
-
-# 导入基础数据（可选）
-python scripts/init_and_import_projects.py
 ```
 
 ## 🧪 本地数据库与测试
 
-**所有前后端测试都可以直接调用本地数据库完成**，不依赖远程 VPS 环境：
+**所有测试都可以直接调用本地数据库完成**，不依赖远程 VPS 环境：
 
 - **本地 Postgres（端口 5432）常驻两个库**：
   - `BLF` — **生产快照**：每天自动与生产端拉取同步，数据较为完备（真实项目 / 报表 / 广告 / 库存数据），适合本地进行**大量读写、外部 API 集成和真实数据验证**测试。
-  - `BLF_test` — **自动化测试隔离库**（pytest 用）：由 `backend/backend-go/cmd/setuptestdb` 创建，schema 与生产同步、seed 测试账号。
-- **pytest 一律走 `BLF_test`，绝不写 `BLF`**（防止污染快照）；`BLF` 用于本地 backend 起服后的集成 / 手动读写 / Playwright 真实数据测试。
-- 前端测试（Vitest 单测 + Playwright E2E）与后端测试（pytest）的具体命令、架构与约定见 [TESTING.md](./TESTING.md)。
+  - `BLF_test` — **自动化测试隔离库**：由 `backend-go/cmd/setuptestdb` 创建，schema 与生产同步、seed 测试账号。
+- **测试一律走 `BLF_test`，绝不写 `BLF`**（防止污染快照）。
+- 后端测试是 Go（`cd backend-go && go test ./...`），前端是 Vitest + Playwright；具体命令与约定见 [TESTING.md](./TESTING.md)。
 
 ## 🔑 后端 API 端点
 
@@ -287,9 +268,9 @@ cd backend
 
 更多详细信息请参考：
 - [测试总览](./TESTING.md) - 测试架构、本地数据库与测试命令
-- [后端 README](./backend/README.md) - 后端详细文档
-- [Redis 恢复计划](./backend/REDIS_PLAN.md) - Redis 集成计划
-- [报告处理规范](./backend/docs/report-processing-sync-spec.md) - 报告处理同步规范
+- [后端 README](./backend-go/README.md) - Go 网关 / worker / 迁移文档
+- [迁移状态](./docs/migration-status.md) - FastAPI → Go 的完成度与剩余事项
+- [后端归档说明](./backend/README.md) - Alembic 冻结归档与历史 systemd 单元
 
 ## 🤝 贡献
 
