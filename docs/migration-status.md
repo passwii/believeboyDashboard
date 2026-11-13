@@ -38,9 +38,26 @@
 
 ### 1. autoReportUpload → Go（唯一剩余 Python 运行时）
 
-现状与方案见 [`autoReportUpload/README.md`](../autoReportUpload/README.md)。工作量估计：
-服务端 ingest 端点（广告报表可复用现有解析器，库存台账 / 退货 / 销售需新增）+ 目录监控 CLI，
-约 1500–2000 行 Go。验收基线是同一批历史报表在 Go / Python 下识别结果一致。
+**CLI 已落地**：`backend-go/cmd/autoreport-upload` + `backend-go/internal/autoreport`
+（配置 / 扫描 / 稳定性判定 / 双端点识别 / 归档 / 重试 / 单实例锁，13 个单测全绿）。
+服务端直接复用网关已有的 `/api/v1/ad-upload/*` 与 `/api/v1/report-upload/*`，不需要新端点。
+
+待补的三项 parity（见 [`autoReportUpload/README.md`](../autoReportUpload/README.md)）：
+
+1. **数字员工任务上报** —— Go 只有读接口，需要新增内部写端点；
+2. **心跳** —— 原 `/internal/auto-report/heartbeat` 已随 FastAPI 删除；
+3. **sha256 去重** —— 现改用网关 `duplicate_warnings`（版本覆盖语义）。
+
+上述三项不影响数据入库，但影响数字员工面板与运维监控。另：触发方式是轮询（无 fsnotify 依赖）。
+
+**切换验证**（等本地 Postgres/Redis 就绪后）：
+```bash
+cd backend-go
+# 1. 起网关 + 测试库
+go run ./cmd/migrate up && go run ./cmd/gateway
+# 2. 干跑对照：同一批历史报表，Go 与 Python（旧 commit worktree）的 report_type / project / 日期区间 / 行数应一致
+API_KEY=... WATCH_ROOT=... go run ./cmd/autoreport-upload --once --dry-run
+```
 
 ### 2. 部署解冻
 

@@ -10,6 +10,7 @@
 | `cmd/worker` | 异步任务消费者（Redis 队列） | — |
 | `cmd/scheduler` | 定时任务调度器（静态 job + 定时报表扫描） | — |
 | `cmd/migrate` | Goose 迁移执行器（`up` / `status` / `version` / `baseline`） | — |
+| `cmd/autoreport-upload` | 报表目录监控与上传（替代 Python 版 autoReportUpload） | — |
 
 ## 目录
 
@@ -54,6 +55,20 @@ go run ./cmd/checkmigrations         # 迁移 + Alembic 冻结校验
 ```bash
 BELIEVEBOY_ENV_FILE=../backend/.env.test ./scripts/run-live-contract.sh
 ```
+
+## 报表目录监控（autoreport-upload）
+
+```bash
+# 干跑：只识别，不入库、不移动
+API_KEY=... WATCH_ROOT=/Users/damon/Documents/RPA go run ./cmd/autoreport-upload --once --dry-run
+
+# 常驻：首次全扫 + 每 5 分钟轮询
+API_KEY=... WATCH_ROOT=/Users/damon/Documents/RPA go run ./cmd/autoreport-upload
+```
+
+识别走网关的 `/api/v1/ad-upload/*`（广告报表）与 `/api/v1/report-upload/*`（库存 / 销售 /
+付款 / 退货），归档到项目目录下的 `广告Processed/` 或 `processed/`。
+详见 [autoReportUpload/README.md](../autoReportUpload/README.md)。
 
 ## 新增迁移
 
