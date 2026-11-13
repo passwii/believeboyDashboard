@@ -88,6 +88,16 @@ jobs:
             deploy:
               - "deploy/**"
               - ".github/workflows/test-ci.yml"
+      - name: 断言 Python 运行时未回流
+        run: |
+          set -euo pipefail
+          offenders="$(git -c core.quotepath=false ls-files '*.py' '*.pyi' | grep -v '^backend/alembic/' | grep -v '^autoReportUpload/' || true)"
+          if [ -n "$offenders" ]; then
+            echo "::error::Python 文件只允许出现在 backend/alembic（冻结归档）与 autoReportUpload（待迁移）："
+            echo "$offenders"
+            exit 1
+          fi
+          echo "no Python runtime outside backend/alembic and autoReportUpload"
       - uses: dorny/paths-filter@v3
         id: frontend_filter
         with:

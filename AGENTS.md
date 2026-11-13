@@ -74,6 +74,8 @@ git rev-list --left-right --count origin/main...HEAD  # 左侧计数为 0，才�
 - **Agent Team 分阶段协作**：任务包含多个 Stage / Phase 时，可拆成范围清楚、可独立验收的小任务交给 Agent Team 推进；先明确每个成员的任务边界、交付物与依赖，再由主 Agent 集成并复核，避免成员同时改同一范围。自 2026-11-04 起，新任务实施统一使用 DeepSeek 模型与 Max reasoning（`believeboy/DeepSeek-V4.1-Flash`，reasoning effort `max`）；最终独立 Reviewer 使用 Luna 与 Max reasoning（`believeboy/GPT-6-Luna`，reasoning effort `max`）。Reviewer 必须只读且不得复用实现 Agent 的会话判断；历史任务记录保留原模型事实。
 - **后续阶段顺序由用户确认**：C4 当前暂缓，不自动启动。C5 及其后的每个阶段开始前，主 Agent 必须先盘点该阶段实际页面数、子路由、共享组件和风险，向用户展示当前拟议范围与顺序；用户确认后再拆分 Agent Team、指定文件边界和执行。不得仅按旧 rollout 编号顺序自动推进。
 - **Projects API**：前端取项目列表用 `/api/v1/projects/manage`（非 `/api/v1/projects`），因其按 `X-Operator` 过滤可见项目。
+- **不要重新引入 Python 运行时**：`test-ci.yml` 的 `changes` job 会校验仓库里不存在
+  `backend/alembic/` 与 `autoReportUpload/` 之外的 `*.py`；需要新增 Python 服务时先改这条守卫并在 PR 说明理由。
 - **Commit**：中文 + Conventional Commits（feat/fix/docs/test/chore…），scope 中文，subject 动宾短语 ≤50 字无句号。详细见 `chinese-commit-conventions` 技能。
 - **Superpowers**：收到任务先检查是否匹配 skill（哪怕 1% 可能）；设计先于编码、测试先于实现、验证先于完成。
 - **Plans 目录约定**：已完成 plan 归集到 `docs/superpowers/plans/<日期-slug>/` 子目录；进行中 plan 仍平铺（下一新 plan 起推荐从一开始就建子目录）。详见 [docs/superpowers/plans/README.md](./docs/superpowers/plans/README.md)。
