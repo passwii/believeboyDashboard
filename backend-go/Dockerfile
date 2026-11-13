@@ -37,6 +37,7 @@ COPY --from=builder --chown=10001:10001 /out/go-api /usr/local/bin/go-api
 COPY --from=builder --chown=10001:10001 /out/go-migrate /usr/local/bin/go-migrate
 COPY --from=builder --chown=10001:10001 /out/go-worker /usr/local/bin/go-worker
 COPY --from=builder --chown=10001:10001 /out/go-scheduler /usr/local/bin/go-scheduler
+COPY --from=builder --chown=10001:10001 /src/resources/project_launch_documents /app/resources/project_launch_documents
 USER 10001:10001
 EXPOSE 8200
 ENTRYPOINT ["/usr/local/bin/go-api"]
