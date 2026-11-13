@@ -25,44 +25,52 @@ test('Docker build keeps the runtime secret out of image layers', async () => {
   assert.doesNotMatch(dockerfile, /ENV\s+NEXTAUTH_SECRET/)
 })
 
-test('VPS compose runs the application stack on host networking without absorbing shared infrastructure', async () => {
+test('VPS compose runs the Go application stack on host networking without absorbing shared infrastructure', async () => {
   const compose = await read('deploy/docker-compose.yml')
-  for (const service of ['migrate', 'api', 'go-api', 'celery', 'celery-scheduled', 'beat', 'web']) {
+  for (const service of ['migrate', 'go-api', 'go-worker', 'go-scheduler', 'web']) {
     assert.match(compose, new RegExp(`^  ${service}:`, 'm'))
   }
+  assert.doesNotMatch(compose, /^  (api|celery|celery-scheduled|beat):/m)
   assert.doesNotMatch(compose, /^  postgres:/m)
   assert.doesNotMatch(compose, /^  redis:/m)
-  assert.equal((compose.match(/network_mode: host/g) ?? []).length, 7)
-  assert.match(compose, /API_IMAGE:\?API_IMAGE must be set/)
+  assert.equal((compose.match(/network_mode: host/g) ?? []).length, 5)
   assert.match(compose, /GO_API_IMAGE:\?GO_API_IMAGE must be set/)
   assert.match(compose, /WEB_IMAGE:\?WEB_IMAGE must be set/)
+  assert.doesNotMatch(compose, /API_IMAGE:\?API_IMAGE must be set/)
   // Migration cutover (2026-11-10): migrate runs the Go image's embedded Goose runner.
   assert.match(compose, /entrypoint: \["\/usr\/local\/bin\/go-migrate"\]/)
   assert.match(compose, /command: \["up"\]/)
   assert.doesNotMatch(compose, /alembic upgrade/)
-  assert.match(compose, /believeboy-dashboard-api/)
   assert.match(compose, /believeboy-dashboard-go-api/)
+  assert.match(compose, /believeboy-dashboard-go-worker/)
+  assert.match(compose, /believeboy-dashboard-go-scheduler/)
   assert.match(compose, /believeboy-dashboard-web/)
+  assert.doesNotMatch(compose, /believeboy-dashboard-api/)
+  assert.match(compose, /\.\/backend\.env/)
   assert.match(compose, /\.\/go\.env/)
+  assert.match(compose, /\.\/web\.env/)
   // 2026-11-10：容器健康检查改为 DB 感知的 readiness；live 探针不查库，
   // 曾导致 Go 网关 DB 全挂而容器仍显示 healthy。
-  assert.match(compose, /8100\/api\/v1\/health\/ready/)
   assert.match(compose, /8200\/api\/v1\/health\/ready/)
+  assert.match(compose, /3200\/healthz/)
 })
 
-test('API images contain the required production runtimes', async () => {
-  const dockerfile = await read('backend/Dockerfile')
+test('Go API and Web images contain the required production runtimes', async () => {
   const goDockerfile = await read('backend-go/Dockerfile')
-  assert.match(dockerfile, /playwright install --with-deps --only-shell chromium/)
-  assert.match(dockerfile, /PLAYWRIGHT_BROWSERS_PATH=\/ms-playwright/)
-  assert.match(dockerfile, /USER app/)
-  assert.match(dockerfile, /id=believeboy-pip-cache/)
+  const webDockerfile = await read('frontend/Dockerfile')
+  assert.match(goDockerfile, /apk add --no-cache ca-certificates tzdata chromium font-noto-cjk/)
   assert.match(goDockerfile, /CGO_ENABLED=0/)
   assert.match(goDockerfile, /USER 10001:10001/)
   assert.match(goDockerfile, /EXPOSE 8200/)
+  assert.match(goDockerfile, /id=believeboy-go-mod-cache/)
   // 2026-11-10：alpine runtime 必须带 tzdata，否则 pgx AfterConnect 的
   // time.LoadLocation 失败，所有 DB 路由 500（/health/live 仍绿）。
   assert.match(goDockerfile, /apk add --no-cache ca-certificates tzdata/)
+  assert.match(webDockerfile, /--mount=type=secret,id=nextauth_secret/)
+  assert.match(webDockerfile, /id=believeboy-pnpm-store/)
+  assert.match(webDockerfile, /\.next\/standalone/)
+  assert.match(webDockerfile, /USER nextjs/)
+  assert.match(webDockerfile, /EXPOSE 3200/)
 })
 
 test('Go binaries embed their required timezone data', async () => {
@@ -92,20 +100,23 @@ test('deploy free-space policy uses configurable absolute floors', async () => {
   assert.doesNotMatch(script, /DEPLOY_FREE_SPACE_PERCENT=10/)
 })
 
-test('dashboard deployment workflow is manual-only and publishes all three images', async () => {
+test('dashboard deployment workflow is manual-only and publishes the Go API and Web images', async () => {
   const workflow = await read('.github/workflows/deploy-dashboard.yml')
   assert.match(workflow, /workflow_dispatch:/)
   assert.doesNotMatch(workflow, /^on:\s*\n\s+push:/m)
   assert.match(workflow, /packages:\s*write/)
   assert.match(workflow, /secrets\.GHCR_TOKEN/)
-  assert.match(workflow, /ghcr\.io\/passwii\/believeboydashboard-api/)
   assert.match(workflow, /ghcr\.io\/passwii\/believeboydashboard-go-api/)
   assert.match(workflow, /ghcr\.io\/passwii\/believeboydashboard-web/)
+  assert.doesNotMatch(workflow, /ghcr\.io\/passwii\/believeboydashboard-api/)
+  assert.match(workflow, /file: backend-go\/Dockerfile/)
+  assert.match(workflow, /file: frontend\/Dockerfile/)
+  assert.doesNotMatch(workflow, /backend\/Dockerfile/)
   assert.match(workflow, /secrets\.NEXTAUTH_SECRET/)
   assert.match(workflow, /secrets\.GO_API_TRUSTED_PROXY_SECRET/)
-  assert.match(workflow, /steps\.api\.outputs\.digest/)
   assert.match(workflow, /steps\.go_api\.outputs\.digest/)
   assert.match(workflow, /steps\.web\.outputs\.digest/)
+  assert.doesNotMatch(workflow, /steps\.api\.outputs\.digest/)
 })
 
 test('remote deploy keeps the SSH script stream out of Compose run', async () => {
@@ -116,7 +127,7 @@ test('remote deploy keeps the SSH script stream out of Compose run', async () =>
   assert.doesNotMatch(script, /docker compose run --rm migrate/)
   assert.doesNotMatch(workflow, /bash -s/)
   assert.doesNotMatch(localDeploy, /bash -s/)
-  assert.match(script, /docker compose pull migrate api go-api/ )
+  assert.match(script, /docker compose[^\n]*pull migrate go-api go-worker go-scheduler web/)
   assert.match(localDeploy, /build_go_api/ )
   assert.match(localDeploy, /IMAGE_BUILD_SECONDS/ )
   assert.match(script, /PUBLIC_WEB_HEALTH_URL/)
@@ -142,9 +153,12 @@ test('server-side backend calls prefer loopback while browser metadata stays pub
   const envExample = await read('deploy/web.env.example')
   const goEnvExample = await read('deploy/go.env.example')
   const backendApi = await read('frontend/lib/server/backend-api.ts')
-  // 2026-11-10：默认直连 FastAPI；Go 接管改为显式 opt-in（go.env 的
-  // GO_API_OWNED 非空时才允许 Web 指向 8200）。
-  assert.match(envExample, /^BACKEND_INTERNAL_URL=http:\/\/127\.0\.0\.1:8100$/m)
+  // 2026-11-10：FastAPI 已下线；Web 的 loopback 后端固定为 Go gateway 8200。
+  // go.env 仅保留 FASTAPI_ORIGIN 以满足网关配置校验，没有服务监听 8100。
+  assert.match(envExample, /^BACKEND_INTERNAL_URL=http:\/\/127\.0\.0\.1:8200$/m)
+  assert.doesNotMatch(envExample, /^BACKEND_INTERNAL_URL=http:\/\/127\.0\.0\.1:8100$/m)
+  assert.match(goEnvExample, /^GO_API_ADDR=127\.0\.0\.1:8200$/m)
+  assert.match(goEnvExample, /^FASTAPI_ORIGIN=http:\/\/127\.0\.0\.1:8100$/m)
   assert.match(goEnvExample, /^GO_API_OWNED=$/m)
   assert.match(envExample, /^BACKEND_PUBLIC_API_BASE_URL=https:\/\/dash-api\.believeboy\.com$/m)
   assert.match(backendApi, /process\.env\.BACKEND_INTERNAL_URL/)
