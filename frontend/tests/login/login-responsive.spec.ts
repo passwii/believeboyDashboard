@@ -10,6 +10,39 @@ const themes = ['light', 'dark'] as const
 
 type Theme = (typeof themes)[number]
 
+function parseColor(color: string) {
+  // Chromium can serialize a resolved color as color(srgb r g b / a), where the
+  // channels are 0–1 rather than 0–255. Normalize that form before the generic
+  // rgb()/rgba() parser so contrast assertions cannot silently compare 1 with 255.
+  const srgb = color.match(/color\(\s*srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*([\d.]+%?))?\s*\)/)
+  if (srgb) {
+    const [, r, g, b, alpha] = srgb
+    let parsedAlpha = 1
+    if (alpha !== undefined) {
+      parsedAlpha = alpha.endsWith('%') ? Number(alpha.slice(0, -1)) / 100 : Number(alpha)
+    }
+    return {
+      r: Number(r) * 255,
+      g: Number(g) * 255,
+      b: Number(b) * 255,
+      a: parsedAlpha,
+    }
+  }
+  const channels = color.match(/[\d.]+/g)?.map(Number)
+  if (!channels || channels.length < 3) throw new Error(`Unexpected computed color: ${color}`)
+  const [r, g, b, a = 1] = channels
+  return { r, g, b, a }
+}
+
+function composite(foreground: string, background: string): string {
+  const fg = parseColor(foreground)
+  const bg = parseColor(background)
+  const alpha = fg.a
+  return `rgb(${Math.round(fg.r * alpha + bg.r * (1 - alpha))}, ${Math.round(
+    fg.g * alpha + bg.g * (1 - alpha)
+  )}, ${Math.round(fg.b * alpha + bg.b * (1 - alpha))})`
+}
+
 function getContrastRatio(foreground: string, background: string): number {
   const luminance = (color: string) => {
     const channels = color.match(/[\d.]+/g)?.slice(0, 3).map(Number)
@@ -21,7 +54,7 @@ function getContrastRatio(foreground: string, background: string): number {
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
   }
 
-  const foregroundLuminance = luminance(foreground)
+  const foregroundLuminance = luminance(composite(foreground, background))
   const backgroundLuminance = luminance(background)
   const lighter = Math.max(foregroundLuminance, backgroundLuminance)
   const darker = Math.min(foregroundLuminance, backgroundLuminance)
@@ -59,28 +92,34 @@ test.describe('BelieveBoy login themes and responsive entry', () => {
         await expect(page.getByLabel('企业邮箱')).toBeVisible()
         await expect(page.getByLabel('登录密码')).toBeVisible()
 
-        const colors = await page.locator('.brand-panel').evaluate((panel) => {
-          const style = window.getComputedStyle(panel)
-          const heading = window.getComputedStyle(panel.querySelector('h1')!)
-          const copy = window.getComputedStyle(panel.querySelector('p')!)
-          const form = window.getComputedStyle(document.querySelector('.form-panel')!)
+        const colors = await page.locator('.login-slab').evaluate((slab) => {
+          const entry = document.querySelector('.login-entry') as HTMLElement
+          const brandPanel = document.querySelector('.brand-panel') as HTMLElement
+          const formPanel = document.querySelector('.form-panel') as HTMLElement
+          const style = (node: Element) => window.getComputedStyle(node)
+          const input = formPanel.querySelector('input') as HTMLInputElement
           return {
-            background: style.backgroundColor,
-            heading: heading.color,
-            copy: copy.color,
-            form: form.backgroundColor,
+            stage: style(entry).backgroundColor,
+            slab: style(slab).backgroundColor,
+            radius: style(slab).borderRadius,
+            backdrop: style(slab).backdropFilter,
+            heading: style(brandPanel.querySelector('h1')!).color,
+            copy: style(brandPanel.querySelector('p')!).color,
+            formHeading: style(formPanel.querySelector('h2')!).color,
+            formCopy: style(formPanel.querySelector('.form-heading p')!).color,
+            inputBg: style(input).backgroundColor,
+            placeholder: window.getComputedStyle(input, '::placeholder').color,
           }
         })
-        expect(colors.background).not.toBe(colors.form)
-        expect(getContrastRatio(colors.heading, colors.background)).toBeGreaterThanOrEqual(4.5)
-        expect(getContrastRatio(colors.copy, colors.background)).toBeGreaterThanOrEqual(4.5)
-        if (theme === 'light') {
-          expect(colors.background).toBe('rgb(238, 242, 236)')
-          expect(colors.form).toBe('rgb(255, 255, 255)')
-        } else {
-          expect(colors.background).toBe('rgb(8, 13, 9)')
-          expect(colors.form).toBe('rgb(17, 17, 20)')
+        const slabBackground = composite(colors.slab, colors.stage)
+        expect(colors.stage).toBe(theme === 'light' ? 'rgb(232, 234, 228)' : 'rgb(28, 29, 29)')
+        expect(colors.radius).toBe(viewport.name === 'mobile' ? '20px' : '24px')
+        expect(colors.backdrop).toContain('blur')
+        for (const foreground of [colors.heading, colors.copy, colors.formHeading, colors.formCopy]) {
+          expect(getContrastRatio(foreground, slabBackground)).toBeGreaterThanOrEqual(4.5)
         }
+        const inputBackground = composite(colors.inputBg, slabBackground)
+        expect(getContrastRatio(colors.placeholder, inputBackground)).toBeGreaterThanOrEqual(4.5)
 
         const placeholders = await page.locator('input').evaluateAll((inputs) => inputs.map((input) => {
           const style = window.getComputedStyle(input)
@@ -88,7 +127,7 @@ test.describe('BelieveBoy login themes and responsive entry', () => {
           return { foreground: placeholder.color, background: style.backgroundColor }
         }))
         for (const colors of placeholders) {
-          expect(getContrastRatio(colors.foreground, colors.background)).toBeGreaterThanOrEqual(4.5)
+          expect(getContrastRatio(colors.foreground, composite(colors.background, slabBackground))).toBeGreaterThanOrEqual(4.5)
         }
 
         const submit = page.getByRole('button', { name: /登录工作区/ })
@@ -112,31 +151,33 @@ test.describe('BelieveBoy login themes and responsive entry', () => {
   test('theme toggle switches the complete login palette in both directions', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/login')
-    const brandPanel = page.locator('.brand-panel')
+    const loginEntry = page.locator('.login-entry')
     const themeToggle = page.getByRole('button', { name: /切换到深色模式/ })
 
     await setTheme(page, 'light')
-    await expect(brandPanel).toHaveCSS('background-color', 'rgb(238, 242, 236)')
+    await expect(loginEntry).toHaveCSS('background-color', 'rgb(232, 234, 228)')
+    await expect(loginEntry).toHaveCSS('color-scheme', 'light')
     await expect(themeToggle).toBeVisible()
-    await expect(themeToggle).toHaveCSS('box-shadow', 'none')
     await themeToggle.click()
     await expect(page.locator('html')).toHaveClass(/dark/)
-    await expect(brandPanel).toHaveCSS('background-color', 'rgb(8, 13, 9)')
+    await expect(loginEntry).toHaveCSS('background-color', 'rgb(28, 29, 29)')
+    await expect(loginEntry).toHaveCSS('color-scheme', 'dark')
     await page.locator('.theme-button').click()
     await expect(page.locator('html')).not.toHaveClass(/dark/)
-    await expect(brandPanel).toHaveCSS('background-color', 'rgb(238, 242, 236)')
+    await expect(loginEntry).toHaveCSS('background-color', 'rgb(232, 234, 228)')
+    await expect(loginEntry).toHaveCSS('color-scheme', 'light')
   })
 
-  test('keyboard focus keeps terminal controls square', async ({ page }) => {
+  test('keyboard focus uses the Warm Ledger rounded control scale', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/login')
 
     await page.getByLabel('企业邮箱').focus()
-    await expect(page.getByLabel('企业邮箱')).toHaveCSS('border-radius', '0px')
+    await expect(page.getByLabel('企业邮箱')).toHaveCSS('border-radius', '10px')
     await page.getByRole('button', { name: '显示密码' }).focus()
-    await expect(page.getByRole('button', { name: '显示密码' })).toHaveCSS('border-radius', '0px')
+    await expect(page.getByRole('button', { name: '显示密码' })).toHaveCSS('border-radius', '0px 10px 10px 0px')
     await page.getByRole('button', { name: /登录工作区/ }).focus()
-    await expect(page.getByRole('button', { name: /登录工作区/ })).toHaveCSS('border-radius', '0px')
+    await expect(page.getByRole('button', { name: /登录工作区/ })).toHaveCSS('border-radius', '10px')
   })
 
   test('hovering an input produces no motion and no layout shift', async ({ page }) => {

@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { join, relative, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const FRONTEND_ROOT = process.cwd()
@@ -128,7 +128,16 @@ function walk(dir: string, extensions: string[]): string[] {
 const warmSources = [
   ...walk(join(FRONTEND_ROOT, 'app', 'dashboard'), ['.css', '.tsx', '.ts']),
   ...walk(join(FRONTEND_ROOT, 'components'), ['.css', '.tsx', '.ts']),
-].filter((file) => !file.endsWith(join('warm-ledger', 'shell', 'theme.css')) && !file.endsWith('warm-theme.test.ts'))
+].filter((file) => {
+  const relativeFile = relative(FRONTEND_ROOT, file)
+  // design-spec §1: login is an independent visual zone. It mirrors V4 values
+  // through --login-* tokens but is not a Warm Ledger surface.
+  const independentZones = [join('components', 'login')]
+  if (relativeFile.endsWith(join('warm-ledger', 'shell', 'theme.css')) || relativeFile.endsWith('warm-theme.test.ts')) {
+    return false
+  }
+  return !independentZones.some((zone) => relativeFile.startsWith(`${zone}${sep}`))
+})
 
 function readReferences(source: string): string[] {
   const refs: string[] = []

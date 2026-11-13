@@ -25,6 +25,10 @@ export function LoginBrandPanel() {
 
   return (
     <section className="brand-panel" aria-labelledby="login-brand-title">
+      <div className="brand-head" aria-label="BelieveBoy">
+        <span className="brand-mark"><BrandMark /></span>
+        <span className="wordmark">BelieveBoy</span>
+      </div>
       <div className="brand-kicker mono">Cross-border operations</div>
       <div className="route-art" ref={artRef} aria-hidden="true">
         <svg viewBox="0 0 680 430" role="presentation">
