@@ -942,3 +942,197 @@
 .loadingMain {
   min-height: 460px;
 }
+
+@media (max-width: 640px) {
+  .page {
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .headerFilters {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .projectFilter,
+  .marketplaceFilter,
+  .statusFilter {
+    width: 100%;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .layout,
+  .loadingLayout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .targetSelector {
+    max-height: 320px;
+    padding: var(--warm-ledger-space-3);
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+  }
+
+  .targetSelectorHeader {
+    position: sticky;
+    top: calc(-1 * var(--warm-ledger-space-3));
+    z-index: 2;
+    padding: var(--warm-ledger-space-2) 0;
+    background: var(--warm-ledger-color-panel);
+  }
+
+  .targetCard {
+    min-height: var(--warm-ledger-control-target-touch);
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .targetName,
+  .targetKind,
+  .targetMeta {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .targetHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .targetTitle {
+    height: auto;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .targetSubtitle {
+    overflow-wrap: anywhere;
+  }
+
+  .tabsList[class] {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
+  }
+
+  .tabsList :global(button) {
+    min-height: var(--warm-ledger-control-target-touch);
+    justify-content: center;
+    padding-inline: var(--warm-ledger-space-2);
+    white-space: normal;
+  }
+
+  .panelHeader {
+    flex-direction: column;
+    align-items: stretch;
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .panelHeading {
+    width: 100%;
+  }
+
+  .tableScroll {
+    max-height: min(62dvh, 560px);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .pagination {
+    align-items: stretch;
+    flex-direction: column;
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .paginationActions {
+    justify-content: space-between;
+  }
+
+  .paginationActions > :global(button) {
+    min-width: var(--warm-ledger-control-target-touch);
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .filterBar {
+    padding: var(--warm-ledger-space-3) var(--warm-ledger-space-3) 0;
+  }
+
+  .segmented {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .segment {
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .rating {
+    gap: var(--warm-ledger-space-3);
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .metricGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .metricCell {
+    min-width: 0;
+    padding: var(--warm-ledger-space-2);
+  }
+
+  .metricValue {
+    font-size: 20px;
+    overflow-wrap: anywhere;
+  }
+
+  .chart {
+    height: 220px;
+  }
+
+  .externalForm,
+  .externalLinkForm {
+    margin: var(--warm-ledger-space-3);
+  }
+
+  .externalContent {
+    padding: 0 var(--warm-ledger-space-3) var(--warm-ledger-space-3);
+  }
+
+  .formGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .formRow {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .linkSelect {
+    width: 100%;
+  }
+
+  .loadingLayout {
+    display: grid;
+  }
+
+  .loadingSidebar {
+    min-height: 180px;
+  }
+
+  .loadingMain {
+    min-height: 320px;
+  }
+}
+
+@media (max-width: 380px) {
+  .metricGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
