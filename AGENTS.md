@@ -77,6 +77,7 @@ git rev-list --left-right --count origin/main...HEAD  # 左侧计数为 0，才�
 - **不要重新引入 Python 运行时**：`test-ci.yml` 的 `changes` job 会校验仓库里不存在
   `backend/alembic/` 与 `autoReportUpload/` 之外的 `*.py`；需要新增 Python 服务时先改这条守卫并在 PR 说明理由。
 - **Commit**：中文 + Conventional Commits（feat/fix/docs/test/chore…），scope 中文，subject 动宾短语 ≤50 字无句号。详细见 `chinese-commit-conventions` 技能。
+- **PR 把关**：合并前必须机器门禁全绿（见 [docs/REFERENCE.md](./docs/REFERENCE.md) §代码检查（Lint）），并由把关人完成语义复核：需求覆盖 / 契约一致 / 边界与错误处理 / 权限边界 / 调试残留 / commit author；高风险改动交用户拍板。
 - **Superpowers**：收到任务先检查是否匹配 skill（哪怕 1% 可能）；设计先于编码、测试先于实现、验证先于完成。
 - **Plans 目录约定**：已完成 plan 归集到 `docs/superpowers/plans/<日期-slug>/` 子目录；进行中 plan 仍平铺（下一新 plan 起推荐从一开始就建子目录）。详见 [docs/superpowers/plans/README.md](./docs/superpowers/plans/README.md)。
 - **数据库迁移（Goose；Alembic 已于 2026-11-10 冻结，遵循 [docs/REFERENCE.md](./docs/REFERENCE.md) §数据库与迁移）**：

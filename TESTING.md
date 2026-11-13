@@ -192,6 +192,14 @@ BELIEVEBOY_ENV_FILE=../backend/.env.test ./scripts/run-live-contract.sh
 覆盖清单、归一化规则、已知差异和失败排查见
 [`backend-go/tests/contract/README.md`](backend-go/tests/contract/README.md)。
 
+### 合并门禁
+
+PR 合并前必须满足：
+
+- `.github/workflows/test-ci.yml` 的 `backend-go test + vet`、`go-only route parity (no FastAPI)`、`live contract (Go vs FastAPI golden)` 三个 job 全绿；仓库里不存在的检查不要等。
+- 把关人完成语义复核：需求覆盖 / 契约一致 / 边界与错误处理 / 权限边界 / 调试残留 / commit author，并核对 PR 正文的测试证据。
+- 高风险改动（迁移、权限、公共契约等）交用户拍板。
+
 ---
 
 ## 前端单测（Vitest）— 全量耗时口径与「卡住」排查

@@ -150,6 +150,10 @@ go test ./... -count=1           # 测试（CI 门禁）
 `live-contract` 三个 job 全绿。Go 没有单独的 lint 工具链；`go vet` 是唯一的静态门禁，
 新增检查工具（staticcheck / golangci-lint）前先确认对现有代码零告警，再接入 CI。
 
+**PR 把关**：合并前由把关人完成语义复核（需求覆盖 / 契约一致 / 边界与错误处理 /
+权限边界 / 调试残留 / commit author），并核对 PR 正文里的测试证据；高风险改动交用户拍板。
+机器门禁全绿 + 语义复核通过才可合并。
+
 > 历史：Python 时代用 ruff（`backend/ruff.toml`），已随 `backend/app` 一起删除。
 
 ---
