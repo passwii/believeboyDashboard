@@ -23,11 +23,14 @@ describe('LoginBrandPanel', () => {
     expect(screen.queryByText(/会话已建立|认证服务可达|延迟\s*\d+ms/)).not.toBeInTheDocument()
   })
 
-  it('整个登录页保留页顶主题按钮与移动端品牌区域', () => {
+  it('整个登录页保留主题按钮与移动端品牌区域', () => {
     const { container } = render(<LoginEntry />)
     expect(screen.getByRole('main')).toHaveAttribute('id', 'main-content')
     expect(screen.getByLabelText('BelieveBoy')).toBeVisible()
     expect(container.querySelector('.brand-panel')).toBeInTheDocument()
-    expect(container.querySelector('.topbar .brand-mark svg rect')).toHaveAttribute('fill', '#2755d9')
+    expect(container.querySelector('.brand-head .brand-mark svg rect')).toHaveAttribute('fill', '#2755d9')
+    expect(container.querySelector('.login-slab .brand-panel')).toBeInTheDocument()
+    expect(container.querySelector('.login-slab .form-panel')).toBeInTheDocument()
+    expect(container.querySelector('.form-panel-top .theme-button')).toBeInTheDocument()
   })
 })

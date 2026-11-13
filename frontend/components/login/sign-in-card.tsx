@@ -12,6 +12,7 @@ import {
 import { resolveLoginPageErrorCode, type ResolvedLoginPageErrorCode } from '@/lib/auth/login-error-code'
 import { buildLoginErrorMessage } from '@/lib/auth/login-error-message'
 import TerminalFormPanel from './terminal-form-panel'
+import { LoginThemeToggle } from './login-theme-toggle'
 
 const SIGN_IN_MINIMUM_DISPLAY_MS = 500
 const SIGNIN_LOADING_WATCHDOG_MS = 10000
@@ -277,7 +278,9 @@ const SignInCard = () => {
 
   return (
     <section aria-labelledby="login-form-title" className="form-panel">
-      <div className="form-panel-top" aria-hidden="true" />
+      <div className="form-panel-top">
+        <LoginThemeToggle />
+      </div>
       <div className="form-main">
         <header className="form-heading">
           <h2 id="login-form-title">登录工作区</h2>

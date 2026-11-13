@@ -19,7 +19,6 @@ const TerminalFormPanel = ({
   email, setEmail, password, setPassword, submitting, retryAttempt, maxRetryAttempts, error, onSubmit,
 }: TerminalFormPanelProps) => {
   const [isPasswordVisible, setIsPasswordVisible] = React.useState(false)
-  const inputClass = 'placeholder:text-term-placeholder'
   const status = submitting
     ? retryAttempt > 0
       ? `网络不稳定，正在重试（${retryAttempt}/${maxRetryAttempts}）…`
@@ -33,7 +32,7 @@ const TerminalFormPanel = ({
         <input
           id="email" name="email" type="email" value={email}
           onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com"
-          required autoComplete="email" disabled={submitting} className={inputClass}
+          required autoComplete="email" disabled={submitting} className="login-input"
         />
       </div>
       <div className="field">
@@ -43,7 +42,7 @@ const TerminalFormPanel = ({
             id="password" name="password" type={isPasswordVisible ? 'text' : 'password'}
             value={password} onChange={(e) => setPassword(e.target.value)}
             placeholder="请输入登录密码" required autoComplete="current-password"
-            disabled={submitting} className={inputClass}
+            disabled={submitting} className="login-input"
           />
           <button
             className="password-toggle" type="button" disabled={submitting}
@@ -56,7 +55,7 @@ const TerminalFormPanel = ({
       </div>
       <p className="message" aria-live="polite" aria-atomic="true">{error}</p>
       <button
-        className="submit-button bg-term-action text-term-action-text"
+        className="submit-button"
         type="submit" disabled={submitting} aria-busy={submitting}
       >
         <span>{submitting ? '正在验证…' : '登录工作区'}</span>

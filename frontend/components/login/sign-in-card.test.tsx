@@ -58,7 +58,7 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-describe('Terminal 登录页', () => {
+describe('Smoked Glass 登录页', () => {
   it('表单是主要认证操作且保留可见字段标签', () => {
     render(<SignInCard />)
     expect(screen.getByRole('heading', { level: 2, name: '登录工作区' })).toBeVisible()
@@ -286,10 +286,12 @@ describe('Terminal 登录页', () => {
     vi.useRealTimers()
   })
 
-  it('输入占位文字使用专用的高对比度令牌', () => {
+  it('输入框使用 login 专用类且不引入 Terminal token', () => {
     render(<SignInCard />)
-    expect(screen.getByLabelText('企业邮箱').className).toContain('placeholder:text-term-placeholder')
-    expect(screen.getByLabelText('登录密码').className).toContain('placeholder:text-term-placeholder')
+    expect(screen.getByLabelText('企业邮箱').className).toContain('login-input')
+    expect(screen.getByLabelText('登录密码').className).toContain('login-input')
+    expect(screen.getByLabelText('企业邮箱').className).not.toContain('term')
+    expect(screen.getByLabelText('登录密码').className).not.toContain('term')
   })
 
   it('输入框 hover 不产生位移：不带 u-interactive 上浮与任何 transform 工具类', () => {
@@ -303,11 +305,11 @@ describe('Terminal 登录页', () => {
     expect(screen.getByRole('button', { name: '显示密码' }).className).not.toMatch(/active:scale/)
   })
 
-  it('登录按钮文字在 light 与 dark 主题均保持高对比度', () => {
+  it('登录按钮使用 Warm Ledger 强调色类，不引入 Terminal token', () => {
     render(<SignInCard />)
     const submit = screen.getByRole('button', { name: /登录工作区/ })
-    expect(submit.className).toContain('bg-term-action')
-    expect(submit.className).toContain('text-term-action-text')
+    expect(submit.className).toContain('submit-button')
+    expect(submit.className).not.toContain('term')
   })
 
   it('主题切换与密码可见性按钮不使用阴影装饰变体', () => {
