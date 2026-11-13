@@ -264,7 +264,7 @@ describe('Agent Overview Warm styling contract', () => {
     }
   })
 
-  it('uses Warm tokens and a contained sticky table without Terminal aliases or breakpoints', () => {
+  it('uses Warm tokens and a contained sticky table with a phone breakpoint', () => {
     const cssPath = join(__dirname, 'agent-overview-warm.module.css')
     const css = existsSync(cssPath) ? readFileSync(cssPath, 'utf8') : ''
 
@@ -277,7 +277,7 @@ describe('Agent Overview Warm styling contract', () => {
     expect(css).toMatch(/\.table th\.center\s*\{[^}]*text-align:\s*center/)
     expect(css).not.toContain('--term-')
     expect(css).not.toContain('rounded-none')
-    expect(css).not.toContain('@media')
+    expect(css).toContain('@media (max-width: 767px)')
   })
 })
 

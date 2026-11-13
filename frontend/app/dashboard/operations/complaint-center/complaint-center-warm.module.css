@@ -29,7 +29,7 @@
   font-size: var(--warm-ledger-font-size-control);
   font-variant-numeric: var(--warm-ledger-font-variant-numeric);
   box-shadow: var(--warm-ledger-highlight-rest);
-  color-scheme: dark;
+  color-scheme: inherit;
 }
 
 .headerDateInput:focus-visible {
@@ -342,4 +342,76 @@
 
 .dueSoon {
   color: var(--warm-ledger-color-accent-strong);
+}
+
+@media (max-width: 767px) {
+  .page {
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .headerFilters {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .headerDateInput {
+    min-width: 0;
+  }
+
+  .mobileDateInput {
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .metricGrid,
+  .skeletonGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .metric {
+    min-height: 88px;
+    gap: var(--warm-ledger-space-2);
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .metricIcon {
+    width: 28px;
+    height: 28px;
+    flex-basis: 28px;
+  }
+
+  .panelHeader {
+    align-items: flex-start;
+    gap: var(--warm-ledger-space-2);
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .panelAction {
+    min-height: var(--warm-ledger-control-target-touch);
+    flex: 0 0 auto;
+    padding-inline: var(--warm-ledger-space-2);
+  }
+
+  .trendSummary {
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .chart,
+  .chartEmpty {
+    height: 220px;
+  }
+
+  .tableScroll {
+    max-height: 60dvh;
+  }
+
+  .table th,
+  .table td {
+    padding-inline: var(--warm-ledger-space-2);
+  }
+
+  .emptyProject {
+    min-height: 180px;
+    padding: var(--warm-ledger-space-4);
+  }
 }
