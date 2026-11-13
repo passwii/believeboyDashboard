@@ -70,6 +70,12 @@ Alembic 历史已冻结在 revision 285：
 `backend.env`、`web.env` 和 `go.env` 不进入镜像或 Git。`GO_API_TRUSTED_PROXY_SECRET`
 必须在 `web.env` 和 `go.env` 中相同，生成命令为 `openssl rand -hex 32`。
 
+Go API / worker / scheduler 通过 Compose 把 `./backend-storage` 挂到
+`/app/backend-storage`，并固定 `UPLOAD_ROOT`、`MONTHLY_REPORT_RESULT_ROOT`、
+`AGENT_MONTHLY_REPORT_ROOT` 都在该目录下；`project_launch_documents` 随镜像放在
+`/app/resources/project_launch_documents`。上传、报表结果和临时截图不能留在容器可写层，
+否则重建容器会丢数据。
+
 ## 内网与公网地址
 
 服务间调用优先使用本机回环：
