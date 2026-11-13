@@ -302,3 +302,58 @@
     transition: none;
   }
 }
+
+@media (max-width: 640px) {
+  .pageTabs {
+    gap: var(--warm-ledger-space-4);
+  }
+
+  .tabsHeader {
+    align-items: stretch;
+  }
+
+  .tabsList {
+    width: 100%;
+  }
+
+  .tabsList [role='tab'] {
+    min-height: var(--warm-ledger-control-target-touch) !important;
+  }
+
+  .page :global(.grid-cols-3),
+  .page :global(.grid-cols-4),
+  .page :global(.grid-cols-5) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .page :global(.overflow-x-auto) {
+    max-width: 100%;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .page :global(input),
+  .page :global(select),
+  .page :global(textarea),
+  .page :global(button) {
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .tableScroll {
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 380px) {
+  .page :global(.grid-cols-2),
+  .page :global(.grid-cols-3),
+  .page :global(.grid-cols-4),
+  .page :global(.grid-cols-5) {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .page :global(.col-span-2) {
+    grid-column: auto / span 1 !important;
+  }
+}

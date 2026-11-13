@@ -1104,3 +1104,189 @@
     transform: rotate(360deg);
   }
 }
+
+@media (max-width: 640px) {
+  .page {
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .tabsList[class] {
+    display: grid;
+    width: 100%;
+    max-width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tabsList :global(button) {
+    min-height: var(--warm-ledger-control-target-touch);
+    justify-content: center;
+    padding-inline: var(--warm-ledger-space-2);
+  }
+
+  .projectGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .summaryPanel {
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .summaryTop,
+  .cardHeader,
+  .cardFooter,
+  .panelHeader {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .summaryTop {
+    flex-direction: column;
+  }
+
+  .cardHeader {
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .cardTitle {
+    overflow-wrap: anywhere;
+  }
+
+  .cardBody {
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .metricGrid,
+  .metricsGrid,
+  .detailGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .metric {
+    min-height: 44px;
+  }
+
+  .cardFooter {
+    padding: var(--warm-ledger-space-2) var(--warm-ledger-space-3);
+  }
+
+  .cardActions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .iconButton,
+  .screenshotButton,
+  .thumbButton {
+    min-width: var(--warm-ledger-control-target-touch);
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .periodBar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .periodSelect {
+    width: 100%;
+    min-width: 0;
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .panelHeader {
+    flex-direction: column;
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .tableScroll {
+    max-height: min(62dvh, 560px);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .dialog[class] {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    max-width: none;
+    max-height: calc(100dvh - env(safe-area-inset-top));
+    padding-bottom: calc(var(--warm-ledger-space-4) + env(safe-area-inset-bottom));
+    overflow-y: auto;
+    transform: none;
+    border-bottom-right-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+
+  .drawer[class] {
+    width: 100%;
+    max-width: 100%;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    border-radius: 0;
+  }
+
+  .drawerHeader,
+  .dialogHeader,
+  .drawerBody,
+  .formBody {
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .formSection {
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .input[class],
+  .selectTrigger[class],
+  .captionInput {
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .metricInputRow {
+    align-items: stretch;
+  }
+
+  .uploadRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dropZone {
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .screenshotEditGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .removeScreenshot {
+    width: var(--warm-ledger-control-target-touch);
+    height: var(--warm-ledger-control-target-touch);
+    opacity: 1;
+  }
+
+  .dialogFooter {
+    position: sticky;
+    bottom: calc(-1 * var(--warm-ledger-space-3));
+    z-index: 2;
+    flex-direction: column-reverse;
+    padding: var(--warm-ledger-space-3);
+    padding-bottom: calc(var(--warm-ledger-space-3) + env(safe-area-inset-bottom));
+  }
+
+  .dialogFooter > :global(button) {
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+}
+
+@media (max-width: 380px) {
+  .metricGrid,
+  .metricsGrid,
+  .detailGrid,
+  .screenshotEditGrid,
+  .screenshotGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

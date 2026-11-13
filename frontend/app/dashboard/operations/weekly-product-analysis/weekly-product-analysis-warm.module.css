@@ -309,3 +309,85 @@
   outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color);
   outline-offset: var(--warm-ledger-focus-offset);
 }
+
+@media (max-width: 640px) {
+  .page {
+    gap: var(--warm-ledger-space-4);
+  }
+
+  .trendPanel > :global(header) {
+    align-items: stretch;
+    gap: var(--warm-ledger-space-3);
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .trendPanel > :global(header) h2 {
+    width: 100%;
+  }
+
+  .trendPanel > :global(header) > :global(div) {
+    width: 100%;
+  }
+
+  .trendPanel > :global(header) button,
+  .legendButton {
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .statBar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .statBar > :global(div) {
+    align-items: flex-start;
+    border-right: 0;
+    border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  }
+
+  .statBar > :global(div:last-child) {
+    border-bottom: 0;
+  }
+
+  .tablePanel > :global(header) {
+    align-items: stretch;
+    flex-direction: column;
+    gap: var(--warm-ledger-space-3);
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .tablePanel > :global(header) > :global(div) {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+
+  .tablePanel > :global(header) :global(button),
+  .tablePanel > :global(header) :global([role='combobox']) {
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .viewToggle {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .viewToggleButton {
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .tableScroll {
+    max-height: min(62dvh, 560px);
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 380px) {
+  .chartPanel {
+    padding: var(--warm-ledger-space-2);
+  }
+
+  .chartLegend {
+    justify-content: flex-start;
+  }
+}

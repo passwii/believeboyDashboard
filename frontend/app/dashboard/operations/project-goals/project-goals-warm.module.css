@@ -617,3 +617,106 @@
     animation: none;
   }
 }
+
+@media (max-width: 640px) {
+  .page {
+    gap: var(--warm-ledger-space-4);
+  }
+
+  .loadingGrid,
+  .metricGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .progressPanel {
+    gap: var(--warm-ledger-space-4);
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .metricTile {
+    min-height: 96px;
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .metricValue {
+    font-size: 20px;
+  }
+
+  .tabsList {
+    display: grid !important;
+    width: 100% !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tabsList [role='tab'] {
+    min-height: var(--warm-ledger-control-target-touch) !important;
+    justify-content: center;
+    padding-inline: var(--warm-ledger-space-2) !important;
+  }
+
+  .tableHeader {
+    align-items: stretch;
+    flex-direction: column;
+    gap: var(--warm-ledger-space-3);
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .tableAction {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .tableAction .button,
+  .metricEmpty .button {
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .tableScroll {
+    max-height: min(62dvh, 560px);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .rowActions .button {
+    width: var(--warm-ledger-control-target-touch);
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .dialog {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    max-width: none !important;
+    max-height: calc(100dvh - env(safe-area-inset-top));
+    padding: var(--warm-ledger-space-4) var(--warm-ledger-space-4)
+      calc(var(--warm-ledger-space-4) + env(safe-area-inset-bottom));
+    overflow-y: auto;
+    transform: none;
+    border-bottom-right-radius: 0 !important;
+    border-bottom-left-radius: 0 !important;
+  }
+
+  .dialogClose {
+    width: var(--warm-ledger-control-target-touch);
+    height: var(--warm-ledger-control-target-touch);
+  }
+
+  .dialogFooter {
+    display: flex;
+    flex-direction: column-reverse;
+    padding-inline: 0;
+  }
+
+  .dialogFooter > :global(button) {
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+}
+
+@media (max-width: 380px) {
+  .loadingGrid,
+  .metricGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
