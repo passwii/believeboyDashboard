@@ -73,6 +73,7 @@ export function WarmLedgerTopbar({
   const { isMobile, isDrawerOpen, menuButtonRef, openNavigation } = useWarmLedgerNavigation()
   const notificationLabel = unreadCount > 0 ? `通知，${unreadCount} 条未读` : '通知'
   const hasRouteSlots = Boolean(routeSlots?.action || routeSlots?.primary || routeSlots?.secondary)
+  const hasHomeActions = Boolean(onRefresh || onSearch || onNotifications)
   const refreshIconClass = [
     'warm-ledger__refresh-icon',
     !refreshing && refreshFeedbackStatus === 'success' && 'is-success',
@@ -81,14 +82,20 @@ export function WarmLedgerTopbar({
   ].filter(Boolean).join(' ')
 
   return (
-    <header className={routeFrame ? 'warm-ledger__topbar warm-ledger__topbar--route' : 'warm-ledger__topbar'}>
+    <header
+      className={
+        routeFrame
+          ? 'warm-ledger__topbar warm-ledger__topbar--route'
+          : 'warm-ledger__topbar warm-ledger__topbar--home'
+      }
+    >
       <WarmIconButton
         ref={menuButtonRef}
         className="warm-ledger__mobile-menu"
         aria-label="打开导航"
         aria-controls="dashboard-sidebar"
         aria-expanded={isMobile && isDrawerOpen}
-        onClick={openNavigation}
+        onClick={() => openNavigation()}
       >
         <Menu aria-hidden="true" />
       </WarmIconButton>
@@ -149,47 +156,78 @@ export function WarmLedgerTopbar({
           </div>
         ) : null}
 
-        {onRefresh ? (
-          <WarmIconButton
-            className="warm-ledger__topbar-action"
-            aria-label={refreshing ? '正在刷新当前页数据' : '刷新当前页数据'}
-            title={refreshFeedbackMessage || '刷新'}
-            loading={refreshing}
-            loadingLabel="正在刷新当前页数据"
-            onClick={onRefresh}
+        {!routeFrame && (dateRangeLabel || siteLabel) ? (
+          <div
+            className="warm-ledger__mobile-scope"
+            aria-label={
+              siteLabel
+                ? `数据区间：${dateRangeLabel}，PT 运营日，站点：${siteLabel}`
+                : `数据区间：${dateRangeLabel}，PT 运营日`
+            }
           >
-            {refreshing ? null : (
-              <RefreshCw aria-hidden="true" className={refreshIconClass} />
-            )}
-          </WarmIconButton>
+            <span>{dateRangeLabel}</span>
+            <span>{siteLabel ? `${siteLabel} · PT 运营日` : 'PT 运营日'}</span>
+          </div>
         ) : null}
-        {onSearch ? (
-          <WarmIconButton
-            className="warm-ledger__topbar-action warm-ledger__topbar-action--secondary"
-            aria-label="全局搜索"
-            title="搜索"
-            onClick={onSearch}
+
+        {hasHomeActions ? (
+          <div
+            className="warm-ledger__topbar-action-group"
+            role="group"
+            aria-label={routeFrame ? '页面快捷操作' : '首页快捷操作'}
           >
-            <Search aria-hidden="true" />
-          </WarmIconButton>
-        ) : null}
-        {onNotifications ? (
-          <WarmIconButton
-            className="warm-ledger__topbar-action warm-ledger__notification-action"
-            aria-label={notificationLabel}
-            title="通知"
-            onClick={onNotifications}
-          >
-            <Bell aria-hidden="true" />
-            {unreadCount > 0 ? (
-              <span className="warm-ledger__notification-dot" aria-hidden="true" />
+            {onRefresh ? (
+              <WarmIconButton
+                className="warm-ledger__topbar-action"
+                aria-label={refreshing ? '正在刷新当前页数据' : '刷新当前页数据'}
+                title={refreshFeedbackMessage || '刷新'}
+                loading={refreshing}
+                loadingLabel="正在刷新当前页数据"
+                onClick={onRefresh}
+              >
+                {refreshing ? null : (
+                  <RefreshCw aria-hidden="true" className={refreshIconClass} />
+                )}
+                <span className="warm-ledger__topbar-action-label" aria-hidden="true">
+                  {refreshing ? '刷新中' : '刷新'}
+                </span>
+              </WarmIconButton>
             ) : null}
-          </WarmIconButton>
+            {onSearch ? (
+              <WarmIconButton
+                className="warm-ledger__topbar-action warm-ledger__topbar-action--secondary"
+                aria-label="全局搜索"
+                title="搜索"
+                onClick={onSearch}
+              >
+                <Search aria-hidden="true" />
+                <span className="warm-ledger__topbar-action-label" aria-hidden="true">
+                  搜索
+                </span>
+              </WarmIconButton>
+            ) : null}
+            {onNotifications ? (
+              <WarmIconButton
+                className="warm-ledger__topbar-action warm-ledger__notification-action"
+                aria-label={notificationLabel}
+                title="通知"
+                onClick={onNotifications}
+              >
+                <Bell aria-hidden="true" />
+                {unreadCount > 0 ? (
+                  <span className="warm-ledger__notification-dot" aria-hidden="true" />
+                ) : null}
+                <span className="warm-ledger__topbar-action-label" aria-hidden="true">
+                  通知
+                </span>
+              </WarmIconButton>
+            ) : null}
+          </div>
         ) : null}
         {profileHref ? (
           <RouteLoadingLink
             href={profileHref}
-            className="warm-ledger__icon-button warm-ledger__topbar-action warm-ledger__topbar-action--secondary"
+            className="warm-ledger__icon-button warm-ledger__topbar-action warm-ledger__topbar-action--secondary warm-ledger__profile-action"
             aria-label={userLabel}
             title={userLabel}
           >
@@ -197,7 +235,7 @@ export function WarmLedgerTopbar({
           </RouteLoadingLink>
         ) : onUserAction ? (
           <WarmIconButton
-            className="warm-ledger__topbar-action warm-ledger__topbar-action--secondary"
+            className="warm-ledger__topbar-action warm-ledger__topbar-action--secondary warm-ledger__profile-action"
             aria-label={userLabel}
             title={userLabel}
             onClick={onUserAction}

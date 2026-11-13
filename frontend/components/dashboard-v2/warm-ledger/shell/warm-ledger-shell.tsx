@@ -9,8 +9,12 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { WarmLedgerNavigationContext } from './warm-ledger-navigation'
+import {
+  WarmLedgerNavigationContext,
+  type MobileNavigationDomain,
+} from './warm-ledger-navigation'
 import { WarmLedgerSidebar } from './warm-ledger-sidebar'
+import { WarmLedgerMobileDock } from './warm-ledger-mobile-dock'
 import { WarmLedgerTopbar } from './warm-ledger-topbar'
 import './theme.css'
 
@@ -24,8 +28,11 @@ export type WarmLedgerShellProps = {
 
 export function WarmLedgerShell({ children, sidebar, topbar }: WarmLedgerShellProps) {
   const [isMobile, setIsMobile] = useState(false)
+  const [isPhone, setIsPhone] = useState(false)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  const [mobileDomain, setMobileDomain] = useState<MobileNavigationDomain>('all')
   const isMobileRef = useRef(false)
+  const isPhoneRef = useRef(false)
   const isDrawerOpenRef = useRef(false)
   const focusTargetRef = useRef<FocusTarget>(null)
   const returnFocusRef = useRef<HTMLElement | null>(null)
@@ -33,13 +40,18 @@ export function WarmLedgerShell({ children, sidebar, topbar }: WarmLedgerShellPr
   const sidebarRef = useRef<HTMLElement>(null)
   const workspaceRef = useRef<HTMLElement>(null)
 
-  const openNavigation = useCallback(() => {
-    if (!isMobileRef.current || isDrawerOpenRef.current) return
-    returnFocusRef.current = menuButtonRef.current
-    focusTargetRef.current = null
-    isDrawerOpenRef.current = true
-    setIsDrawerOpen(true)
-  }, [])
+  const openNavigation = useCallback(
+    (domain: MobileNavigationDomain = 'all', trigger?: HTMLElement | null) => {
+      if (!isMobileRef.current) return
+      returnFocusRef.current = trigger ?? menuButtonRef.current
+      setMobileDomain(domain)
+      if (isDrawerOpenRef.current) return
+      focusTargetRef.current = null
+      isDrawerOpenRef.current = true
+      setIsDrawerOpen(true)
+    },
+    []
+  )
 
   const closeNavigation = useCallback(() => {
     if (!isDrawerOpenRef.current) return
@@ -49,37 +61,51 @@ export function WarmLedgerShell({ children, sidebar, topbar }: WarmLedgerShellPr
   }, [])
 
   useEffect(() => {
-    const media = window.matchMedia('(max-width: 820px)')
+    const mobileMedia = window.matchMedia('(max-width: 820px)')
+    const phoneMedia = window.matchMedia('(max-width: 430px)')
 
     const synchronizeViewport = () => {
-      const nextIsMobile = media.matches
+      const nextIsMobile = mobileMedia.matches
+      const nextIsPhone = phoneMedia.matches
       const previousIsMobile = isMobileRef.current
-      if (nextIsMobile === previousIsMobile) return
+      const previousIsPhone = isPhoneRef.current
 
-      if (nextIsMobile) {
+      if (previousIsPhone && !nextIsPhone && isDrawerOpenRef.current) {
+        isDrawerOpenRef.current = false
+        focusTargetRef.current = nextIsMobile ? 'menu' : 'workspace'
+        setIsDrawerOpen(false)
+      }
+
+      if (nextIsMobile && !previousIsMobile) {
         if (sidebarRef.current?.contains(document.activeElement)) {
-          focusTargetRef.current = 'menu'
+          focusTargetRef.current = nextIsPhone ? 'workspace' : 'menu'
         }
         if (isDrawerOpenRef.current) {
           isDrawerOpenRef.current = false
           setIsDrawerOpen(false)
         }
-      } else if (
+      } else if (!nextIsMobile && previousIsMobile && (
         isDrawerOpenRef.current ||
         document.activeElement === menuButtonRef.current
-      ) {
+      )) {
         isDrawerOpenRef.current = false
         focusTargetRef.current = 'workspace'
         setIsDrawerOpen(false)
       }
 
       isMobileRef.current = nextIsMobile
+      isPhoneRef.current = nextIsPhone
       setIsMobile(nextIsMobile)
+      setIsPhone(nextIsPhone)
     }
 
     synchronizeViewport()
-    media.addEventListener('change', synchronizeViewport)
-    return () => media.removeEventListener('change', synchronizeViewport)
+    mobileMedia.addEventListener('change', synchronizeViewport)
+    phoneMedia.addEventListener('change', synchronizeViewport)
+    return () => {
+      mobileMedia.removeEventListener('change', synchronizeViewport)
+      phoneMedia.removeEventListener('change', synchronizeViewport)
+    }
   }, [])
 
   useLayoutEffect(() => {
@@ -93,9 +119,14 @@ export function WarmLedgerShell({ children, sidebar, topbar }: WarmLedgerShellPr
     workspaceRef.current?.toggleAttribute('inert', isMobile && isDrawerOpen)
 
     if (isDrawerOpen && isMobile) {
-      sidebarRef.current
-        ?.querySelector<HTMLButtonElement>('[data-warm-ledger-close]')
-        ?.focus({ preventScroll: true })
+      const initialFocus = isPhone
+        ? sidebarRef.current?.querySelector<HTMLInputElement>(
+            '[data-warm-ledger-search]'
+          )
+        : sidebarRef.current?.querySelector<HTMLButtonElement>(
+            '[data-warm-ledger-close]'
+          )
+      initialFocus?.focus({ preventScroll: true })
       return
     }
 
@@ -109,7 +140,7 @@ export function WarmLedgerShell({ children, sidebar, topbar }: WarmLedgerShellPr
       const returnTarget = returnFocusRef.current
       if (returnTarget?.isConnected) returnTarget.focus({ preventScroll: true })
     }
-  }, [isDrawerOpen, isMobile])
+  }, [isDrawerOpen, isMobile, isPhone])
 
   useEffect(() => {
     if (!isMobile || !isDrawerOpen) return
@@ -128,7 +159,9 @@ export function WarmLedgerShell({ children, sidebar, topbar }: WarmLedgerShellPr
         sidebarElement.querySelectorAll<HTMLElement>(
           'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
         )
-      ).filter((element) => !element.closest('[inert]'))
+      ).filter(
+        (element) => !element.closest('[inert], [hidden], [aria-hidden="true"]')
+      )
       if (focusable.length === 0) return
 
       const first = focusable[0]
@@ -152,14 +185,16 @@ export function WarmLedgerShell({ children, sidebar, topbar }: WarmLedgerShellPr
   const navigationValue = useMemo(
     () => ({
       isMobile,
+      isPhone,
       isDrawerOpen,
+      mobileDomain,
       menuButtonRef,
       sidebarRef,
       workspaceRef,
       openNavigation,
       closeNavigation,
     }),
-    [closeNavigation, isDrawerOpen, isMobile, openNavigation]
+    [closeNavigation, isDrawerOpen, isMobile, isPhone, mobileDomain, openNavigation]
   )
 
   return (
@@ -189,6 +224,7 @@ export function WarmLedgerShell({ children, sidebar, topbar }: WarmLedgerShellPr
               {children}
             </main>
           </section>
+          <WarmLedgerMobileDock />
         </section>
         <div id="warm-ledger-portal-root" className="warm-ledger__portal-root" />
       </div>

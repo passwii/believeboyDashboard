@@ -50,7 +50,8 @@ const runsSelfContainedSpec = process.argv.some(
     arg.includes('cross-border-compliance') ||
     arg.includes('warm-ledger-c2-matrix') ||
     arg.includes('warm-ledger-c3-matrix') ||
-    arg.includes('warm-ledger-expansion-desktop')
+    arg.includes('warm-ledger-expansion-desktop') ||
+    arg.includes('warm-ledger-phone-shell')
 )
 let envFileBackup: string | null = null
 let envFileExisted = false

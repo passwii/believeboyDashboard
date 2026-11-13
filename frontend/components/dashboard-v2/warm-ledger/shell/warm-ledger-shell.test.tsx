@@ -199,35 +199,56 @@ vi.mock('@/components/dashboard/route-loading-link', () => ({
 
 type MediaListener = (event: MediaQueryListEvent) => void
 
-function installMatchMedia(initialMobile: boolean) {
-  let matches = initialMobile
-  const listeners = new Set<MediaListener>()
-  const mediaQuery = {
-    media: '(max-width: 820px)',
-    get matches() {
-      return matches
-    },
-    onchange: null,
-    addEventListener: (_type: string, listener: MediaListener) => listeners.add(listener),
-    removeEventListener: (_type: string, listener: MediaListener) => listeners.delete(listener),
-    addListener: (listener: MediaListener) => listeners.add(listener),
-    removeListener: (listener: MediaListener) => listeners.delete(listener),
-    dispatchEvent: () => true,
-  } as MediaQueryList
+function installMatchMedia(initialMobile: boolean, initialPhone = initialMobile) {
+  const matchesByQuery = new Map([
+    ['(max-width: 820px)', initialMobile],
+    ['(max-width: 430px)', initialPhone],
+  ])
+  const listenersByQuery = new Map<string, Set<MediaListener>>()
+  const mediaQueries = new Map<string, MediaQueryList>()
 
-  vi.stubGlobal('matchMedia', () => mediaQuery)
+  const getMediaQuery = (query: string) => {
+    const existing = mediaQueries.get(query)
+    if (existing) return existing
+
+    const listeners = new Set<MediaListener>()
+    listenersByQuery.set(query, listeners)
+    const mediaQuery = {
+      media: query,
+      get matches() {
+        return matchesByQuery.get(query) ?? false
+      },
+      onchange: null,
+      addEventListener: (_type: string, listener: MediaListener) => listeners.add(listener),
+      removeEventListener: (_type: string, listener: MediaListener) => listeners.delete(listener),
+      addListener: (listener: MediaListener) => listeners.add(listener),
+      removeListener: (listener: MediaListener) => listeners.delete(listener),
+      dispatchEvent: () => true,
+    } as MediaQueryList
+    mediaQueries.set(query, mediaQuery)
+    return mediaQuery
+  }
+
+  vi.stubGlobal('matchMedia', getMediaQuery)
   Object.defineProperty(window, 'matchMedia', {
-    value: () => mediaQuery,
+    value: getMediaQuery,
     configurable: true,
     writable: true,
   })
 
-  return (nextMobile: boolean) => {
-    matches = nextMobile
+  return (nextMobile: boolean, nextPhone = nextMobile) => {
+    matchesByQuery.set('(max-width: 820px)', nextMobile)
+    matchesByQuery.set('(max-width: 430px)', nextPhone)
     act(() => {
-      listeners.forEach((listener) =>
-        listener({ matches, media: mediaQuery.media } as MediaQueryListEvent)
-      )
+      for (const query of ['(max-width: 820px)', '(max-width: 430px)']) {
+        const mediaQuery = getMediaQuery(query)
+        listenersByQuery.get(query)?.forEach((listener) =>
+          listener({
+            matches: matchesByQuery.get(query) ?? false,
+            media: mediaQuery.media,
+          } as MediaQueryListEvent)
+        )
+      }
     })
   }
 }
@@ -631,6 +652,99 @@ describe('WarmLedgerShell', () => {
     }
   })
 
+  it('renders the five-item phone dock and the operations drawer quick links first', async () => {
+    installMatchMedia(true, true)
+    const user = userEvent.setup()
+    const { container } = render(<WarmLedgerShell>Dashboard</WarmLedgerShell>)
+
+    const dock = screen.getByRole('navigation', { name: '移动主导航' })
+    expect(within(dock).getByRole('link', { name: '总览' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    )
+    expect(
+      within(dock)
+        .getAllByRole('button')
+        .map((button) => button.textContent?.trim())
+    ).toEqual(['运营', '报表', 'AI', '全部'])
+
+    await user.click(within(dock).getByRole('button', { name: '运营' }))
+    const drawer = screen.getByRole('complementary', { name: '运营导航抽屉' })
+    expect(dock).toBeInTheDocument()
+    expect(drawer).not.toHaveAttribute('inert')
+
+    const quickLinks = Array.from(
+      container.querySelectorAll<HTMLAnchorElement>(
+        '.warm-ledger__mobile-quick-links a'
+      )
+    )
+    expect(quickLinks.map((link) => link.textContent?.trim())).toEqual([
+      '销售数据',
+      '订单信息',
+      '库存分析',
+      '客户消息',
+    ])
+    expect(quickLinks.map((link) => link.getAttribute('href'))).toEqual([
+      '/dashboard/operations/daily-analysis',
+      '/dashboard/reports/order-info',
+      '/dashboard/operations/inventory-analysis',
+      '/dashboard/operations/complaint-center',
+    ])
+  })
+
+  it('searches the selected phone drawer and restores focus after route selection or Escape', async () => {
+    installMatchMedia(true, true)
+    const user = userEvent.setup()
+    render(<WarmLedgerShell>Dashboard</WarmLedgerShell>)
+
+    const dock = screen.getByRole('navigation', { name: '移动主导航' })
+    const operationsButton = within(dock).getByRole('button', { name: '运营' })
+    await user.click(operationsButton)
+
+    const search = screen.getByRole('searchbox', { name: '搜索页面' })
+    expect(search).toHaveFocus()
+    await user.type(search, '评论追踪')
+    const reviewLink = screen.getByRole('link', { name: '评论追踪' })
+    expect(reviewLink).toHaveAttribute(
+      'href',
+      '/dashboard/operations/review-tracking'
+    )
+    expect(screen.queryByRole('link', { name: '销售数据' })).not.toBeInTheDocument()
+
+    await user.click(reviewLink)
+    expect(operationsButton).toHaveFocus()
+    expect(operationsButton).toHaveAttribute('aria-expanded', 'false')
+
+    const reportsButton = within(dock).getByRole('button', { name: '报表' })
+    await user.click(reportsButton)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(reportsButton).toHaveFocus()
+    expect(reportsButton).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('lists every configured navigation group in the phone All drawer and closes on backdrop', async () => {
+    installMatchMedia(true, true)
+    const user = userEvent.setup()
+    const { container } = render(<WarmLedgerShell>Dashboard</WarmLedgerShell>)
+
+    const dock = screen.getByRole('navigation', { name: '移动主导航' })
+    const allButton = within(dock).getByRole('button', { name: '全部' })
+    await user.click(allButton)
+
+    const drawer = screen.getByRole('complementary', { name: '全部导航抽屉' })
+    const groupButtons = drawer.querySelectorAll('.warm-ledger__nav-group-toggle')
+    expect(groupButtons).toHaveLength(SIDEBAR_TOP_GROUPS.length)
+    for (const group of SIDEBAR_TOP_GROUPS) {
+      expect(within(drawer).getByRole('button', { name: group.label })).toBeInTheDocument()
+    }
+
+    const scrim = container.querySelector<HTMLButtonElement>('.warm-ledger__scrim')
+    expect(scrim).not.toBeNull()
+    await user.click(scrim!)
+    expect(allButton).toHaveFocus()
+    expect(allButton).toHaveAttribute('aria-expanded', 'false')
+  })
+
   it('provides accessible names for icon-only sidebar links', () => {
     installMatchMedia(false)
 
@@ -652,18 +766,19 @@ describe('WarmLedgerShell', () => {
     const openButton = screen.getByRole('button', { name: '打开导航' })
     fireEvent.click(openButton)
 
-    const sidebar = screen.getByRole('complementary', { name: '主导航' })
+    const sidebar = screen.getByRole('complementary', { name: '全部导航抽屉' })
     const closeButton = within(sidebar).getByRole('button', { name: '关闭导航' })
-    expect(closeButton).toHaveFocus()
+    const search = within(sidebar).getByRole('searchbox', { name: '搜索页面' })
+    expect(search).toHaveFocus()
     expect(sidebar).not.toHaveAttribute('inert')
     expect(document.getElementById('main-content')?.parentElement).toHaveAttribute('inert')
 
-    const links = within(sidebar).getAllByRole('link')
+    const lastGroupToggle = within(sidebar).getByRole('button', { name: '系统管理' })
     fireEvent.keyDown(document, { key: 'Tab', shiftKey: true })
-    expect(links[links.length - 1]).toHaveFocus()
-    links[links.length - 1]?.focus()
+    expect(lastGroupToggle).toHaveFocus()
+    lastGroupToggle.focus()
     fireEvent.keyDown(document, { key: 'Tab' })
-    expect(closeButton).toHaveFocus()
+    expect(search).toHaveFocus()
 
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(openButton).toHaveFocus()
@@ -686,12 +801,12 @@ describe('WarmLedgerShell', () => {
   })
 
   it('moves sidebar focus to the menu button when crossing from desktop to mobile', () => {
-    const setMobile = installMatchMedia(false)
+    const setMobile = installMatchMedia(false, false)
 
     render(<WarmLedgerShell>Dashboard</WarmLedgerShell>)
 
     screen.getByRole('link', { name: '运营总览' }).focus()
-    setMobile(true)
+    setMobile(true, false)
 
     expect(screen.getByRole('button', { name: '打开导航' })).toHaveFocus()
     expect(document.getElementById('dashboard-sidebar')).toHaveAttribute('inert')
@@ -953,7 +1068,7 @@ describe('WarmLedgerTopbar', () => {
 
     const select = screen.getByRole('combobox', { name: '项目筛选' })
     expect(select).toHaveTextContent('项目二')
-    expect(screen.getByText('近 7 天')).toBeInTheDocument()
+    expect(screen.getAllByText('近 7 天').length).toBeGreaterThan(0)
     expect(screen.getByText('US')).toBeInTheDocument()
 
     await user.click(select)
@@ -1021,5 +1136,56 @@ describe('WarmLedgerTopbar', () => {
     expect(onSearch).toHaveBeenCalledOnce()
     expect(onNotifications).toHaveBeenCalledOnce()
     expect(onUserAction).toHaveBeenCalledOnce()
+  })
+
+  it('groups all home actions and scope information for the phone layout', () => {
+    installMatchMedia(true, true)
+    const onRefresh = vi.fn()
+    const onSearch = vi.fn()
+    const onNotifications = vi.fn()
+    const onUserAction = vi.fn()
+
+    const { container } = render(
+      <WarmLedgerShell
+        topbar={
+          <WarmLedgerTopbar
+            showScopeMeta={false}
+            projectId="all"
+            projectOptions={[{ value: 'all', label: '全部项目' }]}
+            onProjectChange={vi.fn()}
+            dateRangeLabel="11-07 → 11-13"
+            siteLabel="US"
+            onRefresh={onRefresh}
+            onSearch={onSearch}
+            onNotifications={onNotifications}
+            onUserAction={onUserAction}
+            userLabel="个人资料"
+          />
+        }
+      >
+        Dashboard
+      </WarmLedgerShell>
+    )
+
+    const topbar = container.querySelector('.warm-ledger__topbar--home')
+    expect(topbar).not.toBeNull()
+    expect(within(topbar as HTMLElement).getByRole('combobox', { name: '项目筛选' }))
+      .toBeInTheDocument()
+    expect(within(topbar as HTMLElement).getByText('11-07 → 11-13'))
+      .toBeInTheDocument()
+    expect(within(topbar as HTMLElement).getByText('US · PT 运营日'))
+      .toBeInTheDocument()
+
+    const actions = within(topbar as HTMLElement).getByRole('group', {
+      name: '首页快捷操作',
+    })
+    expect(within(actions).getByRole('button', { name: '刷新当前页数据' }))
+      .toHaveTextContent('刷新')
+    expect(within(actions).getByRole('button', { name: '全局搜索' }))
+      .toHaveTextContent('搜索')
+    expect(within(actions).getByRole('button', { name: '通知' }))
+      .toHaveTextContent('通知')
+    expect(within(topbar as HTMLElement).getByRole('button', { name: '个人资料' }))
+      .toBeInTheDocument()
   })
 })
