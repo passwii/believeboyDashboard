@@ -4,6 +4,7 @@ set -euo pipefail
 export LC_ALL=C
 umask 077
 
+API_IMAGE="${API_IMAGE-}"
 GO_API_IMAGE="${GO_API_IMAGE-}"
 WEB_IMAGE="${WEB_IMAGE-}"
 SOURCE_SHA="${SOURCE_SHA-}"
