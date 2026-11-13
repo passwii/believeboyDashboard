@@ -128,20 +128,20 @@
 2. commit 中文 Conventional Commits，正文带 `Closes BLF-<子issue编号>`；author 必须 `DamonRock <jr.way123@gmail.com>`（否则 Vercel 拒部署）。
 3. 按档位跑验证 → `git push` → `gh pr create`（标题含 `BLF-<子issue>` 以便平台关联 PR）。
 4. 在子 issue 评论写全 **PR URL + 编号 + head SHA + 关联 issue + 风险等级 + 真实测试数字**，并 mention [@代码质量工程师 Tia] 交棒。
-5. Tia 按下方§5.1 把关流程 review（Codex-first）→ 通过后 `gh pr merge --squash --delete-branch`。**合并动作只属于 Tia，Seth 不自行 merge。**
+5. Tia 按下方§5.1 把关流程 review → 通过后 `gh pr merge --squash --delete-branch`。**合并动作只属于 Tia，Seth 不自行 merge。**
 6. S1 合并后 Tia 再 promote S2；S2 合并后视情况决定是否还要 S3。纯前端 → Vercel 自动部署，不触发 `deploy-vps.yml`。
 7. 同一 PR @-back 超过 3 次 → 升级用户拍板。
 
 ### 5.1 把关流程本仓定义（就地定义，不依赖尚未合入的文档）
 
-> 注：§PR 把关流程（Codex-first）**当前不在 `main` 上**——完整定义在 pending 的 **#726**（分支 `agent/seth/blf-1345-docs`，`AGENTS.md` §PR 把关流程 + `docs/REFERENCE.md` §PR 把关流程（完整）），尚未合入。为避免无权威可依，本节就地写全执行关口（与 #726 口径一致）；#726 合入后以 `AGENTS.md` / `docs/REFERENCE.md` 为准，本节降为指针。
+> 注：本仓库 PR 把关以机器门禁 + 把关人语义复核为准，详见 `AGENTS.md` §关键约定与 `docs/REFERENCE.md` §代码检查（Lint）。
 
 每个 stage PR 依次跑五步：
 
 1. **变更面识别**：`gh pr view <N> --json headRefOid,files,latestReviews,statusCheckRollup` 记录**当前 HEAD SHA**，得出 FRONTEND_TOUCHED / BACKEND_TOUCHED / HAS_MIGRATION 三个 bool（本计划三个 stage 预期均为 `true / false / false`）。
-2. **Codex 结果判定**（主语义 review 来源）。**四个来源都要读，只认当前 HEAD，且集合端点必须 `gh api --paginate`**（默认只读第一页，后页 finding 会被漏）：① Codex 摘要评论（`gh api --paginate repos/passwii/believeboyDashboard/issues/<N>/comments` 里的 Review Summary 表：Status / Commit / trigger）② `gh api --paginate repos/passwii/believeboyDashboard/pulls/<N>/reviews`（看 `commit_id`）③ `gh api --paginate repos/passwii/believeboyDashboard/pulls/<N>/comments`（**行内问题常只在这里**）④ PR 对话区。枚举：`PENDING`（当前 HEAD 无完成记录 → 不合并，必要时 `gh pr comment <N> --body "@codex review"` 后等）/ `UNKNOWN`（API / 权限 / 网络失败、commit 不可确认、来源矛盾 → 报告原因并回退人工 review，**不得静默当 clean**）/ `FINDINGS`（逐条判断，真实问题按 §5 步骤 7 的 @-back 退回作者）/ `CLEAN`（确认对当前 HEAD 完成、四源已读、无待处理有效发现）。**摘要显示 `Completed` 不等于无发现**（PR #720 的 P1 越权只在行内评论里）；**早于当前 HEAD 的未结 inline finding 继续算 finding**，推新 commit 不会让旧 P1 消失，只有把关人核验修复已落在当前 HEAD 后才能 resolve（作者不得自行 resolve）。Codex 是静态审查、不是测试，不替代作者的测试证据与 T3 验证。
-3. **机器门禁与抽验**：FRONTEND_TOUCHED=1 → **Vercel 部署检查必须成功**（失败或无法确认成功 → 不合并，@ 用户拍板）；BACKEND-only → 跳过并在报告点名。默认信任作者 PR 正文的真实测试数字；抽验条件：CI 覆盖不到的边界（窄屏 / Lighthouse / 本计划 §5.1 的 E2E）、声明与门禁结论矛盾、高风险 PR、Codex 反馈修复后需定向重跑的目标集。命中 **T3** 的 S2 按 `AGENTS.md` §测试规则验证，不因 Codex 无发现而跳过。
-4. **语义 review（Codex 之外）**：对照本计划 + 设计稿验收标准 7 条：需求覆盖 / 契约一致（路由与标题映射）/ 边界与错误处理 / 安全（本页无写操作，重点反而在**口径安全**：不得出现法律/税务结论性措辞，不得有「交付缺漏清单」缺失的省略条目静默补写）/ 无遗留调试（TODO、`console.log`、`debugger`）/ commit author 为 `DamonRock <jr.way123@gmail.com>`。
+2. **作者证据核对**：读 PR 正文里的测试声明与 `statusCheckRollup`，确认验证命令、结果与变更面一致；声明缺失或与门禁结论矛盾时，要求作者补齐证据后再继续。
+3. **机器门禁与抽验**：FRONTEND_TOUCHED=1 → **Vercel 部署检查必须成功**（失败或无法确认成功 → 不合并，@ 用户拍板）；BACKEND-only → 跳过并在报告点名。默认信任作者 PR 正文的真实测试数字；抽验条件：CI 覆盖不到的边界（窄屏 / Lighthouse / 本计划 §5.1 的 E2E）、声明与门禁结论矛盾、高风险 PR、审查反馈修复后需定向重跑的目标集。命中 **T3** 的 S2 按 `AGENTS.md` §测试规则验证，不因 PR 正文声明全绿而跳过。
+4. **语义 review**：对照本计划 + 设计稿验收标准 7 条：需求覆盖 / 契约一致（路由与标题映射）/ 边界与错误处理 / 安全（本页无写操作，重点反而在**口径安全**：不得出现法律/税务结论性措辞，不得有「交付缺漏清单」缺失的省略条目静默补写）/ 无遗留调试（TODO、`console.log`、`debugger`）/ commit author 为 `DamonRock <jr.way123@gmail.com>`。
 5. **决策与合并后**：APPROVE → `gh pr merge --squash --delete-branch`；REQUEST_CHANGES → @-back；BLOCK（高风险，例：缺漏清单为空但内容明显补写、或出现税额计算）→ @ 用户拍板不合并。合并后：FRONTEND_TOUCHED=1 → 确认 Vercel production 部署成功；三个 stage 均无 `backend/` 改动 → `deploy-vps.yml` 不触发，在报告里点名说明。
 
 ---
