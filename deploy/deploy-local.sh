@@ -29,10 +29,10 @@ DEPLOY_PATH="${DEPLOY_PATH:-/opt/believeboy-dashboard}"
 DOMAIN="${DOMAIN:-https://dash.believeboy.com}"
 WEB_IMAGE_NAME="${WEB_IMAGE_NAME:-ghcr.io/passwii/believeboydashboard-web}"
 GO_API_IMAGE_NAME="${GO_API_IMAGE_NAME:-ghcr.io/passwii/believeboydashboard-go-api}"
-# The Go gateway now implements every OpenAPI operation, so the default is a
-# full cutover: Web talks to 8200 and the gateway owns all modules. Unmatched
-# paths still proxy to FastAPI and are logged. Set GO_API_OWNED_MODULES to a
-# short list (or GO_API_INTERNAL_URL=8100) to fall back to a staged rollout.
+# The Go gateway implements every OpenAPI operation, so Web always talks to
+# 8200. GO_API_OWNED_MODULES is kept for staged rollouts (short list); the
+# default "all" means every module is served by Go. FastAPI is retired, so
+# there is no 8100 fallback any more.
 GO_API_OWNED_MODULES="${GO_API_OWNED_MODULES:-all}"
 GO_API_INTERNAL_URL="${GO_API_INTERNAL_URL:-http://127.0.0.1:8200}"
 DEPLOY_FREE_SPACE_MIN_BYTES="${DEPLOY_FREE_SPACE_MIN_BYTES:-1073741824}"
@@ -113,13 +113,8 @@ if [[ ! "$GO_API_OWNED_MODULES" =~ ^([a-z_]+(,[a-z_]+)*)?$ ]]; then
   echo "GO_API_OWNED_MODULES must be empty or a comma-separated list of lowercase module names." >&2
   exit 1
 fi
-if [[ "$GO_API_INTERNAL_URL" != "http://127.0.0.1:8100" &&
-  "$GO_API_INTERNAL_URL" != "http://127.0.0.1:8200" ]]; then
-  echo "GO_API_INTERNAL_URL must be http://127.0.0.1:8100 (FastAPI) or http://127.0.0.1:8200 (Go gateway)." >&2
-  exit 1
-fi
-if [[ -n "$GO_API_OWNED_MODULES" && "$GO_API_INTERNAL_URL" != "http://127.0.0.1:8200" ]]; then
-  echo "GO_API_OWNED_MODULES is set but GO_API_INTERNAL_URL does not route Web through the Go gateway (http://127.0.0.1:8200)." >&2
+if [[ "$GO_API_INTERNAL_URL" != "http://127.0.0.1:8200" ]]; then
+  echo "GO_API_INTERNAL_URL must be http://127.0.0.1:8200 (Go gateway); FastAPI is retired." >&2
   exit 1
 fi
 
@@ -193,6 +188,7 @@ if [[ "$DEPLOY_METHOD" == "ssh" ]]; then
 
   {
     printf 'GO_API_ADDR=127.0.0.1:8200\n'
+    # 保留以满足网关配置校验；FastAPI 已下线，没有服务监听 8100。
     printf 'FASTAPI_ORIGIN=http://127.0.0.1:8100\n'
     printf 'GO_API_OWNED=%s\n' "$GO_API_OWNED_MODULES"
     printf 'GO_API_TRUSTED_PROXY_SECRET=%s\n' "$GO_API_TRUSTED_PROXY_SECRET"
@@ -279,7 +275,7 @@ if [[ "$DEPLOY_METHOD" == "actions" ]]; then
   if [[ -n "$GO_API_OWNED_MODULES" ]]; then
     dispatch_args+=(-f "go_api_owned=$GO_API_OWNED_MODULES")
   fi
-  if [[ "$GO_API_INTERNAL_URL" != "http://127.0.0.1:8100" ]]; then
+  if [[ "$GO_API_INTERNAL_URL" != "http://127.0.0.1:8200" ]]; then
     dispatch_args+=(-f "go_api_internal_url=$GO_API_INTERNAL_URL")
   fi
   if dispatch_output="$(gh workflow run deploy-dashboard.yml "${dispatch_args[@]}" 2>&1)"; then
