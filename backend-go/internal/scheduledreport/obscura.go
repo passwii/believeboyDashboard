@@ -458,5 +458,11 @@ func (client *obscuraCDPClient) attachTarget(ctx context.Context, targetID strin
 }
 
 func (client *obscuraCDPClient) close() {
+	_ = client.conn.WriteControl(
+		websocket.CloseMessage,
+		websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""),
+		time.Now().Add(time.Second),
+	)
+	time.Sleep(100 * time.Millisecond)
 	_ = client.conn.Close()
 }
