@@ -30,9 +30,11 @@
 1. 确认部署冻结已解除（`DEPLOYMENTS_ENABLED=true`）。
 2. 若生产库仍是 Alembic，运行：
    ```bash
-   bash deploy/prepare-goose-cutover.sh
+   LEGACY_API_IMAGE=ghcr.io/passwii/believeboydashboard-api@sha256:<digest> \
+     bash deploy/prepare-goose-cutover.sh
    ```
-   该脚本用 API 镜像把库升到冻结 head 285；全新库自动跳过。
+   该脚本用**历史 FastAPI 镜像**（已停止发布，需显式提供 digest）把库升到冻结 head 285；
+   全新库、以及已被 Goose stamp 的库都会跳过。
 3. 正常执行 `git deploy` 或 GitHub Actions 部署；`go-migrate up` 会 stamp 并应用后续迁移。
 4. 验证：
    ```bash

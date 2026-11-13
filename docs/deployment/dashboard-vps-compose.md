@@ -49,7 +49,7 @@ Alembic 历史已冻结在 revision 285：
 - 空库执行 `00001_baseline.sql` + `20261110170000_seed_baseline_data.sql` 建立完整 schema 与基础种子；
 - 无 `alembic_version` 且 public schema 非空时拒绝执行，避免误覆盖未知库；
 - 迁移只向前，生产回滚不自动回滚 DB；迁移必须保持向后兼容。
-- **首次切换前置条件**：若库仍是 Alembic，先运行一次 `bash deploy/prepare-goose-cutover.sh`（用 API 镜像将库升到冻结 head 285）；全新库无需执行。随后正常部署，`go-migrate up` 会 stamp 并运行后续 Goose 迁移。
+- **首次切换前置条件**：若库仍是 Alembic，先运行一次 `bash deploy/prepare-goose-cutover.sh` 把库升到冻结 head 285——FastAPI 镜像已停发，需要设置 `LEGACY_API_IMAGE` 指向仍含 `backend/alembic` 的历史镜像；全新库或已被 Goose stamp 的库无需执行。随后正常部署，`go-migrate up` 会 stamp 并运行后续 Goose 迁移。
 
 本机验证命令见 `docs/REFERENCE.md` §数据库与迁移；发布前由 `git deploy` / CI 运行
 `cd backend-go && go run ./cmd/checkmigrations`。
