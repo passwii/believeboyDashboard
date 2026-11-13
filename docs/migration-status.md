@@ -51,7 +51,13 @@
 3. 切换 `GO_API_OWNED=all` 并确认 `request fell back` 计数为 0；
 4. 再打开 `DEPLOYMENTS_ENABLED`。
 
-### 3. 可选清理
+### 3. 防止 Python 回流
+
+`test-ci.yml` 的 `changes` job 里有一条守卫：只要仓库里出现 `backend/alembic/` 与
+`autoReportUpload/` 之外的 `*.py` / `*.pyi`，CI 直接失败。新增 Python 服务前必须先删掉这条
+守卫并在 PR 里说明原因。
+
+### 4. 可选清理
 
 - `backend/alembic/versions/` 若要彻底移除，需要把 `cmd/checkmigrations` 的 frozen manifest
   改成记录历史哈希而不是校验文件存在（当前保留成本极低，建议不动）；
