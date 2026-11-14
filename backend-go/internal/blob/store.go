@@ -40,9 +40,36 @@ type Store struct {
 	maxPut     int64
 	maxGet     int64
 	timeout    time.Duration
+	// restricted is set by WithBucket for secondary (private) buckets. Put and
+	// PublicURL are rejected so sensitive data cannot be exposed or written by
+	// a caller that treats every Store as a general ObjectStore. Reads,
+	// presigning, and deletes remain available.
+	restricted bool
 }
 
 var _ ObjectStore = (*Store)(nil)
+
+// WithBucket returns a read-only view of the same endpoint and credentials
+// scoped to a different bucket. PublicURL is cleared and writes are rejected
+// because a secondary bucket (the private bucket) must never be publicly
+// readable.
+func (store *Store) WithBucket(bucketName string) (*Store, error) {
+	if store == nil {
+		return nil, ErrNotConfigured
+	}
+	bucketName = strings.TrimSpace(bucketName)
+	if bucketName == "" {
+		return nil, fmt.Errorf("%w: bucket name is required", ErrNotConfigured)
+	}
+	if strings.ContainsAny(bucketName, "/\\") {
+		return nil, fmt.Errorf("R2 bucket name must not contain path separators")
+	}
+	scoped := *store
+	scoped.bucketName = bucketName
+	scoped.publicURL = ""
+	scoped.restricted = true
+	return &scoped, nil
+}
 
 // New constructs a fail-closed S3-compatible client. The endpoint must use
 // HTTPS unless it is a loopback URL used by tests.
@@ -97,6 +124,9 @@ func (store *Store) PutReader(
 	size int64,
 	contentType string,
 ) (string, error) {
+	if store.restricted {
+		return "", fmt.Errorf("%w: bucket-scoped store is read-only", ErrNotConfigured)
+	}
 	if err := ValidateKey(key); err != nil {
 		return "", err
 	}
@@ -276,6 +306,9 @@ func (store *Store) Head(ctx context.Context, key string) (ObjectInfo, error) {
 func (store *Store) PublicURL(key string) (string, error) {
 	if store == nil || strings.TrimSpace(store.publicURL) == "" {
 		return "", ErrNotConfigured
+	}
+	if store.restricted {
+		return "", fmt.Errorf("%w: bucket-scoped store has no public URL", ErrNotConfigured)
 	}
 	if err := ValidateKey(key); err != nil {
 		return "", err

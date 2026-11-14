@@ -200,6 +200,23 @@ ssh guitar-vps '
 - 启用 `GO_API_OWNED` 时，部署脚本会用 `API_KEY` + `GO_API_TRUSTED_PROXY_SECRET` 冒烟 `/api/v1/health` 与 `/api/v1/exchange-rates`，不通过直接回滚。
 - `5432`、`6379`、`8200`、`3200` 只监听宿主机回环；Caddy 的 API upstream 指向 Go Gateway `8200`。
 
+### CRM 历史方案读取
+
+客户方案新上传写 `backend-storage/uploads/crm-proposals/`（本地，key 不重复
+`crm-proposals/` 前缀）。FastAPI 时代的旧方案对象都写在 **`R2_BUCKET_NAME`**
+（下线前最后一个 Python 树只写这一个桶），Go 会从该桶回退读取：
+
+- 读取顺序：本地 → `R2_BUCKET_NAME`；`R2_PRIVATE_BUCKET_NAME` 只是链上的**可选前置**，
+  仅在将来真的建立了独立私有桶时才配置；
+- 恢复历史对象**不需要任何新配置**，只要 `R2_BUCKET_NAME` 等 `R2_*` 与部署前一致；
+- 只有所有候选桶都明确返回「对象不存在」时才映射 404；若私有桶发生网络/权限错误
+  且后续桶也没有该对象，API 会返回 5xx（fail-loud），不会把基础设施故障伪装成 404；
+- 升级前写入的本地双层路径（`crm-proposals/crm-proposals/...`）仍可读、可删；
+- 新方案不会写入 R2 公开桶；`/content` 与 `/download` 仍由 API 流式返回，不暴露公网 URL。
+
+`R2_PRIVATE_BUCKET_NAME` 与其余 `R2_*` 变量同放 `backend.env`，示例见
+`backend/.env.example`；`go.env` 只保留网关监听与代理密钥。
+
 ## 本地 Docker 验证（部署冻结期）
 
 不触达 VPS、不推 GHCR；只在本机构建并验证 Go API runtime：

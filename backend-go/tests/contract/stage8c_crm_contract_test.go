@@ -15,6 +15,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/crm"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/auth"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/blob"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/store"
 )
 
 const stage8CAPIKey = "stage8c-key"
@@ -393,6 +395,110 @@ func stage8CRouter(store crm.Store, storage crm.ProposalStorage) http.Handler {
 	}
 	crm.NewRegistrar(store, storage, nil).RegisterRoutes(router, requireAPIKey)
 	return router
+}
+
+func stage8CPublicOnlyStorage(t *testing.T, objects map[string]string) crm.ProposalStorage {
+	t.Helper()
+	local, err := store.NewLocalProposalStorage(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewLocalProposalStorage() error = %v", err)
+	}
+	bucket := &stage8CBucket{objects: map[string][]byte{}}
+	for key, value := range objects {
+		bucket.objects[key] = []byte(value)
+	}
+	return store.NewFallbackProposalStorage(local, bucket)
+}
+
+type stage8CBucket struct {
+	objects map[string][]byte
+}
+
+func (bucket *stage8CBucket) Get(_ context.Context, key string) (io.ReadCloser, error) {
+	data, ok := bucket.objects[key]
+	if !ok {
+		return nil, blob.ErrObjectNotFound
+	}
+	return io.NopCloser(strings.NewReader(string(data))), nil
+}
+
+func (bucket *stage8CBucket) Delete(_ context.Context, key string) error {
+	delete(bucket.objects, key)
+	return nil
+}
+
+func TestStage8CProposalHistoricalR2ObjectServedByAPI(t *testing.T) {
+	key := "crm-proposals/1/v1/raw.html"
+	adaptedKey := "crm-proposals/1/v1/adapted.html"
+	storage := stage8CPublicOnlyStorage(t, map[string]string{
+		key:        "<html><body>历史原文</body></html>",
+		adaptedKey: "<html><body>历史适配</body></html>",
+	})
+	fakeStore := &stage8CStore{
+		proposal: &crm.ProposalDetail{
+			Proposal: crm.Proposal{
+				ID: 1, Title: "历史方案", OwnerID: stage8CString("user-1"),
+				CurrentVersionNo: 1, VersionCount: 1,
+			},
+			Versions: []crm.ProposalVersion{{
+				ID: 1, VersionNo: 1, OriginalFilename: "proposal.html",
+				ContentType: "text/html",
+			}},
+		},
+		versionRecord: &crm.ProposalVersionRecord{
+			ProposalID: 1, VersionNo: 1, RawKey: key, AdaptedKey: adaptedKey,
+			OriginalFilename: "proposal.html", ContentType: "text/html",
+		},
+	}
+	router := stage8CRouter(fakeStore, storage)
+
+	contentRecorder := httptest.NewRecorder()
+	router.ServeHTTP(contentRecorder,
+		stage8CRequest(http.MethodGet, "/api/v1/crm/proposals/1/versions/1/content", "", "user-1", false))
+	if contentRecorder.Code != http.StatusOK {
+		t.Fatalf("historical content = %d: %s", contentRecorder.Code, contentRecorder.Body.String())
+	}
+	var content crm.ProposalContentResponse
+	if err := json.Unmarshal(contentRecorder.Body.Bytes(), &content); err != nil {
+		t.Fatalf("decode content: %v", err)
+	}
+	if !strings.Contains(content.Content, "历史适配") {
+		t.Fatalf("content = %q, want R2 adapted body", content.Content)
+	}
+
+	rawRecorder := httptest.NewRecorder()
+	router.ServeHTTP(rawRecorder,
+		stage8CRequest(http.MethodGet, "/api/v1/crm/proposals/1/versions/1/content?raw=true", "", "user-1", false))
+	if rawRecorder.Code != http.StatusOK {
+		t.Fatalf("historical raw content = %d: %s", rawRecorder.Code, rawRecorder.Body.String())
+	}
+
+	downloadRecorder := httptest.NewRecorder()
+	router.ServeHTTP(downloadRecorder,
+		stage8CRequest(http.MethodGet, "/api/v1/crm/proposals/1/versions/1/download", "", "user-1", false))
+	if downloadRecorder.Code != http.StatusOK {
+		t.Fatalf("historical download = %d: %s", downloadRecorder.Code, downloadRecorder.Body.String())
+	}
+	if !strings.Contains(downloadRecorder.Body.String(), "历史适配") {
+		t.Fatalf("download body = %q, want R2 adapted body", downloadRecorder.Body.String())
+	}
+	if disposition := downloadRecorder.Header().Get("Content-Disposition"); !strings.Contains(disposition, "attachment") {
+		t.Fatalf("Content-Disposition = %q, want attachment", disposition)
+	}
+
+	missingRecorder := httptest.NewRecorder()
+	fakeStore.versionRecord = &crm.ProposalVersionRecord{
+		ProposalID: 1, VersionNo: 1,
+		RawKey:           "crm-proposals/1/v1/missing.html",
+		AdaptedKey:       "crm-proposals/1/v1/missing.html",
+		OriginalFilename: "proposal.html", ContentType: "text/html",
+	}
+	router.ServeHTTP(missingRecorder,
+		stage8CRequest(http.MethodGet, "/api/v1/crm/proposals/1/versions/1/content", "", "user-1", false))
+	if missingRecorder.Code != http.StatusNotFound {
+		t.Fatalf("missing historical object = %d, want 404: %s",
+			missingRecorder.Code, missingRecorder.Body.String())
+	}
 }
 
 func stage8CRequest(

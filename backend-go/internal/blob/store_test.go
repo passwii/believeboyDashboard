@@ -73,6 +73,44 @@ func TestStorePutSignsRequestAndReturnsPublicURL(t *testing.T) {
 	}
 }
 
+func TestStoreWithBucketRoutesAndHidesPublicURL(t *testing.T) {
+	var (
+		mutex    sync.Mutex
+		observed []string
+	)
+	store := newTestStore(t, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		mutex.Lock()
+		observed = append(observed, request.URL.Path)
+		mutex.Unlock()
+		_, _ = io.WriteString(writer, "object")
+	}), nil)
+	private, err := store.WithBucket("private-bucket")
+	if err != nil {
+		t.Fatalf("WithBucket() error = %v", err)
+	}
+	if _, err := private.PublicURL("crm-proposals/1/v1/raw.html"); !errors.Is(err, ErrNotConfigured) {
+		t.Fatalf("private PublicURL() error = %v, want ErrNotConfigured", err)
+	}
+	if _, err := private.Put(context.Background(), "crm-proposals/1/v1/raw.html", []byte("x"), "text/html"); !errors.Is(err, ErrNotConfigured) {
+		t.Fatalf("private Put() error = %v, want ErrNotConfigured", err)
+	}
+	body, err := private.Get(context.Background(), "crm-proposals/1/v1/raw.html")
+	if err != nil {
+		t.Fatalf("private Get() error = %v", err)
+	}
+	data, err := io.ReadAll(body)
+	_ = body.Close()
+	if err != nil || string(data) != "object" {
+		t.Fatalf("private Get() = %q, %v", data, err)
+	}
+
+	mutex.Lock()
+	defer mutex.Unlock()
+	if len(observed) != 1 || observed[0] != "/private-bucket/crm-proposals/1/v1/raw.html" {
+		t.Fatalf("observed paths = %v", observed)
+	}
+}
+
 func TestStorePutReaderSignsRequest(t *testing.T) {
 	t.Parallel()
 	var mutex sync.Mutex

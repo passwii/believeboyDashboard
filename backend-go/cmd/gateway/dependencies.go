@@ -222,6 +222,7 @@ func newDependencies(ctx context.Context, cfg config.Config) (*dependencies, err
 			cfg.OwnedModules["agent_commerce"] ||
 			cfg.OwnedModules["sku_info"] ||
 			cfg.OwnedModules[config.ModulePlatformRevenues] ||
+			cfg.OwnedModules["crm"] ||
 			cfg.OwnedModules[config.ModuleCRMIntent] ||
 			cfg.OwnedModules[config.ModuleVatInvoices] ||
 			cfg.OwnedModules["product_analysis_reports"] ||
@@ -932,9 +933,7 @@ func newDependencies(ctx context.Context, cfg config.Config) (*dependencies, err
 		}
 
 		if cfg.OwnedModules["crm"] {
-			proposalStorage, err := store.NewLocalProposalStorage(
-				filepath.Join(cfg.UploadRoot, "crm-proposals"),
-			)
+			proposalStorage, err := newProposalStorage(cfg, objectStore)
 			if err != nil {
 				closeAll()
 				return nil, fmt.Errorf("create CRM proposal storage: %w", err)
@@ -1221,6 +1220,41 @@ func newProductAnalysisReportObjectURLs(
 		return nil
 	}
 	return objectStore
+}
+
+// CRM historical proposal reads fall back to R2 buckets through this surface.
+// Keep the check next to the wiring so an ObjectStore method rename fails the
+// build instead of silently disabling the fallback.
+var _ store.ProposalObjectBucket = (*blob.Store)(nil)
+
+// newProposalStorage builds the CRM proposal storage: local files are the
+// write target and first read source; historical FastAPI-era objects live in
+// R2_BUCKET_NAME and are read from there when the local copy is absent. When
+// an optional private bucket is configured it is tried first. New writes never
+// reach R2.
+func newProposalStorage(
+	cfg config.Config,
+	objectStore *blob.Store,
+) (*store.FallbackProposalStorage, error) {
+	local, err := store.NewLocalProposalStorageWithKeyPrefix(
+		filepath.Join(cfg.UploadRoot, "crm-proposals"),
+		"crm-proposals",
+	)
+	if err != nil {
+		return nil, err
+	}
+	buckets := []store.ProposalObjectBucket{}
+	if objectStore != nil {
+		if cfg.R2PrivateBucketIsolated() {
+			privateStore, err := objectStore.WithBucket(cfg.R2PrivateBucketResolved())
+			if err != nil {
+				return nil, err
+			}
+			buckets = append(buckets, privateStore)
+		}
+		buckets = append(buckets, objectStore)
+	}
+	return store.NewFallbackProposalStorage(local, buckets...), nil
 }
 
 func newSharedRedisClient(cfg config.Config) (*redis.Client, error) {

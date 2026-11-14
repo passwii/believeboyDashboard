@@ -734,9 +734,26 @@ func (s *CRMStore) GetProposalVersionRecord(
 
 type LocalProposalStorage struct {
 	root string
+	// keyPrefix is stored relative to root without repeating the prefix in the
+	// filesystem layout. The gateway passes "crm-proposals" because its root is
+	// UPLOAD_ROOT/crm-proposals and proposal keys are crm-proposals/{id}/...
+	// Without this, every write lands in a double crm-proposals/crm-proposals
+	// directory.
+	keyPrefix string
 }
 
 func NewLocalProposalStorage(root string) (*LocalProposalStorage, error) {
+	return NewLocalProposalStorageWithKeyPrefix(root, "")
+}
+
+// NewLocalProposalStorageWithKeyPrefix builds local proposal storage whose
+// root is root and whose object keys omit keyPrefix before being mapped under
+// root. The pre-normalization path (key joined to root verbatim) remains
+// readable and deletable for files written before this change.
+func NewLocalProposalStorageWithKeyPrefix(
+	root string,
+	keyPrefix string,
+) (*LocalProposalStorage, error) {
 	root = strings.TrimSpace(root)
 	if root == "" {
 		return nil, errors.New("proposal storage root is required")
@@ -752,21 +769,49 @@ func NewLocalProposalStorage(root string) (*LocalProposalStorage, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &LocalProposalStorage{root: resolved}, nil
+	keyPrefix = strings.Trim(strings.TrimSpace(keyPrefix), "/")
+	if strings.Contains(keyPrefix, "..") || strings.ContainsAny(keyPrefix, "\\") {
+		return nil, fmt.Errorf("unsafe proposal key prefix")
+	}
+	return &LocalProposalStorage{root: resolved, keyPrefix: keyPrefix}, nil
 }
 
-func (storage *LocalProposalStorage) safePath(key string) (string, error) {
+func proposalSafePath(root, key string) (string, error) {
 	key = strings.TrimSpace(key)
 	if key == "" || strings.HasPrefix(key, "/") || strings.HasPrefix(key, "\\") ||
 		strings.Contains(key, "..") {
 		return "", fmt.Errorf("unsafe storage key")
 	}
-	path := filepath.Join(storage.root, filepath.FromSlash(key))
-	relative, err := filepath.Rel(storage.root, path)
+	path := filepath.Join(root, filepath.FromSlash(key))
+	relative, err := filepath.Rel(root, path)
 	if err != nil || relative == "." || strings.HasPrefix(relative, "..") {
 		return "", fmt.Errorf("unsafe storage key")
 	}
 	return path, nil
+}
+
+func (storage *LocalProposalStorage) safePath(key string) (string, error) {
+	relative := key
+	if storage.keyPrefix != "" && strings.HasPrefix(key, storage.keyPrefix+"/") {
+		relative = strings.TrimPrefix(key, storage.keyPrefix+"/")
+	}
+	return proposalSafePath(storage.root, relative)
+}
+
+// legacyPath is the pre-normalization layout: the full key was joined under
+// root, so crm-proposals/{id}/v{n}/... lived at
+// root/crm-proposals/{id}/v{n}/... and therefore UPLOAD_ROOT/crm-proposals/
+// crm-proposals/{id}/v{n}/....
+func (storage *LocalProposalStorage) legacyPath(key string) (string, error) {
+	primary, err := storage.safePath(key)
+	if err != nil {
+		return "", os.ErrNotExist
+	}
+	legacy, err := proposalSafePath(storage.root, key)
+	if err != nil || legacy == primary {
+		return "", os.ErrNotExist
+	}
+	return legacy, nil
 }
 
 func (storage *LocalProposalStorage) ensureResolvedWithinRoot(path string) error {
@@ -827,10 +872,17 @@ func (storage *LocalProposalStorage) GetObject(_ context.Context, key string) ([
 		return nil, err
 	}
 	if err := storage.ensureResolvedWithinRoot(path); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, crm.NewAPIError(404, "方案文件不存在")
+		if !errors.Is(err, os.ErrNotExist) {
+			return nil, err
 		}
-		return nil, err
+		data, legacyErr := storage.readLegacyObject(key)
+		if legacyErr != nil {
+			if errors.Is(legacyErr, os.ErrNotExist) {
+				return nil, crm.NewAPIError(404, "方案文件不存在")
+			}
+			return nil, legacyErr
+		}
+		return data, nil
 	}
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -839,18 +891,39 @@ func (storage *LocalProposalStorage) GetObject(_ context.Context, key string) ([
 	return data, err
 }
 
+func (storage *LocalProposalStorage) readLegacyObject(key string) ([]byte, error) {
+	legacyPath, err := storage.legacyPath(key)
+	if err != nil {
+		return nil, err
+	}
+	if err := storage.ensureResolvedWithinRoot(legacyPath); err != nil {
+		return nil, err
+	}
+	return os.ReadFile(legacyPath)
+}
+
 func (storage *LocalProposalStorage) DeleteObject(_ context.Context, key string) error {
 	path, err := storage.safePath(key)
 	if err != nil {
 		return err
 	}
-	if resolvedErr := storage.ensureResolvedWithinRoot(path); errors.Is(resolvedErr, os.ErrNotExist) {
-		return nil
-	} else if resolvedErr != nil {
-		return resolvedErr
+	paths := []string{path}
+	if legacyPath, legacyErr := storage.legacyPath(key); legacyErr == nil {
+		paths = append(paths, legacyPath)
 	}
-	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
+	for _, candidate := range paths {
+		if _, statErr := os.Lstat(candidate); errors.Is(statErr, os.ErrNotExist) {
+			continue
+		}
+		if err := storage.ensureResolvedWithinRoot(candidate); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return err
+		}
+		if err := os.Remove(candidate); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
 	}
 	return nil
 }

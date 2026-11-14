@@ -316,6 +316,7 @@ func TestLoadParsesBusinessOverrides(t *testing.T) {
 	t.Setenv("PROJECT_LAUNCH_DOCUMENTS_ROOT", " tmp/launch-docs ")
 	t.Setenv("R2_ENDPOINT_URL", "https://r2.example.com")
 	t.Setenv("R2_BUCKET_NAME", "dashboard-assets")
+	t.Setenv("R2_PRIVATE_BUCKET_NAME", "dashboard-private")
 	t.Setenv("R2_ACCESS_KEY_ID", "access-key")
 	t.Setenv("R2_SECRET_ACCESS_KEY", "secret-key")
 	t.Setenv("R2_REGION", "us-east-1")
@@ -362,6 +363,7 @@ func TestLoadParsesBusinessOverrides(t *testing.T) {
 	}
 	if got.R2EndpointURL != "https://r2.example.com" ||
 		got.R2BucketName != "dashboard-assets" ||
+		got.R2PrivateBucketName != "dashboard-private" ||
 		got.R2AccessKeyID != "access-key" ||
 		got.R2SecretAccessKey != "secret-key" ||
 		got.R2Region != "us-east-1" ||
@@ -373,6 +375,59 @@ func TestLoadParsesBusinessOverrides(t *testing.T) {
 		got.AlertFromEmail != "ops@example.com" ||
 		got.AlertFromName != "Operations" {
 		t.Errorf("mail config = key:%q base:%q from:%q name:%q", got.ResendAPIKey, got.ResendBaseURL, got.AlertFromEmail, got.AlertFromName)
+	}
+}
+
+func TestR2PrivateBucketFallbackSemantics(t *testing.T) {
+	tests := []struct {
+		name             string
+		privateBucket    string
+		publicBucket     string
+		wantResolved     string
+		wantIsolatedFlag bool
+	}{
+		{
+			name:             "unset falls back to public bucket",
+			privateBucket:    "",
+			publicBucket:     "dashboard-assets",
+			wantResolved:     "dashboard-assets",
+			wantIsolatedFlag: false,
+		},
+		{
+			name:             "separate private bucket is isolated",
+			privateBucket:    "dashboard-private",
+			publicBucket:     "dashboard-assets",
+			wantResolved:     "dashboard-private",
+			wantIsolatedFlag: true,
+		},
+		{
+			name:             "same name is not isolated",
+			privateBucket:    "dashboard-assets",
+			publicBucket:     "dashboard-assets",
+			wantResolved:     "dashboard-assets",
+			wantIsolatedFlag: false,
+		},
+		{
+			name:             "whitespace is trimmed",
+			privateBucket:    " dashboard-private ",
+			publicBucket:     " dashboard-assets ",
+			wantResolved:     "dashboard-private",
+			wantIsolatedFlag: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := Config{
+				R2BucketName:        test.publicBucket,
+				R2PrivateBucketName: test.privateBucket,
+			}
+			if got := cfg.R2PrivateBucketResolved(); got != test.wantResolved {
+				t.Fatalf("R2PrivateBucketResolved() = %q, want %q", got, test.wantResolved)
+			}
+			if got := cfg.R2PrivateBucketIsolated(); got != test.wantIsolatedFlag {
+				t.Fatalf("R2PrivateBucketIsolated() = %v, want %v", got, test.wantIsolatedFlag)
+			}
+		})
 	}
 }
 
@@ -671,6 +726,7 @@ func setRequiredEnv(t *testing.T) {
 		"AI_CHAT_STREAM_MAXLEN",
 		"AI_CHAT_STREAM_MAX_DURATION_SECONDS",
 		"AI_CHAT_STREAM_MEMORY_FALLBACK",
+		"R2_PRIVATE_BUCKET_NAME",
 		"OBSCURA_CDP_URL",
 	} {
 		unsetEnv(t, key)
