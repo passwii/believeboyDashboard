@@ -6,6 +6,7 @@ import { CrmUsersProvider } from '@/hooks/use-crm-users'
 import { FollowUpToast } from '@/components/crm/follow-up-toast'
 import { FollowUpReminderToast } from '@/components/crm/follow-up-reminder-toast'
 import { TaskReminderToast } from '@/components/crm/task-reminder-toast'
+import { CrmVisualViewportSync } from '@/components/crm/crm-visual-viewport-sync'
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -19,6 +20,7 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
     <CrmClientProvider>
       <CrmUsersProvider>
         <CrmDataScopeProvider>
+          <CrmVisualViewportSync />
           {children}
           <FollowUpToast />
           <FollowUpReminderToast />

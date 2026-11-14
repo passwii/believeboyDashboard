@@ -125,6 +125,8 @@ describe('V4 CRM phone layout contract (Stage 5)', () => {
     const drawer = readRule(mobile, '.drawerContent')
 
     expect(drawer).toMatch(/height:\s*100dvh/)
+    expect(drawer).toContain('var(--crm-visual-viewport-height, 100dvh)')
+    expect(drawer).toContain('var(--crm-visual-viewport-offset-top, 0px)')
     expect(drawer).toContain('env(safe-area-inset-top)')
     expect(drawer).toContain('env(safe-area-inset-bottom)')
     expect(drawer).toContain('env(safe-area-inset-left)')
@@ -135,6 +137,8 @@ describe('V4 CRM phone layout contract (Stage 5)', () => {
     const mobile = readMobileBlock('intent/intent-warm.module.css')
     const dialog = readRule(mobile, '.dialogContent')
 
+    expect(dialog).toContain('var(--crm-visual-viewport-height, 100dvh)')
+    expect(dialog).toContain('var(--crm-keyboard-inset-bottom, 0px)')
     expect(dialog).toMatch(/max-height:\s*calc\(100dvh - env\(safe-area-inset-top\)\)/)
     expect(dialog).toMatch(/padding-bottom:\s*calc\([^}]*env\(safe-area-inset-bottom\)\)/)
     expect(dialog).toMatch(/bottom:\s*0/)
@@ -144,6 +148,8 @@ describe('V4 CRM phone layout contract (Stage 5)', () => {
     const mobile = readMobileBlock('proposals/proposals-warm.module.css')
     const dialog = readRule(mobile, '.dialog')
 
+    expect(dialog).toContain('var(--crm-visual-viewport-height, 100dvh)')
+    expect(dialog).toContain('var(--crm-keyboard-inset-bottom, 0px)')
     expect(dialog).toMatch(/max-height:\s*calc\(100dvh - env\(safe-area-inset-top\)\)/)
     expect(dialog).toMatch(/padding-bottom:\s*calc\([^}]*env\(safe-area-inset-bottom\)\)/)
   })
@@ -152,6 +158,7 @@ describe('V4 CRM phone layout contract (Stage 5)', () => {
     const layout = readFileSync(join(__dirname, 'layout.tsx'), 'utf8')
     expect(layout).toContain("viewportFit: 'cover'")
     expect(layout).toContain("interactiveWidget: 'resizes-content'")
+    expect(layout).toContain('<CrmVisualViewportSync />')
   })
 
   it.each([

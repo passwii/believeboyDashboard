@@ -390,14 +390,15 @@
   }
 
   .drawerContent {
-    top: 0;
+    top: var(--crm-visual-viewport-offset-top, 0px);
     right: 0;
-    bottom: 0;
+    bottom: auto;
     left: 0;
     width: 100%;
     max-width: 100%;
     height: 100vh;
     height: 100dvh;
+    height: var(--crm-visual-viewport-height, 100dvh);
     padding-top: env(safe-area-inset-top);
     padding-right: env(safe-area-inset-right);
     padding-bottom: env(safe-area-inset-bottom);

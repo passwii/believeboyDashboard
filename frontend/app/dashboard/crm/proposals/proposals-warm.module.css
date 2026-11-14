@@ -333,8 +333,10 @@
     max-width: 100% !important;
     max-height: calc(100vh - env(safe-area-inset-top)) !important;
     max-height: calc(100dvh - env(safe-area-inset-top)) !important;
+    max-height: calc(var(--crm-visual-viewport-height, 100dvh) - env(safe-area-inset-top)) !important;
     padding: var(--warm-ledger-space-4) !important;
     padding-bottom: calc(var(--warm-ledger-space-4) + env(safe-area-inset-bottom)) !important;
+    bottom: var(--crm-keyboard-inset-bottom, 0px) !important;
     overflow-y: auto;
     transform: none !important;
     border-bottom-left-radius: 0 !important;
