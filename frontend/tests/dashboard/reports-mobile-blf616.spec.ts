@@ -261,11 +261,11 @@ test.describe('@mobile-blf616 产品分析 手机端（BLF-616）', () => {
       route.fulfill({ json: PROJECTS })
     )
     await page.goto('/dashboard/reports/product-analysis')
-    await expect(page.getByRole('heading', { name: '产品分析' })).toBeVisible({ timeout: 30000 })
+    await expect(page.getByRole('heading', { name: '核算参数' })).toBeVisible({ timeout: 30000 })
 
     // 项目 / 站点同一行；日期范围占整行（col-span-2）
-    const projectTrigger = page.getByText('请选择项目')
-    const countryTrigger = page.getByText('美国')
+    const projectTrigger = page.getByRole('combobox', { name: '项目' }).or(page.getByText('请选择项目')).first()
+    const countryTrigger = page.getByRole('combobox', { name: '站点' }).or(page.getByText(/美国/)).first()
     await expect(projectTrigger).toBeVisible({ timeout: 30000 })
     await expect(countryTrigger).toBeVisible()
     await expect
@@ -275,10 +275,12 @@ test.describe('@mobile-blf616 产品分析 手机端（BLF-616）', () => {
     const countryBox = (await countryTrigger.boundingBox())!
     expect(Math.abs(projectBox.y - countryBox.y), '手机端项目/站点应在同一行').toBeLessThan(2)
 
-    // 日期范围按钮整行（宽度 ≈ 视口 - 卡片 padding）
-    const dateButton = page.getByRole('button', { name: /\d{4}-\d{2}-\d{2} ~ \d{4}-\d{2}-\d{2}|选择日期范围/ })
-    await expect(dateButton.first()).toBeVisible()
-    const dateBox = (await dateButton.first().boundingBox())!
+    // 日期范围整行（宽度 ≈ 视口 - 卡片 padding）
+    const dateRange = page.getByLabel('开始日期').locator('../..').or(
+      page.getByRole('button', { name: /\d{4}-\d{2}-\d{2} ~ \d{4}-\d{2}-\d{2}|选择日期范围/ })
+    )
+    await expect(dateRange.first()).toBeVisible()
+    const dateBox = (await dateRange.first().boundingBox())!
     expect(dateBox.width, '日期范围手机端应占整行').toBeGreaterThan(viewportWidth(page) * 0.8)
 
     await expectNoPageHorizontalOverflow(page)
@@ -575,15 +577,17 @@ test.describe('@mobile-blf616 小屏 / 桌面回归（BLF-616）', () => {
     )
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/dashboard/reports/product-analysis')
-    await expect(page.getByText('请选择项目')).toBeVisible({ timeout: 30000 })
-    const projectTrigger = page.getByRole('combobox').filter({ hasText: '请选择项目' })
-    const dateBtn = page.getByRole('button', {
-      name: /\d{4}-\d{2}-\d{2} ~ \d{4}-\d{2}-\d{2}|选择日期范围/,
-    })
+    const projectTrigger = page.getByRole('combobox', { name: '项目' }).or(page.getByText('请选择项目'))
+    await expect(projectTrigger.first()).toBeVisible({ timeout: 30000 })
+    const dateBtn = page.getByLabel('开始日期').or(
+      page.getByRole('button', {
+        name: /\d{4}-\d{2}-\d{2} ~ \d{4}-\d{2}-\d{2}|选择日期范围/,
+      })
+    )
     await expect
-      .poll(async () => Math.abs((await projectTrigger.boundingBox())!.y - (await dateBtn.first().boundingBox())!.y))
+      .poll(async () => Math.abs((await projectTrigger.first().boundingBox())!.y - (await dateBtn.first().boundingBox())!.y))
       .toBeLessThan(6)
-    const projectBox = (await projectTrigger.boundingBox())!
+    const projectBox = (await projectTrigger.first().boundingBox())!
     const dateBox = (await dateBtn.first().boundingBox())!
     expect(Math.abs(projectBox.y - dateBox.y), '1440 桌面筛选项应在同一行').toBeLessThan(6)
   })

@@ -416,6 +416,13 @@
   background: var(--warm-ledger-color-panel);
 }
 
+.tableScroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .tableScroller {
   width: 100%;
   max-width: 100%;
@@ -423,11 +430,13 @@
   max-height: min(70dvh, 760px);
   overflow: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   background: var(--warm-ledger-color-panel);
   scrollbar-color: var(--warm-ledger-color-raised-hover) var(--warm-ledger-color-window);
   scrollbar-width: thin;
 }
 
+.tableScroll:focus-visible,
 .tableScroller:focus-visible {
   outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color);
   outline-offset: calc(-1 * var(--warm-ledger-focus-width));
@@ -677,4 +686,95 @@
   height: 32px;
   background: var(--warm-ledger-color-raised);
   border-radius: var(--warm-ledger-radius-inner);
+}
+
+@media (max-width: 640px) {
+  .page {
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .kpiGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .kpi {
+    min-height: 84px;
+    padding: var(--warm-ledger-space-3);
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .kpiLabel {
+    font-size: 12px;
+  }
+
+  .kpiValue {
+    font-size: 20px;
+  }
+
+  .kpiValue[data-primary='true'] {
+    font-size: 22px;
+  }
+
+  .panelHeader,
+  .ledgerHeader {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--warm-ledger-space-2);
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .ledgerActions {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .monthSelect {
+    width: 100% !important;
+    flex: 1 1 auto;
+  }
+
+  .actionButton {
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch);
+    justify-content: center;
+  }
+
+  .tabList {
+    display: grid !important;
+    width: 100% !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .tab {
+    min-height: var(--warm-ledger-control-target-touch);
+    justify-content: center;
+    font-size: 12px;
+    padding: 0 var(--warm-ledger-space-1);
+  }
+
+  .chartBody {
+    height: 240px;
+    padding: var(--warm-ledger-space-2);
+  }
+
+  .tableScroller,
+  .tableScroll {
+    max-height: min(65dvh, 560px);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 380px) {
+  .kpiGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tabList {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

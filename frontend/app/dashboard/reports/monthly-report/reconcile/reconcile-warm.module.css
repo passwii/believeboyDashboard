@@ -227,6 +227,7 @@
   width: 100%;
   min-width: 0;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   background: var(--warm-ledger-color-panel);
   scrollbar-color: var(--warm-ledger-color-raised-hover) var(--warm-ledger-color-panel);
 }
@@ -809,5 +810,98 @@
 
   .spin {
     animation: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .page {
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .tabList {
+    display: grid !important;
+    width: 100% !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .tabList :global([role='tab']) {
+    min-height: var(--warm-ledger-control-target-touch);
+    justify-content: center;
+  }
+
+  .panelHeader,
+  .rawFilesHeader {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--warm-ledger-space-2);
+    padding: var(--warm-ledger-space-3);
+    min-height: auto;
+  }
+
+  .panelBody,
+  .tablePanelBody {
+    padding: var(--warm-ledger-space-3);
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .tablePanelBody {
+    padding: 0;
+  }
+
+  .sectionHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--warm-ledger-space-1);
+  }
+
+  .tableScroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-height: min(65dvh, 560px);
+  }
+
+  .actionRow {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .actionRow :global(button) {
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch);
+    justify-content: center;
+  }
+
+  .selectedFile {
+    width: 100%;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .legend {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .uploadPanel {
+    padding: var(--warm-ledger-space-4) var(--warm-ledger-space-2);
+  }
+
+  .uploadZoneWrap {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 460px) {
+  .rowActions {
+    flex-direction: column;
+    gap: var(--warm-ledger-space-1);
+  }
+
+  .rowAction {
+    width: 100%;
   }
 }

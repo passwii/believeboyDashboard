@@ -40,9 +40,7 @@ describe('报表核对 Warm Ledger contract', () => {
     const css = read('reconcile-warm.module.css')
     expect(css).not.toContain('--term-')
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)/)
-    const queries = Array.from(css.matchAll(/@media\s*([^{]+)/g)).map((match) =>
-      match[1].trim()
-    )
-    expect(queries.every((query) => query === '(prefers-reduced-motion: reduce)')).toBe(true)
+    expect(css).toMatch(/@media\s*\(max-width:\s*640px\)/)
+    expect(css).toMatch(/\.tableScroll\s*\{[^}]*overflow(?:-x)?:\s*auto/s)
   })
 })

@@ -297,10 +297,18 @@
   border-color: var(--warm-ledger-color-accent) !important;
 }
 
+.tableScroll {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .tableScroller {
   width: 100%;
   min-width: 0;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .table {
@@ -511,6 +519,7 @@
   width: 100%;
   min-width: 0;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .dayTable {
@@ -962,5 +971,124 @@
 @keyframes scheduled-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 640px) {
+  .page {
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .tabs {
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .tabList {
+    display: grid !important;
+    width: 100% !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-height: var(--warm-ledger-control-target-touch) !important;
+  }
+
+  .tabList :global([role='tab']) {
+    min-height: var(--warm-ledger-control-target-touch);
+    justify-content: center;
+  }
+
+  .panelHeader {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--warm-ledger-space-2);
+    padding: var(--warm-ledger-space-3);
+    min-height: auto;
+  }
+
+  .panelActions {
+    margin-left: 0;
+    width: 100%;
+    justify-content: stretch;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .panelActions > button,
+  .panelActions > a {
+    flex: 1 1 auto;
+    min-height: var(--warm-ledger-control-target-touch);
+    justify-content: center;
+  }
+
+  .filterBar {
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .filterRow {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--warm-ledger-space-2);
+    width: 100%;
+  }
+
+  .summaryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .bulkBar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .bulkSelect {
+    width: 100%;
+  }
+
+  .bulkClear {
+    margin-left: 0;
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .dayHeader {
+    flex-wrap: wrap;
+    padding: var(--warm-ledger-space-2) var(--warm-ledger-space-3);
+    gap: var(--warm-ledger-space-2);
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .dayCounts {
+    margin-left: 0;
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .tableScroller,
+  .dayTableScroller,
+  .tableScroll {
+    max-height: min(65dvh, 560px);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .mobileActions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--warm-ledger-space-1);
+  }
+
+  .mobileActions button {
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .mobileCard details > summary {
+    display: flex;
+    min-height: var(--warm-ledger-control-target-touch);
+    align-items: center;
+    cursor: pointer;
+  }
+}
+
+@media (max-width: 460px) {
+  .filterRow {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
