@@ -238,7 +238,8 @@
   line-height: 16px;
 }
 
-.skuList {
+.skuList,
+.tableScroll {
   display: grid;
   min-height: 0;
   min-width: 0;
@@ -247,6 +248,7 @@
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
 }
 
 .skuPagination {
@@ -1383,6 +1385,11 @@
 }
 
 @media (max-width: 460px) {
+  .tableScroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
   .pageTitle {
     font-size: var(--warm-ledger-font-size-page-title-mobile);
   }

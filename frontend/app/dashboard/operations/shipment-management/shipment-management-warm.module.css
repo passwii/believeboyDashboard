@@ -767,7 +767,8 @@
   overflow: hidden;
 }
 
-.tableViewport {
+.tableViewport,
+.tableScroll {
   width: 100%;
   max-width: 100%;
   min-width: 0;
@@ -1712,6 +1713,12 @@
 }
 
 @media (max-width: 460px) {
+  .tableScroll,
+  .tableViewport {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
   .mobileFilterStrip > :global([data-testid='mobile-filter-strip-grid']) {
     grid-template-columns: minmax(0, 1fr);
   }

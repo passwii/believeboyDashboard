@@ -686,6 +686,7 @@
   max-width: 100%;
   overflow: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   scrollbar-color: var(--warm-ledger-color-raised-hover) var(--warm-ledger-color-panel);
   scrollbar-width: thin;
 }
@@ -1054,6 +1055,12 @@
 }
 
 @media (max-width: 460px) {
+  .tableScroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-height: min(65dvh, 560px);
+  }
+
   .skeletonKpiGrid {
     grid-template-columns: minmax(0, 1fr);
   }

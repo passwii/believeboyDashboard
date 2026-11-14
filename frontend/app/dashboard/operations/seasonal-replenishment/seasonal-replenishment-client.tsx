@@ -1186,6 +1186,18 @@ export default function SeasonalReplenishmentPage() {
                     <div>售卖截止: {formatDate(row.sellout_date)}</div>
                     <div>含在途: {formatDate(row.sellout_date_with_transit)}</div>
                   </div>
+                  {/* 历史多周期销量（展开保留完整字段） */}
+                  <details className="text-xs text-[var(--warm-ledger-color-text-muted)]">
+                    <summary className="flex min-h-[44px] cursor-pointer items-center font-medium text-[var(--warm-ledger-color-text-soft)] hover:text-[var(--warm-ledger-color-text)]">
+                      查看周期销量明细 (90D / 30D / 14D / 7D)
+                    </summary>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-1.5 pb-1 text-xs">
+                      <div>90D 销量: {formatNumber(row.dms_90)}</div>
+                      <div>30D 销量: {formatNumber(row.dms_30)}</div>
+                      <div>14D 销量: {formatNumber(row.dms_14)}</div>
+                      <div>7D 销量: {formatNumber(row.dms_7)}</div>
+                    </div>
+                  </details>
                   <div className="text-sm">
                     <span className="text-xs text-[var(--warm-ledger-color-text-muted)]">预计补货数量: </span>
                     <span className="font-medium text-[var(--warm-ledger-color-text)]">
