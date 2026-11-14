@@ -101,6 +101,11 @@ var _ inspections.BlobURLResolver = (*blob.Store)(nil)
 // the wiring so a method rename cannot silently turn uploads into 503s.
 var _ vat_invoices.BlobStore = (*blob.Store)(nil)
 
+// Platform revenue payment screenshots are written through this interface.
+// Keep the check next to the wiring so a method rename cannot silently turn
+// uploads into 503s.
+var _ platform_revenues.BlobStore = (*blob.Store)(nil)
+
 func newDependencies(ctx context.Context, cfg config.Config) (*dependencies, error) {
 	deps := &dependencies{Close: func() {}}
 	var pools []*pgxpool.Pool
@@ -206,6 +211,7 @@ func newDependencies(ctx context.Context, cfg config.Config) (*dependencies, err
 			cfg.OwnedModules["agent_inspection"] ||
 			cfg.OwnedModules["agent_commerce"] ||
 			cfg.OwnedModules["sku_info"] ||
+			cfg.OwnedModules[config.ModulePlatformRevenues] ||
 			cfg.OwnedModules[config.ModuleCRMIntent] ||
 			cfg.OwnedModules[config.ModuleVatInvoices] ||
 			cfg.OwnedModules["exchange_rates_write"] {
@@ -414,10 +420,14 @@ func newDependencies(ctx context.Context, cfg config.Config) (*dependencies, err
 			)
 		}
 		if cfg.OwnedModules[config.ModulePlatformRevenues] {
-			deps.Stores.CustomRegistrars = append(
-				deps.Stores.CustomRegistrars,
-				platform_revenues.NewRegistrar(store.NewPlatformRevenueStore(primaryDB), auditSvc),
+			registrar := platform_revenues.NewRegistrar(
+				store.NewPlatformRevenueStore(primaryDB),
+				auditSvc,
 			)
+			if objectStore != nil {
+				registrar.WithBlobStore(objectStore)
+			}
+			deps.Stores.CustomRegistrars = append(deps.Stores.CustomRegistrars, registrar)
 		}
 		if cfg.OwnedModules[config.ModuleVatInvoices] {
 			vatStore := store.NewVatInvoiceStore(primaryDB)

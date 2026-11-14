@@ -78,28 +78,6 @@ func TestPlatformRevenueStoreGetRevenue(t *testing.T) {
 	}
 }
 
-func TestPlatformRevenueStoreSavePaymentScreenshot(t *testing.T) {
-	ctx := context.Background()
-	store := NewPlatformRevenueStore(&fakeWriteDB{fakeDB: &fakeDB{}})
-	png := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n'}
-	resp, err := store.SavePaymentScreenshot(ctx, "../../Shop US", "../../receipt.png", "image/png", png)
-	if err != nil {
-		t.Fatalf("expected success, got %v", err)
-	}
-	if resp.Filename != "receipt.png" || resp.Size != int64(len(png)) {
-		t.Fatalf("unexpected response: %+v", resp)
-	}
-	if strings.Contains(resp.Key, "..") || strings.Contains(resp.Key, "/Shop_US/") {
-		t.Fatalf("unsafe screenshot key: %q", resp.Key)
-	}
-	if _, err := store.SavePaymentScreenshot(ctx, "Shop", "receipt.png", "image/png", []byte("sample")); err == nil {
-		t.Fatal("expected image content mismatch to be rejected")
-	}
-	if _, err := store.SavePaymentScreenshot(ctx, "Shop", "receipt.png", "application/pdf", png); err == nil {
-		t.Fatal("expected unsupported content type to be rejected")
-	}
-}
-
 func TestPlatformRevenueAccessibleProjectsSQLUsesSingleQuotedRegex(t *testing.T) {
 	if strings.Contains(accessibleProjectIDsSQL, `"`) {
 		t.Fatalf("accessible-project SQL must not use double-quoted regex literals: %s", accessibleProjectIDsSQL)

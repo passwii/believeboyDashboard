@@ -1,11 +1,9 @@
 package platform_revenues
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"net/http"
 	"strconv"
@@ -17,20 +15,10 @@ import (
 	"github.com/passwii/believeboyDashboard/backend-go/internal/httpapi"
 )
 
-const (
-	maxImageBytes = 10 * 1024 * 1024 // 10MB
-)
-
-var allowedImageTypes = map[string]bool{
-	"image/jpeg": true,
-	"image/png":  true,
-	"image/webp": true,
-	"image/gif":  true,
-}
-
 type Handler struct {
 	store   Store
 	auditor audit.Service
+	blobs   BlobStore
 }
 
 func NewHandler(store Store, auditor audit.Service) *Handler {
@@ -38,6 +26,13 @@ func NewHandler(store Store, auditor audit.Service) *Handler {
 		store:   store,
 		auditor: auditor,
 	}
+}
+
+func (h *Handler) WithBlobStore(blobs BlobStore) *Handler {
+	if h != nil {
+		h.blobs = blobs
+	}
+	return h
 }
 
 func (h *Handler) ListRevenues(w http.ResponseWriter, r *http.Request) {
@@ -323,54 +318,6 @@ func (h *Handler) DeleteRevenue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseMultipartForm(maxImageBytes); err != nil {
-		httpapi.WriteDetail(w, http.StatusBadRequest, "File size exceeds 10MB")
-		return
-	}
-
-	projectName := strings.TrimSpace(r.FormValue("project_name"))
-	file, header, err := r.FormFile("file")
-	if err != nil {
-		httpapi.WriteDetail(w, http.StatusBadRequest, "Missing file in form")
-		return
-	}
-	defer file.Close()
-
-	contentType := header.Header.Get("Content-Type")
-	if contentType == "" {
-		contentType = "application/octet-stream"
-	}
-	if !allowedImageTypes[contentType] {
-		httpapi.WriteDetail(w, http.StatusBadRequest, "Unsupported file type")
-		return
-	}
-
-	var buf bytes.Buffer
-	lr := io.LimitReader(file, maxImageBytes+1)
-	n, err := io.Copy(&buf, lr)
-	if err != nil {
-		httpapi.WriteDetail(w, http.StatusBadRequest, "Failed to read file")
-		return
-	}
-	if n > maxImageBytes {
-		httpapi.WriteDetail(w, http.StatusBadRequest, "File size exceeds 10MB")
-		return
-	}
-	if n == 0 {
-		httpapi.WriteDetail(w, http.StatusBadRequest, "File size exceeds 10MB")
-		return
-	}
-
-	resp, err := h.store.SavePaymentScreenshot(r.Context(), projectName, header.Filename, contentType, buf.Bytes())
-	if err != nil {
-		httpapi.WriteDetail(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	_ = httpapi.WriteJSON(w, http.StatusOK, resp)
 }
 
 func (h *Handler) GetProjectCountries(w http.ResponseWriter, r *http.Request) {
