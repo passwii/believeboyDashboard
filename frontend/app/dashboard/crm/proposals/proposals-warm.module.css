@@ -325,10 +325,20 @@
   }
 
   .dialog {
-    width: calc(100vw - 32px) !important;
+    top: auto !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
     max-width: 100% !important;
-    max-height: calc(100vh - 32px) !important;
+    max-height: calc(100vh - env(safe-area-inset-top)) !important;
+    max-height: calc(100dvh - env(safe-area-inset-top)) !important;
     padding: var(--warm-ledger-space-4) !important;
+    padding-bottom: calc(var(--warm-ledger-space-4) + env(safe-area-inset-bottom)) !important;
+    overflow-y: auto;
+    transform: none !important;
+    border-bottom-left-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
   }
 
   .dialog > button:last-child {

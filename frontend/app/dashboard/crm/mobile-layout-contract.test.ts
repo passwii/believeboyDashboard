@@ -30,6 +30,35 @@ const scopedRoutes = [
   '/dashboard/crm/workbench',
 ] as const
 
+function readMobileBlock(stylesheet: string, maxWidth = 640): string {
+  const css = readFileSync(join(__dirname, stylesheet), 'utf8')
+  const marker = `@media (max-width: ${maxWidth}px)`
+  const start = css.indexOf(marker)
+  if (start === -1) return ''
+  const open = css.indexOf('{', start)
+  if (open === -1) return ''
+  let depth = 0
+  for (let index = open; index < css.length; index += 1) {
+    if (css[index] === '{') depth += 1
+    else if (css[index] === '}') {
+      depth -= 1
+      if (depth === 0) return css.slice(open + 1, index)
+    }
+  }
+  return ''
+}
+
+function readRule(css: string, selector: string): string {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const match = new RegExp(`${escaped}\\s*\\{([^}]*)\\}`).exec(css)
+  return match?.[1] ?? ''
+}
+
+function declarationNumber(block: string, property: string): number {
+  const match = new RegExp(`(?:^|;)\\s*${property}:\\s*(-?\\d+(?:\\.\\d+)?)px`).exec(block)
+  return match ? Number(match[1]) : Number.NaN
+}
+
 describe('V4 CRM phone layout contract (Stage 5)', () => {
   it.each(routeStyles)('%s includes phone media queries', (_route, stylesheet) => {
     const css = readFileSync(join(__dirname, stylesheet), 'utf8')
@@ -82,7 +111,68 @@ describe('V4 CRM phone layout contract (Stage 5)', () => {
     ['warm-crm-kit', '../../../components/dashboard-v2/warm-ledger/crm/warm-crm-kit.module.css'],
   ])('%s ensures mobile controls meet touch target standards', (_name, stylesheet) => {
     const css = readFileSync(join(__dirname, stylesheet), 'utf8')
-    expect(css).toContain('var(--warm-ledger-control-target-touch')
+    expect(css).toContain('--warm-ledger-control-target-touch')
+  })
+
+  it('keeps CRM drawers inside the visual viewport above safe areas and the keyboard', () => {
+    const mobile = readMobileBlock(
+      '../../../components/dashboard-v2/warm-ledger/crm/warm-crm-kit.module.css'
+    )
+    const drawer = readRule(mobile, '.drawerContent')
+
+    expect(drawer).toMatch(/height:\s*100dvh/)
+    expect(drawer).toContain('env(safe-area-inset-top)')
+    expect(drawer).toContain('env(safe-area-inset-bottom)')
+    expect(drawer).toContain('env(safe-area-inset-left)')
+    expect(drawer).toContain('env(safe-area-inset-right)')
+  })
+
+  it('anchors intent dialogs to the keyboard-safe dynamic viewport', () => {
+    const mobile = readMobileBlock('intent/intent-warm.module.css')
+    const dialog = readRule(mobile, '.dialogContent')
+
+    expect(dialog).toMatch(/max-height:\s*calc\(100dvh - env\(safe-area-inset-top\)\)/)
+    expect(dialog).toMatch(/padding-bottom:\s*calc\([^}]*env\(safe-area-inset-bottom\)\)/)
+    expect(dialog).toMatch(/bottom:\s*0/)
+  })
+
+  it('keeps proposal dialogs above the bottom safe area on the dynamic viewport', () => {
+    const mobile = readMobileBlock('proposals/proposals-warm.module.css')
+    const dialog = readRule(mobile, '.dialog')
+
+    expect(dialog).toMatch(/max-height:\s*calc\(100dvh - env\(safe-area-inset-top\)\)/)
+    expect(dialog).toMatch(/padding-bottom:\s*calc\([^}]*env\(safe-area-inset-bottom\)\)/)
+  })
+
+  it('opts the CRM shell into safe-area insets and keyboard content resizing', () => {
+    const layout = readFileSync(join(__dirname, 'layout.tsx'), 'utf8')
+    expect(layout).toContain("viewportFit: 'cover'")
+    expect(layout).toContain("interactiveWidget: 'resizes-content'")
+  })
+
+  it.each([
+    ['settings', 'settings/settings-warm.module.css'],
+    ['rules panel', '../../../components/crm/crm-rules-panel.module.css'],
+  ])('%s switch exposes a physical hit area of at least 44x44px', (_name, stylesheet) => {
+    const css = readFileSync(join(__dirname, stylesheet), 'utf8')
+    const mobile = readMobileBlock(stylesheet)
+    const track = readRule(css, '.switch')
+    const hitArea = readRule(mobile, '.switch::after')
+
+    expect(hitArea).toContain("content: ''")
+    expect(hitArea).toMatch(/position:\s*absolute/)
+
+    const width =
+      declarationNumber(track, 'width') +
+      Math.abs(declarationNumber(hitArea, 'left')) +
+      Math.abs(declarationNumber(hitArea, 'right'))
+    const height =
+      declarationNumber(track, 'height') +
+      Math.abs(declarationNumber(hitArea, 'top')) +
+      Math.abs(declarationNumber(hitArea, 'bottom'))
+
+    expect(width, `${stylesheet} switch hit width`).toBeGreaterThanOrEqual(44)
+    expect(height, `${stylesheet} switch hit height`).toBeGreaterThanOrEqual(44)
   })
 
   it('ensures dashboard KPI grid reflows to 2 columns on mobile', () => {

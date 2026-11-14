@@ -115,4 +115,14 @@
     min-height: var(--warm-ledger-control-target-touch, 44px);
     min-width: var(--warm-ledger-control-target-touch, 44px);
   }
+
+  .switch::after {
+    content: '';
+    position: absolute;
+    top: -12px;
+    right: -4px;
+    bottom: -12px;
+    left: -4px;
+    border-radius: 999px;
+  }
 }

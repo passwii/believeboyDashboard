@@ -1514,16 +1514,38 @@
   }
 
   .dialogContent {
-    width: calc(100vw - 32px);
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
     max-width: 100%;
-    max-height: calc(100vh - 32px);
+    max-height: calc(100vh - env(safe-area-inset-top));
+    max-height: calc(100dvh - env(safe-area-inset-top));
     padding: var(--warm-ledger-space-4);
+    padding-bottom: calc(var(--warm-ledger-space-4) + env(safe-area-inset-bottom));
+    transform: none;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
   }
 
   .dialogClose {
     width: var(--warm-ledger-control-target-touch, 44px);
     height: var(--warm-ledger-control-target-touch, 44px);
     flex: 0 0 var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .dialogBody {
+    overscroll-behavior: contain;
+    scroll-padding-bottom: var(--warm-ledger-space-3);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .input,
+  .textarea,
+  .tableSelect,
+  .nextInput {
+    font-size: 16px;
   }
 
   .fieldGrid,

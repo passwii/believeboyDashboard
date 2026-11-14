@@ -96,8 +96,14 @@
     gap: var(--warm-ledger-space-3);
   }
 
-  .switch {
-    min-width: 36px;
+  .switch::after {
+    content: '';
+    position: absolute;
+    top: -12px;
+    right: -4px;
+    bottom: -12px;
+    left: -4px;
+    border-radius: 999px;
   }
 
   .daysInput {
