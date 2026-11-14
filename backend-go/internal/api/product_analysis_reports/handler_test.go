@@ -87,7 +87,6 @@ type fakeObjectURLBuilder struct {
 }
 
 func (builder *fakeObjectURLBuilder) PublicURL(
-	_ context.Context,
 	key string,
 ) (string, error) {
 	builder.key = key
@@ -881,6 +880,54 @@ func TestProductAnalysisReportResultRequiresObjectStorageForR2Key(t *testing.T) 
 	}
 	if builder.key != resultPath {
 		t.Fatalf("object key = %q, want %q", builder.key, resultPath)
+	}
+	if location := recorder.Header().Get("Location"); location != builder.url {
+		t.Fatalf("location = %q, want %q", location, builder.url)
+	}
+}
+
+func TestProductAnalysisReportResultFailsClosedWhenObjectStorageFails(t *testing.T) {
+	task := successfulCreateTask()
+	task.Status = StatusSuccess
+	resultPath := "project-a/product-analysis/42/result.xlsx"
+	task.ResultPath = &resultPath
+	store := &fakeStore{getResult: task}
+
+	tests := []struct {
+		name    string
+		builder *fakeObjectURLBuilder
+	}{
+		{
+			name:    "builder error",
+			builder: &fakeObjectURLBuilder{err: errors.New("object storage down")},
+		},
+		{
+			name:    "builder returns empty URL",
+			builder: &fakeObjectURLBuilder{},
+		},
+		{
+			name:    "builder returns non-HTTPS URL",
+			builder: &fakeObjectURLBuilder{url: "http://objects.example.com/result.xlsx"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			router := productAnalysisRouter(store, nil, &fakeEnqueuer{}, t.TempDir(), test.builder)
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(
+				recorder,
+				productAnalysisRequest(
+					http.MethodGet,
+					"/api/v1/product-analysis-reports/tasks/42/result",
+					"",
+					"alice",
+					false,
+				),
+			)
+			if recorder.Code != http.StatusServiceUnavailable {
+				t.Fatalf("status = %d, want 503; body = %s", recorder.Code, recorder.Body.String())
+			}
+		})
 	}
 }
 

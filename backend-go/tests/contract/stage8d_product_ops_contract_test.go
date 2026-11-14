@@ -687,7 +687,7 @@ type stage8DObjectURLBuilder struct {
 	err error
 }
 
-func (builder stage8DObjectURLBuilder) PublicURL(context.Context, string) (string, error) {
+func (builder stage8DObjectURLBuilder) PublicURL(string) (string, error) {
 	return builder.url, builder.err
 }
 

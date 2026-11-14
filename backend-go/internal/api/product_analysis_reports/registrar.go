@@ -57,6 +57,15 @@ func NewRegistrarWithDependencies(
 
 func (*Registrar) ModuleName() string { return "product_analysis_reports" }
 
+// ObjectURLs exposes the configured legacy-result URL builder so gateway
+// wiring tests can assert the module never regresses to a nil builder.
+func (registrar *Registrar) ObjectURLs() ObjectURLBuilder {
+	if registrar == nil || registrar.handler == nil {
+		return nil
+	}
+	return registrar.handler.objectURLs
+}
+
 func (registrar *Registrar) RegisterRoutes(
 	router chi.Router,
 	requireAPIKey func(http.Handler) http.Handler,
