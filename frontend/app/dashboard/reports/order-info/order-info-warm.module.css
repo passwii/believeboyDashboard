@@ -1244,6 +1244,10 @@
     gap: var(--warm-ledger-space-2);
   }
 
+  .searchFilterControls > :first-child {
+    grid-column: 1 / -1;
+  }
+
   .resetButton {
     min-height: var(--warm-ledger-control-target-touch);
   }
@@ -1269,15 +1273,5 @@
 
   .pagerButton {
     min-height: var(--warm-ledger-control-target-touch);
-  }
-}
-
-@media (max-width: 460px) {
-  .primaryFilterControls {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .searchFilterControls {
-    grid-template-columns: minmax(0, 1fr);
   }
 }

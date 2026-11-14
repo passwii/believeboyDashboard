@@ -1091,8 +1091,4 @@
   .filterRow {
     grid-template-columns: minmax(0, 1fr);
   }
-
-  .summaryGrid {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }

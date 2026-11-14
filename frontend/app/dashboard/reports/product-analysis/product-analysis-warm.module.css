@@ -855,15 +855,28 @@
   }
 
   .filters {
-    flex-direction: column;
-    align-items: stretch;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
     gap: var(--warm-ledger-space-2);
+    width: 100%;
   }
 
-  .projectField,
-  .countryField,
+  .projectField {
+    grid-column: span 1;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .countryField {
+    grid-column: span 1;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
   .dateField,
   .actionField {
+    grid-column: 1 / -1;
     width: 100% !important;
     min-width: 0 !important;
     flex: 1 1 auto !important;
