@@ -297,3 +297,82 @@
   display: flex;
   justify-content: flex-end;
 }
+
+@media (max-width: 640px) {
+  .listPage[data-warm-crm-page] {
+    height: auto;
+    min-height: 0;
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .searchInput {
+    width: 100% !important;
+  }
+
+  .filterSelect {
+    width: 100% !important;
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .titleCell {
+    width: auto;
+    max-width: 200px;
+  }
+
+  .rowActions :global(button) {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+    min-width: var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .dialog {
+    width: calc(100vw - 32px) !important;
+    max-width: 100% !important;
+    max-height: calc(100vh - 32px) !important;
+    padding: var(--warm-ledger-space-4) !important;
+  }
+
+  .dialog > button:last-child {
+    width: var(--warm-ledger-control-target-touch, 44px);
+    height: var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .detailPage[data-warm-crm-page] {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    height: auto;
+    min-height: 0;
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .sidebar {
+    width: 100%;
+  }
+
+  .previewSection {
+    width: 100%;
+    min-height: 380px;
+  }
+
+  .previewBody {
+    min-height: 380px;
+  }
+
+  .previewFill {
+    min-height: 380px;
+  }
+
+  .editFields {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .editActions {
+    width: 100%;
+  }
+
+  .editActions :global(button) {
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+    justify-content: center;
+  }
+}

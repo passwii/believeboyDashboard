@@ -239,3 +239,52 @@
   font-family: var(--warm-ledger-font-mono);
   font-variant-numeric: var(--warm-ledger-font-variant-numeric);
 }
+
+@media (max-width: 640px) {
+  .frame {
+    padding: var(--warm-ledger-space-3) var(--warm-ledger-space-3) 0;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .toolbar {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .filterLabel {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--warm-ledger-space-1);
+  }
+
+  .select {
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--warm-ledger-space-3);
+    padding: var(--warm-ledger-space-2) 0;
+  }
+
+  .footerMeta {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .pager {
+    justify-content: center;
+    width: 100%;
+    gap: var(--warm-ledger-space-1);
+  }
+
+  .pager :global(button) {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+    min-width: var(--warm-ledger-control-target-touch, 44px);
+  }
+}

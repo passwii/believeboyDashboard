@@ -26,3 +26,20 @@
 .actionSkeleton {
   width: 220px;
 }
+
+@media (max-width: 640px) {
+  .loadingPage[data-warm-crm-page] {
+    height: auto;
+    min-height: 0;
+  }
+
+  .toolbarSkeleton {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .controlSkeleton,
+  .actionSkeleton {
+    width: 100%;
+  }
+}

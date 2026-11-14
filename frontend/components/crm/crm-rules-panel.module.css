@@ -97,3 +97,22 @@
 .dangerAction {
   color: var(--warm-ledger-color-negative);
 }
+
+@media (max-width: 640px) {
+  .ruleItem {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--warm-ledger-space-3);
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .ruleActions {
+    justify-content: flex-end;
+    width: 100%;
+  }
+
+  .ruleActions :global(button) {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+    min-width: var(--warm-ledger-control-target-touch, 44px);
+  }
+}

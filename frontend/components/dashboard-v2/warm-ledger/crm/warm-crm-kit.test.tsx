@@ -220,6 +220,7 @@ describe('Warm CRM design contract', () => {
 
     expect(css).toContain('--warm-ledger-')
     expect(css).not.toContain('--term-')
-    expect(css).not.toMatch(/@media/)
+    expect(css).toMatch(/@media\s*\(max-width:\s*640px\)/)
+    expect(css).toMatch(/\.tableScroller\s*\{[^}]*overflow(?:-x)?:\s*auto/s)
   })
 })

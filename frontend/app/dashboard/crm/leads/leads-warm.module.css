@@ -366,3 +366,87 @@
   width: 100%;
   min-height: var(--warm-ledger-control-height-select);
 }
+
+@media (max-width: 640px) {
+  .page {
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .toolbar > div:first-child {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .toolbar > div:last-child {
+    width: 100%;
+  }
+
+  .searchWrap {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .searchInput {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .filterControl {
+    width: 100%;
+  }
+
+  .filterSelect {
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .exportButton {
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+    justify-content: center;
+  }
+
+  .pagination {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .paginationMeta {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .pager {
+    justify-content: center;
+    width: 100%;
+    gap: var(--warm-ledger-space-1);
+  }
+
+  .pagerButton {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+    min-width: var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .formGrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .input,
+  .select {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .submitButton {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+}

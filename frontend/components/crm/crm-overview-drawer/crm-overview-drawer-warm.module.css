@@ -188,3 +188,27 @@
 .legacySurface :global([class~='bg-term-accent']) {
   background: var(--warm-ledger-color-accent);
 }
+
+@media (max-width: 640px) {
+  .tabListCustomer {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .tabListEntity {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .tabList .tab {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+    padding: 0 var(--warm-ledger-space-1);
+    font-size: 12px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 380px) {
+  .tabListCustomer,
+  .tabListEntity {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

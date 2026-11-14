@@ -17,13 +17,14 @@ const CSS_FILES = [
 ]
 
 describe('CRM tasks Warm contract', () => {
-  it('uses Warm Ledger tokens without Terminal aliases or responsive page adaptations', () => {
+  it('uses Warm Ledger tokens without Terminal aliases and includes mobile responsive adaptations', () => {
     for (const file of CSS_FILES) {
       const css = readFileSync(resolve(process.cwd(), file), 'utf8')
       expect(css, file).toContain('--warm-ledger-')
       expect(css, file).not.toContain('--term-')
-      expect(css, file).not.toMatch(/@media/)
     }
+    const kanbanCss = readFileSync(resolve(process.cwd(), 'app/dashboard/crm/tasks/components/task-kanban.module.css'), 'utf8')
+    expect(kanbanCss).toMatch(/@media\s*\(max-width:\s*640px\)/)
   })
 
   it('preserves the three-column desktop board geometry while loading', () => {

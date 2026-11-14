@@ -77,3 +77,27 @@
 .full {
   grid-column: 1 / -1;
 }
+
+@media (max-width: 640px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .input,
+  .trigger {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .actions button {
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+    justify-content: center;
+  }
+}

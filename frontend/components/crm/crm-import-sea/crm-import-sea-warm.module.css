@@ -207,3 +207,29 @@
 .resultIcon {
   color: var(--warm-ledger-color-positive);
 }
+
+@media (max-width: 640px) {
+  .tabsList .tab {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+    justify-content: center;
+  }
+
+  .actions {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .actions button {
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+    justify-content: center;
+  }
+
+  .preview {
+    max-height: min(65dvh, 480px);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
