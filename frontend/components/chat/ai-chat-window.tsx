@@ -114,6 +114,7 @@ export function AIChatWindow({
 
   const rootRef = useRef<HTMLDivElement>(null)
   const sidebarRef = useRef<HTMLDivElement>(null)
+  const sidebarToggleRef = useRef<HTMLButtonElement>(null)
   const stopBtnRef = useRef<HTMLButtonElement>(null)
   const chatScrollRef = useRef<HTMLDivElement>(null)
   const stopBtnShownRef = useRef(false)
@@ -121,11 +122,53 @@ export function AIChatWindow({
   // (fixes the bug where landing→chat creates the conversation inside a
   // setTimeout but sendStream was captured with conversationId=0).
   const activeServerIdRef = useRef<number | null>(null)
+  const closeSidebar = useCallback(() => {
+    setShowSidebar(false)
+    requestAnimationFrame(() => sidebarToggleRef.current?.focus({ preventScroll: true }))
+  }, [])
+
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root) return
+    const clear = () => root.style.setProperty('--chat-keyboard-inset', '0px')
+    if (!isMobile || !window.visualViewport) {
+      clear()
+      return
+    }
+    const visualViewport = window.visualViewport
+    const update = () => {
+      const inset = Math.max(
+        0,
+        window.innerHeight - visualViewport.height - visualViewport.offsetTop
+      )
+      root.style.setProperty('--chat-keyboard-inset', `${Math.round(inset)}px`)
+    }
+    update()
+    visualViewport.addEventListener('resize', update)
+    visualViewport.addEventListener('scroll', update)
+    return () => {
+      visualViewport.removeEventListener('resize', update)
+      visualViewport.removeEventListener('scroll', update)
+      clear()
+    }
+  }, [isMobile])
 
   // Keep ref in sync with state
   useEffect(() => {
     activeServerIdRef.current = activeServerId
   }, [activeServerId])
+
+  useEffect(() => {
+    if (!showSidebar || !isMobile) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        closeSidebar()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [closeSidebar, isMobile, showSidebar])
 
   // ── Config: load once on mount so the top-level "AI Provider 未配置" hint
   // ── can render as soon as the user lands on the page. Components like
@@ -176,8 +219,8 @@ export function AIChatWindow({
       phaseSyncRanRef.current = true
       return
     }
-    setShowSidebar(phase === 'chat')
-  }, [phase])
+    setShowSidebar(!isMobile && phase === 'chat')
+  }, [isMobile, phase])
 
   // ── Load messages whenever the active conversation changes.
   useEffect(() => {
@@ -556,13 +599,15 @@ export function AIChatWindow({
     (id: string) => {
       const conv = conversations.find((c) => c.id === id)
       if (!conv) return
+      const isCurrentConversation =
+        activeServerId !== null && conv.serverId === activeServerId
       setActiveConvId(conv.id)
       setActiveServerId(conv.serverId ?? null)
-      setMessages([])
+      if (!isCurrentConversation) setMessages([])
       setPhase('chat')
       setShowSidebar(false)
     },
-    [conversations]
+    [activeServerId, conversations]
   )
 
   const handleRenameConversation = useCallback(
@@ -880,6 +925,7 @@ export function AIChatWindow({
       {/* Sidebar toggle */}
       {showInput && !showSidebar && (
         <button
+          ref={sidebarToggleRef}
           type="button"
           onClick={() => setShowSidebar(true)}
           className={`${styles.sidebarToggle} absolute top-4 left-16 md:left-4 z-30 size-10`}
@@ -909,6 +955,15 @@ export function AIChatWindow({
       {/* Layer 2: Sidebar */}
       {showSidebar && (
         <div ref={sidebarRef} className="pointer-events-none absolute inset-0 z-40">
+          {isMobile ? (
+            <button
+              type="button"
+              className={styles.sidebarScrim}
+              aria-label="关闭对话历史"
+              data-testid="ai-chat-sidebar-scrim"
+              onClick={closeSidebar}
+            />
+          ) : null}
           <ConversationSidebar
             conversations={conversations}
             activeId={activeConvId}
@@ -916,7 +971,7 @@ export function AIChatWindow({
             onCreate={handleCreateConversation}
             onRename={handleRenameConversation}
             onDelete={handleDeleteConversation}
-            onClose={() => setShowSidebar(false)}
+            onClose={closeSidebar}
           />
         </div>
       )}
@@ -981,7 +1036,9 @@ export function AIChatWindow({
           style={{
             paddingLeft: !isMobile && showSidebar ? 'var(--sidebar-width, 280px)' : '0px',
             paddingTop: 'env(safe-area-inset-top, 16px)',
-            paddingBottom: 'calc(120px + env(safe-area-inset-bottom, 16px))',
+            paddingBottom: isMobile
+              ? 'calc(168px + var(--chat-keyboard-inset, 0px) + env(safe-area-inset-bottom, 16px))'
+              : 'calc(120px + env(safe-area-inset-bottom, 16px))',
             transition: 'padding-left var(--duration-medium) var(--ease-smooth-out)',
           }}
         >
@@ -1055,6 +1112,9 @@ export function AIChatWindow({
               : {
                   bottom: '0',
                   paddingBottom: 'env(safe-area-inset-bottom, 16px)',
+                  transform: isMobile
+                    ? 'translateY(calc(-1 * var(--chat-keyboard-inset, 0px)))'
+                    : undefined,
                 }),
             transition:
               'padding-left var(--duration-medium) var(--ease-smooth-out), top 0.6s var(--ease-smooth-out), bottom 0.6s var(--ease-smooth-out)',

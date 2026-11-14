@@ -56,7 +56,7 @@ describe('BelieveboyModelsView', () => {
     ).toBeInTheDocument()
   })
 
-  it('uses Warm tokens for desktop document styling without Terminal aliases or breakpoints', () => {
+  it('uses Warm tokens with phone layout support and no Terminal aliases', () => {
     const cssPath = join(__dirname, 'believeboy-models-warm.module.css')
     const css = existsSync(cssPath) ? readFileSync(cssPath, 'utf8') : ''
 
@@ -64,6 +64,6 @@ describe('BelieveboyModelsView', () => {
     expect(css).toContain('var(--warm-ledger-radius-panel)')
     expect(css).toContain('var(--warm-ledger-inset-panel)')
     expect(css).not.toContain('--term-')
-    expect(css).not.toContain('@media')
+    expect(css).toContain('@media (max-width: 640px)')
   })
 })

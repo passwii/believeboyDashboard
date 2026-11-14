@@ -131,7 +131,7 @@ describe('CustomerServiceClient', () => {
 })
 
 describe('Customer Service Warm styling contract', () => {
-  it('uses Warm tokens for desktop surfaces without Terminal aliases or breakpoints', () => {
+  it('uses Warm tokens with phone layout support and no Terminal aliases', () => {
     const css = readFileSync(
       join(__dirname, 'customer-service-warm.module.css'),
       'utf8'
@@ -141,6 +141,6 @@ describe('Customer Service Warm styling contract', () => {
     expect(css).toContain('var(--warm-ledger-radius-panel)')
     expect(css).toContain('var(--warm-ledger-inset-panel)')
     expect(css).not.toContain('--term-')
-    expect(css).not.toContain('@media')
+    expect(css).toContain('@media (max-width: 640px)')
   })
 })

@@ -106,7 +106,7 @@ export default function InventoryHealthPage() {
     <div className={styles.page} data-warm-inventory-health>
       <section className={styles.panel}>
         <div className={styles.panelBody}>
-          <div className={styles.filters}>
+          <div className={styles.filters} data-testid="ai-inventory-health-filters">
             <div className={styles.field}>
               <WarmSelect
                 id="inventory-project"

@@ -19,6 +19,7 @@ import {
 import { formatTokenCount } from '@/lib/format/token-count'
 import type { Conversation } from './types'
 import styles from './warm-chat.module.css'
+import { useMobile } from '@/lib/hooks/use-mobile'
 
 interface ConversationSidebarProps {
   conversations: Conversation[]
@@ -39,6 +40,7 @@ export function ConversationSidebar({
   onDelete,
   onClose,
 }: ConversationSidebarProps) {
+  const isMobile = useMobile()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
@@ -112,6 +114,7 @@ export function ConversationSidebar({
   return (
     <div
       className={`${styles.sidebar} absolute inset-y-0 left-0 z-40 flex w-[min(86vw,280px)] flex-col pointer-events-auto sm:w-[280px]`}
+      data-testid="ai-chat-history-panel"
       style={{
         ['--sidebar-surface' as string]: 'var(--warm-ledger-color-sidebar)',
       }}
@@ -302,7 +305,7 @@ export function ConversationSidebar({
                     </div>
                   )}
                 </div>
-                {hoveredId === conv.id && (
+                {(isMobile || hoveredId === conv.id) && (
                   <div className={`${styles.sidebarActionGradient} pointer-events-none absolute inset-y-1 right-1 flex items-center gap-0.5 pl-6 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-150`}>
                     <button
                       type="button"

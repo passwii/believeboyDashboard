@@ -219,7 +219,11 @@ export default function EmployeeDetailPage() {
         </WarmButton>
       </div>
 
-      <section className={`${styles.panel} ${styles.profilePanel}`} aria-label={employee.name}>
+      <section
+        className={`${styles.panel} ${styles.profilePanel}`}
+        aria-label={employee.name}
+        data-testid="digital-employee-profile"
+      >
         <div className={styles.profileMain}>
           <EmployeeAvatar
             employeeType={employee.employee_type}
@@ -267,7 +271,7 @@ export default function EmployeeDetailPage() {
         </div>
       </section>
 
-      <div className={styles.detailGrid}>
+      <div className={styles.detailGrid} data-testid="digital-employee-detail-grid">
         <div className={styles.detailMain}>
           {runningTask ? (
             <section className={styles.panel} aria-label="当前任务">

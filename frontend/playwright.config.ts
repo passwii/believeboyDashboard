@@ -43,11 +43,11 @@ const runsSelfContainedSpec = process.argv.some(
     arg.includes('@mobile-blf616') ||
     arg.includes('system-mobile-blf620') ||
     arg.includes('@mobile-blf620') ||
-    arg.includes('ai-mobile-blf619') ||
-    arg.includes('@mobile-blf619') ||
     // 工具与文档页面（BLF-1511）
     arg.includes('tools-mobile-blf1511') ||
     arg.includes('@blf-1511') ||
+    arg.includes('ai-mobile-blf1510') ||
+    arg.includes('@mobile-blf1510') ||
     // CRM mock 用例：依赖 MockCrmClient 的 localStorage 数据
     arg.includes('crm/lead-to-customer') ||
     arg.includes('crm/sea-flow') ||

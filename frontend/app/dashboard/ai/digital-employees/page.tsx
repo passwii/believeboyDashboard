@@ -111,7 +111,7 @@ export default function DigitalEmployeesPage() {
         <>
           <DigitalEmployeeStats employees={employees} />
 
-          <div className={styles.listLayout}>
+          <div className={styles.listLayout} data-testid="digital-employee-list-layout">
             <section
               className={`${styles.panel} ${styles.rosterPanel}`}
               aria-label="数字员工"

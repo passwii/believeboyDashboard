@@ -567,3 +567,100 @@
     transition: none;
   }
 }
+
+.sidebarScrim {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  padding: 0;
+  pointer-events: auto;
+  background: var(--warm-ledger-color-scrim);
+  border: 0;
+  backdrop-filter: blur(2px);
+}
+
+.sidebarScrim:focus-visible {
+  outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color);
+  outline-offset: calc(-1 * var(--warm-ledger-focus-width));
+}
+
+@media (max-width: 640px) {
+  .sidebarToggle {
+    left: var(--warm-ledger-space-4) !important;
+    min-width: var(--warm-ledger-control-target-touch);
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .iconButton,
+  .toolButton,
+  .stopButton,
+  .entry,
+  .chip,
+  .attachOption,
+  .modelRow {
+    min-width: var(--warm-ledger-control-target-touch);
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .toolButton {
+    padding-inline: var(--warm-ledger-space-2);
+  }
+
+  .textarea {
+    padding-inline: var(--warm-ledger-space-4) !important;
+    font-size: 16px !important;
+    line-height: 1.5 !important;
+  }
+
+  .inputToolbar {
+    gap: var(--warm-ledger-space-1) !important;
+    padding-inline: var(--warm-ledger-space-2) !important;
+  }
+
+  .inputTools {
+    min-width: 0;
+    gap: var(--warm-ledger-space-1) !important;
+  }
+
+  .inputSend {
+    width: var(--warm-ledger-control-target-touch);
+    min-width: var(--warm-ledger-control-target-touch);
+    flex: 0 0 var(--warm-ledger-control-target-touch);
+    padding-inline: 0 !important;
+  }
+
+  .attachMenu,
+  .modelMenu,
+  .modelPanel {
+    max-width: calc(100vw - var(--warm-ledger-space-6));
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .sidebar {
+    width: min(92vw, 320px) !important;
+    padding-bottom: calc(var(--warm-ledger-space-3) + env(safe-area-inset-bottom));
+  }
+
+  .sidebarSearch {
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .announcement {
+    max-width: calc(100vw - var(--warm-ledger-space-6));
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .landingTitle {
+    font-size: clamp(32px, 10vw, 44px);
+  }
+
+  .actionButton {
+    min-width: var(--warm-ledger-control-target-touch);
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .errorBox {
+    overflow-wrap: anywhere;
+  }
+}

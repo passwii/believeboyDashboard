@@ -848,7 +848,7 @@ export default function AIInsightsPage() {
               <h2 className={styles.panelTitle}>生成 AI 洞察</h2>
             </header>
             <div className={styles.panelBody}>
-              <div className={styles.filters}>
+              <div className={styles.filters} data-testid="ai-insights-filters">
                 <div className={styles.projectField}>
                   {isLoadingProjects ? (
                     <div className={styles.skeletonBlock} aria-label="正在加载项目" />
@@ -982,7 +982,7 @@ export default function AIInsightsPage() {
                   </div>
                 )
               ) : (
-                <div className={styles.tableScroller}>
+                <div className={styles.tableScroller} data-testid="ai-insights-table-scroll">
                   <table className={styles.dataTable}>
                     <thead>
                       <tr>

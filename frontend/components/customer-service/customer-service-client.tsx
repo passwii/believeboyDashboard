@@ -112,7 +112,7 @@ export function CustomerServiceClient() {
             selectedId={selectedId}
             onSelect={setSelectedId}
           />
-          <div className={styles.workspace}>
+          <div className={styles.workspace} data-testid="customer-service-workspace">
             <InputPane
               scenario={scenario}
               freeText={freeText}

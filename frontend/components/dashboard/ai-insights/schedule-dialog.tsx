@@ -29,6 +29,7 @@ import type {
   ProjectOption,
 } from '@/lib/api/ai-insight-schedules'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
+import styles from './schedule-mobile.module.css'
 
 interface ScheduleDialogProps {
   open: boolean
@@ -163,7 +164,7 @@ export function ScheduleDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[560px]">
+      <DialogContent className={`${styles.dialogContent} sm:max-w-[560px]`}>
         <DialogHeader>
           <DialogTitle>{isEdit ? '编辑定时任务' : '新建定时任务'}</DialogTitle>
           <DialogDescription>
@@ -173,7 +174,7 @@ export function ScheduleDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className={`space-y-5 ${styles.form}`}>
           {/* Error message */}
           {error && (
             <div className="rounded-lg bg-term-neg/5 border border-term-neg/30 px-4 py-3 text-sm text-term-neg">
@@ -269,7 +270,7 @@ export function ScheduleDialog({
                   key={preset.value}
                   type="button"
                   onClick={() => setForm({ ...form, cron_expression: preset.value })}
-                  className={`px-3 py-1.5 text-xs rounded-full border transition-colors ${
+                  className={`${styles.cronPreset} px-3 py-1.5 text-xs rounded-full border transition-colors ${
                     form.cron_expression === preset.value
                       ? 'bg-primary text-white border-primary'
                       : 'bg-background hover:bg-muted border-border'
@@ -284,7 +285,7 @@ export function ScheduleDialog({
               value={form.cron_expression}
               onChange={(e) => setForm({ ...form, cron_expression: e.target.value })}
               placeholder="0 7 * * *"
-              className="font-mono text-sm"
+              className={`font-mono text-sm ${styles.textInput}`}
             />
             <p className="text-xs text-muted-foreground">
               格式：分 时 日 月 周，例如 0 7 * * * 表示每天 07:00
@@ -329,20 +330,22 @@ export function ScheduleDialog({
               value={form.model || ''}
               onChange={(e) => setForm({ ...form, model: e.target.value || null })}
               placeholder="留空使用默认模型"
+              className={styles.textInput}
             />
             <p className="text-xs text-muted-foreground">可指定不同的 AI 模型覆盖默认配置</p>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className={styles.dialogFooter}>
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={loading}
+              className={styles.dialogButton}
             >
               取消
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading} className={styles.dialogButton}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isEdit ? '保存修改' : '创建定时任务'}
             </Button>

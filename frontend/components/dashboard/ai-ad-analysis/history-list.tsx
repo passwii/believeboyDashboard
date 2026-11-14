@@ -217,7 +217,7 @@ export function HistoryList({ projectId, country, refreshTrigger }: HistoryListP
         </div>
       )}
 
-      <div className={styles.tableScroller}>
+      <div className={styles.tableScroller} data-testid="ai-ad-history-table-scroll">
         <table className={styles.dataTable}>
           <thead>
             <tr>

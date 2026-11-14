@@ -132,8 +132,8 @@ export function ViewDialog({ open, onOpenChange, insightId, onUpdated }: ViewDia
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={styles.dialogContent}>
         <DialogHeader className={styles.dialogHeader}>
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0 flex-1">
+          <div className={styles.dialogHeaderRow}>
+            <div className={styles.dialogTitleBlock}>
               <DialogTitle className={`${styles.dialogTitle} truncate`}>
                 {insight?.title ?? '加载中...'}
               </DialogTitle>

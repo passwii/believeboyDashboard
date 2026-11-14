@@ -157,11 +157,11 @@ export function ChatInput({
         />
 
         <div
-          className={`flex items-center justify-between flex-wrap gap-2 px-3 pt-1 ${
+          className={`${styles.inputToolbar} flex items-center justify-between flex-wrap gap-2 px-3 pt-1 ${
             compact ? 'pb-2' : 'pb-3'
           }`}
         >
-          <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+          <div className={`${styles.inputTools} flex items-center gap-1 sm:gap-2 flex-wrap`}>
             <div className="relative">
               <button
                 type="button"
@@ -274,7 +274,7 @@ export function ChatInput({
             type="button"
             onClick={handleSubmit}
             disabled={!message.trim() || disabled}
-            className={`${styles.sendButton} flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-2 text-sm font-medium transition-all duration-[var(--duration-quick)] active:scale-95 touch-manipulation min-h-[44px] sm:min-h-[auto]`}
+            className={`${styles.sendButton} ${styles.inputSend} flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 sm:py-2 text-sm font-medium transition-all duration-[var(--duration-quick)] active:scale-95 touch-manipulation min-h-[44px] sm:min-h-[auto]`}
             aria-label="发送"
           >
             {enableWebSearch && cfg?.webSearchConfigured && (
