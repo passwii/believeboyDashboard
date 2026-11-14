@@ -379,3 +379,35 @@
     transition: none;
   }
 }
+
+@media (max-width: 640px) {
+  .panelHeader {
+    padding-inline: var(--warm-ledger-space-3);
+  }
+
+  /* BLF-1509：手机端保留全部表格列，表格在自身容器内横向滑动。 */
+  .tableScroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  .table {
+    width: max-content;
+    min-width: 900px;
+  }
+
+  .metricTile,
+  .kpiTile {
+    padding: var(--warm-ledger-space-2);
+  }
+
+  .emptyState {
+    min-height: 120px;
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .emptyStateLarge {
+    min-height: 160px;
+  }
+}

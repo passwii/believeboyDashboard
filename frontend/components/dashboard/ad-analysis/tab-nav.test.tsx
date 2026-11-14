@@ -94,7 +94,7 @@ describe('AdAnalysisTabNav Warm Ledger 子 Tab 栏', () => {
     expect(active.getAttribute('aria-current')).toBe('page')
   })
 
-  it('tab 和页面壳只使用 Warm tokens，不含 Terminal 视觉别名或新断点', () => {
+  it('tab 和页面壳只使用 Warm tokens，手机断点只新增 640px 适配', () => {
     const css = readFileSync(
       resolve(
         process.cwd(),
@@ -106,6 +106,13 @@ describe('AdAnalysisTabNav Warm Ledger 子 Tab 栏', () => {
     expect(css).toContain('var(--warm-ledger-focus-color)')
     expect(css).not.toContain('--term-')
     expect(css).not.toContain('rounded-none')
-    expect(css).not.toMatch(/@media\s*\((?!prefers-reduced-motion)/)
+    expect(css).toContain('@media (max-width: 640px)')
+    const media = css.match(/@media\s*\([^)]*\)/g) ?? []
+    for (const rule of media) {
+      expect([
+        '@media (prefers-reduced-motion: reduce)',
+        '@media (max-width: 640px)',
+      ]).toContain(rule)
+    }
   })
 })

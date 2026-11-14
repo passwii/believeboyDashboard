@@ -254,39 +254,15 @@ export function AdAnalysisTopFilters() {
   const desktopSlot = useHeaderSlot(desktopControls)
 
   // Mobile filter strip
-  const mobileSummary = `${country} · ${dateFrom || ''} ~ ${dateTo || ''}`
+  const selectedProjectName =
+    projects.find((project) => String(project.id) === projectId)?.name ?? '全部项目'
+  const mobileSummary = [
+    selectedProjectName,
+    country,
+    dateFrom && dateTo ? `${dateFrom} ~ ${dateTo}` : '日期未选择',
+  ].join(' · ')
   const mobileControls = (
     <>
-      <select
-        aria-label="日期快捷范围"
-        className={styles.mobileControl}
-        value={activeDatePreset ?? ''}
-        onChange={(event) => applyDatePreset(event.target.value)}
-      >
-        <option value="">自定义</option>
-        {datePresets.map((preset) => (
-          <option key={preset.key} value={preset.key}>
-            {preset.label}
-          </option>
-        ))}
-      </select>
-      <input
-        type="date"
-        aria-label="开始日期"
-        className={styles.mobileControl}
-        value={dateFrom}
-        max={todayInSiteTimezone || undefined}
-        onChange={(event) => updateDate('dateFrom', event.target.value)}
-      />
-      <input
-        type="date"
-        aria-label="结束日期"
-        className={styles.mobileControl}
-        value={dateTo}
-        min={dateFrom || undefined}
-        max={todayInSiteTimezone || undefined}
-        onChange={(event) => updateDate('dateTo', event.target.value)}
-      />
       <MobileFilterWide>
         {projectsLoading ? (
           <WarmSkeleton className="h-10 w-full" />
@@ -320,10 +296,68 @@ export function AdAnalysisTopFilters() {
           ))}
         </select>
       </MobileFilterWide>
+      <MobileFilterWide>
+        <select
+          aria-label="日期快捷范围"
+          className={styles.mobileControl}
+          value={activeDatePreset ?? ''}
+          onChange={(event) => applyDatePreset(event.target.value)}
+        >
+          <option value="">自定义</option>
+          {datePresets.map((preset) => (
+            <option key={preset.key} value={preset.key}>
+              {preset.label}
+            </option>
+          ))}
+        </select>
+      </MobileFilterWide>
+      <MobileFilterWide>
+        <div className="grid grid-cols-2 gap-2">
+          <input
+            type="date"
+            aria-label="开始日期"
+            className={styles.mobileControl}
+            value={dateFrom}
+            max={todayInSiteTimezone || undefined}
+            onChange={(event) => updateDate('dateFrom', event.target.value)}
+          />
+          <input
+            type="date"
+            aria-label="结束日期"
+            className={styles.mobileControl}
+            value={dateTo}
+            min={dateFrom || undefined}
+            max={todayInSiteTimezone || undefined}
+            onChange={(event) => updateDate('dateTo', event.target.value)}
+          />
+        </div>
+      </MobileFilterWide>
+      {drillTokens.length > 0 && (
+        <MobileFilterWide>
+          <div className="flex flex-wrap items-center gap-2">
+            {drillTokens.map((item) => (
+              <WarmPill key={item.key} tone="accent">
+                {item.label}：{item.value}
+              </WarmPill>
+            ))}
+            <button
+              type="button"
+              onClick={clearDrillParams}
+              className={styles.clearButton}
+            >
+              清空下钻
+            </button>
+          </div>
+        </MobileFilterWide>
+      )}
     </>
   )
   const mobileStrip = useMobileFilterStrip(
-    <MobileFilterStrip summary={mobileSummary} controls={mobileControls} />
+    <MobileFilterStrip
+      summary={mobileSummary}
+      controls={mobileControls}
+      variant="warm-ledger"
+    />
   )
 
   return (

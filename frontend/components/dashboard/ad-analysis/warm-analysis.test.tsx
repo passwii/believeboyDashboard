@@ -45,7 +45,7 @@ const PAGE_MARKERS: Record<string, string> = {
 afterEach(cleanup)
 
 describe('广告分析 V4 Warm Ledger 契约', () => {
-  it('生产源码不含 Terminal 视觉别名、终端等宽正文或新布局断点', () => {
+  it('生产源码不含 Terminal 视觉别名或终端等宽正文，且断点仅限手机适配', () => {
     const files = [...productionFiles(APP_ROOT), ...productionFiles(COMPONENT_ROOT)]
     for (const path of files) {
       const source = readFileSync(path, 'utf8')
@@ -60,13 +60,16 @@ describe('广告分析 V4 Warm Ledger 契约', () => {
         /\bTerm(?:Panel|KpiTile|Pill|RefreshStatus|Table|Head|Cell|Row|Body|THead|GridHeader|MetricTile|ChartPanel)\b/
       )
       if (path.endsWith('.tsx')) {
-        expect(source, path).not.toMatch(/\b(?:sm|md|lg|xl|2xl):/)
+        expect(source, path).not.toMatch(/\b(?:md|lg|xl|2xl):/)
       }
       if (path.endsWith('.css')) {
         const media = source.match(/@media\s*\([^)]*\)/g) ?? []
         expect(media, path).toContain('@media (prefers-reduced-motion: reduce)')
         for (const rule of media) {
-          expect(rule, path).toBe('@media (prefers-reduced-motion: reduce)')
+          expect(
+            ['@media (prefers-reduced-motion: reduce)', '@media (max-width: 640px)'],
+            path
+          ).toContain(rule)
         }
       }
     }

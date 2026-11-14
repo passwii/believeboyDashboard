@@ -225,6 +225,7 @@ export function AdDataTopFilters() {
     <MobileFilterStrip
       summary={mobileSummary}
       controls={mobileControls}
+      variant="warm-ledger"
       className={styles.mobileFilterStrip}
     />
   )

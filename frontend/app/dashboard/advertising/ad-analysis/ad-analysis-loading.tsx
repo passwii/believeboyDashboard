@@ -43,11 +43,11 @@ export function AdAnalysisWarmLoading() {
       ) : null}
 
       {isOverview ? (
-        <div className="grid h-[38vh] min-h-[220px] max-h-[420px] grid-cols-2 gap-2" aria-hidden="true">
+        <div className="grid grid-cols-1 gap-2 sm:h-[38vh] sm:min-h-[220px] sm:max-h-[420px] sm:grid-cols-2" aria-hidden="true">
           {Array.from({ length: 2 }).map((_, index) => (
             <div
               key={index}
-              className="flex min-h-0 flex-col overflow-hidden rounded-[var(--warm-ledger-radius-panel)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)]"
+              className="flex h-[220px] min-h-0 flex-col overflow-hidden rounded-[var(--warm-ledger-radius-panel)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] sm:h-auto"
             >
               <div className="h-11 shrink-0 border-b border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)]" />
               <div className="grid flex-1 grid-rows-4 px-3 py-2">

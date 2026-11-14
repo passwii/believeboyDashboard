@@ -564,3 +564,67 @@
     color-mix(in srgb, var(--warm-ledger-color-negative) 35%, transparent);
   border-radius: var(--warm-ledger-radius-control);
 }
+
+@media (max-width: 640px) {
+  .page {
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .controls {
+    gap: var(--warm-ledger-space-3);
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .controlRow {
+    display: grid;
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .viewRow {
+    width: 100%;
+    align-items: flex-end;
+    flex-wrap: nowrap;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .field,
+  .searchWrap,
+  .reportSelect,
+  .searchInput {
+    width: 100%;
+  }
+
+  .viewRow > .field {
+    min-width: 0;
+    width: auto;
+    flex: 1 1 0;
+  }
+
+  .control,
+  .pageSizeSelect {
+    height: var(--warm-ledger-control-target-touch) !important;
+  }
+
+  .tableScroller {
+    max-height: min(58dvh, 520px);
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .pagination {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .pageSizeGroup,
+  .pagerGroup {
+    justify-content: space-between;
+  }
+
+  .pagerGroup > button {
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+}

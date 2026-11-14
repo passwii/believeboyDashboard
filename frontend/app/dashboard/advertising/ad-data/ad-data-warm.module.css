@@ -53,3 +53,18 @@
 .tableSkeletonRow {
   height: 38px !important;
 }
+
+@media (max-width: 640px) {
+  .filterSkeleton {
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .filterSkeleton > div {
+    flex-wrap: wrap;
+  }
+
+  .filterSkeletonItem {
+    width: auto !important;
+    flex: 1 1 140px;
+  }
+}

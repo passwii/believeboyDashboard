@@ -2244,9 +2244,9 @@ html.light .warm-ledger {
 
   .warm-ledger__mobile-strip {
     position: sticky;
-    top: 105px;
+    top: 60px;
     z-index: 9;
-    margin: calc(-1 * var(--warm-ledger-space-6)) calc(-1 * var(--warm-ledger-space-4)) var(--warm-ledger-space-4);
+    margin: 0 calc(-1 * var(--warm-ledger-space-4)) var(--warm-ledger-space-4);
   }
 
   .warm-ledger__mobile-strip [data-testid='mobile-filter-strip'] {
@@ -2310,6 +2310,15 @@ html.light .warm-ledger {
   .warm-ledger__mobile-strip {
     margin-right: calc(-1 * var(--warm-ledger-space-3));
     margin-left: calc(-1 * var(--warm-ledger-space-3));
+  }
+}
+
+@media (max-width: 430px) {
+  /* On phones #main-content is its own scrollport below the topbar; sticky 0px
+   * keeps the filter strip inside that scrollport instead of covering content.
+   * This block must stay after the max-width:767px strip rule to win the cascade. */
+  .warm-ledger__mobile-strip {
+    top: 0;
   }
 }
 
