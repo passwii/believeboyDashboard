@@ -829,6 +829,82 @@ func TestMonthlyReportStoreExportServesFileInsideControlledRoot(t *testing.T) {
 	}
 }
 
+func TestMonthlyReportStoreExportPrefersLocalPDFOverDeadR2URL(t *testing.T) {
+	now := time.Now()
+	root := t.TempDir()
+	t.Setenv("UPLOAD_ROOT", root)
+	path := filepath.Join(root, "summary.pdf")
+	if err := os.WriteFile(path, []byte("%PDF-1.4"), 0o600); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	deadURL := "https://pub-r2.believeboy.com/monthly_summary_pdf/42/missing.pdf"
+
+	values := monthlyReportDetailRowValues(now)
+	values[22] = &path
+	values[23] = &deadURL
+	db := &fakeWriteDB{fakeDB: &fakeDB{
+		rowsQueue: []pgx.Row{
+			fakeRow{values: values},
+			fakeRow{values: []any{`{}`}},
+			fakeRow{values: []any{`{}`}},
+			fakeRow{values: []any{0.0, 0.0}},
+			fakeRow{err: pgx.ErrNoRows},
+		},
+	}}
+	store := NewMonthlyReportStore(db)
+
+	export, err := store.ExportReport(
+		context.Background(),
+		42,
+		monthly_reports.MonthlyReportExportFormatPDF,
+	)
+	if err != nil {
+		t.Fatalf("ExportReport() error = %v", err)
+	}
+	resolvedPath, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		t.Fatalf("resolve fixture path: %v", err)
+	}
+	if export.RedirectURL != nil {
+		t.Fatalf("ExportReport() redirected to a dead R2 URL: %q", *export.RedirectURL)
+	}
+	if export.Path != resolvedPath || export.ContentType != "application/pdf" {
+		t.Fatalf("export = %#v", export)
+	}
+}
+
+func TestMonthlyReportStoreExportRedirectsWhenLocalPDFMissing(t *testing.T) {
+	now := time.Now()
+	t.Setenv("UPLOAD_ROOT", t.TempDir())
+	redirectURL := "https://cdn.example.com/monthly_summary_pdf/42/summary.pdf"
+
+	values := monthlyReportDetailRowValues(now)
+	values[22] = nil
+	values[23] = &redirectURL
+	db := &fakeWriteDB{fakeDB: &fakeDB{
+		rowsQueue: []pgx.Row{
+			fakeRow{values: values},
+			fakeRow{values: []any{`{}`}},
+			fakeRow{values: []any{`{}`}},
+			fakeRow{values: []any{0.0, 0.0}},
+			fakeRow{err: pgx.ErrNoRows},
+		},
+	}}
+	store := NewMonthlyReportStore(db)
+
+	export, err := store.ExportReport(
+		context.Background(),
+		42,
+		monthly_reports.MonthlyReportExportFormatPDF,
+	)
+	if err != nil {
+		t.Fatalf("ExportReport() error = %v", err)
+	}
+	if export.RedirectURL == nil || *export.RedirectURL != redirectURL {
+		t.Fatalf("export = %#v, want redirect %q", export, redirectURL)
+	}
+}
+
 func TestMonthlyReportStoreExportRejectsUnsafeRedirects(t *testing.T) {
 	now := time.Now()
 	for _, redirectURL := range []string{

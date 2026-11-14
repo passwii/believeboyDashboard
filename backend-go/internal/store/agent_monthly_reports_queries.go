@@ -37,6 +37,12 @@ type AgentMonthlyReportStoreOptions struct {
 	ResultRoot string
 	TTL        time.Duration
 	Now        func() time.Time
+
+	// Blobs and PublicURL let auto/manual reconciliation resolve key-only
+	// historical summary PDFs through the same object-storage configuration as
+	// the report-reconciliation routes.
+	Blobs     ReconciliationObjectStore
+	PublicURL string
 }
 
 type AgentMonthlyReportStore struct {
@@ -47,6 +53,8 @@ type AgentMonthlyReportStore struct {
 	resultRoot string
 	ttl        time.Duration
 	now        func() time.Time
+	blobs      ReconciliationObjectStore
+	publicURL  string
 }
 
 type agentMonthlySeriesSource struct {
@@ -94,7 +102,19 @@ func NewAgentMonthlyReportStore(
 		resultRoot: resultRoot,
 		ttl:        ttl,
 		now:        now,
+		blobs:      options.Blobs,
+		publicURL:  strings.TrimRight(strings.TrimSpace(options.PublicURL), "/"),
 	}
+}
+
+func (s *AgentMonthlyReportStore) reconciliationStore(tx pgx.Tx) *ReportReconciliationStore {
+	return NewReportReconciliationStoreWithOptions(
+		NewTxDB(tx),
+		ReportReconciliationStoreOptions{
+			Blobs:     s.blobs,
+			PublicURL: s.publicURL,
+		},
+	)
 }
 
 func (s *AgentMonthlyReportStore) ListAgentMonthlyReports(
@@ -678,7 +698,7 @@ func (s *AgentMonthlyReportStore) AutoReconcileAgentMonthlyReport(
 	}
 	var result map[string]any
 	err := RunInTx(ctx, s.db, func(tx pgx.Tx) error {
-		reconciler := NewReportReconciliationStore(NewTxDB(tx))
+		reconciler := s.reconciliationStore(tx)
 		response, err := reconciler.AutoReconcile(
 			ctx,
 			report_reconciliation.AutoReconcileRequest{
@@ -732,7 +752,7 @@ func (s *AgentMonthlyReportStore) ManualReconcileAgentMonthlyReport(
 	}
 	var result map[string]any
 	err := RunInTx(ctx, s.db, func(tx pgx.Tx) error {
-		reconciler := NewReportReconciliationStore(NewTxDB(tx))
+		reconciler := s.reconciliationStore(tx)
 		response, err := reconciler.ManualReconcile(
 			ctx,
 			&input.ReportID,

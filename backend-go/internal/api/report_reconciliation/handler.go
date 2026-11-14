@@ -297,6 +297,10 @@ func (h *Handler) UploadSummaryPdf(w http.ResponseWriter, r *http.Request) {
 			httpapi.WriteDetail(w, http.StatusForbidden, "无权限访问该项目")
 			return
 		}
+		if errors.Is(err, ErrObjectStorageUnavailable) {
+			httpapi.WriteDetail(w, http.StatusServiceUnavailable, "对象存储暂不可用，请稍后重试")
+			return
+		}
 		httpapi.WriteDetail(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -347,6 +351,10 @@ func (h *Handler) UploadTransactionCsv(w http.ResponseWriter, r *http.Request) {
 		}
 		if errors.Is(err, ErrProjectForbidden) {
 			httpapi.WriteDetail(w, http.StatusForbidden, "无权限访问该项目")
+			return
+		}
+		if errors.Is(err, ErrObjectStorageUnavailable) {
+			httpapi.WriteDetail(w, http.StatusServiceUnavailable, "对象存储暂不可用，请稍后重试")
 			return
 		}
 		httpapi.WriteDetail(w, http.StatusBadRequest, err.Error())

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -16,6 +17,48 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/report_reconciliation"
 )
+
+type reconciliationObjectPut struct {
+	key         string
+	data        []byte
+	contentType string
+}
+
+type fakeReconciliationBlobs struct {
+	puts            []reconciliationObjectPut
+	deletedKeys     []string
+	publicURLPrefix string
+	putErr          error
+}
+
+func (blobs *fakeReconciliationBlobs) Put(
+	_ context.Context,
+	key string,
+	data []byte,
+	contentType string,
+) (string, error) {
+	blobs.puts = append(blobs.puts, reconciliationObjectPut{
+		key:         key,
+		data:        append([]byte(nil), data...),
+		contentType: contentType,
+	})
+	if blobs.putErr != nil {
+		return "", blobs.putErr
+	}
+	return blobs.publicURLPrefix + "/" + key, nil
+}
+
+func (blobs *fakeReconciliationBlobs) Delete(_ context.Context, key string) error {
+	blobs.deletedKeys = append(blobs.deletedKeys, key)
+	return nil
+}
+
+func (blobs *fakeReconciliationBlobs) PublicURL(key string) (string, error) {
+	if blobs.publicURLPrefix == "" {
+		return "", errors.New("public URL is not configured")
+	}
+	return blobs.publicURLPrefix + "/" + key, nil
+}
 
 func TestReportReconciliationStoreAvailableReports(t *testing.T) {
 	ctx := context.Background()
@@ -353,13 +396,18 @@ func TestReportReconciliationUploadAndDownloadRealPDF(t *testing.T) {
 	pdfBytes := makeReconciliationPDF(reconciliationMetricLines(nil))
 	projectRow := fakeRow{values: []any{int64(7)}}
 	uploadDB := &fakeWriteDB{fakeDB: &fakeDB{rowsQueue: []pgx.Row{projectRow}}}
-	store := &ReportReconciliationStore{
-		db:         uploadDB,
-		fileRoot:   t.TempDir(),
-		httpClient: &http.Client{Timeout: 5 * time.Second},
-	}
-	if _, err := store.UploadSummaryPdf(context.Background(), 1, "summary.pdf", pdfBytes, "admin", true); err != nil {
+	blobs := &fakeReconciliationBlobs{publicURLPrefix: "https://cdn.example.com"}
+	store := NewReportReconciliationStoreWithOptions(uploadDB, ReportReconciliationStoreOptions{
+		Blobs: blobs,
+	})
+	store.fileRoot = t.TempDir()
+	store.httpClient = &http.Client{Timeout: 5 * time.Second}
+	uploaded, err := store.UploadSummaryPdf(context.Background(), 1, "summary.pdf", pdfBytes, "admin", true)
+	if err != nil {
 		t.Fatalf("UploadSummaryPdf() error = %v", err)
+	}
+	if len(blobs.puts) != 1 || uploaded.PdfFilePath != "https://cdn.example.com/"+uploaded.PdfFileID {
+		t.Fatalf("upload did not return the object-storage URL: response=%#v puts=%#v", uploaded, blobs.puts)
 	}
 	if len(uploadDB.execCalls) != 1 {
 		t.Fatalf("upload Exec calls = %d, want 1", len(uploadDB.execCalls))
@@ -380,6 +428,404 @@ func TestReportReconciliationUploadAndDownloadRealPDF(t *testing.T) {
 	}
 	if !bytes.Equal(downloaded, pdfBytes) {
 		t.Fatal("DownloadPdf() did not return the uploaded bytes")
+	}
+}
+
+func TestReportReconciliationUploadSummaryPdfPersistsR2Object(t *testing.T) {
+	pdfBytes := makeReconciliationPDF(reconciliationMetricLines(nil))
+	db := &fakeWriteDB{fakeDB: &fakeDB{
+		rowsQueue: []pgx.Row{fakeRow{values: []any{int64(7)}}},
+	}}
+	blobs := &fakeReconciliationBlobs{publicURLPrefix: "https://cdn.example.com"}
+	store := NewReportReconciliationStoreWithOptions(db, ReportReconciliationStoreOptions{
+		Blobs: blobs,
+	})
+	store.fileRoot = t.TempDir()
+
+	response, err := store.UploadSummaryPdf(
+		context.Background(),
+		42,
+		"summary.pdf",
+		pdfBytes,
+		"alice",
+		true,
+	)
+	if err != nil {
+		t.Fatalf("UploadSummaryPdf() error = %v", err)
+	}
+	if len(blobs.puts) != 1 {
+		t.Fatalf("Put calls = %d, want 1", len(blobs.puts))
+	}
+	put := blobs.puts[0]
+	if !strings.HasPrefix(put.key, "monthly_summary_pdf/42/") || !strings.HasSuffix(put.key, ".pdf") {
+		t.Fatalf("put key = %q", put.key)
+	}
+	if put.contentType != "application/pdf" || !bytes.Equal(put.data, pdfBytes) {
+		t.Fatalf("put content = %q/%d bytes", put.contentType, len(put.data))
+	}
+	if response.PdfFileID != put.key {
+		t.Fatalf("pdf_file_id = %q, want %q", response.PdfFileID, put.key)
+	}
+	wantURL := "https://cdn.example.com/" + put.key
+	if response.PdfFilePath != wantURL {
+		t.Fatalf("pdf_file_path = %q, want %q", response.PdfFilePath, wantURL)
+	}
+	if len(db.execCalls) != 1 {
+		t.Fatalf("Exec calls = %d, want 1", len(db.execCalls))
+	}
+	args := db.execCalls[0].args
+	if len(args) != 4 || args[0] != put.key || args[1] != wantURL || args[3] != int64(42) {
+		t.Fatalf("database args = %#v", args)
+	}
+	localPath, ok := args[2].(string)
+	if !ok || localPath == "" {
+		t.Fatalf("local fallback path = %#v", args[2])
+	}
+	localBytes, err := os.ReadFile(localPath)
+	if err != nil {
+		t.Fatalf("read local fallback: %v", err)
+	}
+	if !bytes.Equal(localBytes, pdfBytes) {
+		t.Fatal("local fallback does not match the uploaded PDF")
+	}
+}
+
+func TestReportReconciliationUploadTransactionCsvPersistsR2Object(t *testing.T) {
+	csvBytes := []byte("date,order_id,amount\n2026-11-01,A,10.00\n")
+	db := &fakeWriteDB{fakeDB: &fakeDB{
+		rowsQueue: []pgx.Row{fakeRow{values: []any{int64(7)}}},
+	}}
+	blobs := &fakeReconciliationBlobs{publicURLPrefix: "https://cdn.example.com"}
+	store := NewReportReconciliationStoreWithOptions(db, ReportReconciliationStoreOptions{
+		Blobs: blobs,
+	})
+	store.fileRoot = t.TempDir()
+
+	response, err := store.UploadTransactionCsv(
+		context.Background(),
+		42,
+		"transactions.csv",
+		csvBytes,
+		"alice",
+		true,
+	)
+	if err != nil {
+		t.Fatalf("UploadTransactionCsv() error = %v", err)
+	}
+	if len(blobs.puts) != 1 {
+		t.Fatalf("Put calls = %d, want 1", len(blobs.puts))
+	}
+	put := blobs.puts[0]
+	if !strings.HasPrefix(put.key, "transaction_csv/42/") || !strings.HasSuffix(put.key, ".csv") {
+		t.Fatalf("put key = %q", put.key)
+	}
+	if put.contentType != "text/csv; charset=utf-8" || !bytes.Equal(put.data, csvBytes) {
+		t.Fatalf("put content = %q/%d bytes", put.contentType, len(put.data))
+	}
+	if response.CsvFileID != put.key {
+		t.Fatalf("csv_file_id = %q, want %q", response.CsvFileID, put.key)
+	}
+	wantURL := "https://cdn.example.com/" + put.key
+	if response.CsvFilePath != wantURL {
+		t.Fatalf("csv_file_path = %q, want %q", response.CsvFilePath, wantURL)
+	}
+	if len(db.execCalls) != 1 {
+		t.Fatalf("Exec calls = %d, want 1", len(db.execCalls))
+	}
+	args := db.execCalls[0].args
+	if len(args) != 3 || args[0] != put.key || args[2] != int64(42) {
+		t.Fatalf("database args = %#v", args)
+	}
+	localPath, ok := args[1].(string)
+	if !ok || localPath == "" {
+		t.Fatalf("local fallback path = %#v", args[1])
+	}
+	localBytes, err := os.ReadFile(localPath)
+	if err != nil {
+		t.Fatalf("read local fallback: %v", err)
+	}
+	if !bytes.Equal(localBytes, csvBytes) {
+		t.Fatal("local fallback does not match the uploaded CSV")
+	}
+}
+
+func TestReportReconciliationUploadRemovesObjectWhenDatabaseWriteFails(t *testing.T) {
+	pdfBytes := makeReconciliationPDF(reconciliationMetricLines(nil))
+	csvBytes := []byte("date,order_id,amount\n2026-11-01,A,10.00\n")
+	tests := []struct {
+		name       string
+		wantPrefix string
+		upload     func(*ReportReconciliationStore) error
+	}{
+		{
+			name:       "pdf",
+			wantPrefix: "monthly_summary_pdf/42/",
+			upload: func(store *ReportReconciliationStore) error {
+				_, err := store.UploadSummaryPdf(context.Background(), 42, "summary.pdf", pdfBytes, "alice", true)
+				return err
+			},
+		},
+		{
+			name:       "csv",
+			wantPrefix: "transaction_csv/42/",
+			upload: func(store *ReportReconciliationStore) error {
+				_, err := store.UploadTransactionCsv(context.Background(), 42, "transactions.csv", csvBytes, "alice", true)
+				return err
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			db := &fakeWriteDB{
+				fakeDB:  &fakeDB{rowsQueue: []pgx.Row{fakeRow{values: []any{int64(7)}}}},
+				execErr: errors.New("database unavailable"),
+			}
+			blobs := &fakeReconciliationBlobs{publicURLPrefix: "https://cdn.example.com"}
+			store := NewReportReconciliationStoreWithOptions(db, ReportReconciliationStoreOptions{
+				Blobs: blobs,
+			})
+			store.fileRoot = t.TempDir()
+
+			if err := test.upload(store); err == nil {
+				t.Fatal("upload succeeded despite database failure")
+			}
+			if len(blobs.deletedKeys) != 1 || !strings.HasPrefix(blobs.deletedKeys[0], test.wantPrefix) {
+				t.Fatalf("compensating deletes = %#v", blobs.deletedKeys)
+			}
+			assertReconciliationStorageEmpty(t, store.fileRoot)
+		})
+	}
+}
+
+func TestReportReconciliationUploadRequiresObjectStorage(t *testing.T) {
+	pdfBytes := makeReconciliationPDF(reconciliationMetricLines(nil))
+	csvBytes := []byte("date,order_id,amount\n2026-11-01,A,10.00\n")
+	tests := []struct {
+		name   string
+		upload func(*ReportReconciliationStore) error
+	}{
+		{
+			name: "pdf",
+			upload: func(store *ReportReconciliationStore) error {
+				_, err := store.UploadSummaryPdf(context.Background(), 42, "summary.pdf", pdfBytes, "alice", true)
+				return err
+			},
+		},
+		{
+			name: "csv",
+			upload: func(store *ReportReconciliationStore) error {
+				_, err := store.UploadTransactionCsv(context.Background(), 42, "transactions.csv", csvBytes, "alice", true)
+				return err
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			db := &fakeWriteDB{fakeDB: &fakeDB{
+				rowsQueue: []pgx.Row{fakeRow{values: []any{int64(7)}}},
+			}}
+			store := NewReportReconciliationStore(db)
+			store.fileRoot = t.TempDir()
+
+			err := test.upload(store)
+			if !errors.Is(err, report_reconciliation.ErrObjectStorageUnavailable) {
+				t.Fatalf("error = %v, want ErrObjectStorageUnavailable", err)
+			}
+			if len(db.execCalls) != 0 {
+				t.Fatalf("database writes = %d, want 0", len(db.execCalls))
+			}
+			assertReconciliationStorageEmpty(t, store.fileRoot)
+		})
+	}
+}
+
+func TestReportReconciliationUploadRejectsObjectStorageFailure(t *testing.T) {
+	pdfBytes := makeReconciliationPDF(reconciliationMetricLines(nil))
+	csvBytes := []byte("date,order_id,amount\n2026-11-01,A,10.00\n")
+	tests := []struct {
+		name   string
+		upload func(*ReportReconciliationStore) error
+	}{
+		{
+			name: "pdf",
+			upload: func(store *ReportReconciliationStore) error {
+				_, err := store.UploadSummaryPdf(context.Background(), 42, "summary.pdf", pdfBytes, "alice", true)
+				return err
+			},
+		},
+		{
+			name: "csv",
+			upload: func(store *ReportReconciliationStore) error {
+				_, err := store.UploadTransactionCsv(context.Background(), 42, "transactions.csv", csvBytes, "alice", true)
+				return err
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			db := &fakeWriteDB{fakeDB: &fakeDB{
+				rowsQueue: []pgx.Row{fakeRow{values: []any{int64(7)}}},
+			}}
+			blobs := &fakeReconciliationBlobs{putErr: errors.New("R2 unavailable")}
+			store := NewReportReconciliationStoreWithOptions(db, ReportReconciliationStoreOptions{
+				Blobs: blobs,
+			})
+			store.fileRoot = t.TempDir()
+
+			err := test.upload(store)
+			if !errors.Is(err, report_reconciliation.ErrObjectStorageUnavailable) {
+				t.Fatalf("error = %v, want ErrObjectStorageUnavailable", err)
+			}
+			if len(db.execCalls) != 0 {
+				t.Fatalf("database writes = %d, want 0", len(db.execCalls))
+			}
+			if len(blobs.deletedKeys) != 0 {
+				t.Fatalf("deleted keys = %#v, want none", blobs.deletedKeys)
+			}
+			assertReconciliationStorageEmpty(t, store.fileRoot)
+		})
+	}
+}
+
+func TestReportReconciliationDownloadsPreferLocalFiles(t *testing.T) {
+	pdfBytes := makeReconciliationPDF(reconciliationMetricLines(nil))
+	csvBytes := []byte("date,order_id,amount\n2026-11-01,A,10.00\n")
+	root := t.TempDir()
+	pdfPath := filepath.Join(root, "summary.pdf")
+	csvPath := filepath.Join(root, "transactions.csv")
+	if err := os.WriteFile(pdfPath, pdfBytes, 0o600); err != nil {
+		t.Fatalf("write PDF fixture: %v", err)
+	}
+	if err := os.WriteFile(csvPath, csvBytes, 0o600); err != nil {
+		t.Fatalf("write CSV fixture: %v", err)
+	}
+	db := &fakeDB{rowsQueue: []pgx.Row{
+		fakeRow{values: []any{int64(7)}},
+		fakeRow{values: []any{
+			"Project A", "2026-10", &pdfPath,
+			stringPtr("monthly_summary_pdf/42/legacy.pdf"),
+			stringPtr("https://pub-r2.believeboy.com/monthly_summary_pdf/42/legacy.pdf"),
+		}},
+		fakeRow{values: []any{
+			int64(7), "Project A", "2026-10",
+			stringPtr("https://pub-r2.believeboy.com/transaction_csv/42/legacy.csv"),
+			&csvPath,
+		}},
+	}}
+	store := NewReportReconciliationStore(&fakeWriteDB{fakeDB: db})
+
+	_, downloadedPDF, err := store.DownloadPdf(context.Background(), 42, "alice", true)
+	if err != nil {
+		t.Fatalf("DownloadPdf() error = %v", err)
+	}
+	if !bytes.Equal(downloadedPDF, pdfBytes) {
+		t.Fatal("DownloadPdf() did not prefer the local fallback")
+	}
+	_, downloadedCSV, err := store.DownloadCsv(context.Background(), 42, "alice", true)
+	if err != nil {
+		t.Fatalf("DownloadCsv() error = %v", err)
+	}
+	if !bytes.Equal(downloadedCSV, csvBytes) {
+		t.Fatal("DownloadCsv() did not prefer the local fallback")
+	}
+}
+
+func TestReportReconciliationDownloadsResolveLegacyObjectKeys(t *testing.T) {
+	pdfBytes := makeReconciliationPDF(reconciliationMetricLines(nil))
+	csvBytes := []byte("date,order_id,amount\n2026-11-01,A,10.00\n")
+	var requestedPaths []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestedPaths = append(requestedPaths, r.URL.Path)
+		switch {
+		case strings.HasSuffix(r.URL.Path, ".pdf"):
+			_, _ = w.Write(pdfBytes)
+		case strings.HasSuffix(r.URL.Path, ".csv"):
+			_, _ = w.Write(csvBytes)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	db := &fakeDB{rowsQueue: []pgx.Row{
+		fakeRow{values: []any{int64(7)}},
+		fakeRow{values: []any{
+			"Project A", "2026-10", nil,
+			stringPtr("monthly_summary_pdf/42/legacy.pdf"), nil,
+		}},
+		fakeRow{values: []any{
+			int64(7), "Project A", "2026-10",
+			stringPtr("transaction_csv/42/legacy.csv"), nil,
+		}},
+	}}
+	store := NewReportReconciliationStoreWithOptions(&fakeWriteDB{fakeDB: db}, ReportReconciliationStoreOptions{
+		PublicURL: server.URL,
+	})
+	store.httpClient = server.Client()
+
+	_, downloadedPDF, err := store.DownloadPdf(context.Background(), 42, "alice", true)
+	if err != nil {
+		t.Fatalf("DownloadPdf() error = %v", err)
+	}
+	if !bytes.Equal(downloadedPDF, pdfBytes) {
+		t.Fatal("DownloadPdf() did not fetch the legacy R2 key")
+	}
+	_, downloadedCSV, err := store.DownloadCsv(context.Background(), 42, "alice", true)
+	if err != nil {
+		t.Fatalf("DownloadCsv() error = %v", err)
+	}
+	if !bytes.Equal(downloadedCSV, csvBytes) {
+		t.Fatal("DownloadCsv() did not fetch the legacy R2 key")
+	}
+	wantPaths := []string{
+		"/monthly_summary_pdf/42/legacy.pdf",
+		"/transaction_csv/42/legacy.csv",
+	}
+	if len(requestedPaths) != len(wantPaths) {
+		t.Fatalf("requested paths = %#v, want %#v", requestedPaths, wantPaths)
+	}
+	for index, want := range wantPaths {
+		if requestedPaths[index] != want {
+			t.Fatalf("requested paths = %#v, want %#v", requestedPaths, wantPaths)
+		}
+	}
+}
+
+func TestReportReconciliationObjectURLUsesConfiguration(t *testing.T) {
+	blobs := &fakeReconciliationBlobs{publicURLPrefix: "https://cdn.example.com"}
+	store := NewReportReconciliationStoreWithOptions(&fakeWriteDB{fakeDB: &fakeDB{}}, ReportReconciliationStoreOptions{
+		Blobs:     blobs,
+		PublicURL: "https://fallback.example.com",
+	})
+	if got := store.objectURL("monthly_summary_pdf/42/summary.pdf"); got != "https://cdn.example.com/monthly_summary_pdf/42/summary.pdf" {
+		t.Fatalf("objectURL() = %q", got)
+	}
+
+	fallback := NewReportReconciliationStoreWithOptions(&fakeWriteDB{fakeDB: &fakeDB{}}, ReportReconciliationStoreOptions{
+		PublicURL: "https://fallback.example.com/",
+	})
+	if got := fallback.objectURL("/transaction_csv/42/transactions.csv"); got != "https://fallback.example.com/transaction_csv/42/transactions.csv" {
+		t.Fatalf("fallback objectURL() = %q", got)
+	}
+
+	unconfigured := NewReportReconciliationStore(&fakeWriteDB{fakeDB: &fakeDB{}})
+	if got := unconfigured.objectURL("monthly_summary_pdf/42/summary.pdf"); got != "" {
+		t.Fatalf("unconfigured objectURL() = %q, want empty", got)
+	}
+}
+
+func assertReconciliationStorageEmpty(t *testing.T, root string) {
+	t.Helper()
+	directory := filepath.Join(root, "reconciliation", "report-42")
+	entries, err := os.ReadDir(directory)
+	if errors.Is(err, os.ErrNotExist) {
+		return
+	}
+	if err != nil {
+		t.Fatalf("read reconciliation storage: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("reconciliation storage still has %d files", len(entries))
 	}
 }
 
@@ -585,7 +1031,9 @@ func TestReportReconciliationStoreIntegration(t *testing.T) {
 		t.Fatalf("insert PT3: %v", err)
 	}
 
-	store := NewReportReconciliationStore(NewPGXDB(pool))
+	store := NewReportReconciliationStoreWithOptions(NewPGXDB(pool), ReportReconciliationStoreOptions{
+		Blobs: &fakeReconciliationBlobs{publicURLPrefix: "https://cdn.example.com"},
+	})
 	reports, err := store.GetAvailableReports(ctx, report_reconciliation.AvailableReportsFilter{
 		ProjectID: &projectID,
 		IsAdmin:   true,

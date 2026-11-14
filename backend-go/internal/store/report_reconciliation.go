@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -21,18 +22,112 @@ import (
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/report_reconciliation"
 )
 
+// ReconciliationObjectStore is the object-storage surface required by the
+// reconciliation upload/download paths. *blob.Store satisfies it.
+type ReconciliationObjectStore interface {
+	Put(ctx context.Context, key string, data []byte, contentType string) (string, error)
+	Delete(ctx context.Context, key string) error
+	PublicURL(key string) (string, error)
+}
+
+// ReportReconciliationStoreOptions carries optional object-storage wiring.
+// PublicURL is used to resolve legacy key-only rows when a blob client is not
+// available.
+type ReportReconciliationStoreOptions struct {
+	Blobs     ReconciliationObjectStore
+	PublicURL string
+}
+
 type ReportReconciliationStore struct {
 	db         FullDB
 	fileRoot   string
 	httpClient *http.Client
+	blobs      ReconciliationObjectStore
+	publicURL  string
 }
 
 func NewReportReconciliationStore(db FullDB) *ReportReconciliationStore {
+	return NewReportReconciliationStoreWithOptions(db, ReportReconciliationStoreOptions{})
+}
+
+func NewReportReconciliationStoreWithOptions(
+	db FullDB,
+	options ReportReconciliationStoreOptions,
+) *ReportReconciliationStore {
 	return &ReportReconciliationStore{
 		db:         db,
 		fileRoot:   reconciliationFileRoot(),
 		httpClient: &http.Client{Timeout: 20 * time.Second},
+		blobs:      options.Blobs,
+		publicURL:  strings.TrimRight(strings.TrimSpace(options.PublicURL), "/"),
 	}
+}
+
+func (s *ReportReconciliationStore) objectURL(key string) string {
+	key = strings.TrimLeft(strings.TrimSpace(key), "/")
+	if key == "" {
+		return ""
+	}
+	if s.blobs != nil {
+		if value, err := s.blobs.PublicURL(key); err == nil {
+			if value = strings.TrimSpace(value); value != "" {
+				return value
+			}
+		}
+	}
+	if s.publicURL == "" {
+		return ""
+	}
+	return s.publicURL + "/" + escapeReconciliationObjectKey(key)
+}
+
+func escapeReconciliationObjectKey(key string) string {
+	parts := strings.Split(key, "/")
+	for index, part := range parts {
+		parts[index] = url.PathEscape(part)
+	}
+	return strings.Join(parts, "/")
+}
+
+func (s *ReportReconciliationStore) putReconciliationObject(
+	ctx context.Context,
+	key string,
+	data []byte,
+	contentType string,
+) (string, error) {
+	if s.blobs == nil {
+		return "", fmt.Errorf(
+			"%w: object storage is not configured",
+			report_reconciliation.ErrObjectStorageUnavailable,
+		)
+	}
+	value, err := s.blobs.Put(ctx, key, data, contentType)
+	if err != nil {
+		return "", fmt.Errorf(
+			"%w: %v",
+			report_reconciliation.ErrObjectStorageUnavailable,
+			err,
+		)
+	}
+	value = strings.TrimSpace(value)
+	if value == "" {
+		s.deleteReconciliationObject(ctx, key)
+		return "", fmt.Errorf(
+			"%w: object storage returned an empty URL",
+			report_reconciliation.ErrObjectStorageUnavailable,
+		)
+	}
+	return value, nil
+}
+
+func (s *ReportReconciliationStore) deleteReconciliationObject(ctx context.Context, key string) {
+	if s == nil || s.blobs == nil || strings.TrimSpace(key) == "" {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	_ = s.blobs.Delete(context.WithoutCancel(ctx), key)
 }
 
 func (s *ReportReconciliationStore) VerifyProjectAccess(ctx context.Context, projectID int64, op string, isAdmin bool) error {
@@ -272,7 +367,7 @@ func (s *ReportReconciliationStore) AutoReconcile(ctx context.Context, req repor
 		urlValue = *pdfURL
 	}
 	if urlValue == "" && pdfKey != nil && *pdfKey != "" {
-		urlValue = "https://pub-r2.believeboy.com/" + strings.TrimLeft(*pdfKey, "/")
+		urlValue = s.objectURL(*pdfKey)
 	}
 	pdfBytes, err := loadReportArtifact(ctx, s.httpClient, pathValue, urlValue)
 	if err != nil {
@@ -715,7 +810,11 @@ func (s *ReportReconciliationStore) UploadSummaryPdf(ctx context.Context, report
 	}
 	basename := filepath.Base(filePath)
 	key := fmt.Sprintf("monthly_summary_pdf/%d/%s", reportID, basename)
-	url := fmt.Sprintf("https://pub-r2.believeboy.com/%s", key)
+	objectURL, err := s.putReconciliationObject(ctx, key, pdfBytes, "application/pdf")
+	if err != nil {
+		_ = os.Remove(filePath)
+		return nil, err
+	}
 
 	updateSQL := `
 		update public.monthly_reports
@@ -726,15 +825,16 @@ func (s *ReportReconciliationStore) UploadSummaryPdf(ctx context.Context, report
 		    updated_at = now()
 		where id = $4
 	`
-	if _, err := s.db.Exec(ctx, updateSQL, key, url, filePath, reportID); err != nil {
+	if _, err := s.db.Exec(ctx, updateSQL, key, objectURL, filePath, reportID); err != nil {
 		_ = os.Remove(filePath)
+		s.deleteReconciliationObject(ctx, key)
 		return nil, err
 	}
 
 	return &report_reconciliation.PDFUploadResponse{
 		ReportID:         reportID,
 		PdfFileID:        key,
-		PdfFilePath:      url,
+		PdfFilePath:      objectURL,
 		OriginalFilename: filename,
 		Size:             int64(len(pdfBytes)),
 		Message:          "PDF uploaded successfully",
@@ -768,7 +868,11 @@ func (s *ReportReconciliationStore) UploadTransactionCsv(ctx context.Context, re
 		return nil, err
 	}
 	key := fmt.Sprintf("transaction_csv/%d/%s", reportID, filepath.Base(filePath))
-	url := fmt.Sprintf("https://pub-r2.believeboy.com/%s", key)
+	objectURL, err := s.putReconciliationObject(ctx, key, csvBytes, "text/csv; charset=utf-8")
+	if err != nil {
+		_ = os.Remove(filePath)
+		return nil, err
+	}
 
 	updateSQL := `
 		update public.monthly_reports
@@ -779,13 +883,14 @@ func (s *ReportReconciliationStore) UploadTransactionCsv(ctx context.Context, re
 	`
 	if _, err := s.db.Exec(ctx, updateSQL, key, filePath, reportID); err != nil {
 		_ = os.Remove(filePath)
+		s.deleteReconciliationObject(ctx, key)
 		return nil, err
 	}
 
 	return &report_reconciliation.CSVUploadResponse{
 		ReportID:         reportID,
 		CsvFileID:        key,
-		CsvFilePath:      url,
+		CsvFilePath:      objectURL,
 		OriginalFilename: filename,
 		Size:             int64(len(csvBytes)),
 		Message:          "CSV uploaded successfully",
@@ -890,7 +995,7 @@ func (s *ReportReconciliationStore) DownloadPdf(ctx context.Context, reportID in
 		urlValue = *pdfURL
 	}
 	if urlValue == "" && pdfKey != nil && *pdfKey != "" {
-		urlValue = "https://pub-r2.believeboy.com/" + strings.TrimLeft(*pdfKey, "/")
+		urlValue = s.objectURL(*pdfKey)
 	}
 	content, err := loadReportArtifact(ctx, s.httpClient, pathValue, urlValue)
 	if err != nil {
@@ -927,7 +1032,7 @@ func (s *ReportReconciliationStore) DownloadCsv(ctx context.Context, reportID in
 		if strings.HasPrefix(*csvFileID, "http://") || strings.HasPrefix(*csvFileID, "https://") {
 			urlValue = *csvFileID
 		} else if *csvFileID != "" {
-			urlValue = "https://pub-r2.believeboy.com/" + strings.TrimLeft(*csvFileID, "/")
+			urlValue = s.objectURL(*csvFileID)
 		}
 	}
 	content, err := loadReportArtifact(ctx, s.httpClient, pathValue, urlValue)

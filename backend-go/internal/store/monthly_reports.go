@@ -1461,6 +1461,13 @@ func (s *MonthlyReportStore) ExportReport(
 			Content:     content,
 		}, nil
 	case monthly_reports.MonthlyReportExportFormatPDF:
+		if path := existingRegularFile(detail.Report.SummaryPDFStoragePath, s.uploadRoot); path != "" {
+			return &monthly_reports.MonthlyReportExport{
+				Filename:    filepath.Base(path),
+				ContentType: "application/pdf",
+				Path:        path,
+			}, nil
+		}
 		if detail.Report.SummaryPDFR2URL != nil &&
 			strings.TrimSpace(*detail.Report.SummaryPDFR2URL) != "" {
 			if safeURL, ok := monthly_reports.SafeSummaryPDFRedirect(
@@ -1468,13 +1475,6 @@ func (s *MonthlyReportStore) ExportReport(
 			); ok {
 				return &monthly_reports.MonthlyReportExport{RedirectURL: &safeURL}, nil
 			}
-		}
-		if path := existingRegularFile(detail.Report.SummaryPDFStoragePath, s.uploadRoot); path != "" {
-			return &monthly_reports.MonthlyReportExport{
-				Filename:    filepath.Base(path),
-				ContentType: "application/pdf",
-				Path:        path,
-			}, nil
 		}
 		return nil, monthly_reports.ErrExportNotFound
 	default:

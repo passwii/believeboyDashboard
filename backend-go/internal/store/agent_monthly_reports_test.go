@@ -1,11 +1,17 @@
 package store
 
 import (
+	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/audit"
 )
 
 func TestAgentMonthlyMonthAndCountryValidation(t *testing.T) {
@@ -165,6 +171,62 @@ func TestAgentMonthlyReconciliationErrorMapping(t *testing.T) {
 		) {
 			t.Fatalf("auto mapping for %q = %v", err, mapped)
 		}
+	}
+}
+
+func TestAgentMonthlyAutoReconcileResolvesLegacyKeyOnlyPDF(t *testing.T) {
+	pdfBytes := makeReconciliationPDF(reconciliationMetricLines(nil))
+	var requestedPaths []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestedPaths = append(requestedPaths, r.URL.Path)
+		if r.URL.Path != "/monthly_summary_pdf/42/legacy.pdf" {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write(pdfBytes)
+	}))
+	defer server.Close()
+
+	val100 := 100.0
+	val0 := 0.0
+	reportRow := fakeRow{values: []any{
+		int64(42), int64(7), "US", nil,
+		stringPtr("monthly_summary_pdf/42/legacy.pdf"), nil,
+	}}
+	pt3Row := fakeRow{values: []any{
+		int64(1), &val100, &val0, &val100,
+		&val0, &val0, &val0,
+		&val0, &val0, &val0,
+	}}
+	upsertRow := fakeRow{values: []any{int64(101)}}
+	db := &fakeWriteDB{fakeDB: &fakeDB{rowsQueue: []pgx.Row{reportRow, pt3Row, upsertRow}}}
+
+	monthlyStore := NewAgentMonthlyReportStore(db, audit.NewMockService(), AgentMonthlyReportStoreOptions{
+		Root:       t.TempDir(),
+		UploadRoot: t.TempDir(),
+		ResultRoot: t.TempDir(),
+		Blobs:      &fakeReconciliationBlobs{publicURLPrefix: server.URL},
+		PublicURL:  server.URL,
+	})
+
+	result, err := monthlyStore.AutoReconcileAgentMonthlyReport(
+		context.Background(),
+		AgentMonthlyAutoReconcileInput{
+			ReportID:  42,
+			Tolerance: 0.01,
+			AgentID:   "agent-1",
+		},
+		audit.Entry{},
+	)
+	if err != nil {
+		t.Fatalf("AutoReconcileAgentMonthlyReport() error = %v", err)
+	}
+	recordID, ok := result["record_id"].(*int64)
+	if !ok || recordID == nil || *recordID != 101 || result["total_items"] != 9 {
+		t.Fatalf("reconciliation result = %#v", result)
+	}
+	if len(requestedPaths) != 1 || requestedPaths[0] != "/monthly_summary_pdf/42/legacy.pdf" {
+		t.Fatalf("requested paths = %#v, want the legacy key through R2", requestedPaths)
 	}
 }
 

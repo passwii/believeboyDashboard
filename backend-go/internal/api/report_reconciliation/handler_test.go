@@ -257,6 +257,22 @@ func TestReconciliationHandlerMapsReportNotFound(t *testing.T) {
 	}
 }
 
+func TestReconciliationHandlerMapsObjectStorageUnavailable(t *testing.T) {
+	for _, test := range reconciliationSecurityCases() {
+		if test.name != "upload-pdf" && test.name != "upload-csv" {
+			continue
+		}
+		t.Run(test.name, func(t *testing.T) {
+			store := &mockReconStore{}
+			setReconciliationCaseError(store, test.name, ErrObjectStorageUnavailable)
+			response := performReconciliationCase(t, store, test)
+			if response.Code != http.StatusServiceUnavailable {
+				t.Fatalf("status = %d, want 503; body=%s", response.Code, response.Body.String())
+			}
+		})
+	}
+}
+
 func performReconciliationCase(t *testing.T, store Store, test reconciliationHandlerCase) *httptest.ResponseRecorder {
 	t.Helper()
 	router := setupReconRouter(store)
