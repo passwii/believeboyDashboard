@@ -28,6 +28,20 @@
   white-space: nowrap;
 }
 
+.mobileFilterStrip {
+  min-width: 0;
+  color: var(--warm-ledger-color-text);
+  background: var(--warm-ledger-color-panel);
+  border: 1px solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-control);
+  box-shadow: var(--warm-ledger-highlight-rest);
+}
+
+.mobileFilterWide,
+.mobileResetButton {
+  width: 100%;
+}
+
 .panel {
   min-width: 0;
   overflow: hidden;
@@ -660,4 +674,84 @@
 .previewImageZoomed {
   width: 100%;
   max-width: none;
+}
+
+@media (max-width: 640px) {
+  .page {
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .panelHeader {
+    min-height: 52px;
+    padding: var(--warm-ledger-space-2) var(--warm-ledger-space-3);
+  }
+
+  .actionButton {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+    padding-inline: var(--warm-ledger-space-3);
+  }
+
+  .tableRegion {
+    max-height: min(70dvh, 560px);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table {
+    min-width: 780px;
+  }
+
+  .rowAction {
+    width: 40px;
+    height: 40px;
+    min-height: 40px;
+  }
+
+  .pagination {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--warm-ledger-space-2);
+    padding: var(--warm-ledger-space-2);
+    text-align: center;
+  }
+
+  .paginationActions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .paginationButton {
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+    justify-content: center;
+  }
+
+  .dialog {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+    max-height: calc(100vh - 32px);
+    padding: var(--warm-ledger-space-4);
+  }
+
+  .formGrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .input {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .dialogFooter {
+    flex-direction: column-reverse;
+    width: 100%;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .dialogFooter > :global(button),
+  .dialogFooter button {
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
 }
