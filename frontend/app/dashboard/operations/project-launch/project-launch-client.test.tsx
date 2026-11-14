@@ -13,6 +13,8 @@
  * 数据获取不做逐项目详情 fan-out：只对选中项目请求 /projects/{id}/workflows。
  */
 
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -563,5 +565,33 @@ describe('项目启动台 · 产品开发 Tab', () => {
     const section = await screen.findByTestId('product-workflow-202')
     expect(within(section).getByText('女士泳衣')).toBeInTheDocument()
     expect(within(section).getByTestId('workflow-task-2001')).toBeInTheDocument()
+  })
+})
+
+describe('项目启动台 · 手机端适配契约（BLF-1505）', () => {
+  it('样式文件覆盖手机端断点、触控尺寸与安全区吸底', () => {
+    const css = readFileSync(join(__dirname, 'project-launch-warm.module.css'), 'utf8')
+
+    expect(css).toMatch(/@media\s*\(max-width:\s*768px\)/)
+    expect(css).toMatch(/@media\s*\(max-width:\s*640px\)/)
+    expect(css).toMatch(/@media\s*\(max-width:\s*380px\)/)
+    expect(css).toMatch(/--warm-ledger-control-target-touch/)
+    expect(css).toMatch(/safe-area-inset-top/)
+    expect(css).toMatch(/safe-area-inset-bottom/)
+    expect(css).toMatch(/\.dialogHeader\s*\{[^}]*padding-right:\s*calc/s)
+    expect(css).not.toMatch(/\.dialogClose\s*\{[^}]*env\(safe-area-inset-top\)/s)
+  })
+
+  it('手机端选择器与历史切换按钮具备完整无障碍与操作属性', async () => {
+    await renderPage()
+
+    const picker = screen.getByTestId('project-picker')
+    expect(picker).toBeInTheDocument()
+    expect(picker).toHaveValue('1')
+    expect(screen.getByLabelText('项目')).toBe(picker)
+
+    const toggleMobile = screen.getByTestId('toggle-archived-projects-mobile')
+    expect(toggleMobile).toBeInTheDocument()
+    expect(toggleMobile).toHaveTextContent('显示历史/已启动项目（1）')
   })
 })

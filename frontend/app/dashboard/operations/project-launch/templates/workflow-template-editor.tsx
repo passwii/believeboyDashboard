@@ -376,9 +376,9 @@ export default function WorkflowTemplateEditor() {
 
       {newTemplateOpen ? (
         <section className="flex flex-col gap-2 border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] p-2 md:flex-row md:items-end" aria-label="新建模板">
-          <div className="flex-1 space-y-1"><Label htmlFor="new-template-kind">流程类型</Label><select id="new-template-kind" className="h-9 w-full border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-window)] px-2 text-xs text-[var(--warm-ledger-color-text)]" value={newKind} onChange={(event) => setNewKind(event.target.value as typeof newKind)}><option value="store_launch">店铺启动</option><option value="product_development">产品开发</option></select></div>
+          <div className="flex-1 space-y-1"><Label htmlFor="new-template-kind">流程类型</Label><select id="new-template-kind" className={styles.select} value={newKind} onChange={(event) => setNewKind(event.target.value as typeof newKind)}><option value="store_launch">店铺启动</option><option value="product_development">产品开发</option></select></div>
           <div className="flex-[2] space-y-1"><Label htmlFor="new-template-title">模板名称</Label><Input id="new-template-title" value={newTitle} maxLength={160} onChange={(event) => setNewTitle(event.target.value)} placeholder="例如：女士泳衣" /></div>
-          <Button type="button" disabled={busyKey !== null} onClick={() => void addTemplate()}>{busyKey === 'new-template' ? <Loader2 className="animate-spin" /> : <Plus />}创建</Button>
+          <Button type="button" className="w-full md:w-auto" disabled={busyKey !== null} onClick={() => void addTemplate()}>{busyKey === 'new-template' ? <Loader2 className="animate-spin" /> : <Plus />}创建</Button>
         </section>
       ) : null}
 
@@ -386,9 +386,9 @@ export default function WorkflowTemplateEditor() {
         <section className="min-w-0 border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)]" aria-label="模板列表">
           <div className="flex items-center justify-between border-b border-[var(--warm-ledger-color-hairline)] px-2 py-2"><h2 className="text-xs text-[var(--warm-ledger-color-text)]">模板目录</h2><span className={`${styles.numeric} text-[11px] text-[var(--warm-ledger-color-text-muted)]`}>{templates.length}</span></div>
           {loading && templates.length === 0 ? <div className="p-3 text-xs text-[var(--warm-ledger-color-text-muted)]">加载模板中…</div> : templates.length === 0 ? <p className="p-3 text-xs text-[var(--warm-ledger-color-text-muted)]">暂无模板。新建模板后可添加阶段。</p> : (
-            <ul className="divide-y divide-[var(--warm-ledger-color-hairline)]">
+            <ul className="max-h-52 divide-y divide-[var(--warm-ledger-color-hairline)] overflow-y-auto lg:max-h-none">
               {templates.map((template) => <li key={template.id}>
-                <button type="button" aria-current={selectedId === template.id ? 'true' : undefined} onClick={() => setSelectedId(template.id)} className={`flex w-full flex-col gap-1 px-2 py-2 text-left transition-colors hover:bg-[var(--warm-ledger-color-raised-hover)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--warm-ledger-color-hairline-strong)] ${selectedId === template.id ? 'bg-[var(--warm-ledger-color-raised)]' : ''}`}>
+                <button type="button" aria-current={selectedId === template.id ? 'true' : undefined} onClick={() => setSelectedId(template.id)} className={`flex min-h-[44px] w-full flex-col justify-center gap-1 px-2 py-2 text-left transition-colors hover:bg-[var(--warm-ledger-color-raised-hover)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--warm-ledger-color-hairline-strong)] ${selectedId === template.id ? 'bg-[var(--warm-ledger-color-raised)]' : ''}`}>
                   <span className="flex w-full items-center gap-2"><span className="min-w-0 flex-1 truncate text-xs">{template.title}</span><WarmBadge tone="neutral">{WORKFLOW_KIND_LABELS[template.kind]}</WarmBadge></span>
                   <span className={`${styles.numeric} text-[11px] text-[var(--warm-ledger-color-text-muted)]`}>{template.task_count} 个阶段 · {template.key}</span>
                 </button>
@@ -459,7 +459,7 @@ export default function WorkflowTemplateEditor() {
                             <div className="space-y-1"><Label htmlFor={`task-title-${task.id}`}>阶段名称</Label><Input id={`task-title-${task.id}`} value={task.title} onChange={(event) => updateTaskLocal(task.id, { title: event.target.value })} maxLength={160} /></div>
                             <div className="space-y-1"><Label htmlFor={`task-days-${task.id}`}>计划工期（天）</Label><Input id={`task-days-${task.id}`} type="number" min={0} max={3650} value={task.duration_days ?? ''} onChange={(event) => updateTaskLocal(task.id, { duration_days: event.target.value === '' ? null : Number(event.target.value) })} placeholder="未设置" /></div>
                             <div className="space-y-1 md:col-span-2"><Label htmlFor={`task-description-${task.id}`}>阶段说明</Label><Textarea id={`task-description-${task.id}`} value={task.description ?? ''} onChange={(event) => updateTaskLocal(task.id, { description: event.target.value })} rows={2} /></div>
-                            <div className="space-y-1"><Label htmlFor={`task-document-${task.id}`}>固定资料</Label><select id={`task-document-${task.id}`} className="h-9 w-full border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-window)] px-2 text-[11px] text-[var(--warm-ledger-color-text)]" value={task.attachment_key ?? ''} onChange={(event) => updateTaskLocal(task.id, { attachment_key: event.target.value || null })}><option value="">不关联固定资料</option>{Object.entries(WORKFLOW_DOCUMENTS).map(([key, doc]) => <option value={key} key={key}>{doc.label}</option>)}</select></div>
+                            <div className="space-y-1"><Label htmlFor={`task-document-${task.id}`}>固定资料</Label><select id={`task-document-${task.id}`} className={styles.select} value={task.attachment_key ?? ''} onChange={(event) => updateTaskLocal(task.id, { attachment_key: event.target.value || null })}><option value="">不关联固定资料</option>{Object.entries(WORKFLOW_DOCUMENTS).map(([key, doc]) => <option value={key} key={key}>{doc.label}</option>)}</select></div>
                           </div>
                           <div className="flex flex-wrap justify-end gap-1.5">
                             <Button type="button" variant="secondary" size="sm" disabled={busyKey !== null} onClick={() => void runAction(`save-task-${task.id}`, () => saveTask(task), '阶段已保存')}>保存阶段</Button>
@@ -499,7 +499,7 @@ export default function WorkflowTemplateEditor() {
                                     }, '内容已删除')
                                   }}><Trash2 aria-hidden />删除</Button></div>
                                 </div>)}
-                                <div className="grid gap-1 border border-dashed border-[var(--warm-ledger-color-hairline)] p-2"><Label htmlFor={`new-content-title-${task.id}`}>新增内容标题</Label><Input id={`new-content-title-${task.id}`} value={newContentByTask[task.id]?.title ?? ''} onChange={(event) => setNewContentByTask((current) => ({ ...current, [task.id]: { title: event.target.value, body: current[task.id]?.body ?? '' } }))} /><Label htmlFor={`new-content-body-${task.id}`}>新增内容</Label><Textarea id={`new-content-body-${task.id}`} rows={2} value={newContentByTask[task.id]?.body ?? ''} onChange={(event) => setNewContentByTask((current) => ({ ...current, [task.id]: { title: current[task.id]?.title ?? '', body: event.target.value } }))} /><Button type="button" variant="secondary" size="sm" className="justify-self-end" disabled={busyKey !== null || !(newContentByTask[task.id]?.body ?? '').trim()} onClick={() => void runAction(`add-content-${task.id}`, async () => {
+                                <div className="grid gap-1 border border-dashed border-[var(--warm-ledger-color-hairline)] p-2"><Label htmlFor={`new-content-title-${task.id}`}>新增内容标题</Label><Input id={`new-content-title-${task.id}`} value={newContentByTask[task.id]?.title ?? ''} onChange={(event) => setNewContentByTask((current) => ({ ...current, [task.id]: { title: event.target.value, body: current[task.id]?.body ?? '' } }))} /><Label htmlFor={`new-content-body-${task.id}`}>新增内容</Label><Textarea id={`new-content-body-${task.id}`} rows={2} value={newContentByTask[task.id]?.body ?? ''} onChange={(event) => setNewContentByTask((current) => ({ ...current, [task.id]: { title: current[task.id]?.title ?? '', body: event.target.value } }))} /><Button type="button" variant="secondary" size="sm" className="w-full justify-self-stretch sm:w-auto sm:justify-self-end" disabled={busyKey !== null || !(newContentByTask[task.id]?.body ?? '').trim()} onClick={() => void runAction(`add-content-${task.id}`, async () => {
                                   const content = newContentByTask[task.id]
                                   if (!content?.body.trim()) return
                                   const updated = await createTemplateContent(task.id, { title: content.title || undefined, body: content.body }, session)
@@ -522,7 +522,7 @@ export default function WorkflowTemplateEditor() {
                                   }, '附件已移除')
                                 }}><Trash2 aria-hidden /><span className="sr-only">删除 {attachment.filename}</span></Button></li>)}
                               </ul>
-                              <label className="mt-2 inline-flex h-8 cursor-pointer items-center gap-1.5 border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] px-2 text-[11px] text-[var(--warm-ledger-color-text-muted)] hover:border-[var(--warm-ledger-color-hairline-strong)] hover:text-[var(--warm-ledger-color-text)] has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50">
+                              <label className="mt-2 inline-flex min-h-[44px] w-full cursor-pointer items-center justify-center gap-1.5 border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] px-2 text-[11px] text-[var(--warm-ledger-color-text-muted)] hover:border-[var(--warm-ledger-color-hairline-strong)] hover:text-[var(--warm-ledger-color-text)] has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50 sm:min-h-8 sm:w-auto">
                                 {busyKey === `upload-${task.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload aria-hidden className="h-3.5 w-3.5" />}上传附件
                                 <input className="sr-only" type="file" accept=".pdf,.xlsx,.xls,.docx,.doc,.csv,.txt,.zip,.png,.jpg,.jpeg,.webp" disabled={busyKey !== null} onChange={(event: ChangeEvent<HTMLInputElement>) => { void uploadAttachment(task, event.target.files?.[0]); event.target.value = '' }} />
                               </label>
@@ -530,9 +530,9 @@ export default function WorkflowTemplateEditor() {
                             </section>
                           </div>
                           <div className="flex flex-col gap-2 border-t border-[var(--warm-ledger-color-hairline)] pt-3 sm:flex-row sm:items-center sm:justify-between">
-                            <Button type="button" variant="secondary" size="sm" disabled={busyKey !== null || taskIndex === 0} onClick={() => void switchTask(detail.tasks[taskIndex - 1].id)}><ArrowLeft aria-hidden />上一步</Button>
+                            <Button type="button" variant="secondary" size="sm" className="w-full sm:w-auto" disabled={busyKey !== null || taskIndex === 0} onClick={() => void switchTask(detail.tasks[taskIndex - 1].id)}><ArrowLeft aria-hidden />上一步</Button>
                             <span className="text-[11px] text-[var(--warm-ledger-color-text-muted)]">离开此阶段时自动保存阶段设置与已有内容</span>
-                            <Button type="button" variant="secondary" size="sm" disabled={busyKey !== null || taskIndex === detail.tasks.length - 1} onClick={() => void switchTask(detail.tasks[taskIndex + 1].id)}>下一步<ArrowRight aria-hidden /></Button>
+                            <Button type="button" variant="secondary" size="sm" className="w-full sm:w-auto" disabled={busyKey !== null || taskIndex === detail.tasks.length - 1} onClick={() => void switchTask(detail.tasks[taskIndex + 1].id)}>下一步<ArrowRight aria-hidden /></Button>
                           </div>
                         </div>
                       })()}
@@ -540,7 +540,7 @@ export default function WorkflowTemplateEditor() {
                   ) : <p className="border border-dashed border-[var(--warm-ledger-color-hairline)] p-4 text-xs text-[var(--warm-ledger-color-text-muted)]">当前模板还没有阶段，添加阶段后即可开始编辑。</p>}
                   <div className="flex flex-col gap-2 border-t border-[var(--warm-ledger-color-hairline)] pt-3 sm:flex-row sm:items-end">
                     <div className="min-w-0 flex-1 space-y-1"><Label htmlFor="new-template-task">新增阶段</Label><Input id="new-template-task" value={newTaskTitle} onChange={(event) => setNewTaskTitle(event.target.value)} placeholder="输入阶段名称" onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); void addTask() } }} /></div>
-                    <Button type="button" variant="secondary" disabled={busyKey !== null || !newTaskTitle.trim()} onClick={() => void addTask()}>{busyKey === 'new-task' ? <Loader2 className="animate-spin" /> : <Plus aria-hidden />}新增阶段</Button>
+                    <Button type="button" variant="secondary" className="w-full sm:w-auto" disabled={busyKey !== null || !newTaskTitle.trim()} onClick={() => void addTask()}>{busyKey === 'new-task' ? <Loader2 className="animate-spin" /> : <Plus aria-hidden />}新增阶段</Button>
                   </div>
                 </section>
               </div>

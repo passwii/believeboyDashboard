@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -232,5 +234,24 @@ describe('项目启动台模板编辑器', () => {
 
     await waitFor(() => expect(screen.getByLabelText('阶段名称')).toHaveValue('样品验收'))
     expect(within(screen.getByLabelText('模板列表')).getByText(/2 个阶段/)).toBeInTheDocument()
+  })
+})
+
+describe('流程模板管理 · 手机端适配契约（BLF-1505）', () => {
+  it('样式文件覆盖手机端断点、触控尺寸与响应式骨架屏', () => {
+    const css = readFileSync(join(__dirname, 'workflow-template-editor-warm.module.css'), 'utf8')
+
+    expect(css).toMatch(/@media\s*\(max-width:\s*640px\)/)
+    expect(css).toMatch(/--warm-ledger-control-target-touch/)
+    expect(css).toMatch(/\.select\s*\{/)
+  })
+
+  it('固定资料与流程类型选择控件使用规范样式并具有完整选项', async () => {
+    render(<WorkflowTemplateEditor />)
+    await waitFor(() => expect(screen.getByLabelText('阶段名称')).toHaveValue('资料准备'))
+
+    const docSelect = screen.getByLabelText('固定资料')
+    expect(docSelect).toBeInTheDocument()
+    expect(docSelect).toHaveValue('amazon_registration_form')
   })
 })
