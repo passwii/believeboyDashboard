@@ -6,9 +6,10 @@ import (
 )
 
 var (
-	ErrReportNotFound   = errors.New("report not found")
-	ErrPt3NotFound      = errors.New("PT3 calculation not found")
-	ErrProjectForbidden = errors.New("无权限访问该项目")
+	ErrReportNotFound           = errors.New("report not found")
+	ErrPt3NotFound              = errors.New("PT3 calculation not found")
+	ErrProjectForbidden         = errors.New("无权限访问该项目")
+	ErrObjectStorageUnavailable = errors.New("object storage unavailable")
 )
 
 type ReconciliationRecordItem struct {

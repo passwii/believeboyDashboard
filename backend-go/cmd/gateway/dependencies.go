@@ -111,6 +111,11 @@ var _ platform_revenues.BlobStore = (*blob.Store)(nil)
 // drift cannot silently turn historical results into a 503 again.
 var _ product_analysis_reports.ObjectURLBuilder = (*blob.Store)(nil)
 
+// Report reconciliation uploads must reach object storage; keep the wiring
+// checked at compile time so a missing method cannot silently fall back to a
+// local-only write with a fabricated public URL.
+var _ store.ReconciliationObjectStore = (*blob.Store)(nil)
+
 func newDependencies(ctx context.Context, cfg config.Config) (*dependencies, error) {
 	deps := &dependencies{Close: func() {}}
 	var pools []*pgxpool.Pool
@@ -220,7 +225,9 @@ func newDependencies(ctx context.Context, cfg config.Config) (*dependencies, err
 			cfg.OwnedModules[config.ModuleCRMIntent] ||
 			cfg.OwnedModules[config.ModuleVatInvoices] ||
 			cfg.OwnedModules["product_analysis_reports"] ||
-			cfg.OwnedModules["exchange_rates_write"] {
+			cfg.OwnedModules["exchange_rates_write"] ||
+			cfg.OwnedModules[config.ModuleReportReconciliation] ||
+			cfg.OwnedModules["agent_monthly_reports"] {
 			createdObjectStore, err := newObjectStore(cfg)
 			if err != nil {
 				closeAll()
@@ -446,9 +453,18 @@ func newDependencies(ctx context.Context, cfg config.Config) (*dependencies, err
 			)
 		}
 		if cfg.OwnedModules[config.ModuleReportReconciliation] {
+			reconciliationOptions := store.ReportReconciliationStoreOptions{
+				PublicURL: cfg.R2PublicURL,
+			}
+			if objectStore != nil {
+				reconciliationOptions.Blobs = objectStore
+			}
 			deps.Stores.CustomRegistrars = append(
 				deps.Stores.CustomRegistrars,
-				report_reconciliation.NewRegistrar(store.NewReportReconciliationStore(primaryDB), auditSvc),
+				report_reconciliation.NewRegistrar(
+					store.NewReportReconciliationStoreWithOptions(primaryDB, reconciliationOptions),
+					auditSvc,
+				),
 			)
 		}
 		if cfg.OwnedModules["product_analysis"] {
@@ -637,15 +653,20 @@ func newDependencies(ctx context.Context, cfg config.Config) (*dependencies, err
 					)
 				}
 				queueClients = append(queueClients, queueClient)
+				agentMonthlyOptions := store.AgentMonthlyReportStoreOptions{
+					Root:       cfg.AgentMonthlyReportRoot,
+					UploadRoot: cfg.UploadRoot,
+					ResultRoot: cfg.MonthlyReportResultRoot,
+					Now:        time.Now,
+					PublicURL:  cfg.R2PublicURL,
+				}
+				if objectStore != nil {
+					agentMonthlyOptions.Blobs = objectStore
+				}
 				monthlyStore := store.NewAgentMonthlyReportStore(
 					primaryDB,
 					auditSvc,
-					store.AgentMonthlyReportStoreOptions{
-						Root:       cfg.AgentMonthlyReportRoot,
-						UploadRoot: cfg.UploadRoot,
-						ResultRoot: cfg.MonthlyReportResultRoot,
-						Now:        time.Now,
-					},
+					agentMonthlyOptions,
 				)
 				deps.Stores.CustomRegistrars = append(
 					deps.Stores.CustomRegistrars,
