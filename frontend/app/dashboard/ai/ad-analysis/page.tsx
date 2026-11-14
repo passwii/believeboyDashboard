@@ -143,7 +143,7 @@ function HistoryTab({
     <div className={styles.stack}>
       <section className={styles.panel}>
         <div className={styles.panelBody}>
-          <div className={styles.filters}>
+          <div className={styles.filters} data-testid="ai-ad-filters">
             <div className={styles.field}>
               <WarmSelect
                 id="ad-project"

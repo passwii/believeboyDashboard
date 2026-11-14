@@ -96,13 +96,13 @@ describe('DataStream：轮换 timer 与 transition 同源', () => {
 })
 
 describe('Digital employee Warm styling contract', () => {
-  it('uses Warm tokens without Terminal aliases or desktop breakpoints', () => {
+  it('uses Warm tokens with phone layout support and no Terminal aliases', () => {
     const css = readFileSync(join(__dirname, 'digital-employee-warm.module.css'), 'utf8')
 
     expect(css).toContain('var(--warm-ledger-color-panel)')
     expect(css).toContain('var(--warm-ledger-radius-panel)')
     expect(css).toContain('var(--warm-ledger-inset-panel)')
     expect(css).not.toContain('--term-')
-    expect(css).not.toContain('@media')
+    expect(css).toContain('@media (max-width: 640px)')
   })
 })

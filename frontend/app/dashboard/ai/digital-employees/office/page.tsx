@@ -245,7 +245,7 @@ export default function DigitalOfficePage() {
           ))}
         </div>
       ) : (
-        <div className={styles.officeGrid}>
+        <div className={styles.officeGrid} data-testid="digital-office-grid">
           {sorted.map((employee) => (
             <OfficeBadge key={employee.employee_id} employee={employee} />
           ))}

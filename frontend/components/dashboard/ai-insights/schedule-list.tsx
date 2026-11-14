@@ -318,7 +318,11 @@ export function ScheduleList({ onEdit, onRefresh, isRefreshing, insightType }: S
                 <TableCell>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-9 w-9 p-0 sm:h-8 sm:w-8">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-11 w-11 p-0 sm:h-8 sm:w-8"
+                      >
                         <MoreHorizontal className="h-4 w-4" />
                         <span className="sr-only">打开菜单</span>
                       </Button>
@@ -328,6 +332,7 @@ export function ScheduleList({ onEdit, onRefresh, isRefreshing, insightType }: S
                       <DropdownMenuItem
                         onClick={() => handleRunNow(schedule)}
                         disabled={actionLoading === schedule.id}
+                        className="min-h-11 sm:min-h-0"
                       >
                         <Play className="mr-2 h-4 w-4" />
                         立即执行
@@ -337,6 +342,7 @@ export function ScheduleList({ onEdit, onRefresh, isRefreshing, insightType }: S
                       <DropdownMenuItem
                         onClick={() => handleToggle(schedule)}
                         disabled={actionLoading === schedule.id}
+                        className="min-h-11 sm:min-h-0"
                       >
                         <Power className="mr-2 h-4 w-4" />
                         {schedule.is_active ? '禁用' : '启用'}
@@ -345,7 +351,10 @@ export function ScheduleList({ onEdit, onRefresh, isRefreshing, insightType }: S
                       <DropdownMenuSeparator />
 
                       {/* Edit */}
-                      <DropdownMenuItem onClick={() => onEdit(schedule)}>
+                      <DropdownMenuItem
+                        onClick={() => onEdit(schedule)}
+                        className="min-h-11 sm:min-h-0"
+                      >
                         <Edit2 className="mr-2 h-4 w-4" />
                         编辑
                       </DropdownMenuItem>
@@ -354,7 +363,7 @@ export function ScheduleList({ onEdit, onRefresh, isRefreshing, insightType }: S
                       <DropdownMenuItem
                         onClick={() => handleDelete(schedule)}
                         disabled={actionLoading === schedule.id}
-                        className="text-term-neg focus:text-term-neg"
+                        className="min-h-11 text-term-neg focus:text-term-neg sm:min-h-0"
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
                         删除

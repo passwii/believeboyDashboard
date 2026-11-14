@@ -46,7 +46,7 @@ export function BelieveboyModelsView({ source }: Props) {
             remarkPlugins={[remarkGfm]}
             components={{
               table: ({ children }) => (
-                <div className={styles.tableScroll}>
+                <div className={styles.tableScroll} data-testid="believeboy-models-table-scroll">
                   <table>{children}</table>
                 </div>
               ),

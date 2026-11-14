@@ -1785,3 +1785,285 @@
 .officeSkeletonCard {
   height: 224px;
 }
+
+@media (max-width: 640px) {
+  .page,
+  .officePage {
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .toolbar {
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .statusSignals {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .toolbarActions {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .toolbarActions :global(.warm-ledger__button) {
+    min-width: 0;
+    flex: 1 1 0;
+    justify-content: center;
+  }
+
+  .skeletonStats,
+  .statsPanel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .skeletonStat {
+    height: 88px;
+  }
+
+  .skeletonStat:nth-child(2n),
+  .statCard:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .skeletonStat:nth-child(-n + 2),
+  .statCard:nth-child(-n + 2) {
+    border-bottom: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+  }
+
+  .statCard {
+    min-height: 88px;
+    gap: var(--warm-ledger-space-2);
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .statValue {
+    font-size: 28px;
+  }
+
+  .skeletonLayout,
+  .listLayout,
+  .detailGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rosterToolbar {
+    min-height: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--warm-ledger-space-2);
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .searchWrap {
+    width: 100%;
+    flex: 0 0 auto;
+  }
+
+  .searchInput {
+    min-height: var(--warm-ledger-control-target-touch);
+    font-size: 16px;
+  }
+
+  .filterGroup {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--warm-ledger-space-1);
+    margin-left: 0;
+  }
+
+  .filterChip {
+    min-width: 0;
+    min-height: var(--warm-ledger-control-target-touch);
+    justify-content: center;
+    padding: 0 var(--warm-ledger-space-1);
+  }
+
+  .employeeRow {
+    grid-template-columns: 48px minmax(0, 1fr);
+    align-items: start;
+    gap: var(--warm-ledger-space-2) var(--warm-ledger-space-3);
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .employeeAvatarWrap {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .employeeIdentity {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .employeeStream {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .employeeRowMeta {
+    min-width: 0;
+    grid-column: 1 / -1;
+    grid-row: 3;
+    justify-content: flex-start;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .employeeStatus {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .chevron {
+    margin-left: auto;
+  }
+
+  .activityBody {
+    padding: var(--warm-ledger-space-2);
+  }
+
+  .profilePanel {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--warm-ledger-space-3);
+    padding: var(--warm-ledger-space-4);
+  }
+
+  .profileMain {
+    align-items: flex-start;
+  }
+
+  .employeeNameTitle {
+    overflow: visible;
+    font-size: 28px;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .profileSubline {
+    line-height: var(--warm-ledger-line-height-body);
+  }
+
+  .profileSignals {
+    flex-wrap: wrap;
+  }
+
+  .profileActions {
+    width: 100%;
+  }
+
+  .profileActions :global(.warm-ledger__button) {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .panelHeader {
+    min-height: 0;
+    flex-wrap: wrap;
+    padding: var(--warm-ledger-space-3) var(--warm-ledger-space-4);
+  }
+
+  .panelBody,
+  .currentTaskBody {
+    padding: var(--warm-ledger-space-4);
+  }
+
+  .taskRow {
+    align-items: flex-start;
+    padding: var(--warm-ledger-space-3) var(--warm-ledger-space-4);
+  }
+
+  .taskName,
+  .taskMeta {
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .railLog {
+    max-height: 320px;
+  }
+
+  .infoList {
+    padding: 0 var(--warm-ledger-space-4) var(--warm-ledger-space-2);
+  }
+
+  .officeToolbar {
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+
+  .overview {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--warm-ledger-space-2);
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .overviewToday {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .officeGrid,
+  .officeSkeletonGrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .officeSkeletonCard {
+    height: 180px;
+  }
+
+  .chatterList {
+    gap: var(--warm-ledger-space-3);
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .spotlight {
+    right: var(--warm-ledger-space-3);
+    bottom: calc(66px + env(safe-area-inset-bottom) + var(--warm-ledger-space-2));
+    left: var(--warm-ledger-space-3);
+    min-width: 0;
+    max-width: none;
+  }
+
+  .presentationPage {
+    padding: calc(var(--warm-ledger-space-4) + env(safe-area-inset-top))
+      calc(var(--warm-ledger-space-3) + env(safe-area-inset-right))
+      calc(var(--warm-ledger-space-4) + env(safe-area-inset-bottom))
+      calc(var(--warm-ledger-space-3) + env(safe-area-inset-left));
+  }
+
+  .presentationHeader {
+    align-items: flex-start;
+    gap: var(--warm-ledger-space-3);
+    margin-bottom: var(--warm-ledger-space-4);
+  }
+
+  .presentationControls {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+
+  .presentationGrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-3);
+    margin-top: var(--warm-ledger-space-4);
+  }
+
+  .officeCardPresentation {
+    min-height: 0;
+    padding: var(--warm-ledger-space-4);
+  }
+
+  .spotlightPresentation {
+    bottom: calc(var(--warm-ledger-space-4) + env(safe-area-inset-bottom));
+    min-width: 0;
+  }
+}
