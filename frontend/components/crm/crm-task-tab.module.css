@@ -106,3 +106,9 @@
   height: 14px;
   margin-right: var(--warm-ledger-space-1);
 }
+
+@media (max-width: 640px) {
+  .compactButton {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+}

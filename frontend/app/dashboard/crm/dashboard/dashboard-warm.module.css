@@ -180,3 +180,45 @@
   background: transparent;
   box-shadow: none;
 }
+
+@media (max-width: 640px) {
+  .kpiGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .kpiTile {
+    min-height: 84px;
+    padding: var(--warm-ledger-space-3);
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .kpiLabel {
+    font-size: 12px;
+  }
+
+  .kpiValue {
+    font-size: 20px;
+  }
+
+  .funnelSummary {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .funnelChart {
+    height: 220px;
+  }
+
+  .stepGrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-2);
+  }
+}
+
+@media (max-width: 380px) {
+  .kpiGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

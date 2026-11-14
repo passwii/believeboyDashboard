@@ -82,3 +82,14 @@
   height: 20px;
   color: var(--warm-ledger-color-text-faint);
 }
+
+@media (max-width: 640px) {
+  .board {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .column {
+    min-height: auto;
+  }
+}

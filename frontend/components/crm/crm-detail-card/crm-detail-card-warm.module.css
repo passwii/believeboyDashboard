@@ -83,3 +83,10 @@
 .card :global(.rounded-none) {
   border-radius: var(--warm-ledger-radius-inner);
 }
+
+@media (max-width: 380px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-1);
+  }
+}

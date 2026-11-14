@@ -81,3 +81,25 @@
   border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
   border-radius: var(--warm-ledger-radius-inner);
 }
+
+@media (max-width: 640px) {
+  .board {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toolbarEnd {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .control,
+  .segment {
+    width: 100%;
+  }
+}

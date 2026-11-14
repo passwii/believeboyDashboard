@@ -132,3 +132,14 @@
   background: transparent;
   box-shadow: none;
 }
+
+@media (max-width: 640px) {
+  .distributionGrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .distributionCard {
+    padding: var(--warm-ledger-space-3);
+  }
+}

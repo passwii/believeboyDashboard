@@ -25,3 +25,19 @@
 .previewSkeleton {
   min-height: 0;
 }
+
+@media (max-width: 640px) {
+  .loadingPage[data-warm-crm-page] {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+    min-height: 0;
+  }
+
+  .loadingSidebar {
+    width: 100%;
+  }
+
+  .previewSkeleton {
+    min-height: 380px;
+  }
+}

@@ -64,3 +64,13 @@
   outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color);
   outline-offset: 1px;
 }
+
+@media (max-width: 640px) {
+  .root {
+    width: 100% !important;
+  }
+
+  .input {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+}

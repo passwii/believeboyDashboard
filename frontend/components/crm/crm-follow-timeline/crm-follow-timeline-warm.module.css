@@ -127,3 +127,26 @@
   font-variant-numeric: var(--warm-ledger-font-variant-numeric);
   font-size: var(--warm-ledger-font-size-label);
 }
+
+@media (max-width: 640px) {
+  .formRow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .dateInput {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+    width: 100%;
+  }
+
+  .actions {
+    width: 100%;
+  }
+
+  .actions button {
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+    justify-content: center;
+  }
+}

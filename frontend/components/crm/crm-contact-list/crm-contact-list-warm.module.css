@@ -168,3 +168,29 @@
   flex-direction: column;
   gap: var(--warm-ledger-space-2);
 }
+
+@media (max-width: 640px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .input {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .formActions {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .formActions button {
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+    justify-content: center;
+  }
+
+  .toolbar button {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+}

@@ -161,3 +161,18 @@
   border-radius: var(--warm-ledger-radius-inner);
   font-size: var(--warm-ledger-font-size-control);
 }
+
+@media (max-width: 640px) {
+  .page {
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .row {
+    padding: var(--warm-ledger-space-3);
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .meta {
+    align-items: flex-start;
+  }
+}

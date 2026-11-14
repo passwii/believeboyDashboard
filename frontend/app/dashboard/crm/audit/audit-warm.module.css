@@ -44,3 +44,26 @@
   color: var(--warm-ledger-color-text-muted);
   font-size: var(--warm-ledger-font-size-control);
 }
+
+@media (max-width: 640px) {
+  .recordCount {
+    width: 100%;
+    text-align: right;
+  }
+
+  .summary {
+    max-width: 200px;
+  }
+
+  .pagination {
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .pagination :global(button) {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+    min-width: var(--warm-ledger-control-target-touch, 44px);
+  }
+}

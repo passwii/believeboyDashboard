@@ -37,6 +37,8 @@ const runsSelfContainedSpec = process.argv.some(
     arg.includes('@mobile-blf617') ||
     arg.includes('crm-mobile-blf618') ||
     arg.includes('@mobile-blf618') ||
+    arg.includes('crm-keyboard-blf1508') ||
+    arg.includes('@mobile-blf1508') ||
     arg.includes('reports-mobile-blf616') ||
     arg.includes('@mobile-blf616') ||
     arg.includes('system-mobile-blf620') ||

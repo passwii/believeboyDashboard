@@ -90,3 +90,66 @@
   justify-content: flex-end;
   padding-top: var(--warm-ledger-space-4);
 }
+
+@media (max-width: 640px) {
+  .settingRow {
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .switch {
+    width: var(--warm-ledger-control-target-touch, 44px);
+    height: var(--warm-ledger-control-target-touch, 44px);
+    flex: 0 0 var(--warm-ledger-control-target-touch, 44px);
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+  }
+
+  .switch[data-state='checked'] {
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .switch::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 36px;
+    height: 20px;
+    border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline-strong);
+    border-radius: 999px;
+    background: var(--warm-ledger-color-raised);
+    transform: translate(-50%, -50%);
+  }
+
+  .switch[data-state='checked']::before {
+    border-color: var(--warm-ledger-color-accent);
+    background: var(--warm-ledger-color-accent);
+  }
+
+  .switchThumb {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(calc(-50% - 8px), -50%);
+  }
+
+  .switch[data-state='checked'] .switchThumb {
+    transform: translate(calc(-50% + 8px), -50%);
+  }
+
+  .daysInput {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .footer {
+    width: 100%;
+  }
+
+  .footer :global(button) {
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+    justify-content: center;
+  }
+}

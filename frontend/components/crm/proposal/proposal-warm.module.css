@@ -342,3 +342,53 @@
   font-size: var(--warm-ledger-font-size-label);
   font-variant-numeric: var(--warm-ledger-font-variant-numeric);
 }
+
+@media (max-width: 640px) {
+  .fieldGrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .input,
+  .select {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .formActions {
+    width: 100%;
+  }
+
+  .formActions :global(button) {
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+    justify-content: center;
+  }
+
+  .linkButton {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .versionRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .versionSelect {
+    flex: 1 1 auto;
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .versionActions {
+    justify-content: flex-end;
+    width: 100%;
+  }
+
+  .versionActions :global(button) {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .previewDefault {
+    min-height: 380px;
+  }
+}

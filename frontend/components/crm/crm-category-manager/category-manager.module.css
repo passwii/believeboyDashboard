@@ -83,3 +83,34 @@
   background: transparent;
   box-shadow: none;
 }
+
+@media (max-width: 640px) {
+  .createRow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .input {
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .createRow :global(button) {
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+    justify-content: center;
+  }
+
+  .categoryRow {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .deleteButton {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+    min-width: var(--warm-ledger-control-target-touch, 44px);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}

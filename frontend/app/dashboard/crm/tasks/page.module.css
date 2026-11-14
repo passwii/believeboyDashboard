@@ -33,3 +33,17 @@
   color: var(--warm-ledger-color-text);
   background: var(--warm-ledger-color-panel);
 }
+
+@media (max-width: 640px) {
+  .toolbarControls {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .select {
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+}
