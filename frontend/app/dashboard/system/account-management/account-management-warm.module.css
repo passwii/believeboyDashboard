@@ -358,3 +358,84 @@
   background: var(--warm-ledger-color-raised-hover);
   color: var(--warm-ledger-color-negative);
 }
+
+@media (max-width: 640px) {
+  .page {
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .panelHeader {
+    min-height: 0;
+    flex-wrap: wrap;
+    align-items: stretch;
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .panelActions {
+    width: 100%;
+  }
+
+  .panelActions > :global(.warm-ledger__button) {
+    min-height: var(--warm-ledger-control-target-touch);
+    flex: 1 1 0;
+    justify-content: center;
+  }
+
+  .tableScroll {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  .table th {
+    padding: 8px var(--warm-ledger-space-3);
+  }
+
+  .table td {
+    padding: 10px var(--warm-ledger-space-3);
+  }
+
+  .rowAction,
+  .dialogClose {
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .dialog {
+    top: auto !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: calc(100dvh - env(safe-area-inset-top)) !important;
+    padding: var(--warm-ledger-space-4) !important;
+    padding-bottom: calc(var(--warm-ledger-space-4) + env(safe-area-inset-bottom)) !important;
+    border-radius: var(--warm-ledger-radius-panel) var(--warm-ledger-radius-panel) 0 0 !important;
+    transform: none !important;
+    animation: none !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .dialogClose {
+    top: var(--warm-ledger-space-2);
+    right: var(--warm-ledger-space-2);
+    width: var(--warm-ledger-control-target-touch);
+    height: var(--warm-ledger-control-target-touch);
+  }
+
+  .input,
+  .selectTrigger {
+    min-height: var(--warm-ledger-control-target-touch);
+    font-size: 16px;
+  }
+
+  .dialogFooter {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dialogFooter > :global(.warm-ledger__button) {
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch);
+    justify-content: center;
+  }
+}

@@ -440,3 +440,121 @@
   outline-offset: var(--warm-ledger-focus-offset) !important;
   box-shadow: none !important;
 }
+
+@media (max-width: 640px) {
+  .page {
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .tabs {
+    width: 100%;
+    flex: 0 0 auto;
+  }
+
+  .tabList {
+    display: grid !important;
+    width: 100%;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow: visible !important;
+  }
+
+  .tabTrigger {
+    min-width: 0;
+    min-height: var(--warm-ledger-control-target-touch) !important;
+    justify-content: center;
+    padding-inline: var(--warm-ledger-space-1) !important;
+    font-size: 12px !important;
+  }
+
+  .tabTrigger svg {
+    display: none;
+  }
+
+  .monthSelect {
+    width: 100%;
+    flex: 0 0 auto;
+  }
+
+  .panelHeader {
+    min-height: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--warm-ledger-space-2);
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .panelLead {
+    width: 100%;
+  }
+
+  .actions {
+    width: 100%;
+    flex-wrap: nowrap;
+  }
+
+  .actionButton {
+    min-width: 0;
+    min-height: var(--warm-ledger-control-target-touch);
+    flex: 1 1 0;
+    justify-content: center;
+  }
+
+  .metricStrip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--warm-ledger-space-2);
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .metric:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .metric {
+    gap: 2px;
+    padding: var(--warm-ledger-space-2) var(--warm-ledger-space-3);
+  }
+
+  .metricValue {
+    font-size: 22px;
+  }
+
+  .tableWrap,
+  .tableWrapCommission {
+    max-height: min(58dvh, 520px);
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  .dataTable th,
+  .dataTable td {
+    padding: 8px var(--warm-ledger-space-3);
+  }
+
+  .rowInput {
+    min-height: var(--warm-ledger-control-target-touch) !important;
+    font-size: 16px !important;
+  }
+
+  .rowSelect :global(.warm-ledger__select) {
+    min-height: var(--warm-ledger-control-target-touch);
+    font-size: 16px;
+  }
+
+  .notePanel {
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .tierGrid {
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .tier {
+    padding: var(--warm-ledger-space-3);
+  }
+}

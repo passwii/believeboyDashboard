@@ -383,3 +383,124 @@
     animation: none;
   }
 }
+
+@media (max-width: 640px) {
+  .page {
+    padding: calc(var(--warm-ledger-space-3) + env(safe-area-inset-top))
+      var(--warm-ledger-space-3)
+      calc(var(--warm-ledger-space-4) + env(safe-area-inset-bottom));
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--warm-ledger-space-3);
+    margin-bottom: var(--warm-ledger-space-4);
+  }
+
+  .brand {
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .brandMark {
+    width: 44px;
+    height: 44px;
+  }
+
+  .brandMark svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .title {
+    font-size: clamp(24px, 7vw, 32px);
+  }
+
+  .clock {
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+
+  .controls {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .select {
+    width: 100%;
+    min-width: 0;
+    grid-column: 1 / -1;
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .button {
+    min-width: 0;
+    min-height: var(--warm-ledger-control-target-touch);
+    justify-content: center;
+    padding-inline: var(--warm-ledger-space-1);
+    font-size: 12px;
+  }
+
+  .countdown {
+    min-height: var(--warm-ledger-control-target-touch);
+    justify-content: center;
+  }
+
+  .loading {
+    min-height: 50vh;
+  }
+
+  .kpiGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--warm-ledger-space-2);
+    margin-bottom: var(--warm-ledger-space-3);
+  }
+
+  .kpiCard,
+  .bigKpi {
+    min-height: 116px;
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .kpiValue {
+    font-size: clamp(26px, 8vw, 42px);
+  }
+
+  .kpiLabel,
+  .kpiSub,
+  .kpiChange {
+    font-size: 12px;
+  }
+
+  .chartCard {
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .chartTitle {
+    margin-bottom: var(--warm-ledger-space-3);
+    font-size: 15px;
+  }
+
+  .chartCanvas {
+    height: 220px;
+  }
+
+  .detailGrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .detailCard {
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .detailValue {
+    font-size: clamp(26px, 8vw, 34px);
+  }
+
+  .miniValue {
+    font-size: 20px;
+  }
+}
