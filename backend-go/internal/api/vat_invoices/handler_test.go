@@ -293,3 +293,39 @@ func TestVatInvoicesOperations(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestVatInvoiceUploadPDFStorageErrorsReturn503(t *testing.T) {
+	for _, testCase := range []struct {
+		name string
+		err  error
+	}{
+		{name: "blob not configured", err: ErrBlobNotConfigured},
+		{name: "blob upload failed", err: ErrBlobUploadFailed},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			store := &mockVatStore{
+				invoice: &VatInvoiceResponse{
+					ID:        10,
+					InvoiceNo: "INV-10",
+					ProjectID: 10,
+					Status:    "draft",
+				},
+				attachPdfErr: testCase.err,
+			}
+			router := setupVatRouter(store, nil)
+			adminCtx := auth.WithUserContext(context.Background(), auth.UserContext{Operator: "admin_op", IsAdmin: true})
+
+			payload := VatInvoicePdfUploadRequest{
+				PdfBase64: base64.StdEncoding.EncodeToString([]byte("%PDF-1.4 test")),
+				Filename:  "invoice.pdf",
+			}
+			body, _ := json.Marshal(payload)
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/vat-invoices/10/pdf", bytes.NewReader(body)).WithContext(adminCtx)
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+			if rec.Code != http.StatusServiceUnavailable {
+				t.Fatalf("expected 503, got %d: %s", rec.Code, rec.Body.String())
+			}
+		})
+	}
+}
