@@ -55,8 +55,12 @@ function readRule(css: string, selector: string): string {
 }
 
 function declarationNumber(block: string, property: string): number {
-  const match = new RegExp(`(?:^|;)\\s*${property}:\\s*(-?\\d+(?:\\.\\d+)?)px`).exec(block)
-  return match ? Number(match[1]) : Number.NaN
+  const match = new RegExp(`(?:^|;)\\s*${property}:\\s*([^;]+)`).exec(block)
+  const value = match?.[1]?.trim() ?? ''
+  const direct = /^(-?\d+(?:\.\d+)?)px$/.exec(value)
+  if (direct) return Number(direct[1])
+  const fallback = /var\([^,]+,\s*(-?\d+(?:\.\d+)?)px\)/.exec(value)
+  return fallback ? Number(fallback[1]) : Number.NaN
 }
 
 describe('V4 CRM phone layout contract (Stage 5)', () => {
@@ -154,25 +158,17 @@ describe('V4 CRM phone layout contract (Stage 5)', () => {
     ['settings', 'settings/settings-warm.module.css'],
     ['rules panel', '../../../components/crm/crm-rules-panel.module.css'],
   ])('%s switch exposes a physical hit area of at least 44x44px', (_name, stylesheet) => {
-    const css = readFileSync(join(__dirname, stylesheet), 'utf8')
     const mobile = readMobileBlock(stylesheet)
-    const track = readRule(css, '.switch')
-    const hitArea = readRule(mobile, '.switch::after')
+    const root = readRule(mobile, '.switch')
+    const track = readRule(mobile, '.switch::before')
 
-    expect(hitArea).toContain("content: ''")
-    expect(hitArea).toMatch(/position:\s*absolute/)
+    expect(track).toContain("content: ''")
+    expect(track).toMatch(/position:\s*absolute/)
+    expect(declarationNumber(track, 'width')).toBe(36)
+    expect(declarationNumber(track, 'height')).toBe(20)
 
-    const width =
-      declarationNumber(track, 'width') +
-      Math.abs(declarationNumber(hitArea, 'left')) +
-      Math.abs(declarationNumber(hitArea, 'right'))
-    const height =
-      declarationNumber(track, 'height') +
-      Math.abs(declarationNumber(hitArea, 'top')) +
-      Math.abs(declarationNumber(hitArea, 'bottom'))
-
-    expect(width, `${stylesheet} switch hit width`).toBeGreaterThanOrEqual(44)
-    expect(height, `${stylesheet} switch hit height`).toBeGreaterThanOrEqual(44)
+    expect(declarationNumber(root, 'width'), `${stylesheet} switch hit width`).toBeGreaterThanOrEqual(44)
+    expect(declarationNumber(root, 'height'), `${stylesheet} switch hit height`).toBeGreaterThanOrEqual(44)
   })
 
   it('ensures dashboard KPI grid reflows to 2 columns on mobile', () => {
