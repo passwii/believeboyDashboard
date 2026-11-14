@@ -42,4 +42,12 @@ describe('V4 operations phone layout contract (Stage 2 & Stage 3)', () => {
 
     expect(configuredRoutes).toEqual(expect.arrayContaining(expectedOperationsRoutes))
   })
+
+  it.each([
+    ['inventory-replenishment', 'inventory-replenishment/inventory-replenishment-warm.module.css'],
+    ['seasonal-replenishment', 'seasonal-replenishment/seasonal-replenishment-warm.module.css'],
+  ])('%s ensures mobile card detail summary has touch target styling', (_route, stylesheet) => {
+    const css = readFileSync(join(__dirname, stylesheet), 'utf8')
+    expect(css).toMatch(/\.mobileCard\s+details\s*>\s*summary\s*\{[^}]*min-height:\s*var\(--warm-ledger-control-target-touch\)/s)
+  })
 })

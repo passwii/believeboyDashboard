@@ -1810,7 +1810,7 @@ export default function InventoryReplenishmentPage() {
 
                       {/* 详细指标与建仓详情（展开保证完整字段不丢失） */}
                       <details className="text-xs text-[var(--warm-ledger-color-text-muted)]">
-                        <summary className="cursor-pointer py-1 font-medium text-[var(--warm-ledger-color-text-soft)] hover:text-[var(--warm-ledger-color-text)]">
+                        <summary className="flex min-h-[44px] cursor-pointer items-center font-medium text-[var(--warm-ledger-color-text-soft)] hover:text-[var(--warm-ledger-color-text)]">
                           查看更多明细 (历史销量 / 建仓 / 基础量)
                         </summary>
                         <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-1.5 pb-1 text-xs">
