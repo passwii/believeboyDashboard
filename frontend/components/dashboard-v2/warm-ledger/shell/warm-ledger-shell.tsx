@@ -61,7 +61,7 @@ export function WarmLedgerShell({ children, sidebar, topbar }: WarmLedgerShellPr
   }, [])
 
   useEffect(() => {
-    const mobileMedia = window.matchMedia('(max-width: 820px)')
+    const mobileMedia = window.matchMedia('(max-width: 767px)')
     const phoneMedia = window.matchMedia('(max-width: 430px)')
 
     const synchronizeViewport = () => {
