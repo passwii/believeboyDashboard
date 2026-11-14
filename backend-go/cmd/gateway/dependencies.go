@@ -97,6 +97,10 @@ type dependencies struct {
 // silently degrade persisted screenshots to empty URLs again.
 var _ inspections.BlobURLResolver = (*blob.Store)(nil)
 
+// VAT invoice PDFs are written through this interface. Keep the check next to
+// the wiring so a method rename cannot silently turn uploads into 503s.
+var _ vat_invoices.BlobStore = (*blob.Store)(nil)
+
 func newDependencies(ctx context.Context, cfg config.Config) (*dependencies, error) {
 	deps := &dependencies{Close: func() {}}
 	var pools []*pgxpool.Pool
@@ -203,6 +207,7 @@ func newDependencies(ctx context.Context, cfg config.Config) (*dependencies, err
 			cfg.OwnedModules["agent_commerce"] ||
 			cfg.OwnedModules["sku_info"] ||
 			cfg.OwnedModules[config.ModuleCRMIntent] ||
+			cfg.OwnedModules[config.ModuleVatInvoices] ||
 			cfg.OwnedModules["exchange_rates_write"] {
 			createdObjectStore, err := newObjectStore(cfg)
 			if err != nil {
@@ -415,9 +420,13 @@ func newDependencies(ctx context.Context, cfg config.Config) (*dependencies, err
 			)
 		}
 		if cfg.OwnedModules[config.ModuleVatInvoices] {
+			vatStore := store.NewVatInvoiceStore(primaryDB)
+			if objectStore != nil {
+				vatStore.WithBlobStore(objectStore)
+			}
 			deps.Stores.CustomRegistrars = append(
 				deps.Stores.CustomRegistrars,
-				vat_invoices.NewRegistrar(store.NewVatInvoiceStore(primaryDB), auditSvc),
+				vat_invoices.NewRegistrar(vatStore, auditSvc),
 			)
 		}
 		if cfg.OwnedModules[config.ModuleReportReconciliation] {

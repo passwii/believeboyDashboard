@@ -496,6 +496,14 @@ func (h *Handler) UploadInvoicePdf(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.store.AttachInvoicePdf(r.Context(), invoiceID, payload.Filename, pdfBytes)
 	if err != nil {
+		switch {
+		case errors.Is(err, ErrBlobNotConfigured):
+			httpapi.WriteDetail(w, http.StatusServiceUnavailable, "Cloud storage is not configured. Please contact administrator.")
+			return
+		case errors.Is(err, ErrBlobUploadFailed):
+			httpapi.WriteDetail(w, http.StatusServiceUnavailable, "Cloud storage upload failed")
+			return
+		}
 		httpapi.WriteDetail(w, http.StatusInternalServerError, err.Error())
 		return
 	}

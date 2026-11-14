@@ -14,17 +14,21 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/vat_invoices"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/blob"
 )
 
 type VatInvoiceStore struct {
-	db FullDB
+	db    FullDB
+	blobs vat_invoices.BlobStore
 }
 
 const (
-	maxVATInvoicePDFBytes = 20 * 1024 * 1024
-	vatStatusDraft        = "draft"
-	vatStatusIssued       = "issued"
-	vatStatusVoided       = "voided"
+	maxVATInvoicePDFBytes      = 20 * 1024 * 1024
+	vatStatusDraft             = "draft"
+	vatStatusIssued            = "issued"
+	vatStatusVoided            = "voided"
+	vatInvoicePDFContentType   = "application/pdf"
+	vatInvoicePDFDeleteTimeout = 5 * time.Second
 )
 
 const vatAttachInvoicePDFSQL = `
@@ -45,6 +49,13 @@ const vatVoidInvoiceSQL = `
 
 func NewVatInvoiceStore(db FullDB) *VatInvoiceStore {
 	return &VatInvoiceStore{db: db}
+}
+
+// WithBlobStore attaches the object store used for invoice PDF uploads.
+// Without it AttachInvoicePdf fails closed instead of persisting a fake URL.
+func (s *VatInvoiceStore) WithBlobStore(blobs vat_invoices.BlobStore) *VatInvoiceStore {
+	s.blobs = blobs
+	return s
 }
 
 func validVATInvoiceStatus(status string) bool {
@@ -703,12 +714,27 @@ func (s *VatInvoiceStore) AttachInvoicePdf(ctx context.Context, invoiceID int64,
 	if ext := normalizedFileExtension(safeFilename); ext != ".pdf" {
 		return nil, fmt.Errorf("不支持的文件扩展名 %q，仅支持 .pdf", ext)
 	}
-	key := fmt.Sprintf("vat-invoices/%d_%s", invoiceID, safeFilename)
-	url := fmt.Sprintf("https://pub-r2.believeboy.com/%s", key)
+	if s.blobs == nil {
+		return nil, vat_invoices.ErrBlobNotConfigured
+	}
+	key, err := blob.ObjectKey("vat-invoices", fmt.Sprintf("%d_%s", invoiceID, safeFilename))
+	if err != nil {
+		return nil, fmt.Errorf("build VAT invoice PDF key: %w", err)
+	}
+	url, err := s.blobs.Put(ctx, key, pdfBytes, vatInvoicePDFContentType)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", vat_invoices.ErrBlobUploadFailed, err)
+	}
+	url = strings.TrimSpace(url)
+	if url == "" {
+		s.deleteVATInvoicePDF(ctx, key)
+		return nil, fmt.Errorf("%w: empty object URL", vat_invoices.ErrBlobUploadFailed)
+	}
 
 	var invoiceNo, status string
-	err := s.db.QueryRow(ctx, vatAttachInvoicePDFSQL, key, url, invoiceID).Scan(&invoiceNo, &status)
+	err = s.db.QueryRow(ctx, vatAttachInvoicePDFSQL, key, url, invoiceID).Scan(&invoiceNo, &status)
 	if err != nil {
+		s.deleteVATInvoicePDF(ctx, key)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, vat_invoices.ErrVatInvoiceNotFound
 		}
@@ -722,6 +748,15 @@ func (s *VatInvoiceStore) AttachInvoicePdf(ctx context.Context, invoiceID int64,
 		R2URL:     url,
 		Status:    status,
 	}, nil
+}
+
+func (s *VatInvoiceStore) deleteVATInvoicePDF(parent context.Context, key string) {
+	if s.blobs == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(parent), vatInvoicePDFDeleteTimeout)
+	defer cancel()
+	_ = s.blobs.Delete(ctx, key)
 }
 
 func (s *VatInvoiceStore) VoidInvoice(ctx context.Context, invoiceID int64, reason string) (*vat_invoices.VatInvoiceResponse, error) {

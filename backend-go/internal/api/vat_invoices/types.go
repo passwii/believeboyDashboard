@@ -12,7 +12,20 @@ var (
 	ErrVatNotEnabled      = errors.New("VAT feature is not enabled for this project")
 	ErrInvoiceNoPdf       = errors.New("invoice has no pdf yet")
 	ErrProjectForbidden   = errors.New("无权限访问该项目")
+
+	// ErrBlobNotConfigured and ErrBlobUploadFailed let the handler fail
+	// closed with 503 instead of persisting an invoice that points at an
+	// object which was never uploaded.
+	ErrBlobNotConfigured = errors.New("vat invoice object storage is not configured")
+	ErrBlobUploadFailed  = errors.New("vat invoice pdf upload failed")
 )
+
+// BlobStore is the object-store surface used for invoice PDF uploads.
+// *blob.Store implements it; tests use a fake to assert Put semantics.
+type BlobStore interface {
+	Put(ctx context.Context, key string, data []byte, contentType string) (string, error)
+	Delete(ctx context.Context, key string) error
+}
 
 type VatEntityBase struct {
 	Country     string `json:"country"`
