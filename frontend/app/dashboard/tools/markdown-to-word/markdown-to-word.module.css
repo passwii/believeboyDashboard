@@ -298,3 +298,59 @@
   margin-top: var(--warm-ledger-space-1);
   font-size: var(--warm-ledger-font-size-control);
 }
+
+@media (max-width: 820px) {
+  .workspace {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .sourceMeta {
+    gap: var(--warm-ledger-space-1) var(--warm-ledger-space-3);
+    padding: var(--warm-ledger-space-2) var(--warm-ledger-space-3);
+  }
+
+  .editorHeading {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--warm-ledger-space-1);
+  }
+
+  .fieldHint {
+    overflow: visible;
+    white-space: normal;
+    text-overflow: clip;
+  }
+
+  .textarea {
+    min-height: 200px;
+    font-size: 16px;
+    line-height: 1.6;
+  }
+
+  .footer {
+    flex-wrap: wrap;
+    row-gap: var(--warm-ledger-space-1);
+  }
+
+  .previewSurface {
+    min-height: 240px;
+    max-height: min(56dvh, 520px);
+    padding: var(--warm-ledger-space-4);
+  }
+
+  .previewSurface :global(h1) {
+    font-size: 24px;
+  }
+
+  .previewSurface :global(h2) {
+    font-size: 20px;
+  }
+
+  .emptyState {
+    flex-direction: column;
+    gap: var(--warm-ledger-space-2);
+    text-align: center;
+  }
+}

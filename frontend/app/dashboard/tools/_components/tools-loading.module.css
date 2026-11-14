@@ -87,3 +87,18 @@
   width: 44%;
   height: 12px;
 }
+
+@media (max-width: 640px) {
+  .panels {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .panelHeader {
+    padding: 0 var(--warm-ledger-space-4);
+  }
+
+  .panelBody {
+    padding: var(--warm-ledger-space-4);
+  }
+}

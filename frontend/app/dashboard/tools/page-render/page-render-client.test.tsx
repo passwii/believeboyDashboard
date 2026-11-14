@@ -234,15 +234,17 @@ describe('PageRenderClient', () => {
 })
 
 describe('Page Render V4 contract', () => {
-  it('uses Warm surfaces, a desktop-only layout, and the explicit white paper exception', () => {
+  it('uses Warm surfaces, a phone reflow, and the explicit white paper exception', () => {
     const css = readFileSync(join(__dirname, 'page-render.module.css'), 'utf8')
     const source = readFileSync(join(__dirname, 'page-render-client.tsx'), 'utf8')
 
     expect(css).toContain('var(--warm-ledger-color-panel)')
     expect(css).toContain('var(--warm-ledger-radius-control)')
     expect(css).toContain('background: #fff')
+    expect(css).toContain('@media (max-width: 640px)')
+    expect(css).toContain('font-size: 16px')
+    expect(css).toContain('max-height: min(56dvh, 520px)')
     expect(css).not.toContain('--term-')
-    expect(css).not.toContain('@media')
     expect(source).not.toContain('term-')
     expect(source).not.toContain('rounded-none')
     expect(source).not.toMatch(/\b(?:sm|md|lg|xl|2xl):/)

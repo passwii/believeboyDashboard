@@ -78,13 +78,14 @@ describe('ToolsPanel', () => {
 })
 
 describe('Warm tool frame styling contract', () => {
-  it('uses Warm tokens for desktop surfaces without Terminal aliases or breakpoints', () => {
+  it('uses Warm tokens for shared surfaces with a phone stacking breakpoint', () => {
     const css = readFileSync(join(__dirname, 'tools-frame.module.css'), 'utf8')
 
     expect(css).toContain('var(--warm-ledger-color-panel)')
     expect(css).toContain('var(--warm-ledger-radius-panel)')
     expect(css).toContain('var(--warm-ledger-inset-panel)')
+    expect(css).toContain('@media (max-width: 640px)')
+    expect(css).toContain(".frame[data-layout='split']")
     expect(css).not.toContain('--term-')
-    expect(css).not.toContain('@media')
   })
 })

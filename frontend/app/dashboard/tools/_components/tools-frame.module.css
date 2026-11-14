@@ -66,3 +66,28 @@
   gap: var(--warm-ledger-space-3);
   padding: var(--warm-ledger-inset-panel);
 }
+
+@media (max-width: 640px) {
+  .frame[data-layout='split'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .panelHeader {
+    min-height: var(--warm-ledger-control-target-touch);
+    flex-wrap: wrap;
+    row-gap: var(--warm-ledger-space-2);
+    padding: var(--warm-ledger-space-2) var(--warm-ledger-space-4);
+  }
+
+  .panelActions {
+    max-width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    row-gap: var(--warm-ledger-space-2);
+  }
+
+  :where(.panelBody) {
+    gap: var(--warm-ledger-space-3);
+    padding: var(--warm-ledger-space-4);
+  }
+}
