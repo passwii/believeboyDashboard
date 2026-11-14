@@ -106,6 +106,11 @@ var _ vat_invoices.BlobStore = (*blob.Store)(nil)
 // uploads into 503s.
 var _ platform_revenues.BlobStore = (*blob.Store)(nil)
 
+// Product analysis reports resolve legacy R2 result keys through this optional
+// interface. Keep the compile-time check next to the wiring so a signature
+// drift cannot silently turn historical results into a 503 again.
+var _ product_analysis_reports.ObjectURLBuilder = (*blob.Store)(nil)
+
 func newDependencies(ctx context.Context, cfg config.Config) (*dependencies, error) {
 	deps := &dependencies{Close: func() {}}
 	var pools []*pgxpool.Pool
@@ -214,6 +219,7 @@ func newDependencies(ctx context.Context, cfg config.Config) (*dependencies, err
 			cfg.OwnedModules[config.ModulePlatformRevenues] ||
 			cfg.OwnedModules[config.ModuleCRMIntent] ||
 			cfg.OwnedModules[config.ModuleVatInvoices] ||
+			cfg.OwnedModules["product_analysis_reports"] ||
 			cfg.OwnedModules["exchange_rates_write"] {
 			createdObjectStore, err := newObjectStore(cfg)
 			if err != nil {
@@ -471,7 +477,7 @@ func newDependencies(ctx context.Context, cfg config.Config) (*dependencies, err
 					auditSvc,
 					monthlyReportQueueEnqueuer{client: queueClient},
 					cfg.MonthlyReportResultRoot,
-					nil,
+					newProductAnalysisReportObjectURLs(objectStore),
 				),
 			)
 		}
@@ -1181,6 +1187,19 @@ func newObjectStore(cfg config.Config) (*blob.Store, error) {
 		MaxPutBytes:     50 << 20,
 		MaxGetBytes:     100 << 20,
 	})
+}
+
+// newProductAnalysisReportObjectURLs keeps an unconfigured store as a nil
+// interface. Passing a nil *blob.Store directly would produce a non-nil
+// interface holding a typed nil, which reports 503 "unavailable" instead of
+// the explicit 503 "not configured".
+func newProductAnalysisReportObjectURLs(
+	objectStore *blob.Store,
+) product_analysis_reports.ObjectURLBuilder {
+	if objectStore == nil {
+		return nil
+	}
+	return objectStore
 }
 
 func newSharedRedisClient(cfg config.Config) (*redis.Client, error) {

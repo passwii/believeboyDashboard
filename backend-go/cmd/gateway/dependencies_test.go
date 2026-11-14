@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/api/product_analysis_reports"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/config"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/httpserver"
 )
@@ -110,6 +111,67 @@ func TestNewDependenciesWiresPostStage6Modules(t *testing.T) {
 
 	if len(deps.Stores.CustomRegistrars) < 25 {
 		t.Fatalf("CustomRegistrars = %d, want all post-stage-6 domain registrars", len(deps.Stores.CustomRegistrars))
+	}
+}
+
+func TestAllModulesWiresProductAnalysisReportObjectURLs(t *testing.T) {
+	root := t.TempDir()
+	cfg := config.Config{
+		APIKey:                     "test-api-key",
+		FastAPIOrigin:              "http://127.0.0.1:8100",
+		DatabaseURL:                "postgres://localhost/test",
+		DatabaseReadURL:            "postgres://localhost/replica",
+		RedisURL:                   "redis://localhost:6379/0",
+		InsightStreamRedisURL:      "redis://localhost:6379/4",
+		UploadRoot:                 root,
+		MonthlyReportResultRoot:    root,
+		AgentMonthlyReportRoot:     root,
+		ProjectLaunchDocumentsRoot: root,
+		CRMTaskReminderLeadHours:   24,
+		CRMFollowUpReminderDays:    7,
+		AppEnv:                     "test",
+		R2EndpointURL:              "http://127.0.0.1:9000",
+		R2BucketName:               "dashboard-assets",
+		R2AccessKeyID:              "test-access-key",
+		R2SecretAccessKey:          "test-secret-key",
+		R2Region:                   "auto",
+		R2PublicURL:                "https://assets.example.com",
+		OwnedModules:               config.AllModulesSet(),
+	}
+
+	deps, err := newDependencies(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("newDependencies(all modules with R2) error = %v", err)
+	}
+	t.Cleanup(deps.Close)
+
+	var reports *product_analysis_reports.Registrar
+	for _, registrar := range deps.Stores.CustomRegistrars {
+		if registrar.ModuleName() == "product_analysis_reports" {
+			reports, _ = registrar.(*product_analysis_reports.Registrar)
+			break
+		}
+	}
+	if reports == nil {
+		t.Fatal("product_analysis_reports registrar was not wired")
+	}
+	builder := reports.ObjectURLs()
+	if builder == nil {
+		t.Fatal("product_analysis_reports ObjectURLBuilder is nil; historical R2 results would 503")
+	}
+	url, err := builder.PublicURL("project-a/product-analysis/42/result.xlsx")
+	if err != nil {
+		t.Fatalf("ObjectURLBuilder.PublicURL() error = %v", err)
+	}
+	const want = "https://assets.example.com/project-a/product-analysis/42/result.xlsx"
+	if url != want {
+		t.Fatalf("ObjectURLBuilder.PublicURL() = %q, want %q", url, want)
+	}
+}
+
+func TestProductAnalysisReportObjectURLsStayNilWithoutR2(t *testing.T) {
+	if builder := newProductAnalysisReportObjectURLs(nil); builder != nil {
+		t.Fatalf("newProductAnalysisReportObjectURLs(nil) = %#v, want nil", builder)
 	}
 }
 

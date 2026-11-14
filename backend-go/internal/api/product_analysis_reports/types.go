@@ -102,7 +102,8 @@ type Enqueuer interface {
 }
 
 // ObjectURLBuilder resolves a server-generated object key to a public HTTPS URL.
-// It is only consulted for non-local result paths.
+// It is only consulted for non-local result paths. The signature matches
+// blob.Store.PublicURL so the gateway can pass the configured store directly.
 type ObjectURLBuilder interface {
-	PublicURL(ctx context.Context, key string) (string, error)
+	PublicURL(key string) (string, error)
 }

@@ -240,7 +240,7 @@ func (handler *Handler) Result(w http.ResponseWriter, r *http.Request) {
 		httpapi.WriteDetail(w, http.StatusServiceUnavailable, "Object storage is not configured")
 		return
 	}
-	publicURL, err := handler.objectURLs.PublicURL(r.Context(), filepath.ToSlash(relative))
+	publicURL, err := handler.objectURLs.PublicURL(filepath.ToSlash(relative))
 	if err != nil {
 		httpapi.WriteDetail(w, http.StatusServiceUnavailable, "Object storage unavailable")
 		return
