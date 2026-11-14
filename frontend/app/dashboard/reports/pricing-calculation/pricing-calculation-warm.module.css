@@ -552,9 +552,17 @@
   border-radius: var(--warm-ledger-radius-inner);
 }
 
+.tableScroll {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .comparisonBody {
   min-width: 0;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   padding: var(--warm-ledger-space-5);
 }
 
@@ -669,7 +677,8 @@
 
 .dataPanel {
   min-width: 0;
-  overflow: hidden;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   background: var(--warm-ledger-color-panel);
   border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
   border-radius: var(--warm-ledger-radius-panel);
@@ -743,5 +752,95 @@
   .runCard,
   .deleteButton {
     transition: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .calculationGrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .fieldRow {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .dimensionGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .fieldGrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .modeTabList {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-height: auto;
+    gap: var(--warm-ledger-space-1);
+  }
+
+  .modeTabList :global([role='tab']) {
+    min-height: var(--warm-ledger-control-target-touch);
+    justify-content: center;
+  }
+
+  .consoleToolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .consoleFilters {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .exportButton {
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch);
+    justify-content: center;
+  }
+
+  .consoleControls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .countryField {
+    width: 100%;
+    flex: 1 1 auto;
+  }
+
+  .panelHeader {
+    padding: 0 var(--warm-ledger-space-3);
+    min-height: 44px;
+  }
+
+  .panelBody {
+    padding: var(--warm-ledger-space-3);
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .comparisonBody,
+  .tableScroll,
+  .dataPanel {
+    max-height: min(65dvh, 560px);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: var(--warm-ledger-space-3);
+  }
+}
+
+@media (max-width: 380px) {
+  .dimensionGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .modeTabList {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

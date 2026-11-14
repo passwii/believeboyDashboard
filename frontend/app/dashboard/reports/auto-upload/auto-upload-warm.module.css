@@ -334,12 +334,22 @@
   overflow: auto;
 }
 
+.tableScroll {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .statusScroller {
   width: 100%;
   min-width: 0;
   min-height: 0;
   flex: 1 1 auto;
   overflow: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .statusGrid {
@@ -497,4 +507,94 @@
   display: grid;
   gap: var(--warm-ledger-space-1);
   padding-top: var(--warm-ledger-space-2);
+}
+
+@media (max-width: 640px) {
+  .page {
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .tabList {
+    display: grid !important;
+    width: 100% !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-height: var(--warm-ledger-control-target-touch) !important;
+  }
+
+  .tabList :global([role='tab']) {
+    min-height: var(--warm-ledger-control-target-touch);
+    justify-content: center;
+  }
+
+  .panelHeader {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--warm-ledger-space-3);
+    padding: var(--warm-ledger-space-3);
+    min-height: auto;
+  }
+
+  .panelTitleGroup {
+    width: 100%;
+  }
+
+  .statusControls {
+    margin-left: 0;
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .controlGroup {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .projectFilter,
+  .countrySelect {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .dateGroup {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: var(--warm-ledger-space-1);
+  }
+
+  .datePicker {
+    flex: 1 1 auto;
+    width: auto !important;
+    min-width: 0;
+  }
+
+  .actionGroup {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    width: 100%;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .todayButton {
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch);
+    justify-content: center;
+  }
+
+  .tableScroll,
+  .statusScroller {
+    max-height: min(65dvh, 560px);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 460px) {
+  .controlGroup {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

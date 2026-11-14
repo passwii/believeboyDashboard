@@ -59,3 +59,30 @@
     background-color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease),
     border-color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease);
 }
+
+@media (max-width: 640px) {
+  .shell {
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .tabList {
+    display: grid !important;
+    width: 100% !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .tabList :global([role='tab']) {
+    min-height: var(--warm-ledger-control-target-touch);
+    padding: 0 var(--warm-ledger-space-1);
+    font-size: 12px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 380px) {
+  .tabList :global([role='tab']) {
+    font-size: 11px;
+    gap: var(--warm-ledger-space-1);
+  }
+}

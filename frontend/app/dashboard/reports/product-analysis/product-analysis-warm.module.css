@@ -537,9 +537,17 @@
   border-style: dashed;
 }
 
+.tableScroll {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .availabilityScroller {
   min-width: 0;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid var(--warm-ledger-color-hairline);
   border-radius: var(--warm-ledger-radius-inner);
 }
@@ -747,6 +755,7 @@
 .detailScroller {
   min-width: 0;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   background: var(--warm-ledger-color-panel);
 }
 
@@ -794,4 +803,111 @@
 
 .mutedValue {
   color: var(--warm-ledger-color-text-muted);
+}
+
+@media (max-width: 640px) {
+  .page {
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .tabs {
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .tabList {
+    display: grid !important;
+    width: 100% !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    min-height: var(--warm-ledger-control-target-touch) !important;
+  }
+
+  .tabList :global([role='tab']) {
+    min-height: var(--warm-ledger-control-target-touch);
+    padding: 0 var(--warm-ledger-space-1);
+    font-size: 12px;
+    justify-content: center;
+  }
+
+  .panelHeader {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--warm-ledger-space-2);
+    padding: var(--warm-ledger-space-3);
+    min-height: auto;
+  }
+
+  .panelActions {
+    margin-left: 0;
+    width: 100%;
+    justify-content: stretch;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .panelActions > * {
+    flex: 1 1 auto;
+    min-height: var(--warm-ledger-control-target-touch);
+    justify-content: center;
+  }
+
+  .panelBody {
+    padding: var(--warm-ledger-space-3);
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .filters {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .projectField,
+  .countryField,
+  .dateField,
+  .actionField {
+    width: 100% !important;
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+  }
+
+  .statusGrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .statusCards {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .buttonRow {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .buttonRow > * {
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch);
+    justify-content: center;
+  }
+
+  .detailScroller,
+  .availabilityScroller,
+  .tableScroll {
+    max-height: min(65dvh, 560px);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 380px) {
+  .tabList :global([role='tab']) {
+    font-size: 11px;
+    gap: var(--warm-ledger-space-1);
+  }
+
+  .dateInputs {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

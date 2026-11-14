@@ -200,6 +200,13 @@
   min-width: 0;
 }
 
+.tableScroll {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .dropZone {
   display: flex;
   min-height: 240px;
@@ -519,5 +526,70 @@
 
   .spinner {
     animation: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .page {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .sidePanel {
+    position: static;
+    width: 100%;
+  }
+
+  .uploadLayout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .metricGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .metric {
+    padding: var(--warm-ledger-space-2);
+    gap: var(--warm-ledger-space-1);
+  }
+
+  .dropZone {
+    min-height: 180px;
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .manualMatchRow {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .panelHeader {
+    padding: 0 var(--warm-ledger-space-3);
+    min-height: 44px;
+  }
+
+  .panelBody {
+    padding: var(--warm-ledger-space-3);
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .dropActions button,
+  .actionStack button {
+    min-height: var(--warm-ledger-control-target-touch);
+    width: 100%;
+  }
+
+  .tableScroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-height: min(65dvh, 560px);
+  }
+}
+
+@media (max-width: 380px) {
+  .metricGrid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
