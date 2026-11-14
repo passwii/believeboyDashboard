@@ -201,7 +201,7 @@ type MediaListener = (event: MediaQueryListEvent) => void
 
 function installMatchMedia(initialMobile: boolean, initialPhone = initialMobile) {
   const matchesByQuery = new Map([
-    ['(max-width: 820px)', initialMobile],
+    ['(max-width: 767px)', initialMobile],
     ['(max-width: 430px)', initialPhone],
   ])
   const listenersByQuery = new Map<string, Set<MediaListener>>()
@@ -237,10 +237,10 @@ function installMatchMedia(initialMobile: boolean, initialPhone = initialMobile)
   })
 
   return (nextMobile: boolean, nextPhone = nextMobile) => {
-    matchesByQuery.set('(max-width: 820px)', nextMobile)
+    matchesByQuery.set('(max-width: 767px)', nextMobile)
     matchesByQuery.set('(max-width: 430px)', nextPhone)
     act(() => {
-      for (const query of ['(max-width: 820px)', '(max-width: 430px)']) {
+      for (const query of ['(max-width: 767px)', '(max-width: 430px)']) {
         const mediaQuery = getMediaQuery(query)
         listenersByQuery.get(query)?.forEach((listener) =>
           listener({

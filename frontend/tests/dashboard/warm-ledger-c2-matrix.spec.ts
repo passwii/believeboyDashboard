@@ -787,7 +787,7 @@ async function openRouteAndCheck(
 ) {
   await openRouteFrame(page, route, width)
   const mobileMenu = page.getByRole('button', { name: '打开导航' })
-  if (width <= 820) {
+  if (width < 768) {
     await expect(mobileMenu).toBeVisible()
     await expectTouchTarget(mobileMenu)
   } else {

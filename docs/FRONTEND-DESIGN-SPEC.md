@@ -82,7 +82,7 @@
 - **正文字体** `--font-sans`、**标题字体** `--font-display`（globals.css:249-256：h1~h4 用 display + `letter-spacing: -0.035em`）。
 - **大数字**：`.dashboard-display`（clamp 2.15~2.75rem，globals.css:556-562）。
 - **Eyebrow 小标**：`.dashboard-kicker`（`text-[0.68rem] uppercase tracking-[0.22em] text-muted-foreground`，globals.css:552-554）；pill 变体见 site-navigation（§4.1）。
-- **根字号响应式**：17px（>1440px）→ 16px（1440 以下）→ 15px（1180 以下 / iPad）→ 16px（768 以下）→ 15px（480 以下），globals.css:225-298。**不要用固定 px 字号做页面级标题缩放**，字号全部 rem。
+- **根字号响应式**：17px（>1440px）→ 16px（≤1440px，含 768–1366px 的 iPad 10~12 英寸）→ 15px（≤480px），globals.css:622-673。**不要用固定 px 字号做页面级标题缩放**，字号全部 rem。
 
 ---
 

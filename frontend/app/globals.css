@@ -645,10 +645,12 @@
     }
   }
 
-  /* iPad 适配 (768px - 1024px) */
-  @media (min-width: 768px) and (max-width: 1023px) {
+  /* iPad / 平板（768px - 1180px）：与电脑端 16px 同尺度。
+   * 10~12 英寸 iPad 的 CSS 宽度覆盖 810~1366px；原先 1180px 以下降到 15px，
+   * 导致 iPad 各型号与电脑端之间来回跳一档。这里统一保持 16px。 */
+  @media (min-width: 768px) and (max-width: 1180px) {
     html {
-      font-size: 15px;
+      font-size: 16px;
     }
 
     body {
