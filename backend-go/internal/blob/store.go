@@ -328,6 +328,13 @@ func (store *Store) PresignedGetURL(
 	return request.URL, nil
 }
 
+// Presign returns a presigned GET URL with the default expiry. It lets small
+// consumer-defined storage interfaces expose browser-fetchable URLs without
+// duplicating the expiry policy.
+func (store *Store) Presign(ctx context.Context, key string) (string, error) {
+	return store.PresignedGetURL(ctx, key, defaultPresignExpiry)
+}
+
 func (store *Store) operationContext(parent context.Context) (context.Context, context.CancelFunc) {
 	if store.timeout <= 0 {
 		return context.WithCancel(parent)
