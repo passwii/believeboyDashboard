@@ -19,6 +19,12 @@ interface MobileFilterStripProps {
   open?: boolean
   onOpenChange?: (open: boolean) => void
   className?: string
+  /**
+   * 设计系统风格变体：
+   * - 'terminal'（默认）：历史 Terminal 规范，使用 term-* 令牌
+   * - 'warm-ledger'：V4 Warm Ledger 规范（design-spec.md §0.4），使用 --warm-ledger-* 令牌，浅色/深色主题一致
+   */
+  variant?: 'terminal' | 'warm-ledger'
 }
 
 /**
@@ -46,7 +52,9 @@ export function MobileFilterStrip({
   open: controlledOpen,
   onOpenChange,
   className,
+  variant = 'terminal',
 }: MobileFilterStripProps) {
+  const isWarm = variant === 'warm-ledger'
   const [internalOpen, setInternalOpen] = React.useState(defaultOpen)
   const isControlled = controlledOpen !== undefined
   const isOpen = isControlled ? controlledOpen : internalOpen
@@ -62,8 +70,14 @@ export function MobileFilterStrip({
 
   return (
     <section
-      className={cn('border-b border-term-border bg-term-panel', className)}
+      className={cn(
+        isWarm
+          ? 'border-b border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] text-[var(--warm-ledger-color-text)]'
+          : 'border-b border-term-border bg-term-panel',
+        className
+      )}
       data-testid="mobile-filter-strip"
+      data-variant={variant}
     >
       <button
         type="button"
@@ -71,16 +85,33 @@ export function MobileFilterStrip({
         aria-expanded={isOpen}
         aria-controls={stripId}
         aria-label="切换页面筛选"
-        className="flex min-h-[44px] w-full items-center gap-2 px-3 text-left text-term-text transition-colors hover:bg-term-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-term-accent"
+        className={cn(
+          'flex min-h-[44px] w-full items-center gap-2 px-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-1',
+          isWarm
+            ? 'text-[var(--warm-ledger-color-text)] hover:bg-[var(--warm-ledger-color-panel-strong)] focus-visible:ring-[var(--warm-ledger-focus-color)]'
+            : 'text-term-text hover:bg-term-hover focus-visible:ring-term-accent'
+        )}
       >
-        <SlidersHorizontal className="h-4 w-4 shrink-0 text-term-muted" aria-hidden />
+        <SlidersHorizontal
+          className={cn(
+            'h-4 w-4 shrink-0',
+            isWarm ? 'text-[var(--warm-ledger-color-text-muted)]' : 'text-term-muted'
+          )}
+          aria-hidden
+        />
         <span className="min-w-0 flex-1 truncate text-sm">{summary}</span>
-        <span className="shrink-0 font-mono text-xs text-term-faint">
+        <span
+          className={cn(
+            'shrink-0 font-mono text-xs',
+            isWarm ? 'text-[var(--warm-ledger-color-text-faint)]' : 'text-term-faint'
+          )}
+        >
           {isOpen ? '收起' : '筛选'}
         </span>
         <ChevronDown
           className={cn(
-            'h-4 w-4 shrink-0 text-term-muted transition-transform',
+            'h-4 w-4 shrink-0 transition-transform',
+            isWarm ? 'text-[var(--warm-ledger-color-text-muted)]' : 'text-term-muted',
             isOpen && 'rotate-180'
           )}
           aria-hidden
@@ -89,7 +120,12 @@ export function MobileFilterStrip({
       {isOpen && (
         <div
           id={stripId}
-          className="grid grid-cols-2 gap-2 border-t border-term-border p-2"
+          className={cn(
+            'grid grid-cols-2 gap-2 p-2',
+            isWarm
+              ? 'border-t border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-window)]'
+              : 'border-t border-term-border'
+          )}
           data-testid="mobile-filter-strip-grid"
         >
           {controls}

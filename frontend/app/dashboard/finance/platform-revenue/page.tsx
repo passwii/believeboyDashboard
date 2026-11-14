@@ -22,7 +22,9 @@ import {
   WarmSelect,
   type WarmSelectOption,
 } from '@/components/dashboard-v2/warm-ledger/controls'
-import { useHeaderRefresh, useHeaderSlot } from '@/components/terminal/terminal-header-slot'
+import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
+import { useHeaderRefresh, useHeaderSlot, useMobileFilterStrip } from '@/components/terminal/terminal-header-slot'
 import { cn } from '@/lib/utils'
 import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import { getCountryLabel } from '@/lib/country'
@@ -935,11 +937,128 @@ export default function PlatformRevenuePage() {
     </div>
   )
 
-  const headerSlotPortal = useHeaderSlot(filterControls)
+  const headerSlotPortal = useHeaderSlot(
+    <HeaderFilterControls isMobileView={false} controls={filterControls} />
+  )
+
+  const selectedProject = projects.find((p) => p.id.toString() === filters.project_id)
+  const projectLabel = selectedProject ? selectedProject.name : '全部项目'
+  const yearLabel = filters.year ? `${filters.year}年` : '全部年份'
+  const monthLabel = filters.month ? `${filters.month}月` : '全部月份'
+  const mobileFilterSummary = `${projectLabel} · ${yearLabel} · ${monthLabel}`
+
+  const mobileFilterStrip = useMobileFilterStrip(
+    <MobileFilterStrip
+      summary={mobileFilterSummary}
+      variant="warm-ledger"
+      className={styles.mobileFilterStrip}
+      controls={
+        <>
+          <WarmSelect
+            id="platform-revenue-mobile-project"
+            label="项目"
+            value={filters.project_id || ALL_FILTER_VALUE}
+            options={[
+              { value: ALL_FILTER_VALUE, label: '全部项目' },
+              ...projects.map((project) => ({
+                value: project.id.toString(),
+                label: project.name,
+              })),
+            ]}
+            onChange={(value) =>
+              handleFilterChange('project_id', value === ALL_FILTER_VALUE ? '' : value)
+            }
+            disabled={projectsLoading}
+            error={projectsError}
+            className={styles.mobileFilterWide}
+          />
+          <WarmSelect
+            id="platform-revenue-mobile-year"
+            label="年份"
+            value={filters.year || ALL_FILTER_VALUE}
+            options={[
+              { value: ALL_FILTER_VALUE, label: '全部年份' },
+              ...getYearOptions().map((year) => ({
+                value: year.value.toString(),
+                label: year.label,
+              })),
+            ]}
+            onChange={(value) =>
+              handleFilterChange('year', value === ALL_FILTER_VALUE ? '' : value)
+            }
+            className={styles.mobileFilterWide}
+          />
+          <WarmSelect
+            id="platform-revenue-mobile-month"
+            label="月份"
+            value={filters.month || ALL_FILTER_VALUE}
+            options={[
+              { value: ALL_FILTER_VALUE, label: '全部月份' },
+              ...MONTH_OPTIONS.map((month) => ({
+                value: month.value.toString(),
+                label: month.label,
+              })),
+            ]}
+            onChange={(value) =>
+              handleFilterChange('month', value === ALL_FILTER_VALUE ? '' : value)
+            }
+            className={styles.mobileFilterWide}
+          />
+          <WarmSelect
+            id="platform-revenue-mobile-currency"
+            label="币种"
+            value={filters.currency || ALL_FILTER_VALUE}
+            options={[
+              { value: ALL_FILTER_VALUE, label: '全部币种' },
+              ...CURRENCY_OPTIONS.map((currency) => ({
+                value: currency.value,
+                label: currency.label,
+              })),
+            ]}
+            onChange={(value) =>
+              handleFilterChange('currency', value === ALL_FILTER_VALUE ? '' : value)
+            }
+            className={styles.mobileFilterWide}
+          />
+          <WarmSelect
+            id="platform-revenue-mobile-type"
+            label="回款类型"
+            value={filters.revenue_type || ALL_FILTER_VALUE}
+            options={[
+              { value: ALL_FILTER_VALUE, label: '全部类型' },
+              { value: '订单回款', label: '订单回款' },
+              { value: 'B2B回款', label: 'B2B回款' },
+            ]}
+            onChange={(value) =>
+              handleFilterChange('revenue_type', value === ALL_FILTER_VALUE ? '' : value)
+            }
+            className={styles.mobileFilterWide}
+          />
+          <MobileFilterWide>
+            <WarmButton
+              variant="quiet"
+              className={styles.mobileResetButton}
+              onClick={resetFilters}
+            >
+              重置筛选
+            </WarmButton>
+          </MobileFilterWide>
+        </>
+      }
+    />
+  )
 
   return (
     <div className={styles.page} data-warm-platform-revenue="true">
       {headerSlotPortal}
+      {mobileFilterStrip}
+
+      {!loading && !loadError && revenues.length > 0 ? (
+        <div className={styles.mobileSummaryBanner} role="status">
+          <span className={styles.mobileSummaryLabel}>当前页合计</span>
+          <span className={styles.mobileSummaryValue}>{formatTotals(calculateTotals(revenues))}</span>
+        </div>
+      ) : null}
 
       <section
         className={styles.panel}

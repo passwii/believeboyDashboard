@@ -95,133 +95,142 @@ export function LineItemsEditor({ form, currencySymbol, onChange }: LineItemsEdi
           </p>
         ) : (
           <div className={styles.formStack}>
-            <div className={styles.lineHeader}>
-              <span>商品描述</span>
-              <span>ASIN</span>
-              <span className={styles.lineHeaderNumeric}>数量</span>
-              <span className={styles.lineHeaderNumeric}>单价（含税）</span>
-              <span>VAT%</span>
-              <span className={styles.lineHeaderNumeric}>小计（含税）</span>
-              <span aria-hidden />
-            </div>
+            <div
+              className={styles.lineItemsScroller}
+              tabIndex={0}
+              role="region"
+              aria-label="商品明细与运费列表"
+            >
+              <div className={styles.lineItemsTable}>
+                <div className={styles.lineHeader}>
+                  <span>商品描述</span>
+                  <span>ASIN</span>
+                  <span className={styles.lineHeaderNumeric}>数量</span>
+                  <span className={styles.lineHeaderNumeric}>单价（含税）</span>
+                  <span>VAT%</span>
+                  <span className={styles.lineHeaderNumeric}>小计（含税）</span>
+                  <span aria-hidden />
+                </div>
 
-            {items.map((it, idx) => {
-              const sub = lineSubtotal(it)
-              return (
-                <div key={idx} className={styles.lineRow}>
-                  <div className={styles.lineCell}>
-                    <Input
-                      aria-label={`第 ${idx + 1} 行商品描述`}
-                      className={styles.control}
-                      value={it.description}
-                      onChange={(e) => updateRow(idx, { description: e.target.value })}
-                      placeholder="商品名称 / 描述"
-                    />
+                {items.map((it, idx) => {
+                  const sub = lineSubtotal(it)
+                  return (
+                    <div key={idx} className={styles.lineRow}>
+                      <div className={styles.lineCell}>
+                        <Input
+                          aria-label={`第 ${idx + 1} 行商品描述`}
+                          className={styles.control}
+                          value={it.description}
+                          onChange={(e) => updateRow(idx, { description: e.target.value })}
+                          placeholder="商品名称 / 描述"
+                        />
+                      </div>
+                      <div className={styles.lineCell}>
+                        <Input
+                          aria-label={`第 ${idx + 1} 行 ASIN`}
+                          className={cn(styles.control, styles.numericControl)}
+                          value={it.asin}
+                          onChange={(e) => updateRow(idx, { asin: e.target.value })}
+                          placeholder="B0G4N65TD5"
+                        />
+                      </div>
+                      <div className={styles.lineCell}>
+                        <Input
+                          aria-label={`第 ${idx + 1} 行数量`}
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={it.qty}
+                          onChange={(e) => handleNumberInput(idx, 'qty', e.target.value, 1)}
+                          className={cn(styles.control, styles.numericControl)}
+                        />
+                      </div>
+                      <div className={styles.lineCell}>
+                        <Input
+                          aria-label={`第 ${idx + 1} 行含税单价`}
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          value={it.unit_price_incl_vat}
+                          onChange={(e) =>
+                            handleNumberInput(idx, 'unit_price_incl_vat', e.target.value, 0)
+                          }
+                          className={cn(styles.control, styles.numericControl)}
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div className={styles.lineCell}>
+                        <Select
+                          value={String(it.vat_rate)}
+                          onValueChange={(v) => updateRow(idx, { vat_rate: Number(v) })}
+                        >
+                          <SelectTrigger
+                            aria-label={`第 ${idx + 1} 行 VAT 税率`}
+                            className={styles.selectTrigger}
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className={cn('warm-ledger', styles.selectContent)}>
+                            {VAT_RATE_OPTIONS.map((r) => (
+                              <SelectItem key={r} value={String(r)}>
+                                {r}%
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <span className={styles.lineAmount}>
+                        {currencySymbol}
+                        {sub.incl.toFixed(2)}
+                      </span>
+                      <div className={styles.lineCell}>
+                        <WarmIconButton
+                          onClick={() => removeRow(idx)}
+                          aria-label="删除该行"
+                          title="删除该行"
+                        >
+                          <Trash2 aria-hidden />
+                        </WarmIconButton>
+                      </div>
+                    </div>
+                  )
+                })}
+
+                <div className={styles.shippingRow}>
+                  <div className={styles.shippingLabel}>
+                    <Truck className="h-3.5 w-3.5" aria-hidden />
+                    运费（含税） · VAT 跟随第一行：{firstItemRate ?? 0}%
                   </div>
-                  <div className={styles.lineCell}>
+                  <div>
                     <Input
-                      aria-label={`第 ${idx + 1} 行 ASIN`}
-                      className={cn(styles.control, styles.numericControl)}
-                      value={it.asin}
-                      onChange={(e) => updateRow(idx, { asin: e.target.value })}
-                      placeholder="B0G4N65TD5"
-                    />
-                  </div>
-                  <div className={styles.lineCell}>
-                    <Input
-                      aria-label={`第 ${idx + 1} 行数量`}
-                      type="number"
-                      min={1}
-                      step={1}
-                      value={it.qty}
-                      onChange={(e) => handleNumberInput(idx, 'qty', e.target.value, 1)}
-                      className={cn(styles.control, styles.numericControl)}
-                    />
-                  </div>
-                  <div className={styles.lineCell}>
-                    <Input
-                      aria-label={`第 ${idx + 1} 行含税单价`}
                       type="number"
                       min={0}
                       step={0.01}
-                      value={it.unit_price_incl_vat}
-                      onChange={(e) =>
-                        handleNumberInput(idx, 'unit_price_incl_vat', e.target.value, 0)
-                      }
+                      value={form.shipping_incl_vat}
+                      onChange={(e) => {
+                        const raw = e.target.value
+                        if (raw === '') {
+                          onChange({ ...form, shipping_incl_vat: 0 })
+                          return
+                        }
+                        const n = Number(raw)
+                        onChange({
+                          ...form,
+                          shipping_incl_vat: Number.isFinite(n) ? Math.max(0, n) : 0,
+                        })
+                      }}
                       className={cn(styles.control, styles.numericControl)}
                       placeholder="0.00"
+                      aria-label="运费（含税）"
                     />
-                  </div>
-                  <div className={styles.lineCell}>
-                    <Select
-                      value={String(it.vat_rate)}
-                      onValueChange={(v) => updateRow(idx, { vat_rate: Number(v) })}
-                    >
-                      <SelectTrigger
-                        aria-label={`第 ${idx + 1} 行 VAT 税率`}
-                        className={styles.selectTrigger}
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className={cn('warm-ledger', styles.selectContent)}>
-                        {VAT_RATE_OPTIONS.map((r) => (
-                          <SelectItem key={r} value={String(r)}>
-                            {r}%
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
                   </div>
                   <span className={styles.lineAmount}>
                     {currencySymbol}
-                    {sub.incl.toFixed(2)}
+                    {form.shipping_incl_vat.toFixed(2)}
                   </span>
-                  <div className={styles.lineCell}>
-                    <WarmIconButton
-                      onClick={() => removeRow(idx)}
-                      aria-label="删除该行"
-                      title="删除该行"
-                    >
-                      <Trash2 aria-hidden />
-                    </WarmIconButton>
-                  </div>
+                  <span aria-hidden />
                 </div>
-              )
-            })}
-
-            <div className={styles.shippingRow}>
-              <div className={styles.shippingLabel}>
-                <Truck className="h-3.5 w-3.5" aria-hidden />
-                运费（含税） · VAT 跟随第一行：{firstItemRate ?? 0}%
               </div>
-              <div>
-                <Input
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  value={form.shipping_incl_vat}
-                  onChange={(e) => {
-                    const raw = e.target.value
-                    if (raw === '') {
-                      onChange({ ...form, shipping_incl_vat: 0 })
-                      return
-                    }
-                    const n = Number(raw)
-                    onChange({
-                      ...form,
-                      shipping_incl_vat: Number.isFinite(n) ? Math.max(0, n) : 0,
-                    })
-                  }}
-                  className={cn(styles.control, styles.numericControl)}
-                  placeholder="0.00"
-                  aria-label="运费（含税）"
-                />
-              </div>
-              <span className={styles.lineAmount}>
-                {currencySymbol}
-                {form.shipping_incl_vat.toFixed(2)}
-              </span>
-              <span aria-hidden />
             </div>
           </div>
         )}

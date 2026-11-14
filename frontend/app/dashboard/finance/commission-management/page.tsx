@@ -577,6 +577,7 @@ export default function CommissionManagementPage() {
   const mobileFilterStrip = useMobileFilterStrip(
     <MobileFilterStrip
       summary={mobileFilterSummary}
+      variant="warm-ledger"
       className={styles.mobileFilterStrip}
       controls={
         <>
@@ -609,18 +610,29 @@ export default function CommissionManagementPage() {
           />
           {activeTab === 'detail' ? (
             <MobileFilterWide>
-              <WarmButton
-                variant="secondary"
-                onClick={() => void handleRecompute()}
-                disabled={recomputing || loading}
-                loading={recomputing}
-                loadingLabel="正在重新核算佣金"
-              >
-                <RefreshCw aria-hidden />
-                核算
+              <div className={styles.mobileFilterActions}>
+                <WarmButton variant="quiet" onClick={resetFilters}>
+                  重置
+                </WarmButton>
+                <WarmButton
+                  variant="secondary"
+                  onClick={() => void handleRecompute()}
+                  disabled={recomputing || loading}
+                  loading={recomputing}
+                  loadingLabel="正在重新核算佣金"
+                >
+                  <RefreshCw aria-hidden />
+                  核算
+                </WarmButton>
+              </div>
+            </MobileFilterWide>
+          ) : (
+            <MobileFilterWide>
+              <WarmButton variant="quiet" onClick={resetFilters}>
+                重置
               </WarmButton>
             </MobileFilterWide>
-          ) : null}
+          )}
         </>
       }
     />
@@ -630,6 +642,36 @@ export default function CommissionManagementPage() {
     <div className={styles.page} data-warm-commission-management="true">
       {headerSlotPortal}
       {mobileFilterStrip}
+
+      {activeTab === 'detail' && !loading && !loadError ? (
+        <div className={styles.mobileMetrics} role="region" aria-label="移动端财务概览">
+          <div className={styles.mobileMetricCard}>
+            <span className={styles.mobileMetricLabel}>工厂佣金</span>
+            <span className={styles.mobileMetricValue}>{formatRmb(totalFactoryCommissionRmb)}</span>
+          </div>
+          <div className={styles.mobileMetricCard}>
+            <span className={styles.mobileMetricLabel}>已回款</span>
+            <span className={styles.mobileMetricValue}>{formatRmb(totalReceivedRmb)}</span>
+          </div>
+        </div>
+      ) : (activeTab === 'monthly' || activeTab === 'projectSummary') &&
+        !summaryLoading &&
+        !summaryError ? (
+        <div className={styles.mobileMetrics} role="region" aria-label="移动端财务概览">
+          <div className={styles.mobileMetricCard}>
+            <span className={styles.mobileMetricLabel}>销售</span>
+            <span className={styles.mobileMetricValue}>{formatUsd(yearlyTotals.income)}</span>
+          </div>
+          <div className={styles.mobileMetricCard}>
+            <span className={styles.mobileMetricLabel}>佣金</span>
+            <span className={styles.mobileMetricValue}>{formatRmb(yearlyTotals.commission)}</span>
+          </div>
+          <div className={styles.mobileMetricCard}>
+            <span className={styles.mobileMetricLabel}>回款</span>
+            <span className={styles.mobileMetricValue}>{formatRmb(yearlyTotals.received)}</span>
+          </div>
+        </div>
+      ) : null}
 
       <Tabs
         value={activeTab}

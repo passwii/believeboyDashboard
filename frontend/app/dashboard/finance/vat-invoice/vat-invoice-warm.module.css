@@ -159,6 +159,19 @@
   gap: var(--warm-ledger-space-4);
 }
 
+.lineItemsScroller {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.lineItemsTable {
+  min-width: 720px;
+  display: grid;
+  gap: var(--warm-ledger-space-2);
+}
+
 .fieldGrid {
   display: grid;
   min-width: 0;
@@ -900,6 +913,120 @@
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+@media (max-width: 768px) {
+  .createGrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-4);
+  }
+
+  .summaryRail {
+    position: static;
+    top: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .page {
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .tabList {
+    width: 100% !important;
+    max-width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .tabList :global([role='tab']) {
+    min-height: var(--warm-ledger-control-target-touch, 44px) !important;
+    justify-content: center !important;
+  }
+
+  .panelHeader {
+    min-height: 48px;
+    padding: 0 var(--warm-ledger-space-3);
+  }
+
+  .panelBody {
+    padding: var(--warm-ledger-space-3);
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .fieldGrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .sellerProjectRow,
+  .sellerCountryRow {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-1);
+    align-items: stretch;
+  }
+
+  .control,
+  .selectTrigger {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .primaryAction,
+  .secondaryAction {
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+  }
+
+  .historyToolbar {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-3);
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .historyToolbarAction {
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch, 44px);
+    justify-content: center;
+  }
+
+  .tableScroller {
+    max-height: min(70dvh, 560px);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tableAction {
+    width: var(--warm-ledger-control-target-touch, 44px) !important;
+    height: var(--warm-ledger-control-target-touch, 44px) !important;
+    min-width: var(--warm-ledger-control-target-touch, 44px) !important;
+    min-height: var(--warm-ledger-control-target-touch, 44px) !important;
+  }
+
+  .dialog,
+  .dialogSmall,
+  .dialogForm {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+    max-height: calc(100vh - 32px);
+    padding: var(--warm-ledger-space-4);
+  }
+
+  .detailFacts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--warm-ledger-space-2);
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .dialogGrid,
+  .previewGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .previewFrame {
+    min-height: 380px;
+  }
+
+  .previewFrame iframe {
+    height: 380px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

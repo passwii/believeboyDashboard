@@ -27,7 +27,9 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useNotifications } from '@/components/notifications'
-import { useHeaderRefresh, useHeaderSlot } from '@/components/terminal/terminal-header-slot'
+import { HeaderFilterControls } from '@/components/terminal/header-filter-controls'
+import { MobileFilterStrip, MobileFilterWide } from '@/components/terminal/mobile-filter-strip'
+import { useHeaderRefresh, useHeaderSlot, useMobileFilterStrip } from '@/components/terminal/terminal-header-slot'
 import styles from './exchange-rate-warm.module.css'
 
 // 预定义货币选项
@@ -484,11 +486,75 @@ export default function ExchangeRatePage() {
     </div>
   )
 
-  const headerSlotPortal = useHeaderSlot(filterControls)
+  const headerSlotPortal = useHeaderSlot(
+    <HeaderFilterControls isMobileView={false} controls={filterControls} />
+  )
+
+  const currencyLabel = filters.currency
+    ? CURRENCY_OPTIONS.find((c) => c.value === filters.currency)?.label.split(' - ')[0] || filters.currency
+    : '全部货币'
+  const yearLabel = filters.year ? `${filters.year}年` : '全部年份'
+  const monthLabel = filters.month ? `${filters.month}月` : '全部月份'
+  const mobileFilterSummary = `${currencyLabel} · ${yearLabel} · ${monthLabel}`
+
+  const mobileFilterStrip = useMobileFilterStrip(
+    <MobileFilterStrip
+      summary={mobileFilterSummary}
+      variant="warm-ledger"
+      className={styles.mobileFilterStrip}
+      controls={
+        <>
+          <WarmSelect
+            id="exchange-rate-mobile-currency"
+            label="货币"
+            value={filters.currency || ALL_FILTER_VALUE}
+            options={[
+              { value: ALL_FILTER_VALUE, label: '全部货币' },
+              ...CURRENCY_OPTIONS.map((c) => ({ value: c.value, label: c.label })),
+            ]}
+            onChange={(val) => handleFilterChange('currency', val === ALL_FILTER_VALUE ? '' : val)}
+            className={styles.mobileFilterWide}
+          />
+          <WarmSelect
+            id="exchange-rate-mobile-year"
+            label="年份"
+            value={filters.year || ALL_FILTER_VALUE}
+            options={[
+              { value: ALL_FILTER_VALUE, label: '全部年份' },
+              ...getYearOptions().map((y) => ({ value: y.value.toString(), label: y.label })),
+            ]}
+            onChange={(val) => handleFilterChange('year', val === ALL_FILTER_VALUE ? '' : val)}
+            className={styles.mobileFilterWide}
+          />
+          <WarmSelect
+            id="exchange-rate-mobile-month"
+            label="月份"
+            value={filters.month || ALL_FILTER_VALUE}
+            options={[
+              { value: ALL_FILTER_VALUE, label: '全部月份' },
+              ...MONTH_OPTIONS.map((m) => ({ value: m.value.toString(), label: m.label })),
+            ]}
+            onChange={(val) => handleFilterChange('month', val === ALL_FILTER_VALUE ? '' : val)}
+            className={styles.mobileFilterWide}
+          />
+          <MobileFilterWide>
+            <WarmButton
+              variant="quiet"
+              className={styles.mobileResetButton}
+              onClick={resetFilters}
+            >
+              重置筛选
+            </WarmButton>
+          </MobileFilterWide>
+        </>
+      }
+    />
+  )
 
   return (
     <div className={styles.page} data-warm-exchange-rate="true">
       {headerSlotPortal}
+      {mobileFilterStrip}
       <section
         className={styles.panel}
         data-warm-exchange-rate-panel="true"
