@@ -137,15 +137,17 @@ describe('MarkdownToWordClient', () => {
 })
 
 describe('Markdown to Word V4 contract', () => {
-  it('uses Warm tokens without Terminal aliases or new page breakpoints', () => {
+  it('uses Warm tokens with a phone keyboard and output-scroll breakpoint', () => {
     const css = readFileSync(join(__dirname, 'markdown-to-word.module.css'), 'utf8')
     const source = readFileSync(join(__dirname, 'markdown-to-word-client.tsx'), 'utf8')
 
     expect(css).toContain('var(--warm-ledger-color-panel)')
     expect(css).toContain('var(--warm-ledger-radius-control)')
     expect(css).toContain('var(--warm-ledger-focus-color)')
+    expect(css).toContain('@media (max-width: 640px)')
+    expect(css).toContain('font-size: 16px')
+    expect(css).toContain('max-height: min(56dvh, 520px)')
     expect(css).not.toContain('--term-')
-    expect(css).not.toContain('@media')
     expect(source).not.toContain('term-')
     expect(source).not.toContain('rounded-none')
     expect(source).not.toMatch(/\b(?:sm|md|lg|xl|2xl):/)

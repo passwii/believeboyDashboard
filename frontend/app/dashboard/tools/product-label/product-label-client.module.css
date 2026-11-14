@@ -263,3 +263,63 @@
   font-family: var(--warm-ledger-font-mono);
   white-space: nowrap;
 }
+
+@media (max-width: 640px) {
+  .header {
+    padding-bottom: var(--warm-ledger-space-3);
+  }
+
+  .title {
+    font-size: var(--warm-ledger-font-size-page-title-mobile);
+    line-height: 1.12;
+  }
+
+  .panel {
+    min-height: 0;
+  }
+
+  .panelContent {
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .fileMeta {
+    padding-top: var(--warm-ledger-space-3);
+  }
+
+  .processingNote {
+    margin-top: 0;
+    padding-top: var(--warm-ledger-space-3);
+  }
+
+  .actionGroup {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    row-gap: var(--warm-ledger-space-2);
+  }
+
+  .fieldHeading {
+    flex-wrap: wrap;
+    row-gap: var(--warm-ledger-space-1);
+  }
+
+  .textarea {
+    min-height: 200px;
+    font-size: 16px;
+    line-height: 1.6;
+  }
+
+  .checkRow {
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .exportRow {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    row-gap: var(--warm-ledger-space-2);
+  }
+
+  .redownload {
+    max-width: 100%;
+    justify-content: flex-start;
+  }
+}

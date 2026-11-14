@@ -47,7 +47,11 @@ function PhotoGrid({
               src={`${ASSET_BASE}/${image.src}`}
               alt={image.alt}
               fill
-              sizes={columns === 'box' ? '(min-width: 1280px) 18vw, 30vw' : '(min-width: 1280px) 28vw, 42vw'}
+              sizes={
+                columns === 'box'
+                  ? '(min-width: 1280px) 18vw, (min-width: 641px) 30vw, 44vw'
+                  : '(min-width: 1280px) 28vw, (min-width: 641px) 42vw, 44vw'
+              }
               className={styles.image}
             />
           </div>

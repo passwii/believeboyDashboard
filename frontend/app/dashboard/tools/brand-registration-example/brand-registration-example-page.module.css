@@ -227,3 +227,46 @@
   font-size: var(--warm-ledger-font-size-control);
   line-height: var(--warm-ledger-line-height-body);
 }
+
+@media (max-width: 640px) {
+  .page {
+    gap: var(--warm-ledger-space-4);
+  }
+
+  .header {
+    padding-bottom: var(--warm-ledger-space-3);
+  }
+
+  .title {
+    font-size: var(--warm-ledger-font-size-page-title-mobile);
+    line-height: 1.12;
+  }
+
+  .backgroundNote {
+    flex-direction: column;
+    gap: var(--warm-ledger-space-1);
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .layoutGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .boxGrid,
+  .productGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .photoCard {
+    padding: var(--warm-ledger-space-2);
+  }
+
+  .requirement {
+    grid-template-columns: 24px minmax(0, 1fr);
+    padding: var(--warm-ledger-space-3) 0;
+  }
+
+  .checkSummary {
+    padding: var(--warm-ledger-space-3);
+  }
+}

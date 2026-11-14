@@ -24,13 +24,14 @@ describe('ToolsLoading', () => {
     expect(screen.queryByText(/示例|演示|假数据/)).not.toBeInTheDocument()
   })
 
-  it('uses static Warm skeleton surfaces without motion or mobile breakpoints', () => {
+  it('uses static Warm skeleton surfaces with a phone single-column breakpoint', () => {
     const css = readFileSync(join(__dirname, 'tools-loading.module.css'), 'utf8')
 
     expect(css).toContain('var(--warm-ledger-color-panel)')
     expect(css).toContain('var(--warm-ledger-color-raised)')
+    expect(css).toContain('@media (max-width: 640px)')
+    expect(css).toContain('grid-template-columns: minmax(0, 1fr)')
     expect(css).not.toContain('animation')
-    expect(css).not.toContain('@media')
     expect(css).not.toContain('--term-')
   })
 })

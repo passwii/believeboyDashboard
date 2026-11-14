@@ -149,3 +149,20 @@
   font-family: var(--warm-ledger-font-mono);
   font-size: var(--warm-ledger-font-size-label);
 }
+
+@media (max-width: 640px) {
+  .uploadZone :global(div:has(> input[type='file']) > div:first-child) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .uploadZone :global(div:has(> input[type='file']) > div:first-child > button) {
+    width: 100%;
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .uploadZone :global(div:has(> input[type='file']) > div:first-child > div) {
+    width: 100%;
+    min-height: 72px;
+  }
+}
