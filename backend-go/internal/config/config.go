@@ -191,6 +191,7 @@ type Config struct {
 	ProjectLaunchDocumentsRoot  string
 	R2EndpointURL               string
 	R2BucketName                string
+	R2PrivateBucketName         string
 	R2AccessKeyID               string
 	R2SecretAccessKey           string
 	R2Region                    string
@@ -266,6 +267,7 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 		ProjectLaunchDocumentsRoot:   valueOrDefault(lookup, "PROJECT_LAUNCH_DOCUMENTS_ROOT", defaultProjectLaunchDocsRoot),
 		R2EndpointURL:                firstNonEmpty(lookup, "R2_ENDPOINT_URL"),
 		R2BucketName:                 firstNonEmpty(lookup, "R2_BUCKET_NAME"),
+		R2PrivateBucketName:          firstNonEmpty(lookup, "R2_PRIVATE_BUCKET_NAME"),
 		R2AccessKeyID:                firstNonEmpty(lookup, "R2_ACCESS_KEY_ID"),
 		R2SecretAccessKey:            firstNonEmpty(lookup, "R2_SECRET_ACCESS_KEY"),
 		R2Region:                     valueOrDefault(lookup, "R2_REGION", "auto"),
@@ -438,6 +440,25 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// R2PrivateBucketResolved returns the bucket used for private objects. An
+// empty R2_PRIVATE_BUCKET_NAME falls back to R2_BUCKET_NAME, the only bucket
+// FastAPI ever wrote proposals to, so historical reads need no new config.
+func (cfg Config) R2PrivateBucketResolved() string {
+	private := strings.TrimSpace(cfg.R2PrivateBucketName)
+	if private != "" {
+		return private
+	}
+	return strings.TrimSpace(cfg.R2BucketName)
+}
+
+// R2PrivateBucketIsolated reports whether a separate private bucket is
+// configured. False means the fallback chain has no private bucket to try;
+// new sensitive writes stay local and never land in the public bucket.
+func (cfg Config) R2PrivateBucketIsolated() bool {
+	private := strings.TrimSpace(cfg.R2PrivateBucketName)
+	return private != "" && private != strings.TrimSpace(cfg.R2BucketName)
 }
 
 func redisURLWithDB(rawURL string, db int) (string, error) {

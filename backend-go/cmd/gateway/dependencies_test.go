@@ -2,12 +2,15 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/api/crm"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/product_analysis_reports"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/config"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/httpserver"
@@ -172,6 +175,119 @@ func TestAllModulesWiresProductAnalysisReportObjectURLs(t *testing.T) {
 func TestProductAnalysisReportObjectURLsStayNilWithoutR2(t *testing.T) {
 	if builder := newProductAnalysisReportObjectURLs(nil); builder != nil {
 		t.Fatalf("newProductAnalysisReportObjectURLs(nil) = %#v, want nil", builder)
+	}
+}
+
+func TestNewDependenciesCRMProposalStoragePrivateBucketFallbacks(t *testing.T) {
+	root := t.TempDir()
+	base := config.Config{
+		APIKey:       "test-api-key",
+		DatabaseURL:  "postgres://localhost/test",
+		UploadRoot:   root,
+		OwnedModules: map[string]bool{"crm": true},
+	}
+	tests := []struct {
+		name            string
+		privateBucket   string
+		wantBucketCount int
+	}{
+		{
+			name:            "private bucket unset falls back to public only",
+			privateBucket:   "",
+			wantBucketCount: 1,
+		},
+		{
+			name:            "private bucket configured tries private first",
+			privateBucket:   "dashboard-private",
+			wantBucketCount: 2,
+		},
+		{
+			name:            "same name is not a separate private bucket",
+			privateBucket:   "dashboard-assets",
+			wantBucketCount: 1,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := base
+			cfg.R2EndpointURL = "https://r2.example.com"
+			cfg.R2BucketName = "dashboard-assets"
+			cfg.R2PrivateBucketName = test.privateBucket
+			cfg.R2AccessKeyID = "access-key"
+			cfg.R2SecretAccessKey = "secret-key"
+			objectStore, err := newObjectStore(cfg)
+			if err != nil {
+				t.Fatalf("newObjectStore() error = %v", err)
+			}
+			storage, err := newProposalStorage(cfg, objectStore)
+			if err != nil {
+				t.Fatalf("newProposalStorage() error = %v", err)
+			}
+			if storage.BucketCount() != test.wantBucketCount {
+				t.Fatalf("BucketCount() = %d, want %d", storage.BucketCount(), test.wantBucketCount)
+			}
+		})
+	}
+}
+
+func TestCRMProposalStorageReadsHistoricalObjectsFromR2Buckets(t *testing.T) {
+	key := "crm-proposals/21/v1/raw.html"
+	handler := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/dashboard-private/" + key:
+			_, _ = io.WriteString(writer, "private")
+		case "/dashboard-assets/" + key:
+			_, _ = io.WriteString(writer, "public")
+		default:
+			writer.Header().Set("Content-Type", "application/xml")
+			writer.WriteHeader(http.StatusNotFound)
+			_, _ = io.WriteString(writer,
+				`<Error><Code>NoSuchKey</Code><Message>missing</Message></Error>`)
+		}
+	})
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+
+	cfg := config.Config{
+		UploadRoot:          t.TempDir(),
+		R2EndpointURL:       server.URL,
+		R2BucketName:        "dashboard-assets",
+		R2PrivateBucketName: "dashboard-private",
+		R2AccessKeyID:       "access-key",
+		R2SecretAccessKey:   "secret-key",
+		R2Region:            "auto",
+	}
+	objectStore, err := newObjectStore(cfg)
+	if err != nil {
+		t.Fatalf("newObjectStore() error = %v", err)
+	}
+	storage, err := newProposalStorage(cfg, objectStore)
+	if err != nil {
+		t.Fatalf("newProposalStorage() error = %v", err)
+	}
+	got, err := storage.GetObject(context.Background(), key)
+	if err != nil || string(got) != "private" {
+		t.Fatalf("historical read = %q, %v; want private bucket", got, err)
+	}
+
+	cfg.R2PrivateBucketName = ""
+	storage, err = newProposalStorage(cfg, objectStore)
+	if err != nil {
+		t.Fatalf("newProposalStorage(private unset) error = %v", err)
+	}
+	got, err = storage.GetObject(context.Background(), key)
+	if err != nil || string(got) != "public" {
+		t.Fatalf("private-unset read = %q, %v; want public bucket", got, err)
+	}
+
+	missingKey := "crm-proposals/21/v1/adapted.html"
+	if _, err := storage.GetObject(context.Background(), missingKey); err == nil {
+		t.Fatal("missing object must fail")
+	} else {
+		var apiErr *crm.APIError
+		if !errors.As(err, &apiErr) || apiErr.Status != http.StatusNotFound {
+			t.Fatalf("missing object error = %v, want 404 APIError", err)
+		}
 	}
 }
 
