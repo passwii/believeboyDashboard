@@ -363,11 +363,11 @@ export function AdAnalysisOverviewClient() {
   const metrics = data?.metrics ?? []
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-1.5" data-warm-ad-analysis-page="overview">
+    <div className="flex min-h-0 flex-1 flex-col gap-2 sm:gap-1.5" data-warm-ad-analysis-page="overview">
       <WarmRefreshStatus loading={isLoading} error={error} hasData={Boolean(data)} />
 
       {/* ===== KPI 等宽磁贴带（范围 3）：等宽网格 + 同比环比语义色 ===== */}
-      <div className="grid shrink-0 grid-cols-8 gap-1">
+      <div className="grid shrink-0 grid-cols-2 gap-1 sm:grid-cols-8">
         {isLoading && metrics.length === 0
           ? Array.from({ length: 8 }).map((_, i) => (
               <div key={`kpi-skeleton-${i}`} className="rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] px-2 py-1.5">
@@ -387,10 +387,10 @@ export function AdAnalysisOverviewClient() {
       </div>
 
       {/* ===== 上部图表分割区（范围 1，约 40~45% 高度，容器内自适应） ===== */}
-      <div className="grid h-[38vh] max-h-[420px] min-h-[220px] shrink-0 grid-cols-2 gap-1">
+      <div className="grid shrink-0 grid-cols-1 gap-1 sm:h-[38vh] sm:max-h-[420px] sm:min-h-[220px] sm:grid-cols-2">
         <WarmPanel
           title="按日花费与销售额"
-          className="flex min-h-0 flex-col"
+          className="flex h-[240px] min-h-0 flex-col sm:h-auto"
           bodyClassName="min-h-0 flex-1 p-0"
         >
           <ChartContainer
@@ -458,7 +458,7 @@ export function AdAnalysisOverviewClient() {
 
         <WarmPanel
           title="活动花费"
-          className="flex min-h-0 flex-col"
+          className="flex h-[240px] min-h-0 flex-col sm:h-auto"
           bodyClassName="min-h-0 flex-1 p-0"
         >
           <ChartContainer
@@ -500,7 +500,7 @@ export function AdAnalysisOverviewClient() {
       </div>
 
       {/* ===== 下部子 Tab 数据网格（范围 2）：WarmPanel 密度规格 + sticky 表头独立滚动 ===== */}
-      <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--warm-ledger-radius-panel)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)]" aria-label="广告明细数据">
+      <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--warm-ledger-radius-panel)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] max-sm:h-[420px] max-sm:flex-none" aria-label="广告明细数据">
         <WarmGridHeader
           title="明细数据 DETAILS"
           meta={data ? `${data.top_campaigns.length + data.top_products.length + data.top_waste_terms.length} groups` : undefined}

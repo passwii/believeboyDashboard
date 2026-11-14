@@ -208,7 +208,7 @@ export function AdAnalysisSearchTermsClient() {
         ]}
       />
       {/* 桌面端汇总卡固定四列，金额由 Warm 数字字体完整展示 */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {data.summary_cards.map((card) => (
           <WarmKpiTile key={card.label} label={card.label} value={card.value} />
         ))}

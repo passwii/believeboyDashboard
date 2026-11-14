@@ -145,7 +145,7 @@ export function AdAnalysisTimeTrendClient() {
             {comparison.summary ? (
               <p className="text-sm leading-6 text-[var(--warm-ledger-color-text-soft)]">{comparison.summary}</p>
             ) : null}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
               <div className="rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] px-2 py-1.5 font-sans text-xs">
                 <p className="text-[var(--warm-ledger-color-text-muted)]">花费变化</p>
                 <p className="mt-1 font-medium">
@@ -174,7 +174,7 @@ export function AdAnalysisTimeTrendClient() {
           </div>
         </WarmPanel>
       ) : null}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         <WarmKpiTile label="累计花费" value={`$${latest.running_spend.toFixed(2)}`} />
         <WarmKpiTile label="最新单日点击" value={String(latest.clicks)} />
         <WarmKpiTile label="最新单日 CPC" value={`$${latest.cpc.toFixed(2)}`} />

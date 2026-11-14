@@ -190,6 +190,39 @@
   border-radius: var(--warm-ledger-radius-panel);
 }
 
+@media (max-width: 640px) {
+  .layout {
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .tabScroller {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  .tabLink {
+    min-height: var(--warm-ledger-control-target-touch);
+    padding-inline: var(--warm-ledger-space-2);
+  }
+
+  .mobileControl {
+    height: var(--warm-ledger-control-target-touch);
+  }
+
+  .clearButton {
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .loadingGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .loadingPanel {
+    min-height: 320px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .tabLink {
     transition: none;

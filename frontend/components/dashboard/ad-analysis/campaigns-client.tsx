@@ -212,7 +212,7 @@ export function AdAnalysisCampaignsClient() {
         ]}
       />
       {/* 桌面端汇总卡固定四列，金额由 Warm 数字字体完整展示 */}
-      <div className="grid grid-cols-4 gap-2" data-testid="campaign-summary-cards">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" data-testid="campaign-summary-cards">
         {data.summary_cards.map((card) => (
           <div key={card.label} data-testid="campaign-summary-card">
             <WarmKpiTile label={card.label} value={card.value} />
