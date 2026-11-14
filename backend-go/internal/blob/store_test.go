@@ -292,6 +292,24 @@ func TestStorePresignsGetOnlyWithoutNetworkRequest(t *testing.T) {
 	}
 }
 
+func TestStorePresignUsesDefaultExpiry(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t, http.NotFoundHandler(), nil)
+
+	signedURL, err := store.Presign(context.Background(), "inspection-screenshots/north/report_9/a.png")
+	if err != nil {
+		t.Fatalf("Presign() error = %v", err)
+	}
+	parsed, err := url.Parse(signedURL)
+	if err != nil {
+		t.Fatalf("url.Parse() error = %v", err)
+	}
+	if query := parsed.Query(); query.Get("X-Amz-Signature") == "" ||
+		query.Get("X-Amz-Expires") != "3600" {
+		t.Fatalf("signed URL query = %#v", query)
+	}
+}
+
 func TestStorePresignExpiryHasUpperBound(t *testing.T) {
 	t.Parallel()
 	store := newTestStore(t, http.NotFoundHandler(), nil)

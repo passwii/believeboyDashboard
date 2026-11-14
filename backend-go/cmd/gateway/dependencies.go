@@ -92,6 +92,11 @@ type dependencies struct {
 	Close  func()
 }
 
+// Inspections resolves stored screenshot keys through this optional interface.
+// Keep the compile-time check next to the wiring so a method rename cannot
+// silently degrade persisted screenshots to empty URLs again.
+var _ inspections.BlobURLResolver = (*blob.Store)(nil)
+
 func newDependencies(ctx context.Context, cfg config.Config) (*dependencies, error) {
 	deps := &dependencies{Close: func() {}}
 	var pools []*pgxpool.Pool
