@@ -699,3 +699,80 @@
   outline-offset: var(--warm-ledger-focus-offset) !important;
   box-shadow: none !important;
 }
+
+@media (max-width: 640px) {
+  .loadingGrid,
+  .projectGrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-2);
+  }
+
+  .loadingCard {
+    min-height: 160px;
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .tierGroups {
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .projectCard {
+    min-height: 0;
+  }
+
+  .projectCardHeader,
+  .projectCardBody {
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .previewKey {
+    width: 76px;
+    flex-basis: 76px;
+  }
+
+  .tierHeader {
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+
+  .dialogSurface,
+  .sheetSurface {
+    top: auto !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: calc(100dvh - env(safe-area-inset-top)) !important;
+    padding: var(--warm-ledger-space-4) !important;
+    padding-bottom: calc(var(--warm-ledger-space-4) + env(safe-area-inset-bottom)) !important;
+    overflow-y: auto !important;
+    border-radius: var(--warm-ledger-radius-panel) var(--warm-ledger-radius-panel) 0 0 !important;
+  }
+
+  .dialogSurface > button:last-child,
+  .sheetSurface > button:last-child,
+  .surface > button:last-child {
+    width: var(--warm-ledger-control-target-touch);
+    height: var(--warm-ledger-control-target-touch);
+  }
+
+  .surfaceBody {
+    padding-block: var(--warm-ledger-space-3);
+  }
+
+  .surfaceFooter {
+    flex-wrap: wrap;
+    gap: var(--warm-ledger-space-2);
+    padding-top: var(--warm-ledger-space-3);
+  }
+
+  .surfaceFooterActions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .surfaceFooterActions > :global(.warm-ledger__button) {
+    min-height: var(--warm-ledger-control-target-touch);
+  }
+}

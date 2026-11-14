@@ -511,3 +511,83 @@
     transition: none;
   }
 }
+
+@media (max-width: 640px) {
+  .layout,
+  .loadingPage {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .navigationColumn {
+    position: static;
+  }
+
+  .navigationPanel {
+    max-height: none;
+  }
+
+  .navigationBody {
+    max-height: none;
+    padding: var(--warm-ledger-space-3);
+    overflow: visible;
+  }
+
+  .releaseNavigation {
+    flex-direction: row;
+    gap: var(--warm-ledger-space-2);
+    padding-bottom: 2px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  .releaseNavItem {
+    min-width: 210px;
+    flex: 0 0 210px;
+  }
+
+  .releaseList {
+    gap: var(--warm-ledger-space-3);
+  }
+
+  .releaseHeader {
+    flex-direction: column;
+    gap: var(--warm-ledger-space-3);
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .releaseMetrics {
+    width: 100%;
+    flex: 0 0 auto;
+  }
+
+  .releaseBody {
+    padding: var(--warm-ledger-space-3);
+  }
+
+  .highlightGrid {
+    grid-template-columns: minmax(0, 1fr);
+    margin-top: var(--warm-ledger-space-3);
+  }
+
+  .releaseFooter {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--warm-ledger-space-3);
+    margin-top: var(--warm-ledger-space-3);
+    padding-top: var(--warm-ledger-space-3);
+  }
+
+  .sourceLogList {
+    max-height: min(42dvh, 360px);
+  }
+
+  .releaseSection {
+    scroll-margin-top: var(--warm-ledger-space-2);
+  }
+
+  .releaseVersion {
+    font-size: 20px;
+  }
+}

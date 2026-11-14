@@ -43,6 +43,9 @@ const runsSelfContainedSpec = process.argv.some(
     arg.includes('@mobile-blf616') ||
     arg.includes('system-mobile-blf620') ||
     arg.includes('@mobile-blf620') ||
+    // 系统与个人页面（BLF-1512）
+    arg.includes('system-mobile-blf1512') ||
+    arg.includes('@mobile-blf1512') ||
     // 工具与文档页面（BLF-1511）
     arg.includes('tools-mobile-blf1511') ||
     arg.includes('@blf-1511') ||
