@@ -577,6 +577,7 @@ export default function CommissionManagementPage() {
   const mobileFilterStrip = useMobileFilterStrip(
     <MobileFilterStrip
       summary={mobileFilterSummary}
+      variant="warm-ledger"
       className={styles.mobileFilterStrip}
       controls={
         <>

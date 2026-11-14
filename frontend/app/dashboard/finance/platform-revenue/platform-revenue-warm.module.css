@@ -831,9 +831,10 @@
   }
 
   .rowAction {
-    width: 40px;
-    height: 40px;
-    min-height: 40px;
+    width: var(--warm-ledger-control-target-touch, 44px);
+    height: var(--warm-ledger-control-target-touch, 44px);
+    min-width: var(--warm-ledger-control-target-touch, 44px);
+    min-height: var(--warm-ledger-control-target-touch, 44px);
   }
 
   .pagination {

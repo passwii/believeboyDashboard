@@ -135,4 +135,31 @@ describe('MobileFilterStrip', () => {
     const grid = screen.getByTestId('mobile-filter-strip-grid')
     expect(grid).toHaveClass('border-t')
   })
+
+  it('Warm Ledger 风格：使用 warm-ledger 色彩与表面令牌，不混入 term 类', () => {
+    render(
+      <MobileFilterStrip
+        summary="摘要"
+        controls={shortControls}
+        variant="warm-ledger"
+        defaultOpen
+      />
+    )
+    const strip = screen.getByTestId('mobile-filter-strip')
+    expect(strip).toHaveAttribute('data-variant', 'warm-ledger')
+    expect(strip.className).not.toContain('bg-term-panel')
+    expect(strip.className).not.toContain('border-term-border')
+    expect(strip.className).toContain('bg-[var(--warm-ledger-color-panel)]')
+    expect(strip.className).toContain('border-[var(--warm-ledger-color-hairline)]')
+
+    const button = screen.getByRole('button', { name: '切换页面筛选' })
+    expect(button.className).not.toContain('text-term-text')
+    expect(button.className).not.toContain('hover:bg-term-hover')
+    expect(button.className).toContain('text-[var(--warm-ledger-color-text)]')
+
+    const grid = screen.getByTestId('mobile-filter-strip-grid')
+    expect(grid.className).not.toContain('border-term-border')
+    expect(grid.className).toContain('border-[var(--warm-ledger-color-hairline)]')
+    expect(grid.className).toContain('bg-[var(--warm-ledger-color-window)]')
+  })
 })

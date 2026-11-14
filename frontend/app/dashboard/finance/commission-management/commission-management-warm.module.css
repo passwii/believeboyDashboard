@@ -690,16 +690,16 @@
   }
 
   .tableInput {
-    width: 104px;
-    min-height: 38px;
+    width: 110px;
+    min-height: var(--warm-ledger-control-target-touch, 44px);
   }
 
   .paymentStatus {
-    width: 108px;
+    width: 116px;
   }
 
   .paymentStatus :global(.warm-ledger__select) {
-    min-height: 38px;
+    min-height: var(--warm-ledger-control-target-touch, 44px);
   }
 
   .rulesGrid {

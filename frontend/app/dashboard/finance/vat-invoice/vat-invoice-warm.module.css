@@ -994,8 +994,10 @@
   }
 
   .tableAction {
-    width: 40px !important;
-    height: 40px !important;
+    width: var(--warm-ledger-control-target-touch, 44px) !important;
+    height: var(--warm-ledger-control-target-touch, 44px) !important;
+    min-width: var(--warm-ledger-control-target-touch, 44px) !important;
+    min-height: var(--warm-ledger-control-target-touch, 44px) !important;
   }
 
   .dialog,
