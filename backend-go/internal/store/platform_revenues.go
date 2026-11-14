@@ -1,10 +1,7 @@
 package store
 
 import (
-	"bytes"
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,8 +17,7 @@ type PlatformRevenueStore struct {
 }
 
 const (
-	maxPlatformScreenshotBytes = 10 * 1024 * 1024
-	accessibleProjectIDsSQL    = `
+	accessibleProjectIDsSQL = `
 		select id from public.projects
 		where coalesce(is_active, true) = true
 		  and (
@@ -445,68 +441,4 @@ func (s *PlatformRevenueStore) GetProjectCountries(ctx context.Context, projectI
 		countries = []string{}
 	}
 	return countries, rows.Err()
-}
-
-func (s *PlatformRevenueStore) SavePaymentScreenshot(ctx context.Context, projectName string, filename string, contentType string, data []byte) (*platform_revenues.UploadImageResponse, error) {
-	if len(data) == 0 {
-		return nil, errors.New("图片文件为空")
-	}
-	if len(data) > maxPlatformScreenshotBytes {
-		return nil, errors.New("File size exceeds 10MB")
-	}
-	normalizedType := strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))
-	detectedType := detectPlatformImageType(data)
-	if detectedType == "" {
-		return nil, errors.New("Unsupported image content")
-	}
-	if normalizedType == "" {
-		normalizedType = detectedType
-	}
-	if !allowedPlatformImageTypes[normalizedType] || normalizedType != detectedType {
-		return nil, errors.New("Unsupported file type")
-	}
-
-	idBytes := make([]byte, 16)
-	if _, err := rand.Read(idBytes); err != nil {
-		return nil, fmt.Errorf("generate image id: %w", err)
-	}
-	imageID := hex.EncodeToString(idBytes)
-
-	safeProject := safeStoragePathSegment(projectName, "project")
-	key := fmt.Sprintf("%s/payment_screenshot/images/%s.webp", safeProject, imageID)
-	url := fmt.Sprintf("https://pub-r2.believeboy.com/%s", key)
-	thumbURL := fmt.Sprintf("https://pub-r2.believeboy.com/%s/payment_screenshot/thumbs/%s_thumb.webp", safeProject, imageID)
-	safeFilename := safeUploadFilename(filename, imageID+".webp")
-
-	return &platform_revenues.UploadImageResponse{
-		ID:        imageID,
-		URL:       url,
-		ThumbURL:  thumbURL,
-		Key:       key,
-		Filename:  safeFilename,
-		Size:      int64(len(data)),
-		CreatedAt: time.Now().UTC().Format(time.RFC3339Nano),
-	}, nil
-}
-
-var allowedPlatformImageTypes = map[string]bool{
-	"image/jpeg": true,
-	"image/png":  true,
-	"image/webp": true,
-	"image/gif":  true,
-}
-
-func detectPlatformImageType(data []byte) string {
-	switch {
-	case bytes.HasPrefix(data, []byte{0xFF, 0xD8, 0xFF}):
-		return "image/jpeg"
-	case bytes.HasPrefix(data, []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}):
-		return "image/png"
-	case bytes.HasPrefix(data, []byte("GIF87a")) || bytes.HasPrefix(data, []byte("GIF89a")):
-		return "image/gif"
-	case len(data) >= 12 && bytes.Equal(data[0:4], []byte("RIFF")) && bytes.Equal(data[8:12], []byte("WEBP")):
-		return "image/webp"
-	default:
-		return ""
-	}
 }

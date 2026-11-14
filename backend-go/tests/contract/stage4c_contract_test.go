@@ -51,9 +51,6 @@ func (s *stage4CPlatformRevenueStore) DeleteRevenue(context.Context, int64, stri
 func (s *stage4CPlatformRevenueStore) GetProjectCountries(context.Context, int64) ([]string, error) {
 	return []string{"CA", "US"}, nil
 }
-func (s *stage4CPlatformRevenueStore) SavePaymentScreenshot(context.Context, string, string, string, []byte) (*platform_revenues.UploadImageResponse, error) {
-	return &platform_revenues.UploadImageResponse{ID: "img-1", URL: "https://r2/img.webp", Filename: "slip.png", Size: 100}, nil
-}
 
 type stage4CVatStore struct{}
 

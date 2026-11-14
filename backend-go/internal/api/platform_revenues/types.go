@@ -112,5 +112,4 @@ type Store interface {
 	UpdateRevenue(ctx context.Context, revenueID int64, payload PlatformRevenueUpdate, operator string, isAdmin bool) (*PlatformRevenueItem, error)
 	DeleteRevenue(ctx context.Context, revenueID int64, operator string, isAdmin bool) error
 	GetProjectCountries(ctx context.Context, projectID int64) ([]string, error)
-	SavePaymentScreenshot(ctx context.Context, projectName string, filename string, contentType string, data []byte) (*UploadImageResponse, error)
 }

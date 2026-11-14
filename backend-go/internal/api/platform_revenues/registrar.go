@@ -17,6 +17,13 @@ func NewRegistrar(store Store, auditor audit.Service) *Registrar {
 
 func (*Registrar) ModuleName() string { return "platform_revenues" }
 
+func (registrar *Registrar) WithBlobStore(blobs BlobStore) *Registrar {
+	if registrar != nil && registrar.handler != nil {
+		registrar.handler.WithBlobStore(blobs)
+	}
+	return registrar
+}
+
 func (registrar *Registrar) RegisterRoutes(
 	router chi.Router,
 	requireAPIKey func(http.Handler) http.Handler,

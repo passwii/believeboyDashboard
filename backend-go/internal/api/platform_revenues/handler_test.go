@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -20,14 +19,12 @@ type mockPlatformRevenueStore struct {
 	total        int
 	item         *PlatformRevenueItem
 	countries    []string
-	uploadResp   *UploadImageResponse
 	verifyErr    error
 	getErr       error
 	createErr    error
 	updateErr    error
 	deleteErr    error
 	countriesErr error
-	uploadErr    error
 }
 
 func (m *mockPlatformRevenueStore) VerifyProjectAccess(_ context.Context, _ int64, _ string, _ bool) error {
@@ -93,12 +90,6 @@ func (m *mockPlatformRevenueStore) GetProjectCountries(_ context.Context, _ int6
 	}
 	return m.countries, nil
 }
-func (m *mockPlatformRevenueStore) SavePaymentScreenshot(_ context.Context, _ string, _ string, _ string, _ []byte) (*UploadImageResponse, error) {
-	if m.uploadErr != nil {
-		return nil, m.uploadErr
-	}
-	return m.uploadResp, nil
-}
 
 type mockAuditor struct {
 	logged []audit.Entry
@@ -116,9 +107,12 @@ func (a *mockAuditor) LogView(_ context.Context, _ string, _ string, _ *string, 
 	return nil
 }
 
-func setupPlatformRevenueRouter(store Store, auditor audit.Service) chi.Router {
+func setupPlatformRevenueRouter(store Store, auditor audit.Service, blobs ...BlobStore) chi.Router {
 	r := chi.NewRouter()
 	registrar := NewRegistrar(store, auditor)
+	if len(blobs) > 0 {
+		registrar.WithBlobStore(blobs[0])
+	}
 	registrar.RegisterRoutes(r, func(next http.Handler) http.Handler { return next })
 	return r
 }
@@ -231,22 +225,12 @@ func TestPlatformRevenueHandlerCreateUpdateDelete(t *testing.T) {
 	}
 }
 
-func TestPlatformRevenueHandlerUploadImageAndCountries(t *testing.T) {
+func TestPlatformRevenueHandlerProjectCountries(t *testing.T) {
 	store := &mockPlatformRevenueStore{
 		countries: []string{"CA", "US"},
-		uploadResp: &UploadImageResponse{
-			ID:        "img-123",
-			URL:       "https://r2/img.webp",
-			ThumbURL:  "https://r2/thumb.webp",
-			Key:       "payment_screenshot/img.webp",
-			Filename:  "slip.png",
-			Size:      1234,
-			CreatedAt: "2026-11-08T00:00:00Z",
-		},
 	}
 	router := setupPlatformRevenueRouter(store, &mockAuditor{})
 
-	// 1. Countries
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/platform-revenues/project-countries/1", nil)
 	req = req.WithContext(auth.WithUserContext(req.Context(), auth.UserContext{Operator: "test", IsAdmin: true}))
 	rec := httptest.NewRecorder()
@@ -258,24 +242,5 @@ func TestPlatformRevenueHandlerUploadImageAndCountries(t *testing.T) {
 	_ = json.Unmarshal(rec.Body.Bytes(), &cResp)
 	if len(cResp.Countries) != 2 {
 		t.Fatalf("unexpected countries response: %+v", cResp)
-	}
-
-	// 2. Upload image
-	var b bytes.Buffer
-	w := multipart.NewWriter(&b)
-	part, _ := w.CreateFormFile("file", "slip.png")
-	part.Write([]byte("fake image data"))
-	_ = w.WriteField("project_name", "TestProject")
-	_ = w.Close()
-
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/platform-revenues/upload-image", &b)
-	req.Header.Set("Content-Type", w.FormDataContentType())
-	req = req.WithContext(auth.WithUserContext(req.Context(), auth.UserContext{Operator: "test", IsAdmin: true}))
-	rec = httptest.NewRecorder()
-	router.ServeHTTP(rec, req)
-	// Content-Type of part in multipart/form-data writer defaults to application/octet-stream unless set
-	// which tests the 400 validation:
-	if rec.Code != http.StatusBadRequest && rec.Code != http.StatusOK {
-		t.Fatalf("expected 400 or 200, got %d", rec.Code)
 	}
 }
