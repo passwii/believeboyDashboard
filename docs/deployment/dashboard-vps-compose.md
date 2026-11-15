@@ -159,7 +159,7 @@ gh run list --workflow deploy-dashboard.yml --limit 3
 
 Actions 和 SSH 调用端只创建部署根目录与唯一暂存目录、上传本次部署文件；所有 VPS 活动状态修改都由持有 `.deploy.lock` 的远端脚本完成。锁内流程包含 legacy 环境 bootstrap、目录初始化、镜像拉取与 revision 校验、旧写入方停机、legacy 数据复制与权限调整、migration、健康检查、回滚和清理。legacy storage/celerybeat 只在旧服务停止后复制，避免把仍在写入的不一致快照切到新运行目录。Actions 的 `always()` 暂存清理也会先取得同一把锁；远端事务仍在运行时延后清理，由远端退出逻辑或下一次部署回收。
 
-**部署冻结（2026-11-10 起）**：仓库变量 `DEPLOYMENTS_ENABLED` 不为 `true` 时，`deploy-dashboard.yml` 和 `deploy/deploy-local.sh` 都会立即失败退出。Go 后端全量迁移完成前不要解除冻结，只在本地 Docker 验证；重新启用时在仓库 Settings → Variables 设置 `DEPLOYMENTS_ENABLED=true`。
+**部署开关（2026-11-13 已解冻）**：2026-11-10 起曾为 Go 全量迁移冻结发布；仓库变量 `DEPLOYMENTS_ENABLED` 已于 2026-11-13 设为 `true`，部署恢复正常。该开关仍作为紧急停发闸门保留：值不为 `true` 时 `deploy-dashboard.yml` 和 `deploy/deploy-local.sh` 都会立即失败退出。
 
 每次远端部署会先仅回收三个 Dashboard GHCR 仓库中未被容器或当前镜像清单引用的镜像，再读取部署分区总容量与可用空间。空间门槛是可配置的**绝对下限**（原版固定 10% 在 15 GB VPS 上、两套镜像共存时不可达）：`DEPLOY_FREE_SPACE_MIN_BYTES`（默认 1 GiB）与 `DEPLOY_FREE_SPACE_POST_PULL_MIN_BYTES`（默认 512 MiB，目标镜像拉取后）；可选 `DEPLOY_FREE_SPACE_PERCENT`（默认 0 表示关闭）。需要复制 legacy 数据时，仍会按“估算已分配空间 + 10% + 512 MiB 缓冲”预检；目标镜像拉取后、停机复制前会再次执行精确检查。空间不足时在运行 migration 前中止；数据复制预检不通过时不会停止旧服务。日志记录源码 SHA、三个镜像 digest、分区总容量、各项门槛、可用空间、清理的镜像引用数量以及各阶段的 Docker 镜像占用。
 
@@ -217,7 +217,7 @@ ssh guitar-vps '
 `R2_PRIVATE_BUCKET_NAME` 与其余 `R2_*` 变量同放 `backend.env`，示例见
 `backend/.env.example`；`go.env` 只保留网关监听与代理密钥。
 
-## 本地 Docker 验证（部署冻结期）
+## 本地 Docker 验证（不触达 VPS）
 
 不触达 VPS、不推 GHCR；只在本机构建并验证 Go API runtime：
 

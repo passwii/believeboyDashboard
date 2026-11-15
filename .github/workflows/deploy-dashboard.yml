@@ -75,13 +75,13 @@ jobs:
       DEPLOY_FREE_SPACE_PERCENT: ${{ vars.DEPLOY_FREE_SPACE_PERCENT || '0' }}
 
     steps:
-      # 2026-11-10：Go 后端全量迁移完成前冻结部署，只做本地 Docker 验证。
-      # 重新启用：在仓库 Settings → Variables 设置 DEPLOYMENTS_ENABLED=true。
+      # 2026-11-13：部署已解冻。DEPLOYMENTS_ENABLED 保留为紧急停发开关；
+      # 仓库变量不为 true 时本 job 直接失败。
       - name: Deployment pause guard
         if: ${{ vars.DEPLOYMENTS_ENABLED != 'true' }}
         shell: bash
         run: |
-          echo "::error::Deployments are paused (DEPLOYMENTS_ENABLED != true). Validate locally with Docker until the Go backend migration is complete."
+          echo "::error::Deployments are disabled (DEPLOYMENTS_ENABLED != true). Set the repository variable to true to enable deployment."
           exit 1
 
       - name: Checkout

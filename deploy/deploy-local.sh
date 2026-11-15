@@ -8,11 +8,10 @@ if [[ -f "$CONFIG_FILE" ]]; then
   source "$CONFIG_FILE"
 fi
 
-# 2026-11-10：Go 后端全量迁移完成前冻结部署，只做本地 Docker 验证。
-# 重新启用：DEPLOYMENTS_ENABLED=true（见 deploy/local.env.example）。
+# 2026-11-13：部署已解冻（仓库变量 DEPLOYMENTS_ENABLED=true）。
+# 该开关保留为紧急停发闸门；见 deploy/local.env.example。
 if [[ "${DEPLOYMENTS_ENABLED:-false}" != "true" ]]; then
-  echo "Deployments are paused. Validate locally with Docker only until the Go backend migration is complete." >&2
-  echo "Set DEPLOYMENTS_ENABLED=true to re-enable deployment." >&2
+  echo "Deployments are disabled. Set DEPLOYMENTS_ENABLED=true to enable deployment." >&2
   exit 1
 fi
 
