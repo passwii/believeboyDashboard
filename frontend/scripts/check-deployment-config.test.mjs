@@ -117,6 +117,19 @@ test('dashboard deployment workflow is manual-only and publishes the Go API and 
   assert.match(workflow, /steps\.go_api\.outputs\.digest/)
   assert.match(workflow, /steps\.web\.outputs\.digest/)
   assert.doesNotMatch(workflow, /steps\.api\.outputs\.digest/)
+
+  // BLF-1537 部署事故（2026-11-15）：VPS 的 /root/.docker/config.json 会被其他项目
+  // 覆写成 1 小时有效期的 App 令牌；过期后远端 `docker compose pull` 一律被 GHCR
+  // 拒绝（denied），部署在拉镜像阶段失败并回滚。工作流必须在远端部署前用本次运行的
+  // GHCR_TOKEN 刷新 VPS 登录，并在 always() 清理时恢复原配置。
+  assert.match(workflow, /name: Authenticate GHCR on VPS/)
+  assert.match(workflow, /docker login ghcr\.io --username/)
+  assert.match(workflow, /--password-stdin < \$remote_login_input/)
+  assert.match(workflow, /config\.json\.backup\.\$GITHUB_RUN_ID/)
+  assert.match(
+    workflow,
+    /mv -f -- \$remote_config_backup \$remote_docker_dir\/config\.json/
+  )
 })
 
 test('remote deploy keeps the SSH script stream out of Compose run', async () => {

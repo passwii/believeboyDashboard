@@ -175,6 +175,14 @@ Actions 仍复用 Secrets：`VPS_SSH_KEY`、`VPS_KNOWN_HOSTS`、`VPS_HOST`、
 因为已有 GHCR package 最初由本机 PAT 创建，Actions 自带的 `GITHUB_TOKEN` 没有该 package 的读权限。
 公网 Web/API 检查在远端部署事务清理回滚点前执行，失败会触发同一镜像组回滚。
 
+**VPS 拉镜像的 GHCR 登录（BLF-1537，2026-11-15）**：远端脚本自己执行
+`docker compose pull`，用的是 VPS 上的 `/root/.docker/config.json`。该文件是多项目共用的
+全局凭据，会被其他项目的部署覆写成 **1 小时有效期** 的 App 令牌；令牌过期后拉取会直接返回
+`denied: denied`，部署在拉镜像阶段失败并回滚（应用本身没有问题）。因此
+`deploy-dashboard.yml` 在 `Deploy over SSH` 前新增 `Authenticate GHCR on VPS`：把本次运行的
+`GHCR_TOKEN` 经 0600 暂存文件、以 `docker login --password-stdin` 写入 VPS，并在
+`always()` 清理里恢复部署前的 `config.json`。不要退回“只依赖 VPS 已有登录”的做法。
+
 ## 检查
 
 ```bash

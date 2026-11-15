@@ -90,6 +90,7 @@ jobs:
       - name: Validate deployment inputs
         env:
           DEPLOY_MODE: ${{ inputs.deploy_mode }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           DISPATCH_ID_INPUT: ${{ inputs.dispatch_id }}
           SOURCE_SHA_INPUT: ${{ inputs.source_sha }}
           GO_API_DIGEST_INPUT: ${{ inputs.go_api_digest }}
@@ -131,6 +132,10 @@ jobs:
           fi
 
           if [[ "$DEPLOY_MODE" == "prebuilt" ]]; then
+            if [[ -z "$GHCR_TOKEN" ]]; then
+              echo "::error::GHCR_TOKEN is required to authenticate the VPS image pull."
+              exit 1
+            fi
             if [[ ! "$DISPATCH_ID_INPUT" =~ ^[0-9a-f]{32}$ ]]; then
               echo "::error::dispatch_id must be a 32-character lowercase hexadecimal value for prebuilt mode."
               exit 1
@@ -346,6 +351,69 @@ jobs:
             "$SSH_USER@$SSH_HOST" \
             "install -d -m 755 '$DEPLOY_PATH'"
 
+      # The VPS runs its own `docker compose pull` during the remote deploy.
+      # Its shared ~/.docker/config.json is rewritten by other projects and may
+      # hold an expired token, so authenticate with this run's GHCR credential
+      # right before deploying and restore the previous config afterwards.
+      # The token travels in a 0600 staging file, never in an argv or log line.
+      - name: Authenticate GHCR on VPS
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$GHCR_TOKEN" ]]; then
+            echo "::error::GHCR_TOKEN is required to authenticate the VPS image pull."
+            exit 1
+          fi
+
+          printf -v remote_docker_dir '%q' '/root/.docker'
+          printf -v remote_login_input '%q' "/root/.docker/deploy-login-input.$GITHUB_RUN_ID"
+          printf -v remote_config_backup '%q' "/root/.docker/config.json.backup.$GITHUB_RUN_ID"
+          printf -v remote_login_marker '%q' "/root/.docker/deploy-login.$GITHUB_RUN_ID"
+
+          login_input="$(mktemp "$RUNNER_TEMP/ghcr-login.XXXXXX")"
+          trap 'rm -f "$login_input"' EXIT
+          chmod 600 "$login_input"
+          printf '%s' "$GHCR_TOKEN" > "$login_input"
+
+          ssh -i "$SSH_DIR/believeboy-dashboard" \
+            -o IdentitiesOnly=yes \
+            -o UserKnownHostsFile="$SSH_DIR/known_hosts" \
+            -o StrictHostKeyChecking=yes \
+            "$SSH_USER@$SSH_HOST" \
+            "install -d -m 700 $remote_docker_dir"
+
+          scp -i "$SSH_DIR/believeboy-dashboard" \
+            -o IdentitiesOnly=yes \
+            -o UserKnownHostsFile="$SSH_DIR/known_hosts" \
+            -o StrictHostKeyChecking=yes \
+            "$login_input" "$SSH_USER@$SSH_HOST:$remote_login_input"
+
+          ssh -i "$SSH_DIR/believeboy-dashboard" \
+            -o IdentitiesOnly=yes \
+            -o UserKnownHostsFile="$SSH_DIR/known_hosts" \
+            -o StrictHostKeyChecking=yes \
+            "$SSH_USER@$SSH_HOST" \
+            "set -euo pipefail
+             # Mark that this run may rewrite config.json before touching it, so the
+             # always() cleanup restores the previous file even if login fails.
+             touch $remote_login_marker
+             if [[ -f $remote_docker_dir/config.json ]]; then
+               cp -p -- $remote_docker_dir/config.json $remote_config_backup
+             fi
+             chmod 600 $remote_login_input
+             if ! docker login ghcr.io --username '$GITHUB_REPOSITORY_OWNER' --password-stdin < $remote_login_input; then
+               rm -f -- $remote_login_input
+               exit 1
+             fi
+             rm -f -- $remote_login_input
+             " \
+            || {
+              rm -f "$login_input"
+              echo "::error::Could not authenticate GHCR on the VPS before deployment."
+              exit 1
+            }
+
       - name: Create unique deployment staging directory
         run: |
           set -euo pipefail
@@ -454,6 +522,28 @@ jobs:
         if: ${{ always() }}
         run: |
           set -uo pipefail
+          printf -v remote_docker_dir '%q' '/root/.docker'
+          printf -v remote_login_input '%q' "/root/.docker/deploy-login-input.$GITHUB_RUN_ID"
+          printf -v remote_config_backup '%q' "/root/.docker/config.json.backup.$GITHUB_RUN_ID"
+          printf -v remote_login_marker '%q' "/root/.docker/deploy-login.$GITHUB_RUN_ID"
+          if [[ -n "${SSH_DIR:-}" && -f "$SSH_DIR/believeboy-dashboard" ]]; then
+            ssh -i "$SSH_DIR/believeboy-dashboard" \
+              -o IdentitiesOnly=yes \
+              -o UserKnownHostsFile="$SSH_DIR/known_hosts" \
+              -o StrictHostKeyChecking=yes \
+              "$SSH_USER@$SSH_HOST" \
+              "set -uo pipefail
+               rm -f -- $remote_login_input
+               if [[ -f $remote_login_marker ]]; then
+                 if [[ -f $remote_config_backup ]]; then
+                   mv -f -- $remote_config_backup $remote_docker_dir/config.json
+                 else
+                   rm -f -- $remote_docker_dir/config.json
+                 fi
+                 rm -f -- $remote_login_marker
+               fi" || echo "::warning::Could not restore the VPS Docker credential config."
+          fi
+
           if [[ -n "$STAGING_DIR" ]]; then
             case "$STAGING_DIR" in
               "$DEPLOY_PATH"/.deploy-staging.*)
