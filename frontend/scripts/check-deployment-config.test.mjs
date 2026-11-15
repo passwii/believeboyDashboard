@@ -128,6 +128,11 @@ test('dashboard deployment workflow is manual-only and publishes the Go API and 
   assert.match(workflow, /--password-stdin < \$remote_login_input/)
   assert.match(workflow, /\.deploy-docker-config\.\$GITHUB_RUN_ID/)
   assert.match(workflow, /\.deploy-docker-config\.\*\) rm -rf -- \$remote_docker_config/)
+  // 失败路径：scp 成功但 docker login/SSH 失败或被取消时，DEPLOY_DOCKER_CONFIG 尚未写入
+  // GITHUB_ENV；always() 清理必须能从 DEPLOY_PATH + GITHUB_RUN_ID 推导路径并删除。
+  assert.match(workflow, /remote_docker_config_path="\$\{DEPLOY_DOCKER_CONFIG:-\$DEPLOY_PATH\/\.deploy-docker-config\.\$GITHUB_RUN_ID\}"/)
+  assert.match(workflow, /rm -rf -- \$remote_docker_config" >\/dev\/null 2>&1 \|\| true/)
+  assert.doesNotMatch(workflow, /if \[\[ -n "\$\{DEPLOY_DOCKER_CONFIG:-\}" &&/)
   assert.doesNotMatch(workflow, /config\.json\.backup\.\$GITHUB_RUN_ID/)
   assert.doesNotMatch(workflow, /cp -p -- \$remote_docker_dir\/config\.json/)
   // 同一 step 的 env 键必须唯一，否则 GitHub 直接判定 workflow file issue（BLF-1537：

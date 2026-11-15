@@ -181,7 +181,10 @@ Actions 仍复用 Secrets：`VPS_SSH_KEY`、`VPS_KNOWN_HOSTS`、`VPS_HOST`、
 `denied: denied`，部署在拉镜像阶段失败并回滚（应用本身没有问题）。因此
 `deploy-dashboard.yml` 在 `Deploy over SSH` 前新增 `Authenticate GHCR on VPS`：把本次运行的
 `GHCR_TOKEN` 经 0600 暂存文件、以 `docker login --password-stdin` 写入 VPS，并在
-`always()` 清理里恢复部署前的 `config.json`。不要退回“只依赖 VPS 已有登录”的做法。
+`$DEPLOY_PATH/.deploy-docker-config.<run_id>` 这个仅本次运行使用的目录（通过 `DOCKER_CONFIG`
+传给 `deploy-remote.sh`），**不读写 `/root/.docker/config.json`**；`always()` 清理会按
+`$DEPLOY_PATH` + `$GITHUB_RUN_ID` 推导该路径并删除整个目录，即使 scp 后登录步骤失败或
+job 被取消也不会遗留 token。不要退回“只依赖 VPS 已有登录”的做法。
 
 ## 检查
 

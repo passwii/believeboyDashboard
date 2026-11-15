@@ -402,6 +402,16 @@ jobs:
              rm -f -- $remote_login_input" \
             || {
               rm -f "$login_input"
+              # Best-effort: the run-scoped dir may already contain the token if
+              # scp succeeded but `docker login` failed. The always() cleanup also
+              # derives this path from DEPLOY_PATH + GITHUB_RUN_ID, so it still
+              # runs when this step aborts before DEPLOY_DOCKER_CONFIG is exported.
+              ssh -i "$SSH_DIR/believeboy-dashboard" \
+                -o IdentitiesOnly=yes \
+                -o UserKnownHostsFile="$SSH_DIR/known_hosts" \
+                -o StrictHostKeyChecking=yes \
+                "$SSH_USER@$SSH_HOST" \
+                "rm -rf -- $remote_docker_config" >/dev/null 2>&1 || true
               echo "::error::Could not authenticate GHCR on the VPS before deployment."
               exit 1
             }
@@ -520,8 +530,12 @@ jobs:
         if: ${{ always() }}
         run: |
           set -uo pipefail
-          if [[ -n "${DEPLOY_DOCKER_CONFIG:-}" && -n "${SSH_DIR:-}" && -f "$SSH_DIR/believeboy-dashboard" ]]; then
-            printf -v remote_docker_config '%q' "$DEPLOY_DOCKER_CONFIG"
+          # Derive the path even when the Authenticate step aborted before
+          # GITHUB_ENV was written (scp succeeded, docker login/SSH failed, or the
+          # run was cancelled): the directory name is deterministic per run.
+          remote_docker_config_path="${DEPLOY_DOCKER_CONFIG:-$DEPLOY_PATH/.deploy-docker-config.$GITHUB_RUN_ID}"
+          if [[ -n "${SSH_DIR:-}" && -f "$SSH_DIR/believeboy-dashboard" ]]; then
+            printf -v remote_docker_config '%q' "$remote_docker_config_path"
             printf -v remote_deploy_path '%q' "$DEPLOY_PATH"
             ssh -i "$SSH_DIR/believeboy-dashboard" \
               -o IdentitiesOnly=yes \
