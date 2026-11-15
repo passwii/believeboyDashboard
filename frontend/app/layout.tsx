@@ -1,7 +1,8 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import localFont from 'next/font/local'
+import Script from 'next/script'
 import './globals.css'
 import { GlobalLoadingProvider } from '@/components/global-loading-provider'
 import { GlobalLoadingOverlay } from '@/components/global-loading-overlay'
@@ -54,7 +55,27 @@ const jetbrainsMono = localFont({
 })
 
 export const metadata: Metadata = {
+  applicationName: '彼励扶 Dashboard',
   description: 'A modern dashboard built with Next.js and shadcn/ui',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: '彼励扶',
+  },
+  formatDetection: {
+    telephone: false,
+  },
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  colorScheme: 'light dark',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#e8eae4' },
+    { media: '(prefers-color-scheme: dark)', color: '#1c1d1d' },
+  ],
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -63,6 +84,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body
         className={`${manrope.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable} min-h-screen antialiased`}
       >
+        <Script id="pwa-install-capture" strategy="beforeInteractive">
+          {`
+            window.__believeboyPwaPrompt = null;
+            window.addEventListener('beforeinstallprompt', function (event) {
+              event.preventDefault();
+              window.__believeboyPwaPrompt = event;
+              window.dispatchEvent(new Event('believeboy:pwa-prompt-available'));
+            });
+            window.addEventListener('appinstalled', function () {
+              window.__believeboyPwaPrompt = null;
+              window.dispatchEvent(new Event('believeboy:pwa-installed'));
+            });
+          `}
+        </Script>
         <SkipLink href="#main-content">Skip to main content</SkipLink>
         <SkipLink href="#main-navigation">Skip to navigation</SkipLink>
         <ThemeProvider

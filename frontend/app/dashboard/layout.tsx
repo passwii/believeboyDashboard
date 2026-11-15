@@ -12,6 +12,7 @@ import {
 } from '@/components/dashboard-v2/warm-ledger/shell/warm-ledger-route-frame'
 import { TerminalHeaderSlotProvider } from '@/components/terminal/terminal-header-slot'
 import { ServerNotificationsProvider } from '@/components/notifications/server-notifications-context'
+import { PwaInstallPrompt } from '@/components/pwa/pwa-install-prompt'
 import { buildLoginCallbackUrl } from '@/lib/login-callback-url'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -106,6 +107,7 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
       ) : (
         <WarmLedgerRouteFrame pathname={pathname}>{children}</WarmLedgerRouteFrame>
       )}
+      <PwaInstallPrompt />
     </ServerNotificationsProvider>
   )
 }
