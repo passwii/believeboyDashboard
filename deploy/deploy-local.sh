@@ -374,7 +374,7 @@ printf -v remote_space_min '%q' "$DEPLOY_FREE_SPACE_MIN_BYTES"
 printf -v remote_space_post_pull '%q' "$DEPLOY_FREE_SPACE_POST_PULL_MIN_BYTES"
 printf -v remote_space_percent '%q' "$DEPLOY_FREE_SPACE_PERCENT"
 
-echo "Deploying FastAPI, Go API, and Web..."
+echo "Deploying Go API and Web..."
 if ! ssh "$DEPLOY_HOST" \
   "PUBLIC_WEB_HEALTH_URL=$remote_public_web_url PUBLIC_API_HEALTH_URL=$remote_public_api_url \
     SOURCE_SHA=$remote_source_sha STAGING_DIR=$remote_staging_dir \
