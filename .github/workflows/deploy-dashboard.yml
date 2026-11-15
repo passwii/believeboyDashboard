@@ -90,7 +90,6 @@ jobs:
       - name: Validate deployment inputs
         env:
           DEPLOY_MODE: ${{ inputs.deploy_mode }}
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           DISPATCH_ID_INPUT: ${{ inputs.dispatch_id }}
           SOURCE_SHA_INPUT: ${{ inputs.source_sha }}
           GO_API_DIGEST_INPUT: ${{ inputs.go_api_digest }}
@@ -352,9 +351,11 @@ jobs:
             "install -d -m 755 '$DEPLOY_PATH'"
 
       # The VPS runs its own `docker compose pull` during the remote deploy.
-      # Its shared ~/.docker/config.json is rewritten by other projects and may
-      # hold an expired token, so authenticate with this run's GHCR credential
-      # right before deploying and restore the previous config afterwards.
+      # Its shared /root/.docker/config.json is rewritten by other projects and
+      # may hold an expired token (BLF-1537: a 1-hour GitHub App token expired
+      # mid-day, so every pull returned `denied`). Never touch that shared file:
+      # log in to a run-scoped DOCKER_CONFIG directory under DEPLOY_PATH, pass it
+      # to the remote deploy, and delete it in the always() cleanup.
       # The token travels in a 0600 staging file, never in an argv or log line.
       - name: Authenticate GHCR on VPS
         env:
@@ -366,10 +367,8 @@ jobs:
             exit 1
           fi
 
-          printf -v remote_docker_dir '%q' '/root/.docker'
-          printf -v remote_login_input '%q' "/root/.docker/deploy-login-input.$GITHUB_RUN_ID"
-          printf -v remote_config_backup '%q' "/root/.docker/config.json.backup.$GITHUB_RUN_ID"
-          printf -v remote_login_marker '%q' "/root/.docker/deploy-login.$GITHUB_RUN_ID"
+          printf -v remote_docker_config '%q' "$DEPLOY_PATH/.deploy-docker-config.$GITHUB_RUN_ID"
+          printf -v remote_login_input '%q' "$DEPLOY_PATH/.deploy-docker-config.$GITHUB_RUN_ID/.login-input"
 
           login_input="$(mktemp "$RUNNER_TEMP/ghcr-login.XXXXXX")"
           trap 'rm -f "$login_input"' EXIT
@@ -381,7 +380,7 @@ jobs:
             -o UserKnownHostsFile="$SSH_DIR/known_hosts" \
             -o StrictHostKeyChecking=yes \
             "$SSH_USER@$SSH_HOST" \
-            "install -d -m 700 $remote_docker_dir"
+            "umask 077 && install -d -m 700 $remote_docker_config"
 
           scp -i "$SSH_DIR/believeboy-dashboard" \
             -o IdentitiesOnly=yes \
@@ -395,24 +394,19 @@ jobs:
             -o StrictHostKeyChecking=yes \
             "$SSH_USER@$SSH_HOST" \
             "set -euo pipefail
-             # Mark that this run may rewrite config.json before touching it, so the
-             # always() cleanup restores the previous file even if login fails.
-             touch $remote_login_marker
-             if [[ -f $remote_docker_dir/config.json ]]; then
-               cp -p -- $remote_docker_dir/config.json $remote_config_backup
-             fi
              chmod 600 $remote_login_input
-             if ! docker login ghcr.io --username '$GITHUB_REPOSITORY_OWNER' --password-stdin < $remote_login_input; then
+             if ! DOCKER_CONFIG=$remote_docker_config docker login ghcr.io --username '$GITHUB_REPOSITORY_OWNER' --password-stdin < $remote_login_input; then
                rm -f -- $remote_login_input
                exit 1
              fi
-             rm -f -- $remote_login_input
-             " \
+             rm -f -- $remote_login_input" \
             || {
               rm -f "$login_input"
               echo "::error::Could not authenticate GHCR on the VPS before deployment."
               exit 1
             }
+
+          printf 'DEPLOY_DOCKER_CONFIG=%s\n' "$DEPLOY_PATH/.deploy-docker-config.$GITHUB_RUN_ID" >> "$GITHUB_ENV"
 
       - name: Create unique deployment staging directory
         run: |
@@ -466,6 +460,7 @@ jobs:
         env:
           GO_API_OWNED_INPUT: ${{ inputs.go_api_owned }}
           GO_API_INTERNAL_URL_INPUT: ${{ inputs.go_api_internal_url }}
+          DEPLOY_DOCKER_CONFIG: ${{ env.DEPLOY_DOCKER_CONFIG }}
         run: |
           set -euo pipefail
           printf -v remote_staging_dir '%q' "$STAGING_DIR"
@@ -483,13 +478,15 @@ jobs:
           printf -v remote_space_min '%q' "$DEPLOY_FREE_SPACE_MIN_BYTES"
           printf -v remote_space_post_pull '%q' "$DEPLOY_FREE_SPACE_POST_PULL_MIN_BYTES"
           printf -v remote_space_percent '%q' "$DEPLOY_FREE_SPACE_PERCENT"
+          printf -v remote_docker_config '%q' "$DEPLOY_DOCKER_CONFIG"
 
           ssh -i "$SSH_DIR/believeboy-dashboard" \
             -o IdentitiesOnly=yes \
             -o UserKnownHostsFile="$SSH_DIR/known_hosts" \
             -o StrictHostKeyChecking=yes \
             "$SSH_USER@$SSH_HOST" \
-            "PUBLIC_WEB_HEALTH_URL=$remote_public_web_url PUBLIC_API_HEALTH_URL=$remote_public_api_url \
+            "DOCKER_CONFIG=$remote_docker_config \
+             PUBLIC_WEB_HEALTH_URL=$remote_public_web_url PUBLIC_API_HEALTH_URL=$remote_public_api_url \
              GO_API_OWNED_MODULES=$remote_go_owned GO_API_INTERNAL_URL=$remote_go_internal_url \
              DEPLOY_FREE_SPACE_MIN_BYTES=$remote_space_min \
              DEPLOY_FREE_SPACE_POST_PULL_MIN_BYTES=$remote_space_post_pull \
@@ -506,6 +503,7 @@ jobs:
           printf -v remote_deploy_path '%q' "$DEPLOY_PATH"
           printf -v remote_go_api_image '%q' "$GO_API_IMAGE"
           printf -v remote_web_image '%q' "$WEB_IMAGE"
+          printf -v remote_docker_config '%q' "${DEPLOY_DOCKER_CONFIG:-}"
           ssh -i "$SSH_DIR/believeboy-dashboard" \
             -o IdentitiesOnly=yes \
             -o UserKnownHostsFile="$SSH_DIR/known_hosts" \
@@ -513,6 +511,7 @@ jobs:
             "$SSH_USER@$SSH_HOST" \
             "set -euo pipefail
              cd $remote_deploy_path
+             if [[ -n $remote_docker_config ]]; then export DOCKER_CONFIG=$remote_docker_config; fi
              GO_API_IMAGE=$remote_go_api_image WEB_IMAGE=$remote_web_image docker compose ps || true
              GO_API_IMAGE=$remote_go_api_image WEB_IMAGE=$remote_web_image docker compose logs --tail=200 || true
              systemctl is-active believeboy-api believeboy-celery \
@@ -522,26 +521,19 @@ jobs:
         if: ${{ always() }}
         run: |
           set -uo pipefail
-          printf -v remote_docker_dir '%q' '/root/.docker'
-          printf -v remote_login_input '%q' "/root/.docker/deploy-login-input.$GITHUB_RUN_ID"
-          printf -v remote_config_backup '%q' "/root/.docker/config.json.backup.$GITHUB_RUN_ID"
-          printf -v remote_login_marker '%q' "/root/.docker/deploy-login.$GITHUB_RUN_ID"
-          if [[ -n "${SSH_DIR:-}" && -f "$SSH_DIR/believeboy-dashboard" ]]; then
+          if [[ -n "${DEPLOY_DOCKER_CONFIG:-}" && -n "${SSH_DIR:-}" && -f "$SSH_DIR/believeboy-dashboard" ]]; then
+            printf -v remote_docker_config '%q' "$DEPLOY_DOCKER_CONFIG"
+            printf -v remote_deploy_path '%q' "$DEPLOY_PATH"
             ssh -i "$SSH_DIR/believeboy-dashboard" \
               -o IdentitiesOnly=yes \
               -o UserKnownHostsFile="$SSH_DIR/known_hosts" \
               -o StrictHostKeyChecking=yes \
               "$SSH_USER@$SSH_HOST" \
               "set -uo pipefail
-               rm -f -- $remote_login_input
-               if [[ -f $remote_login_marker ]]; then
-                 if [[ -f $remote_config_backup ]]; then
-                   mv -f -- $remote_config_backup $remote_docker_dir/config.json
-                 else
-                   rm -f -- $remote_docker_dir/config.json
-                 fi
-                 rm -f -- $remote_login_marker
-               fi" || echo "::warning::Could not restore the VPS Docker credential config."
+               case $remote_docker_config in
+                 $remote_deploy_path/.deploy-docker-config.*) rm -rf -- $remote_docker_config ;;
+                 *) echo 'Refusing to remove unexpected DOCKER_CONFIG path.' >&2; exit 2 ;;
+               esac" || echo "::warning::Could not remove the run-scoped VPS Docker credential directory."
           fi
 
           if [[ -n "$STAGING_DIR" ]]; then

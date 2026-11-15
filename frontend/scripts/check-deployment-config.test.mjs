@@ -121,15 +121,23 @@ test('dashboard deployment workflow is manual-only and publishes the Go API and 
   // BLF-1537 部署事故（2026-11-15）：VPS 的 /root/.docker/config.json 会被其他项目
   // 覆写成 1 小时有效期的 App 令牌；过期后远端 `docker compose pull` 一律被 GHCR
   // 拒绝（denied），部署在拉镜像阶段失败并回滚。工作流必须在远端部署前用本次运行的
-  // GHCR_TOKEN 刷新 VPS 登录，并在 always() 清理时恢复原配置。
+  // GHCR_TOKEN 在 run-scoped DOCKER_CONFIG 中登录，并在 always() 清理时删除该目录；
+  // 不得改写多项目共用的 /root/.docker/config.json。
   assert.match(workflow, /name: Authenticate GHCR on VPS/)
-  assert.match(workflow, /docker login ghcr\.io --username/)
+  assert.match(workflow, /DOCKER_CONFIG=\$remote_docker_config docker login ghcr\.io --username/)
   assert.match(workflow, /--password-stdin < \$remote_login_input/)
-  assert.match(workflow, /config\.json\.backup\.\$GITHUB_RUN_ID/)
-  assert.match(
-    workflow,
-    /mv -f -- \$remote_config_backup \$remote_docker_dir\/config\.json/
-  )
+  assert.match(workflow, /\.deploy-docker-config\.\$GITHUB_RUN_ID/)
+  assert.match(workflow, /\.deploy-docker-config\.\*\) rm -rf -- \$remote_docker_config/)
+  assert.doesNotMatch(workflow, /config\.json\.backup\.\$GITHUB_RUN_ID/)
+  assert.doesNotMatch(workflow, /cp -p -- \$remote_docker_dir\/config\.json/)
+  // 同一 step 的 env 键必须唯一，否则 GitHub 直接判定 workflow file issue（BLF-1537：
+  // 曾经重复声明 GHCR_TOKEN，整个工作流因此不生成任何 job）。
+  for (const [name, envBlock] of workflow.matchAll(/^\s*- name: (.+)\n(\s+env:\n(?:\s{10,}[^\n]*\n)*)/gm)) {
+    const keys = [...envBlock.matchAll(/^\s{10}([A-Za-z_][A-Za-z0-9_]*):/gm)].map((m) => m[1].toUpperCase())
+    assert.equal(keys.length, new Set(keys).size, `duplicate env key in step: ${name}`)
+  }
+  // 远端 deploy 调用必须把 run-scoped DOCKER_CONFIG 传给 deploy-remote.sh。
+  assert.match(workflow, /DOCKER_CONFIG=\$remote_docker_config\s*\\\s*\n\s*PUBLIC_WEB_HEALTH_URL/)
 })
 
 test('remote deploy keeps the SSH script stream out of Compose run', async () => {
