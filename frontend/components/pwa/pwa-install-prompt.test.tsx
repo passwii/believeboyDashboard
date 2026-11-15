@@ -100,7 +100,9 @@ describe('PwaInstallPrompt', () => {
 
     render(<PwaInstallPrompt />)
 
-    expect(await screen.findByTestId('pwa-install-prompt')).toBeInTheDocument()
+    const promptElement = await screen.findByTestId('pwa-install-prompt')
+    expect(promptElement).toBeInTheDocument()
+    expect(promptElement.parentElement).toHaveClass('warm-ledger')
     expect(register).toHaveBeenCalledWith('/sw.js', { scope: '/' })
 
     await userEvent.click(screen.getByRole('button', { name: '安装' }))

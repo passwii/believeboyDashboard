@@ -110,7 +110,7 @@ export function PwaInstallPrompt() {
   }
 
   return (
-    <div className={styles.shell}>
+    <div className={`warm-ledger ${styles.shell}`}>
       <section
         className={styles.prompt}
         aria-label="安装应用"
