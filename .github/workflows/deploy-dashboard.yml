@@ -460,7 +460,6 @@ jobs:
         env:
           GO_API_OWNED_INPUT: ${{ inputs.go_api_owned }}
           GO_API_INTERNAL_URL_INPUT: ${{ inputs.go_api_internal_url }}
-          DEPLOY_DOCKER_CONFIG: ${{ env.DEPLOY_DOCKER_CONFIG }}
         run: |
           set -euo pipefail
           printf -v remote_staging_dir '%q' "$STAGING_DIR"
