@@ -59,9 +59,11 @@ go run ./cmd/migrate up && go run ./cmd/gateway
 API_KEY=... WATCH_ROOT=... go run ./cmd/autoreport-upload --once --dry-run
 ```
 
-### 2. 部署解冻
+### 2. 部署状态（已于 2026-11-13 解冻）
 
-部署默认冻结，需要 `DEPLOYMENTS_ENABLED=true` 才执行。解冻前建议依次完成：
+仓库变量 `DEPLOYMENTS_ENABLED` 已于 2026-11-13 09:48 UTC 设为 `true`，部署链路正常运行；该开关继续作为紧急停发闸门保留（值不为 `true` 时 `deploy-dashboard.yml` / `deploy/deploy-local.sh` 立即失败）。
+
+解冻前的检查清单（已执行，保留备查）：
 
 1. `bash deploy/validate-local-go-cutover.sh`（本地全链路，含 fallback 日志检查）；
 2. 在预发 / 本地用 Go 网关跑一轮完整业务冒烟（登录、项目、报表上传、定时报表、告警）；

@@ -2,8 +2,8 @@ name: Deploy dashboard stack
 run-name: Deploy Dashboard (${{ inputs.dispatch_id || github.run_number }})
 
 # Manual fallback. The local Mac is the primary release path via
-# deploy/deploy-local.sh. Both paths deploy the same FastAPI, Go API, and Web
-# image set through the shared remote Compose script.
+# deploy/deploy-local.sh. Both paths deploy the same Go API and Web image set
+# through the shared remote Compose script.
 
 on:
   workflow_dispatch:
@@ -38,7 +38,7 @@ on:
         default: 'all'
         required: false
       go_api_internal_url:
-        description: Backend URL injected into Web (8200 = Go gateway, 8100 = FastAPI directly)
+        description: Backend URL injected into Web (Go gateway, http://127.0.0.1:8200)
         type: string
         default: 'http://127.0.0.1:8200'
         required: false
@@ -75,13 +75,13 @@ jobs:
       DEPLOY_FREE_SPACE_PERCENT: ${{ vars.DEPLOY_FREE_SPACE_PERCENT || '0' }}
 
     steps:
-      # 2026-11-10：Go 后端全量迁移完成前冻结部署，只做本地 Docker 验证。
-      # 重新启用：在仓库 Settings → Variables 设置 DEPLOYMENTS_ENABLED=true。
+      # 2026-11-13：部署已解冻。DEPLOYMENTS_ENABLED 保留为紧急停发开关；
+      # 仓库变量不为 true 时本 job 直接失败。
       - name: Deployment pause guard
         if: ${{ vars.DEPLOYMENTS_ENABLED != 'true' }}
         shell: bash
         run: |
-          echo "::error::Deployments are paused (DEPLOYMENTS_ENABLED != true). Validate locally with Docker until the Go backend migration is complete."
+          echo "::error::Deployments are disabled (DEPLOYMENTS_ENABLED != true). Set the repository variable to true to enable deployment."
           exit 1
 
       - name: Checkout
@@ -169,13 +169,8 @@ jobs:
             echo "::error::go_api_owned must be empty or a comma-separated list of lowercase module names."
             exit 1
           fi
-          if [[ "$GO_API_INTERNAL_URL_INPUT" != "http://127.0.0.1:8100" &&
-            "$GO_API_INTERNAL_URL_INPUT" != "http://127.0.0.1:8200" ]]; then
-            echo "::error::go_api_internal_url must be http://127.0.0.1:8100 (FastAPI) or http://127.0.0.1:8200 (Go gateway)."
-            exit 1
-          fi
-          if [[ -n "$GO_API_OWNED_INPUT" && "$GO_API_INTERNAL_URL_INPUT" != "http://127.0.0.1:8200" ]]; then
-            echo "::error::go_api_owned is set but go_api_internal_url does not route Web through the Go gateway (http://127.0.0.1:8200)."
+          if [[ "$GO_API_INTERNAL_URL_INPUT" != "http://127.0.0.1:8200" ]]; then
+            echo "::error::go_api_internal_url must be http://127.0.0.1:8200 (Go gateway); FastAPI is retired."
             exit 1
           fi
 
