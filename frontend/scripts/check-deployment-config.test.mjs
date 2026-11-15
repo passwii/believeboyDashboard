@@ -83,13 +83,13 @@ test('Go binaries embed their required timezone data', async () => {
   assert.match(worker, /tzcheck\.Ensure\(\)/)
 })
 
-test('deployments stay paused until explicitly re-enabled', async () => {
+test('deployments stay disabled until explicitly re-enabled', async () => {
   const workflow = await read('.github/workflows/deploy-dashboard.yml')
   const localDeploy = await read('deploy/deploy-local.sh')
   assert.match(workflow, /DEPLOYMENTS_ENABLED/)
-  assert.match(workflow, /Deployments are paused/)
+  assert.match(workflow, /Deployments are disabled/)
   assert.match(localDeploy, /DEPLOYMENTS_ENABLED/)
-  assert.match(localDeploy, /Deployments are paused/)
+  assert.match(localDeploy, /Deployments are disabled/)
 })
 
 test('deploy free-space policy uses configurable absolute floors', async () => {
