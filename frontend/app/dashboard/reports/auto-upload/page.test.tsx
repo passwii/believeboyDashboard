@@ -443,6 +443,136 @@ describe('AutoUploadPage 队列与状态矩阵渲染', () => {
       )
     ).toBeInTheDocument()
   })
+
+  it('conflict 状态显示候选项目下拉，手动选择后按所选项目上传', async () => {
+    const user = userEvent.setup()
+    const commitBodies: Array<Record<string, unknown>> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url.includes('/rpa-reports/status')) return jsonResponse({ items: [] })
+        if (url.includes('/report-upload/recognize')) {
+          return jsonResponse({
+            ...RECOGNITION,
+            project_match: {
+              status: 'conflict',
+              project_name: null,
+              candidate_projects: ['项目甲', '项目乙'],
+              matched_by: 'sku',
+              matched_values: ['MSKU-1', 'MSKU-2'],
+              message: '检测到多个项目，请手动确认（2 个候选项目）',
+            },
+          })
+        }
+        if (url.includes('/report-upload/commit')) {
+          commitBodies.push(JSON.parse(String(init?.body)))
+          return jsonResponse({ status: 'persisted', rows_ingested: 10 })
+        }
+        return jsonResponse({})
+      })
+    )
+
+    render(<AutoUploadPage />)
+    await user.click(screen.getByRole('tab', { name: '文件上传' }))
+    await user.upload(
+      screen.getByLabelText(/拖拽文件到这里/),
+      new File(['date,msku'], '库存分类账 2026-03一览视图.csv', { type: 'text/csv' })
+    )
+    await screen.findByText(`类型：${SUMMARY_LABEL}`)
+
+    const projectSelect = await screen.findByRole('combobox', { name: '选择项目' })
+    await user.click(projectSelect)
+    expect(await screen.findByRole('option', { name: '项目甲' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '项目乙' })).toBeInTheDocument()
+    await user.click(screen.getByRole('option', { name: '项目甲' }))
+
+    expect(projectSelect).toHaveTextContent('项目甲')
+
+    await user.click(screen.getByRole('button', { name: /上传全部/ }))
+    await waitFor(() => expect(commitBodies).toHaveLength(1))
+    expect(commitBodies[0]).toMatchObject({ project_name: '项目甲' })
+    expect(screen.queryByText('请先选择项目')).not.toBeInTheDocument()
+  })
+
+  it('conflict 的 candidate_projects 为空时回退到可访问项目列表', async () => {
+    const user = userEvent.setup()
+    PROJECTS.push({ name: '项目甲' }, { name: '项目乙' })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.includes('/rpa-reports/status')) return jsonResponse({ items: [] })
+        if (url.includes('/report-upload/recognize')) {
+          return jsonResponse({
+            ...RECOGNITION,
+            project_match: {
+              status: 'conflict',
+              project_name: null,
+              candidate_projects: [],
+              matched_by: 'sku',
+              matched_values: ['MSKU-1'],
+              message: '检测到多个项目，请手动确认',
+            },
+          })
+        }
+        return jsonResponse({})
+      })
+    )
+
+    try {
+      render(<AutoUploadPage />)
+      await user.click(screen.getByRole('tab', { name: '文件上传' }))
+      await user.upload(
+        screen.getByLabelText(/拖拽文件到这里/),
+        new File(['date,msku'], '库存分类账 2026-03一览视图.csv', { type: 'text/csv' })
+      )
+      await screen.findByText(`类型：${SUMMARY_LABEL}`)
+
+      const projectSelect = await screen.findByRole('combobox', { name: '选择项目' })
+      await user.click(projectSelect)
+      expect(await screen.findByRole('option', { name: '项目甲' })).toBeInTheDocument()
+      expect(screen.getByRole('option', { name: '项目乙' })).toBeInTheDocument()
+    } finally {
+      PROJECTS.length = 0
+    }
+  })
+
+  it('文件列表展示 recognition warnings（非单日报表拒绝入库）', async () => {
+    const user = userEvent.setup()
+    const warning = '当前文件识别为非单日报表（2026-11-01 至 2026-11-15），系统将拒绝入库'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.includes('/rpa-reports/status')) return jsonResponse({ items: [] })
+        if (url.includes('/report-upload/recognize')) {
+          return jsonResponse({
+            ...RECOGNITION,
+            project_match: {
+              status: 'matched',
+              project_name: '测试项目',
+              candidate_projects: ['测试项目'],
+              matched_by: 'sku',
+              matched_values: ['MSKU-1'],
+              message: null,
+            },
+            warnings: [warning],
+          })
+        }
+        return jsonResponse({})
+      })
+    )
+
+    render(<AutoUploadPage />)
+    await user.click(screen.getByRole('tab', { name: '文件上传' }))
+    await user.upload(
+      screen.getByLabelText(/拖拽文件到这里/),
+      new File(['date,msku'], '库存分类账 2026-03一览视图.csv', { type: 'text/csv' })
+    )
+    await screen.findByText(`类型：${SUMMARY_LABEL}`)
+    expect(await screen.findByText(warning)).toBeInTheDocument()
+  })
 })
 
 function cssBlock(source: string, selector: string): string {

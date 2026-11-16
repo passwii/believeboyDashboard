@@ -463,6 +463,30 @@ function RpaStatusGrid({
 
 type UploadEndpoint = 'report-upload' | 'ad-upload'
 
+function needsManualProjectSelection(
+  recognition: RecognitionResponse | undefined,
+  recognizedProject: string | null
+) {
+  if (!recognition) return recognizedProject === null || recognizedProject === '未匹配'
+  return (
+    recognition.project_match.status === 'conflict' ||
+    recognition.project_match.status === 'unmatched' ||
+    recognition.project_match.status === 'manual' ||
+    !recognition.project_match.project_name
+  )
+}
+
+function getProjectPickerOptions(
+  recognition: RecognitionResponse | undefined,
+  availableProjects: string[]
+) {
+  const match = recognition?.project_match
+  if (match?.status === 'conflict' && match.candidate_projects.length > 0) {
+    return match.candidate_projects
+  }
+  return availableProjects
+}
+
 function AutoUploadContent({
   country,
   onCountryChange,
@@ -578,12 +602,7 @@ function AutoUploadContent({
                   tempFileId: recognition.temp_file_id,
                   reportType: recognition.report_type as UploadQueueItem['reportType'],
                   recognitionStatus: recognition.status,
-                  recognizedProject:
-                    recognition.project_match.status === 'matched'
-                      ? (recognition.project_match.project_name ?? null)
-                      : recognition.project_match.status === 'conflict'
-                        ? `候选 ${recognition.project_match.candidate_projects.length} 个`
-                        : '未匹配',
+                  recognizedProject: recognition.project_match.project_name ?? null,
                   detectedDate: recognition.detected_date ?? recognition.detected_end_date ?? null,
                   detectedStartDate: recognition.detected_start_date ?? null,
                   detectedEndDate: recognition.detected_end_date ?? null,
@@ -986,8 +1005,10 @@ function AutoUploadContent({
                               '未识别'
                             )}
                           </p>
-                          {item.recognizedProject === '未匹配' ||
-                          item.recognizedProject === null ? (
+                          {needsManualProjectSelection(
+                            recognitionMap[item.localId],
+                            item.recognizedProject
+                          ) ? (
                             <div className="flex items-center gap-1.5">
                               <span className="font-sans text-xs text-[color:var(--warm-ledger-color-accent)]">
                                 项目：
@@ -1004,11 +1025,17 @@ function AutoUploadContent({
                                   )
                                 }}
                               >
-                                <SelectTrigger className="h-6 w-[140px] rounded-[var(--warm-ledger-radius-inner)] border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-window)] px-1.5 py-0.5 font-sans text-xs">
+                                <SelectTrigger
+                                  aria-label="选择项目"
+                                  className="h-6 w-[140px] rounded-[var(--warm-ledger-radius-inner)] border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-window)] px-1.5 py-0.5 font-sans text-xs"
+                                >
                                   <SelectValue placeholder="选择项目" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {availableProjects.map((project) => (
+                                  {getProjectPickerOptions(
+                                    recognitionMap[item.localId],
+                                    availableProjects
+                                  ).map((project) => (
                                     <SelectItem key={project} value={project}>
                                       {project}
                                     </SelectItem>
@@ -1207,6 +1234,11 @@ function AutoUploadContent({
                             <p className="font-sans text-xs text-[color:var(--warm-ledger-color-negative)]">
                               {item.commitError}
                             </p>
+                          ) : null}
+                          {recognitionMap[item.localId]?.warnings?.length ? (
+                            <div className="rounded-[var(--warm-ledger-radius-inner)] border border-[color:color-mix(in_srgb,var(--warm-ledger-color-accent)_40%,transparent)] bg-[color-mix(in_srgb,var(--warm-ledger-color-accent)_10%,transparent)] px-2 py-1.5 font-sans text-[11px] leading-4 text-[color:var(--warm-ledger-color-accent-strong)]">
+                              {recognitionMap[item.localId]?.warnings?.join('；')}
+                            </div>
                           ) : null}
                         </>
                       ) : null}
