@@ -1027,6 +1027,7 @@ func parseAdDateRange(value string) (time.Time, time.Time, bool) {
 	if value == "" {
 		return time.Time{}, time.Time{}, false
 	}
+	rawValue := value
 	// Amazon's English export writes "Nov 10, 2026 - Nov 15, 2026"; Go's time
 	// layouts accept the comma but not the month-name tokens that this parser
 	// would otherwise split into separate fields.
@@ -1064,14 +1065,14 @@ func parseAdDateRange(value string) (time.Time, time.Time, bool) {
 			parsed = append(parsed, parsedDate)
 		}
 	}
-	if len(parsed) == 1 && adYearTokenPattern.MatchString(value) && len(adYearTokenPattern.FindAllString(value, -1)) > 1 {
-		// Two year-bearing dates were present but only one parsed, e.g.
-		// "10/11/2026 - 15/11/2026" where the second token is not a valid
-		// month/day. Guessing a single date here would ingest the wrong period.
+	if len(parsed) < 2 && (adLooksLikeDateRange(value) || len(adYearTokenPattern.FindAllString(value, -1)) > 1) {
+		// A range-shaped value that only yields one date must fail closed.
+		// Guessing a single day here would pass the commit single-day check
+		// and write the whole multi-day report under one date.
 		return time.Time{}, time.Time{}, false
 	}
 	if len(parsed) == 0 {
-		if parsedDate, err := parseAdDate(value); err == nil {
+		if parsedDate, err := parseAdDate(rawValue); err == nil {
 			return parsedDate, parsedDate, true
 		}
 		return time.Time{}, time.Time{}, false
@@ -1104,12 +1105,15 @@ func parseAdAbbreviatedDateRange(value string) (time.Time, time.Time, bool) {
 }
 
 func parseAdEnglishDateRange(value string) (time.Time, time.Time, bool) {
+	monthTokens := len(adEnglishMonthTokenPattern.FindAllString(value, -1))
 	matches := adEnglishDateRangePattern.FindAllStringSubmatch(value, -1)
 	if len(matches) == 0 {
 		return time.Time{}, time.Time{}, false
 	}
 	var parsed []time.Time
+	remaining := value
 	for _, match := range matches {
+		remaining = strings.Replace(remaining, match[0], " ", 1)
 		month, ok := adEnglishMonths[strings.ToLower(match[1])]
 		if !ok {
 			continue
@@ -1128,11 +1132,30 @@ func parseAdEnglishDateRange(value string) (time.Time, time.Time, bool) {
 	if len(parsed) == 0 {
 		return time.Time{}, time.Time{}, false
 	}
+	if len(parsed) < 2 && (monthTokens >= 2 || adLooksLikeDateRange(value) || strings.ContainsAny(remaining, "0123456789")) {
+		// "Nov 10 - Nov 15, 2026" / "Nov 10, 2026 - 15" only expose one
+		// complete date to the regex (the leftover contains another day or a
+		// separator). Fail closed instead of collapsing the range to one day.
+		return time.Time{}, time.Time{}, false
+	}
 	sort.Slice(parsed, func(i, j int) bool { return parsed[i].Before(parsed[j]) })
 	return parsed[0], parsed[len(parsed)-1], true
 }
 
+func adLooksLikeDateRange(value string) bool {
+	return adRangeSeparatorPattern.MatchString(strings.TrimSpace(value))
+}
+
 var adYearTokenPattern = regexp.MustCompile(`\b\d{4}\b`)
+
+// adRangeSeparatorPattern deliberately requires whitespace around ASCII
+// range separators so a single ISO date ("2026-11-10") is not mistaken for
+// a range. 至/~ never appear inside a date.
+var adRangeSeparatorPattern = regexp.MustCompile(`(?i)\s+(?:-|–|—|~|～|to)\s+|\s*至\s*|\s*(?:~|～)\s*`)
+
+var adEnglishMonthTokenPattern = regexp.MustCompile(
+	`(?i)\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b`,
+)
 
 var adTimeOfDayPattern = regexp.MustCompile(`(?i)\s*(?:T\s*)?\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AP]M)?`)
 

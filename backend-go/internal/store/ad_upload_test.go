@@ -504,6 +504,7 @@ func TestParseAdDateRangeFormats(t *testing.T) {
 		"46280 - 46285",
 		"2026-11-10-15",
 		"2026-11-10 ~ 15",
+		"2026-11-10T00:00:00Z",
 	}
 	for _, value := range valid {
 		start, end, ok := parseAdDateRange(value)
@@ -524,6 +525,45 @@ func TestParseAdDateRangeFormats(t *testing.T) {
 	}
 	if start, end, ok := parseAdDateRange("2026-11-10 - 2027-01-03"); ok && start.After(end) {
 		t.Fatalf("cross-year range parse = %v .. %v, want start <= end", start, end)
+	}
+}
+
+func TestParseAdDateRangeFailsClosedOnPartialEnglishRange(t *testing.T) {
+	partial := []string{
+		"Nov 10 - Nov 15, 2026",
+		"Nov 10, 2026 - 15",
+		"Nov 10, 2026 -15",
+		"November 10 - November 15, 2026",
+	}
+	for _, value := range partial {
+		start, end, ok := parseAdDateRange(value)
+		if ok {
+			t.Errorf("parseAdDateRange(%q) = %v .. %v, want fail-closed", value, start, end)
+		}
+	}
+
+	start, end, ok := parseAdDateRange("Nov 15, 2026")
+	if !ok || start.Format("2006-01-02") != "2026-11-15" || end.Format("2006-01-02") != "2026-11-15" {
+		t.Fatalf("single English date = %v .. %v (ok=%v), want 2026-11-15 .. 2026-11-15", start, end, ok)
+	}
+}
+
+func TestParseAdDateRangeFailsClosedOnPartialSameMonthRange(t *testing.T) {
+	partial := []string{
+		"2026年11月10日 - 11月15日",
+		"2026-11-10 - 11-15",
+		"2026/11/10 - 11/15",
+	}
+	for _, value := range partial {
+		start, end, ok := parseAdDateRange(value)
+		if ok {
+			t.Errorf("parseAdDateRange(%q) = %v .. %v, want fail-closed", value, start, end)
+		}
+	}
+
+	start, end, ok := parseAdDateRange("2026-11-10 - 2026-11-15")
+	if !ok || start.Format("2006-01-02") != "2026-11-10" || end.Format("2006-01-02") != "2026-11-15" {
+		t.Fatalf("full range = %v .. %v (ok=%v), want 2026-11-10 .. 2026-11-15", start, end, ok)
 	}
 }
 
