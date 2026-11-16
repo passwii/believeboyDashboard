@@ -355,9 +355,7 @@ func (store *UploadStore) CommitReport(
 				)
 			}
 			projectName = *recognized.ProjectMatch.ProjectName
-		} else if recognized.ProjectMatch.Status != "matched" ||
-			recognized.ProjectMatch.ProjectName == nil ||
-			*recognized.ProjectMatch.ProjectName != projectName {
+		} else if !projectMatchAllowsExplicitSelection(recognized.ProjectMatch, projectName) {
 			return uploads.CommitResponse{}, uploads.NewAPIError(
 				http.StatusUnprocessableEntity,
 				"文件匹配项目与当前选择不一致，请确认后重新选择",
@@ -1170,6 +1168,30 @@ func recognitionMatchesDeclared(declared, recognized string) bool {
 	}
 	return declared == "inventory_ledger" &&
 		(recognized == "inventory_ledger_summary" || recognized == "inventory_ledger_detail")
+}
+
+// An explicit project may only confirm the auto-matched project or pick one
+// of the candidates returned for a conflict; permission is checked separately.
+func projectMatchAllowsExplicitSelection(
+	match uploads.ProjectMatchSummary,
+	projectName string,
+) bool {
+	projectName = strings.TrimSpace(projectName)
+	if projectName == "" {
+		return false
+	}
+	switch match.Status {
+	case "matched":
+		return match.ProjectName != nil &&
+			*match.ProjectName == projectName
+	case "conflict":
+		for _, candidate := range match.CandidateProjects {
+			if candidate == projectName {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func reportTypeRequiresCountryMatch(reportType string) bool {
