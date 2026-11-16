@@ -10,7 +10,101 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/api/uploads"
 )
+
+func TestProjectMatchAllowsExplicitSelection(t *testing.T) {
+	matchedName := "项目甲"
+	candidates := []string{"项目乙", "项目甲"}
+	tests := []struct {
+		name        string
+		match       uploads.ProjectMatchSummary
+		projectName string
+		want        bool
+	}{
+		{
+			name: "matched same project",
+			match: uploads.ProjectMatchSummary{
+				Status: "matched", ProjectName: &matchedName,
+				CandidateProjects: []string{matchedName},
+			},
+			projectName: "项目甲",
+			want:        true,
+		},
+		{
+			name: "matched other project",
+			match: uploads.ProjectMatchSummary{
+				Status: "matched", ProjectName: &matchedName,
+			},
+			projectName: "项目乙",
+			want:        false,
+		},
+		{
+			name:        "matched without project name",
+			match:       uploads.ProjectMatchSummary{Status: "matched"},
+			projectName: "项目甲",
+			want:        false,
+		},
+		{
+			name: "conflict candidate",
+			match: uploads.ProjectMatchSummary{
+				Status: "conflict", CandidateProjects: candidates,
+			},
+			projectName: "项目甲",
+			want:        true,
+		},
+		{
+			name: "conflict non candidate",
+			match: uploads.ProjectMatchSummary{
+				Status: "conflict", CandidateProjects: candidates,
+			},
+			projectName: "项目丙",
+			want:        false,
+		},
+		{
+			name: "conflict without candidates",
+			match: uploads.ProjectMatchSummary{
+				Status: "conflict", CandidateProjects: []string{},
+			},
+			projectName: "项目甲",
+			want:        false,
+		},
+		{
+			name: "unmatched explicit project",
+			match: uploads.ProjectMatchSummary{
+				Status: "unmatched", CandidateProjects: []string{},
+			},
+			projectName: "项目甲",
+			want:        false,
+		},
+		{
+			name: "manual explicit project",
+			match: uploads.ProjectMatchSummary{
+				Status: "manual", CandidateProjects: candidates,
+			},
+			projectName: "项目甲",
+			want:        false,
+		},
+		{
+			name: "empty explicit project",
+			match: uploads.ProjectMatchSummary{
+				Status: "conflict", CandidateProjects: candidates,
+			},
+			projectName: "   ",
+			want:        false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := projectMatchAllowsExplicitSelection(test.match, test.projectName); got != test.want {
+				t.Fatalf(
+					"projectMatchAllowsExplicitSelection(%#v, %q) = %v, want %v",
+					test.match, test.projectName, got, test.want,
+				)
+			}
+		})
+	}
+}
 
 func TestUploadStorePathHelpersRejectEscapeAndAllowSafeTemp(t *testing.T) {
 	root := t.TempDir()
