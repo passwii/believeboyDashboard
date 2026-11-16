@@ -65,8 +65,13 @@ func (optional Optional[T]) Get() (T, bool) {
 }
 
 type Subscription struct {
-	ID              int64   `json:"id"`
+	ID int64 `json:"id"`
+	// UserID is the legacy integer owner column from Alembic 123. It never
+	// matched user_accounts.id and is kept on the wire only so the documented
+	// OpenAPI shape and the previous binary stay compatible; new writes leave
+	// it NULL. UserAccountID is the authoritative owner.
 	UserID          *int    `json:"user_id"`
+	UserAccountID   *string `json:"user_account_id"`
 	Email           *string `json:"email"`
 	ProjectIDs      string  `json:"project_ids"`
 	Country         string  `json:"country"`
@@ -99,7 +104,7 @@ type SubscriptionCreateRequest struct {
 }
 
 type SubscriptionCreateInput struct {
-	UserID          *int
+	UserAccountID   *string
 	Email           *string
 	ProjectIDs      string
 	Country         string
@@ -255,9 +260,9 @@ type LedgerRegenerateSummaryResponse struct {
 }
 
 type Scope struct {
-	UserID   *int
-	Operator string
-	IsAdmin  bool
+	UserAccountID *string
+	Operator      string
+	IsAdmin       bool
 }
 
 type LedgerQuery struct {

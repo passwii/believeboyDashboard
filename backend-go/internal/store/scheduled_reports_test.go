@@ -43,10 +43,11 @@ func TestScheduledReportStoreVerifyProjectAccess(t *testing.T) {
 func TestScheduledReportStoreCreateAndUpdateUseRealTables(t *testing.T) {
 	now := time.Date(2026, 11, 8, 10, 0, 0, 0, time.FixedZone("CST", 8*60*60))
 	email := "owner@example.com"
-	userID := 10
+	userID := "9703d9eb-c1f5-4e7c-8513-313b05c3ea75"
 	weekday := 1
 	rowValues := []any{
 		int64(11),
+		(*int)(nil),
 		&userID,
 		&email,
 		"1,2",
@@ -65,7 +66,7 @@ func TestScheduledReportStoreCreateAndUpdateUseRealTables(t *testing.T) {
 	store := NewScheduledReportStore(db)
 
 	created, err := store.CreateSubscription(context.Background(), scheduled_reports.SubscriptionCreateInput{
-		UserID:          &userID,
+		UserAccountID:   &userID,
 		Email:           &email,
 		ProjectIDs:      "1,2",
 		Country:         "US",
@@ -77,7 +78,7 @@ func TestScheduledReportStoreCreateAndUpdateUseRealTables(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateSubscription() error = %v", err)
 	}
-	if created.ID != 11 || created.UserID == nil || *created.UserID != 10 || created.Frequency != "weekly" {
+	if created.ID != 11 || created.UserAccountID == nil || *created.UserAccountID != userID || created.Frequency != "weekly" {
 		t.Fatalf("created subscription = %#v", created)
 	}
 	if len(db.queryRowCalls) != 1 {
@@ -114,7 +115,7 @@ func TestScheduledReportStoreCreateAndUpdateUseRealTables(t *testing.T) {
 
 func TestScheduledReportStorePrepareResendLocksLedgerAndCreatesManualLog(t *testing.T) {
 	ctx := context.Background()
-	userID := 10
+	userID := "9703d9eb-c1f5-4e7c-8513-313b05c3ea75"
 	email := "owner@example.com"
 	weekday := 1
 	db := &scheduledTestDB{
@@ -124,7 +125,7 @@ func TestScheduledReportStorePrepareResendLocksLedgerAndCreatesManualLog(t *test
 				9, 7, "weekly", "2026-11-03", &email, "1,2", "US", "failed", 3,
 			}},
 			scheduledTestRow{values: []any{
-				7, &userID, &email, "1,2", "US", "weekly", 16, 0, &weekday, nil, (*string)(nil), true,
+				7, (*int)(nil), &userID, &email, "1,2", "US", "weekly", 16, 0, &weekday, nil, (*string)(nil), true,
 				time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC),
 				time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC),
 			}},
@@ -169,7 +170,7 @@ func TestScheduledReportStorePrepareResendLocksLedgerAndCreatesManualLog(t *test
 
 func TestScheduledReportStoreResendDeduplicatesInFlightLog(t *testing.T) {
 	email := "owner@example.com"
-	userID := 10
+	userID := "9703d9eb-c1f5-4e7c-8513-313b05c3ea75"
 	db := &scheduledTestDB{
 		rowsQueue: []pgx.Row{
 			scheduledTestRow{values: []any{1}},
@@ -177,7 +178,7 @@ func TestScheduledReportStoreResendDeduplicatesInFlightLog(t *testing.T) {
 				9, 7, "daily", "2026-11-07", &email, "*", "US", "missing", 3,
 			}},
 			scheduledTestRow{values: []any{
-				7, &userID, &email, "*", "US", "daily", 15, 0, (*int)(nil), (*int)(nil), (*string)(nil), true,
+				7, (*int)(nil), &userID, &email, "*", "US", "daily", 15, 0, (*int)(nil), (*int)(nil), (*string)(nil), true,
 				time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC),
 				time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC),
 			}},
@@ -204,7 +205,7 @@ func TestScheduledReportStoreResendDeduplicatesInFlightLog(t *testing.T) {
 			9, 7, "daily", "2026-11-07", &email, "*", "US", "missing", 3,
 		}},
 		scheduledTestRow{values: []any{
-			7, &userID, &email, "*", "US", "daily", 15, 0, (*int)(nil), (*int)(nil), (*string)(nil), true,
+			7, (*int)(nil), &userID, &email, "*", "US", "daily", 15, 0, (*int)(nil), (*int)(nil), (*string)(nil), true,
 			time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC),
 			time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC),
 		}},
@@ -220,7 +221,7 @@ func TestScheduledReportStoreResendDeduplicatesInFlightLog(t *testing.T) {
 
 func TestScheduledReportStoreRegenerateSummaryRequiresSentLog(t *testing.T) {
 	email := "owner@example.com"
-	userID := 10
+	userID := "9703d9eb-c1f5-4e7c-8513-313b05c3ea75"
 	insightRunID := "run-1"
 	model := "model-a"
 	db := &scheduledTestDB{
@@ -229,7 +230,7 @@ func TestScheduledReportStoreRegenerateSummaryRequiresSentLog(t *testing.T) {
 			scheduledTestRow{values: []any{7, 22}},
 			scheduledTestRow{values: []any{22, "sent", &insightRunID, &model}},
 			scheduledTestRow{values: []any{
-				7, &userID, &email, "1,2", "US", "weekly", 16, 0, (*int)(nil), (*int)(nil), &model, true,
+				7, (*int)(nil), &userID, &email, "1,2", "US", "weekly", 16, 0, (*int)(nil), (*int)(nil), &model, true,
 				time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC),
 				time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC),
 			}},
@@ -295,7 +296,7 @@ func TestScheduledReportStoreFindIdempotencyRecord(t *testing.T) {
 
 func TestScheduledReportStoreRefreshLedgerUpsertsAndPagesByDay(t *testing.T) {
 	email := "owner@example.com"
-	userID := 10
+	userID := "9703d9eb-c1f5-4e7c-8513-313b05c3ea75"
 	sentAt := time.Date(2026, 11, 2, 16, 0, 0, 0, time.FixedZone("CST", 8*60*60))
 	lastChecked := time.Date(2026, 11, 8, 10, 0, 0, 0, time.FixedZone("CST", 8*60*60))
 	expectedAt := time.Date(2026, 11, 2, 15, 0, 0, 0, time.FixedZone("CST", 8*60*60))
@@ -304,6 +305,7 @@ func TestScheduledReportStoreRefreshLedgerUpsertsAndPagesByDay(t *testing.T) {
 		rowsQueueQuery: []Rows{
 			&scheduledTestRows{batches: [][]any{{
 				7,
+				(*int)(nil),
 				&userID,
 				&email,
 				"1,2",
@@ -397,6 +399,125 @@ func TestScheduledReportStoreRefreshAndTriggerUseAdvisoryLocks(t *testing.T) {
 	if got := scheduled_reports.TriggerLockKey("daily"); got != "scheduled-report-trigger:daily" {
 		t.Fatalf("trigger lock key = %q", got)
 	}
+}
+
+// BLF-1556: b43a5ba6 dropped the admin branch from ListSubscriptions, so an
+// admin session filtered on its own account id and saw nothing. Admins must
+// list every subscription, mirroring ledger and ListDeliveryLogs.
+func TestScheduledReportStoreListSubscriptionsScope(t *testing.T) {
+	operatorAccountID := "9703d9eb-c1f5-4e7c-8513-313b05c3ea75"
+
+	t.Run("admin without account id lists all", func(t *testing.T) {
+		db := &scheduledTestDB{}
+		subscriptions, err := NewScheduledReportStore(db).ListSubscriptions(
+			context.Background(),
+			scheduled_reports.Scope{IsAdmin: true},
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("ListSubscriptions() error = %v", err)
+		}
+		if len(subscriptions) != 0 {
+			t.Fatalf("subscriptions = %#v, want empty rows", subscriptions)
+		}
+		if len(db.queryCalls) != 1 {
+			t.Fatalf("Query calls = %d, want 1", len(db.queryCalls))
+		}
+		query := strings.ToLower(db.queryCalls[0].sql)
+		if strings.Contains(query, "where user_account_id") {
+			t.Fatalf("admin ListSubscriptions filtered by account: %s", query)
+		}
+		if len(db.queryCalls[0].args) != 0 {
+			t.Fatalf("admin ListSubscriptions args = %#v, want none", db.queryCalls[0].args)
+		}
+	})
+
+	t.Run("admin with account id still lists all", func(t *testing.T) {
+		db := &scheduledTestDB{}
+		_, err := NewScheduledReportStore(db).ListSubscriptions(
+			context.Background(),
+			scheduled_reports.Scope{UserAccountID: &operatorAccountID, IsAdmin: true},
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("ListSubscriptions() error = %v", err)
+		}
+		if strings.Contains(strings.ToLower(db.queryCalls[0].sql), "where user_account_id") {
+			t.Fatalf("admin ListSubscriptions filtered by account: %s", db.queryCalls[0].sql)
+		}
+	})
+
+	t.Run("operator filters on own account", func(t *testing.T) {
+		db := &scheduledTestDB{}
+		_, err := NewScheduledReportStore(db).ListSubscriptions(
+			context.Background(),
+			scheduled_reports.Scope{UserAccountID: &operatorAccountID},
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("ListSubscriptions() error = %v", err)
+		}
+		query := strings.ToLower(db.queryCalls[0].sql)
+		if !strings.Contains(query, "where user_account_id = $1") {
+			t.Fatalf("operator ListSubscriptions SQL = %s", query)
+		}
+		if len(db.queryCalls[0].args) != 1 || db.queryCalls[0].args[0] != operatorAccountID {
+			t.Fatalf("operator ListSubscriptions args = %#v", db.queryCalls[0].args)
+		}
+	})
+
+	t.Run("operator without account id sees nothing", func(t *testing.T) {
+		db := &scheduledTestDB{}
+		subscriptions, err := NewScheduledReportStore(db).ListSubscriptions(
+			context.Background(),
+			scheduled_reports.Scope{},
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("ListSubscriptions() error = %v", err)
+		}
+		if len(subscriptions) != 0 || len(db.queryCalls) != 0 {
+			t.Fatalf("subscriptions = %#v, queries = %d; want none", subscriptions, len(db.queryCalls))
+		}
+	})
+}
+
+func TestScheduledReportStoreSubscriptionQueriesUseUserAccountID(t *testing.T) {
+	operatorAccountID := "9703d9eb-c1f5-4e7c-8513-313b05c3ea75"
+
+	t.Run("delivery logs scope by account", func(t *testing.T) {
+		db := &scheduledTestDB{
+			rowsQueue: []pgx.Row{scheduledTestRow{values: []any{0}}},
+		}
+		_, err := NewScheduledReportStore(db).ListDeliveryLogs(
+			context.Background(),
+			scheduled_reports.Scope{UserAccountID: &operatorAccountID},
+			nil,
+			10,
+			0,
+		)
+		if err != nil {
+			t.Fatalf("ListDeliveryLogs() error = %v", err)
+		}
+		query := strings.ToLower(db.queryCalls[0].sql)
+		if !strings.Contains(query, "user_account_id = $1") {
+			t.Fatalf("ListDeliveryLogs SQL = %s", query)
+		}
+	})
+
+	t.Run("ledger scope by account", func(t *testing.T) {
+		where := buildLedgerWhere(scheduled_reports.LedgerQuery{
+			StartDate: "2026-11-01",
+			EndDate:   "2026-11-02",
+			Scope:     scheduled_reports.Scope{UserAccountID: &operatorAccountID},
+		})
+		if !strings.Contains(where.sql, "s.user_account_id = $3") {
+			t.Fatalf("ledger where SQL = %s", where.sql)
+		}
+		if len(where.args) != 3 || where.args[2] != operatorAccountID {
+			t.Fatalf("ledger where args = %#v", where.args)
+		}
+	})
 }
 
 func acquireAdvisoryLockSQL() string {

@@ -90,7 +90,7 @@ func scheduledContainsOperator(value *string, target string) bool {
 }
 
 const scheduledReportSubscriptionColumns = `
-	id, user_id, email, project_ids, country, frequency,
+	id, user_id, user_account_id, email, project_ids, country, frequency,
 	dispatch_hour, dispatch_minute, dispatch_weekday, dispatch_day,
 	ai_model, enabled, created_at, updated_at`
 
@@ -104,11 +104,13 @@ func (store *ScheduledReportStore) ListSubscriptions(
 	}
 	args := make([]any, 0, 2)
 	where := ""
-	if scope.UserID == nil {
-		return []scheduled_reports.Subscription{}, nil
+	if !scope.IsAdmin {
+		if scope.UserAccountID == nil {
+			return []scheduled_reports.Subscription{}, nil
+		}
+		args = append(args, *scope.UserAccountID)
+		where = fmt.Sprintf(" where user_account_id = $%d", len(args))
 	}
-	args = append(args, *scope.UserID)
-	where = fmt.Sprintf(" where user_id = $%d", len(args))
 	if frequency != nil && strings.TrimSpace(*frequency) != "" {
 		args = append(args, strings.TrimSpace(*frequency))
 		if where == "" {
@@ -171,12 +173,12 @@ func (store *ScheduledReportStore) CreateSubscription(
 	subscription, err := scanScheduledReportSubscription(store.db.QueryRow(
 		ctx,
 		`insert into public.scheduled_report_subscriptions (
-		   user_id, email, project_ids, country, frequency,
+		   user_account_id, email, project_ids, country, frequency,
 		   dispatch_hour, dispatch_minute, dispatch_weekday, dispatch_day,
 		   ai_model, enabled, created_at, updated_at
 		 ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true, now(), now())
 		 returning `+scheduledReportSubscriptionColumns,
-		input.UserID,
+		input.UserAccountID,
 		input.Email,
 		input.ProjectIDs,
 		input.Country,
@@ -371,12 +373,12 @@ func (store *ScheduledReportStore) ListDeliveryLogs(
 	args := make([]any, 0, 3)
 	where := ""
 	if !scope.IsAdmin {
-		if scope.UserID == nil {
+		if scope.UserAccountID == nil {
 			return scheduled_reports.DeliveryLogListResponse{Items: []scheduled_reports.DeliveryLog{}}, nil
 		}
-		args = append(args, *scope.UserID)
+		args = append(args, *scope.UserAccountID)
 		where = fmt.Sprintf(` where subscription_id in (
-			select id from public.scheduled_report_subscriptions where user_id = $%d
+			select id from public.scheduled_report_subscriptions where user_account_id = $%d
 		)`, len(args))
 	}
 	if status != nil && strings.TrimSpace(*status) != "" {
@@ -630,11 +632,11 @@ func buildLedgerWhere(query scheduled_reports.LedgerQuery) ledgerWhere {
 		)`, placeholder)
 	}
 	if !query.Scope.IsAdmin {
-		if query.Scope.UserID == nil {
+		if query.Scope.UserAccountID == nil {
 			sql += " and false"
 		} else {
-			args = append(args, *query.Scope.UserID)
-			sql += fmt.Sprintf(" and s.user_id = $%d", len(args))
+			args = append(args, *query.Scope.UserAccountID)
+			sql += fmt.Sprintf(" and s.user_account_id = $%d", len(args))
 		}
 	}
 	return ledgerWhere{sql: sql, args: args}
@@ -1096,7 +1098,8 @@ func scanScheduledReportSubscription(scanner interface {
 	Scan(dest ...any) error
 }) (scheduled_reports.Subscription, error) {
 	var id int
-	var userID *int
+	var legacyUserID *int
+	var userAccountID *string
 	var email *string
 	var projectIDs, country, frequency string
 	var dispatchHour, dispatchMinute int
@@ -1106,7 +1109,8 @@ func scanScheduledReportSubscription(scanner interface {
 	var createdAt, updatedAt time.Time
 	err := scanner.Scan(
 		&id,
-		&userID,
+		&legacyUserID,
+		&userAccountID,
 		&email,
 		&projectIDs,
 		&country,
@@ -1125,7 +1129,8 @@ func scanScheduledReportSubscription(scanner interface {
 	}
 	return scheduled_reports.Subscription{
 		ID:              int64(id),
-		UserID:          userID,
+		UserID:          legacyUserID,
+		UserAccountID:   userAccountID,
 		Email:           email,
 		ProjectIDs:      projectIDs,
 		Country:         country,

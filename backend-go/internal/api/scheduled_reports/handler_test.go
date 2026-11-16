@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -74,7 +75,7 @@ func (store *fakeScheduledReportStore) CreateSubscription(
 	store.createInput = input
 	created := Subscription{
 		ID:              11,
-		UserID:          input.UserID,
+		UserAccountID:   input.UserAccountID,
 		Email:           input.Email,
 		ProjectIDs:      input.ProjectIDs,
 		Country:         input.Country,
@@ -228,13 +229,18 @@ func scheduledRequest(
 	return request
 }
 
+const (
+	testOperatorAccountID = "9703d9eb-c1f5-4e7c-8513-313b05c3ea75"
+	testOtherAccountID    = "1f7ac8fd-12de-4e9b-8b49-096d5d03d2ff"
+)
+
 func TestScheduledReportsRoutesAndAuditedWrites(t *testing.T) {
-	userID := 10
+	userID := testOperatorAccountID
 	weekday := 0
 	email := "owner@example.com"
 	subscription := &Subscription{
 		ID:              7,
-		UserID:          &userID,
+		UserAccountID:   &userID,
 		Email:           &email,
 		ProjectIDs:      "1,2",
 		Country:         "US",
@@ -343,7 +349,7 @@ func TestScheduledReportsRoutesAndAuditedWrites(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			request := scheduledRequest(test.method, test.target, test.body, "10", "operator-a", test.name == "resend" || test.name == "regenerate" || test.name == "trigger")
+			request := scheduledRequest(test.method, test.target, test.body, testOperatorAccountID, "operator-a", test.name == "resend" || test.name == "regenerate" || test.name == "trigger")
 			recorder := httptest.NewRecorder()
 			router.ServeHTTP(recorder, request)
 			if recorder.Code != test.status {
@@ -352,8 +358,8 @@ func TestScheduledReportsRoutesAndAuditedWrites(t *testing.T) {
 		})
 	}
 
-	if store.createInput.UserID == nil || *store.createInput.UserID != 10 {
-		t.Fatalf("create user_id = %#v, want 10", store.createInput.UserID)
+	if store.createInput.UserAccountID == nil || *store.createInput.UserAccountID != testOperatorAccountID {
+		t.Fatalf("create user_account_id = %#v, want %s", store.createInput.UserAccountID, testOperatorAccountID)
 	}
 	if len(auditor.Entries) != 6 {
 		t.Fatalf("audit entries = %d, want create/update/delete/resend/regenerate/trigger writes", len(auditor.Entries))
@@ -376,9 +382,152 @@ func TestScheduledReportsRoutesAndAuditedWrites(t *testing.T) {
 	}
 }
 
+// BLF-1556: the list endpoint returned [] for every admin because the store
+// dropped the "admin sees all" branch and the identity header is a UUID that
+// never parsed as an integer. The handler must pass the account UUID through
+// and leave the store free to list everything for admins.
+func TestScheduledReportsSubscriptionListScope(t *testing.T) {
+	subscriptions := []Subscription{{ID: 7, ProjectIDs: "1,2", Country: "US", Frequency: FrequencyDaily, Enabled: true}}
+	store := &fakeScheduledReportStore{subscriptions: subscriptions}
+	router := setupScheduledReportRouter(store, &fakeEnqueuer{}, &fakeMailer{}, audit.NewMockService())
+
+	t.Run("admin lists with account scope", func(t *testing.T) {
+		request := scheduledRequest(
+			http.MethodGet,
+			"/api/v1/scheduled-reports/subscriptions",
+			"",
+			testOperatorAccountID,
+			"operator-a",
+			true,
+		)
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d: %s", recorder.Code, recorder.Body.String())
+		}
+		var response SubscriptionListResponse
+		if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+			t.Fatalf("decode list: %v", err)
+		}
+		if response.Total != len(subscriptions) || len(response.Items) != len(subscriptions) {
+			t.Fatalf("response = %#v, want %d items", response, len(subscriptions))
+		}
+	})
+
+	t.Run("admin without account header lists all", func(t *testing.T) {
+		request := scheduledRequest(
+			http.MethodGet,
+			"/api/v1/scheduled-reports/subscriptions",
+			"",
+			"",
+			"operator-a",
+			true,
+		)
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d: %s", recorder.Code, recorder.Body.String())
+		}
+	})
+
+	t.Run("non-admin uuid header is accepted", func(t *testing.T) {
+		request := scheduledRequest(
+			http.MethodGet,
+			"/api/v1/scheduled-reports/subscriptions",
+			"",
+			testOperatorAccountID,
+			"operator-a",
+			false,
+		)
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d: %s", recorder.Code, recorder.Body.String())
+		}
+	})
+
+	t.Run("legacy integer header is rejected for non-admin", func(t *testing.T) {
+		request := scheduledRequest(
+			http.MethodGet,
+			"/api/v1/scheduled-reports/subscriptions",
+			"",
+			"10",
+			"operator-a",
+			false,
+		)
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusForbidden {
+			t.Fatalf("status = %d, want 403: %s", recorder.Code, recorder.Body.String())
+		}
+	})
+}
+
+func TestScheduledReportsCreateStoresUserAccountID(t *testing.T) {
+	store := &fakeScheduledReportStore{}
+	router := setupScheduledReportRouter(store, &fakeEnqueuer{}, &fakeMailer{}, audit.NewMockService())
+	request := scheduledRequest(
+		http.MethodPost,
+		"/api/v1/scheduled-reports/subscriptions",
+		`{"email":"owner@example.com","project_ids":"1,2","country":"US","frequency":"daily"}`,
+		testOperatorAccountID,
+		"operator-a",
+		false,
+	)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if store.createInput.UserAccountID == nil || *store.createInput.UserAccountID != testOperatorAccountID {
+		t.Fatalf("create user_account_id = %#v", store.createInput.UserAccountID)
+	}
+}
+
+func TestParseOptionalUserAccountID(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   string
+		want    string
+		wantNil bool
+		wantErr bool
+	}{
+		{name: "empty", value: "", wantNil: true},
+		{name: "blank", value: "   ", wantNil: true},
+		{name: "lowercase uuid", value: testOperatorAccountID, want: testOperatorAccountID},
+		{name: "uppercase uuid canonicalized", value: strings.ToUpper(testOperatorAccountID), want: testOperatorAccountID},
+		{name: "braced uuid", value: "{" + testOperatorAccountID + "}", want: testOperatorAccountID},
+		{name: "legacy integer", value: "10", wantErr: true},
+		{name: "arbitrary text", value: "not-a-uuid", wantErr: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := parseOptionalUserAccountID(test.value)
+			if test.wantErr {
+				if err == nil {
+					t.Fatalf("parseOptionalUserAccountID(%q) = %#v, want error", test.value, got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseOptionalUserAccountID(%q) error = %v", test.value, err)
+			}
+			if test.wantNil {
+				if got != nil {
+					t.Fatalf("parseOptionalUserAccountID(%q) = %#v, want nil", test.value, got)
+				}
+				return
+			}
+			if got == nil || *got != test.want {
+				t.Fatalf("parseOptionalUserAccountID(%q) = %#v, want %q", test.value, got, test.want)
+			}
+		})
+	}
+}
+
 func TestScheduledReportsStatusMatrix(t *testing.T) {
-	userID := 10
-	subscription := &Subscription{ID: 7, UserID: &userID, Frequency: FrequencyDaily, DispatchHour: 15}
+	userID := testOperatorAccountID
+	subscription := &Subscription{ID: 7, UserAccountID: &userID, Frequency: FrequencyDaily, DispatchHour: 15}
 	store := &fakeScheduledReportStore{
 		subscription: subscription,
 		resendErr:    ErrAlreadySent,
@@ -396,17 +545,17 @@ func TestScheduledReportsStatusMatrix(t *testing.T) {
 		admin  bool
 		status int
 	}{
-		{"400 bad frequency", http.MethodPost, "/api/v1/scheduled-reports/trigger?frequency=hourly", "", "10", true, http.StatusBadRequest},
-		{"403 non-admin resend", http.MethodPost, "/api/v1/scheduled-reports/ledger/7:2026-11-03/resend", "", "10", false, http.StatusForbidden},
-		{"404 update other user", http.MethodPut, "/api/v1/scheduled-reports/subscriptions/7", `{"enabled":false}`, "99", false, http.StatusNotFound},
-		{"409 already sent", http.MethodPost, "/api/v1/scheduled-reports/ledger/7:2026-11-03/resend", "", "10", true, http.StatusConflict},
-		{"422 bad path", http.MethodPut, "/api/v1/scheduled-reports/subscriptions/nope", `{"enabled":false}`, "10", false, http.StatusUnprocessableEntity},
+		{"400 bad frequency", http.MethodPost, "/api/v1/scheduled-reports/trigger?frequency=hourly", "", testOperatorAccountID, true, http.StatusBadRequest},
+		{"403 non-admin resend", http.MethodPost, "/api/v1/scheduled-reports/ledger/7:2026-11-03/resend", "", testOperatorAccountID, false, http.StatusForbidden},
+		{"404 update other user", http.MethodPut, "/api/v1/scheduled-reports/subscriptions/7", `{"enabled":false}`, testOtherAccountID, false, http.StatusNotFound},
+		{"409 already sent", http.MethodPost, "/api/v1/scheduled-reports/ledger/7:2026-11-03/resend", "", testOperatorAccountID, true, http.StatusConflict},
+		{"422 bad path", http.MethodPut, "/api/v1/scheduled-reports/subscriptions/nope", `{"enabled":false}`, testOperatorAccountID, false, http.StatusUnprocessableEntity},
 		{
 			"422 bad create body",
 			http.MethodPost,
 			"/api/v1/scheduled-reports/subscriptions",
 			`{"frequency":"weekly","dispatch_hour":15,"dispatch_weekday":0}`,
-			"10",
+			testOperatorAccountID,
 			false,
 			http.StatusUnprocessableEntity,
 		},
@@ -436,7 +585,7 @@ func TestScheduledReportsStatusMatrix(t *testing.T) {
 		http.MethodPost,
 		"/api/v1/scheduled-reports/test-email",
 		`{"email":"owner@example.com"}`,
-		"10",
+		testOperatorAccountID,
 		"operator-a",
 		false)
 	recorder := httptest.NewRecorder()
@@ -462,7 +611,7 @@ func TestScheduledReportsStatusMatrix(t *testing.T) {
 		http.MethodPost,
 		"/api/v1/scheduled-reports/ledger/7:2026-11-03/resend",
 		"",
-		"10",
+		testOperatorAccountID,
 		"admin",
 		true)
 	recorder = httptest.NewRecorder()
@@ -484,7 +633,7 @@ func TestScheduledReportsStatusMatrix(t *testing.T) {
 		http.MethodPost,
 		"/api/v1/scheduled-reports/ledger/7:2026-11-03/resend",
 		"",
-		"10",
+		testOperatorAccountID,
 		"admin",
 		true)
 	recorder = httptest.NewRecorder()
@@ -495,7 +644,7 @@ func TestScheduledReportsStatusMatrix(t *testing.T) {
 }
 
 func TestScheduledReportsIdempotentReplayAndPayloadShape(t *testing.T) {
-	userID := 10
+	userID := testOperatorAccountID
 	email := "owner@example.com"
 	store := &fakeScheduledReportStore{
 		resendResult: ResendResult{
@@ -511,12 +660,12 @@ func TestScheduledReportsIdempotentReplayAndPayloadShape(t *testing.T) {
 			AIModel:        stringPointer("model-a"),
 		},
 		active: []Subscription{{
-			ID:         7,
-			UserID:     &userID,
-			Email:      &email,
-			ProjectIDs: "1,2",
-			Country:    "US",
-			Frequency:  FrequencyDaily,
+			ID:            7,
+			UserAccountID: &userID,
+			Email:         &email,
+			ProjectIDs:    "1,2",
+			Country:       "US",
+			Frequency:     FrequencyDaily,
 		}},
 	}
 	enqueuer := &fakeEnqueuer{}
@@ -526,7 +675,7 @@ func TestScheduledReportsIdempotentReplayAndPayloadShape(t *testing.T) {
 		http.MethodPost,
 		"/api/v1/scheduled-reports/ledger/7:2026-11-02/resend?force=true&ai_model=model-a",
 		"",
-		"10",
+		testOperatorAccountID,
 		"admin",
 		true)
 	request.Header.Set("Idempotency-Key", "resend-1")
@@ -575,7 +724,7 @@ func TestScheduledReportsIdempotentReplayAndPayloadShape(t *testing.T) {
 		http.MethodPost,
 		"/api/v1/scheduled-reports/ledger/7:2026-11-02/resend?force=true&ai_model=model-a",
 		"",
-		"10",
+		testOperatorAccountID,
 		"admin",
 		true)
 	request.Header.Set("Idempotency-Key", "resend-1")

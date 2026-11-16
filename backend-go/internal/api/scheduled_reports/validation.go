@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 const maxRequestBodyBytes = 1 << 20
@@ -389,14 +391,19 @@ func requestFingerprint(value any) string {
 	return string(payload)
 }
 
-func parseOptionalIntHeader(value string) (*int, error) {
+// parseOptionalUserAccountID validates the X-User-Id header. The dashboard
+// session carries user_accounts.id, a UUID; anything else (including the
+// legacy integer ids some tooling still sends) cannot be matched to an
+// account and must not be silently treated as "no filter".
+func parseOptionalUserAccountID(value string) (*string, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return nil, nil
 	}
-	number, err := strconv.Atoi(value)
+	parsed, err := uuid.Parse(value)
 	if err != nil {
 		return nil, err
 	}
-	return &number, nil
+	canonical := parsed.String()
+	return &canonical, nil
 }
