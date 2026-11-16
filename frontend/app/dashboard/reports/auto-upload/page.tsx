@@ -829,7 +829,10 @@ function AutoUploadContent({
   ).length
 
   return (
-    <div className="flex flex-1 flex-col gap-4" data-warm-upload-workspace="true">
+    <div
+      className="flex flex-1 flex-col gap-4 lg:h-full lg:min-h-0"
+      data-warm-upload-workspace="true"
+    >
       {/* Top controls：手机端 2 列网格（站点全宽一行 + 双按钮各半），sm+ 恢复横向 */}
       <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3">
         <Select value={country} onValueChange={(v) => onCountryChange(v as ReportUploadCountry)}>
@@ -871,9 +874,9 @@ function AutoUploadContent({
       </div>
 
       {/* Dropzone + File list */}
-      <div className="grid flex-1 gap-3 overflow-hidden lg:grid-cols-[1fr_2fr]">
+      <div className="grid flex-1 gap-3 overflow-hidden lg:min-h-0 lg:grid-cols-[1fr_2fr] lg:grid-rows-1">
         {/* Dropzone */}
-        <Card className="overflow-hidden rounded-[var(--warm-ledger-radius-panel)] border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] shadow-none">
+        <Card className="overflow-hidden rounded-[var(--warm-ledger-radius-panel)] border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] shadow-none lg:min-h-0">
           <CardContent className="flex h-full !px-3 !py-3">
             <div
               className={cn(
@@ -932,7 +935,7 @@ function AutoUploadContent({
         </Card>
 
         {/* File list */}
-        <Card className="flex flex-col overflow-hidden rounded-[var(--warm-ledger-radius-panel)] border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] shadow-none">
+        <Card className="flex flex-col overflow-hidden rounded-[var(--warm-ledger-radius-panel)] border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] shadow-none lg:min-h-0">
           <CardHeader className="rounded-[var(--warm-ledger-radius-inner)] border-b border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] px-3 pb-2.5 pt-3">
             <div className="flex items-center justify-between">
               <div>
@@ -952,8 +955,8 @@ function AutoUploadContent({
               uploadTotal={uploadStats.total}
             />
           </CardHeader>
-          <CardContent className="flex flex-1 flex-col overflow-hidden px-0 pt-0">
-            <ScrollArea className="flex-1">
+          <CardContent className="flex flex-1 flex-col overflow-hidden px-0 pt-0 lg:min-h-0">
+            <ScrollArea className="flex-1 lg:min-h-0" data-auto-upload-file-scroll="true">
               <div className="space-y-2 p-3">
                 {queueItems.length === 0 ? (
                   <div className="rounded-[var(--warm-ledger-radius-inner)] border border-dashed border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] px-4 py-8 text-center font-sans text-xs text-[color:var(--warm-ledger-color-text-faint)]">
@@ -1329,7 +1332,7 @@ export default function AutoUploadPage() {
           />
         </TabsContent>
         <TabsContent value="upload" className="min-h-0 flex-1 space-y-0 overflow-auto pb-2 sm:overflow-hidden">
-          <Tabs value={uploadSubTab} onValueChange={(v) => setUploadSubTab(v as UploadEndpoint)} className="flex min-h-0 flex-col gap-3">
+          <Tabs value={uploadSubTab} onValueChange={(v) => setUploadSubTab(v as UploadEndpoint)} className="flex min-h-0 flex-col gap-3 lg:h-full">
             <TabsList className={styles.tabList}>
               <TabsTrigger value="report-upload" className={styles.tab}>
                 <FileSpreadsheet aria-hidden />
