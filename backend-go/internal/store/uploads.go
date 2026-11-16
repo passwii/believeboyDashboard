@@ -2833,7 +2833,7 @@ func (store *UploadStore) persistSalesReport(
 			if err != nil {
 				return err
 			}
-			if err := insertSalesRows(ctx, txDB, id, grouped[dateText]); err != nil {
+			if err := insertSalesRows(ctx, txDB, id, project.ID, grouped[dateText]); err != nil {
 				return err
 			}
 			latestID = id
@@ -2873,7 +2873,7 @@ func (store *UploadStore) persistSingleSalesSnapshot(
 		if err != nil {
 			return err
 		}
-		if err := insertSalesRows(ctx, txDB, id, rows); err != nil {
+		if err := insertSalesRows(ctx, txDB, id, project.ID, rows); err != nil {
 			return err
 		}
 		sourceID = id
@@ -3450,7 +3450,7 @@ func parseSalesRows(
 	return rows
 }
 
-func insertSalesRows(ctx context.Context, db DB, sourceID int64, rows []salesRow) error {
+func insertSalesRows(ctx context.Context, db DB, sourceID, projectID int64, rows []salesRow) error {
 	for index, row := range rows {
 		raw, err := json.Marshal(row.Raw)
 		if err != nil {
@@ -3465,7 +3465,7 @@ func insertSalesRows(ctx context.Context, db DB, sourceID int64, rows []salesRow
 			   shipping_price, item_tax, shipping_tax, currency,
 			   is_counted_sales, status_rule_version, raw_row
 			 ) SELECT
-			   $1, $2, p.id, coalesce(existing.data_version, 0) + 1,
+			   $1, $2, $3, coalesce(existing.data_version, 0) + 1,
 			   $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
 			   $17, $18, 1, $19
 			 FROM public.analysis_source_files s
@@ -3496,7 +3496,7 @@ func insertSalesRows(ctx context.Context, db DB, sourceID int64, rows []salesRow
 			   is_counted_sales = EXCLUDED.is_counted_sales,
 			   status_rule_version = EXCLUDED.status_rule_version,
 			   raw_row = EXCLUDED.raw_row`,
-			sourceID, index+1, row.PurchaseAtUTC, row.Country, row.AmazonOrderID,
+			sourceID, index+1, projectID, row.Country, row.AmazonOrderID,
 			row.PurchaseAtUTC, row.PurchaseAtLocal, saleDateArgument(row.PurchaseDate),
 			row.OrderStatus, row.SKU, row.ASIN, row.Quantity, row.ItemPrice,
 			row.ShippingPrice, row.ItemTax, row.ShippingTax, row.Currency,
