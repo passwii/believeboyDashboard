@@ -90,6 +90,10 @@ func (s *AdUploadStore) Recognize(ctx context.Context, filename string, data []b
 	projectMatch := ad_upload.AdUploadProjectMatchSummary{
 		Status: "unmatched",
 	}
+	identifierMatch, err := s.matchAdProjectIdentifiers(ctx, parsed, projItems)
+	if err != nil {
+		return nil, err
+	}
 	if len(projItems) == 1 {
 		projectMatch.Status = "matched"
 		projectMatch.ProjectName = &projItems[0].name
@@ -102,6 +106,9 @@ func (s *AdUploadStore) Recognize(ctx context.Context, filename string, data []b
 			candidates[i] = p.name
 		}
 		projectMatch.CandidateProjects = candidates
+	}
+	if identifierMatch != nil {
+		projectMatch = *identifierMatch
 	}
 
 	tempID, err := generateTempID()
@@ -116,6 +123,10 @@ func (s *AdUploadStore) Recognize(ctx context.Context, filename string, data []b
 	warnings := []string{}
 	if len(parsed.rows) == 0 {
 		warnings = append(warnings, "报表已识别，但当前文件没有业务明细行")
+	}
+	if parsed.detectedStartDate != nil && parsed.detectedEndDate != nil &&
+		*parsed.detectedStartDate != *parsed.detectedEndDate && !parsed.match.periodic {
+		warnings = append(warnings, "当前文件识别为非单日报表（"+*parsed.detectedStartDate+" 至 "+*parsed.detectedEndDate+"），系统将拒绝入库")
 	}
 	rowCount := len(parsed.rows)
 
@@ -136,6 +147,147 @@ func (s *AdUploadStore) Recognize(ctx context.Context, filename string, data []b
 		RowCountPreview:    &rowCount,
 		Warnings:           warnings,
 	}, nil
+}
+
+// matchAdProjectIdentifiers resolves the project from the SKU/ASIN columns
+// declared by the report spec. It returns nil when the spec carries no
+// identifier columns or when no identifier resolves to an accessible project,
+// so the caller keeps its operator-scope fallback.
+func (s *AdUploadStore) matchAdProjectIdentifiers(
+	ctx context.Context,
+	parsed *adParsedFile,
+	allowed []adProjectItem,
+) (*ad_upload.AdUploadProjectMatchSummary, error) {
+	if len(parsed.match.spec.projectMatchFields) == 0 || len(parsed.rows) == 0 {
+		return nil, nil
+	}
+	allowedSet := make(map[string]bool, len(allowed))
+	for _, project := range allowed {
+		allowedSet[project.name] = true
+	}
+	for _, field := range parsed.match.spec.projectMatchFields {
+		identifiers := adColumnIdentifiers(parsed.headers, parsed.rows, field.column)
+		if len(identifiers) == 0 {
+			// Fall through to the ASIN column when a file has no SKU values.
+			continue
+		}
+		column := "sku"
+		if field.matchBy == "asin" {
+			column = "asin"
+		}
+		query := fmt.Sprintf(`
+			select p.project_name, s.%s
+			from public.projects p
+			join public.product_costs s on s.project_id = p.id
+			where coalesce(p.is_active, true) = true
+			  and s.is_active = true
+			  and s.country = $1
+			  and upper(btrim(s.%s)) = ANY($2)
+		`, column, column)
+		rows, err := s.db.Query(ctx, query, parsed.country, identifiers)
+		if err != nil {
+			return nil, err
+		}
+		if rows == nil {
+			continue
+		}
+		projectSet := map[string]bool{}
+		matchedValues := map[string]bool{}
+		for rows.Next() {
+			var projectName string
+			var identifier *string
+			if err := rows.Scan(&projectName, &identifier); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			if !allowedSet[projectName] {
+				continue
+			}
+			projectSet[projectName] = true
+			if identifier != nil {
+				if value := adNormalizeIdentifier(*identifier); value != "" {
+					matchedValues[value] = true
+				}
+			}
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		rows.Close()
+
+		if len(projectSet) == 0 {
+			continue
+		}
+		projects := make([]string, 0, len(projectSet))
+		for name := range projectSet {
+			projects = append(projects, name)
+		}
+		sort.Strings(projects)
+		allValues := make([]string, 0, len(matchedValues))
+		for value := range matchedValues {
+			allValues = append(allValues, value)
+		}
+		sort.Strings(allValues)
+		values := allValues
+		if len(values) > 8 {
+			values = values[:8]
+		}
+		matchedBy := field.matchBy
+		if len(projects) == 1 {
+			message := "已根据" + strings.ToUpper(field.matchBy) + "自动匹配项目"
+			if len(allValues) != len(identifiers) {
+				message = "已根据部分" + strings.ToUpper(field.matchBy) + "自动匹配项目"
+			}
+			return &ad_upload.AdUploadProjectMatchSummary{
+				Status:            "matched",
+				ProjectName:       &projects[0],
+				CandidateProjects: projects,
+				MatchedBy:         &matchedBy,
+				MatchedValues:     values,
+				Message:           &message,
+			}, nil
+		}
+		message := fmt.Sprintf("检测到多个项目，请手动确认（%d 个候选项目）", len(projects))
+		return &ad_upload.AdUploadProjectMatchSummary{
+			Status:            "conflict",
+			CandidateProjects: projects,
+			MatchedBy:         &matchedBy,
+			MatchedValues:     values,
+			Message:           &message,
+		}, nil
+	}
+	return nil, nil
+}
+
+func adColumnIdentifiers(headers []string, rows [][]string, column string) []string {
+	index, ok := parsedRowIndex(headers, column)
+	if !ok {
+		return nil
+	}
+	set := map[string]bool{}
+	for _, values := range rows {
+		if index >= len(values) {
+			continue
+		}
+		if identifier := adNormalizeIdentifier(values[index]); identifier != "" {
+			set[identifier] = true
+		}
+	}
+	identifiers := make([]string, 0, len(set))
+	for identifier := range set {
+		identifiers = append(identifiers, identifier)
+	}
+	sort.Strings(identifiers)
+	return identifiers
+}
+
+func adNormalizeIdentifier(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" || strings.EqualFold(value, "nan") {
+		return ""
+	}
+	return strings.ToUpper(value)
 }
 
 func (s *AdUploadStore) getAccessibleProjects(ctx context.Context, operator string, isAdmin bool) ([]adProjectItem, error) {
