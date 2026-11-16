@@ -20,8 +20,10 @@ import (
 )
 
 const (
-	stage8FAPIKey      = "stage8f-key"
-	stage8FProxySecret = "stage8f-proxy"
+	stage8FAPIKey            = "stage8f-key"
+	stage8FProxySecret       = "stage8f-proxy"
+	stage8FOperatorAccountID = "9703d9eb-c1f5-4e7c-8513-313b05c3ea75"
+	stage8FOtherAccountID    = "1f7ac8fd-12de-4e9b-8b49-096d5d03d2ff"
 )
 
 type stage8FStore struct {
@@ -64,7 +66,7 @@ func (store *stage8FStore) CreateSubscription(
 ) (*scheduled_reports.Subscription, error) {
 	created := scheduled_reports.Subscription{
 		ID:              12,
-		UserID:          input.UserID,
+		UserAccountID:   input.UserAccountID,
 		Email:           input.Email,
 		ProjectIDs:      input.ProjectIDs,
 		Country:         input.Country,
@@ -338,7 +340,7 @@ func TestStage8FStatusAndWireContract(t *testing.T) {
 		http.MethodGet,
 		"/api/v1/scheduled-reports/subscriptions",
 		"",
-		"10",
+		stage8FOperatorAccountID,
 		false,
 	)
 	recorder = httptest.NewRecorder()
@@ -358,7 +360,7 @@ func TestStage8FStatusAndWireContract(t *testing.T) {
 		http.MethodPost,
 		"/api/v1/scheduled-reports/subscriptions",
 		`{"email":"owner@example.com","project_ids":"1,2","country":"US","frequency":"weekly","dispatch_hour":16,"dispatch_weekday":0}`,
-		"10",
+		stage8FOperatorAccountID,
 		false,
 	)
 	recorder = httptest.NewRecorder()
@@ -379,21 +381,21 @@ func TestStage8FStatusAndWireContract(t *testing.T) {
 		}
 	}
 
-	request = stage8FRequest(http.MethodPut, "/api/v1/scheduled-reports/subscriptions/12", `{"enabled":false}`, "10", false)
+	request = stage8FRequest(http.MethodPut, "/api/v1/scheduled-reports/subscriptions/12", `{"enabled":false}`, stage8FOperatorAccountID, false)
 	recorder = httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("update subscription status = %d: %s", recorder.Code, recorder.Body.String())
 	}
 
-	request = stage8FRequest(http.MethodDelete, "/api/v1/scheduled-reports/subscriptions/12", "", "10", false)
+	request = stage8FRequest(http.MethodDelete, "/api/v1/scheduled-reports/subscriptions/12", "", stage8FOperatorAccountID, false)
 	recorder = httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusNoContent {
 		t.Fatalf("delete subscription status = %d: %s", recorder.Code, recorder.Body.String())
 	}
 
-	request = stage8FRequest(http.MethodGet, "/api/v1/scheduled-reports/delivery-logs?limit=50", "", "10", false)
+	request = stage8FRequest(http.MethodGet, "/api/v1/scheduled-reports/delivery-logs?limit=50", "", stage8FOperatorAccountID, false)
 	recorder = httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusOK {
@@ -404,7 +406,7 @@ func TestStage8FStatusAndWireContract(t *testing.T) {
 		http.MethodPost,
 		"/api/v1/scheduled-reports/test-email",
 		`{"email":"owner@example.com","frequency":"daily","project_ids":"1,2","country":"US"}`,
-		"10",
+		stage8FOperatorAccountID,
 		false,
 	)
 	recorder = httptest.NewRecorder()
@@ -417,7 +419,7 @@ func TestStage8FStatusAndWireContract(t *testing.T) {
 		http.MethodGet,
 		"/api/v1/scheduled-reports/ledger?start_date=2026-11-01&end_date=2026-11-08",
 		"",
-		"10",
+		stage8FOperatorAccountID,
 		false,
 	)
 	recorder = httptest.NewRecorder()
@@ -565,7 +567,7 @@ func TestStage8FErrorStatusMatrixAndFailClosed(t *testing.T) {
 			http.MethodPost,
 			"/api/v1/scheduled-reports/ledger/7:2026-11-03/resend",
 			"",
-			"10",
+			stage8FOperatorAccountID,
 			false,
 			http.StatusForbidden,
 		},
@@ -574,7 +576,7 @@ func TestStage8FErrorStatusMatrixAndFailClosed(t *testing.T) {
 			http.MethodPost,
 			"/api/v1/internal/jobs/return-analysis-rebuild",
 			"",
-			"10",
+			stage8FOperatorAccountID,
 			false,
 			http.StatusForbidden,
 		},
@@ -592,7 +594,7 @@ func TestStage8FErrorStatusMatrixAndFailClosed(t *testing.T) {
 			http.MethodPut,
 			"/api/v1/scheduled-reports/subscriptions/99",
 			`{"enabled":false}`,
-			"10",
+			stage8FOtherAccountID,
 			false,
 			http.StatusNotFound,
 		},
@@ -610,7 +612,7 @@ func TestStage8FErrorStatusMatrixAndFailClosed(t *testing.T) {
 			http.MethodDelete,
 			"/api/v1/scheduled-reports/subscriptions/not-a-number",
 			"",
-			"10",
+			stage8FOperatorAccountID,
 			false,
 			http.StatusUnprocessableEntity,
 		},
@@ -619,7 +621,7 @@ func TestStage8FErrorStatusMatrixAndFailClosed(t *testing.T) {
 			http.MethodPost,
 			"/api/v1/scheduled-reports/subscriptions",
 			`{"frequency":"weekly","dispatch_hour":15,"dispatch_weekday":0}`,
-			"10",
+			stage8FOperatorAccountID,
 			false,
 			http.StatusUnprocessableEntity,
 		},
@@ -648,7 +650,7 @@ func TestStage8FErrorStatusMatrixAndFailClosed(t *testing.T) {
 		http.MethodPost,
 		"/api/v1/scheduled-reports/test-email",
 		`{"email":"owner@example.com"}`,
-		"10",
+		stage8FOperatorAccountID,
 		false,
 	)
 	recorder := httptest.NewRecorder()
@@ -673,13 +675,13 @@ func stage8FRouter(store *stage8FStore, mailer *stage8FMailer) chi.Router {
 }
 
 func stage8FDefaultStore() *stage8FStore {
-	userID := 10
+	userID := stage8FOperatorAccountID
 	email := "owner@example.com"
 	weekday := 0
 	return &stage8FStore{
 		subscription: &scheduled_reports.Subscription{
 			ID:              7,
-			UserID:          &userID,
+			UserAccountID:   &userID,
 			Email:           &email,
 			ProjectIDs:      "1,2",
 			Country:         "US",

@@ -24,7 +24,8 @@
 ```python
 class ScheduledReportSubscription(Base):
     id: int                          # 主键
-    user_id: int | None             # 用户 ID（nullable）
+    user_id: int | None             # 旧整数归属列（迁移 123；仅历史兼容，新写入为 NULL）
+    user_account_id: uuid | None    # 归属账号 = user_accounts.id（BLF-1556 起的权威口径）
     email: str                       # 接收邮箱
     project_ids: str                # "1,2,3" 或 "*"（所有项目）
     country: str                     # "US" 或 "US,DE,UK"（多国）
@@ -40,6 +41,12 @@ class ScheduledReportSubscription(Base):
 ```
 
 **关键特性**：
+- 归属口径（BLF-1556）：`X-User-Id` 携带登录账号 UUID（`user_accounts.id`），
+  历史 `user_id` 是 `integer`，两者无法匹配，订阅列表曾恒为空。Go 网关现读写
+  `user_account_id`（uuid，FK → `user_accounts.id`，`ON DELETE SET NULL`）；
+  `user_id` 只保留在响应里兼容既有 OpenAPI 契约。迁移
+  `20261116042259_scheduled_report_subscription_user_account_id.sql` 按
+  `projects.project_operator` 首位操作员回填，多项目归属不一致的行保持 NULL。
 - 支持通过 `project_id_list` 和 `country_list` 属性解析字符串
 - 配置字段按频率而异（周报需要 `dispatch_weekday`，月报需要 `dispatch_day`）
 - 北京时间（Asia/Shanghai）作为标准时区

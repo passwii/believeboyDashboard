@@ -126,7 +126,7 @@ func (handler *Handler) CreateSubscription(w http.ResponseWriter, r *http.Reques
 		httpapi.WriteDetail(w, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
-	input.UserID = scope.UserID
+	input.UserAccountID = scope.UserAccountID
 
 	var created *Subscription
 	var createErr error
@@ -765,25 +765,22 @@ func (handler *Handler) scope(
 		httpapi.WriteDetail(w, http.StatusForbidden, "需要管理员权限")
 		return Scope{}, false
 	}
-	userID, err := parseOptionalIntHeader(identity.UserID)
+	userAccountID, err := parseOptionalUserAccountID(identity.UserID)
 	if err != nil {
 		if requireUser && !identity.IsAdmin {
 			httpapi.WriteDetail(w, http.StatusForbidden, "缺少有效的 X-User-Id")
 			return Scope{}, false
 		}
-		userID = nil
+		userAccountID = nil
 	}
-	if userID != nil && *userID <= 0 {
-		userID = nil
-	}
-	if requireUser && !identity.IsAdmin && userID == nil {
+	if requireUser && !identity.IsAdmin && userAccountID == nil {
 		httpapi.WriteDetail(w, http.StatusForbidden, "缺少有效的 X-User-Id")
 		return Scope{}, false
 	}
 	return Scope{
-		UserID:   userID,
-		Operator: strings.TrimSpace(identity.Operator),
-		IsAdmin:  identity.IsAdmin,
+		UserAccountID: userAccountID,
+		Operator:      strings.TrimSpace(identity.Operator),
+		IsAdmin:       identity.IsAdmin,
 	}, true
 }
 
@@ -794,7 +791,9 @@ func canManageSubscription(subscription *Subscription, scope Scope) bool {
 	if scope.IsAdmin {
 		return true
 	}
-	return scope.UserID != nil && subscription.UserID != nil && *scope.UserID == *subscription.UserID
+	return scope.UserAccountID != nil &&
+		subscription.UserAccountID != nil &&
+		*scope.UserAccountID == *subscription.UserAccountID
 }
 
 func (handler *Handler) verifyProjectIDs(
