@@ -18,15 +18,21 @@ export type ResendStage =
 
 export interface Subscription {
   id: number
-  user_id: number
+  /**
+   * 旧 integer 归属列（Alembic 123 起），从未匹配上 `user_accounts.id` 的 UUID；
+   * 后端为兼容旧契约保留在响应里，新写入一律为 null。归属以 `user_account_id` 为准。
+   */
+  user_id: number | null
+  /** 权威归属账号（`user_accounts.id`，UUID）。BLF-1556 后端修复后新增此字段。 */
+  user_account_id?: string | null
   email: string | null
   project_ids: string
   country: string
   frequency: Frequency
   dispatch_hour: number
   dispatch_minute: number
-  dispatch_weekday: number
-  dispatch_day: number
+  dispatch_weekday: number | null
+  dispatch_day: number | null
   ai_model: string | null
   enabled: boolean
   created_at: string
