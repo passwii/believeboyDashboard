@@ -367,6 +367,10 @@ async function installApiMocks(page: Page): Promise<ApiAudit> {
       await route.fulfill({ json: { items: [], total: 0, page: 1, page_size: 20 } })
       return
     }
+    if (pathname.endsWith('/rpa-reports/status')) {
+      await route.fulfill({ json: { items: [] } })
+      return
+    }
     if (pathname.endsWith('/projects/manage')) {
       await route.fulfill({ json: PROJECTS })
       return
@@ -902,6 +906,62 @@ test.describe('Warm Ledger C3 desktop acceptance', () => {
     expect(requestsFor(audit, '/ad-upload/recognize', 'POST')).toHaveLength(2)
     expect(requestsFor(audit, '/report-upload/commit', 'POST')).toHaveLength(4)
     expect(requestsFor(audit, '/ad-upload/commit', 'POST')).toHaveLength(2)
+
+    await expectDesktopWindowGeometry(page)
+    expect(audit.unhandled).toEqual([])
+  })
+
+  test('Auto Upload keeps the page fixed and scrolls the file list internally', async ({
+    page,
+    context,
+  }) => {
+    const audit = await installApiMocks(page)
+    await openC3Route(page, context, '/dashboard/reports/auto-upload')
+    await page.getByRole('tab', { name: '文件上传' }).click()
+
+    const files = Array.from({ length: 18 }, (_, index) => ({
+      name: `scroll-test-${index + 1}.csv`,
+      mimeType: 'text/csv',
+      buffer: Buffer.from('business.csv\nrow,value\n1,test'),
+    }))
+    await page.locator('#auto-upload-input').setInputFiles(files)
+    await expect(page.getByText('18 个文件', { exact: true })).toBeVisible()
+    await expect(page.getByText('类型：业务报告', { exact: true })).toHaveCount(18, {
+      timeout: 30_000,
+    })
+
+    const layout = await page.evaluate(() => {
+      const main = document.querySelector<HTMLElement>('#main-content')!
+      const fileViewport = document.querySelector<HTMLElement>(
+        '[data-auto-upload-file-scroll] [data-radix-scroll-area-viewport]'
+      )!
+      return {
+        viewportHeight: window.innerHeight,
+        documentScrollHeight: document.documentElement.scrollHeight,
+        mainClientHeight: main.clientHeight,
+        mainScrollHeight: main.scrollHeight,
+        fileClientHeight: fileViewport.clientHeight,
+        fileScrollHeight: fileViewport.scrollHeight,
+      }
+    })
+
+    expect(layout.documentScrollHeight).toBeLessThanOrEqual(layout.viewportHeight + 2)
+    expect(layout.mainScrollHeight).toBeLessThanOrEqual(layout.mainClientHeight + 2)
+    expect(layout.fileScrollHeight).toBeGreaterThan(layout.fileClientHeight + 100)
+
+    const fileViewport = page.locator(
+      '[data-auto-upload-file-scroll] [data-radix-scroll-area-viewport]'
+    )
+    await fileViewport.hover()
+    await page.mouse.wheel(0, 700)
+    await expect
+      .poll(() => fileViewport.evaluate((element) => element.scrollTop))
+      .toBeGreaterThan(0)
+    expect(
+      await page.evaluate(
+        () => document.querySelector<HTMLElement>('#main-content')?.scrollTop ?? -1
+      )
+    ).toBe(0)
 
     await expectDesktopWindowGeometry(page)
     expect(audit.unhandled).toEqual([])

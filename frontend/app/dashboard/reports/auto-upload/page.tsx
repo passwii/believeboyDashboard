@@ -463,6 +463,30 @@ function RpaStatusGrid({
 
 type UploadEndpoint = 'report-upload' | 'ad-upload'
 
+function needsManualProjectSelection(
+  recognition: RecognitionResponse | undefined,
+  recognizedProject: string | null
+) {
+  if (!recognition) return recognizedProject === null || recognizedProject === '未匹配'
+  return (
+    recognition.project_match.status === 'conflict' ||
+    recognition.project_match.status === 'unmatched' ||
+    recognition.project_match.status === 'manual' ||
+    !recognition.project_match.project_name
+  )
+}
+
+function getProjectPickerOptions(
+  recognition: RecognitionResponse | undefined,
+  availableProjects: string[]
+) {
+  const match = recognition?.project_match
+  if (match?.status === 'conflict' && match.candidate_projects.length > 0) {
+    return match.candidate_projects
+  }
+  return availableProjects
+}
+
 function AutoUploadContent({
   country,
   onCountryChange,
@@ -578,12 +602,7 @@ function AutoUploadContent({
                   tempFileId: recognition.temp_file_id,
                   reportType: recognition.report_type as UploadQueueItem['reportType'],
                   recognitionStatus: recognition.status,
-                  recognizedProject:
-                    recognition.project_match.status === 'matched'
-                      ? (recognition.project_match.project_name ?? null)
-                      : recognition.project_match.status === 'conflict'
-                        ? `候选 ${recognition.project_match.candidate_projects.length} 个`
-                        : '未匹配',
+                  recognizedProject: recognition.project_match.project_name ?? null,
                   detectedDate: recognition.detected_date ?? recognition.detected_end_date ?? null,
                   detectedStartDate: recognition.detected_start_date ?? null,
                   detectedEndDate: recognition.detected_end_date ?? null,
@@ -810,7 +829,10 @@ function AutoUploadContent({
   ).length
 
   return (
-    <div className="flex flex-1 flex-col gap-4" data-warm-upload-workspace="true">
+    <div
+      className="flex flex-1 flex-col gap-4 lg:h-full lg:min-h-0"
+      data-warm-upload-workspace="true"
+    >
       {/* Top controls：手机端 2 列网格（站点全宽一行 + 双按钮各半），sm+ 恢复横向 */}
       <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-3">
         <Select value={country} onValueChange={(v) => onCountryChange(v as ReportUploadCountry)}>
@@ -852,9 +874,9 @@ function AutoUploadContent({
       </div>
 
       {/* Dropzone + File list */}
-      <div className="grid flex-1 gap-3 overflow-hidden lg:grid-cols-[1fr_2fr]">
+      <div className="grid flex-1 gap-3 overflow-hidden lg:min-h-0 lg:grid-cols-[1fr_2fr] lg:grid-rows-1">
         {/* Dropzone */}
-        <Card className="overflow-hidden rounded-[var(--warm-ledger-radius-panel)] border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] shadow-none">
+        <Card className="overflow-hidden rounded-[var(--warm-ledger-radius-panel)] border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] shadow-none lg:min-h-0">
           <CardContent className="flex h-full !px-3 !py-3">
             <div
               className={cn(
@@ -913,7 +935,7 @@ function AutoUploadContent({
         </Card>
 
         {/* File list */}
-        <Card className="flex flex-col overflow-hidden rounded-[var(--warm-ledger-radius-panel)] border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] shadow-none">
+        <Card className="flex flex-col overflow-hidden rounded-[var(--warm-ledger-radius-panel)] border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] shadow-none lg:min-h-0">
           <CardHeader className="rounded-[var(--warm-ledger-radius-inner)] border-b border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] px-3 pb-2.5 pt-3">
             <div className="flex items-center justify-between">
               <div>
@@ -933,8 +955,8 @@ function AutoUploadContent({
               uploadTotal={uploadStats.total}
             />
           </CardHeader>
-          <CardContent className="flex flex-1 flex-col overflow-hidden px-0 pt-0">
-            <ScrollArea className="flex-1">
+          <CardContent className="flex flex-1 flex-col overflow-hidden px-0 pt-0 lg:min-h-0">
+            <ScrollArea className="flex-1 lg:min-h-0" data-auto-upload-file-scroll="true">
               <div className="space-y-2 p-3">
                 {queueItems.length === 0 ? (
                   <div className="rounded-[var(--warm-ledger-radius-inner)] border border-dashed border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] px-4 py-8 text-center font-sans text-xs text-[color:var(--warm-ledger-color-text-faint)]">
@@ -986,8 +1008,10 @@ function AutoUploadContent({
                               '未识别'
                             )}
                           </p>
-                          {item.recognizedProject === '未匹配' ||
-                          item.recognizedProject === null ? (
+                          {needsManualProjectSelection(
+                            recognitionMap[item.localId],
+                            item.recognizedProject
+                          ) ? (
                             <div className="flex items-center gap-1.5">
                               <span className="font-sans text-xs text-[color:var(--warm-ledger-color-accent)]">
                                 项目：
@@ -1004,11 +1028,17 @@ function AutoUploadContent({
                                   )
                                 }}
                               >
-                                <SelectTrigger className="h-6 w-[140px] rounded-[var(--warm-ledger-radius-inner)] border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-window)] px-1.5 py-0.5 font-sans text-xs">
+                                <SelectTrigger
+                                  aria-label="选择项目"
+                                  className="h-6 w-[140px] rounded-[var(--warm-ledger-radius-inner)] border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-window)] px-1.5 py-0.5 font-sans text-xs"
+                                >
                                   <SelectValue placeholder="选择项目" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {availableProjects.map((project) => (
+                                  {getProjectPickerOptions(
+                                    recognitionMap[item.localId],
+                                    availableProjects
+                                  ).map((project) => (
                                     <SelectItem key={project} value={project}>
                                       {project}
                                     </SelectItem>
@@ -1208,6 +1238,11 @@ function AutoUploadContent({
                               {item.commitError}
                             </p>
                           ) : null}
+                          {recognitionMap[item.localId]?.warnings?.length ? (
+                            <div className="rounded-[var(--warm-ledger-radius-inner)] border border-[color:color-mix(in_srgb,var(--warm-ledger-color-accent)_40%,transparent)] bg-[color-mix(in_srgb,var(--warm-ledger-color-accent)_10%,transparent)] px-2 py-1.5 font-sans text-[11px] leading-4 text-[color:var(--warm-ledger-color-accent-strong)]">
+                              {recognitionMap[item.localId]?.warnings?.join('；')}
+                            </div>
+                          ) : null}
                         </>
                       ) : null}
                     </div>
@@ -1297,7 +1332,7 @@ export default function AutoUploadPage() {
           />
         </TabsContent>
         <TabsContent value="upload" className="min-h-0 flex-1 space-y-0 overflow-auto pb-2 sm:overflow-hidden">
-          <Tabs value={uploadSubTab} onValueChange={(v) => setUploadSubTab(v as UploadEndpoint)} className="flex min-h-0 flex-col gap-3">
+          <Tabs value={uploadSubTab} onValueChange={(v) => setUploadSubTab(v as UploadEndpoint)} className="flex min-h-0 flex-col gap-3 lg:h-full">
             <TabsList className={styles.tabList}>
               <TabsTrigger value="report-upload" className={styles.tab}>
                 <FileSpreadsheet aria-hidden />
