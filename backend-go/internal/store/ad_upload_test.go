@@ -302,6 +302,259 @@ func TestAdUploadRecognizeUnrecognized(t *testing.T) {
 	}
 }
 
+func TestAdUploadRecognizeMatchesPromotedProductBySKU(t *testing.T) {
+	ctx := context.Background()
+	db := &fakeDB{
+		rowsQueueQuery: []Rows{
+			&fakeRows{batches: [][]any{
+				{int64(1), "铨富", 0},
+				{int64(2), "卡斯摩", 0},
+			}},
+			&fakeRows{batches: [][]any{
+				{"铨富", stringPtr("MJQ-TR250C")},
+			}},
+		},
+	}
+	store := newAdUploadTestStore(t, &fakeWriteDB{fakeDB: db})
+
+	xlsxData, err := buildSimpleXLSXSheet("已推广商品报告", [][]string{
+		{
+			"日期范围", "广告组合名称", "预算货币", "广告活动名称", "广告组名称",
+			"投放广告活动的国家/地区", "推广的商品 SKU-Advertised product SKU",
+			"推广的商品编号", "展示量", "点击量", "点击率", "CPC", "总成本",
+		},
+		{
+			"2026年11月15日 - 2026年11月15日", "250-C", "USD", "M-KW-250C-P-autoclave-NP",
+			"M-KW-250C", "US", "MJQ-TR250C", "B0HNSRM9FS", "233", "6", "2.5751", "2.43", "14.58",
+		},
+	})
+	if err != nil {
+		t.Fatalf("buildSimpleXLSXSheet() error = %v", err)
+	}
+
+	resp, err := store.Recognize(ctx, "已推广商品报告.xlsx", xlsxData, "US", "alice", false)
+	if err != nil {
+		t.Fatalf("Recognize() err = %v", err)
+	}
+	if resp.ReportType != "ad_promoted_product_report" {
+		t.Fatalf("ReportType = %q, want ad_promoted_product_report", resp.ReportType)
+	}
+	if resp.DetectedStartDate == nil || *resp.DetectedStartDate != "2026-11-15" ||
+		resp.DetectedEndDate == nil || *resp.DetectedEndDate != "2026-11-15" {
+		t.Fatalf("detected dates = %v .. %v, want 2026-11-15 .. 2026-11-15",
+			derefString(resp.DetectedStartDate), derefString(resp.DetectedEndDate))
+	}
+	if resp.Country != "US" {
+		t.Fatalf("Country = %q, want US", resp.Country)
+	}
+	if resp.ProjectMatch.Status != "matched" || resp.ProjectMatch.ProjectName == nil ||
+		*resp.ProjectMatch.ProjectName != "铨富" {
+		t.Fatalf("project match = %#v, want matched 铨富 by SKU", resp.ProjectMatch)
+	}
+	if resp.ProjectMatch.MatchedBy == nil || *resp.ProjectMatch.MatchedBy != "sku" {
+		t.Fatalf("matched_by = %v, want sku", derefString(resp.ProjectMatch.MatchedBy))
+	}
+}
+
+func TestAdUploadRecognizeConflictingProjectsBySKU(t *testing.T) {
+	ctx := context.Background()
+	db := &fakeDB{
+		rowsQueueQuery: []Rows{
+			&fakeRows{batches: [][]any{
+				{int64(1), "铨富", 0},
+				{int64(2), "卡斯摩", 0},
+			}},
+			&fakeRows{batches: [][]any{
+				{"铨富", stringPtr("MJQ-TR250C")},
+				{"卡斯摩", stringPtr("MJQ-TR250C")},
+			}},
+		},
+	}
+	store := newAdUploadTestStore(t, &fakeWriteDB{fakeDB: db})
+	resp, err := store.Recognize(ctx, "promoted.xlsx", promotedProductXLSX(t), "US", "alice", false)
+	if err != nil {
+		t.Fatalf("Recognize() err = %v", err)
+	}
+	if resp.ProjectMatch.Status != "conflict" || len(resp.ProjectMatch.CandidateProjects) != 2 {
+		t.Fatalf("project match = %#v, want conflict with 2 candidates", resp.ProjectMatch)
+	}
+	if resp.ProjectMatch.ProjectName != nil {
+		t.Fatalf("conflict should not preselect a project, got %q", *resp.ProjectMatch.ProjectName)
+	}
+}
+
+func TestAdUploadRecognizeFallsBackToOperatorScopeWithoutIdentifiers(t *testing.T) {
+	ctx := context.Background()
+	db := &fakeDB{
+		rowsQueueQuery: []Rows{
+			&fakeRows{batches: [][]any{{int64(1), "铨富", 0}}},
+		},
+	}
+	store := newAdUploadTestStore(t, &fakeWriteDB{fakeDB: db})
+	resp, err := store.Recognize(ctx, "promoted.xlsx", promotedProductXLSX(t), "US", "alice", false)
+	if err != nil {
+		t.Fatalf("Recognize() err = %v", err)
+	}
+	if resp.ProjectMatch.Status != "matched" || resp.ProjectMatch.MatchedBy == nil ||
+		*resp.ProjectMatch.MatchedBy != "operator_scope" {
+		t.Fatalf("project match = %#v, want operator_scope fallback", resp.ProjectMatch)
+	}
+}
+
+func TestAdUploadRecognizeWarnsOnMultiDayNonPeriodicRange(t *testing.T) {
+	ctx := context.Background()
+	store := newAdUploadTestStore(t, &fakeWriteDB{fakeDB: &fakeDB{
+		rowsQueueQuery: []Rows{&fakeRows{}},
+	}})
+	headers := []string{
+		"日期范围", "广告组合名称", "预算货币", "广告活动名称", "广告组名称",
+		"投放广告活动的国家/地区", "推广的商品 SKU-Advertised product SKU",
+		"推广的商品编号", "展示量", "点击量", "点击率", "CPC", "总成本",
+	}
+	data, err := buildSimpleXLSXSheet("已推广商品报告", [][]string{
+		headers,
+		{
+			"2026年11月01日 - 2026年11月15日", "250-C", "USD", "campaign", "group", "US",
+			"MJQ-TR250C", "B0HNSRM9FS", "10", "1", "10", "1", "10",
+		},
+	})
+	if err != nil {
+		t.Fatalf("buildSimpleXLSXSheet() error = %v", err)
+	}
+	resp, err := store.Recognize(ctx, "promoted.xlsx", data, "US", "admin", true)
+	if err != nil {
+		t.Fatalf("Recognize() err = %v", err)
+	}
+	if resp.DetectedStartDate == nil || *resp.DetectedStartDate != "2026-11-01" ||
+		resp.DetectedEndDate == nil || *resp.DetectedEndDate != "2026-11-15" {
+		t.Fatalf("detected dates = %v .. %v, want 2026-11-01 .. 2026-11-15",
+			derefString(resp.DetectedStartDate), derefString(resp.DetectedEndDate))
+	}
+	if !containsWarning(resp.Warnings, "非单日") {
+		t.Fatalf("warnings = %v, want a non-single-day warning", resp.Warnings)
+	}
+}
+
+func TestAdUploadDetectsDateRangeAcrossRows(t *testing.T) {
+	headers := []string{"日期范围", "广告活动名称", "广告组名称", "广告SKU", "广告ASIN"}
+	rows := [][]string{
+		{"2026年11月10日 - 2026年11月12日", "c1", "g1", "sku1", "asin1"},
+		{"2026年11月13日 - 2026年11月15日", "c2", "g2", "sku2", "asin2"},
+		{"2026年11月10日 - 2026年11月15日", "c3", "g3", "sku3", "asin3"},
+	}
+	row := newAdRowData(headers, nil, "", "", nil)
+	start, end := detectAdDateRange(row, rows)
+	if start == nil || *start != "2026-11-10" || end == nil || *end != "2026-11-15" {
+		t.Fatalf("detectAdDateRange = %v .. %v, want 2026-11-10 .. 2026-11-15",
+			derefString(start), derefString(end))
+	}
+}
+
+func TestMatchAdReportSpecAcceptsDateRangeForLegacySpecs(t *testing.T) {
+	tests := []struct {
+		name     string
+		headers  []string
+		wantType string
+	}{
+		{
+			name:     "campaign csv",
+			headers:  []string{"日期范围", "广告活动名称", "预算", "定位类型", "竞价策略"},
+			wantType: "ad_campaign_report",
+		},
+		{
+			name:     "placement xlsx",
+			headers:  []string{"日期范围", "广告活动名称", "放置"},
+			wantType: "ad_placement_report",
+		},
+		{
+			name:     "budget csv",
+			headers:  []string{"日期范围", "广告活动名称", "建议预算", "预算范围内的平均时间"},
+			wantType: "ad_budget_report",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			extension := ".xlsx"
+			if strings.HasSuffix(test.name, "csv") {
+				extension = ".csv"
+			}
+			match := matchAdReportSpec(test.headers, extension)
+			if match == nil || match.spec.reportType != test.wantType {
+				t.Fatalf("matchAdReportSpec(%v, %q) = %#v, want %s", test.headers, extension, match, test.wantType)
+			}
+			if match.periodic {
+				t.Fatalf("日期范围 signature must not be treated as periodic row-date: %#v", match)
+			}
+		})
+	}
+}
+
+func TestParseAdDateRangeFormats(t *testing.T) {
+	valid := []string{
+		"2026年11月15日 - 2026年11月15日",
+		"2026年11月10日 - 2026年11月15日",
+		"2026年11月10日-2026年11月15日",
+		"2026-11-10 - 2026-11-15",
+		"2026/11/10 - 2026/11/15",
+		"2026.11.10-2026.11.15",
+		"2026-11-10 至 2026-11-15",
+		"2026年11月10日~2026年11月15日",
+		"Nov 10, 2026 - Nov 15, 2026",
+		"2026-11-10",
+		"46280 - 46285",
+		"2026-11-10-15",
+		"2026-11-10 ~ 15",
+	}
+	for _, value := range valid {
+		start, end, ok := parseAdDateRange(value)
+		if !ok {
+			t.Fatalf("parseAdDateRange(%q) failed, want a parsed range", value)
+		}
+		if start.After(end) {
+			t.Fatalf("parseAdDateRange(%q) = %v .. %v, want start <= end", value, start, end)
+		}
+	}
+	start, end, ok := parseAdDateRange("Nov 10, 2026 - Nov 15, 2026")
+	if !ok || start.Format("2006-01-02") != "2026-11-10" || end.Format("2006-01-02") != "2026-11-15" {
+		t.Fatalf("English range parse = %v .. %v (ok=%v), want 2026-11-10 .. 2026-11-15", start, end, ok)
+	}
+	start, end, ok = parseAdDateRange("2026-11-10-15")
+	if !ok || start.Format("2006-01-02") != "2026-11-10" || end.Format("2006-01-02") != "2026-11-15" {
+		t.Fatalf("abbreviated range parse = %v .. %v (ok=%v), want 2026-11-10 .. 2026-11-15", start, end, ok)
+	}
+	if start, end, ok := parseAdDateRange("2026-11-10 - 2027-01-03"); ok && start.After(end) {
+		t.Fatalf("cross-year range parse = %v .. %v, want start <= end", start, end)
+	}
+}
+
+func promotedProductXLSX(t *testing.T) []byte {
+	t.Helper()
+	data, err := buildSimpleXLSXSheet("已推广商品报告", [][]string{
+		{
+			"日期范围", "广告组合名称", "预算货币", "广告活动名称", "广告组名称",
+			"投放广告活动的国家/地区", "推广的商品 SKU-Advertised product SKU",
+			"推广的商品编号", "展示量", "点击量", "点击率", "CPC", "总成本",
+		},
+		{
+			"2026年11月15日 - 2026年11月15日", "250-C", "USD", "campaign", "group", "US",
+			"MJQ-TR250C", "B0HNSRM9FS", "233", "6", "2.5751", "2.43", "14.58",
+		},
+	})
+	if err != nil {
+		t.Fatalf("buildSimpleXLSXSheet() error = %v", err)
+	}
+	return data
+}
+
+func containsWarning(warnings []string, fragment string) bool {
+	for _, warning := range warnings {
+		if strings.Contains(warning, fragment) {
+			return true
+		}
+	}
+	return false
+}
+
 func TestAdUploadListStatusEmpty(t *testing.T) {
 	db := &fakeDB{}
 	store := newAdUploadTestStore(t, &fakeWriteDB{fakeDB: db})
@@ -562,5 +815,60 @@ func TestAdUploadStoreIntegrationAllDetailTables(t *testing.T) {
 				t.Fatalf("%s rows = %d, want 1", adDetailTable(test.reportType), detailCount)
 			}
 		})
+	}
+}
+
+func TestAdUploadStoreIntegrationPromotedProductMatchesProjectBySKU(t *testing.T) {
+	databaseURL := os.Getenv("GO_API_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set GO_API_TEST_DATABASE_URL to a BLF_test connection")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	pool, err := OpenPool(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("OpenPool() error = %v", err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pool.Ping(ctx); err != nil {
+		t.Skipf("test database unavailable: %v", err)
+	}
+
+	projectName := fmt.Sprintf("blf1557-promoted-sku-%d", time.Now().UnixNano())
+	var projectID int64
+	if err := pool.QueryRow(ctx, `
+		insert into public.projects (project_name, sort_order, project_operator, commission_rate)
+		values ($1, 9999, 'alice', 0.15)
+		returning id
+	`, projectName).Scan(&projectID); err != nil {
+		t.Fatalf("insert project: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `delete from public.product_costs where project_id = $1`, projectID)
+		_, _ = pool.Exec(context.Background(), `delete from public.projects where id = $1`, projectID)
+	})
+	if _, err := pool.Exec(ctx, `
+		insert into public.product_costs (project_name, sku, asin, fob_unit_cost, country, project_id)
+		values ($1, 'MJQ-TR250C', 'B0HNSRM9FS', 10, 'US', $2)
+	`, projectName, projectID); err != nil {
+		t.Fatalf("insert product cost: %v", err)
+	}
+
+	store := newAdUploadTestStore(t, NewPGXDB(pool))
+	resp, err := store.Recognize(ctx, "promoted.xlsx", promotedProductXLSX(t), "US", "alice", false)
+	if err != nil {
+		t.Fatalf("Recognize() err = %v", err)
+	}
+	if resp.ProjectMatch.Status != "matched" || resp.ProjectMatch.ProjectName == nil ||
+		*resp.ProjectMatch.ProjectName != projectName {
+		t.Fatalf("project match = %#v, want matched %q by sku", resp.ProjectMatch, projectName)
+	}
+	if resp.ProjectMatch.MatchedBy == nil || *resp.ProjectMatch.MatchedBy != "sku" {
+		t.Fatalf("matched_by = %v, want sku", derefString(resp.ProjectMatch.MatchedBy))
+	}
+	if resp.DetectedStartDate == nil || *resp.DetectedStartDate != "2026-11-15" ||
+		resp.DetectedEndDate == nil || *resp.DetectedEndDate != "2026-11-15" {
+		t.Fatalf("detected dates = %v .. %v, want 2026-11-15 .. 2026-11-15",
+			derefString(resp.DetectedStartDate), derefString(resp.DetectedEndDate))
 	}
 }

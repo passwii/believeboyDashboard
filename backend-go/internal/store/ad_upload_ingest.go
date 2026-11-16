@@ -12,6 +12,7 @@ import (
 	"math"
 	"path"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -406,10 +407,18 @@ func xlsxSheetCells(data []byte, sheetName string) (map[string]string, error) {
 }
 
 type adReportSpec struct {
-	reportType      string
-	reportLabel     string
-	extensions      []string
-	requiredColumns []string
+	reportType         string
+	reportLabel        string
+	extensions         []string
+	requiredColumns    []string
+	projectMatchFields []adProjectMatchField
+}
+
+// adProjectMatchField maps a spec column to the product_costs identifier
+// column used for automatic project matching.
+type adProjectMatchField struct {
+	matchBy string
+	column  string
 }
 
 var adReportSpecs = []adReportSpec{
@@ -436,12 +445,20 @@ var adReportSpecs = []adReportSpec{
 		reportLabel:     "已购买商品",
 		extensions:      []string{".xlsx"},
 		requiredColumns: []string{"开始日期", "结束日期", "广告SKU", "广告ASIN", "已购买的ASIN"},
+		projectMatchFields: []adProjectMatchField{
+			{matchBy: "sku", column: "广告SKU"},
+			{matchBy: "asin", column: "广告ASIN"},
+		},
 	},
 	{
 		reportType:      "ad_promoted_product_report",
 		reportLabel:     "推广的商品",
 		extensions:      []string{".xlsx", ".csv"},
 		requiredColumns: []string{"开始日期", "结束日期", "广告SKU", "广告ASIN", "广告活动名称", "广告组名称"},
+		projectMatchFields: []adProjectMatchField{
+			{matchBy: "sku", column: "广告SKU"},
+			{matchBy: "asin", column: "广告ASIN"},
+		},
 	},
 	{
 		reportType:  "ad_promoted_product_report",
@@ -460,6 +477,10 @@ var adReportSpecs = []adReportSpec{
 			"点击率",
 			"CPC",
 			"总成本",
+		},
+		projectMatchFields: []adProjectMatchField{
+			{matchBy: "sku", column: "推广的商品 SKU-Advertised product SKU"},
+			{matchBy: "asin", column: "推广的商品编号"},
 		},
 	},
 	{
@@ -619,6 +640,8 @@ func matchAdReportSpec(headers []string, extension string) *adSpecMatch {
 	for _, header := range headers {
 		headerSet[strings.ToLower(strings.TrimSpace(header))] = true
 	}
+	// Pass 1 keeps every legacy signature (including periodic 日期) ahead of
+	// the 2026 日期范围 redesign, so existing files resolve exactly as before.
 	for _, original := range adReportSpecs {
 		if !extensionAllowed(original.extensions, extension) {
 			continue
@@ -632,6 +655,21 @@ func matchAdReportSpec(headers []string, extension string) *adSpecMatch {
 			spec := original
 			spec.requiredColumns = periodicColumns
 			return &adSpecMatch{spec: spec, matchedColumns: matched, periodic: true}
+		}
+	}
+	// Pass 2: Amazon's 2026 redesign merged 开始日期/结束日期 into one
+	// 日期范围 column. Only the date signature is substituted; the rest of
+	// the spec still has to match, so each report type stays distinguishable.
+	for _, original := range adReportSpecs {
+		if !extensionAllowed(original.extensions, extension) {
+			continue
+		}
+		if rangeColumns := dateRangeAdRequiredColumns(original.requiredColumns); rangeColumns != nil {
+			if matched := requiredColumnMatches(rangeColumns, headerSet); len(matched) == len(rangeColumns) {
+				spec := original
+				spec.requiredColumns = rangeColumns
+				return &adSpecMatch{spec: spec, matchedColumns: matched}
+			}
 		}
 	}
 	return nil
@@ -662,6 +700,33 @@ func periodicAdRequiredColumns(required []string) []string {
 		columns = columns[1:]
 	}
 	return append([]string{"日期"}, columns...)
+}
+
+// dateRangeAdRequiredColumns rewrites a spec that requires 开始日期 + 结束日期
+// into its 日期范围 equivalent. It returns nil when the spec has no separate
+// start/end columns, so specs that already declare 日期范围 are left untouched.
+func dateRangeAdRequiredColumns(required []string) []string {
+	hasStart, hasEnd := false, false
+	for _, column := range required {
+		switch column {
+		case "开始日期":
+			hasStart = true
+		case "结束日期":
+			hasEnd = true
+		}
+	}
+	if !hasStart || !hasEnd {
+		return nil
+	}
+	columns := make([]string, 0, len(required))
+	columns = append(columns, "日期范围")
+	for _, column := range required {
+		if column == "开始日期" || column == "结束日期" {
+			continue
+		}
+		columns = append(columns, column)
+	}
+	return columns
 }
 
 type adRowData struct {
@@ -799,21 +864,37 @@ func (row adRowData) dateRange() (string, string) {
 }
 
 func detectAdDateRange(row adRowData, rows [][]string) (*string, *string) {
-	if start := row.first(rows, "开始日期"); start != "" {
-		if end := row.first(rows, "结束日期"); end != "" {
-			if parsedStart, errStart := parseAdDate(start); errStart == nil {
-				if parsedEnd, errEnd := parseAdDate(end); errEnd == nil {
-					startText := parsedStart.Format("2006-01-02")
-					endText := parsedEnd.Format("2006-01-02")
-					return &startText, &endText
-				}
+	if startIndex, okStart := row.headerIndexes[strings.ToLower("开始日期")]; okStart {
+		if endIndex, okEnd := row.headerIndexes[strings.ToLower("结束日期")]; okEnd {
+			if earliest, latest, ok := adRowDateRangeBounds(rows, startIndex, endIndex); ok {
+				startText := earliest.Format("2006-01-02")
+				endText := latest.Format("2006-01-02")
+				return &startText, &endText
 			}
 		}
 	}
-	if value := row.first(rows, "日期范围"); value != "" {
-		if start, end, ok := parseAdDateRange(value); ok {
-			startText := start.Format("2006-01-02")
-			endText := end.Format("2006-01-02")
+	if index, ok := row.headerIndexes[strings.ToLower("日期范围")]; ok {
+		var earliest, latest *time.Time
+		for _, values := range rows {
+			if index >= len(values) {
+				continue
+			}
+			start, end, parsed := parseAdDateRange(values[index])
+			if !parsed {
+				continue
+			}
+			if earliest == nil || start.Before(*earliest) {
+				copy := start
+				earliest = &copy
+			}
+			if latest == nil || end.After(*latest) {
+				copy := end
+				latest = &copy
+			}
+		}
+		if earliest != nil && latest != nil {
+			startText := earliest.Format("2006-01-02")
+			endText := latest.Format("2006-01-02")
 			return &startText, &endText
 		}
 	}
@@ -846,6 +927,58 @@ func detectAdDateRange(row adRowData, rows [][]string) (*string, *string) {
 		}
 	}
 	return nil, nil
+}
+
+func adRowDateRangeBounds(rows [][]string, startIndex, endIndex int) (time.Time, time.Time, bool) {
+	var earliest, latest *time.Time
+	for _, values := range rows {
+		if startIndex >= len(values) || endIndex >= len(values) {
+			continue
+		}
+		startText := strings.TrimSpace(values[startIndex])
+		endText := strings.TrimSpace(values[endIndex])
+		if startText == "" && endText == "" {
+			continue
+		}
+		var start, end time.Time
+		var ok bool
+		if startText != "" && endText != "" {
+			parsedStart, errStart := parseAdDate(startText)
+			parsedEnd, errEnd := parseAdDate(endText)
+			if errStart == nil && errEnd == nil {
+				start, end, ok = parsedStart, parsedEnd, true
+			}
+		}
+		if !ok {
+			// A single populated boundary still contributes one endpoint; the
+			// other side falls back to it so a half-filled row cannot widen the
+			// detected period.
+			single := startText
+			if single == "" {
+				single = endText
+			}
+			parsed, err := parseAdDate(single)
+			if err != nil {
+				continue
+			}
+			start, end = parsed, parsed
+		}
+		if start.After(end) {
+			continue
+		}
+		if earliest == nil || start.Before(*earliest) {
+			copy := start
+			earliest = &copy
+		}
+		if latest == nil || end.After(*latest) {
+			copy := end
+			latest = &copy
+		}
+	}
+	if earliest == nil || latest == nil {
+		return time.Time{}, time.Time{}, false
+	}
+	return *earliest, *latest, true
 }
 
 func parseAdDate(value string) (time.Time, error) {
@@ -894,8 +1027,18 @@ func parseAdDateRange(value string) (time.Time, time.Time, bool) {
 	if value == "" {
 		return time.Time{}, time.Time{}, false
 	}
+	// Amazon's English export writes "Nov 10, 2026 - Nov 15, 2026"; Go's time
+	// layouts accept the comma but not the month-name tokens that this parser
+	// would otherwise split into separate fields.
+	if start, end, ok := parseAdEnglishDateRange(value); ok {
+		return start, end, true
+	}
 	replacer := strings.NewReplacer("年", "-", "月", "-", "日", "")
 	value = replacer.Replace(value)
+	if start, end, ok := parseAdAbbreviatedDateRange(value); ok {
+		return start, end, true
+	}
+	value = adTimeOfDayPattern.ReplaceAllString(value, " ")
 	fields := strings.FieldsFunc(value, func(r rune) bool {
 		return r == '-' || r == '/' || r == '.' || r == '~' || r == '至' || r == ' '
 	})
@@ -921,6 +1064,12 @@ func parseAdDateRange(value string) (time.Time, time.Time, bool) {
 			parsed = append(parsed, parsedDate)
 		}
 	}
+	if len(parsed) == 1 && adYearTokenPattern.MatchString(value) && len(adYearTokenPattern.FindAllString(value, -1)) > 1 {
+		// Two year-bearing dates were present but only one parsed, e.g.
+		// "10/11/2026 - 15/11/2026" where the second token is not a valid
+		// month/day. Guessing a single date here would ingest the wrong period.
+		return time.Time{}, time.Time{}, false
+	}
 	if len(parsed) == 0 {
 		if parsedDate, err := parseAdDate(value); err == nil {
 			return parsedDate, parsedDate, true
@@ -929,6 +1078,85 @@ func parseAdDateRange(value string) (time.Time, time.Time, bool) {
 	}
 	sort.Slice(parsed, func(i, j int) bool { return parsed[i].Before(parsed[j]) })
 	return parsed[0], parsed[len(parsed)-1], true
+}
+
+// parseAdAbbreviatedDateRange handles ranges that omit the end month/year,
+// e.g. "2026-11-10-15" or "2026-11-10 ~ 15". Amazon exports use this when
+// both boundaries fall in the same month.
+func parseAdAbbreviatedDateRange(value string) (time.Time, time.Time, bool) {
+	matches := adAbbreviatedDateRangePattern.FindStringSubmatch(value)
+	if len(matches) != 5 {
+		return time.Time{}, time.Time{}, false
+	}
+	start, err := parseAdDate(strings.Join(matches[1:4], "-"))
+	if err != nil {
+		return time.Time{}, time.Time{}, false
+	}
+	endDay, err := strconv.Atoi(matches[4])
+	if err != nil || endDay < 1 || endDay > 31 {
+		return time.Time{}, time.Time{}, false
+	}
+	end := time.Date(start.Year(), start.Month(), endDay, 0, 0, 0, 0, time.UTC)
+	if end.Month() != start.Month() || end.Day() != endDay {
+		return time.Time{}, time.Time{}, false
+	}
+	return start, end, true
+}
+
+func parseAdEnglishDateRange(value string) (time.Time, time.Time, bool) {
+	matches := adEnglishDateRangePattern.FindAllStringSubmatch(value, -1)
+	if len(matches) == 0 {
+		return time.Time{}, time.Time{}, false
+	}
+	var parsed []time.Time
+	for _, match := range matches {
+		month, ok := adEnglishMonths[strings.ToLower(match[1])]
+		if !ok {
+			continue
+		}
+		day, errDay := strconv.Atoi(match[2])
+		year, errYear := strconv.Atoi(match[3])
+		if errDay != nil || errYear != nil {
+			continue
+		}
+		candidate := time.Date(year, month, day, 0, 0, 0, 0, time.UTC)
+		if candidate.Month() != month || candidate.Day() != day {
+			continue
+		}
+		parsed = append(parsed, candidate)
+	}
+	if len(parsed) == 0 {
+		return time.Time{}, time.Time{}, false
+	}
+	sort.Slice(parsed, func(i, j int) bool { return parsed[i].Before(parsed[j]) })
+	return parsed[0], parsed[len(parsed)-1], true
+}
+
+var adYearTokenPattern = regexp.MustCompile(`\b\d{4}\b`)
+
+var adTimeOfDayPattern = regexp.MustCompile(`(?i)\s*(?:T\s*)?\d{1,2}:\d{2}(?::\d{2})?(?:\s*[AP]M)?`)
+
+var adAbbreviatedDateRangePattern = regexp.MustCompile(
+	`^\s*(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})\s*(?:[-~–—至]|to)\s*(\d{1,2})\s*$`,
+)
+
+var adEnglishDateRangePattern = regexp.MustCompile(
+	`(?i)(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{1,2})(?:st|nd|rd|th)?(?:\s*,|\s)\s*(\d{4})`,
+)
+
+var adEnglishMonths = map[string]time.Month{
+	"jan": time.January, "january": time.January,
+	"feb": time.February, "february": time.February,
+	"mar": time.March, "march": time.March,
+	"apr": time.April, "april": time.April,
+	"may": time.May,
+	"jun": time.June, "june": time.June,
+	"jul": time.July, "july": time.July,
+	"aug": time.August, "august": time.August,
+	"sep": time.September, "september": time.September,
+	"oct": time.October, "october": time.October,
+	"nov": time.November, "november": time.November,
+	"dec": time.December, "december": time.December,
 }
 
 func parseAdNumber(raw string, percent bool) (float64, error) {
