@@ -28,7 +28,10 @@ func TestScheduledReportStoreListSubscriptionsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenPool() error = %v", err)
 	}
-	defer pool.Close()
+	// Cleanups run LIFO and only after every defer, so the pool must be closed
+	// from a cleanup registered BEFORE the row cleanup; otherwise the row
+	// cleanup would hit a closed pool and silently leak the fixtures.
+	t.Cleanup(pool.Close)
 	if err := pool.Ping(ctx); err != nil {
 		t.Skipf("test database unavailable: %v", err)
 	}
@@ -43,6 +46,31 @@ func TestScheduledReportStoreListSubscriptionsIntegration(t *testing.T) {
 	}
 
 	var ownedID, unownedID int64
+	var insertedIDs []int32
+	// The test's own context is cancelled by its defer before cleanups run, so
+	// the cleanup opens its own context and reports failures instead of
+	// discarding them.
+	t.Cleanup(func() {
+		if len(insertedIDs) == 0 {
+			return
+		}
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cleanupCancel()
+		tag, err := db.Exec(cleanupCtx,
+			`delete from public.scheduled_report_subscriptions where id = any($1::int[])`,
+			insertedIDs,
+		)
+		if err != nil {
+			t.Errorf("cleanup scheduled_report_subscriptions rows %v: %v", insertedIDs, err)
+			return
+		}
+		if tag.RowsAffected() != int64(len(insertedIDs)) {
+			t.Errorf(
+				"cleanup deleted %d rows, want %d (ids %v)",
+				tag.RowsAffected(), len(insertedIDs), insertedIDs,
+			)
+		}
+	})
 	if err := db.QueryRow(
 		ctx,
 		`insert into public.scheduled_report_subscriptions (
@@ -54,6 +82,7 @@ func TestScheduledReportStoreListSubscriptionsIntegration(t *testing.T) {
 	).Scan(&ownedID); err != nil {
 		t.Fatalf("insert owned subscription: %v", err)
 	}
+	insertedIDs = append(insertedIDs, int32(ownedID))
 	if err := db.QueryRow(
 		ctx,
 		`insert into public.scheduled_report_subscriptions (
@@ -64,14 +93,7 @@ func TestScheduledReportStoreListSubscriptionsIntegration(t *testing.T) {
 	).Scan(&unownedID); err != nil {
 		t.Fatalf("insert unowned subscription: %v", err)
 	}
-	t.Cleanup(func() {
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cleanupCancel()
-		_, _ = db.Exec(cleanupCtx,
-			`delete from public.scheduled_report_subscriptions where id = any($1::int[])`,
-			[]int32{int32(ownedID), int32(unownedID)},
-		)
-	})
+	insertedIDs = append(insertedIDs, int32(unownedID))
 
 	subscriptionStore := NewScheduledReportStore(db)
 
