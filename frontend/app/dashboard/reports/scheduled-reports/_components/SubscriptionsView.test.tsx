@@ -60,6 +60,7 @@ vi.mock('./EditSubscriptionDialog', () => ({
 
 import SubscriptionsView from './SubscriptionsView'
 import { ensureConfigLoaded } from '@/lib/api/ai-chat-config-store'
+import { fetchManagedProjectsCached } from '@/lib/project-client-cache'
 import type { Subscription } from './types'
 import styles from '../scheduled-reports-warm.module.css'
 
@@ -176,6 +177,56 @@ describe('SubscriptionsView 批量操作（BLF-1032）', () => {
     await user.click(rowCheckbox('u2@example.com'))
 
     expect(bulkBar().getByText('已选 2 条')).toBeInTheDocument()
+  })
+
+  it('首次加载失败时显示错误态与重试，不伪装成「暂无订阅配置」', async () => {
+    installFetch([], () => new Response('服务暂不可用', { status: 503 }))
+    render(<SubscriptionsView />)
+
+    const alert = await screen.findByRole('alert')
+    expect(within(alert).getByText('订阅列表加载失败')).toBeInTheDocument()
+    expect(within(alert).getByText('订阅列表请求失败（HTTP 503）')).toBeInTheDocument()
+    expect(screen.queryByText('暂无订阅配置')).toBeNull()
+    // 首次失败走页面错误态，不弹「订阅数据刷新失败」toast
+    expect(notifyMock).not.toHaveBeenCalled()
+  })
+
+  it('错误态重试成功后恢复订阅表格并清除错误', async () => {
+    let listRequest = 0
+    installFetch([], () => {
+      listRequest += 1
+      return listRequest === 1
+        ? new Response('服务暂不可用', { status: 503 })
+        : new Response(JSON.stringify({ items: SUBS }), { status: 200 })
+    })
+    render(<SubscriptionsView />)
+
+    const alert = await screen.findByRole('alert')
+    const user = userEvent.setup()
+    await user.click(within(alert).getByRole('button', { name: '重试' }))
+
+    const table = await screen.findByRole('table', { name: '订阅列表' })
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(within(table).getByText('u1@example.com')).toBeInTheDocument()
+  })
+
+  it('接口成功返回空列表时仍显示「暂无订阅配置」空态', async () => {
+    installFetch([], () => new Response(JSON.stringify({ items: [] }), { status: 200 }))
+    render(<SubscriptionsView />)
+
+    await screen.findByText('暂无订阅配置')
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByRole('table', { name: '订阅列表' })).toBeNull()
+  })
+
+  it('项目清单请求失败不影响订阅列表展示（名称退化为项目 ID）', async () => {
+    vi.mocked(fetchManagedProjectsCached).mockRejectedValueOnce(new Error('项目接口不可用'))
+    installFetch()
+    render(<SubscriptionsView />)
+
+    await screen.findByRole('table', { name: '订阅列表' })
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getAllByText('项目3').length).toBeGreaterThan(0)
   })
 
   it('订阅面板与表格使用 Warm Ledger 本地表面，宽表在自身容器内滚动', async () => {

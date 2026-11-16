@@ -2,7 +2,20 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
-import { FilterX, Inbox, Loader2, Pencil, Play, Plus, Power, Sparkles, Trash2, X } from 'lucide-react'
+import {
+  AlertCircle,
+  FilterX,
+  Inbox,
+  Loader2,
+  Pencil,
+  Play,
+  Plus,
+  Power,
+  RotateCcw,
+  Sparkles,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -193,6 +206,10 @@ export default function SubscriptionsView({
 
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
   const [loading, setLoading] = useState(true)
+  // 列表请求失败且从未成功加载过时必须显示错误态，而不是空态 —— 否则接口故障
+  // 会伪装成「暂无订阅配置」，和真的没有订阅无法区分（BLF-1556）。
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const loadedOnceRef = useRef(false)
   const [projects, setProjects] = useState<Array<{ id?: number | null; name: string }>>([])
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [editingSub, setEditingSub] = useState<Subscription | null>(null)
@@ -244,7 +261,11 @@ export default function SubscriptionsView({
         fetch(resolveApiUrl('/api/v1/scheduled-reports/subscriptions'), {
           headers: authHeaders(),
         }),
-        fetchManagedProjectsCached<Array<{ id?: number | null; name: string }>>(session),
+        // 项目清单只用于把 project_ids 解析成名称；它失败时订阅列表仍可读，
+        // 不能因此把整个列表判成加载失败（名称退化为「项目ID」）。
+        fetchManagedProjectsCached<Array<{ id?: number | null; name: string }>>(session).catch(
+          () => [] as Array<{ id?: number | null; name: string }>
+        ),
       ])
       if (!subRes.ok) {
         throw new Error(`订阅列表请求失败（HTTP ${subRes.status}）`)
@@ -255,12 +276,16 @@ export default function SubscriptionsView({
       }
       setSubscriptions(subs.items)
       setProjects(projectData.filter((p: { name: string }) => typeof p.name === 'string' && p.name.trim()))
+      loadedOnceRef.current = true
+      setLoadError(null)
     } catch (error) {
-      notify({
-        type: 'error',
-        title: '订阅数据刷新失败',
-        message: error instanceof Error ? error.message : String(error),
-      })
+      const message = error instanceof Error ? error.message : String(error)
+      if (!loadedOnceRef.current) {
+        setLoadError(message)
+        return
+      }
+      // 已有列表时保留旧数据，用通知提示本次刷新失败。
+      notify({ type: 'error', title: '订阅数据刷新失败', message })
     }
   }, [notify, session])
 
@@ -272,6 +297,11 @@ export default function SubscriptionsView({
     setLoading(true)
     void refreshSubscriptions().finally(() => setLoading(false))
   }, [refreshSubscriptions])
+
+  const handleRetryLoad = () => {
+    setLoading(true)
+    void refreshSubscriptions().finally(() => setLoading(false))
+  }
 
   // 过滤后的订阅列表
   const filteredSubscriptions = useMemo(
@@ -614,7 +644,20 @@ export default function SubscriptionsView({
         )}
 
         {/* 订阅列表 */}
-        {subscriptions.length === 0 ? (
+        {loadError ? (
+          <div className={styles.emptyState} role="alert">
+            <AlertCircle
+              className={cn(styles.emptyIcon, 'text-[color:var(--warm-ledger-color-negative)]')}
+              aria-hidden
+            />
+            <p className={styles.emptyTitle}>订阅列表加载失败</p>
+            <p className={styles.emptyText}>{loadError}</p>
+            <button type="button" onClick={handleRetryLoad} className={styles.button}>
+              <RotateCcw aria-hidden />
+              重试
+            </button>
+          </div>
+        ) : subscriptions.length === 0 ? (
           <div className={styles.emptyState}>
             <Inbox className={styles.emptyIcon} aria-hidden />
             <p className={styles.emptyTitle}>暂无订阅配置</p>
