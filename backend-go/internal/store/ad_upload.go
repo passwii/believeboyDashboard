@@ -543,7 +543,7 @@ func (s *AdUploadStore) Commit(ctx context.Context, req ad_upload.AdUploadCommit
 				return err
 			}
 
-			today := time.Now().UTC().Format("2006-01-02")
+			today := reportUploadLogDate(time.Now()).Format("2006-01-02")
 			logKey := projectName + "|" + req.ReportType + "|" + country
 			if scope.startDate != today && !seenTodayLogs[logKey] {
 				if _, err := txDB.Exec(ctx, `

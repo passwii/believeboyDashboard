@@ -194,6 +194,8 @@ func (s *RpaReportsStore) GetReportStatusForDate(ctx context.Context, reportDate
 		     and period_start_date <= $3 and period_end_date >= $3)
 		    or
 		    (report_type = 'inventory_report' and snapshot_at::date = $3)
+		    or
+		    (created_at::date = $3)
 		  )
 		order by created_at asc
 	`

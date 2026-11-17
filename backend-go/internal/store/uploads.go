@@ -2633,6 +2633,12 @@ func (store *UploadStore) persistInventoryReport(
 		); err != nil {
 			return err
 		}
+		if err := insertUploadDayReportLog(
+			ctx, txDB, project.ID, "inventory_report",
+			normalizeStoreCountry(payload.Country), id, len(rows), file.OriginalFilename,
+		); err != nil {
+			return err
+		}
 		sourceID = id
 		return nil
 	})
@@ -2701,6 +2707,12 @@ func (store *UploadStore) persistBusinessReport(
 				); err != nil {
 					return err
 				}
+			}
+			if err := insertUploadDayReportLog(
+				ctx, txDB, project.ID, "business_report",
+				normalizeStoreCountry(payload.Country), id, len(rows), file.OriginalFilename,
+			); err != nil {
+				return err
 			}
 		}
 		sourceID = id
@@ -2860,6 +2872,12 @@ func (store *UploadStore) persistSalesReport(
 			}
 			latestID = id
 		}
+		if err := insertUploadDayReportLog(
+			ctx, txDB, project.ID, "sales_report",
+			normalizeStoreCountry(payload.Country), latestID, len(rows), file.OriginalFilename,
+		); err != nil {
+			return err
+		}
 		return nil
 	})
 	if err != nil {
@@ -2896,6 +2914,12 @@ func (store *UploadStore) persistSingleSalesSnapshot(
 			return err
 		}
 		if err := insertSalesRows(ctx, txDB, id, project.ID, rows); err != nil {
+			return err
+		}
+		if err := insertUploadDayReportLog(
+			ctx, txDB, project.ID, "sales_report",
+			normalizeStoreCountry(country), id, len(rows), file.OriginalFilename,
+		); err != nil {
 			return err
 		}
 		sourceID = id
@@ -2967,6 +2991,11 @@ func (store *UploadStore) persistReturnReport(
 			if err := insertReportUploadLog(
 				ctx, txDB, project.ID, "return_report", country, start, id, len(rows),
 				file.OriginalFilename,
+			); err != nil {
+				return err
+			}
+			if err := insertUploadDayReportLog(
+				ctx, txDB, project.ID, "return_report", country, id, len(rows), file.OriginalFilename,
 			); err != nil {
 				return err
 			}
@@ -3165,6 +3194,34 @@ func insertReportUploadLog(
 		originalFilename,
 	)
 	return err
+}
+
+// reportUploadLogDate returns the RPA write date used by the status grid.
+// The legacy backend wrote upload_date = date.today() in Asia/Shanghai; the
+// status grid matches uploads by this date, so business dates must not be
+// used as upload_date.
+func reportUploadLogDate(now time.Time) time.Time {
+	cst := time.FixedZone("Asia/Shanghai", 8*60*60)
+	return dateOnly(now.In(cst))
+}
+
+// insertUploadDayReportLog records the "uploaded today" entry so the RPA
+// status grid turns green on the day the file was written, independently of
+// the report's business date.
+func insertUploadDayReportLog(
+	ctx context.Context,
+	db DB,
+	projectID int64,
+	reportType string,
+	country string,
+	sourceFileID int64,
+	rowCount int,
+	originalFilename string,
+) error {
+	return insertReportUploadLog(
+		ctx, db, projectID, reportType, country,
+		reportUploadLogDate(time.Now()), sourceFileID, rowCount, originalFilename,
+	)
 }
 
 type businessRow struct {
