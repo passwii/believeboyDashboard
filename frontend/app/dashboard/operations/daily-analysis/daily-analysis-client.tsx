@@ -2176,7 +2176,7 @@ export default function DailyAnalysisPage() {
                 正在更新销售数据
               </div>
             ) : null}
-            <div className={styles.chartCard}>
+            <div className={styles.chartCard} data-chart-card>
               <MetricSwitcherCard<ChartMetricKey>
                 metrics={LINE_METRICS}
                 defaultMetric="sales_amount"
@@ -2191,6 +2191,18 @@ export default function DailyAnalysisPage() {
                 extraContent={
                   showGoalProgressStat ? (
                     <GoalProgressStat
+                      href={goalHref}
+                      items={goalRingItems}
+                      loading={goalLoading}
+                    />
+                  ) : null
+                }
+                mobileLayout="hero-strip"
+                mobileHeroMetrics={['sales_amount', 'order_qty']}
+                mobileExtraContent={
+                  showGoalProgressStat ? (
+                    <GoalProgressStat
+                      variant="compact"
                       href={goalHref}
                       items={goalRingItems}
                       loading={goalLoading}

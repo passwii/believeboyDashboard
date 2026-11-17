@@ -189,12 +189,18 @@ test.describe('@mobile-blf615 站点导航 手机端（BLF-615）', () => {
     await expectNoPageHorizontalOverflow(page)
   })
 
-  test('360×800 小屏：导航卡仍一行两个，无整体横向滚动', async ({ page }) => {
+  test('360×800 小屏：导航卡按既定窄屏契约单列，无整体横向滚动', async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 800 })
     await page.goto('/dashboard/operations/site-navigation')
 
     await expect(page.getByRole('heading', { name: '平台' })).toBeVisible({ timeout: 30000 })
-    await expectFirstTwoCardsSameRow(page)
+    // <380px 由站点导航自身的窄屏规则切为单列，给长名称/长链接留足宽度；
+    // 390px 及以上仍保持一行两个。
+    const cards = page.locator('#main-content a[target="_blank"]')
+    await expect(cards.first()).toBeVisible({ timeout: 30000 })
+    const first = (await cards.nth(0).boundingBox())!
+    const second = (await cards.nth(1).boundingBox())!
+    expect(second.y).toBeGreaterThan(first.y + 10)
     await expectNoPageHorizontalOverflow(page)
   })
 })
