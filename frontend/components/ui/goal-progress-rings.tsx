@@ -169,6 +169,8 @@ export type GoalProgressStatProps = {
   href: string
   loading?: boolean
   className?: string
+  /** 手机指标带里的紧凑版：只保留值与一个短标签。 */
+  variant?: 'panel' | 'compact'
 }
 
 /**
@@ -188,10 +190,55 @@ export function GoalProgressStat({
   href,
   loading = false,
   className,
+  variant = 'panel',
 }: GoalProgressStatProps) {
   const reduce = useReducedMotion()
   const ringItems = items.slice(0, RING_SIZES.length)
   const compactSizes = [56, 44, 32] as const
+  const isCompact = variant === 'compact'
+
+  if (isCompact) {
+    const primary = ringItems[0]
+    return (
+      <Link
+        aria-label="查看目标管理"
+        className={cn(
+          'flex min-h-[62px] flex-col justify-center px-2.5 py-2 text-start',
+          'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--warm-ledger-focus-color)]',
+          className
+        )}
+        href={href}
+        data-goal-stat="compact"
+      >
+        <span className="mb-1 truncate font-sans text-[9px] text-[var(--warm-ledger-color-text-muted)]">
+          目标进度
+        </span>
+        {loading ? (
+          <span className="font-mono text-[13px] leading-4 text-[var(--warm-ledger-color-text-faint)]">
+            加载中
+          </span>
+        ) : primary ? (
+          <>
+            <span className="truncate font-mono text-[13px] leading-4 tabular-nums text-[var(--warm-ledger-color-text-soft)]">
+              {primary.display}
+            </span>
+            <span className="mt-1 truncate font-mono text-[8px] leading-3 text-[var(--warm-ledger-color-text-faint)]">
+              {primary.shortLabel ?? primary.label}
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="font-mono text-[13px] leading-4 text-[var(--warm-ledger-color-text-faint)]">
+              未设置
+            </span>
+            <span className="mt-1 truncate font-mono text-[8px] leading-3 text-[var(--warm-ledger-color-text-faint)]">
+              查看目标设置
+            </span>
+          </>
+        )}
+      </Link>
+    )
+  }
 
   return (
     <Link

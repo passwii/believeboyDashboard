@@ -46,6 +46,59 @@ describe('metric-switcher-card · 指标卡片区内边距（BLF-529）', () => 
   })
 })
 
+describe('metric-switcher-card · 手机 hero-strip（BLF-1568）', () => {
+  it('hero-strip 只在 md 以下显示，桌面仍保留原 2/3/6 列网格', () => {
+    const { container } = render(
+      <MetricSwitcherCard
+        metrics={metrics}
+        chartKind="auto"
+        mobileLayout="hero-strip"
+        mobileHeroMetrics={['a']}
+        renderLine={() => [{ date: '2026-01-01', a: 1, b: 2 }]}
+      />
+    )
+
+    const legacyGrid = container.querySelector('[class*="grid-cols-2"]')!
+    expect(legacyGrid.className).toContain('hidden md:grid')
+    expect(container.querySelector('[data-testid="metric-hero-strip"]')?.className).toContain(
+      'md:hidden'
+    )
+    expect(container.querySelectorAll('[data-metric-cell="hero"]')).toHaveLength(1)
+    expect(container.querySelectorAll('[data-metric-cell="strip"]')).toHaveLength(1)
+  })
+
+  it('hero-strip 的主卡与指标带仍可点选同一指标', () => {
+    const { container } = render(
+      <MetricSwitcherCard
+        metrics={metrics}
+        defaultMetric="b"
+        chartKind="auto"
+        mobileLayout="hero-strip"
+        mobileHeroMetrics={['a']}
+        renderLine={() => [{ date: '2026-01-01', a: 1, b: 2 }]}
+      />
+    )
+
+    const hero = container.querySelector('[data-metric-cell="hero"]')!
+    expect(hero).toHaveAttribute('aria-pressed', 'false')
+    const strip = container.querySelector('[data-metric-cell="strip"]')!
+    expect(strip).toHaveAttribute('aria-pressed', 'true')
+    expect(container.querySelector('[data-testid="metric-strip"]')).toBeInTheDocument()
+  })
+
+  it('grid 布局不渲染手机专属指标带', () => {
+    const { container } = render(
+      <MetricSwitcherCard
+        metrics={metrics}
+        chartKind="auto"
+        renderLine={() => [{ date: '2026-01-01', a: 1, b: 2 }]}
+      />
+    )
+
+    expect(container.querySelector('[data-testid="metric-hero-strip"]')).not.toBeInTheDocument()
+  })
+})
+
 // V4 Warm Ledger：指标区使用暖色中性表面、sans label、mono 数值和轻量 pill。
 describe('metric-switcher-card · Warm Ledger stats', () => {
   it('指标选择态使用 V4 抬升表面和 accent 指示条', () => {
