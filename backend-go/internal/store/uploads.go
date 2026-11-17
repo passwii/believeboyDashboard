@@ -2142,6 +2142,17 @@ func dateRange(
 }
 
 func parseDateString(value string, country string) *string {
+	value = strings.TrimSpace(value)
+	if value == "" || strings.EqualFold(value, "nan") || strings.EqualFold(value, "null") {
+		return nil
+	}
+	// Date-only values carry no timezone. Converting them through the country
+	// location would shift the calendar date (e.g. 2026-11-16 -> 2026-11-15
+	// for US), which broke inventory snapshot dates imported by the RPA.
+	if parsed, err := time.Parse("2006-01-02", value); err == nil {
+		formatted := parsed.Format("2006-01-02")
+		return &formatted
+	}
 	parsed := parseTimestamp(value, country)
 	if parsed.IsZero() {
 		return nil
