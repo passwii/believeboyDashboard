@@ -310,6 +310,17 @@ describe('WarmLedgerShell', () => {
     expect(thumbRule).toContain('background-clip: content-box')
   })
 
+  it('uses a single-row 52px mobile route topbar and a 4px phone gutter', () => {
+    expect(shellThemeCss).toContain('--warm-ledger-mobile-gutter: 4px')
+    expect(shellThemeCss).toContain('--warm-ledger-mobile-route-topbar-height: 52px')
+    expect(shellThemeCss).toMatch(
+      /grid-template-rows:\s*var\(--warm-ledger-mobile-route-topbar-height\)\s+auto/
+    )
+    expect(shellThemeCss).toMatch(
+      /\.warm-ledger__main-scroll\s*\{[^}]*padding-inline:\s*var\(--warm-ledger-mobile-gutter\)/s
+    )
+  })
+
   it('keeps the dashboard navigation and main content landmarks', () => {
     installMatchMedia(false)
 
