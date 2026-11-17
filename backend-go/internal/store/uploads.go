@@ -3016,42 +3016,79 @@ func insertAnalysisSource(
 	).Scan(&lock); err != nil {
 		return 0, err
 	}
+	// inventory_report is versioned per (project_id, report_type, country):
+	// uq_analysis_sources_inventory_current allows only one current row for that
+	// key, regardless of period dates. Legacy writers stamped period dates on
+	// those rows while this writer leaves them NULL, so a period-filtered
+	// supersede misses the legacy current row and the INSERT then fails with a
+	// duplicate-key error on that unique index.
+	inventory := input.ReportType == "inventory_report"
 	var version int
-	err = db.QueryRow(
-		ctx,
-		`SELECT coalesce(max(version), 0) + 1
-		 FROM public.analysis_source_files
-		 WHERE project_id = $1
-		   AND report_type = $2
-		   AND country = $3
-		   AND period_start_date IS NOT DISTINCT FROM $4
-		   AND period_end_date IS NOT DISTINCT FROM $5`,
-		input.ProjectID,
-		input.ReportType,
-		input.Country,
-		dateArgument(input.PeriodStart),
-		dateArgument(input.PeriodEnd),
-	).Scan(&version)
+	if inventory {
+		err = db.QueryRow(
+			ctx,
+			`SELECT coalesce(max(version), 0) + 1
+			 FROM public.analysis_source_files
+			 WHERE project_id = $1
+			   AND report_type = $2
+			   AND country = $3`,
+			input.ProjectID,
+			input.ReportType,
+			input.Country,
+		).Scan(&version)
+	} else {
+		err = db.QueryRow(
+			ctx,
+			`SELECT coalesce(max(version), 0) + 1
+			 FROM public.analysis_source_files
+			 WHERE project_id = $1
+			   AND report_type = $2
+			   AND country = $3
+			   AND period_start_date IS NOT DISTINCT FROM $4
+			   AND period_end_date IS NOT DISTINCT FROM $5`,
+			input.ProjectID,
+			input.ReportType,
+			input.Country,
+			dateArgument(input.PeriodStart),
+			dateArgument(input.PeriodEnd),
+		).Scan(&version)
+	}
 	if err != nil {
 		return 0, err
 	}
-	_, err = db.(Execer).Exec(
-		ctx,
-		`UPDATE public.analysis_source_files
-		 SET is_current = false,
-		     superseded_at = CASE WHEN is_current THEN now() ELSE superseded_at END
-		 WHERE project_id = $1
-		   AND report_type = $2
-		   AND country = $3
-		   AND period_start_date IS NOT DISTINCT FROM $4
-		   AND period_end_date IS NOT DISTINCT FROM $5
-		   AND is_current IS TRUE`,
-		input.ProjectID,
-		input.ReportType,
-		input.Country,
-		dateArgument(input.PeriodStart),
-		dateArgument(input.PeriodEnd),
-	)
+	if inventory {
+		_, err = db.(Execer).Exec(
+			ctx,
+			`UPDATE public.analysis_source_files
+			 SET is_current = false,
+			     superseded_at = CASE WHEN is_current THEN now() ELSE superseded_at END
+			 WHERE project_id = $1
+			   AND report_type = $2
+			   AND country = $3
+			   AND is_current IS TRUE`,
+			input.ProjectID,
+			input.ReportType,
+			input.Country,
+		)
+	} else {
+		_, err = db.(Execer).Exec(
+			ctx,
+			`UPDATE public.analysis_source_files
+			 SET is_current = false,
+			     superseded_at = CASE WHEN is_current THEN now() ELSE superseded_at END
+			 WHERE project_id = $1
+			   AND report_type = $2
+			   AND country = $3
+			   AND period_start_date IS NOT DISTINCT FROM $4
+			   AND period_end_date IS NOT DISTINCT FROM $5
+			   AND is_current IS TRUE`,
+			input.ProjectID,
+			input.ReportType,
+			input.Country,
+			dateArgument(input.PeriodStart),
+			dateArgument(input.PeriodEnd),
+		)
+	}
 	if err != nil {
 		return 0, err
 	}
