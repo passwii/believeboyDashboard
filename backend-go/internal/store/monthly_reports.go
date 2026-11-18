@@ -914,16 +914,18 @@ func insertMonthlyReportCalculation(
 	values map[string]string,
 ) error {
 	args := []any{reportID, projectName, reportMonth}
+	// jsonb_build_object takes VARIADIC "any", so PostgreSQL cannot infer
+	// bind-parameter types from that call. Cast every parameter explicitly.
 	payloadFields := []string{
-		"'report_id', $1",
-		"'project_name', $2",
-		"'report_month', $3",
+		"'report_id', $1::bigint",
+		"'project_name', $2::text",
+		"'report_month', $3::text",
 	}
 	for _, column := range columns {
 		args = append(args, monthlyReportNumeric(values[column]))
 		payloadFields = append(
 			payloadFields,
-			"'"+column+"', $"+strconv.Itoa(len(args)),
+			"'"+column+"', $"+strconv.Itoa(len(args))+"::numeric",
 		)
 	}
 	sql := "insert into public." + table + `
