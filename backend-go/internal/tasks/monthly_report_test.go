@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/queue"
@@ -384,6 +385,21 @@ func (finalizer *recordingMonthlyReportFinalizer) Finalize(
 ) error {
 	finalizer.calls++
 	return nil
+}
+
+func TestParseMonthlyTransactionDateSingleDigitHour(t *testing.T) {
+	raw := "Oct 1, 2026 1:27:54 AM PDT"
+	parsed, err := parseMonthlyTransactionDate(raw)
+	if err != nil {
+		t.Fatalf("parseMonthlyTransactionDate(%q) error = %v", raw, err)
+	}
+	want := time.Date(2026, time.October, 1, 8, 27, 54, 0, time.UTC)
+	if !parsed.Equal(want) {
+		t.Fatalf("parsed = %s, want %s", parsed, want)
+	}
+	if got := dateLocalMonth(parsed, raw); got != "2026-10" {
+		t.Fatalf("local month = %q, want %q", got, "2026-10")
+	}
 }
 
 func writeMonthlyReportFixture(

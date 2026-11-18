@@ -546,6 +546,7 @@ func parseMonthlyTransactionDate(value string) (time.Time, error) {
 	location := time.FixedZone("monthly-report", offset*60*60)
 	for _, layout := range []string{
 		"Jan 2, 2006 03:04:05 PM",
+		"Jan 2, 2006 3:04:05 PM", // Amazon may omit the leading zero in the hour.
 		"2006-01-02 15:04:05",
 		"02.01.2006 15:04:05",
 		"02 Jan 2006 15:04:05",
