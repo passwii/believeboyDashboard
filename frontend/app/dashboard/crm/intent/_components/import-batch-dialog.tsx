@@ -120,8 +120,21 @@ export function ImportBatchDialog({ open, onOpenChange, onImported }: ImportBatc
               />
             </label>
             <span className={styles.fileName}>{file?.name ?? '未选择文件'}</span>
+            <a
+              className={`${styles.templateDownload} warm-ledger__button warm-ledger__button--secondary`}
+              href="/crm-intent-import-template.csv"
+              download="意向客户导入模板.csv"
+            >
+              下载 CSV 模板
+            </a>
           </div>
         </div>
+
+        <p className={styles.drawerHint}>
+          请保留首行列名，从第二行开始填写。企业名称必填；成立年份填 1800–2100 的整数，
+          注册资本填万元数字，意向级别填 A/B/C/D，意向分填 0–100 的整数，筛选日期填 YYYY-MM-DD。
+          手机号、渠道列表、商标、来源等多值内容用英文分号分隔；来源填写 http(s) 链接。
+        </p>
 
         <label className={styles.field}>
           <span className={styles.fieldLabel}>批次日期</span>
