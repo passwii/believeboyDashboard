@@ -1378,6 +1378,10 @@
   gap: var(--warm-ledger-space-2);
 }
 
+.templateDownload {
+  text-decoration: none;
+}
+
 .fileInput {
   position: absolute;
   width: 1px;
