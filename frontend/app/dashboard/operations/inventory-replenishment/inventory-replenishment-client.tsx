@@ -55,7 +55,7 @@ import { useAutoSelectFirstProject } from '@/lib/hooks/use-auto-select-first-pro
 import { useNotifications } from '@/components/notifications'
 import { formatLocalTimestampForFilename, cn } from '@/lib/utils'
 import { getCountryLabel } from '@/lib/country'
-import { applyBorder, applyDataRowBanding, applyHeaderBorder, applyTotalRowStyle } from '@/lib/excel-styles'
+import { applyDataStyle, applyDataRowBanding, applyHeaderRowStyle, applyTotalRowStyle } from '@/lib/excel-styles'
 import { downloadBlob } from '@/lib/download-blob'
 import { COUNTRY_OPTIONS } from '@/lib/console-constants'
 import { SnapshotSelector } from '@/components/dashboard/inventory-replenishment/snapshot-selector'
@@ -64,6 +64,12 @@ import { EditSnapshotDialog } from '@/components/dashboard/inventory-replenishme
 import type { SnapshotOption } from '@/components/dashboard/inventory-replenishment/snapshot-selector'
 import { CockpitOverview } from '@/components/dashboard/inventory-replenishment/cockpit/cockpit-overview'
 import { DecisionCockpit } from '@/components/dashboard/inventory-replenishment/cockpit/decision-cockpit'
+import {
+  ACTION_LABELS,
+  CONFIDENCE_LABELS,
+  SEASONAL_LABELS,
+  STATE_LABELS,
+} from '@/components/dashboard/inventory-replenishment/cockpit/cockpit-types'
 import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
 import styles from './inventory-replenishment-warm.module.css'
 
@@ -107,6 +113,19 @@ const RISK_FILTER_OPTIONS = [
   { value: '严重滞销', label: '严重滞销' },
   { value: '待补数据', label: '待补数据' },
 ]
+
+/**
+ * 导出对齐 daily-analysis 的逐类型对齐口径：文本左对齐、数字右对齐、日期居中。
+ * 列序号与导出 columns 定义一致（1-based）。
+ */
+const TEXT_EXPORT_COLUMNS = new Set([1, 2, 21, 22, 23, 24, 25, 26])
+const CENTER_EXPORT_COLUMNS = new Set([13, 14, 17, 18, 19])
+
+function exportColumnAlignment(column: number): 'left' | 'center' | 'right' {
+  if (CENTER_EXPORT_COLUMNS.has(column)) return 'center'
+  if (TEXT_EXPORT_COLUMNS.has(column)) return 'left'
+  return 'right'
+}
 
 type ProjectOption = {
   id: number
@@ -1057,16 +1076,28 @@ export default function InventoryReplenishmentPage() {
 
       const headerRow = worksheet.getRow(1)
       headerRow.values = columns.map((column) => column.header)
-      headerRow.height = 24
-      headerRow.eachCell((cell) => {
-        cell.font = { name: 'Microsoft YaHei', bold: true, color: { argb: 'FF0F172A' } }
-        cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }
-        applyHeaderBorder(cell)
-      })
+      // 与 daily-analysis 导出一致：统一表头 helper（微软雅黑加粗 + 浅灰蓝底 +
+      // 居中换行 + 表头边框 + 22 行高）。
+      applyHeaderRowStyle(headerRow, columns.length)
 
       filteredRows.forEach((row, index) => {
         const sheetRow = worksheet.getRow(index + 2)
+        // v1.2 三段式：导出与页面表格/驾驶舱一致的中文标签；缺值保留 '-'。
+        const stateLabel = row.inventory_state
+          ? STATE_LABELS[row.inventory_state] ?? row.inventory_state
+          : '-'
+        const actionLabel = row.replenishment_action
+          ? ACTION_LABELS[row.replenishment_action] ?? row.replenishment_action
+          : '-'
+        const seasonalPhase = row.signals?.seasonal_phase
+        const seasonalLabel = seasonalPhase
+          ? SEASONAL_LABELS[seasonalPhase] ?? seasonalPhase
+          : '-'
+        const confidenceValue = row.signals?.confidence
+        const confidenceLabel = confidenceValue
+          ? CONFIDENCE_LABELS[confidenceValue] ?? confidenceValue
+          : '-'
+
         sheetRow.values = [
           row.sku,
           row.product_name || '-',
@@ -1090,30 +1121,23 @@ export default function InventoryReplenishmentPage() {
           row.estimated_replenishment_quantity,
           row.risk_status,
           // v1.2 三段式
-          row.inventory_state || '-',
-          row.replenishment_action || '-',
+          stateLabel,
+          actionLabel,
           row.signals?.trend_label || '-',
-          row.signals?.seasonal_phase || '-',
-          row.signals?.confidence || '-',
+          seasonalLabel,
+          confidenceLabel,
         ]
 
-        // 显式遍历 1-21 列应用样式和边框：
+        // 显式遍历全部列应用样式：
         // 默认的 sheetRow.eachCell(cb) 会跳过 null 单元格，导致 dms_30 / weighted_dms /
-        // sellable_days / estimated_replenishment_quantity 等列在数据缺失时缺少边框。
+        // sellable_days / estimated_replenishment_quantity 等列在数据缺失时缺少样式。
         // 改成 for 循环 + getCell(col) 可以保证每个单元格都被处理（与 totalRow 的
         // applyTotalRowStyle 全列覆盖保持一致），且不改变原始数据（null 仍为 null）。
-        for (let col = 1; col <= 26; col++) {
+        for (let col = 1; col <= columns.length; col += 1) {
           const cell = sheetRow.getCell(col)
-          cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
-          cell.alignment = {
-            vertical: 'middle',
-            horizontal: col >= 3 && col <= 16 ? 'right' : 'left',
-            // 产品名称列（col === 2）：单行显示，文本超出列宽时直接截断。
-            // 完整品名以 cell.note 形式保留，鼠标悬停可看。
-            // 其它列保留 wrapText 以防未来加长字段时溢出。
-            // v1.2 新增列（22=状态, 23=行动, 24=季节性）都是文本，左对齐 + wrapText。
-            wrapText: col !== 2,
-          }
+          // 与 daily-analysis 导出一致：文本左对齐、数字右对齐、日期居中，
+          // 数据行不启用 wrapText（产品名称完整文本保留在 cell.note）。
+          applyDataStyle(cell, { align: exportColumnAlignment(col) })
           // 产品名称完整文本写到 cell.note，鼠标悬停可看（不论是否被列宽截断）。
           if (col === 2 && row.product_name && row.product_name !== '-') {
             cell.note = row.product_name
@@ -1141,7 +1165,6 @@ export default function InventoryReplenishmentPage() {
           if (col === 10) cell.numFmt = '0.00%'
           if (col === 11 || col === 12) cell.numFmt = '0.00'
           if (col === 20) cell.numFmt = '#,##0'
-          applyBorder(cell)
         }
       })
       applyDataRowBanding({
@@ -1154,7 +1177,7 @@ export default function InventoryReplenishmentPage() {
       const totalRow = worksheet.getRow(filteredRows.length + 2)
       // 统一合计样式：浅灰蓝底 + 顶部强调粗线 + 全行细边框；
       // 先铺样式再写值与 numFmt，保证数值与格式不变。
-      applyTotalRowStyle(totalRow, 26, {
+      applyTotalRowStyle(totalRow, columns.length, {
         numericColumns: [3, 4, 5, 6, 7, 8, 9, 11, 20],
       })
       totalRow.getCell(1).value = '筛选结果合计'

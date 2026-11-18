@@ -134,7 +134,11 @@ function analysisPayload() {
         risk_anchor_date: null,
         inventory_state: 'critical',
         replenishment_action: 'REPLENISH_NOW',
-        signals: null,
+        signals: {
+          trend_label: '上升',
+          seasonal_phase: 'peak',
+          confidence: 'high',
+        },
         decision_path: null,
       },
     ],
@@ -347,7 +351,37 @@ describe('补货分析页 header 化渲染契约（operations header migration B
     expect(screen.getByText('美国站 (US)')).toBeInTheDocument()
   })
 
-  it('导出 Excel：数据行斑马纹，合计行使用统一样式（浅灰蓝 + 顶部粗线）且数值/格式不变', async () => {
+  it('导出 Excel：对齐 daily-analysis 表头/类型样式，标签本地化，斑马纹与合计行不变', async () => {
+    // 两行数据用于验证真实隔行底纹；第二行数值全 0，保证合计断言与单行 fixture 一致。
+    const payload = analysisPayload()
+    payload.items.push({
+      ...payload.items[0],
+      sku: 'SKU-002',
+      product_name: '测试商品二',
+      available_inventory: 0,
+      in_transit_quantity: 0,
+      dms_30: 0,
+      dms_14: 0,
+      dms_7: 0,
+      dms_3: 0,
+      base_dms: 0,
+      safety_factor: 1,
+      weighted_dms: 0,
+      sellable_days: 0,
+      production_lead_days: 0,
+      shipping_days: 0,
+      estimated_replenishment_quantity: 0,
+      risk_status: '健康库存',
+      inventory_state: 'healthy',
+      replenishment_action: 'NO_ACTION',
+      signals: {
+        trend_label: '稳定',
+        seasonal_phase: 'neutral',
+        confidence: 'low',
+      },
+    })
+    vi.mocked(fetchOpsJsonCached).mockImplementationOnce(() => Promise.resolve(payload))
+
     const user = userEvent.setup()
     render(<InventoryReplenishmentPage />)
     await screen.findByText('SKU-001')
@@ -363,12 +397,65 @@ describe('补货分析页 header 化渲染契约（operations header migration B
     await workbook.xlsx.load(await blob.arrayBuffer())
     const worksheet = workbook.getWorksheet('补货分析')!
 
-    // 数据行（序号 0）白色，空值列也有细边框
+    // 表头：daily-analysis 统一 helper 口径（22 高、浅灰蓝底、深色粗体、居中换行、表头边框）
+    const headerRow = worksheet.getRow(1)
+    expect(headerRow.height).toBe(22)
+    expect(worksheet.getCell('A1').fill).toMatchObject({ fgColor: { argb: 'FFE2E8F0' } })
+    expect(worksheet.getCell('A1').font).toMatchObject({
+      name: 'Microsoft YaHei',
+      bold: true,
+      color: { argb: 'FF0F172A' },
+    })
+    expect(worksheet.getCell('A1').alignment).toMatchObject({
+      horizontal: 'center',
+      vertical: 'middle',
+      wrapText: true,
+    })
+    expect(worksheet.getCell('A1').border).toMatchObject({
+      top: { style: 'thin', color: { argb: 'FFCBD5E1' } },
+    })
+
+    // 数据行：两行真实隔行底纹，空值列也有细边框
     expect(worksheet.getCell('A2').fill).toMatchObject({ fgColor: { argb: 'FFFFFFFF' } })
+    expect(worksheet.getCell('A3').fill).toMatchObject({ fgColor: { argb: 'FFF8FAFC' } })
     expect(worksheet.getCell('Z2').border).toMatchObject({ top: { style: 'thin' } })
+    expect(worksheet.getCell('Z3').border).toMatchObject({ top: { style: 'thin' } })
+
+    // 类型样式：文本左对齐、数字右对齐、日期居中；数字格式保持原类型
+    expect(worksheet.getCell('A2').alignment).toMatchObject({ horizontal: 'left' })
+    expect(worksheet.getCell('B2').alignment).toMatchObject({ horizontal: 'left' })
+    expect(worksheet.getCell('C2').alignment).toMatchObject({ horizontal: 'right' })
+    expect(worksheet.getCell('M2').alignment).toMatchObject({ horizontal: 'center' })
+    expect(worksheet.getCell('Q2').alignment).toMatchObject({ horizontal: 'center' })
+    expect(worksheet.getCell('V2').alignment).toMatchObject({ horizontal: 'left' })
+    expect(worksheet.getCell('C2').numFmt).toBe('#,##0')
+    expect(worksheet.getCell('E2').numFmt).toBe('0.0000')
+    expect(worksheet.getCell('J2').numFmt).toBe('0.00%')
+    expect(worksheet.getCell('K2').numFmt).toBe('0.00')
+    expect(worksheet.getCell('A2').font).toMatchObject({
+      name: 'Microsoft YaHei',
+      color: { argb: 'FF0F172A' },
+    })
+    // 风险状态字体色保留（语义强调不被统一数据行样式覆盖）
+    expect(worksheet.getCell('U2').font).toMatchObject({
+      bold: true,
+      color: { argb: 'FFDC2626' },
+    })
+
+    // 三段式枚举列导出中文标签，与页面表格/驾驶舱一致
+    expect(worksheet.getCell('V2').value).toBe('危险')
+    expect(worksheet.getCell('W2').value).toBe('紧急补货')
+    expect(worksheet.getCell('X2').value).toBe('上升')
+    expect(worksheet.getCell('Y2').value).toBe('旺季')
+    expect(worksheet.getCell('Z2').value).toBe('高')
+    expect(worksheet.getCell('V3').value).toBe('健康')
+    expect(worksheet.getCell('W3').value).toBe('不动')
+    expect(worksheet.getCell('X3').value).toBe('稳定')
+    expect(worksheet.getCell('Y3').value).toBe('常态')
+    expect(worksheet.getCell('Z3').value).toBe('低')
 
     // 合计行：浅灰蓝底 + 顶部 medium 强调线，与相邻斑马行可区分
-    const totalRow = worksheet.getRow(3)
+    const totalRow = worksheet.getRow(4)
     expect(totalRow.getCell(1).value).toBe('筛选结果合计')
     expect(totalRow.getCell(1).fill).toMatchObject({ fgColor: { argb: 'FFF8FAFC' } })
     expect(totalRow.getCell(1).border).toMatchObject({
@@ -376,7 +463,7 @@ describe('补货分析页 header 化渲染契约（operations header migration B
     })
     expect(totalRow.getCell(1).font).toMatchObject({ bold: true })
 
-    // 合并值与 numFmt 不变
+    // 合计值与 numFmt 不变（第二行全 0，合计仍等于首行值）
     expect(totalRow.getCell(3).value).toBe(100)
     expect(totalRow.getCell(3).numFmt).toBe('#,##0')
     expect(totalRow.getCell(4).value).toBe(50)
