@@ -21,6 +21,11 @@ export default defineConfig({
     include: ['**/*.test.{ts,tsx}'],
     setupFiles: ['./vitest.setup.ts'],
     css: false,
+    // Vitest 默认按 CPU 数开 worker（CT-ops 32 vCPU / 14 GB，全量会开 32 个
+    // jsdom fork，并发跑两轮会直接打满内存）。默认限制 8 个：2026-11-18 实测
+    // 全量 406 文件峰值约 3.6 GB / 152s（4 个时约 2 GB / 298s）。不要同时跑
+    // 两个全量；需要调整时用 VITEST_MAX_WORKERS 覆盖。
+    maxWorkers: Number(process.env.VITEST_MAX_WORKERS) || 8,
     server: {
       deps: {
         // 不预打包 resolvers，确保上面的 zod/v4/core 别名在解析时生效
