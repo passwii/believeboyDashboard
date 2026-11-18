@@ -37,9 +37,10 @@ type ScheduledReportScanResult struct {
 const ScheduledReportStaggerDelay = 2 * time.Second
 
 // ScanDueScheduledReports reads the subscriptions due at now and enqueues one
-// dispatch_one task per subscription. Empty-email subscriptions are skipped:
-// the Go dispatch payload requires an email and the no-email "generate only"
-// path is not ported yet.
+// dispatch_one task per subscription. Subscriptions without an email are still
+// enqueued: dispatch_one generates the report, screenshot and fallback summary
+// and only skips the outbound email. Skipping them here was the production bug
+// that left 22 of 23 subscriptions without any delivery log.
 func ScanDueScheduledReports(
 	ctx context.Context,
 	now time.Time,
@@ -63,17 +64,13 @@ func ScanDueScheduledReports(
 		return result, fmt.Errorf("list due subscriptions: %w", err)
 	}
 	result.Due = len(subscriptions)
-	reportDate := now.Format("2006-01-02")
+	// The due check uses Asia/Shanghai; report_date must use the same
+	// timezone. Formatting now directly uses the container-local (UTC) clock
+	// and writes the previous day for the 00:00-08:00 local window.
+	location := scheduledReportLocation()
+	reportDate := now.In(location).Format("2006-01-02")
 
 	for index, subscription := range subscriptions {
-		if subscription.Email == nil || strings.TrimSpace(*subscription.Email) == "" {
-			result.Skipped++
-			logger.Warn(
-				"scheduled report skipped: email is empty",
-				slog.Int64("subscription_id", subscription.ID),
-			)
-			continue
-		}
 		projectIDs, err := ParseScheduledReportProjectIDs(subscription.ProjectIDs)
 		if err != nil {
 			result.Skipped++
@@ -86,9 +83,13 @@ func ScanDueScheduledReports(
 			continue
 		}
 		useCache := true
+		email := ""
+		if subscription.Email != nil {
+			email = strings.TrimSpace(*subscription.Email)
+		}
 		payload := tasks.DispatchOnePayload{
 			SubscriptionID: subscription.ID,
-			Email:          strings.TrimSpace(*subscription.Email),
+			Email:          email,
 			ProjectIDs:     projectIDs,
 			Country:        subscription.Country,
 			Frequency:      subscription.Frequency,
@@ -112,6 +113,14 @@ func ScanDueScheduledReports(
 		result.Enqueued++
 	}
 	return result, nil
+}
+
+func scheduledReportLocation() *time.Location {
+	location, err := time.LoadLocation(DefaultTimezone)
+	if err != nil {
+		return time.FixedZone("CST", 8*60*60)
+	}
+	return location
 }
 
 // ParseScheduledReportProjectIDs converts the stored project_ids value ("*" or

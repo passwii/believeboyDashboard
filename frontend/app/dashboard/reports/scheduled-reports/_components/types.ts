@@ -54,6 +54,9 @@ export interface LedgerItem {
   latest_delivery_log_id: number | null
   error_message: string | null
   sent_at: string | null
+  /** 最新 delivery log 是否真正投递了邮件；false 表示只生成报告（无邮箱或手动重新生成）。 */
+  email_sent: boolean
+  /** 仅表示该状态可重发（missing/failed）；不代表调用者有管理员权限。 */
   can_resend: boolean
   last_checked_at: string | null
   screenshot_r2_url: string | null

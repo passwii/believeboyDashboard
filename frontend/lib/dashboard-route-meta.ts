@@ -177,7 +177,7 @@ const WARM_LEDGER_EXACT_ROUTE_META: Record<string, DashboardRouteMeta> = {
   },
   '/dashboard/reports/scheduled-reports/ledger': {
     ...REPORTS_SECTION,
-    title: '调度记录',
+    title: '订阅记录',
     navHref: '/dashboard/reports/scheduled-reports',
     warm: true,
   },

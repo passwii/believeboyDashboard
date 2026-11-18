@@ -746,7 +746,12 @@ func (store *ScheduledReportStore) queryLedger(
 				return scheduled_reports.LedgerListResponse{}, err
 			}
 			item.ProjectNames = projectNames
-			item.CanResend = item.Status == scheduled_reports.StatusMissing || item.Status == scheduled_reports.StatusFailed
+			// Generation-only rows (sent_at NULL / email_sent=false) remain
+			// resendable: regenerating the record is always allowed, and
+			// resend never sends mail.
+			item.CanResend = item.Status == scheduled_reports.StatusMissing ||
+				item.Status == scheduled_reports.StatusFailed ||
+				(item.Status == scheduled_reports.StatusSent && !item.EmailSent)
 			items = append(items, item)
 		}
 		if err := rows.Err(); err != nil {
@@ -855,9 +860,6 @@ func (store *ScheduledReportStore) PrepareResend(
 	if err != nil {
 		return scheduled_reports.ResendResult{}, err
 	}
-	if status == scheduled_reports.StatusSent && !request.Force {
-		return scheduled_reports.ResendResult{}, scheduled_reports.ErrAlreadySent
-	}
 	subscription, err := store.GetSubscription(ctx, int64(subscriptionID))
 	if err != nil {
 		return scheduled_reports.ResendResult{}, err
@@ -865,21 +867,37 @@ func (store *ScheduledReportStore) PrepareResend(
 	if subscription == nil {
 		return scheduled_reports.ResendResult{}, scheduled_reports.ErrSubscriptionNotFound
 	}
+	// ledger_entries.email is the historical snapshot taken when the ledger
+	// row was materialised. A subscription that added an email later would
+	// otherwise keep reporting "no email configured" forever. Always prefer
+	// the subscription's current address; the snapshot stays available on the
+	// ledger row for historical display.
+	effectiveEmail := email
+	if subscription.Email != nil && strings.TrimSpace(*subscription.Email) != "" {
+		trimmed := strings.TrimSpace(*subscription.Email)
+		effectiveEmail = &trimmed
+	}
 	effectiveAIModel := effectiveAIModel(subscription.AIModel, request.OverrideAI)
 	if latestLogID != nil {
 		var existingID int
 		var existingStatus, triggeredBy, stage string
+		var existingSentAt *time.Time
 		err := store.db.QueryRow(
 			ctx,
-			`select id, status, triggered_by, stage
+			`select id, status, triggered_by, stage, sent_at
 			 from public.scheduled_report_delivery_logs
 			 where id = $1`,
 			*latestLogID,
-		).Scan(&existingID, &existingStatus, &triggeredBy, &stage)
+		).Scan(&existingID, &existingStatus, &triggeredBy, &stage, &existingSentAt)
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return scheduled_reports.ResendResult{}, err
 		}
-		if err == nil && existingStatus == scheduled_reports.StatusSent && !request.Force {
+		// Only a delivery log that actually sent an email blocks a plain
+		// resend. Generation-only rows (sent_at IS NULL, including all
+		// no-email subscriptions) are resendable without force because
+		// regenerating the record is the primary purpose.
+		if err == nil && existingStatus == scheduled_reports.StatusSent &&
+			existingSentAt != nil && !request.Force {
 			return scheduled_reports.ResendResult{}, scheduled_reports.ErrAlreadySent
 		}
 		if err == nil && deliveryInProgress(existingStatus, stage) {
@@ -890,7 +908,7 @@ func (store *ScheduledReportStore) PrepareResend(
 				Message:        "补发任务已在处理中，请勿重复提交",
 				SubscriptionID: int64(subscriptionID),
 				Frequency:      frequency,
-				Email:          email,
+				Email:          effectiveEmail,
 				ProjectIDs:     projectIDs,
 				Country:        country,
 				ReportDate:     expectedDate,
@@ -920,7 +938,7 @@ func (store *ScheduledReportStore) PrepareResend(
 		frequency,
 		expectedDate,
 		reportMonth,
-		email,
+		effectiveEmail,
 	).Scan(&newLogID)
 	if err != nil {
 		return scheduled_reports.ResendResult{}, err
@@ -949,11 +967,11 @@ func (store *ScheduledReportStore) PrepareResend(
 	return scheduled_reports.ResendResult{
 		DeliveryLogID:  &newLogID64,
 		Status:         "processing",
-		Message:        "补发任务已派发到 scheduled 队列，请在台账中查看进度",
+		Message:        "报告重新生成已启动（仅生成数据/截图/摘要，不会发送邮件），请在台账中查看进度",
 		OldLogID:       oldLogID64,
 		SubscriptionID: int64(subscriptionID),
 		Frequency:      frequency,
-		Email:          email,
+		Email:          effectiveEmail,
 		ProjectIDs:     projectIDs,
 		Country:        country,
 		ReportDate:     expectedDate,
@@ -1146,6 +1164,14 @@ func scanScheduledReportSubscription(scanner interface {
 	}, nil
 }
 
+// scheduledReportEmailSent keeps "email_sent" honest for legacy rows too:
+// older Python runs could write sent_at on generation-only logs (no email).
+// A NULL email never counts as a sent email; a deliverable email plus a real
+// sent_at does. New generation-only rows leave sent_at NULL anyway.
+func scheduledReportEmailSent(email *string, sentAt *time.Time) bool {
+	return email != nil && sentAt != nil
+}
+
 func scanScheduledReportDeliveryLog(scanner interface {
 	Scan(dest ...any) error
 }) (scheduled_reports.DeliveryLog, error) {
@@ -1196,6 +1222,7 @@ func scanScheduledReportDeliveryLog(scanner interface {
 		Stage:                stage,
 		ErrorMessage:         errorMessage,
 		SentAt:               httpapi.OptionalTimestamp(sentAt),
+		EmailSent:            scheduledReportEmailSent(email, sentAt),
 		ScreenshotR2Key:      screenshotKey,
 		ScreenshotR2URL:      screenshotURL,
 		ScreenshotR2ThumbKey: screenshotThumbKey,
@@ -1272,6 +1299,7 @@ func scanLedgerItem(scanner interface {
 		LatestDeliveryLogID:  latestID64,
 		ErrorMessage:         errorMessage,
 		SentAt:               httpapi.OptionalTimestamp(sentAt),
+		EmailSent:            scheduledReportEmailSent(email, sentAt),
 		LastCheckedAt:        httpapi.Timestamp(lastCheckedAt),
 		ScreenshotR2URL:      screenshotURL,
 		ScreenshotR2ThumbURL: screenshotThumbURL,

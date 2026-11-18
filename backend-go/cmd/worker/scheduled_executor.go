@@ -28,13 +28,15 @@ func (executor scheduledDispatchExecutor) Execute(ctx context.Context, taskType 
 			return nil, fmt.Errorf("dispatch_one payload has unexpected type %T", payload)
 		}
 		return scheduledreport.DispatchOne(ctx, executor.db, executor.sender, scheduledreport.DispatchRequest{
-			SubscriptionID: requestPayload.SubscriptionID,
-			Email:          requestPayload.Email,
-			ProjectIDs:     requestPayload.ProjectIDs,
-			Country:        requestPayload.Country,
-			Frequency:      requestPayload.Frequency,
-			ReportDate:     requestPayload.ReportDate,
-			TriggeredBy:    requestPayload.TriggeredBy,
+			SubscriptionID:   requestPayload.SubscriptionID,
+			Email:            requestPayload.Email,
+			ProjectIDs:       requestPayload.ProjectIDs,
+			Country:          requestPayload.Country,
+			Frequency:        requestPayload.Frequency,
+			ReportDate:       requestPayload.ReportDate,
+			TriggeredBy:      requestPayload.TriggeredBy,
+			SkipEmail:        requestPayload.SkipEmail,
+			PreExistingLogID: requestPayload.PreExistingLogID,
 		}, scheduledreport.WithScreenshot(executor.screenshotStore, executor.screenshotRenderer))
 	case "generate_delivery_summary":
 		requestPayload, ok := payload.(*tasks.GenerateDeliverySummaryPayload)

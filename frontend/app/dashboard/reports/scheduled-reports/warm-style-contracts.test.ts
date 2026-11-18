@@ -61,3 +61,25 @@ describe('scheduled reports Warm 样式契约', () => {
     )
   })
 })
+
+describe('scheduled reports 桌面/可读性修复契约', () => {
+  it('.mobileList 在桌面断点强制 display:none，避免表格与手机卡片重复渲染', () => {
+    const start = CSS.indexOf('@media (min-width: 768px)')
+    expect(start, 'missing desktop guard media query').toBeGreaterThanOrEqual(0)
+    const block = CSS.slice(start)
+    expect(block).toContain('.mobileList')
+    expect(block).toMatch(/\.mobileList\s*\{[^}]*display:\s*none/)
+  })
+
+  it('列表正文最小字号提升到 13px，避免 11px 难读', () => {
+    expect(cssBlock('.mutedCell')).toContain('font-size: 13px')
+    expect(CSS).toMatch(/\.mobileMeta\s*\{[^}]*font-size:\s*13px/)
+  })
+
+  it('弹窗正文使用 Warm panel 实色背景，不依赖 body 上的兜底变量', () => {
+    const dialog = cssBlock('.dialogContent')
+    expect(dialog).toContain('background: var(--warm-ledger-color-panel)')
+    expect(dialog).not.toContain('background: transparent')
+    expect(dialog).toContain('color: var(--warm-ledger-color-text)')
+  })
+})

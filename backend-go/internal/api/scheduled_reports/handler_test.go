@@ -694,6 +694,7 @@ func TestScheduledReportsIdempotentReplayAndPayloadShape(t *testing.T) {
 	for _, field := range []string{
 		"subscription_id", "email", "project_ids", "country", "frequency",
 		"ai_model", "use_cache", "triggered_by", "report_date", "pre_existing_log_id",
+		"skip_email",
 	} {
 		if _, exists := payload[field]; !exists {
 			t.Errorf("payload missing %q: %#v", field, payload)
@@ -701,6 +702,9 @@ func TestScheduledReportsIdempotentReplayAndPayloadShape(t *testing.T) {
 	}
 	if payload["triggered_by"] != "manual" || payload["report_date"] != "2026-11-02" {
 		t.Fatalf("payload = %#v", payload)
+	}
+	if payload["skip_email"] != true {
+		t.Fatalf("resend payload skip_email = %#v, want true", payload["skip_email"])
 	}
 
 	var replayResponse LedgerResendResponse
@@ -752,6 +756,184 @@ func TestScheduledReportsIdempotentReplayAndPayloadShape(t *testing.T) {
 	router.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusConflict {
 		t.Fatalf("conflict status = %d, want 409: %s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestScheduledReportTriggerEnqueuesSubscriptionsWithoutEmail(t *testing.T) {
+	userID := testOperatorAccountID
+	ownerEmail := "owner@example.com"
+	store := &fakeScheduledReportStore{
+		active: []Subscription{
+			{ID: 7, UserAccountID: &userID, Email: &ownerEmail, ProjectIDs: "1,2", Country: "US", Frequency: FrequencyDaily},
+			{ID: 8, UserAccountID: &userID, Email: nil, ProjectIDs: "*", Country: "US", Frequency: FrequencyDaily},
+		},
+	}
+	enqueuer := &fakeEnqueuer{}
+	router := setupScheduledReportRouter(store, enqueuer, &fakeMailer{}, audit.NewMockService())
+
+	request := scheduledRequest(
+		http.MethodPost,
+		"/api/v1/scheduled-reports/trigger?frequency=daily",
+		"",
+		testOperatorAccountID,
+		"admin",
+		true)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("trigger status = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	var response TriggerReportResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode trigger response: %v", err)
+	}
+	if !response.Success || response.SubscriptionsAffected != 2 || response.Skipped != 0 {
+		t.Fatalf("trigger response = %#v, want 2 affected and 0 skipped", response)
+	}
+	if len(enqueuer.requests) != 2 {
+		t.Fatalf("enqueue requests = %d, want 2 (no-email subscription must still be generated)", len(enqueuer.requests))
+	}
+	noEmailPayload, ok := enqueuer.requests[1].Payload.(map[string]any)
+	if !ok {
+		t.Fatalf("payload type = %T", enqueuer.requests[1].Payload)
+	}
+	if noEmailPayload["subscription_id"] != int64(8) {
+		t.Fatalf("no-email payload subscription_id = %#v", noEmailPayload["subscription_id"])
+	}
+	if email, ok := noEmailPayload["email"].(*string); !ok || email != nil {
+		t.Fatalf("no-email payload email = %#v, want typed nil", noEmailPayload["email"])
+	}
+}
+
+func TestScheduledReportResendAlwaysEnqueuesGenerationWithoutEmail(t *testing.T) {
+	userID := testOperatorAccountID
+	ownerEmail := "owner@example.com"
+	for _, testCase := range []struct {
+		name  string
+		email *string
+	}{
+		{name: "no email", email: nil},
+		{name: "with email", email: &ownerEmail},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			store := &fakeScheduledReportStore{
+				subscription: &Subscription{ID: 7, UserAccountID: &userID, Frequency: FrequencyDaily},
+				resendResult: ResendResult{
+					DeliveryLogID:  int64Pointer(12),
+					Status:         "processing",
+					Message:        "queued",
+					SubscriptionID: 7,
+					Frequency:      FrequencyDaily,
+					Email:          testCase.email,
+					ProjectIDs:     "1,2",
+					Country:        "US",
+					ReportDate:     "2026-11-03",
+				},
+			}
+			enqueuer := &fakeEnqueuer{}
+			router := setupScheduledReportRouter(store, enqueuer, &fakeMailer{}, audit.NewMockService())
+			request := scheduledRequest(
+				http.MethodPost,
+				"/api/v1/scheduled-reports/ledger/7:2026-11-03/resend?force=true",
+				"",
+				testOperatorAccountID,
+				"admin",
+				true)
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, request)
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("resend status = %d, want 200 (generation must never require an email): %s",
+					recorder.Code, recorder.Body.String())
+			}
+			if len(enqueuer.requests) != 1 {
+				t.Fatalf("enqueue requests = %d, want 1", len(enqueuer.requests))
+			}
+			payload, ok := enqueuer.requests[0].Payload.(map[string]any)
+			if !ok {
+				t.Fatalf("payload type = %T", enqueuer.requests[0].Payload)
+			}
+			if payload["skip_email"] != true {
+				t.Fatalf("skip_email = %#v, want true: resend must never send mail", payload["skip_email"])
+			}
+			if logID, ok := payload["pre_existing_log_id"].(*int64); !ok || logID == nil || *logID != 12 {
+				t.Fatalf("pre_existing_log_id = %#v, want pointer to 12", payload["pre_existing_log_id"])
+			}
+		})
+	}
+}
+
+func TestScheduledReportTestEmailValidationAndFailureMessages(t *testing.T) {
+	store := &fakeScheduledReportStore{}
+	mailer := &fakeMailer{}
+	router := setupScheduledReportRouter(store, &fakeEnqueuer{}, mailer, audit.NewMockService())
+
+	// A filled email must pass validation and call the mailer.
+	request := scheduledRequest(
+		http.MethodPost,
+		"/api/v1/scheduled-reports/test-email",
+		`{"email":"owner@example.com"}`,
+		testOperatorAccountID,
+		"operator-a",
+		false)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("filled email status = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if len(mailer.calls) != 1 || mailer.calls[0].Email != "owner@example.com" {
+		t.Fatalf("mailer calls = %#v", mailer.calls)
+	}
+
+	// Empty email must produce an actionable Chinese message, not the raw
+	// English "email is required" from the task payload validator.
+	request = scheduledRequest(
+		http.MethodPost,
+		"/api/v1/scheduled-reports/test-email",
+		`{"email":""}`,
+		testOperatorAccountID,
+		"operator-a",
+		false)
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("empty email status = %d, want 422: %s", recorder.Code, recorder.Body.String())
+	}
+	body := recorder.Body.String()
+	if strings.Contains(body, "email is required") {
+		t.Fatalf("empty email leaked English validator text: %s", body)
+	}
+	if !strings.Contains(body, "测试邮件需要填写接收邮箱") {
+		t.Fatalf("empty email detail = %s, want Chinese actionable message", body)
+	}
+
+	// Mailer failures are surfaced as Chinese messages; the raw provider
+	// error only goes to the server log.
+	mailer.calls = nil
+	mailer.err = errors.New("provider rejected: 422 invalid payload")
+	request = scheduledRequest(
+		http.MethodPost,
+		"/api/v1/scheduled-reports/test-email",
+		`{"email":"owner@example.com"}`,
+		testOperatorAccountID,
+		"operator-a",
+		false)
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("mailer failure status = %d: %s", recorder.Code, recorder.Body.String())
+	}
+	var response TestEmailResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode test email response: %v", err)
+	}
+	if response.Success {
+		t.Fatalf("mailer failure response = %#v, want success=false", response)
+	}
+	if strings.Contains(response.Message, "provider rejected") {
+		t.Fatalf("mailer failure leaked raw error: %q", response.Message)
+	}
+	if !strings.Contains(response.Message, "测试邮件发送失败") {
+		t.Fatalf("mailer failure message = %q, want Chinese actionable message", response.Message)
 	}
 }
 

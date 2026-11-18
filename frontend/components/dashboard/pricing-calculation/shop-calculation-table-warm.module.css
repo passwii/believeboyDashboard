@@ -187,8 +187,7 @@
   overflow-wrap: anywhere;
 }
 
-.compactInput,
-.compactSelect {
+.compactInput {
   height: var(--warm-ledger-control-height-compact);
   min-width: 58px;
   color: var(--warm-ledger-color-text);
@@ -202,14 +201,26 @@
   box-shadow: var(--warm-ledger-highlight-rest);
 }
 
+/* 行内「派送模式」下拉：WarmSelect 外层只负责宽度，触发器压到表格行高。 */
 .compactSelect {
   width: 94px;
-  font-family: var(--warm-ledger-font-sans);
-  text-align: left;
+  flex-direction: row;
+  align-items: center;
 }
 
-.compactInput:focus-visible,
-.compactSelect:focus-visible {
+.compactSelect :global(.warm-ledger__select) {
+  width: 100%;
+  min-width: 0;
+  height: var(--warm-ledger-control-height-compact);
+  min-height: var(--warm-ledger-control-height-compact);
+  padding-inline: var(--warm-ledger-space-2);
+  font-family: var(--warm-ledger-font-sans);
+  font-size: var(--warm-ledger-font-size-label);
+  text-align: left;
+  border-radius: var(--warm-ledger-radius-inner);
+}
+
+.compactInput:focus-visible {
   outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color);
   outline-offset: 1px;
 }

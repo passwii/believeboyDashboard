@@ -97,10 +97,12 @@ describe('BLF-963 头部插槽契约', () => {
     expect(screen.getByText('表格生成')).toBeInTheDocument()
 
     // 单独渲染插槽节点：项目 / 国家 / 账期月份 3 个控件确实都在插槽内容里
-    //（已选中具体值时读取原生 select / month input 的 value）
+    //（项目 / 国家是 WarmSelect（Radix combobox），已选中值体现在 trigger 文本上；
+    // 月份仍是页面本地 month input，读取 value）
     render(<>{headerCapture.slotNode}</>)
-    expect(await screen.findByLabelText('项目筛选')).toHaveValue('铨富')
-    expect(screen.getByLabelText('国家站点筛选')).toHaveValue('US')
+    expect(await screen.findByRole('combobox', { name: '项目筛选' })).toHaveTextContent('铨富')
+    expect(screen.getByRole('combobox', { name: '国家站点筛选' })).toHaveTextContent('美国站 (US)')
+    expect(document.querySelector('[data-warm-header-filters="true"] select')).toBeNull()
     expect(screen.getByLabelText('账期月份')).toHaveValue('2026-07')
     expectWarmHeaderSurface(document.querySelector('[data-warm-header-filters="true"]'))
   })

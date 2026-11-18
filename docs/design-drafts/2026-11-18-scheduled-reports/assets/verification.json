@@ -1,0 +1,308 @@
+[
+  {
+    "file": "plan-a/edit-dialog-dark.html",
+    "sizes": {
+      "12": 114,
+      "13": 47,
+      "14": 29,
+      "16": 7,
+      "20": 1
+    },
+    "min": 12,
+    "minSample": "跨境运营中台",
+    "under12": [],
+    "under13": 114,
+    "overflow": [],
+    "scrollW": 1440,
+    "dialog": {
+      "width": 780,
+      "height": 844,
+      "bg": "rgb(43, 44, 43)",
+      "color": "rgb(241, 237, 229)",
+      "radius": "16px",
+      "border": "rgba(246, 238, 226, 0.2)"
+    },
+    "overlay": "rgba(0, 0, 0, 0.48)",
+    "input": {
+      "font": "14px",
+      "height": 40,
+      "color": "rgb(241, 237, 229)"
+    }
+  },
+  {
+    "file": "plan-a/edit-dialog-light.html",
+    "sizes": {
+      "12": 114,
+      "13": 47,
+      "14": 29,
+      "16": 7,
+      "20": 1
+    },
+    "min": 12,
+    "minSample": "跨境运营中台",
+    "under12": [],
+    "under13": 114,
+    "overflow": [],
+    "scrollW": 1440,
+    "dialog": {
+      "width": 780,
+      "height": 844,
+      "bg": "rgb(255, 255, 255)",
+      "color": "rgb(36, 40, 35)",
+      "radius": "16px",
+      "border": "rgba(48, 54, 47, 0.23)"
+    },
+    "overlay": "rgba(24, 32, 26, 0.38)",
+    "input": {
+      "font": "14px",
+      "height": 40,
+      "color": "rgb(36, 40, 35)"
+    }
+  },
+  {
+    "file": "plan-a/ledger-dark.html",
+    "sizes": {
+      "12": 106,
+      "13": 43,
+      "14": 14,
+      "16": 3,
+      "20": 5
+    },
+    "min": 12,
+    "minSample": "跨境运营中台",
+    "under12": [],
+    "under13": 106,
+    "overflow": [],
+    "scrollW": 1440,
+    "dialog": null,
+    "overlay": null,
+    "input": null
+  },
+  {
+    "file": "plan-a/ledger-light.html",
+    "sizes": {
+      "12": 106,
+      "13": 43,
+      "14": 14,
+      "16": 3,
+      "20": 5
+    },
+    "min": 12,
+    "minSample": "跨境运营中台",
+    "under12": [],
+    "under13": 106,
+    "overflow": [],
+    "scrollW": 1440,
+    "dialog": null,
+    "overlay": null,
+    "input": null
+  },
+  {
+    "file": "plan-a/states-dark.html",
+    "sizes": {
+      "12": 37,
+      "13": 39,
+      "14": 4,
+      "16": 2,
+      "20": 1
+    },
+    "min": 12,
+    "minSample": "跨境运营中台",
+    "under12": [],
+    "under13": 37,
+    "overflow": [],
+    "scrollW": 1440,
+    "dialog": null,
+    "overlay": null,
+    "input": null
+  },
+  {
+    "file": "plan-a/states-light.html",
+    "sizes": {
+      "12": 37,
+      "13": 39,
+      "14": 4,
+      "16": 2,
+      "20": 1
+    },
+    "min": 12,
+    "minSample": "跨境运营中台",
+    "under12": [],
+    "under13": 37,
+    "overflow": [],
+    "scrollW": 1440,
+    "dialog": null,
+    "overlay": null,
+    "input": null
+  },
+  {
+    "file": "plan-a/subscriptions-dark.html",
+    "sizes": {
+      "12": 98,
+      "13": 41,
+      "14": 24,
+      "16": 3
+    },
+    "min": 12,
+    "minSample": "跨境运营中台",
+    "under12": [],
+    "under13": 98,
+    "overflow": [],
+    "scrollW": 1440,
+    "dialog": null,
+    "overlay": null,
+    "input": null
+  },
+  {
+    "file": "plan-a/subscriptions-light.html",
+    "sizes": {
+      "12": 98,
+      "13": 41,
+      "14": 24,
+      "16": 3
+    },
+    "min": 12,
+    "minSample": "跨境运营中台",
+    "under12": [],
+    "under13": 98,
+    "overflow": [],
+    "scrollW": 1440,
+    "dialog": null,
+    "overlay": null,
+    "input": null
+  },
+  {
+    "file": "plan-b/edit-dialog-dark.html",
+    "sizes": {
+      "12": 39,
+      "13": 39,
+      "14": 5,
+      "16": 8,
+      "20": 1
+    },
+    "min": 12,
+    "minSample": "跨境运营中台",
+    "under12": [],
+    "under13": 39,
+    "overflow": [],
+    "scrollW": 1440,
+    "dialog": {
+      "width": 980,
+      "height": 844,
+      "bg": "rgb(43, 44, 43)",
+      "color": "rgb(241, 237, 229)",
+      "radius": "16px",
+      "border": "rgba(246, 238, 226, 0.2)"
+    },
+    "overlay": "rgba(0, 0, 0, 0.48)",
+    "input": {
+      "font": "14px",
+      "height": 40,
+      "color": "rgb(241, 237, 229)"
+    }
+  },
+  {
+    "file": "plan-b/edit-dialog-light.html",
+    "sizes": {
+      "12": 39,
+      "13": 39,
+      "14": 5,
+      "16": 8,
+      "20": 1
+    },
+    "min": 12,
+    "minSample": "跨境运营中台",
+    "under12": [],
+    "under13": 39,
+    "overflow": [],
+    "scrollW": 1440,
+    "dialog": {
+      "width": 980,
+      "height": 844,
+      "bg": "rgb(255, 255, 255)",
+      "color": "rgb(36, 40, 35)",
+      "radius": "16px",
+      "border": "rgba(48, 54, 47, 0.23)"
+    },
+    "overlay": "rgba(24, 32, 26, 0.38)",
+    "input": {
+      "font": "14px",
+      "height": 40,
+      "color": "rgb(36, 40, 35)"
+    }
+  },
+  {
+    "file": "plan-b/ledger-dark.html",
+    "sizes": {
+      "12": 88,
+      "13": 37,
+      "14": 3,
+      "16": 3,
+      "20": 5
+    },
+    "min": 12,
+    "minSample": "跨境运营中台",
+    "under12": [],
+    "under13": 88,
+    "overflow": [],
+    "scrollW": 1440,
+    "dialog": null,
+    "overlay": null,
+    "input": null
+  },
+  {
+    "file": "plan-b/ledger-light.html",
+    "sizes": {
+      "12": 88,
+      "13": 37,
+      "14": 3,
+      "16": 3,
+      "20": 5
+    },
+    "min": 12,
+    "minSample": "跨境运营中台",
+    "under12": [],
+    "under13": 88,
+    "overflow": [],
+    "scrollW": 1440,
+    "dialog": null,
+    "overlay": null,
+    "input": null
+  },
+  {
+    "file": "plan-b/subscriptions-dark.html",
+    "sizes": {
+      "12": 63,
+      "13": 37,
+      "14": 44,
+      "16": 3
+    },
+    "min": 12,
+    "minSample": "跨境运营中台",
+    "under12": [],
+    "under13": 63,
+    "overflow": [],
+    "scrollW": 1440,
+    "dialog": null,
+    "overlay": null,
+    "input": null
+  },
+  {
+    "file": "plan-b/subscriptions-light.html",
+    "sizes": {
+      "12": 63,
+      "13": 37,
+      "14": 44,
+      "16": 3
+    },
+    "min": 12,
+    "minSample": "跨境运营中台",
+    "under12": [],
+    "under13": 63,
+    "overflow": [],
+    "scrollW": 1440,
+    "dialog": null,
+    "overlay": null,
+    "input": null
+  }
+]

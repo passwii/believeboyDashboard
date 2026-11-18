@@ -62,8 +62,11 @@ func (payload ExecuteInsightRunPayload) Validate() error {
 }
 
 type DispatchOnePayload struct {
-	SubscriptionID   int64   `json:"subscription_id"`
-	Email            string  `json:"email"`
+	SubscriptionID int64 `json:"subscription_id"`
+	// Email is optional: an empty email means "generate the report only and
+	// skip the outbound email". Validate must not require it, otherwise the
+	// 22/23 production subscriptions without an email never get a delivery log.
+	Email            string  `json:"email,omitempty"`
 	ProjectIDs       []int64 `json:"project_ids,omitempty"`
 	Country          string  `json:"country"`
 	Frequency        string  `json:"frequency"`
@@ -73,18 +76,22 @@ type DispatchOnePayload struct {
 	ReportDate       string  `json:"report_date,omitempty"`
 	PreExistingLogID *int64  `json:"pre_existing_log_id,omitempty"`
 	OldLogID         *int64  `json:"old_log_id,omitempty"`
+	// SkipEmail forces the generation-only path even when an email exists.
+	// Ledger resend/re-generate always sets it: the dashboard promises the
+	// resend action only regenerates data/screenshot/summary and never mails.
+	SkipEmail bool `json:"skip_email,omitempty"`
 }
 
 func (payload DispatchOnePayload) Validate() error {
 	switch {
 	case payload.SubscriptionID <= 0:
 		return errRequired("subscription_id")
-	case payload.Email == "":
-		return errRequired("email")
 	case payload.Country == "":
 		return errRequired("country")
 	case payload.Frequency == "":
 		return errRequired("frequency")
+	case payload.PreExistingLogID != nil && *payload.PreExistingLogID <= 0:
+		return errPositive("pre_existing_log_id")
 	default:
 		return nil
 	}

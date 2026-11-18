@@ -74,6 +74,7 @@ function makeItem(overrides: Partial<LedgerItem> = {}): LedgerItem {
     latest_delivery_log_id: 99,
     error_message: null,
     sent_at: '2026-08-24T15:05:00+08:00',
+    email_sent: true,
     can_resend: false,
     last_checked_at: null,
     screenshot_r2_url: null,
@@ -339,4 +340,109 @@ describe('LedgerDetailDialog 共享 Insight 接入（BLF-1015）', () => {
 
 afterEach(() => {
   cleanup()
+})
+
+describe('LedgerDetailDialog 北京时间展示', () => {
+  it('详情标题与概览按 Asia/Shanghai 显示：TZ=UTC 下 +08:00 15:10 仍为 15:10', () => {
+    vi.stubEnv('TZ', 'UTC')
+    try {
+      renderDialog({
+        item: makeItem({
+          expected_at: '2026-11-13T15:10:00+08:00',
+          expected_date: '2026-11-13',
+        }),
+      })
+
+      expect(screen.getByRole('heading', { name: /2026-11-13 · 15:10/ })).toBeInTheDocument()
+      expect(screen.getByText('2026-11-13 15:10:00')).toBeInTheDocument()
+      expect(screen.queryByText(/07:10/)).toBeNull()
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+})
+
+describe('LedgerDetailDialog 无邮箱语义', () => {
+  it('sent 且无邮箱显示「生成成功 / 仅生成，不发送」，不显示发送成功文案', () => {
+    renderDialog({ item: makeItem({ email: null, status: 'sent', email_sent: false }) })
+
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByText('✓ 生成成功')).toBeInTheDocument()
+    expect(within(dialog).getByText('仅生成，不发送')).toBeInTheDocument()
+    expect(within(dialog).queryByText('✓ 发送成功')).toBeNull()
+  })
+
+  it('历史数据 email=null 但 email_sent=true 仍按「仅生成」处理', () => {
+    renderDialog({
+      item: makeItem({ email: null, status: 'sent', email_sent: true, sent_at: '2026-08-24T15:05:00+08:00' }),
+    })
+
+    expect(screen.getByText('✓ 生成成功')).toBeInTheDocument()
+    expect(screen.getByText('仅生成，不发送')).toBeInTheDocument()
+    expect(screen.queryByText('✓ 发送成功')).toBeNull()
+  })
+
+  it('有邮箱但 email_sent=false（手动重新生成）显示「生成成功」', () => {
+    renderDialog({
+      item: makeItem({ email: 'ops@example.com', status: 'sent', email_sent: false }),
+    })
+
+    expect(screen.getByText('✓ 生成成功')).toBeInTheDocument()
+    expect(screen.queryByText('✓ 发送成功')).toBeNull()
+  })
+
+  it('有邮箱且 email_sent=true 显示「发送成功」', () => {
+    renderDialog({ item: makeItem({ email: 'ops@example.com', status: 'sent', email_sent: true }) })
+
+    expect(screen.getByText('✓ 发送成功')).toBeInTheDocument()
+    expect(screen.queryByText('✓ 生成成功')).toBeNull()
+  })
+
+  it('无邮箱行仍保留重新生成入口', () => {
+    renderDialog({ item: makeItem({ email: null, status: 'missing', can_resend: true }) })
+
+    expect(screen.getByRole('button', { name: '补发stub' })).toBeInTheDocument()
+  })
+})
+
+describe('LedgerDetailDialog 分区与页脚说明', () => {
+  it('按「概览 / AI 摘要 / 截图 / 错误」分段，错误内容只来自真实 error_message', () => {
+    renderDialog({
+      item: makeItem({ status: 'failed', error_message: 'SMTP 550 5.1.1 recipient rejected' }),
+    })
+
+    const dialog = screen.getByRole('dialog')
+    for (const heading of ['概览', 'AI 摘要', '截图', '错误']) {
+      expect(within(dialog).getByRole('heading', { name: heading })).toBeInTheDocument()
+    }
+    expect(within(dialog).getByText('SMTP 550 5.1.1 recipient rejected')).toBeInTheDocument()
+  })
+
+  it('没有错误信息时不渲染错误段', () => {
+    renderDialog({ item: makeItem() })
+
+    expect(screen.queryByRole('heading', { name: '错误' })).toBeNull()
+  })
+
+  it('页脚固定说明「重新生成不会发送邮件」', () => {
+    renderDialog({ item: makeItem() })
+
+    expect(screen.getByText('重新生成不会发送邮件')).toBeInTheDocument()
+  })
+})
+
+describe('LedgerDetailDialog Warm portal', () => {
+  it('内容挂到 #warm-ledger-portal-root，继承 Warm token 而不是 body', async () => {
+    const root = document.createElement('div')
+    root.id = 'warm-ledger-portal-root'
+    document.body.appendChild(root)
+    try {
+      renderDialog({ item: makeItem() })
+
+      const dialog = await screen.findByRole('dialog')
+      await waitFor(() => expect(root.contains(dialog)).toBe(true))
+    } finally {
+      root.remove()
+    }
+  })
 })

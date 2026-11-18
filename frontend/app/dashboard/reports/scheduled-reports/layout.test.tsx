@@ -56,7 +56,7 @@ describe('ScheduledReportsLayout 懒挂载（BEL-422）', () => {
     render(<ScheduledReportsLayout />)
     expect(screen.queryByTestId('ledger-view')).toBeNull()
 
-    await user.click(screen.getByRole('tab', { name: '调度记录' }))
+    await user.click(screen.getByRole('tab', { name: '订阅记录' }))
     expect(screen.getByTestId('ledger-view')).toBeInTheDocument()
 
     await user.click(screen.getByRole('tab', { name: '订阅管理' }))

@@ -18,3 +18,11 @@ export const STATUS_LABELS: Record<LedgerStatus, string> = {
 
 /** 周日为 0，与 Date#getDay() 一致（适用于 ledger 按日分组的星期显示） */
 export const WEEKDAY_LABELS_SUN_FIRST = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+
+/** 无邮箱订阅仍会生成报告，只是不投递邮件；禁止显示成「已发送 / 未填写」。 */
+export const NO_EMAIL_LABEL = '仅生成，不发送'
+
+export function emailDisplayLabel(email: string | null | undefined): string {
+  const trimmed = email?.trim()
+  return trimmed ? trimmed : NO_EMAIL_LABEL
+}

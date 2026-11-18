@@ -14,34 +14,29 @@
   gap: var(--warm-ledger-space-2);
 }
 
+/* 头部 / 移动端筛选的 WarmSelect 紧凑形态：标签由 ariaLabel 承载，外层只负责宽度。 */
 .headerSelect,
 .headerCountry,
 .mobileHeaderSelect {
-  height: var(--warm-ledger-control-height-select);
-  color: var(--warm-ledger-color-text);
-  font-family: var(--warm-ledger-font-sans);
-  font-size: var(--warm-ledger-font-size-control);
-  background: var(--warm-ledger-color-panel);
-  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
-  border-radius: var(--warm-ledger-radius-control);
-  box-shadow: var(--warm-ledger-highlight-rest);
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: center;
 }
 
 .headerSelect {
   width: 150px;
-  padding-inline: var(--warm-ledger-space-2);
 }
 
 .headerCountry {
   width: 130px;
-  padding-inline: var(--warm-ledger-space-2);
 }
 
-.headerSelect:focus-visible,
-.headerCountry:focus-visible,
-.mobileHeaderSelect:focus-visible {
-  outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color);
-  outline-offset: var(--warm-ledger-focus-offset);
+.headerSelect :global(.warm-ledger__select),
+.headerCountry :global(.warm-ledger__select),
+.mobileHeaderSelect :global(.warm-ledger__select) {
+  width: 100%;
+  min-width: 0;
+  padding-inline: var(--warm-ledger-space-2);
 }
 
 .mobileHeaderSelect {

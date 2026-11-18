@@ -58,6 +58,8 @@ const runsSelfContainedSpec = process.argv.some(
     arg.includes('cross-border-compliance') ||
     arg.includes('warm-ledger-c2-matrix') ||
     arg.includes('warm-ledger-c3-matrix') ||
+    // 定时报告订阅管理/订阅记录桌面视觉回归：fixture session + mock 后端，自包含
+    arg.includes('scheduled-reports-visual') ||
     arg.includes('warm-ledger-expansion-desktop') ||
     arg.includes('warm-ledger-phone-shell') ||
     // iPad 10~12 英寸外壳回归（BLF-1530）

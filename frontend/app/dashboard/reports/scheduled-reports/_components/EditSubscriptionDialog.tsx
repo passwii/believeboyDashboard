@@ -1,11 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
 import type { AIModelConfig, Frequency, Subscription } from './types'
-import { SubscriptionForm } from './SubscriptionForm'
+import {
+  SubscriptionForm,
+  subscriptionCountryError,
+  subscriptionEmailError,
+  subscriptionProjectError,
+} from './SubscriptionForm'
+import { SubscriptionDialogFrame } from './CreateSubscriptionDialog'
 import { sendTestEmail, updateSubscription } from './api'
-import styles from '../scheduled-reports-warm.module.css'
 
 interface Props {
   subscription: Subscription | null
@@ -55,12 +59,12 @@ export function EditSubscriptionDialog({
             .filter(Boolean)
         )
       }
-      setFormCountries(
-        subscription.country
-          .split(',')
-          .map((c) => c.trim())
-          .filter(Boolean)
-      )
+      const countries = subscription.country
+        .split(',')
+        .map((c) => c.trim())
+        .filter(Boolean)
+      // 历史数据/异常响应可能没有国家：编辑时回退到后端默认的 US，避免静默提交空值。
+      setFormCountries(countries.length > 0 ? countries : ['US'])
       setFormFrequency(subscription.frequency)
       setFormDispatchHour(subscription.dispatch_hour)
       setFormDispatchMinute(subscription.dispatch_minute ?? 0)
@@ -73,14 +77,15 @@ export function EditSubscriptionDialog({
   }, [open, subscription, modelConfig?.defaultModel])
 
   const handleTestEmail = async () => {
-    if (!formEmail.trim()) {
+    const email = formEmail.trim()
+    if (!email) {
       setTestResult({ success: false, message: '请先填写测试邮箱地址' })
       return
     }
     setTestingEmail(true)
     setTestResult(null)
     const result = await sendTestEmail({
-      email: formEmail,
+      email,
       frequency: formFrequency,
       project_ids: formProjectIds || '*',
       country: formCountries.join(','),
@@ -92,10 +97,19 @@ export function EditSubscriptionDialog({
 
   const handleSubmit = async () => {
     if (!subscription) return
+    const email = formEmail.trim()
+    const validationError =
+      subscriptionEmailError(email) ||
+      subscriptionCountryError(formCountries) ||
+      subscriptionProjectError(formProjectIds, formSelectedProjectIds)
+    if (validationError) {
+      setFormError(validationError)
+      return
+    }
     setFormSubmitting(true)
     setFormError(null)
     const result = await updateSubscription(subscription.id, {
-      email: formEmail.trim() || null,
+      email: email || null,
       project_ids: formProjectIds || '*',
       country: formCountries.join(','),
       frequency: formFrequency,
@@ -117,46 +131,40 @@ export function EditSubscriptionDialog({
   if (!subscription) return null
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className={styles.dialogContent}
-        data-warm-ledger-dialog="true"
-        aria-describedby={undefined}
-      >
-        <SubscriptionForm
-          mode="edit"
-          formEmail={formEmail}
-          setFormEmail={setFormEmail}
-          formProjectIds={formProjectIds}
-          setFormProjectIds={setFormProjectIds}
-          formSelectedProjectIds={formSelectedProjectIds}
-          setFormSelectedProjectIds={setFormSelectedProjectIds}
-          formCountries={formCountries}
-          setFormCountries={setFormCountries}
-          formFrequency={formFrequency}
-          setFormFrequency={setFormFrequency}
-          formDispatchHour={formDispatchHour}
-          setFormDispatchHour={setFormDispatchHour}
-          formDispatchMinute={formDispatchMinute}
-          setFormDispatchMinute={setFormDispatchMinute}
-          formDispatchWeekday={formDispatchWeekday}
-          setFormDispatchWeekday={setFormDispatchWeekday}
-          formDispatchDay={formDispatchDay}
-          setFormDispatchDay={setFormDispatchDay}
-          formAiModel={formAiModel}
-          setFormAiModel={setFormAiModel}
-          projects={projects}
-          modelConfig={modelConfig}
-          isLoadingModelConfig={isLoadingModelConfig}
-          formError={formError}
-          testResult={testResult}
-          formSubmitting={formSubmitting}
-          testingEmail={testingEmail}
-          onTestEmail={handleTestEmail}
-          onSubmit={handleSubmit}
-          onCancel={() => onOpenChange(false)}
-        />
-      </DialogContent>
-    </Dialog>
+    <SubscriptionDialogFrame open={open} onOpenChange={onOpenChange} title="编辑订阅">
+      <SubscriptionForm
+        mode="edit"
+        formEmail={formEmail}
+        setFormEmail={setFormEmail}
+        formProjectIds={formProjectIds}
+        setFormProjectIds={setFormProjectIds}
+        formSelectedProjectIds={formSelectedProjectIds}
+        setFormSelectedProjectIds={setFormSelectedProjectIds}
+        formCountries={formCountries}
+        setFormCountries={setFormCountries}
+        formFrequency={formFrequency}
+        setFormFrequency={setFormFrequency}
+        formDispatchHour={formDispatchHour}
+        setFormDispatchHour={setFormDispatchHour}
+        formDispatchMinute={formDispatchMinute}
+        setFormDispatchMinute={setFormDispatchMinute}
+        formDispatchWeekday={formDispatchWeekday}
+        setFormDispatchWeekday={setFormDispatchWeekday}
+        formDispatchDay={formDispatchDay}
+        setFormDispatchDay={setFormDispatchDay}
+        formAiModel={formAiModel}
+        setFormAiModel={setFormAiModel}
+        projects={projects}
+        modelConfig={modelConfig}
+        isLoadingModelConfig={isLoadingModelConfig}
+        formError={formError}
+        testResult={testResult}
+        formSubmitting={formSubmitting}
+        testingEmail={testingEmail}
+        onTestEmail={handleTestEmail}
+        onSubmit={handleSubmit}
+        onCancel={() => onOpenChange(false)}
+      />
+    </SubscriptionDialogFrame>
   )
 }

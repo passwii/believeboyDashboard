@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useEffect, useRef, type ReactNode } from 'react'
 
@@ -352,8 +353,12 @@ describe('店铺测算 Warm Ledger 页面', () => {
     const header = container.querySelector('[data-warm-header-filters="true"]')
 
     expect(header).toBeInTheDocument()
+    // 原生 <select> 全部换成 WarmSelect（Radix combobox），header 内不得再有 select
+    expect(header!.querySelector('select')).toBeNull()
+    expect(screen.getByRole('combobox', { name: '项目筛选' })).toBeInTheDocument()
     expect(screen.getByLabelText('项目筛选')).toBeInTheDocument()
     expect(screen.getByLabelText('SKU 搜索')).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: '站点筛选' })).toBeInTheDocument()
     expect(screen.getByLabelText('站点筛选')).toBeInTheDocument()
     for (const element of [header!, ...Array.from(header!.querySelectorAll('*'))]) {
       const className = typeof element.className === 'string' ? element.className : ''
@@ -364,18 +369,24 @@ describe('店铺测算 Warm Ledger 页面', () => {
   })
 
   it('writes project and country changes back to the URL contract', async () => {
+    const user = userEvent.setup()
     render(<ShopCalculationClient />)
     await waitFor(() => expect(fetchManagedProjectsCached).toHaveBeenCalled())
     await act(async () => {
       await Promise.resolve()
     })
     render(<>{headerCapture.slot}</>)
-    await waitFor(() => expect(screen.getByLabelText('项目筛选')).not.toBeDisabled())
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: '项目筛选' })).not.toBeDisabled()
+    )
 
-    fireEvent.change(screen.getByLabelText('项目筛选'), { target: { value: '项目A' } })
+    // Radix combobox：点击 trigger 展开，再点选项
+    await user.click(screen.getByRole('combobox', { name: '项目筛选' }))
+    await user.click(screen.getByRole('option', { name: '项目A' }))
     await waitFor(() => expect(nav.get('project')).toBe('1'))
 
-    fireEvent.change(screen.getByLabelText('站点筛选'), { target: { value: 'DE' } })
+    await user.click(screen.getByRole('combobox', { name: '站点筛选' }))
+    await user.click(screen.getByRole('option', { name: '德国站' }))
     await waitFor(() => {
       expect(nav.get('project')).toBe('1')
       expect(nav.get('country')).toBe('DE')

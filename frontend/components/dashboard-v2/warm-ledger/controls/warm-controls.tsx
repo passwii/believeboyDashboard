@@ -138,7 +138,18 @@ export function WarmSegmentedControl<T extends string>({
 
 type WarmSelectProps = {
   id: string
-  label: string
+  /**
+   * 可见标签文本。省略时控件只保留无障碍名称（紧凑形态）。
+   * 现有调用方均传 label，行为不变。
+   */
+  label?: string
+  /**
+   * 紧凑形态：label 仍用于无障碍名称，但不再渲染可见标签。
+   * 用于头部筛选这类横向紧凑排布、无需次级标签的位置。
+   */
+  hideLabel?: boolean
+  /** 无可见标签时的无障碍名称；未传时回退到 label。 */
+  ariaLabel?: string
   value: string
   options: ReadonlyArray<WarmSelectOption>
   onChange: (value: string) => void
@@ -152,6 +163,8 @@ type WarmSelectProps = {
 export function WarmSelect({
   id,
   label,
+  hideLabel = false,
+  ariaLabel,
   value,
   options,
   onChange,
@@ -164,6 +177,8 @@ export function WarmSelect({
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null)
   const labelId = `${id}-label`
   const errorId = `${id}-error`
+  const showLabel = Boolean(label) && !hideLabel
+  const accessibleName = ariaLabel ?? label
 
   useEffect(() => {
     setPortalContainer(document.getElementById('warm-ledger-portal-root'))
@@ -174,9 +189,11 @@ export function WarmSelect({
       className={['warm-ledger__select-wrap', className].filter(Boolean).join(' ')}
       data-invalid={error ? 'true' : undefined}
     >
-      <span id={labelId} className="warm-ledger__control-label">
-        {label}
-      </span>
+      {showLabel ? (
+        <span id={labelId} className="warm-ledger__control-label">
+          {label}
+        </span>
+      ) : null}
       <SelectPrimitive.Root
         value={value}
         onValueChange={onChange}
@@ -186,7 +203,8 @@ export function WarmSelect({
         <SelectPrimitive.Trigger
           id={id}
           className="warm-ledger__select"
-          aria-labelledby={labelId}
+          aria-label={showLabel ? undefined : accessibleName}
+          aria-labelledby={showLabel ? labelId : undefined}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errorId : undefined}
         >

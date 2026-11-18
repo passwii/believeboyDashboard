@@ -61,7 +61,7 @@ const WARM_ROUTE_CASES = [
   ['/dashboard/reports/pricing-calculation/shop-calculation', '店铺测算', '报表中心'],
   ['/dashboard/reports/report-reconciliation', '报表核对', '报表中心'],
   ['/dashboard/reports/scheduled-reports', '定时报告', '报表中心'],
-  ['/dashboard/reports/scheduled-reports/ledger', '调度记录', '报表中心'],
+  ['/dashboard/reports/scheduled-reports/ledger', '订阅记录', '报表中心'],
   ['/dashboard/reports/scheduled-reports/subscriptions', '订阅管理', '报表中心'],
   ['/dashboard/operations/complaint-center', '客户消息', '运营'],
   ['/dashboard/operations/complaint-center/list', '客诉明细', '运营'],

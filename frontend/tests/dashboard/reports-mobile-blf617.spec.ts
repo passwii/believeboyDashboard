@@ -106,6 +106,7 @@ const LEDGER_ITEM = {
   latest_delivery_log_id: null,
   error_message: null,
   sent_at: '2026-08-11T09:31:00+08:00',
+  email_sent: true,
   can_resend: true,
   last_checked_at: null,
   screenshot_r2_url: null,
@@ -206,7 +207,7 @@ async function mockBackend(page: import('@playwright/test').Page) {
   )
   await page.route('**/api/backend/api/v1/scheduled-reports/ledger?*', (route) =>
     route.fulfill({
-      json: { items: [{ ...LEDGER_ITEM }, { ...LEDGER_ITEM, ledger_key: 'ledger-2', status: 'failed' }], summary: { expected: 2, sent: 1, failed: 1, missing: 0, resendable: 1 }, total: 2 },
+      json: { items: [{ ...LEDGER_ITEM }, { ...LEDGER_ITEM, ledger_key: 'ledger-2', status: 'failed', email_sent: false }], summary: { expected: 2, sent: 1, failed: 1, missing: 0, resendable: 1 }, total: 2 },
     })
   )
   // accounting-detail 必须先注册（financial-series 的 `*` 通配会先命中）
@@ -314,15 +315,15 @@ test.describe('@mobile-blf617 scheduled-reports 手机端（BLF-617）', () => {
     await expect(page.getByText('weekly@believeboy.com').filter({ visible: true }).first()).toBeVisible()
     await expect(page.getByText('monthly@believeboy.com').filter({ visible: true }).first()).toBeVisible()
 
-    // 工具栏手机端 2 列：频率 / 项目同一行（手机端 Select 显示短标签「全部/全部项目」，
-    // 用 combobox role + 锚定正则避免误匹配订阅卡片的「全部项目」文本）
+    // 工具栏手机端 2 列网格：频率 / 国家同一行；项目与邮箱在后续行。
+    // 手机端 WarmSelect 保留「全部」短标签，用 aria-label 精确定位，避免三个「全部」混淆。
     const freqBox = (
-      await page.getByRole('combobox').filter({ hasText: /^全部$/ }).boundingBox()
+      await page.getByRole('combobox', { name: '按频率筛选' }).boundingBox()
     )!
-    const projBox = (
-      await page.getByRole('combobox').filter({ hasText: /^全部项目$/ }).boundingBox()
+    const countryBox = (
+      await page.getByRole('combobox', { name: '按国家筛选' }).boundingBox()
     )!
-    expect(Math.abs(freqBox.y - projBox.y), '频率/项目应在同一行（2 列网格）').toBeLessThan(2)
+    expect(Math.abs(freqBox.y - countryBox.y), '频率/国家应在同一行（2 列网格）').toBeLessThan(2)
 
     await expectNoPageHorizontalOverflow(page)
   })

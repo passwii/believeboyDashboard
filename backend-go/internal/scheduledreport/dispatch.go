@@ -20,12 +20,17 @@ type EmailSender interface {
 // DispatchRequest is the payload of a scheduled report dispatch.
 type DispatchRequest struct {
 	SubscriptionID int64
-	Email          string
-	ProjectIDs     []int64
-	Country        string
-	Frequency      string
-	ReportDate     string
-	TriggeredBy    string
+	// Email is optional. Empty means generation-only: the delivery log is
+	// still created and the report is still built, only the outbound email is
+	// skipped.
+	Email            string
+	ProjectIDs       []int64
+	Country          string
+	Frequency        string
+	ReportDate       string
+	TriggeredBy      string
+	SkipEmail        bool
+	PreExistingLogID *int64
 }
 
 // DispatchResult reports the outcome of one dispatch.
@@ -51,11 +56,18 @@ type DispatchResult struct {
 	Skipped        bool   `json:"skipped"`
 	Error          string `json:"error,omitempty"`
 	DeliveryLogID  int64  `json:"delivery_log_id"`
+	// EmailSent reports whether an outbound email was actually handed to the
+	// mailer. Generation-only runs keep status=sent (the report is ready) but
+	// set EmailSent=false and leave sent_at NULL so the ledger does not claim
+	// an email was delivered.
+	EmailSent bool `json:"email_sent"`
 }
 
-// DispatchOne sends one scheduled report email and maintains the delivery log.
-// It covers the daily/weekly/monthly email path; AI summaries, screenshots and
-// manual-log guards remain separate follow-ups.
+// DispatchOne generates one scheduled report and maintains the delivery log.
+// It creates (or, for the ledger resend path, advances) the log, builds report
+// data, renders HTML, captures/upload a screenshot when configured, optionally
+// sends the email, and persists the deterministic fallback AI summary. A manual
+// "generate AI summary" later overwrites the summary with an LLM result.
 func DispatchOne(ctx context.Context, db store.FullDB, sender EmailSender, request DispatchRequest, options ...DispatchOption) (DispatchResult, error) {
 	dispatchOptions := dispatchOptions{}
 	for _, option := range options {
@@ -108,7 +120,7 @@ func DispatchOne(ctx context.Context, db store.FullDB, sender EmailSender, reque
 	if reportDateText == "" {
 		reportDateText = reportAnchorDate(country, now).Format("2006-01-02")
 	}
-	reportDate, parseErr := time.ParseInLocation("2006-01-02", reportDateText, time.Local)
+	reportDate, parseErr := time.ParseInLocation("2006-01-02", reportDateText, scheduledReportLocation())
 	if parseErr != nil {
 		result.Error = fmt.Sprintf("invalid report_date %q", reportDateText)
 		return result, parseErr
@@ -121,17 +133,38 @@ func DispatchOne(ctx context.Context, db store.FullDB, sender EmailSender, reque
 	if triggeredBy == "" {
 		triggeredBy = "auto"
 	}
+	sendEmail := !request.SkipEmail && email != ""
 
 	var logID int64
-	logErr := db.QueryRow(ctx,
-		"insert into public.scheduled_report_delivery_logs "+
-			"(subscription_id, frequency, report_date, report_month, email, triggered_by, status, stage, ai_summary_status) "+
-			"values ($1, $2, $3, $4, $5, $6, 'pending', 'preparing', 'pending') returning id",
-		request.SubscriptionID, frequency, reportDateText, reportMonth(frequency, reportDateText),
-		nullableString(email), triggeredBy).Scan(&logID)
-	if logErr != nil {
-		result.Error = fmt.Sprintf("create delivery log: %v", logErr)
-		return result, logErr
+	if request.PreExistingLogID != nil && *request.PreExistingLogID > 0 {
+		// The ledger resend path pre-creates the delivery log inside the same
+		// transaction that returns its id to the polling API. Advancing that
+		// row is mandatory: inserting a second row leaves the pre-created log
+		// stuck at stage=preparing forever.
+		logID = *request.PreExistingLogID
+		reuseErr := db.QueryRow(ctx,
+			"update public.scheduled_report_delivery_logs "+
+				"set subscription_id = $2, frequency = $3, report_date = $4, report_month = $5, "+
+				"email = $6, triggered_by = $7, status = 'pending', stage = 'preparing', "+
+				"error_message = null, sent_at = null "+
+				"where id = $1 returning id",
+			logID, request.SubscriptionID, frequency, reportDateText,
+			reportMonth(frequency, reportDateText), nullableString(email), triggeredBy).Scan(&logID)
+		if reuseErr != nil {
+			result.Error = fmt.Sprintf("reuse delivery log %d: %v", *request.PreExistingLogID, reuseErr)
+			return result, reuseErr
+		}
+	} else {
+		logErr := db.QueryRow(ctx,
+			"insert into public.scheduled_report_delivery_logs "+
+				"(subscription_id, frequency, report_date, report_month, email, triggered_by, status, stage, ai_summary_status) "+
+				"values ($1, $2, $3, $4, $5, $6, 'pending', 'preparing', 'pending') returning id",
+			request.SubscriptionID, frequency, reportDateText, reportMonth(frequency, reportDateText),
+			nullableString(email), triggeredBy).Scan(&logID)
+		if logErr != nil {
+			result.Error = fmt.Sprintf("create delivery log: %v", logErr)
+			return result, logErr
+		}
 	}
 	result.DeliveryLogID = logID
 
@@ -172,7 +205,12 @@ func DispatchOne(ctx context.Context, db store.FullDB, sender EmailSender, reque
 		return fail(fmt.Sprintf("build report data: %v", err), err)
 	}
 	reportData["frequency"] = frequency
-	reportData["ai_summary"] = fallbackReportSummary(reportData)
+	// The deterministic fallback summary is also persisted below. Without it
+	// every generated delivery log stayed at ai_summary_status='pending'
+	// forever, because the Go dispatcher never calls the LLM. A manual
+	// "generate AI summary" can still overwrite this later.
+	fallbackSummary := fallbackReportSummary(reportData)
+	reportData["ai_summary"] = fallbackSummary
 	if _, err := db.Exec(ctx,
 		"update public.scheduled_report_delivery_logs set stage = 'rendering_html' where id = $1", logID); err != nil {
 		return fail(fmt.Sprintf("mark rendering_html: %v", err), err)
@@ -210,7 +248,7 @@ func DispatchOne(ctx context.Context, db store.FullDB, sender EmailSender, reque
 	}
 	subject := fmt.Sprintf("BelieveBoy | %s · %s运营报告 · %s", truncateSubject(projectName), frequencyLabel(frequency), reportDateText)
 
-	if email != "" {
+	if sendEmail {
 		if sender == nil {
 			return fail("email sender is not configured", nil)
 		}
@@ -224,10 +262,22 @@ func DispatchOne(ctx context.Context, db store.FullDB, sender EmailSender, reque
 		}
 	}
 
+	// sent_at is only set when a mail actually went out. A generation-only run
+	// still ends status=sent (report is ready and the ledger can track it), but
+	// leaves sent_at NULL and email_sent=false so the API/UI can distinguish it
+	// from "email delivered". The fallback summary is written in the same
+	// statement so a crash can never leave the row permanently pending.
 	if _, err := db.Exec(ctx,
-		"update public.scheduled_report_delivery_logs set status = 'sent', stage = 'done', sent_at = now(), error_message = null where id = $1", logID); err != nil {
+		"update public.scheduled_report_delivery_logs "+
+			"set status = 'sent', stage = 'done', error_message = null, "+
+			"sent_at = case when $2::boolean then now() else null end, "+
+			"ai_summary = nullif($3, ''), ai_summary_status = 'done', "+
+			"ai_summary_model = null, ai_summary_error = null, ai_summary_updated_at = now() "+
+			"where id = $1",
+		logID, sendEmail, fallbackSummary); err != nil {
 		return fail(fmt.Sprintf("mark sent: %v", err), err)
 	}
+	result.EmailSent = sendEmail
 	result.Success = true
 	return result, nil
 }
@@ -266,4 +316,15 @@ func truncateSubject(projectName string) string {
 		return string(runes)
 	}
 	return string(runes[:40])
+}
+
+// scheduledReportLocation anchors report_date parsing to Asia/Shanghai, the
+// same timezone the scheduler and ledger use. Containers run in UTC, so
+// time.Local would shift daily report dates around midnight.
+func scheduledReportLocation() *time.Location {
+	location, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		return time.FixedZone("CST", 8*60*60)
+	}
+	return location
 }

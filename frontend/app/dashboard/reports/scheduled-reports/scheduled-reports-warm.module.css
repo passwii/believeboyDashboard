@@ -365,7 +365,8 @@
 .mutedCell {
   color: var(--warm-ledger-color-text-muted) !important;
   font-family: var(--warm-ledger-font-sans);
-  font-size: 11px;
+  /* 正文最小可读下限：11px 在暗色下即使对比度够也太小（lead 实测约 4.5:1 / 11px）。 */
+  font-size: 13px;
   font-variant-numeric: var(--warm-ledger-font-variant-numeric);
 }
 
@@ -665,7 +666,7 @@
   overflow: hidden;
   color: var(--warm-ledger-color-text-muted);
   font-family: var(--warm-ledger-font-sans);
-  font-size: 11px;
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1090,5 +1091,14 @@
 @media (max-width: 460px) {
   .filterRow {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* CSS Module 的 .mobileList { display: grid } 与 Tailwind .md:hidden 同特异性，
+   且 module 注入更晚；桌面端会因此把手机卡片也渲染出来（lead 截图已验证）。
+   这里用 module 自己的桌面断点兜底，避免依赖注入顺序。 */
+@media (min-width: 768px) {
+  .mobileList {
+    display: none;
   }
 }

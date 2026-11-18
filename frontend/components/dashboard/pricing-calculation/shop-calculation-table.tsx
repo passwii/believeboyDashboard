@@ -2,10 +2,15 @@
 
 import { Calculator } from 'lucide-react'
 
-import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
+import { WarmButton, WarmSelect, type WarmSelectOption } from '@/components/dashboard-v2/warm-ledger/controls'
 import { cn } from '@/lib/utils'
 import type { PricingCalculationRunItem, ProductCostItem } from '@/lib/pricing-calculation-types'
 import styles from './shop-calculation-table-warm.module.css'
+
+const INBOUND_PLACEMENT_MODE_OPTIONS: WarmSelectOption[] = [
+  { value: 'single_destination', label: '单仓' },
+  { value: 'amazon_optimized_split', label: '优化拆仓' },
+]
 
 type StoreSkuDraft = {
   package_length_cm: string
@@ -772,17 +777,17 @@ export function ShopCalculationTable({
                     <span className={styles.readOnly}>只读</span>
                   ) : (
                     <>
-                      <select
-                        aria-label="派送模式"
+                      <WarmSelect
+                        id={`shop-calculation-inbound-mode-${item.id}`}
+                        ariaLabel="派送模式"
+                        hideLabel
                         value={draft.inbound_placement_mode}
-                        onChange={(e) =>
-                          onDraftChange(item.id, 'inbound_placement_mode', e.target.value)
+                        options={INBOUND_PLACEMENT_MODE_OPTIONS}
+                        onChange={(value) =>
+                          onDraftChange(item.id, 'inbound_placement_mode', value)
                         }
                         className={styles.compactSelect}
-                      >
-                        <option value="single_destination">单仓</option>
-                        <option value="amazon_optimized_split">优化拆仓</option>
-                      </select>
+                      />
                       <WarmButton
                         type="button"
                         onClick={() => onCalculate(item)}

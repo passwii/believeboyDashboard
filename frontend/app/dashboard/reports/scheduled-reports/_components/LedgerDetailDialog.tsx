@@ -5,51 +5,42 @@ import Image from 'next/image'
 import {
   AlertTriangle,
   Copy,
-  ExternalLink,
   FileText,
   ImageIcon,
   Loader2,
   RotateCcw,
   Sparkles,
   Square,
+  X,
 } from 'lucide-react'
-import { format } from 'date-fns'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { InsightStreamPanel } from '@/components/insight/insight-stream-panel'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { InsightStreamPanel } from '@/components/insight/insight-stream-panel'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { PortraitScreenshotDialog } from '@/components/ui/image-preview-dialog'
-import { cn } from '@/lib/utils'
+import {
+  WarmButton,
+  WarmIconButton,
+  WarmSelect,
+  type WarmSelectOption,
+} from '@/components/dashboard-v2/warm-ledger/controls'
 import { getCountryLabel } from '@/lib/country'
 import { LedgerResendCell } from './LedgerResendCell'
-import { FREQUENCY_LABELS } from './ledger-constants'
+import { formatLedgerBeijingTime } from './LedgerDayGroup'
+import { FREQUENCY_LABELS, emailDisplayLabel } from './ledger-constants'
 import { fetchLedgerItemByKey } from './api'
 import { ledgerCopyText } from './ledger-insight'
 import { useLedgerInsight } from './use-ledger-insight'
 import type { AIModelConfig, LedgerItem, ResendStage, Subscription } from './types'
-import styles from '../scheduled-reports-warm.module.css'
-
-// 状态区沿用真实发送状态与 Warm 语义色，不额外引入说明文案。
-const HERO_BG: Record<string, string> = {
-  sent: 'bg-[color-mix(in_srgb,var(--warm-ledger-color-positive)_10%,transparent)] border-[color:color-mix(in_srgb,var(--warm-ledger-color-positive)_40%,transparent)]',
-  failed: 'bg-[color-mix(in_srgb,var(--warm-ledger-color-negative)_10%,transparent)] border-[color:color-mix(in_srgb,var(--warm-ledger-color-negative)_40%,transparent)]',
-  missing: 'bg-[var(--warm-ledger-color-accent-soft)] border-[color:color-mix(in_srgb,var(--warm-ledger-color-accent)_40%,transparent)]',
-}
-
-const HERO_LABEL: Record<string, { text: string; color: string }> = {
-  sent: { text: '✓ 发送成功', color: 'text-[color:var(--warm-ledger-color-positive)]' },
-  failed: { text: '✗ 发送失败', color: 'text-[color:var(--warm-ledger-color-negative)]' },
-  missing: { text: '⚠ 记录缺失', color: 'text-[color:var(--warm-ledger-color-accent)]' },
-}
+import styles from './ledger-warm.module.css'
 
 const MAX_VISIBLE_PROJECTS = 8
 
@@ -91,19 +82,42 @@ export function LedgerDetailDialog({
   const [summaryModelOpen, setSummaryModelOpen] = useState(false)
   const [summaryModel, setSummaryModel] = useState('')
   const [manualRefreshing, setManualRefreshing] = useState(false)
+  // Warm token 只定义在 #warm-ledger-portal-root 子树内；显式 portal 到该根节点，
+  // 避免弹窗与内部下拉的 var() 在 body 下失效导致透明。
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null)
 
+  useEffect(() => {
+    setPortalContainer(document.getElementById('warm-ledger-portal-root'))
+  }, [])
+
+  const expectedTime = item ? formatLedgerBeijingTime(item.expected_at) : null
+  const completedTime = item?.sent_at ? formatLedgerBeijingTime(item.sent_at) : null
   const sub = item ? subscriptions.find((s) => s.id === item.subscription_id) : undefined
+  const hasEmail = !!item?.email?.trim()
+  // 历史 Python 路径可能在「无邮箱仅生成」时也写入 sent_at，因此 materialized
+  // email_sent 不能单独判断是否发过邮件：只有有邮箱且 email_sent=true 才算发送成功。
+  const sentByEmail = hasEmail && !!item?.email_sent
+  const heroLabel = item
+    ? item.status === 'sent'
+      ? sentByEmail
+        ? { text: '✓ 发送成功', tone: 'positive' as const }
+        : { text: '✓ 生成成功', tone: 'positive' as const }
+      : item.status === 'failed'
+        ? hasEmail
+          ? { text: '✗ 发送失败', tone: 'negative' as const }
+          : { text: '✗ 生成失败', tone: 'negative' as const }
+        : { text: '⚠ 记录缺失', tone: 'accent' as const }
+    : null
   const fallbackModel = item ? sub?.ai_model || modelConfig?.defaultModel || '' : ''
-  const canTrigger = !!item && (canTriggerResend || item.can_resend)
+  // `can_resend` 是状态资格位，不是调用者权限；两个端点在 Go 侧都要求管理员。
+  const canTrigger = !!item && canTriggerResend
   const canRegenerateSummary = !!item && canTriggerResend && item.status === 'sent'
-  // BLF-822：后端改为周报/月报发送成功后不再自动生成 AI 摘要——`pending`
-  // 语义从「排队/卡住」变为「尚未生成、等待手动触发」，只有 `generating`
-  // 代表后台正在跑。补发等场景下 AI 摘要仍可能卡死在 generating（daemon
-  // 被 kill 或后端重启），保留「打断并重新生成」作为卡死救援入口。
+  // BLF-822：`pending` 表示「尚未生成、等待手动触发」，只有 `generating` 代表后台正在跑。
+  // 重新生成等场景下 AI 摘要仍可能卡死在 generating，保留「打断并重新生成」作为卡死救援入口。
   const summaryGenerating =
     !regeneratingAiSummary && !!item && item.ai_summary_status === 'generating'
-  // BLF-1015：`generating` 且有既存摘要时，详情已能看到后台进度，入口只负责
-  // 「另起一轮」；没有既存摘要才需要「打断并重新生成」这样的卡死救援语义。
+  // BLF-1015：`generating` 且有既存摘要时，详情已能看到后台进度，入口只负责「另起一轮」；
+  // 没有既存摘要才需要「打断并重新生成」这样的卡死救援语义。
   const summaryInterrupt = !item?.ai_summary && summaryGenerating
   const summaryActionLabel = regeneratingAiSummary
     ? '生成中…'
@@ -150,415 +164,421 @@ export function LedgerDetailDialog({
         .split(',')
         .map((c) => c.trim())
         .filter(Boolean)
+  const countryLabels = countryList.map((country) => getCountryLabel(country))
   const visibleProjects = showAllProjects
     ? projectNames
     : projectNames.slice(0, MAX_VISIBLE_PROJECTS)
   const hiddenCount = projectNames.length - visibleProjects.length
 
+  const modelOptions: WarmSelectOption[] = []
+  if (fallbackModel) {
+    modelOptions.push({ value: fallbackModel, label: `订阅预设：${fallbackModel}` })
+  }
+  for (const model of modelConfig?.premiumModels ?? []) {
+    if (model !== fallbackModel) modelOptions.push({ value: model, label: `高级模型：${model}` })
+  }
+  for (const model of modelConfig?.basicModels ?? []) {
+    if (model !== fallbackModel && !modelConfig?.premiumModels.includes(model)) {
+      modelOptions.push({ value: model, label: `基础模型：${model}` })
+    }
+  }
+  for (const model of modelConfig?.models ?? []) {
+    if (
+      model !== fallbackModel &&
+      !modelConfig?.premiumModels.includes(model) &&
+      !modelConfig?.basicModels.includes(model)
+    ) {
+      modelOptions.push({ value: model, label: model })
+    }
+  }
+
+  const summaryRetryFallback = fallbackModel || null
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
+          portalContainer={portalContainer}
           data-warm-ledger-dialog="true"
           aria-describedby={undefined}
-          className={cn(
-            styles.dialogContent,
-            styles.dialogWide,
-            styles.dialogFlush,
-            'flex flex-col overflow-hidden p-0 gap-0'
-          )}
+          className={styles.dialogContent}
         >
           {item ? (
             <>
-              <DialogHeader
-                className={cn('shrink-0 border-b px-6 py-4 text-left', HERO_BG[item.status])}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div
-                    className={cn(
-                      'text-[11px] font-medium tracking-wide flex items-center gap-1.5',
-                      HERO_LABEL[item.status].color
-                    )}
-                  >
-                    {item.status === 'missing' && <AlertTriangle className="h-3 w-3" />}
-                    {HERO_LABEL[item.status].text}
-                  </div>
-                  {canTriggerResend && (
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={handleManualRefresh}
-                      disabled={manualRefreshing}
-                      className="h-7 w-7 rounded-[var(--warm-ledger-radius-inner)] text-[color:var(--warm-ledger-color-text-muted)] hover:text-[color:var(--warm-ledger-color-text)]"
-                      aria-label="刷新 AI 摘要"
-                      title="刷新 AI 摘要"
-                    >
-                      <RotateCcw
-                        className={cn('h-3.5 w-3.5', manualRefreshing && 'animate-spin')}
-                      />
-                    </Button>
-                  )}
-                </div>
-                <DialogTitle className="font-mono text-lg font-semibold tabular-nums tracking-tight text-[color:var(--warm-ledger-color-text)]">
-                  {format(new Date(item.expected_at), 'yyyy-MM-dd · HH:mm')}
-                </DialogTitle>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-sans text-xs tabular-nums text-[color:var(--warm-ledger-color-text-muted)]">
-                  <span className="font-sans">{item.email}</span>
-                  <span className="font-sans">{FREQUENCY_LABELS[item.frequency]}</span>
-                  {countryList.length > 0 && (
-                    <span className="font-sans">
-                      {countryList.map(getCountryLabel).join(' · ')}
+              <div className={styles.dialogHead}>
+                <div className={styles.dialogHeadMain}>
+                  {heroLabel ? (
+                    <span className={styles.dialogStatus} data-tone={heroLabel.tone}>
+                      {heroLabel.text}
                     </span>
-                  )}
+                  ) : null}
+                  <DialogTitle className={styles.dialogTitle}>
+                    {expectedTime ? `${expectedTime.date} · ${expectedTime.time}` : '—'}
+                  </DialogTitle>
                 </div>
-              </DialogHeader>
+                {canTriggerResend ? (
+                  <WarmIconButton
+                    onClick={handleManualRefresh}
+                    disabled={manualRefreshing}
+                    aria-label="刷新 AI 摘要"
+                    title="刷新 AI 摘要"
+                  >
+                    <RotateCcw className={manualRefreshing ? 'animate-spin' : undefined} />
+                  </WarmIconButton>
+                ) : null}
+                <DialogClose asChild>
+                  <WarmIconButton aria-label="关闭详情">
+                    <X />
+                  </WarmIconButton>
+                </DialogClose>
+              </div>
 
-              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-                {item.status === 'failed' && item.error_message && (
-                  <div className="border border-[color:color-mix(in_srgb,var(--warm-ledger-color-negative)_40%,transparent)] bg-[color-mix(in_srgb,var(--warm-ledger-color-negative)_10%,transparent)] p-2">
-                    <div className="mb-1 flex items-center gap-2 font-sans text-xs font-medium text-[color:var(--warm-ledger-color-negative)]">
-                      <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
-                      错误信息
-                    </div>
-                    <div className="whitespace-pre-wrap font-sans text-xs text-[color:var(--warm-ledger-color-negative)]">
-                      {item.error_message}
-                    </div>
+              <div className={styles.dialogBody}>
+                <section className={styles.section} aria-labelledby="ledger-detail-overview">
+                  <div className={styles.sectionHead}>
+                    <h3 className={styles.sectionTitle} id="ledger-detail-overview">
+                      概览
+                    </h3>
                   </div>
-                )}
-
-                <div>
-                  <span className={styles.sectionLabel}>报告范围</span>
-                  <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 font-sans text-xs text-[color:var(--warm-ledger-color-text-muted)]">
-                    {visibleProjects.map((name, idx) => (
-                      <span
-                        key={`${name}-${idx}`}
-                        className="border border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] px-1.5 py-px font-sans"
-                      >
-                        {name}
-                      </span>
-                    ))}
-                    {hiddenCount > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setShowAllProjects(true)}
-                        className="tabular-nums text-[color:var(--warm-ledger-color-accent-strong)] underline-offset-2 hover:underline"
-                      >
-                        +{hiddenCount} 更多
-                      </button>
-                    )}
-                    {showAllProjects && projectNames.length > MAX_VISIBLE_PROJECTS && (
-                      <button
-                        type="button"
-                        onClick={() => setShowAllProjects(false)}
-                        className="text-[color:var(--warm-ledger-color-accent-strong)] underline-offset-2 hover:underline"
-                      >
-                        收起
-                      </button>
-                    )}
-                  </div>
-                  {countryList.length > 0 && (
-                    <div className="mt-2 font-sans text-xs text-[color:var(--warm-ledger-color-text-muted)]">
-                      {countryList.map(getCountryLabel).join(' · ')}
-                    </div>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div>
-                    <span className={styles.sectionLabel}>报告截图</span>
-                    {item.screenshot_r2_url ? (
-                      <button
-                        type="button"
-                        onClick={() => setPreviewScreenshot(item.screenshot_r2_url)}
-                        className="group relative aspect-[3/4] max-h-[60vh] w-full overflow-hidden rounded-[var(--warm-ledger-radius-inner)] border border-[color:var(--warm-ledger-color-hairline)] transition-colors hover:border-[color:var(--warm-ledger-color-hairline-strong)] bg-[var(--warm-ledger-color-panel-strong)]"
-                      >
-                        <Image
-                          src={item.screenshot_r2_thumb_url || item.screenshot_r2_url}
-                          alt="报告截图"
-                          fill
-                          className="object-contain"
-                          unoptimized
-                        />
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors flex items-center justify-center">
-                          <ExternalLink className="h-5 w-5 text-white/0 group-hover:text-white/70 transition-colors" />
-                        </div>
-                      </button>
-                    ) : (
-                      <div className="flex min-h-[200px] items-center justify-center gap-2 rounded-[var(--warm-ledger-radius-inner)] border border-dashed border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] px-3 py-12 font-sans text-xs text-[color:var(--warm-ledger-color-text-faint)]">
-                        <ImageIcon className="h-4 w-4" aria-hidden />
-                        暂无截图
-                      </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-2 gap-2">
-                      <span className={cn(styles.sectionLabel, 'mb-0')}>AI 文案</span>
-                      <div className="flex items-center gap-2">
-                        {canRegenerateSummary && (
-                          <Popover open={summaryModelOpen} onOpenChange={setSummaryModelOpen}>
-                            <PopoverTrigger asChild>
-                              <button
-                                type="button"
-                                disabled={regeneratingAiSummary || isLoadingModelConfig}
-                                className="flex items-center gap-1 font-sans text-[11px] text-[color:var(--warm-ledger-color-accent-strong)] hover:underline disabled:cursor-not-allowed disabled:opacity-60"
-                                aria-label={summaryActionLabel}
-                              >
-                                {regeneratingAiSummary ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                ) : summaryInterrupt ? (
-                                  <Square className="h-3 w-3" />
-                                ) : (
-                                  <Sparkles className="h-3 w-3" />
-                                )}
-                                {summaryActionLabel}
-                              </button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[280px] p-3" align="end">
-                              <div className="space-y-2">
-                                <div className="text-sm font-medium">{summaryActionLabel}</div>
-                                <p className="text-xs text-muted-foreground">
-                                  {summaryInterrupt
-                                    ? '后台生成似乎已卡住，会终止上一轮并启动新一轮 AI 摘要。不会重新截图或发送邮件。'
-                                    : '只生成 AI 摘要，不会重新截图或发送邮件。'}
-                                </p>
-                                <div>
-                                  <label className="text-xs font-medium mb-1 block text-muted-foreground">
-                                    使用模型
-                                  </label>
-                                  <Select
-                                    value={summaryModel}
-                                    onValueChange={setSummaryModel}
-                                    disabled={isLoadingModelConfig || !modelConfig?.models.length}
-                                  >
-                                    <SelectTrigger className="h-8 text-xs">
-                                      <SelectValue
-                                        placeholder={
-                                          isLoadingModelConfig ? '加载模型中...' : '选择模型'
-                                        }
-                                      />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {fallbackModel && (
-                                        <SelectItem value={fallbackModel}>
-                                          <span className="flex items-center gap-1">
-                                            <span className="text-muted-foreground">
-                                              订阅预设：
-                                            </span>
-                                            <span>{fallbackModel}</span>
-                                          </span>
-                                        </SelectItem>
-                                      )}
-                                      {(modelConfig?.premiumModels.length || 0) > 0 && (
-                                        <SelectGroup>
-                                          <SelectLabel>高级模型</SelectLabel>
-                                          {modelConfig?.premiumModels.map((m) => (
-                                            <SelectItem key={m} value={m}>
-                                              {m}
-                                            </SelectItem>
-                                          ))}
-                                        </SelectGroup>
-                                      )}
-                                      {(modelConfig?.basicModels.length || 0) > 0 && (
-                                        <SelectGroup>
-                                          <SelectLabel>基础模型</SelectLabel>
-                                          {modelConfig?.basicModels.map((m) => (
-                                            <SelectItem key={m} value={m}>
-                                              {m}
-                                            </SelectItem>
-                                          ))}
-                                        </SelectGroup>
-                                      )}
-                                      {modelConfig?.models
-                                        .filter(
-                                          (m) =>
-                                            !modelConfig.premiumModels.includes(m) &&
-                                            !modelConfig.basicModels.includes(m) &&
-                                            m !== fallbackModel
-                                        )
-                                        .map((m) => (
-                                          <SelectItem key={m} value={m}>
-                                            {m}
-                                          </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div className="flex gap-2 pt-1">
-                                  <Button
-                                    size="sm"
-                                    className="flex-1"
-                                    disabled={!summaryModel || regeneratingAiSummary}
-                                    onClick={() => {
-                                      setSummaryModelOpen(false)
-                                      onRegenerateAiSummary(item, summaryModel)
-                                    }}
-                                  >
-                                    {summaryInterrupt ? '打断并重新生成' : '确认生成'}
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="flex-1"
-                                    onClick={() => setSummaryModelOpen(false)}
-                                  >
-                                    取消
-                                  </Button>
-                                </div>
-                              </div>
-                            </PopoverContent>
-                          </Popover>
-                        )}
-                        {item.ai_summary && (
+                  <div className={styles.overviewGrid}>
+                    <div className={styles.field}>
+                      <span className={styles.fieldLabel}>项目</span>
+                      <div className={`${styles.projectChips} font-sans`}>
+                        {visibleProjects.map((name, idx) => (
+                          <span key={`${name}-${idx}`} className={`${styles.projectChip} font-sans`}>
+                            {name}
+                          </span>
+                        ))}
+                        {hiddenCount > 0 ? (
                           <button
                             type="button"
-                            onClick={() => onCopy(ledgerCopyText(item.ai_summary!))}
+                            onClick={() => setShowAllProjects(true)}
                             className={styles.copyAction}
-                            aria-label="复制 AI 文案"
                           >
-                            <Copy className="h-3 w-3" />
-                            复制
+                            +{hiddenCount} 更多
                           </button>
-                        )}
+                        ) : null}
+                        {showAllProjects && projectNames.length > MAX_VISIBLE_PROJECTS ? (
+                          <button
+                            type="button"
+                            onClick={() => setShowAllProjects(false)}
+                            className={styles.copyAction}
+                          >
+                            收起
+                          </button>
+                        ) : null}
                       </div>
                     </div>
-                    <InsightStreamPanel
-                      status={panel.state.status}
-                      statusLabel={panel.state.label}
-                      progress={panel.state.progress}
-                      error={panel.error}
-                      backgroundMessage={panel.backgroundMessage}
-                      content={panel.content}
-                      contentState={panel.contentState}
-                      isStreaming={panel.state.isStreaming}
-                      digest={panel.digest}
-                      onRetry={canRegenerateSummary ? panel.onRetry : undefined}
-                      onCancel={canTriggerResend ? panel.onCancel : undefined}
-                      exportFileName={`AI摘要-${item.expected_date}.md`}
-                      className={styles.insightPanel}
-                      contentClassName={styles.insightContent}
-                      emptyState={
-                        panel.state.status === 'failed' ? (
-                          <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-[var(--warm-ledger-radius-inner)] border border-[color:color-mix(in_srgb,var(--warm-ledger-color-negative)_40%,transparent)] bg-[color-mix(in_srgb,var(--warm-ledger-color-negative)_10%,transparent)] px-3 py-12 font-sans text-xs text-[color:var(--warm-ledger-color-negative)]">
-                            <AlertTriangle className="h-4 w-4" aria-hidden />
-                            <span>
-                              {runBound
-                                ? '本轮生成中断，可重新开始'
-                                : item.ai_summary_error || '本轮生成失败，可重新开始'}
-                            </span>
-                            {canRegenerateSummary && !panel.onRetry && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                data-testid="regenerate-summary-retry"
-                                disabled={isLoadingModelConfig}
-                                onClick={() => onRegenerateAiSummary(item, fallbackModel || null)}
-                                className="mt-1 font-sans text-xs text-[color:var(--warm-ledger-color-negative)] hover:bg-[var(--warm-ledger-color-raised-hover)]"
-                              >
-                                <RotateCcw className="mr-1 h-3 w-3" aria-hidden />
-                                重新生成
-                              </Button>
-                            )}
-                          </div>
-                        ) : panel.state.busy ? (
-                          <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-[var(--warm-ledger-radius-inner)] border border-[color:color-mix(in_srgb,var(--warm-ledger-color-accent)_40%,transparent)] bg-[color-mix(in_srgb,var(--warm-ledger-color-accent)_10%,transparent)] px-3 py-12 font-sans text-xs text-[color:var(--warm-ledger-color-accent-strong)]">
-                            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                            <span>正在为你生成摘要，稍候内容会出现在这里</span>
-                            {canRegenerateSummary && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                disabled={regeneratingAiSummary}
-                                onClick={() => onRegenerateAiSummary(item, fallbackModel || null)}
-                                className="font-sans text-xs text-[color:var(--warm-ledger-color-accent-strong)] hover:bg-[var(--warm-ledger-color-raised-hover)]"
-                              >
-                                <RotateCcw className="mr-1 h-3 w-3" aria-hidden />
-                                打断并重新生成
-                              </Button>
-                            )}
-                          </div>
-                        ) : panel.state.status === 'cancelled' ? (
-                          <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-[var(--warm-ledger-radius-inner)] border border-dashed border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] px-3 py-12 font-sans text-xs text-[color:var(--warm-ledger-color-text-faint)]">
-                            <Square className="h-4 w-4" aria-hidden />
-                            <span>本轮生成已取消</span>
-                            {canRegenerateSummary && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={isLoadingModelConfig}
-                                onClick={() => onRegenerateAiSummary(item, fallbackModel || null)}
-                                className="mt-1 font-sans text-xs text-[color:var(--warm-ledger-color-accent-strong)] hover:bg-[var(--warm-ledger-color-raised-hover)]"
-                              >
-                                <Sparkles className="mr-1 h-3 w-3" aria-hidden />
-                                重新开始
-                              </Button>
-                            )}
-                          </div>
-                        ) : panel.state.status === 'queued' || panel.state.status === 'idle' ? (
-                          // BLF-822：报告已发送但摘要尚未生成（后端不再自动生成），
-                          // 主行动是手动触发一次生成。
-                          <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-[var(--warm-ledger-radius-inner)] border border-dashed border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] px-3 py-12 font-sans text-xs text-[color:var(--warm-ledger-color-text-faint)]">
-                            <Sparkles className="h-4 w-4 text-[color:var(--warm-ledger-color-accent-strong)]" aria-hidden />
-                            <span>报告已发送，尚未生成 AI 摘要</span>
-                            {canRegenerateSummary && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                data-testid="generate-summary-cta"
-                                disabled={isLoadingModelConfig}
-                                onClick={() => onRegenerateAiSummary(item, fallbackModel || null)}
-                                className="mt-1 font-sans text-xs text-[color:var(--warm-ledger-color-accent-strong)] hover:bg-[var(--warm-ledger-color-raised-hover)]"
-                              >
-                                <Sparkles className="mr-1 h-3 w-3" aria-hidden />
-                                生成 AI 摘要
-                              </Button>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="flex min-h-[200px] items-center justify-center gap-2 rounded-[var(--warm-ledger-radius-inner)] border border-dashed border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel-strong)] px-3 py-12 font-sans text-xs text-[color:var(--warm-ledger-color-text-faint)]">
-                            <FileText className="h-4 w-4" aria-hidden />
-                            暂无 AI 文案
-                          </div>
-                        )
-                      }
-                    />
+                    <div className={styles.field}>
+                      <span className={styles.fieldLabel}>国家站点</span>
+                      <span className={`${styles.fieldValue} font-sans`}>
+                        {countryLabels.length > 0 ? countryLabels.join(' · ') : '—'}
+                      </span>
+                    </div>
+                    <div className={styles.field}>
+                      <span className={styles.fieldLabel}>接收邮箱</span>
+                      <span className={`${styles.fieldValue} font-sans`} dir="ltr">
+                        {emailDisplayLabel(item.email)}
+                      </span>
+                    </div>
+                    <div className={styles.field}>
+                      <span className={styles.fieldLabel}>频率</span>
+                      <span className={styles.fieldValue}>
+                        {FREQUENCY_LABELS[item.frequency]}
+                      </span>
+                    </div>
+                    <div className={styles.field}>
+                      <span className={styles.fieldLabel}>应发时间</span>
+                      <span className={`${styles.fieldValue} ${styles.fieldValueMono}`}>
+                        {expectedTime?.dateTimeWithSeconds ?? '—'}
+                      </span>
+                    </div>
+                    <div className={styles.field}>
+                      <span className={styles.fieldLabel}>完成时间</span>
+                      <span className={`${styles.fieldValue} ${styles.fieldValueMono}`}>
+                        {completedTime?.dateTimeWithSeconds ?? '—'}
+                      </span>
+                    </div>
                   </div>
-                </div>
+                </section>
+
+                <section className={styles.section} aria-labelledby="ledger-detail-summary">
+                  <div className={styles.sectionHead}>
+                    <h3 className={styles.sectionTitle} id="ledger-detail-summary">
+                      AI 摘要
+                    </h3>
+                    <div className={styles.sectionMeta}>
+                      {canRegenerateSummary ? (
+                        <Popover open={summaryModelOpen} onOpenChange={setSummaryModelOpen}>
+                          <PopoverTrigger asChild>
+                            <button
+                              type="button"
+                              disabled={regeneratingAiSummary || isLoadingModelConfig}
+                              className={styles.summaryAction}
+                              aria-label={summaryActionLabel}
+                            >
+                              {regeneratingAiSummary ? (
+                                <Loader2 className="animate-spin" aria-hidden />
+                              ) : summaryInterrupt ? (
+                                <Square aria-hidden />
+                              ) : (
+                                <Sparkles aria-hidden />
+                              )}
+                              {summaryActionLabel}
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            portalContainer={portalContainer}
+                            className={styles.resendPopover}
+                            align="end"
+                          >
+                            <div className={styles.resendTitle}>{summaryActionLabel}</div>
+                            <p className={styles.resendNote}>
+                              {summaryInterrupt
+                                ? '后台生成似乎已卡住，会终止上一轮并启动新一轮 AI 摘要。不会重新截图或发送邮件。'
+                                : '只生成 AI 摘要，不会重新截图或发送邮件。'}
+                            </p>
+                            <span className={styles.resendFieldLabel}>使用模型</span>
+                            <WarmSelect
+                              id="ledger-summary-model"
+                              hideLabel
+                              ariaLabel="使用模型"
+                              className={styles.modelSelect}
+                              value={summaryModel || 'unavailable'}
+                              options={
+                                modelOptions.length > 0
+                                  ? modelOptions
+                                  : [
+                                      {
+                                        value: 'unavailable',
+                                        label: isLoadingModelConfig
+                                          ? '加载模型中…'
+                                          : '暂无可用模型',
+                                      },
+                                    ]
+                              }
+                              onChange={setSummaryModel}
+                              disabled={isLoadingModelConfig || !modelConfig?.models.length}
+                              placeholder={isLoadingModelConfig ? '加载模型中…' : '选择模型'}
+                            />
+                            <div className={styles.resendActions}>
+                              <WarmButton
+                                variant="primary"
+                                disabled={!summaryModel || regeneratingAiSummary}
+                                onClick={() => {
+                                  setSummaryModelOpen(false)
+                                  onRegenerateAiSummary(item, summaryModel)
+                                }}
+                              >
+                                {summaryInterrupt ? '打断并重新生成' : '确认生成'}
+                              </WarmButton>
+                              <WarmButton variant="quiet" onClick={() => setSummaryModelOpen(false)}>
+                                取消
+                              </WarmButton>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      ) : null}
+                      {item.ai_summary ? (
+                        <button
+                          type="button"
+                          onClick={() => onCopy(ledgerCopyText(item.ai_summary!))}
+                          className={styles.copyAction}
+                          aria-label="复制 AI 文案"
+                        >
+                          <Copy aria-hidden />
+                          复制
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                  <InsightStreamPanel
+                    appearance="warm"
+                    status={panel.state.status}
+                    statusLabel={panel.state.label}
+                    progress={panel.state.progress}
+                    error={panel.error}
+                    backgroundMessage={panel.backgroundMessage}
+                    content={panel.content}
+                    contentState={panel.contentState}
+                    isStreaming={panel.state.isStreaming}
+                    digest={panel.digest}
+                    onRetry={canRegenerateSummary ? panel.onRetry : undefined}
+                    onCancel={canTriggerResend ? panel.onCancel : undefined}
+                    exportFileName={`AI摘要-${item.expected_date}.md`}
+                    className={styles.insightPanel}
+                    contentClassName={styles.insightContent}
+                    emptyState={
+                      panel.state.status === 'failed' ? (
+                        <div className={styles.insightEmpty} data-tone="failed">
+                          <AlertTriangle aria-hidden />
+                          <span>
+                            {runBound
+                              ? '本轮生成中断，可重新开始'
+                              : item.ai_summary_error || '本轮生成失败，可重新开始'}
+                          </span>
+                          {canRegenerateSummary && !panel.onRetry ? (
+                            <WarmButton
+                              data-testid="regenerate-summary-retry"
+                              disabled={isLoadingModelConfig}
+                              onClick={() =>
+                                onRegenerateAiSummary(item, summaryRetryFallback)
+                              }
+                              className="font-sans text-xs"
+                            >
+                              <RotateCcw aria-hidden />
+                              重新生成
+                            </WarmButton>
+                          ) : null}
+                        </div>
+                      ) : panel.state.busy ? (
+                        <div className={styles.insightEmpty} data-tone="busy">
+                          <Loader2 className="animate-spin" aria-hidden />
+                          <span>正在为你生成摘要，稍候内容会出现在这里</span>
+                          {canRegenerateSummary ? (
+                            <WarmButton
+                              variant="quiet"
+                              disabled={regeneratingAiSummary}
+                              onClick={() =>
+                                onRegenerateAiSummary(item, summaryRetryFallback)
+                              }
+                              className="font-sans text-xs"
+                            >
+                              <RotateCcw aria-hidden />
+                              打断并重新生成
+                            </WarmButton>
+                          ) : null}
+                        </div>
+                      ) : panel.state.status === 'cancelled' ? (
+                        <div className={styles.insightEmpty}>
+                          <Square aria-hidden />
+                          <span>本轮生成已取消</span>
+                          {canRegenerateSummary ? (
+                            <WarmButton
+                              disabled={isLoadingModelConfig}
+                              onClick={() =>
+                                onRegenerateAiSummary(item, summaryRetryFallback)
+                              }
+                              className="font-sans text-xs"
+                            >
+                              <Sparkles aria-hidden />
+                              重新开始
+                            </WarmButton>
+                          ) : null}
+                        </div>
+                      ) : panel.state.status === 'queued' || panel.state.status === 'idle' ? (
+                        // BLF-822：报告已发送但摘要尚未生成（后端不再自动生成），
+                        // 主行动是手动触发一次生成。
+                        <div className={styles.insightEmpty}>
+                          <Sparkles aria-hidden />
+                          <span>报告已发送，尚未生成 AI 摘要</span>
+                          {canRegenerateSummary ? (
+                            <WarmButton
+                              data-testid="generate-summary-cta"
+                              disabled={isLoadingModelConfig}
+                              onClick={() =>
+                                onRegenerateAiSummary(item, summaryRetryFallback)
+                              }
+                              className="font-sans text-xs"
+                            >
+                              <Sparkles aria-hidden />
+                              生成 AI 摘要
+                            </WarmButton>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <div className={styles.insightEmpty}>
+                          <FileText aria-hidden />
+                          暂无 AI 文案
+                        </div>
+                      )
+                    }
+                  />
+                </section>
+
+                <section className={styles.section} aria-labelledby="ledger-detail-screenshot">
+                  <div className={styles.sectionHead}>
+                    <h3 className={styles.sectionTitle} id="ledger-detail-screenshot">
+                      截图
+                    </h3>
+                  </div>
+                  {item.screenshot_r2_url ? (
+                    <button
+                      type="button"
+                      onClick={() => setPreviewScreenshot(item.screenshot_r2_url)}
+                      className={styles.screenshotButton}
+                      aria-label="查看报告截图大图"
+                    >
+                      <Image
+                        src={item.screenshot_r2_thumb_url || item.screenshot_r2_url}
+                        alt="报告截图"
+                        fill
+                        className={styles.screenshotImage}
+                        unoptimized
+                      />
+                    </button>
+                  ) : (
+                    <div className={styles.screenshotEmpty}>
+                      <ImageIcon aria-hidden />
+                      暂无截图
+                    </div>
+                  )}
+                </section>
+
+                {item.error_message ? (
+                  <section className={styles.section} aria-labelledby="ledger-detail-error">
+                    <div className={styles.sectionHead}>
+                      <h3 className={styles.sectionTitle} id="ledger-detail-error">
+                        错误
+                      </h3>
+                    </div>
+                    <div className={styles.errorBox}>
+                      <div className={styles.errorHead}>
+                        <AlertTriangle aria-hidden />
+                        错误信息
+                      </div>
+                      <p className={styles.errorText}>{item.error_message}</p>
+                    </div>
+                  </section>
+                ) : null}
               </div>
+
+              {canTrigger ? (
+                <div className={styles.dialogFooter}>
+                  <span className={styles.dialogFooterNote}>重新生成不会发送邮件</span>
+                  <span className={styles.dialogFooterSpacer} />
+                  <WarmButton variant="quiet" onClick={() => onOpenChange(false)}>
+                    关闭
+                  </WarmButton>
+                  <LedgerResendCell
+                    item={item}
+                    resendingStage={resendingStage}
+                    canResend
+                    modelConfig={modelConfig}
+                    isLoadingModelConfig={isLoadingModelConfig}
+                    fallbackModel={fallbackModel}
+                    triggerClassName={styles.resendTriggerFooter}
+                    onLoading={() => onResendLoading(item)}
+                    onSubmit={(overrideAiModel) => {
+                      onResend(item, overrideAiModel)
+                      onOpenChange(false)
+                    }}
+                  />
+                </div>
+              ) : null}
             </>
           ) : null}
-
-          {canTrigger && item && (
-            <div className="flex shrink-0 items-center justify-end gap-2 border-t border-[color:var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] px-4 py-2.5">
-              <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
-                取消
-              </Button>
-              <LedgerResendCell
-                item={item}
-                resendingStage={resendingStage}
-                canResend
-                modelConfig={modelConfig}
-                isLoadingModelConfig={isLoadingModelConfig}
-                fallbackModel={fallbackModel}
-                onLoading={() => onResendLoading(item)}
-                onSubmit={(overrideAiModel) => {
-                  onResend(item, overrideAiModel)
-                  onOpenChange(false)
-                }}
-              />
-            </div>
-          )}
         </DialogContent>
       </Dialog>
 
-      {previewScreenshot && (
+      {previewScreenshot ? (
         <PortraitScreenshotDialog
           open
-          onOpenChange={(o) => !o && setPreviewScreenshot(null)}
+          onOpenChange={(nextOpen) => !nextOpen && setPreviewScreenshot(null)}
           src={previewScreenshot}
           alt="报告截图"
         />
-      )}
+      ) : null}
     </>
   )
 }

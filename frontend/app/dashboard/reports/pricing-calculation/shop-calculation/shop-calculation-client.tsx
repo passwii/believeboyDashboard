@@ -5,7 +5,7 @@ import { Calculator, Download, Loader2, Search } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
-import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
+import { WarmButton, WarmSelect, type WarmSelectOption } from '@/components/dashboard-v2/warm-ledger/controls'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -51,6 +51,13 @@ const COUNTRY_OPTIONS: { value: StoreCountry; label: string; region: 'US' | 'EU'
   { value: 'DE', label: '德国站', region: 'EU' },
   { value: 'UK', label: '英国站', region: 'EU' },
 ]
+
+/**
+ * 「未选项目」在 Radix Select 里的 sentinel：
+ * Radix 禁止 option 使用空字符串 value（空值代表清空并显示 placeholder），
+ * 因此项目下拉用非空 sentinel 表示原来的 `<option value="">选择项目</option>`。
+ */
+const NO_PROJECT_VALUE = '__no-project__'
 
 const API_BASE = '/api/backend'
 
@@ -267,22 +274,28 @@ export default function ShopCalculationPage() {
 
   // BLF-997 · 头部插槽：项目 / SKU 搜索 / 站点
   const countryOptions = COUNTRY_OPTIONS.map((opt) => ({ value: opt.value, label: opt.label }))
+  const projectOptions: WarmSelectOption[] = [{ value: NO_PROJECT_VALUE, label: '选择项目' }]
+  for (const project of projects) {
+    // Radix Select 的 option value 必须唯一：同名项目只保留一条（原生 select 同名项本就无法区分）
+    if (!projectOptions.some((option) => option.value === project.name)) {
+      projectOptions.push({ value: project.name, label: project.name })
+    }
+  }
+  const handleProjectSelect = (value: string) =>
+    setSelectedProjectName(value === NO_PROJECT_VALUE ? '' : value)
+
   const headerSlotPortal = useHeaderSlot(
     <div className={styles.headerFilters} data-warm-header-filters="true">
-      <select
-        aria-label="项目筛选"
-        className={styles.headerProject}
-        value={selectedProjectName}
-        onChange={(event) => setSelectedProjectName(event.target.value)}
+      <WarmSelect
+        id="shop-calculation-header-project"
+        ariaLabel="项目筛选"
+        hideLabel
+        value={selectedProjectName || NO_PROJECT_VALUE}
+        options={projectOptions}
+        onChange={handleProjectSelect}
         disabled={projectsLoading}
-      >
-        <option value="">选择项目</option>
-        {projects.map((project) => (
-          <option key={project.id} value={project.name}>
-            {project.name}
-          </option>
-        ))}
-      </select>
+        className={styles.headerProjectSelect}
+      />
       <input
         className={styles.headerSku}
         value={skuKeyword}
@@ -290,18 +303,15 @@ export default function ShopCalculationPage() {
         placeholder="SKU / ASIN"
         aria-label="SKU 搜索"
       />
-      <select
-        aria-label="站点筛选"
-        className={styles.headerCountry}
+      <WarmSelect
+        id="shop-calculation-header-country"
+        ariaLabel="站点筛选"
+        hideLabel
         value={selectedCountry}
-        onChange={(event) => setSelectedCountry(event.target.value as StoreCountry)}
-      >
-        {countryOptions.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
+        options={countryOptions}
+        onChange={(value) => setSelectedCountry(value as StoreCountry)}
+        className={styles.headerCountrySelect}
+      />
     </div>
   )
 
@@ -311,20 +321,16 @@ export default function ShopCalculationPage() {
       summary={mobileFilterSummary}
       controls={
         <>
-          <select
-            aria-label="项目筛选"
-            className={styles.mobileHeaderControl}
-            value={selectedProjectName}
-            onChange={(event) => setSelectedProjectName(event.target.value)}
+          <WarmSelect
+            id="shop-calculation-mobile-project"
+            ariaLabel="项目筛选"
+            hideLabel
+            value={selectedProjectName || NO_PROJECT_VALUE}
+            options={projectOptions}
+            onChange={handleProjectSelect}
             disabled={projectsLoading}
-          >
-            <option value="">选择项目</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.name}>
-                {project.name}
-              </option>
-            ))}
-          </select>
+            className={styles.mobileHeaderSelect}
+          />
           <input
             className={styles.mobileHeaderControl}
             value={skuKeyword}
@@ -332,18 +338,15 @@ export default function ShopCalculationPage() {
             placeholder="SKU / ASIN"
             aria-label="SKU 搜索"
           />
-          <select
-            aria-label="站点筛选"
-            className={styles.mobileHeaderControl}
+          <WarmSelect
+            id="shop-calculation-mobile-country"
+            ariaLabel="站点筛选"
+            hideLabel
             value={selectedCountry}
-            onChange={(event) => setSelectedCountry(event.target.value as StoreCountry)}
-          >
-            {countryOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            options={countryOptions}
+            onChange={(value) => setSelectedCountry(value as StoreCountry)}
+            className={styles.mobileHeaderSelect}
+          />
         </>
       }
     />

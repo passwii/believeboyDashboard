@@ -16,9 +16,7 @@
   gap: var(--warm-ledger-space-2);
 }
 
-.headerSelect,
-.headerMonthInput,
-.mobileHeaderSelect {
+.headerMonthInput {
   height: var(--warm-ledger-control-height-select);
   color: var(--warm-ledger-color-text);
   font-family: var(--warm-ledger-font-sans);
@@ -29,14 +27,26 @@
   box-shadow: var(--warm-ledger-highlight-rest);
 }
 
+/* 头部 / 移动端筛选的 WarmSelect 紧凑形态：标签由 ariaLabel 承载，外层只负责宽度。 */
+.headerSelect,
+.mobileHeaderSelect {
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: center;
+}
+
 .headerSelect {
   width: 150px;
+}
+
+.headerSelect :global(.warm-ledger__select),
+.mobileHeaderSelect :global(.warm-ledger__select) {
+  width: 100%;
+  min-width: 0;
   padding-inline: var(--warm-ledger-space-2);
 }
 
-.headerSelect:focus-visible,
-.headerMonthInput:focus-visible,
-.mobileHeaderSelect:focus-visible {
+.headerMonthInput:focus-visible {
   outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color);
   outline-offset: var(--warm-ledger-focus-offset);
 }

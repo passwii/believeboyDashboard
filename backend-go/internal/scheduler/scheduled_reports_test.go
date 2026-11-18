@@ -73,11 +73,11 @@ func TestScanDueScheduledReportsEnqueuesPayloads(t *testing.T) {
 	if source.receivedNow != now {
 		t.Errorf("source now = %v, want %v", source.receivedNow, now)
 	}
-	if result.Due != 2 || result.Enqueued != 1 || result.Skipped != 1 {
-		t.Fatalf("result = %#v, want due=2 enqueued=1 skipped=1", result)
+	if result.Due != 2 || result.Enqueued != 2 || result.Skipped != 0 {
+		t.Fatalf("result = %#v, want due=2 enqueued=2 skipped=0", result)
 	}
-	if len(enqueuer.payloads) != 1 {
-		t.Fatalf("payloads = %d, want 1", len(enqueuer.payloads))
+	if len(enqueuer.payloads) != 2 {
+		t.Fatalf("payloads = %d, want 2 (no-email subscriptions must still be enqueued)", len(enqueuer.payloads))
 	}
 	payload := enqueuer.payloads[0]
 	if payload.SubscriptionID != 7 || payload.Email != "ops@example.com" ||
@@ -90,6 +90,41 @@ func TestScanDueScheduledReportsEnqueuesPayloads(t *testing.T) {
 	}
 	if enqueuer.delays[0] != 0 {
 		t.Errorf("first delay = %v, want 0", enqueuer.delays[0])
+	}
+	noEmailPayload := enqueuer.payloads[1]
+	if noEmailPayload.SubscriptionID != 8 || noEmailPayload.Email != "" {
+		t.Fatalf("no-email payload = %#v, want subscription 8 with empty email", noEmailPayload)
+	}
+	if err := noEmailPayload.Validate(); err != nil {
+		t.Fatalf("no-email payload Validate() = %v, want nil", err)
+	}
+	if enqueuer.delays[1] != ScheduledReportStaggerDelay {
+		t.Errorf("second delay = %v, want %v", enqueuer.delays[1], ScheduledReportStaggerDelay)
+	}
+}
+
+// Production containers run in UTC while the due window is Asia/Shanghai.
+// Around 00:00-08:00 Shanghai the old now.Format("2006-01-02") wrote the
+// previous UTC date into report_date.
+func TestScanDueScheduledReportsUsesShanghaiReportDateAcrossUTCBoundary(t *testing.T) {
+	// 2026-11-17 16:30 UTC == 2026-11-18 00:30 Asia/Shanghai.
+	now := time.Date(2026, 11, 17, 16, 30, 0, 0, time.UTC)
+	source := &fakeScheduledReportSource{
+		subscriptions: []scheduled_reports.Subscription{
+			{ID: 9, ProjectIDs: "*", Country: "US", Frequency: "daily", DispatchHour: 0, DispatchMinute: 30},
+		},
+	}
+	enqueuer := &fakeScheduledReportEnqueuer{}
+
+	result, err := ScanDueScheduledReports(context.Background(), now, source, enqueuer, nil)
+	if err != nil {
+		t.Fatalf("ScanDueScheduledReports() error = %v", err)
+	}
+	if result.Due != 1 || result.Enqueued != 1 || result.Skipped != 0 {
+		t.Fatalf("result = %#v, want due=1 enqueued=1 skipped=0", result)
+	}
+	if got := enqueuer.payloads[0].ReportDate; got != "2026-11-18" {
+		t.Fatalf("report_date = %q, want Shanghai date 2026-11-18", got)
 	}
 }
 

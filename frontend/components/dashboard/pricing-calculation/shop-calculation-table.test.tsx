@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import { ShopCalculationTable } from './shop-calculation-table'
@@ -148,7 +149,8 @@ describe('ShopCalculationTable Warm Ledger contract', () => {
     expect(markup).not.toContain('font-mono')
   })
 
-  it('keeps edit and calculate actions wired with Warm controls', () => {
+  it('keeps edit and calculate actions wired with Warm controls', async () => {
+    const user = userEvent.setup()
     const onDraftChange = vi.fn()
     const onCalculate = vi.fn()
 
@@ -164,6 +166,18 @@ describe('ShopCalculationTable Warm Ledger contract', () => {
 
     fireEvent.change(screen.getByLabelText('长(cm)'), { target: { value: '21' } })
     expect(onDraftChange).toHaveBeenCalledWith(item.id, 'package_length_cm', '21')
+
+    // 「派送模式」从原生 select 换成 WarmSelect（Radix combobox），键盘/鼠标都能展开选择
+    expect(container.querySelector('select')).toBeNull()
+    const inboundMode = screen.getByRole('combobox', { name: '派送模式' })
+    expect(inboundMode).toHaveTextContent('单仓')
+    await user.click(inboundMode)
+    await user.click(screen.getByRole('option', { name: '优化拆仓' }))
+    expect(onDraftChange).toHaveBeenCalledWith(
+      item.id,
+      'inbound_placement_mode',
+      'amazon_optimized_split'
+    )
 
     fireEvent.click(screen.getByRole('button', { name: '测算' }))
     expect(onCalculate).toHaveBeenCalledWith(item)

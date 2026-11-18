@@ -56,6 +56,123 @@ export function formatProjectNames(
   }
 }
 
+// ── 错误响应解析 ──
+// Go 后端错误体统一是 FastAPI 形状：`{"detail": "..."}`；网关参数校验可能是
+// `{"detail": [{loc, msg, type}]}`；Next 代理自身失败则是 `{"message": "..."}`。
+// 这里一次性收敛：既不让 `{"detail":...}` 原样出现在用户文案里，也把后端已知的
+// 英文错误翻成中文可操作提示。未知英文/HTML 只回落到状态级中文兜底。
+
+const CHINESE_TEXT = /[\u4e00-\u9fff]/
+
+const API_ERROR_MESSAGES: Record<string, string> = {
+  'email is required': '请填写邮箱地址后再发送测试邮件',
+  'invalid request body': '请求参数无效，请检查后重试',
+  'scheduled report store not configured': '定时报告服务未配置，请联系管理员',
+  'test report mailer not configured': '测试邮件服务未配置，请联系管理员',
+  'scheduled report enqueuer not configured': '定时报告任务队列未配置，请联系管理员',
+  'scheduled report queue unavailable': '定时报告任务队列暂不可用，请稍后重试',
+  'ledger entry not found': '台账记录不存在，请刷新台账后重试',
+  'ledger entry already sent': '该记录已发送成功，无需重新生成',
+  'delivery log missing': '该记录没有可用的发送日志，无法重新生成',
+  'delivery not sent': '该记录尚未发送成功，无法生成 AI 摘要',
+  'subscription not found': '订阅不存在，请刷新订阅列表后重试',
+  'ledger_key is required': '台账记录标识缺失，请刷新后重试',
+  unauthorized: '登录状态已失效，请重新登录后重试',
+  'not authenticated': '登录状态已失效，请重新登录后重试',
+  'internal server error': '服务暂时不可用，请稍后重试',
+  'start_date and end_date are required': '请选择完整的台账日期范围',
+  'start_date must be yyyy-mm-dd': '开始日期格式无效，请重新选择',
+  'end_date must be yyyy-mm-dd': '结束日期格式无效，请重新选择',
+  'end_date must be greater than or equal to start_date': '结束日期不能早于开始日期',
+  'project_id must be a valid integer': '项目筛选值无效，请重新选择',
+  'project_id must be greater than 0': '项目筛选值无效，请重新选择',
+}
+
+const API_ERROR_PATTERNS: Array<[RegExp, string]> = [
+  [/^field required$/i, '必填项缺失，请检查后重试'],
+  [/^value is not a valid email address/i, '邮箱格式无效，请输入完整邮箱地址'],
+  [/^value is not a valid/i, '参数格式无效，请检查后重试'],
+  [/^invalid email/i, '邮箱格式无效，请输入完整邮箱地址'],
+]
+
+function detailText(value: unknown): string {
+  if (typeof value === 'string') return value.trim()
+  if (Array.isArray(value)) {
+    return value.map(detailText).filter(Boolean).join('；')
+  }
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    return detailText(record.msg ?? record.message ?? record.detail ?? record.error)
+  }
+  return ''
+}
+
+function statusFallback(status: number, fallback: string): string {
+  if (status === 401 || status === 403) return '登录状态已失效或无权限，请刷新页面后重试'
+  if (status === 404) return '记录不存在或已被删除，请刷新后重试'
+  if (status === 409) return '当前状态不允许该操作，请刷新后重试'
+  if (status === 422) return '请求参数无效，请检查后重试'
+  if (status === 429) return '操作过于频繁，请稍后重试'
+  if (status >= 500) return '服务暂时不可用，请稍后重试'
+  return fallback
+}
+
+function translateSingleMessage(message: string): string {
+  const trimmed = message.trim()
+  if (!trimmed) return ''
+  const mapped = API_ERROR_MESSAGES[trimmed.toLowerCase()]
+  if (mapped) return mapped
+  for (const [pattern, replacement] of API_ERROR_PATTERNS) {
+    if (pattern.test(trimmed)) return replacement
+  }
+  // 后端大量校验文案本身是中文（项目 / 邮箱 / 频率等），原样保留即可。
+  if (CHINESE_TEXT.test(trimmed)) return trimmed
+  return ''
+}
+
+function translateApiMessage(message: string, status: number, fallback: string): string {
+  const trimmed = message.trim()
+  if (!trimmed) return statusFallback(status, fallback)
+  // FastAPI 校验错误会一次返回多项 detail；逐项翻译后保留分号分隔，
+  // 避免整串英文命中不了映射表被当成未知错误。
+  const parts = trimmed
+    .split('；')
+    .map(translateSingleMessage)
+    .filter(Boolean)
+  if (parts.length > 0) return parts.join('；')
+  // 未知英文细节不直接暴露给用户，回落到按状态给出的中文兜底。
+  return statusFallback(status, fallback)
+}
+
+/**
+ * 从任意 HTTP 错误响应体提取可读文案。导出便于对错误体形状做纯函数测试。
+ * 支持 `detail` 字符串、`detail` 数组（FastAPI 校验）、`message` / `error`，
+ * 以及非 JSON 的纯文本 / HTML（HTML 不原样透出）。
+ */
+export function parseApiErrorText(raw: string, status: number, fallback: string): string {
+  const text = raw.trim()
+  if (!text) return statusFallback(status, fallback)
+  if (/<html|<body|<!doctype/i.test(text)) return statusFallback(status, fallback)
+
+  try {
+    const payload = JSON.parse(text) as Record<string, unknown>
+    const detail = detailText(payload.detail ?? payload.message ?? payload.error)
+    return translateApiMessage(detail || text, status, fallback)
+  } catch {
+    return translateApiMessage(text, status, fallback)
+  }
+}
+
+async function readApiError(response: Response, fallback: string): Promise<string> {
+  let raw = ''
+  try {
+    raw = await response.text()
+  } catch {
+    return statusFallback(response.status, fallback)
+  }
+  return parseApiErrorText(raw, response.status, fallback)
+}
+
 // ── 模型配置 ──
 
 export async function fetchModelConfig(
@@ -124,8 +241,7 @@ export async function createSubscription(data: {
       body: JSON.stringify(data),
     })
     if (!res.ok) {
-      const err = await res.text()
-      return { ok: false, error: err || '创建失败' }
+      return { ok: false, error: await readApiError(res, '创建失败，请稍后重试') }
     }
     return { ok: true }
   } catch (e) {
@@ -154,8 +270,7 @@ export async function updateSubscription(
       body: JSON.stringify(data),
     })
     if (!res.ok) {
-      const err = await res.text()
-      return { ok: false, error: err || '更新失败' }
+      return { ok: false, error: await readApiError(res, '更新失败，请稍后重试') }
     }
     return { ok: true }
   } catch (e) {
@@ -163,16 +278,21 @@ export async function updateSubscription(
   }
 }
 
-export async function deleteSubscription(id: number): Promise<boolean> {
+export async function deleteSubscription(
+  id: number
+): Promise<{ ok: boolean; error?: string }> {
   try {
     const res = await fetch(resolveApiUrl(`/api/v1/scheduled-reports/subscriptions/${id}`), {
       method: 'DELETE',
       headers: authHeaders(),
     })
-    return res.ok
+    if (!res.ok) {
+      return { ok: false, error: await readApiError(res, '删除失败，请稍后重试') }
+    }
+    return { ok: true }
   } catch (e) {
     console.error(e)
-    return false
+    return { ok: false, error: normalizeErrorMessage(e, '删除失败，请稍后重试') }
   }
 }
 
@@ -206,8 +326,7 @@ async function patchSubscription(
       body: JSON.stringify(patch),
     })
     if (!res.ok) {
-      const err = await res.text()
-      return { ok: false, error: normalizeErrorMessage(err, fallbackError) }
+      return { ok: false, error: await readApiError(res, fallbackError) }
     }
     return { ok: true }
   } catch (e) {
@@ -260,15 +379,7 @@ export async function batchPatchSubscriptions(
 /** 批量删除：DELETE 只返回成功与否，失败按条数汇总，不细化文案 */
 export async function batchDeleteSubscriptions(ids: number[]): Promise<BatchResult> {
   const results = await Promise.allSettled(ids.map((id) => deleteSubscription(id)))
-  return summarizeBatch(
-    ids,
-    results.map((result) =>
-      result.status === 'fulfilled'
-        ? { status: 'fulfilled' as const, value: { ok: result.value } }
-        : result
-    ),
-    '删除失败'
-  )
+  return summarizeBatch(ids, results, '删除失败')
 }
 
 // ── 测试邮件 ──
@@ -286,10 +397,30 @@ export async function sendTestEmail(data: {
       headers: { ...authHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     })
-    const json = await res.json()
-    return { success: json.success, message: json.message }
+    // 非 2xx 绝不能静默：后端 422（email is required）/ 409 / 500 都带 detail，
+    // 统一解析成中文可操作提示；HTML 错误页不回显。
+    if (!res.ok) {
+      return { success: false, message: await readApiError(res, '测试邮件发送失败，请稍后重试') }
+    }
+    let json: { success?: unknown; message?: unknown }
+    try {
+      json = (await res.json()) as { success?: unknown; message?: unknown }
+    } catch {
+      return { success: false, message: '测试邮件服务返回异常，请稍后重试' }
+    }
+    const message =
+      typeof json.message === 'string' && json.message.trim()
+        ? json.message.trim()
+        : ''
+    if (json.success === true) {
+      return { success: true, message: message || '测试邮件已发送' }
+    }
+    return {
+      success: false,
+      message: translateApiMessage(message, res.status, '测试邮件发送失败，请稍后重试'),
+    }
   } catch (e) {
-    return { success: false, message: normalizeErrorMessage(e, '发送失败') }
+    return { success: false, message: normalizeErrorMessage(e, '测试邮件发送失败，请稍后重试') }
   }
 }
 
@@ -302,6 +433,8 @@ export async function fetchLedger(
     frequency: string
     statusFilter: string
     email: string
+    /** 后端 project_id 过滤：项目字符串匹配（含 * 与多项目交集语义）。 */
+    projectId?: string
     limit?: number
   },
   onData: (items: LedgerItem[], summary: LedgerSummary | null, total?: number) => void,
@@ -315,18 +448,29 @@ export async function fetchLedger(
     limit: String(params.limit ?? 100),
   })
   if (params.email.trim()) q.set('email', params.email.trim())
+  if (params.projectId?.trim()) q.set('project_id', params.projectId.trim())
   try {
     const res = await fetch(resolveApiUrl(`/api/v1/scheduled-reports/ledger?${q.toString()}`), {
       headers: authHeaders(),
     })
-    if (!res.ok) throw new Error(await res.text())
-    const data = (await res.json()) as { items: LedgerItem[]; summary: LedgerSummary; total?: number }
+    if (!res.ok) throw new Error(await readApiError(res, '加载台账失败，请稍后重试'))
+    let data: { items: LedgerItem[]; summary: LedgerSummary; total?: number }
+    try {
+      data = (await res.json()) as {
+        items: LedgerItem[]
+        summary: LedgerSummary
+        total?: number
+      }
+    } catch {
+      onError('台账响应格式异常，请稍后重试')
+      return
+    }
     const items: LedgerItem[] = Array.isArray(data.items)
       ? data.items.map(withInsightRunBinding)
       : []
     onData(items, data.summary || null, data.total ?? items.length)
   } catch (e) {
-    onError(normalizeErrorMessage(e, '加载台账失败'))
+    onError(normalizeErrorMessage(e, '加载台账失败，请稍后重试'))
   }
 }
 
@@ -377,11 +521,11 @@ export async function resendLedgerEntry(
       method: 'POST',
       headers: authHeadersWithAdmin(),
     })
-    if (!res.ok) throw new Error(await res.text())
+    if (!res.ok) throw new Error(await readApiError(res, '重新生成失败，请稍后重试'))
     const data = await res.json()
     return { ok: true, deliveryLogId: data.delivery_log_id }
   } catch (e) {
-    return { ok: false, error: normalizeErrorMessage(e) }
+    return { ok: false, error: normalizeErrorMessage(e, '重新生成失败，请稍后重试') }
   }
 }
 
@@ -404,7 +548,7 @@ export async function regenerateLedgerAiSummary(
       method: 'POST',
       headers: authHeadersWithAdmin(),
     })
-    if (!res.ok) throw new Error(await res.text())
+    if (!res.ok) throw new Error(await readApiError(res, 'AI 摘要生成失败，请稍后重试'))
     const data = await res.json()
     return {
       ok: true,
@@ -454,28 +598,49 @@ export async function pollDeliveryLogStatus(
   deliveryLogId: number,
   onStage: (key: string, stage: string) => void,
   onDone: (key: string) => void,
-  onError: (key: string) => void,
-  pollInterval = 2000
+  onError: (key: string, reason: 'failed' | 'timeout') => void,
+  pollInterval = 2000,
+  /** 同一 stage 持续多久后停止轮询并提示用户（毫秒） */
+  stallTimeoutMs = 120000
 ) {
+  let lastStage: string | null = null
+  let lastStageChangedAt = Date.now()
+
   const poll = async () => {
     try {
-      const res = await fetch(resolveApiUrl('/api/v1/scheduled-reports/delivery-logs?limit=1'), {
-        headers: authHeaders(),
-      })
+      // 旧实现只取 limit=1，别的 delivery log（例如同用户其它订阅）排在前面时
+      // 目标 id 永远找不到，前端就会无声地停在「准备中」。取最近 50 条足够覆盖
+      // 并发窗口，同时保留按 delivery_log_id 精确匹配。
+      const res = await fetch(
+        resolveApiUrl('/api/v1/scheduled-reports/delivery-logs?limit=50'),
+        { headers: authHeaders() }
+      )
       if (!res.ok) {
         setTimeout(poll, pollInterval * 2)
         return
       }
-      const data = await res.json()
-      const log = data.items?.find((l: { id: number }) => l.id === deliveryLogId)
+      const data = (await res.json()) as { items?: Array<{ id: number; stage?: string }> }
+      const log = data.items?.find((l) => l.id === deliveryLogId)
       if (!log) {
         setTimeout(poll, pollInterval)
         return
       }
-      const stage = log.stage as string
+      const stage = log.stage ?? 'preparing'
+      if (stage !== lastStage) {
+        lastStage = stage
+        lastStageChangedAt = Date.now()
+      }
       onStage(ledgerKey, stage)
-      if (stage === 'done' || stage === 'failed') {
+      if (stage === 'done') {
         onDone(ledgerKey)
+        return
+      }
+      if (stage === 'failed') {
+        onError(ledgerKey, 'failed')
+        return
+      }
+      if (Date.now() - lastStageChangedAt >= stallTimeoutMs) {
+        onError(ledgerKey, 'timeout')
         return
       }
       setTimeout(poll, pollInterval)

@@ -1,0 +1,894 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440, initial-scale=1">
+<title>编辑订阅（方案 B） · 定时报告 · BelieveBoy Warm Ledger 设计草稿</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+.warm-ledger {
+  --warm-ledger-color-stage: #1c1d1d;
+  --warm-ledger-color-window: #242525;
+  --warm-ledger-color-sidebar: #202120;
+  --warm-ledger-color-panel: #2b2c2b;
+  --warm-ledger-color-panel-strong: #333433;
+  --warm-ledger-color-raised: #3b3c3b;
+  --warm-ledger-color-raised-hover: #454644;
+  --warm-ledger-color-hairline: rgba(246, 238, 226, 0.12);
+  --warm-ledger-color-hairline-strong: rgba(246, 238, 226, 0.2);
+  --warm-ledger-color-text: #f1ede5;
+  --warm-ledger-color-text-soft: #c2bbaf;
+  --warm-ledger-color-text-muted: #a9a297;
+  --warm-ledger-color-text-faint: #837d74;
+  --warm-ledger-color-accent: #e8b35a;
+  --warm-ledger-color-accent-strong: #f3c875;
+  --warm-ledger-color-accent-soft: rgba(232, 179, 90, 0.12);
+  --warm-ledger-color-accent-area: rgba(232, 179, 90, 0.1);
+  --warm-ledger-color-positive: #65cfa1;
+  --warm-ledger-color-negative: #ee8580;
+  --warm-ledger-color-chart-grid: rgba(246, 238, 226, 0.09);
+  --warm-ledger-color-chart-axis: #5f5b55;
+  --warm-ledger-color-chart-1: #f1ede5;
+  --warm-ledger-color-chart-2: #d8d0c4;
+  --warm-ledger-color-chart-3: #c2bbaf;
+  --warm-ledger-color-chart-4: #a9a297;
+  --warm-ledger-color-chart-5: #918a80;
+
+  --warm-ledger-font-sans: "Instrument Sans", "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  --warm-ledger-font-mono: "DM Mono", "SFMono-Regular", "Noto Sans Mono CJK SC", "PingFang SC", monospace;
+  --warm-ledger-font-size-label: 11px;
+  --warm-ledger-font-size-control: 12px;
+  --warm-ledger-font-size-body: 14px;
+  --warm-ledger-font-size-section: 16px;
+  --warm-ledger-font-size-metric-secondary: 34px;
+  --warm-ledger-font-size-page-title: 44px;
+  --warm-ledger-font-size-page-title-compact: 38px;
+  --warm-ledger-font-size-page-title-tablet: 40px;
+  --warm-ledger-font-size-page-title-mobile: 36px;
+  --warm-ledger-letter-spacing-page-title: 0;
+  --warm-ledger-font-size-metric-primary: 50px;
+  --warm-ledger-line-height-tight: 1;
+  --warm-ledger-line-height-body: 1.5;
+  --warm-ledger-font-weight-regular: 400;
+  --warm-ledger-font-weight-medium: 500;
+  --warm-ledger-font-variant-numeric: tabular-nums;
+
+  --warm-ledger-space-1: 4px;
+  --warm-ledger-space-2: 8px;
+  --warm-ledger-space-3: 12px;
+  --warm-ledger-space-4: 16px;
+  --warm-ledger-space-5: 20px;
+  --warm-ledger-space-6: 24px;
+  --warm-ledger-space-7: 28px;
+  --warm-ledger-space-8: 32px;
+  --warm-ledger-space-9: 36px;
+  --warm-ledger-space-10: 40px;
+  --warm-ledger-space-12: 48px;
+  --warm-ledger-inset-stage: 8px;
+  --warm-ledger-inset-content: 20px;
+  --warm-ledger-inset-panel: 20px;
+  --warm-ledger-layout-sidebar-width: 280px;
+  --warm-ledger-layout-home-max-width: 1600px;
+  --warm-ledger-nav-icon-column: 20px;
+
+  --warm-ledger-radius-window: 22px;
+  --warm-ledger-radius-panel: 16px;
+  --warm-ledger-radius-control: 10px;
+  --warm-ledger-radius-inner: 8px;
+  --warm-ledger-radius-pill: 999px;
+  --warm-ledger-border-width: 1px;
+  --warm-ledger-nav-indicator-width: 2px;
+
+  --warm-ledger-highlight-shell: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --warm-ledger-highlight-rest: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --warm-ledger-highlight-hover: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  --warm-ledger-highlight-pressed: inset 0 1px 2px rgba(0, 0, 0, 0.28);
+  --warm-ledger-shadow-window: 0 28px 72px rgba(0, 0, 0, 0.36);
+
+  --warm-ledger-focus-width: 2px;
+  --warm-ledger-focus-offset: 3px;
+  --warm-ledger-focus-color: var(--warm-ledger-color-accent-strong);
+
+  --warm-ledger-control-height-compact: 34px;
+  --warm-ledger-control-height: 38px;
+  --warm-ledger-control-height-select: 40px;
+  --warm-ledger-control-size-icon: 36px;
+  --warm-ledger-control-target-touch: 44px;
+  --warm-ledger-nav-height: 36px;
+  --warm-ledger-nav-height-touch: 44px;
+  --warm-ledger-quick-link-height: 40px;
+  --warm-ledger-quick-link-height-mobile: 48px;
+  --warm-ledger-order-row-height: 32px;
+  --warm-ledger-order-summary-height-touch: 44px;
+
+  --warm-ledger-motion-duration-shell: 520ms;
+  --warm-ledger-motion-duration-control: 140ms;
+  --warm-ledger-motion-duration-press: 100ms;
+  --warm-ledger-motion-duration-drawer: 240ms;
+  --warm-ledger-motion-distance-shell: 10px;
+  --warm-ledger-motion-distance-press: 1px;
+  --warm-ledger-motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --warm-ledger-color-scrim: rgba(0, 0, 0, 0.55);
+  --warm-ledger-color-backdrop: rgba(0, 0, 0, 0.48);
+  --warm-ledger-color-on-accent: #1c1d1d;
+  --warm-ledger-shadow-popover: 0 12px 32px rgba(0, 0, 0, 0.3);
+  --warm-ledger-shadow-dialog: 0 28px 72px rgba(0, 0, 0, 0.58);
+
+  /* Draft-local sizing aliases only; every value derives from the Warm tokens.
+     Auxiliary copy never drops below 12px and body copy never below 13px. */
+  --sr-text-aux: var(--warm-ledger-font-size-control);         /* 12px */
+  --sr-text-cell: calc(var(--warm-ledger-font-size-control) + 1px); /* 13px */
+  --sr-text-body: var(--warm-ledger-font-size-body);           /* 14px */
+  --sr-text-section: var(--warm-ledger-font-size-section);     /* 16px */
+  --sr-line: 1.45;
+}
+
+html[data-theme="light"] .warm-ledger {
+  --warm-ledger-color-stage: #e8eae4;
+  --warm-ledger-color-window: #fbfcfa;
+  --warm-ledger-color-sidebar: #f2f2ef;
+  --warm-ledger-color-panel: #ffffff;
+  --warm-ledger-color-panel-strong: #f7f8f5;
+  --warm-ledger-color-raised: #f1f3ef;
+  --warm-ledger-color-raised-hover: #e9ece7;
+  --warm-ledger-color-hairline: rgba(48, 54, 47, 0.14);
+  --warm-ledger-color-hairline-strong: rgba(48, 54, 47, 0.23);
+  --warm-ledger-color-text: #242823;
+  --warm-ledger-color-text-soft: #4b514a;
+  --warm-ledger-color-text-muted: #565f58;
+  --warm-ledger-color-text-faint: #5f6860;
+  --warm-ledger-color-accent: #0f6b57;
+  --warm-ledger-color-accent-strong: #0b5746;
+  --warm-ledger-color-accent-soft: rgba(15, 107, 87, 0.12);
+  --warm-ledger-color-accent-area: rgba(15, 107, 87, 0.1);
+  --warm-ledger-color-positive: #2a7130;
+  --warm-ledger-color-negative: #a83c34;
+  --warm-ledger-color-chart-grid: rgba(48, 54, 47, 0.1);
+  --warm-ledger-color-chart-axis: rgba(48, 54, 47, 0.35);
+  --warm-ledger-color-chart-1: #3f4a42;
+  --warm-ledger-color-chart-2: #525e55;
+  --warm-ledger-color-chart-3: #66736a;
+  --warm-ledger-color-chart-4: #7a877c;
+  --warm-ledger-color-chart-5: #87948b;
+  --warm-ledger-color-scrim: rgba(24, 32, 26, 0.55);
+  --warm-ledger-color-backdrop: rgba(24, 32, 26, 0.38);
+  --warm-ledger-color-on-accent: #ffffff;
+  --warm-ledger-highlight-shell: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --warm-ledger-highlight-rest: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --warm-ledger-highlight-hover: inset 0 1px 0 rgba(255, 255, 255, 1);
+  --warm-ledger-highlight-pressed: inset 0 1px 2px rgba(31, 39, 33, 0.1);
+  --warm-ledger-shadow-window: 0 24px 56px rgba(45, 54, 46, 0.16);
+  --warm-ledger-shadow-popover: 0 12px 32px rgba(45, 54, 46, 0.14);
+  --warm-ledger-shadow-dialog: 0 24px 64px rgba(45, 54, 46, 0.24);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+body.warm-ledger {
+  color: var(--warm-ledger-color-text);
+  font-family: var(--warm-ledger-font-sans);
+  font-size: var(--sr-text-body);
+  line-height: var(--sr-line);
+  background: var(--warm-ledger-color-stage);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+html[data-theme="dark"] { color-scheme: dark; }
+html[data-theme="light"] { color-scheme: light; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; border: 0; background: none; padding: 0; }
+a { color: inherit; text-decoration: none; }
+.i { display: block; flex: 0 0 auto; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+:is(button, a, input, [tabindex]):focus-visible {
+  outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color);
+  outline-offset: var(--warm-ledger-focus-offset);
+}
+
+/* ── shell ─────────────────────────────────────────────────────────────── */
+.warm-ledger__stage { position: fixed; inset: 0; background: var(--warm-ledger-color-stage); }
+.warm-ledger__window {
+  position: absolute; inset: var(--warm-ledger-inset-stage);
+  display: grid; grid-template-columns: var(--warm-ledger-layout-sidebar-width) minmax(0, 1fr);
+  overflow: hidden; background: var(--warm-ledger-color-window);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline-strong);
+  border-radius: var(--warm-ledger-radius-window);
+  box-shadow: var(--warm-ledger-shadow-window), var(--warm-ledger-highlight-shell);
+  animation: sr-window-enter var(--warm-ledger-motion-duration-shell) var(--warm-ledger-motion-ease) both;
+}
+@keyframes sr-window-enter {
+  from { opacity: 0; transform: translateY(var(--warm-ledger-motion-distance-shell)); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.warm-ledger__sidebar {
+  display: flex; min-height: 0; flex-direction: column;
+  background: var(--warm-ledger-color-sidebar);
+  border-right: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline);
+}
+.warm-ledger__brand-row { display: flex; align-items: center; gap: var(--warm-ledger-space-3); padding: 20px 20px 12px; }
+.warm-ledger__brand-mark {
+  display: grid; width: 36px; height: 36px; place-items: center; flex: 0 0 36px;
+  color: var(--warm-ledger-color-window); font-family: var(--warm-ledger-font-mono);
+  font-size: 16px; font-weight: 500;
+  background: var(--warm-ledger-color-text);
+  border-radius: var(--warm-ledger-radius-control);
+}
+.warm-ledger__brand-name { display: block; font-size: 16px; font-weight: 500; line-height: 1.2; }
+.warm-ledger__brand-area { display: block; margin-top: 2px; color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); }
+.warm-ledger__navigation { flex: 1 1 auto; min-height: 0; padding: 4px 12px 12px; overflow-y: auto; }
+.warm-ledger__nav-label { display: block; padding: 6px 8px 8px; color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); }
+.warm-ledger__nav-group {
+  position: relative; display: flex; width: 100%; height: 36px; align-items: center;
+  gap: var(--warm-ledger-space-2); padding: 0 8px; color: var(--warm-ledger-color-text);
+  font-size: var(--sr-text-cell); font-weight: 500; text-align: left;
+  border: 1px solid transparent; border-radius: var(--warm-ledger-radius-inner);
+  transition: background-color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease),
+              border-color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease);
+}
+.warm-ledger__nav-group[data-expanded="true"] {
+  background: var(--warm-ledger-color-raised);
+  border-color: var(--warm-ledger-color-hairline);
+  box-shadow: var(--warm-ledger-highlight-rest);
+}
+.warm-ledger__nav-group:hover { background: var(--warm-ledger-color-raised-hover); }
+.warm-ledger__nav-icon { display: grid; width: var(--warm-ledger-nav-icon-column); height: var(--warm-ledger-nav-icon-column); place-items: center; flex: 0 0 var(--warm-ledger-nav-icon-column); color: var(--warm-ledger-color-text-muted); }
+.warm-ledger__nav-icon .i { width: 16px; height: 16px; }
+.warm-ledger__nav-chevron { margin-left: auto; color: var(--warm-ledger-color-text-muted); }
+.warm-ledger__nav-item {
+  position: relative; display: flex; height: 34px; align-items: center; gap: var(--warm-ledger-space-2);
+  margin: 2px 0 0 8px; padding: 0 8px 0 12px;
+  color: var(--warm-ledger-color-text-soft); font-size: var(--sr-text-cell);
+  border-radius: var(--warm-ledger-radius-inner);
+  transition: background-color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease), color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease);
+}
+.warm-ledger__nav-item:hover { background: var(--warm-ledger-color-raised-hover); color: var(--warm-ledger-color-text); }
+.warm-ledger__nav-item[aria-current="page"] { color: var(--warm-ledger-color-text); background: var(--warm-ledger-color-raised); }
+.warm-ledger__nav-item[aria-current="page"]::before {
+  content: ""; position: absolute; top: 7px; bottom: 7px; left: 0;
+  width: var(--warm-ledger-nav-indicator-width);
+  background: var(--warm-ledger-color-accent);
+  border-radius: 1px;
+}
+.warm-ledger__nav-item[aria-current="page"] .warm-ledger__nav-icon { color: var(--warm-ledger-color-accent-strong); }
+.warm-ledger__nav-item .warm-ledger__nav-icon { width: var(--warm-ledger-nav-icon-column); height: var(--warm-ledger-nav-icon-column); }
+.warm-ledger__nav-item .warm-ledger__nav-icon .i { width: 16px; height: 16px; }
+.warm-ledger__quick { flex: 0 0 auto; padding: 12px; border-top: 1px solid var(--warm-ledger-color-hairline); }
+.warm-ledger__quick-label { display: block; padding: 0 8px 8px; color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); }
+.warm-ledger__quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--warm-ledger-space-2); }
+.warm-ledger__quick-link {
+  display: flex; height: var(--warm-ledger-quick-link-height); align-items: center;
+  gap: 6px; padding: 0 8px; color: var(--warm-ledger-color-text-soft);
+  font-size: var(--sr-text-aux); background: var(--warm-ledger-color-panel);
+  border: 1px solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-inner);
+}
+.warm-ledger__quick-link .i { width: 14px; height: 14px; color: var(--warm-ledger-color-text-muted); }
+.warm-ledger__main { display: grid; min-width: 0; min-height: 0; grid-template-rows: 64px minmax(0, 1fr); }
+.warm-ledger__topbar {
+  display: flex; align-items: center; gap: var(--warm-ledger-space-3);
+  padding: 0 var(--warm-ledger-inset-content);
+  border-bottom: 1px solid var(--warm-ledger-color-hairline);
+}
+.warm-ledger__breadcrumb { display: flex; min-width: 0; align-items: center; gap: 8px; color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-cell); }
+.warm-ledger__breadcrumb .i { width: 14px; height: 14px; }
+.warm-ledger__breadcrumb [aria-current="page"] { color: var(--warm-ledger-color-text-soft); }
+.warm-ledger__topbar-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+.warm-ledger__icon-button {
+  display: grid; width: var(--warm-ledger-control-size-icon); height: var(--warm-ledger-control-size-icon);
+  place-items: center; color: var(--warm-ledger-color-text-soft); border-radius: var(--warm-ledger-radius-control);
+  border: 1px solid transparent;
+}
+.warm-ledger__icon-button:hover { background: var(--warm-ledger-color-raised-hover); color: var(--warm-ledger-color-text); border-color: var(--warm-ledger-color-hairline); }
+.warm-ledger__content {
+  display: flex; min-height: 0; flex-direction: column; gap: var(--warm-ledger-space-3);
+  padding: var(--warm-ledger-inset-content); overflow: hidden;
+}
+
+/* ── shared controls ───────────────────────────────────────────────────── */
+.warm-ledger__button {
+  display: inline-flex; min-height: var(--warm-ledger-control-height); align-items: center;
+  justify-content: center; gap: var(--warm-ledger-space-2); padding: 0 var(--warm-ledger-space-3);
+  color: var(--warm-ledger-color-text-soft); font-size: var(--sr-text-cell); font-weight: 500;
+  background: var(--warm-ledger-color-panel);
+  border: 1px solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-control);
+  box-shadow: var(--warm-ledger-highlight-rest);
+  transition: background-color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease),
+              border-color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease),
+              color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease);
+}
+.warm-ledger__button--primary {
+  color: var(--warm-ledger-color-on-accent);
+  background: var(--warm-ledger-color-accent);
+  border-color: var(--warm-ledger-color-accent-strong);
+}
+.warm-ledger__button--quiet { background: transparent; border-color: transparent; box-shadow: none; }
+.warm-ledger__button--compact { min-height: var(--warm-ledger-control-height-compact); font-size: var(--sr-text-aux); }
+.warm-ledger__button:hover { color: var(--warm-ledger-color-text); background: var(--warm-ledger-color-raised-hover); border-color: var(--warm-ledger-color-hairline-strong); }
+.warm-ledger__button--primary:hover { color: var(--warm-ledger-color-on-accent); background: var(--warm-ledger-color-accent-strong); }
+.warm-ledger__button:disabled { color: var(--warm-ledger-color-text-muted); background: transparent; border-color: transparent; box-shadow: none; cursor: not-allowed; }
+.warm-ledger__segment {
+  display: inline-flex; height: 32px; align-items: center; padding: 0 12px;
+  color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); font-weight: 500;
+  border: 1px solid transparent; border-radius: 7px;
+}
+.warm-ledger__segment[aria-pressed="true"] { color: var(--warm-ledger-color-text); background: var(--warm-ledger-color-raised); border-color: var(--warm-ledger-color-hairline); }
+.warm-ledger__segmented {
+  display: inline-flex; align-items: center; gap: 2px; padding: 3px;
+  background: var(--warm-ledger-color-panel);
+  border: 1px solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-control);
+}
+.warm-ledger__field {
+  display: flex; height: var(--warm-ledger-control-height); align-items: center; gap: 8px;
+  padding: 0 10px; color: var(--warm-ledger-color-text); font-size: var(--sr-text-cell);
+  background: var(--warm-ledger-color-panel);
+  border: 1px solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-control);
+}
+.warm-ledger__field--input { width: 100%; }
+.warm-ledger__field .i { width: 16px; height: 16px; color: var(--warm-ledger-color-text-muted); }
+.warm-ledger__field .sr-select-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.warm-ledger__field .sr-select-chevron { margin-left: auto; }
+.warm-ledger__field:hover { border-color: var(--warm-ledger-color-hairline-strong); }
+
+/* ── page panel ────────────────────────────────────────────────────────── */
+.sr-tabs { display: inline-flex; width: max-content; max-width: 100%; align-items: center; gap: 4px; padding: 4px; background: var(--warm-ledger-color-panel); border: 1px solid var(--warm-ledger-color-hairline); border-radius: var(--warm-ledger-radius-control); box-shadow: var(--warm-ledger-highlight-rest); flex: 0 0 auto; }
+.sr-tab { display: inline-flex; min-height: 36px; align-items: center; gap: 8px; padding: 0 12px; color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-cell); font-weight: 500; border: 1px solid transparent; border-radius: var(--warm-ledger-radius-inner); }
+.sr-tab .i { width: 16px; height: 16px; }
+.sr-tab[aria-selected="true"] { color: var(--warm-ledger-color-text); background: var(--warm-ledger-color-raised); border-color: var(--warm-ledger-color-hairline); box-shadow: var(--warm-ledger-highlight-rest); }
+.sr-tab:hover { color: var(--warm-ledger-color-text); }
+
+.sr-panel {
+  display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column;
+  overflow: hidden; background: var(--warm-ledger-color-panel);
+  border: 1px solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-panel);
+  box-shadow: var(--warm-ledger-highlight-rest);
+}
+.sr-panel__head {
+  display: flex; min-height: 54px; flex: 0 0 auto; align-items: center; gap: var(--warm-ledger-space-3);
+  padding: 0 var(--warm-ledger-inset-panel);
+  background: var(--warm-ledger-color-panel-strong);
+  border-bottom: 1px solid var(--warm-ledger-color-hairline);
+}
+.sr-panel__title { margin: 0; color: var(--warm-ledger-color-text); font-size: var(--sr-text-section); font-weight: 500; }
+.sr-panel__meta { display: flex; align-items: center; gap: var(--warm-ledger-space-3); margin-left: auto; }
+.sr-panel__count { color: var(--warm-ledger-color-text-muted); font-family: var(--warm-ledger-font-mono); font-size: var(--sr-text-aux); font-variant-numeric: tabular-nums; }
+.sr-sample {
+  display: inline-flex; height: 24px; align-items: center; padding: 0 8px;
+  color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux);
+  border: 1px solid var(--warm-ledger-color-hairline); border-radius: var(--warm-ledger-radius-inner);
+}
+.sr-toolbar {
+  display: flex; min-height: 56px; flex: 0 0 auto; align-items: center; gap: var(--warm-ledger-space-2);
+  padding: 10px var(--warm-ledger-inset-panel);
+  border-bottom: 1px solid var(--warm-ledger-color-hairline);
+}
+.sr-toolbar__spacer { flex: 1 1 auto; }
+.sr-note { color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); }
+.sr-scroll { min-height: 0; flex: 1 1 auto; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--warm-ledger-color-raised-hover) transparent; }
+.sr-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+.sr-scroll::-webkit-scrollbar-thumb { background: var(--warm-ledger-color-raised-hover); border: 3px solid transparent; background-clip: content-box; border-radius: 8px; }
+.sr-scroll::-webkit-scrollbar-track { background: transparent; }
+
+/* ── table ─────────────────────────────────────────────────────────────── */
+.sr-table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+.sr-table thead { position: sticky; top: 0; z-index: 2; }
+.sr-table thead tr { background: var(--warm-ledger-color-panel); }
+.sr-table th {
+  height: 44px; padding: 0 8px; color: var(--warm-ledger-color-text-muted);
+  font-size: var(--sr-text-aux); font-weight: 500; text-align: left; white-space: nowrap;
+  border-bottom: 1px solid var(--warm-ledger-color-hairline);
+}
+.sr-table th:first-child, .sr-table td:first-child { padding-left: var(--warm-ledger-inset-panel); }
+.sr-table th:last-child, .sr-table td:last-child { padding-right: var(--warm-ledger-inset-panel); }
+.sr-table tbody tr { height: 60px; }
+.sr-table td { padding: 8px; vertical-align: middle; border-bottom: 1px solid var(--warm-ledger-color-hairline); }
+.sr-table tbody tr:hover { background: var(--warm-ledger-color-raised-hover); }
+.sr-table tbody tr[data-selected="true"] { background: var(--warm-ledger-color-accent-soft); }
+.sr-table tbody tr[data-selected="true"]:hover { background: color-mix(in srgb, var(--warm-ledger-color-accent) 16%, transparent); }
+.sr-row-primary { display: block; overflow: hidden; color: var(--warm-ledger-color-text); font-size: var(--sr-text-body); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.sr-row-sub { display: block; margin-top: 3px; overflow: hidden; color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); text-overflow: ellipsis; white-space: nowrap; }
+.sr-table tbody tr[data-selected="true"] .sr-row-sub,
+.sr-table tbody tr[data-selected="true"] .sr-cell-email,
+.sr-card[data-selected="true"] .sr-card__countries,
+.sr-card[data-selected="true"] .sr-card__email { color: var(--warm-ledger-color-text-soft); }
+.sr-mono { font-family: var(--warm-ledger-font-mono); font-variant-numeric: tabular-nums; }
+.sr-cell-time { color: var(--warm-ledger-color-text); font-family: var(--warm-ledger-font-mono); font-size: var(--sr-text-cell); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sr-cell-email { display: block; overflow: hidden; color: var(--warm-ledger-color-text-soft); font-family: var(--warm-ledger-font-mono); font-size: var(--sr-text-cell); text-overflow: ellipsis; white-space: nowrap; }
+.sr-cell-email--empty { color: var(--warm-ledger-color-text-muted); font-family: var(--warm-ledger-font-sans); }
+.sr-cell-model { display: block; overflow: hidden; color: var(--warm-ledger-color-text-soft); font-family: var(--warm-ledger-font-mono); font-size: var(--sr-text-aux); text-overflow: ellipsis; white-space: nowrap; }
+.sr-empty-cell { color: var(--warm-ledger-color-text-muted); }
+.sr-th-check { width: 40px; }
+.sr-thumb {
+  display: grid; width: 40px; height: 52px; place-items: center;
+  color: var(--warm-ledger-color-text-muted); background: var(--warm-ledger-color-panel-strong);
+  border: 1px dashed var(--warm-ledger-color-hairline-strong); border-radius: 6px;
+}
+.sr-thumb .i { width: 16px; height: 16px; }
+.sr-thumb-none { color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); }
+
+/* ledger: date-grouped ledger rows */
+.sr-day-row { height: 44px !important; }
+.sr-day-row td { padding: 0 !important; border-top: 1px solid var(--warm-ledger-color-hairline-strong); border-bottom: 1px solid var(--warm-ledger-color-hairline); }
+.sr-day-row:hover { background: transparent !important; }
+.sr-day__head { display: flex; width: 100%; height: 44px; align-items: center; gap: 10px; padding: 0 var(--warm-ledger-inset-panel); text-align: left; background: var(--warm-ledger-color-panel-strong); }
+.sr-day__head:hover { background: var(--warm-ledger-color-raised-hover); }
+.sr-day__chevron { color: var(--warm-ledger-color-text-muted); }
+.sr-day__date { color: var(--warm-ledger-color-text); font-family: var(--warm-ledger-font-mono); font-size: var(--sr-text-body); font-variant-numeric: tabular-nums; }
+.sr-day__weekday { color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); }
+.sr-day__today { color: var(--warm-ledger-color-accent-strong); font-size: var(--sr-text-aux); }
+.sr-day__counts { margin-left: auto; color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); white-space: nowrap; }
+.sr-day__parts { display: inline-flex; align-items: center; gap: 8px; }
+.sr-day__sep { color: var(--warm-ledger-color-text-muted); }
+.sr-ledger-table tbody tr.sr-ledger-row { height: 56px; }
+.sr-summary-text { display: -webkit-box; overflow: hidden; color: var(--warm-ledger-color-text-soft); font-size: var(--sr-text-aux); line-height: 1.4; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.sr-summary__foot { margin-left: 16px; }
+
+/* checkbox + switch */
+.sr-check {
+  position: relative; display: grid; width: 16px; height: 16px; place-items: center;
+  color: var(--warm-ledger-color-on-accent); background: var(--warm-ledger-color-accent);
+  border: 1px solid var(--warm-ledger-color-accent); border-radius: 4px;
+}
+.sr-check .i { width: 12px; height: 12px; stroke-width: 2; }
+.sr-check--empty { background: transparent; border-color: var(--warm-ledger-color-hairline-strong); }
+.sr-check--empty .i { display: none; }
+.sr-check--indeterminate::after { content: ""; width: 8px; height: 2px; background: var(--warm-ledger-color-text); }
+.sr-check--indeterminate { background: transparent; border-color: var(--warm-ledger-color-hairline-strong); }
+.sr-switch { display: inline-flex; align-items: center; gap: 8px; }
+.sr-switch__track {
+  position: relative; width: 34px; height: 18px; flex: 0 0 34px;
+  background: var(--warm-ledger-color-raised);
+  border: 1px solid var(--warm-ledger-color-hairline-strong); border-radius: 999px;
+}
+.sr-switch__track::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px;
+  background: var(--warm-ledger-color-text-soft); border-radius: 50%;
+  transition: transform var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease), background-color var(--warm-ledger-motion-duration-control) var(--warm-ledger-motion-ease);
+}
+.sr-switch[data-on="true"] .sr-switch__track { background: var(--warm-ledger-color-text-soft); border-color: var(--warm-ledger-color-text-muted); }
+.sr-switch[data-on="true"] .sr-switch__track::after { transform: translateX(16px); background: var(--warm-ledger-color-on-accent); }
+.sr-switch__label { color: var(--warm-ledger-color-text-soft); font-size: var(--sr-text-aux); white-space: nowrap; }
+.sr-switch[data-on="false"] .sr-switch__label { color: var(--warm-ledger-color-text-muted); }
+
+/* status text: symbol + word, never colour alone */
+.sr-status { display: inline-flex; align-items: center; gap: 5px; font-size: var(--sr-text-aux); white-space: nowrap; }
+.sr-status[data-tone="sent"] { color: var(--warm-ledger-color-positive); }
+.sr-status[data-tone="generated"] { color: var(--warm-ledger-color-text-soft); }
+.sr-status[data-tone="failed"] { color: var(--warm-ledger-color-negative); }
+.sr-status[data-tone="missing"] { color: var(--warm-ledger-color-accent-strong); }
+.sr-status[data-tone="busy"] { color: var(--warm-ledger-color-accent-strong); }
+.sr-status .glyph { width: 13px; font-family: var(--warm-ledger-font-mono); text-align: center; }
+.sr-inline-action {
+  display: inline-flex; height: 30px; align-items: center; gap: 4px; padding: 0 6px;
+  color: var(--warm-ledger-color-text-soft); font-size: var(--sr-text-aux); white-space: nowrap;
+  border: 1px solid transparent; border-radius: 6px;
+}
+.sr-inline-action:hover { color: var(--warm-ledger-color-text); background: var(--warm-ledger-color-raised-hover); border-color: var(--warm-ledger-color-hairline); }
+.sr-inline-action--danger:hover { color: var(--warm-ledger-color-negative); }
+.sr-actions { display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
+
+/* selection command bar */
+.sr-bulk {
+  display: flex; min-height: 52px; flex: 0 0 auto; align-items: center; gap: var(--warm-ledger-space-2);
+  padding: 0 var(--warm-ledger-inset-panel);
+  background: var(--warm-ledger-color-accent-soft);
+  border-bottom: 1px solid color-mix(in srgb, var(--warm-ledger-color-accent) 32%, transparent);
+}
+.sr-bulk__count { color: var(--warm-ledger-color-text); font-size: var(--sr-text-cell); font-weight: 500; }
+.sr-bulk__divider { width: 1px; height: 20px; margin: 0 4px; background: var(--warm-ledger-color-hairline-strong); }
+.sr-bulk .warm-ledger__field { width: 190px; background: var(--warm-ledger-color-panel); }
+.sr-bulk__push { flex: 1 1 auto; }
+
+/* summary strip */
+.sr-summary {
+  display: flex; min-height: 64px; flex: 0 0 auto; align-items: stretch; gap: 0;
+  padding: 0 var(--warm-ledger-inset-panel);
+  border-bottom: 1px solid var(--warm-ledger-color-hairline);
+}
+.sr-summary__item { display: flex; min-width: 128px; flex-direction: column; justify-content: center; gap: 2px; padding-right: 24px; }
+.sr-summary__item + .sr-summary__item { padding-left: 24px; border-left: 1px solid var(--warm-ledger-color-hairline); }
+.sr-summary__label { color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); }
+.sr-summary__value { color: var(--warm-ledger-color-text); font-family: var(--warm-ledger-font-mono); font-size: 20px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.sr-summary__value[data-tone="failed"] { color: var(--warm-ledger-color-negative); }
+.sr-summary__value[data-tone="missing"] { color: var(--warm-ledger-color-accent-strong); }
+.sr-summary__push { flex: 1 1 auto; }
+.sr-summary__foot { display: flex; align-items: center; color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); }
+
+/* empty / error / loading */
+.sr-state { display: flex; min-height: 240px; flex: 1 1 auto; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 32px; text-align: center; }
+.sr-state__icon { display: grid; width: 32px; height: 32px; place-items: center; color: var(--warm-ledger-color-text-muted); border: 1px solid var(--warm-ledger-color-hairline); border-radius: var(--warm-ledger-radius-control); }
+.sr-state__icon .i { width: 20px; height: 20px; }
+.sr-state__title { margin: 0; color: var(--warm-ledger-color-text); font-size: var(--sr-text-body); font-weight: 500; }
+.sr-state__text { margin: 0; max-width: 460px; color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); }
+.sr-state__actions { display: flex; gap: 8px; margin-top: 4px; }
+.sr-skeleton { background: var(--warm-ledger-color-panel-strong); border-radius: 6px; }
+.sr-skeleton--row { height: 24px; margin: 0 var(--warm-ledger-inset-panel) 6px; }
+.sr-loading-label { display: flex; align-items: center; gap: 8px; padding: 0 var(--warm-ledger-inset-panel); color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); }
+.sr-spinner {
+  width: 14px; height: 14px; border: 2px solid var(--warm-ledger-color-hairline-strong);
+  border-top-color: var(--warm-ledger-color-accent); border-radius: 50%;
+}
+.sr-footer {
+  display: flex; min-height: 44px; flex: 0 0 auto; align-items: center; gap: 8px;
+  padding: 0 var(--warm-ledger-inset-panel);
+  color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux);
+  background: var(--warm-ledger-color-panel-strong);
+  border-top: 1px solid var(--warm-ledger-color-hairline);
+}
+
+/* ── dialog ────────────────────────────────────────────────────────────── */
+.sr-dialog-layer {
+  position: fixed; inset: 0; z-index: 90; display: grid; place-items: center;
+  background: var(--warm-ledger-color-backdrop);
+}
+.sr-dialog {
+  display: flex; width: 780px; max-height: calc(100vh - 56px); flex-direction: column;
+  overflow: hidden; color: var(--warm-ledger-color-text); background: var(--warm-ledger-color-panel);
+  border: 1px solid var(--warm-ledger-color-hairline-strong);
+  border-radius: var(--warm-ledger-radius-panel);
+  box-shadow: var(--warm-ledger-shadow-dialog), var(--warm-ledger-highlight-rest);
+  animation: sr-dialog-enter 220ms var(--warm-ledger-motion-ease) both;
+}
+@keyframes sr-dialog-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.sr-dialog__head {
+  display: flex; height: 72px; flex: 0 0 auto; align-items: center; gap: 12px;
+  padding: 0 24px; border-bottom: 1px solid var(--warm-ledger-color-hairline);
+}
+.sr-dialog__title { margin: 0; font-size: 20px; font-weight: 500; }
+.sr-dialog__head-meta { color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); }
+.sr-dialog__close { margin-left: auto; }
+.sr-dialog__body { min-height: 0; flex: 1 1 auto; padding: 20px 24px 24px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--warm-ledger-color-raised-hover) transparent; }
+.sr-dialog__footer {
+  display: flex; height: 76px; flex: 0 0 auto; align-items: center; gap: 8px;
+  padding: 0 24px; background: var(--warm-ledger-color-panel);
+  border-top: 1px solid var(--warm-ledger-color-hairline);
+  box-shadow: 0 -1px 0 var(--warm-ledger-color-hairline);
+}
+.sr-dialog__footer-note { color: var(--warm-ledger-color-negative); font-size: var(--sr-text-aux); }
+.sr-dialog__footer-push { flex: 1 1 auto; }
+.sr-section { padding-top: 20px; border-top: 1px solid var(--warm-ledger-color-hairline); }
+.sr-section:first-child { padding-top: 0; border-top: 0; }
+.sr-section + .sr-section { margin-top: 20px; }
+.sr-section__head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.sr-section__title { margin: 0; color: var(--warm-ledger-color-text); font-size: var(--sr-text-section); font-weight: 500; }
+.sr-section__meta { margin-left: auto; color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); }
+.sr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 24px; }
+.sr-span-2 { grid-column: span 2; }
+.sr-field { min-width: 0; }
+.sr-label { display: flex; align-items: baseline; gap: 6px; margin-bottom: 6px; color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); }
+.sr-label__value { color: var(--warm-ledger-color-text); font-family: var(--warm-ledger-font-mono); font-size: var(--sr-text-aux); }
+.sr-input, .sr-select {
+  display: flex; width: 100%; height: 40px; align-items: center; gap: 8px;
+  padding: 0 12px; color: var(--warm-ledger-color-text); font-size: var(--sr-text-body);
+  background: var(--warm-ledger-color-panel-strong);
+  border: 1px solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-control);
+}
+.sr-input { font-family: var(--warm-ledger-font-mono); }
+.sr-select { justify-content: space-between; font-size: var(--sr-text-cell); text-align: left; }
+.sr-dialog .sr-select { font-size: var(--sr-text-body); }
+.sr-select .i { color: var(--warm-ledger-color-text-muted); }
+.sr-input:hover, .sr-select:hover { border-color: var(--warm-ledger-color-hairline-strong); }
+.sr-input[aria-invalid="true"], .sr-select[aria-invalid="true"] { border-color: var(--warm-ledger-color-negative); }
+.sr-field--invalid .sr-input { outline: 2px solid var(--warm-ledger-focus-color); outline-offset: 2px; border-color: var(--warm-ledger-color-negative); }
+.sr-inline { display: flex; align-items: center; gap: 8px; }
+.sr-inline > .sr-input, .sr-inline > .sr-select { flex: 1 1 auto; min-width: 0; }
+.sr-inline > .warm-ledger__button { flex: 0 0 auto; height: 40px; }
+.sr-help { margin: 6px 0 0; color: var(--warm-ledger-color-text-soft); font-size: var(--sr-text-aux); }
+.sr-error { display: flex; align-items: center; gap: 5px; margin: 6px 0 0; color: var(--warm-ledger-color-negative); font-size: var(--sr-text-aux); }
+.sr-error .glyph { font-family: var(--warm-ledger-font-mono); }
+.sr-chips { display: flex; min-height: 40px; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 8px; background: var(--warm-ledger-color-panel-strong); border: 1px solid var(--warm-ledger-color-hairline); border-radius: var(--warm-ledger-radius-control); }
+.sr-chip { display: inline-flex; height: 26px; align-items: center; gap: 4px; padding: 0 6px 0 8px; color: var(--warm-ledger-color-text); font-size: var(--sr-text-aux); background: var(--warm-ledger-color-raised); border: 1px solid var(--warm-ledger-color-hairline); border-radius: 6px; }
+.sr-chip__x { display: grid; width: 16px; height: 16px; place-items: center; color: var(--warm-ledger-color-text-muted); }
+.sr-chip__x .i { width: 12px; height: 12px; }
+.sr-chip-add { display: inline-flex; height: 26px; align-items: center; gap: 4px; padding: 0 8px; color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); border: 1px dashed var(--warm-ledger-color-hairline-strong); border-radius: 6px; }
+.sr-seg-row { display: flex; height: 40px; align-items: center; }
+.sr-dialog .warm-ledger__segmented { display: flex; width: 100%; height: 40px; padding: 3px; }
+.sr-dialog .warm-ledger__segment { flex: 1 1 0; height: 32px; justify-content: center; font-size: var(--sr-text-cell); }
+.sr-time { display: flex; align-items: center; gap: 6px; }
+.sr-time .sr-select { width: 92px; flex: 0 0 92px; }
+.sr-time__colon { color: var(--warm-ledger-color-text-muted); }
+.sr-time__zone { margin-left: 4px; color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); }
+
+/* B: group headers / cards */
+.sr-group { border-bottom: 1px solid var(--warm-ledger-color-hairline); }
+.sr-group:last-child { border-bottom: 0; }
+.sr-group__head {
+  display: flex; width: 100%; min-height: 56px; align-items: center; gap: 10px;
+  padding: 10px var(--warm-ledger-inset-panel); text-align: left;
+  background: var(--warm-ledger-color-panel-strong);
+  border-bottom: 1px solid var(--warm-ledger-color-hairline);
+}
+.sr-group__head .i { color: var(--warm-ledger-color-text-muted); }
+.sr-group__identity { min-width: 0; }
+.sr-group__name { display: block; overflow: hidden; color: var(--warm-ledger-color-text); font-size: var(--sr-text-body); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.sr-group__meta { display: block; margin-top: 2px; color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); }
+.sr-group__count { margin-left: auto; color: var(--warm-ledger-color-text-muted); font-family: var(--warm-ledger-font-mono); font-size: var(--sr-text-aux); white-space: nowrap; }
+.sr-group__body { padding: 12px var(--warm-ledger-inset-panel) 16px; }
+.sr-cards { display: grid; grid-template-columns: 1fr 1fr; align-items: stretch; gap: 12px; }
+.sr-card {
+  display: grid; height: 100%; min-width: 0; gap: 8px; padding: 12px;
+  background: var(--warm-ledger-color-panel);
+  border: 1px solid var(--warm-ledger-color-hairline);
+  border-radius: var(--warm-ledger-radius-inner);
+}
+.sr-card[data-selected="true"] { background: var(--warm-ledger-color-accent-soft); border-color: color-mix(in srgb, var(--warm-ledger-color-accent) 40%, transparent); }
+.sr-card__top { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+.sr-card__top .sr-check { margin-top: 2px; }
+.sr-card__projects { min-width: 0; flex: 1 1 auto; overflow: hidden; color: var(--warm-ledger-color-text); font-size: var(--sr-text-body); font-weight: 500; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.sr-card__countries { display: block; margin-top: 2px; overflow: hidden; color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); text-overflow: ellipsis; white-space: nowrap; }
+.sr-card__meta { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--warm-ledger-color-text-soft); font-size: var(--sr-text-aux); }
+.sr-card__meta .sr-mono { color: var(--warm-ledger-color-text); font-size: var(--sr-text-cell); }
+.sr-card__email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--warm-ledger-font-mono); }
+.sr-card__bottom { display: flex; align-items: center; gap: 8px; }
+.sr-card__actions { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+
+/* B: ledger by subscription */
+.sr-subgroup__head { background: var(--warm-ledger-color-panel-strong); }
+.sr-subgroup__identity { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.sr-subgroup__row { display: flex; min-width: 0; align-items: baseline; gap: 8px; }
+.sr-subgroup__email { overflow: hidden; color: var(--warm-ledger-color-text-soft); font-family: var(--warm-ledger-font-mono); font-size: var(--sr-text-aux); text-overflow: ellipsis; white-space: nowrap; }
+.sr-subgroup__stats { display: flex; align-items: center; gap: 12px; margin-left: auto; color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); white-space: nowrap; }
+.sr-subgroup__table th, .sr-subgroup__table td { padding-left: 8px; }
+.sr-subgroup__table th:first-child, .sr-subgroup__table td:first-child { padding-left: 44px; }
+
+/* B: diff dialog */
+.sr-dialog--wide { width: 980px; }
+.sr-sheet { display: grid; min-height: 0; flex: 1 1 auto; grid-template-columns: minmax(0, 1fr) 340px; overflow: hidden; }
+.sr-sheet__form { min-height: 0; padding: 20px 24px 24px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--warm-ledger-color-raised-hover) transparent; }
+.sr-sheet__aside { min-height: 0; padding: 20px; overflow-y: auto; background: var(--warm-ledger-color-panel-strong); border-left: 1px solid var(--warm-ledger-color-hairline); }
+.sr-diff__title { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: var(--sr-text-section); font-weight: 500; }
+.sr-diff__count { margin-left: auto; color: var(--warm-ledger-color-text-muted); font-family: var(--warm-ledger-font-mono); font-size: var(--sr-text-aux); }
+.sr-diff__item { display: grid; gap: 4px; padding: 10px 0; border-top: 1px solid var(--warm-ledger-color-hairline); }
+.sr-diff__field { color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); }
+.sr-diff__values { display: flex; align-items: baseline; gap: 6px; font-size: var(--sr-text-cell); }
+.sr-diff__old { color: var(--warm-ledger-color-text-muted); text-decoration: line-through; }
+.sr-diff__new { color: var(--warm-ledger-color-text); }
+.sr-diff__arrow { color: var(--warm-ledger-color-text-muted); }
+.sr-diff__valid { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--warm-ledger-color-hairline); }
+.sr-diff__valid-title { color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); }
+.sr-diff__valid-text { margin-top: 4px; color: var(--warm-ledger-color-negative); font-size: var(--sr-text-aux); }
+.sr-diff__ok { color: var(--warm-ledger-color-positive); font-size: var(--sr-text-aux); }
+
+/* doc index + states sheet */
+.sr-doc { display: flex; min-height: 0; flex-direction: column; gap: 16px; padding: 24px; overflow: auto; }
+.sr-doc__title { margin: 0; font-size: 20px; font-weight: 500; }
+.sr-doc__lead { margin: 0; max-width: 860px; color: var(--warm-ledger-color-text-soft); font-size: var(--sr-text-body); }
+.sr-doc__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.sr-doc-card { padding: 12px 14px; background: var(--warm-ledger-color-panel); border: 1px solid var(--warm-ledger-color-hairline); border-radius: var(--warm-ledger-radius-inner); }
+.sr-doc-card__title { margin: 0 0 6px; font-size: var(--sr-text-body); font-weight: 500; }
+.sr-doc-card__links { display: flex; flex-wrap: wrap; gap: 8px; }
+.sr-doc-link { color: var(--warm-ledger-color-accent-strong); font-size: var(--sr-text-aux); }
+.sr-doc-link:hover { text-decoration: underline; text-underline-offset: 2px; }
+.sr-doc__note { color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); }
+.sr-state-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; min-height: 0; }
+.sr-state-cell { display: flex; min-height: 0; flex-direction: column; overflow: hidden; background: var(--warm-ledger-color-panel); border: 1px solid var(--warm-ledger-color-hairline); border-radius: var(--warm-ledger-radius-panel); }
+.sr-state-cell__head { display: flex; height: 40px; flex: 0 0 auto; align-items: center; gap: 8px; padding: 0 16px; background: var(--warm-ledger-color-panel-strong); border-bottom: 1px solid var(--warm-ledger-color-hairline); }
+.sr-state-cell__title { font-size: var(--sr-text-cell); font-weight: 500; }
+.sr-state-cell__meta { margin-left: auto; color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); }
+.sr-state-cell__body { display: flex; min-height: 0; flex: 1 1 auto; flex-direction: column; }
+.sr-mini-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+.sr-mini-table th { height: 30px; padding: 0 12px; color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); font-weight: 500; text-align: left; border-bottom: 1px solid var(--warm-ledger-color-hairline); }
+.sr-mini-table td { height: 44px; padding: 0 12px; font-size: var(--sr-text-cell); border-bottom: 1px solid var(--warm-ledger-color-hairline); }
+.sr-mini-empty { display: flex; flex: 1 1 auto; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 4px 12px; text-align: center; }
+.sr-mini-empty__title { margin: 0; font-size: var(--sr-text-body); font-weight: 500; }
+.sr-mini-empty__text { margin: 0; color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); }
+.sr-mini-error { color: var(--warm-ledger-color-negative); }
+.sr-mini-skeleton { height: 28px; margin: 0 12px 6px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  html { scroll-behavior: auto; }
+}
+
+.sr-group__head[aria-expanded="false"] { border-bottom-color: transparent; }
+.sr-card__state { flex: 0 0 auto; }
+.sr-card__schedule { display: inline-flex; align-items: baseline; gap: 6px; }
+.sr-card__schedule .sr-mono { font-size: var(--sr-text-cell); }
+.sr-card__email { color: var(--warm-ledger-color-text-muted); }
+.sr-card__actions { gap: 2px; }
+.sr-bcard-meta { display: flex; min-width: 0; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sr-subgroup-row { height: 60px !important; }
+.sr-subgroup-row td { padding-top: 8px !important; padding-bottom: 8px !important; border-bottom: 1px solid var(--warm-ledger-color-hairline); }
+.sr-subgroup-row:hover { background: var(--warm-ledger-color-raised-hover); }
+.sr-subgroup-table tbody tr.sr-ledger-row { height: 52px; }
+.sr-subgroup-table td:first-child { padding-left: var(--warm-ledger-inset-panel) !important; }
+.sr-subgroup-table th:first-child { padding-left: var(--warm-ledger-inset-panel) !important; }
+.sr-time-cell { display: flex; flex-direction: column; gap: 1px; }
+.sr-time-cell .sr-date { color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); }
+.sr-time-cell .sr-time { color: var(--warm-ledger-color-text); font-family: var(--warm-ledger-font-mono); font-size: var(--sr-text-cell); }
+.sr-group-stats { display: inline-flex; align-items: center; gap: 8px; color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); white-space: nowrap; }
+.sr-group-stats [data-tone="failed"] { color: var(--warm-ledger-color-negative); }
+.sr-group-stats [data-tone="missing"] { color: var(--warm-ledger-color-accent-strong); }
+.sr-subgroup-identity { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.sr-subgroup-line { display: flex; min-width: 0; align-items: baseline; gap: 8px; }
+.sr-subgroup-line .sr-group__name { display: inline-block; max-width: 460px; }
+.sr-subgroup-country { color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); white-space: nowrap; }
+.sr-subgroup-mail { overflow: hidden; color: var(--warm-ledger-color-text-muted); font-family: var(--warm-ledger-font-mono); font-size: var(--sr-text-aux); text-overflow: ellipsis; white-space: nowrap; }
+.sr-schedule-label { color: var(--warm-ledger-color-text-muted); font-size: var(--sr-text-aux); white-space: nowrap; }
+.sr-dialog--wide .sr-dialog__head { height: 64px; }
+.sr-dialog--wide .sr-dialog__footer { height: 68px; }
+.sr-dialog--wide .sr-sheet__form { padding: 12px 24px 16px; }
+.sr-dialog--wide .sr-section { padding-top: 12px; }
+.sr-dialog--wide .sr-section + .sr-section { margin-top: 12px; }
+.sr-dialog--wide .sr-section__head { margin-bottom: 8px; }
+.sr-grid--scope { grid-template-columns: 0.82fr 1.18fr; }
+.sr-diff__values { flex-wrap: wrap; }
+.sr-diff__new { word-break: break-word; }
+
+.sr-state-grid { grid-template-rows: 1fr 1fr 1fr; }
+
+.sr-divider { display: none; }
+</style>
+</head>
+<body class="warm-ledger">
+<div class="warm-ledger__stage">
+  <div class="warm-ledger__window">
+    
+<aside class="warm-ledger__sidebar" aria-label="主导航">
+  <div class="warm-ledger__brand-row">
+    <span class="warm-ledger__brand-mark" aria-hidden="true">B</span>
+    <span class="warm-ledger__brand-copy">
+      <span class="warm-ledger__brand-name">BelieveBoy</span>
+      <span class="warm-ledger__brand-area">跨境运营中台</span>
+    </span>
+  </div>
+  <nav class="warm-ledger__navigation" aria-label="业务域导航">
+    <span class="warm-ledger__nav-label">业务域</span>
+    <a class="warm-ledger__nav-group" href="#" style="text-decoration:none">
+      <span class="warm-ledger__nav-icon"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span>运营总览</span>
+    </a>
+    <button type="button" class="warm-ledger__nav-group" data-expanded="false" aria-expanded="false"><span class="warm-ledger__nav-icon"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9h16M6 9v10h12V9M8 9V5h8v4"/></svg></span><span>运营</span><span class="warm-ledger__nav-chevron"><svg class="i " width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6"/></svg></span></button><button type="button" class="warm-ledger__nav-group" data-expanded="false" aria-expanded="false"><span class="warm-ledger__nav-icon"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg></span><span>项目管理</span><span class="warm-ledger__nav-chevron"><svg class="i " width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6"/></svg></span></button><button type="button" class="warm-ledger__nav-group" data-expanded="true" aria-expanded="true"><span class="warm-ledger__nav-icon"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 13h7M10 16.5h5"/></svg></span><span>报表中心</span><span class="warm-ledger__nav-chevron"><svg class="i " width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 9l6 6 6-6"/></svg></span></button><a class="warm-ledger__nav-item" href="#" ><span class="warm-ledger__nav-icon"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 13h7M10 16.5h5"/></svg></span><span>财务月报</span></a><a class="warm-ledger__nav-item" href="#" ><span class="warm-ledger__nav-icon"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 13h7M10 16.5h5"/></svg></span><span>产品分析</span></a><a class="warm-ledger__nav-item" href="#" ><span class="warm-ledger__nav-icon"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 13h7M10 16.5h5"/></svg></span><span>新品核算</span></a><a class="warm-ledger__nav-item" href="#" ><span class="warm-ledger__nav-icon"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 13h7M10 16.5h5"/></svg></span><span>店铺测算</span></a><a class="warm-ledger__nav-item" href="#" aria-current="page"><span class="warm-ledger__nav-icon"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M13 3L5 13h5l-1 8 8-10h-5l1-8Z"/></svg></span><span>定时报告</span></a><a class="warm-ledger__nav-item" href="#" ><span class="warm-ledger__nav-icon"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6"/><path d="M3 5v4h4"/><path d="M12 8v4l3 2"/></svg></span><span>报表自动化</span></a><a class="warm-ledger__nav-item" href="#" ><span class="warm-ledger__nav-icon"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 13h7M10 16.5h5"/></svg></span><span>订单信息</span></a><button type="button" class="warm-ledger__nav-group" data-expanded="false" aria-expanded="false"><span class="warm-ledger__nav-icon"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 4v16M15.5 7.5H10a2.5 2.5 0 0 0 0 5h4a2.5 2.5 0 0 1 0 5H8"/></svg></span><span>财务资金</span><span class="warm-ledger__nav-chevron"><svg class="i " width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6"/></svg></span></button><button type="button" class="warm-ledger__nav-group" data-expanded="false" aria-expanded="false"><span class="warm-ledger__nav-icon"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 10v4l10 4V6L4 10Z"/><path d="M14 9.5a3 3 0 0 1 0 5"/><path d="M6 15v3"/></svg></span><span>广告</span><span class="warm-ledger__nav-chevron"><svg class="i " width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6"/></svg></span></button><button type="button" class="warm-ledger__nav-group" data-expanded="false" aria-expanded="false"><span class="warm-ledger__nav-icon"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3l1.8 4.6L18.5 9l-4.7 1.4L12 15l-1.8-4.6L5.5 9l4.7-1.4Z"/><path d="M18 16l.9 2.3 2.3.9-2.3.9L18 22l-.9-2.3-2.3-.9 2.3-.9Z"/></svg></span><span>AI 智能</span><span class="warm-ledger__nav-chevron"><svg class="i " width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6"/></svg></span></button><button type="button" class="warm-ledger__nav-group" data-expanded="false" aria-expanded="false"><span class="warm-ledger__nav-icon"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="9" cy="9" r="3"/><path d="M3.5 18a5.5 5.5 0 0 1 11 0"/><path d="M16 6.5a3 3 0 0 1 0 5M17.5 18a5.5 5.5 0 0 0-2.5-4.6"/></svg></span><span>CRM 客户与合作伙伴</span><span class="warm-ledger__nav-chevron"><svg class="i " width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6"/></svg></span></button><button type="button" class="warm-ledger__nav-group" data-expanded="false" aria-expanded="false"><span class="warm-ledger__nav-icon"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14.5 5.5a3.5 3.5 0 0 0-4.7 4.6L4 16l2 2 5.9-5.8a3.5 3.5 0 0 0 4.6-4.7Z"/><path d="M15 15l4 4"/></svg></span><span>工具箱</span><span class="warm-ledger__nav-chevron"><svg class="i " width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6"/></svg></span></button><button type="button" class="warm-ledger__nav-group" data-expanded="false" aria-expanded="false"><span class="warm-ledger__nav-icon"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg></span><span>系统管理</span><span class="warm-ledger__nav-chevron"><svg class="i " width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6"/></svg></span></button>
+  </nav>
+  <div class="warm-ledger__quick">
+    <span class="warm-ledger__quick-label">快捷入口</span>
+    <div class="warm-ledger__quick-grid"><a class="warm-ledger__quick-link" href="#"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 13h7M10 16.5h5"/></svg><span>销售数据</span></a><a class="warm-ledger__quick-link" href="#"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 13h7M10 16.5h5"/></svg><span>订单信息</span></a><a class="warm-ledger__quick-link" href="#"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>库存分析</span></a><a class="warm-ledger__quick-link" href="#"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="9" cy="9" r="3"/><path d="M3.5 18a5.5 5.5 0 0 1 11 0"/><path d="M16 6.5a3 3 0 0 1 0 5M17.5 18a5.5 5.5 0 0 0-2.5-4.6"/></svg><span>客户消息</span></a></div>
+  </div>
+</aside>
+    <main class="warm-ledger__main">
+      <header class="warm-ledger__topbar">
+        <nav class="warm-ledger__breadcrumb" aria-label="面包屑">
+          <span>报表中心</span><svg class="i " width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6"/></svg><a href="#">定时报告</a><svg class="i " width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 6l6 6-6 6"/></svg><span aria-current="page">订阅管理</span>
+        </nav>
+        <div class="warm-ledger__topbar-actions" role="group" aria-label="页面快捷操作">
+          <button type="button" class="warm-ledger__icon-button" aria-label="刷新当前页数据"><svg class="i " width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 11a8 8 0 0 0-13.5-4.7L4 9"/><path d="M4 4v5h5"/><path d="M4 13a8 8 0 0 0 13.5 4.7L20 15"/><path d="M20 20v-5h-5"/></svg></button>
+          <button type="button" class="warm-ledger__icon-button" aria-label="搜索"><svg class="i " width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg></button>
+          <button type="button" class="warm-ledger__icon-button" aria-label="通知"><svg class="i " width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 9a6 6 0 0 1 12 0v4l2 3H4l2-3Z"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0"/></svg></button>
+          <button type="button" class="warm-ledger__icon-button" aria-label="用户菜单"><svg class="i " width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="3.5"/><path d="M5 19a7 7 0 0 1 14 0"/></svg></button>
+        </div>
+      </header>
+      <section class="warm-ledger__content">
+
+<div class="sr-tabs" role="tablist" aria-label="定时报告视图">
+  <a class="sr-tab" role="tab" href="subscriptions-dark.html" aria-selected="true"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/></svg><span>订阅管理</span></a>
+  <a class="sr-tab" role="tab" href="ledger-dark.html" aria-selected="false"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6"/><path d="M3 5v4h4"/><path d="M12 8v4l3 2"/></svg><span>订阅记录</span></a>
+</div>
+<section class="sr-panel" aria-label="订阅管理">
+  <header class="sr-panel__head"><h2 class="sr-panel__title">订阅管理</h2><div class="sr-panel__meta"><span class="sr-sample" title="草稿使用示例数据，不对应生产数据">示例数据</span><span class="sr-panel__count">共 8 条</span></div></header>
+  <div class="sr-toolbar"><div class="warm-ledger__segmented"><button class="warm-ledger__segment" aria-pressed="true">全部</button><button class="warm-ledger__segment" aria-pressed="false">启用</button><button class="warm-ledger__segment" aria-pressed="false">已暂停</button><button class="warm-ledger__segment" aria-pressed="false">仅生成</button></div><span class="sr-toolbar__spacer"></span><span class="sr-note">按接收人分组</span></div>
+  <div class="sr-scroll"></div>
+</section>
+<div class="sr-dialog-layer">
+  <div class="sr-dialog sr-dialog--wide" role="dialog" aria-modal="true" aria-labelledby="edit-title-b" data-warm-ledger-dialog="true">
+    <div class="sr-dialog__head">
+      <h2 class="sr-dialog__title" id="edit-title-b">编辑订阅</h2>
+      <button type="button" class="warm-ledger__icon-button sr-dialog__close" aria-label="关闭编辑订阅"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <div class="sr-sheet">
+      <form class="sr-sheet__form" aria-label="订阅配置">
+        <section class="sr-section" aria-labelledby="b-sec-receive">
+          <div class="sr-section__head"><h3 class="sr-section__title" id="b-sec-receive">接收</h3></div>
+          <div class="sr-field sr-field--invalid">
+            <label class="sr-label" for="b-email">邮箱地址</label>
+            <div class="sr-inline">
+              <input class="sr-input" id="b-email" type="email" value="jrway123@gmail" aria-invalid="true" aria-describedby="b-email-help b-email-error">
+              <button type="button" class="warm-ledger__button"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 7l8.5 6 8.5-6"/></svg><span>发送测试邮件</span></button>
+            </div>
+            <p class="sr-help" id="b-email-help">留空时只生成报告，不发送邮件。</p>
+            <p class="sr-error" id="b-email-error"><span class="glyph" aria-hidden="true">✗</span><span>邮箱格式无效（用户名或域名不完整）</span></p>
+          </div>
+        </section>
+        <section class="sr-section" aria-labelledby="b-sec-scope">
+          <div class="sr-section__head"><h3 class="sr-section__title" id="b-sec-scope">范围</h3></div>
+          <div class="sr-grid sr-grid--scope">
+            <div class="sr-field">
+              <label class="sr-label">国家站点</label>
+              <div class="sr-chips">
+                <span class="sr-chip">美国站<button type="button" class="sr-chip__x" aria-label="移除美国站"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18"/></svg></button></span>
+                <button type="button" class="sr-chip-add"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg><span>添加站点</span></button>
+              </div>
+            </div>
+            <div class="sr-field">
+              <label class="sr-label">项目范围</label>
+              <div class="sr-seg-row">
+                <div class="warm-ledger__segmented" role="group" aria-label="项目范围">
+                  <button type="button" class="warm-ledger__segment" aria-pressed="false">全部项目</button>
+                  <button type="button" class="warm-ledger__segment" aria-pressed="true">指定项目</button>
+                </div>
+              </div>
+              <div class="sr-chips" style="margin-top:8px">
+                <span class="sr-chip">car&amp;smo-卡斯摩<button type="button" class="sr-chip__x" aria-label="移除 car&amp;smo-卡斯摩"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18"/></svg></button></span>
+                <span class="sr-chip">believeboy<button type="button" class="sr-chip__x" aria-label="移除 believeboy"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18"/></svg></button></span>
+                <button type="button" class="sr-chip-add"><svg class="i " width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg><span>添加项目</span></button>
+              </div>
+            </div>
+          </div>
+        </section>
+        <section class="sr-section" aria-labelledby="b-sec-schedule">
+          <div class="sr-section__head"><h3 class="sr-section__title" id="b-sec-schedule">调度</h3><span class="sr-section__meta">北京时间（Asia/Shanghai）</span></div>
+          <div class="sr-grid">
+            <div class="sr-field">
+              <label class="sr-label">频率</label>
+              <div class="sr-seg-row">
+                <div class="warm-ledger__segmented" role="group" aria-label="推送频率">
+                  <button type="button" class="warm-ledger__segment" aria-pressed="false">每日</button>
+                  <button type="button" class="warm-ledger__segment" aria-pressed="true">每周</button>
+                  <button type="button" class="warm-ledger__segment" aria-pressed="false">每月</button>
+                </div>
+              </div>
+            </div>
+            <div class="sr-field">
+              <label class="sr-label" for="b-weekday">发送星期</label>
+              <button type="button" class="sr-select" id="b-weekday"><span>周一</span><svg class="i " width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 9l6 6 6-6"/></svg></button>
+              <p class="sr-help">周报最早可在周一 16:00 发送。</p>
+            </div>
+            <div class="sr-field">
+              <label class="sr-label">发送时间</label>
+              <div class="sr-time">
+                <button type="button" class="sr-select" aria-label="小时"><span>16</span><svg class="i " width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 9l6 6 6-6"/></svg></button>
+                <span class="sr-time__colon" aria-hidden="true">:</span>
+                <button type="button" class="sr-select" aria-label="分钟"><span>00</span><svg class="i " width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 9l6 6 6-6"/></svg></button>
+              </div>
+            </div>
+          </div>
+        </section>
+        <section class="sr-section" aria-labelledby="b-sec-model">
+          <div class="sr-section__head"><h3 class="sr-section__title" id="b-sec-model">模型</h3></div>
+          <div class="sr-field" style="max-width:360px">
+            <label class="sr-label" for="b-model">AI 模型</label>
+            <button type="button" class="sr-select" id="b-model"><span class="sr-mono">DeepSeek-V4-Flash</span><svg class="i " width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 9l6 6 6-6"/></svg></button>
+          </div>
+        </section>
+      </form>
+      <aside class="sr-sheet__aside" aria-label="变更摘要">
+        <h3 class="sr-diff__title">变更摘要<span class="sr-diff__count">3 项</span></h3>
+        <div class="sr-diff__item">
+          <span class="sr-diff__field">邮箱</span>
+          <span class="sr-diff__values"><span class="sr-diff__old" dir="ltr">jrway123@gmail.com</span><span class="sr-diff__arrow" aria-hidden="true">→</span><span class="sr-diff__new" style="color:var(--warm-ledger-color-negative)" dir="ltr">jrway123@gmail</span></span>
+        </div>
+        <div class="sr-diff__item">
+          <span class="sr-diff__field">项目范围</span>
+          <span class="sr-diff__values"><span class="sr-diff__old">car&amp;smo-卡斯摩</span><span class="sr-diff__arrow" aria-hidden="true">→</span><span class="sr-diff__new">car&amp;smo-卡斯摩 · believeboy</span></span>
+        </div>
+        <div class="sr-diff__item">
+          <span class="sr-diff__field">调度</span>
+          <span class="sr-diff__values"><span class="sr-diff__old">每周 周二 16:30</span><span class="sr-diff__arrow" aria-hidden="true">→</span><span class="sr-diff__new">每周 周一 16:00</span></span>
+        </div>
+        <div class="sr-diff__valid">
+          <span class="sr-diff__valid-title">校验</span>
+          <p class="sr-diff__valid-text">1 项待修正：邮箱格式无效（用户名或域名不完整）。</p>
+        </div>
+      </aside>
+    </div>
+    <div class="sr-dialog__footer">
+      <span class="sr-dialog__footer-note" role="status"><span aria-hidden="true">✗ </span>1 项待修正</span>
+      <span class="sr-dialog__footer-push"></span>
+      <button type="button" class="warm-ledger__button">取消</button>
+      <button type="button" class="warm-ledger__button warm-ledger__button--primary">保存修改</button>
+    </div>
+  </div>
+</div></section>
+    </main>
+  </div>
+</div>
+</body>
+</html>

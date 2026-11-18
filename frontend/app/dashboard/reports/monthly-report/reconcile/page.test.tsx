@@ -10,7 +10,7 @@
  * 可见项目列表内 —— 不可见时清记忆并回退，绝不把旧 id 交给 auto tab 发请求。
  */
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -118,8 +118,12 @@ describe('reconcile 页 header 化契约（BLF-964）', () => {
     // slot 内使用页面本地 Warm 控件
     expect(screen.getByLabelText('项目筛选')).toBeInTheDocument()
     expect(screen.getByLabelText('站点筛选')).toBeInTheDocument()
+    // 原生 <select> 已换成 WarmSelect（Radix combobox）
+    expect(screen.getByRole('combobox', { name: '项目筛选' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: '站点筛选' })).toBeInTheDocument()
     const header = document.querySelector('[data-warm-header-filters="true"]')
     expect(header).toBeInTheDocument()
+    expect(header!.querySelector('select')).toBeNull()
     for (const element of [header!, ...Array.from(header!.querySelectorAll('*'))]) {
       const className = typeof element.className === 'string' ? element.className : ''
       expect(className).not.toContain('rounded-none')
@@ -160,8 +164,10 @@ describe('reconcile 页 header 化契约（BLF-964）', () => {
     expect(screen.getByLabelText('项目筛选')).toBeInTheDocument()
   })
 
-  it('旧正文筛选控件（ProjectSelect / CountrySelect）已移除', () => {
+  it('旧正文筛选控件（ProjectSelect / CountrySelect）已移除', async () => {
     render(<ReconcilePage />)
+    // 等异步项目列表 / 共享记忆落定，避免测试结束后仍在更新状态
+    await waitFor(() => expect(capturedSlotNode).not.toBeNull())
 
     // 旧筛选头使用 console/ProjectSelect 和 CountrySelect
     // 旧结构有 <label className="mb-1 block text-xs font-medium text-muted-foreground">项目</label>
@@ -170,9 +176,11 @@ describe('reconcile 页 header 化契约（BLF-964）', () => {
     expect(screen.queryByText('站点')).not.toBeInTheDocument()
   })
 
-  it('刷新回调注册到 header', () => {
+  it('刷新回调注册到 header', async () => {
     render(<ReconcilePage />)
     expect(capturedRefreshHandler).not.toBeNull()
+    // 等异步项目列表 / 共享记忆落定，避免测试结束后仍在更新 Radix 控件状态
+    await waitFor(() => expect(capturedSlotNode).not.toBeNull())
   })
 })
 
@@ -182,18 +190,23 @@ describe('BLF-1344 项目选择跨 tab 共享', () => {
 
     render(<ReconcilePage />)
 
-    await waitFor(() => expect(screen.getByLabelText('项目筛选')).toHaveValue('2'))
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: '项目筛选' })).toHaveTextContent('项目B')
+    )
     await waitFor(() => expect(screen.getByTestId('auto-tab')).toHaveTextContent('2'))
   })
 
   it('在项目控件里选择后写入共享记忆，供其它 tab 沿用', async () => {
+    const user = userEvent.setup()
     render(<ReconcilePage />)
     await waitFor(() => expect(capturedSlotNode).not.toBeNull())
 
-    fireEvent.change(screen.getByLabelText('项目筛选'), { target: { value: '2' } })
+    // Radix combobox：点击 trigger 展开，再点选项（没有原生 select 的 change 事件）
+    await user.click(screen.getByRole('combobox', { name: '项目筛选' }))
+    await user.click(screen.getByRole('option', { name: '项目B' }))
 
     await waitFor(() => expect(readMemo()).toBe('2'))
-    expect(screen.getByLabelText('项目筛选')).toHaveValue('2')
+    expect(screen.getByRole('combobox', { name: '项目筛选' })).toHaveTextContent('项目B')
   })
 })
 
@@ -222,7 +235,7 @@ describe('BLF-1344 共享记忆的权限边界（评审阻塞项）', () => {
 
     // 新账号不会拿旧项目发请求；完成可见性校验后按既有行为落到第一个可见项目
     expect(screen.getByTestId('auto-tab')).toHaveTextContent('3')
-    expect(screen.getByLabelText('项目筛选')).toHaveValue('3')
+    expect(screen.getByRole('combobox', { name: '项目筛选' })).toHaveTextContent('项目C')
     expect(autoTabRenders.projectIds).not.toContain('2')
     // 隔离不是清除：张三的记忆原封不动
     expect(readMemo(OWNER_A)).toBe('2')

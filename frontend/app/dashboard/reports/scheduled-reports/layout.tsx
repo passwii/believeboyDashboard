@@ -69,7 +69,7 @@ export default function ScheduledReportsLayout() {
           </TabsTrigger>
           <TabsTrigger value="ledger" className={styles.tab}>
             <History aria-hidden />
-            调度记录
+            订阅记录
           </TabsTrigger>
         </TabsList>
 

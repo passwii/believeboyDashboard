@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -312,7 +313,7 @@ func (handler *Handler) SendTestEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if handler.store == nil || handler.mailer == nil {
-		httpapi.WriteDetail(w, http.StatusServiceUnavailable, ErrMailerNotConfigured.Error())
+		httpapi.WriteDetail(w, http.StatusServiceUnavailable, "测试邮件服务未配置，请联系管理员配置邮件服务后重试")
 		return
 	}
 
@@ -335,13 +336,21 @@ func (handler *Handler) SendTestEmail(w http.ResponseWriter, r *http.Request) {
 
 	resendID, err := handler.mailer.SendTestReport(r.Context(), message)
 	if err != nil {
+		// Keep the provider error in the server log; the dashboard only gets
+		// an actionable Chinese message instead of a raw English transport
+		// error.
+		slog.Default().Error(
+			"scheduled report test email failed",
+			slog.String("email", message.Email),
+			slog.Any("error", err),
+		)
 		if errors.Is(err, ErrMailerNotConfigured) {
-			httpapi.WriteDetail(w, http.StatusServiceUnavailable, ErrMailerNotConfigured.Error())
+			httpapi.WriteDetail(w, http.StatusServiceUnavailable, "测试邮件服务未配置，请联系管理员配置邮件服务后重试")
 			return
 		}
 		_ = httpapi.WriteJSON(w, http.StatusOK, TestEmailResponse{
 			Success: false,
-			Message: "发送失败: " + err.Error(),
+			Message: "测试邮件发送失败，请检查收件邮箱与邮件服务配置后重试；详细原因已记录在服务端日志",
 		})
 		return
 	}
@@ -459,7 +468,7 @@ func (handler *Handler) ResendLedgerEntry(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if handler.store == nil || handler.runner == nil || handler.auditor == nil {
-		httpapi.WriteDetail(w, http.StatusServiceUnavailable, ErrEnqueuerNotConfigured.Error())
+		httpapi.WriteDetail(w, http.StatusServiceUnavailable, "报告任务队列未配置，请联系管理员")
 		return
 	}
 	ledgerKey := strings.TrimSpace(chi.URLParam(r, "ledger_key"))
@@ -513,9 +522,11 @@ func (handler *Handler) ResendLedgerEntry(w http.ResponseWriter, r *http.Request
 			return err
 		}
 		if !result.Reused {
-			if result.Email == nil || strings.TrimSpace(*result.Email) == "" {
-				return NewAPIError(http.StatusConflict, "订阅未配置邮箱，无法补发")
-			}
+			// Generation is the primary purpose of a resend/re-generate.
+			// Missing email must never block it: dispatch_one builds the
+			// report and only skips the outbound email. The dashboard also
+			// promises this action never sends mail, so skip_email is forced
+			// even when the subscription has an address.
 			payload := dispatchOnePayload(result)
 			_, err = handler.runner.Run(ctx, EnqueueRequest{
 				TaskType:       queue.TypeDispatchOne,
@@ -548,7 +559,7 @@ func (handler *Handler) ResendLedgerEntry(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		if enqueueFailed {
 			handler.auditFailure(r, "scheduled_reports.ledger.resend", "scheduled_report_ledger", ledgerKey, err)
-			httpapi.WriteDetail(w, http.StatusServiceUnavailable, "scheduled report queue unavailable")
+			httpapi.WriteDetail(w, http.StatusServiceUnavailable, "报告任务队列暂不可用，请稍后重试")
 			return
 		}
 		handler.writeError(w, err)
@@ -563,7 +574,7 @@ func (handler *Handler) RegenerateAISummary(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	if handler.store == nil || handler.runner == nil || handler.auditor == nil {
-		httpapi.WriteDetail(w, http.StatusServiceUnavailable, ErrEnqueuerNotConfigured.Error())
+		httpapi.WriteDetail(w, http.StatusServiceUnavailable, "报告任务队列未配置，请联系管理员")
 		return
 	}
 	ledgerKey := strings.TrimSpace(chi.URLParam(r, "ledger_key"))
@@ -645,7 +656,7 @@ func (handler *Handler) RegenerateAISummary(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		if enqueueFailed {
 			handler.auditFailure(r, "scheduled_reports.ledger.ai_summary.regenerate", "scheduled_report_ledger", ledgerKey, err)
-			httpapi.WriteDetail(w, http.StatusServiceUnavailable, "scheduled report queue unavailable")
+			httpapi.WriteDetail(w, http.StatusServiceUnavailable, "报告任务队列暂不可用，请稍后重试")
 			return
 		}
 		handler.writeError(w, err)
@@ -660,7 +671,7 @@ func (handler *Handler) TriggerReportDispatch(w http.ResponseWriter, r *http.Req
 		return
 	}
 	if handler.store == nil || handler.enqueuer == nil || handler.auditor == nil {
-		httpapi.WriteDetail(w, http.StatusServiceUnavailable, ErrEnqueuerNotConfigured.Error())
+		httpapi.WriteDetail(w, http.StatusServiceUnavailable, "报告任务队列未配置，请联系管理员")
 		return
 	}
 	frequency := strings.TrimSpace(r.URL.Query().Get("frequency"))
@@ -712,10 +723,9 @@ func (handler *Handler) TriggerReportDispatch(w http.ResponseWriter, r *http.Req
 			return err
 		}
 		for _, subscription := range subscriptions {
-			if subscription.Email == nil || strings.TrimSpace(*subscription.Email) == "" {
-				response.Skipped++
-				continue
-			}
+			// Enqueue every active subscription. dispatch_one creates the
+			// delivery log and generates the report even without an email;
+			// it only skips the outbound mail in that case.
 			payload := triggerDispatchPayload(subscription, reportDate)
 			_, err := handler.enqueuer.Enqueue(ctx, EnqueueRequest{
 				TaskType:       queue.TypeDispatchOne,
@@ -742,7 +752,7 @@ func (handler *Handler) TriggerReportDispatch(w http.ResponseWriter, r *http.Req
 	if err != nil {
 		if enqueueFailed {
 			handler.auditFailure(r, "scheduled_reports.trigger", "scheduled_report_frequency", frequency, err)
-			httpapi.WriteDetail(w, http.StatusServiceUnavailable, "scheduled report queue unavailable")
+			httpapi.WriteDetail(w, http.StatusServiceUnavailable, "报告任务队列暂不可用，请稍后重试")
 			return
 		}
 		handler.writeError(w, err)
@@ -972,6 +982,9 @@ func dispatchOnePayload(result ResendResult) map[string]any {
 		"report_date":         result.ReportDate,
 		"pre_existing_log_id": result.DeliveryLogID,
 		"old_log_id":          result.OldLogID,
+		// Ledger resend/re-generate never sends email, even when the
+		// subscription now has an address. The UI copy promises this.
+		"skip_email": true,
 	}
 	if ids := projectIDsFromString(result.ProjectIDs); len(ids) > 0 {
 		payload["project_ids"] = ids

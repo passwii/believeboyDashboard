@@ -17,6 +17,8 @@ import { useSession } from 'next-auth/react'
 import {
   WarmButton,
   WarmIconButton,
+  WarmSelect,
+  type WarmSelectOption,
 } from '@/components/dashboard-v2/warm-ledger/controls'
 
 type RecognizedFileType =
@@ -63,6 +65,13 @@ const GENERATE_COUNTRY_SLOT_OPTIONS = [
   { value: 'DE', label: '德国站 (DE)' },
   { value: 'UK', label: '英国站 (UK)' },
 ] as const
+
+/**
+ * 「未选项目」在 Radix Select 里的 sentinel：
+ * Radix 禁止 option 使用空字符串 value（空值代表清空并显示 placeholder），
+ * 因此项目下拉用非空 sentinel 表示原来的 `<option value="">…</option>`。
+ */
+const NO_PROJECT_VALUE = '__no-project__'
 
 type MappingRow = {
   id: string
@@ -887,34 +896,41 @@ export default function GenerateTab() {
     value: project.name,
     label: project.name,
   }))
+  // Radix Select 的 option value 必须唯一：同名项目只保留一条（原生 select 同名项本就无法区分）
+  const uniqueProjectOptions = Array.from(
+    new Map(projectSlotOptions.map((option) => [option.value, option])).values()
+  )
+  const projectSelectOptions: WarmSelectOption[] = [
+    {
+      value: NO_PROJECT_VALUE,
+      // 项目列表的加载 / 空态沿用原原生 select 的首项文案
+      label: projectsLoading ? '项目加载中…' : '请选择项目名称',
+    },
+    ...uniqueProjectOptions,
+  ]
+  const handleProjectSlotChange = (value: string) =>
+    setProjectName(value === NO_PROJECT_VALUE ? '' : value)
   const headerFilterControls = (
     <div className={styles.headerFilters} data-warm-header-filters="true">
-      <select
-        aria-label="项目筛选"
-        className={styles.headerSelect}
-        value={projectName}
-        onChange={(event) => setProjectName(event.target.value)}
+      <WarmSelect
+        id="monthly-report-generate-header-project"
+        ariaLabel="项目筛选"
+        hideLabel
+        value={projectName || NO_PROJECT_VALUE}
+        options={projectSelectOptions}
+        onChange={handleProjectSlotChange}
         disabled={projectsLoading || projects.length === 0}
-      >
-        <option value="">{projectsLoading ? '项目加载中…' : '请选择项目名称'}</option>
-        {projectSlotOptions.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      <select
-        aria-label="国家站点筛选"
         className={styles.headerSelect}
+      />
+      <WarmSelect
+        id="monthly-report-generate-header-country"
+        ariaLabel="国家站点筛选"
+        hideLabel
         value={country}
-        onChange={(event) => setCountry(event.target.value as CountryOption)}
-      >
-        {GENERATE_COUNTRY_SLOT_OPTIONS.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
+        options={GENERATE_COUNTRY_SLOT_OPTIONS}
+        onChange={(value) => setCountry(value as CountryOption)}
+        className={styles.headerSelect}
+      />
       <HeaderMonthControl
         value={reportMonth}
         onChange={setReportMonth}
@@ -935,32 +951,25 @@ export default function GenerateTab() {
       summary={mobileFilterSummary}
       controls={
         <>
-          <select
-            aria-label="项目筛选"
-            className={styles.mobileHeaderSelect}
-            value={projectName}
-            onChange={(event) => setProjectName(event.target.value)}
+          <WarmSelect
+            id="monthly-report-generate-mobile-project"
+            ariaLabel="项目筛选"
+            hideLabel
+            value={projectName || NO_PROJECT_VALUE}
+            options={projectSelectOptions}
+            onChange={handleProjectSlotChange}
             disabled={projectsLoading || projects.length === 0}
-          >
-            <option value="">{projectsLoading ? '项目加载中…' : '请选择项目名称'}</option>
-            {projectSlotOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="国家站点筛选"
             className={styles.mobileHeaderSelect}
+          />
+          <WarmSelect
+            id="monthly-report-generate-mobile-country"
+            ariaLabel="国家站点筛选"
+            hideLabel
             value={country}
-            onChange={(event) => setCountry(event.target.value as CountryOption)}
-          >
-            {GENERATE_COUNTRY_SLOT_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            options={GENERATE_COUNTRY_SLOT_OPTIONS}
+            onChange={(value) => setCountry(value as CountryOption)}
+            className={styles.mobileHeaderSelect}
+          />
           <MobileFilterWide>
             <HeaderMonthControl
               value={reportMonth}

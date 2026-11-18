@@ -387,6 +387,60 @@ func TestStage6APayloadJSONTagsAreStable(t *testing.T) {
 	}
 }
 
+func TestDispatchOnePayloadAllowsGenerationWithoutEmail(t *testing.T) {
+	payload := DispatchOnePayload{
+		SubscriptionID: 9,
+		Country:        "US",
+		Frequency:      "daily",
+		SkipEmail:      true,
+	}
+	if err := payload.Validate(); err != nil {
+		t.Fatalf("DispatchOnePayload.Validate() without email = %v, want nil", err)
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	if !strings.Contains(string(encoded), `"skip_email":true`) {
+		t.Fatalf("payload %s missing skip_email", encoded)
+	}
+	if strings.Contains(string(encoded), `"email"`) {
+		t.Fatalf("empty email should be omitted, got %s", encoded)
+	}
+	logID := int64(12)
+	payload.PreExistingLogID = &logID
+	if err := payload.Validate(); err != nil {
+		t.Fatalf("DispatchOnePayload.Validate() with pre-existing log = %v", err)
+	}
+	invalid := int64(0)
+	payload.PreExistingLogID = &invalid
+	if err := payload.Validate(); err == nil {
+		t.Fatal("PreExistingLogID=0 should be rejected")
+	}
+}
+
+func TestHandleDispatchOneAcceptsNoEmailPayloadAndReachesExecutor(t *testing.T) {
+	handler := NewTaskHandlerWithDB(&stage6ADB{}, DefaultHandlerConfig())
+	logID := int64(12)
+	raw, err := queue.MarshalPayload(DispatchOnePayload{
+		SubscriptionID:   9,
+		Country:          "US",
+		Frequency:        "daily",
+		SkipEmail:        true,
+		PreExistingLogID: &logID,
+	})
+	if err != nil {
+		t.Fatalf("MarshalPayload() error = %v", err)
+	}
+	task := asynq.NewTask(queue.TypeDispatchOne, raw)
+	err = handler.HandleDispatchOne(context.Background(), task)
+	if !errors.Is(err, ErrExecutorNotConfigured) {
+		// Reaching the executor proves the payload passed Validate; a
+		// validation error would surface as a required-field message.
+		t.Fatalf("HandleDispatchOne() error = %v, want ErrExecutorNotConfigured", err)
+	}
+}
+
 func stage6AIntPointer(value int) *int          { return &value }
 func stage6AInt64Pointer(value int64) *int64    { return &value }
 func stage6AStringPointer(value string) *string { return &value }

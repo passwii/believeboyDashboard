@@ -47,9 +47,7 @@
   white-space: nowrap;
 }
 
-.headerProject,
 .headerSku,
-.headerCountry,
 .mobileHeaderControl {
   height: var(--warm-ledger-control-height-select);
   color: var(--warm-ledger-color-text);
@@ -61,9 +59,35 @@
   box-shadow: var(--warm-ledger-highlight-rest);
 }
 
-.headerProject {
+/* 头部 / 移动端筛选的 WarmSelect 紧凑形态：标签已由 ariaLabel 承载，外层只负责宽度。 */
+.headerProjectSelect,
+.headerCountrySelect {
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: center;
+}
+
+.headerProjectSelect {
   width: 150px;
+}
+
+.headerCountrySelect {
+  width: 130px;
+}
+
+.headerProjectSelect :global(.warm-ledger__select),
+.headerCountrySelect :global(.warm-ledger__select),
+.mobileHeaderSelect :global(.warm-ledger__select) {
+  width: 100%;
+  min-width: 0;
   padding-inline: var(--warm-ledger-space-2);
+}
+
+.mobileHeaderSelect {
+  width: 100%;
+  min-width: 0;
+  flex-direction: row;
+  align-items: center;
 }
 
 .headerSku {
@@ -71,14 +95,7 @@
   padding-inline: var(--warm-ledger-space-3);
 }
 
-.headerCountry {
-  width: 130px;
-  padding-inline: var(--warm-ledger-space-2);
-}
-
-.headerProject:focus-visible,
 .headerSku:focus-visible,
-.headerCountry:focus-visible,
 .mobileHeaderControl:focus-visible {
   outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color);
   outline-offset: var(--warm-ledger-focus-offset);

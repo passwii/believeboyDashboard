@@ -53,7 +53,7 @@ func normalizeRequiredEmail(value string) (string, error) {
 		return "", err
 	}
 	if email == nil {
-		return "", errors.New("email is required")
+		return "", errors.New("测试邮件需要填写接收邮箱，请输入一个有效邮箱后重试")
 	}
 	return *email, nil
 }

@@ -143,16 +143,20 @@ type SubscriptionPatch struct {
 }
 
 type DeliveryLog struct {
-	ID                   int64   `json:"id"`
-	SubscriptionID       int64   `json:"subscription_id"`
-	Frequency            string  `json:"frequency"`
-	ReportDate           string  `json:"report_date"`
-	ReportMonth          *string `json:"report_month"`
-	Email                *string `json:"email"`
-	Status               string  `json:"status"`
-	Stage                string  `json:"stage"`
-	ErrorMessage         *string `json:"error_message"`
-	SentAt               *string `json:"sent_at"`
+	ID             int64   `json:"id"`
+	SubscriptionID int64   `json:"subscription_id"`
+	Frequency      string  `json:"frequency"`
+	ReportDate     string  `json:"report_date"`
+	ReportMonth    *string `json:"report_month"`
+	Email          *string `json:"email"`
+	Status         string  `json:"status"`
+	Stage          string  `json:"stage"`
+	ErrorMessage   *string `json:"error_message"`
+	SentAt         *string `json:"sent_at"`
+	// EmailSent is false for generation-only delivery logs (no address on the
+	// subscription, or a ledger resend that must never mail). Status stays
+	// "sent" because the report itself is ready; sent_at stays NULL.
+	EmailSent            bool    `json:"email_sent"`
 	ScreenshotR2Key      *string `json:"screenshot_r2_key"`
 	ScreenshotR2URL      *string `json:"screenshot_r2_url"`
 	ScreenshotR2ThumbKey *string `json:"screenshot_r2_thumb_key"`
@@ -210,30 +214,33 @@ type LedgerSummary struct {
 }
 
 type LedgerItem struct {
-	ID                   int64    `json:"id"`
-	LedgerKey            string   `json:"ledger_key"`
-	ExpectedDate         string   `json:"expected_date"`
-	ExpectedAt           string   `json:"expected_at"`
-	Frequency            string   `json:"frequency"`
-	SubscriptionID       int64    `json:"subscription_id"`
-	Email                *string  `json:"email"`
-	ProjectIDs           string   `json:"project_ids"`
-	ProjectNames         []string `json:"project_names"`
-	Country              string   `json:"country"`
-	Status               string   `json:"status"`
-	LatestDeliveryLogID  *int64   `json:"latest_delivery_log_id"`
-	ErrorMessage         *string  `json:"error_message"`
-	SentAt               *string  `json:"sent_at"`
-	CanResend            bool     `json:"can_resend"`
-	LastCheckedAt        string   `json:"last_checked_at"`
-	ScreenshotR2URL      *string  `json:"screenshot_r2_url"`
-	ScreenshotR2ThumbURL *string  `json:"screenshot_r2_thumb_url"`
-	AISummary            *string  `json:"ai_summary"`
-	AISummaryStatus      string   `json:"ai_summary_status"`
-	AISummaryError       *string  `json:"ai_summary_error"`
-	AISummaryModel       *string  `json:"ai_summary_model"`
-	InsightRunID         *string  `json:"insight_run_id"`
-	AISummaryUpdatedAt   *string  `json:"ai_summary_updated_at"`
+	ID                  int64    `json:"id"`
+	LedgerKey           string   `json:"ledger_key"`
+	ExpectedDate        string   `json:"expected_date"`
+	ExpectedAt          string   `json:"expected_at"`
+	Frequency           string   `json:"frequency"`
+	SubscriptionID      int64    `json:"subscription_id"`
+	Email               *string  `json:"email"`
+	ProjectIDs          string   `json:"project_ids"`
+	ProjectNames        []string `json:"project_names"`
+	Country             string   `json:"country"`
+	Status              string   `json:"status"`
+	LatestDeliveryLogID *int64   `json:"latest_delivery_log_id"`
+	ErrorMessage        *string  `json:"error_message"`
+	SentAt              *string  `json:"sent_at"`
+	// EmailSent mirrors the latest delivery log: false means the report was
+	// generated but no email was delivered.
+	EmailSent            bool    `json:"email_sent"`
+	CanResend            bool    `json:"can_resend"`
+	LastCheckedAt        string  `json:"last_checked_at"`
+	ScreenshotR2URL      *string `json:"screenshot_r2_url"`
+	ScreenshotR2ThumbURL *string `json:"screenshot_r2_thumb_url"`
+	AISummary            *string `json:"ai_summary"`
+	AISummaryStatus      string  `json:"ai_summary_status"`
+	AISummaryError       *string `json:"ai_summary_error"`
+	AISummaryModel       *string `json:"ai_summary_model"`
+	InsightRunID         *string `json:"insight_run_id"`
+	AISummaryUpdatedAt   *string `json:"ai_summary_updated_at"`
 }
 
 type LedgerListResponse struct {
@@ -377,14 +384,20 @@ func ErrorStatus(err error) (int, string, bool) {
 		return http.StatusNotFound, ErrProjectNotFound.Error(), true
 	case errors.Is(err, ErrProjectForbidden):
 		return http.StatusForbidden, ErrProjectForbidden.Error(), true
-	case errors.Is(err, ErrSubscriptionNotFound), errors.Is(err, ErrLedgerNotFound):
-		return http.StatusNotFound, err.Error(), true
-	case errors.Is(err, ErrAlreadySent), errors.Is(err, ErrMissingDeliveryLog), errors.Is(err, ErrDeliveryNotSent):
-		return http.StatusConflict, err.Error(), true
+	case errors.Is(err, ErrSubscriptionNotFound):
+		return http.StatusNotFound, "未找到该订阅，请刷新订阅列表后重试", true
+	case errors.Is(err, ErrLedgerNotFound):
+		return http.StatusNotFound, "未找到该台账记录，请刷新台账后重试", true
+	case errors.Is(err, ErrAlreadySent):
+		return http.StatusConflict, "该报告已成功发送；如需重新生成，请使用强制补发（force=true）", true
+	case errors.Is(err, ErrMissingDeliveryLog):
+		return http.StatusConflict, "该台账记录缺少推送日志，暂时无法生成 AI 摘要", true
+	case errors.Is(err, ErrDeliveryNotSent):
+		return http.StatusConflict, "报告尚未生成成功，暂时无法生成 AI 摘要", true
 	case errors.Is(err, ErrIdempotencyConflict):
-		return http.StatusConflict, err.Error(), true
+		return http.StatusConflict, "同一 Idempotency-Key 已用于不同请求，请更换后重试", true
 	case errors.Is(err, ErrAuditNotConfigured):
-		return http.StatusServiceUnavailable, err.Error(), true
+		return http.StatusServiceUnavailable, "审计服务未配置，操作已拒绝", true
 	}
 	return 0, "", false
 }

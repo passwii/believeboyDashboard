@@ -4,6 +4,10 @@ import { useEffect, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { PenLine, Zap } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  WarmSelect,
+  type WarmSelectOption,
+} from '@/components/dashboard-v2/warm-ledger/controls'
 import { MobileFilterStrip } from '@/components/terminal/mobile-filter-strip'
 import {
   useHeaderRefresh,
@@ -100,34 +104,33 @@ export default function ReconcilePage() {
   // BLF-1344：共享记忆读出 / 可见项目校验完成前不挂项目控件，避免拿未经确认的默认值
   // 盖掉其它 tab 刚选的项目；校验完成后仍保留“空值回退第一个可见项目”的既有行为。
   const filterControlsReady = sharedProjectReady && projectsChecked
+  // 项目下拉：'all' 是「全部项目」sentinel，其余沿用可见项目 id
+  const projectOptions: WarmSelectOption[] = [
+    { value: 'all', label: '全部项目' },
+    ...visibleProjects.map((project) => ({ value: project.id, label: project.name })),
+  ]
   const headerSlotPortal = useHeaderSlot(
     activeTab === 'auto' && filterControlsReady ? (
       <div className={styles.headerFilters} data-warm-header-filters="true">
-        <select
-          aria-label="项目筛选"
-          className={styles.headerSelect}
+        <WarmSelect
+          id="monthly-report-reconcile-header-project"
+          ariaLabel="项目筛选"
+          hideLabel
+          placeholder="未选项目"
           value={projectId}
-          onChange={(event) => setProjectId(event.target.value)}
-        >
-          <option value="all">全部项目</option>
-          {visibleProjects.map((project) => (
-            <option key={project.id} value={project.id}>
-              {project.name}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label="站点筛选"
-          className={styles.headerCountry}
+          options={projectOptions}
+          onChange={setProjectId}
+          className={styles.headerSelect}
+        />
+        <WarmSelect
+          id="monthly-report-reconcile-header-country"
+          ariaLabel="站点筛选"
+          hideLabel
           value={country}
-          onChange={(event) => setCountry(event.target.value)}
-        >
-          {COUNTRY_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+          options={COUNTRY_OPTIONS}
+          onChange={setCountry}
+          className={styles.headerCountry}
+        />
       </div>
     ) : null
   )
@@ -142,31 +145,25 @@ export default function ReconcilePage() {
         summary={`${projectId || '未选项目'} · ${country === 'ALL' ? '全部站点' : country}`}
         controls={
           <>
-            <select
-              aria-label="项目筛选"
-              className={styles.mobileHeaderSelect}
+            <WarmSelect
+              id="monthly-report-reconcile-mobile-project"
+              ariaLabel="项目筛选"
+              hideLabel
+              placeholder="未选项目"
               value={projectId}
-              onChange={(event) => setProjectId(event.target.value)}
-            >
-              <option value="all">全部项目</option>
-              {visibleProjects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-            <select
-              aria-label="站点筛选"
+              options={projectOptions}
+              onChange={setProjectId}
               className={styles.mobileHeaderSelect}
+            />
+            <WarmSelect
+              id="monthly-report-reconcile-mobile-country"
+              ariaLabel="站点筛选"
+              hideLabel
               value={country}
-              onChange={(event) => setCountry(event.target.value)}
-            >
-              {COUNTRY_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              options={COUNTRY_OPTIONS}
+              onChange={setCountry}
+              className={styles.mobileHeaderSelect}
+            />
           </>
         }
       />

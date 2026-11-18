@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -76,6 +77,51 @@ describe('Warm controls', () => {
     const select = screen.getByRole('combobox', { name: '项目筛选' })
     expect(screen.getByText('全部项目')).toBeInTheDocument()
     expect(select).toBeDisabled()
+  })
+
+  it('supports a compact form without a visible label for header filters', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+
+    render(
+      <WarmSelect
+        id="header-project-filter"
+        hideLabel
+        ariaLabel="项目筛选"
+        value="all"
+        options={[
+          { value: 'all', label: '全部项目' },
+          { value: 'p1', label: '项目A' },
+        ]}
+        onChange={onChange}
+      />
+    )
+
+    const select = screen.getByRole('combobox', { name: '项目筛选' })
+    // 紧凑形态不渲染可见标签，只有无障碍名称
+    expect(screen.queryByText('项目筛选')).not.toBeInTheDocument()
+    expect(select).toHaveTextContent('全部项目')
+
+    await user.click(select)
+    await user.click(screen.getByRole('option', { name: '项目A' }))
+    expect(onChange).toHaveBeenCalledWith('p1')
+  })
+
+  it('falls back to the hidden label text for the accessible name', () => {
+    render(
+      <WarmSelect
+        id="header-country-filter"
+        hideLabel
+        label="站点筛选"
+        value="US"
+        options={[{ value: 'US', label: '美国站' }]}
+        onChange={vi.fn()}
+      />
+    )
+
+    const select = screen.getByRole('combobox', { name: '站点筛选' })
+    expect(select).toHaveTextContent('美国站')
+    expect(screen.queryByText('站点筛选')).not.toBeInTheDocument()
   })
 
   it('connects invalid select state to its inline error message', () => {

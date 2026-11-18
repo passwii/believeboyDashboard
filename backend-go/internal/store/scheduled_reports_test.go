@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -113,6 +114,94 @@ func TestScheduledReportStoreCreateAndUpdateUseRealTables(t *testing.T) {
 	}
 }
 
+func TestScheduledReportEmailSentFieldIsAlwaysSerialized(t *testing.T) {
+	for _, value := range []any{
+		scheduled_reports.DeliveryLog{},
+		scheduled_reports.LedgerItem{},
+	} {
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			t.Fatalf("json.Marshal(%T) error = %v", value, err)
+		}
+		if !strings.Contains(string(encoded), `"email_sent":false`) {
+			t.Fatalf("%T JSON = %s, want email_sent=false without omitempty", value, encoded)
+		}
+	}
+}
+
+func TestScheduledReportEmailSentRequiresEmailAndSentAt(t *testing.T) {
+	createdAt := time.Date(2026, 11, 3, 10, 0, 0, 0, time.UTC)
+	expectedAt := time.Date(2026, 11, 3, 15, 0, 0, 0, time.FixedZone("CST", 8*60*60))
+	sentAt := time.Date(2026, 11, 3, 10, 5, 0, 0, time.UTC)
+	email := "owner@example.com"
+
+	deliveryLogValues := func(email *string, sentAt *time.Time) []any {
+		return []any{
+			9, 7, "daily", "2026-11-03", (*string)(nil), email,
+			"sent", (*string)(nil), sentAt,
+			(*string)(nil), (*string)(nil), (*string)(nil), (*string)(nil),
+			(*string)(nil), "done", (*string)(nil), (*string)(nil), (*string)(nil), (*time.Time)(nil),
+			"done", createdAt,
+		}
+	}
+	ledgerValues := func(email *string, sentAt *time.Time) []any {
+		return []any{
+			9, "7:2026-11-03", "2026-11-03", expectedAt, "daily", 7, email, "*", "US", "sent", 3,
+			(*string)(nil), sentAt, createdAt, (*string)(nil), (*string)(nil), (*string)(nil), "done",
+			(*string)(nil), (*string)(nil), (*string)(nil), (*time.Time)(nil),
+		}
+	}
+
+	cases := []struct {
+		name   string
+		email  *string
+		sentAt *time.Time
+		want   bool
+	}{
+		// Legacy Python "generation only" rows may have sent_at even though
+		// no email exists. They must not claim an email was sent.
+		{"null email with sent_at", nil, &sentAt, false},
+		{"email with sent_at", &email, &sentAt, true},
+		{"email without sent_at", &email, nil, false},
+	}
+	scanners := []struct {
+		name string
+		scan func(email *string, sentAt *time.Time) (bool, error)
+	}{
+		{
+			name: "delivery log",
+			scan: func(email *string, sentAt *time.Time) (bool, error) {
+				item, err := scanScheduledReportDeliveryLog(scheduledTestRow{
+					values: deliveryLogValues(email, sentAt),
+				})
+				return item.EmailSent, err
+			},
+		},
+		{
+			name: "ledger item",
+			scan: func(email *string, sentAt *time.Time) (bool, error) {
+				item, err := scanLedgerItem(scheduledTestRow{
+					values: ledgerValues(email, sentAt),
+				})
+				return item.EmailSent, err
+			},
+		},
+	}
+	for _, scanner := range scanners {
+		for _, testCase := range cases {
+			t.Run(scanner.name+"/"+testCase.name, func(t *testing.T) {
+				got, err := scanner.scan(testCase.email, testCase.sentAt)
+				if err != nil {
+					t.Fatalf("scan error = %v", err)
+				}
+				if got != testCase.want {
+					t.Fatalf("EmailSent = %v, want %v", got, testCase.want)
+				}
+			})
+		}
+	}
+}
+
 func TestScheduledReportStorePrepareResendLocksLedgerAndCreatesManualLog(t *testing.T) {
 	ctx := context.Background()
 	userID := "9703d9eb-c1f5-4e7c-8513-313b05c3ea75"
@@ -129,7 +218,7 @@ func TestScheduledReportStorePrepareResendLocksLedgerAndCreatesManualLog(t *test
 				time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC),
 				time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC),
 			}},
-			scheduledTestRow{values: []any{3, "failed", "auto", "failed"}},
+			scheduledTestRow{values: []any{3, "failed", "auto", "failed", (*time.Time)(nil)}},
 			scheduledTestRow{values: []any{22}},
 		},
 		execTag: pgconn.NewCommandTag("UPDATE 1"),
@@ -182,7 +271,7 @@ func TestScheduledReportStoreResendDeduplicatesInFlightLog(t *testing.T) {
 				time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC),
 				time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC),
 			}},
-			scheduledTestRow{values: []any{3, "pending", "manual", "preparing"}},
+			scheduledTestRow{values: []any{3, "pending", "manual", "preparing", (*time.Time)(nil)}},
 		},
 	}
 	store := NewScheduledReportStore(db)
@@ -199,6 +288,7 @@ func TestScheduledReportStoreResendDeduplicatesInFlightLog(t *testing.T) {
 		t.Fatalf("in-flight resend wrote %d rows", len(db.execCalls))
 	}
 
+	sentAt := time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC)
 	db.rowsQueue = []pgx.Row{
 		scheduledTestRow{values: []any{1}},
 		scheduledTestRow{values: []any{
@@ -209,13 +299,89 @@ func TestScheduledReportStoreResendDeduplicatesInFlightLog(t *testing.T) {
 			time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC),
 			time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC),
 		}},
-		scheduledTestRow{values: []any{3, "sent", "manual", "done"}},
+		scheduledTestRow{values: []any{3, "sent", "manual", "done", &sentAt}},
 	}
 	_, err = NewScheduledReportStore(db).PrepareResend(context.Background(), scheduled_reports.ResendRequest{
 		LedgerKey: "7:2026-11-07",
 	})
 	if !errors.Is(err, scheduled_reports.ErrAlreadySent) {
 		t.Fatalf("stale sent ledger error = %v, want ErrAlreadySent", err)
+	}
+}
+
+func TestScheduledReportStorePrepareResendFallsBackToCurrentSubscriptionEmail(t *testing.T) {
+	ctx := context.Background()
+	userID := "9703d9eb-c1f5-4e7c-8513-313b05c3ea75"
+	currentEmail := "current@example.com"
+	weekday := 1
+	db := &scheduledTestDB{
+		rowsQueue: []pgx.Row{
+			scheduledTestRow{values: []any{1}},
+			// Ledger snapshot was materialised before the subscription had an
+			// email, so it is still NULL.
+			scheduledTestRow{values: []any{
+				9, 7, "weekly", "2026-11-03", (*string)(nil), "1,2", "US", "failed", (*int)(nil),
+			}},
+			scheduledTestRow{values: []any{
+				7, (*int)(nil), &userID, &currentEmail, "1,2", "US", "weekly", 16, 0, &weekday, nil, (*string)(nil), true,
+				time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC),
+				time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC),
+			}},
+			scheduledTestRow{values: []any{22}},
+		},
+		execTag: pgconn.NewCommandTag("UPDATE 1"),
+	}
+	result, err := NewScheduledReportStore(db).PrepareResend(ctx, scheduled_reports.ResendRequest{
+		LedgerKey: "7:2026-11-03",
+	})
+	if err != nil {
+		t.Fatalf("PrepareResend() error = %v", err)
+	}
+	if result.Email == nil || *result.Email != currentEmail {
+		t.Fatalf("result.Email = %#v, want current subscription email %q", result.Email, currentEmail)
+	}
+	insertCall := db.queryRowCalls[len(db.queryRowCalls)-1]
+	if len(insertCall.args) < 5 || insertCall.args[4] == nil || insertCall.args[4].(*string) == nil ||
+		*insertCall.args[4].(*string) != currentEmail {
+		t.Fatalf("delivery log insert email arg = %#v, want %q", insertCall.args, currentEmail)
+	}
+}
+
+func TestScheduledReportStorePrepareResendAllowsNoEmailAndGeneratedOnlyRows(t *testing.T) {
+	ctx := context.Background()
+	userID := "9703d9eb-c1f5-4e7c-8513-313b05c3ea75"
+	db := &scheduledTestDB{
+		rowsQueue: []pgx.Row{
+			scheduledTestRow{values: []any{1}},
+			// Generated-only ledger row: status sent but the latest delivery
+			// log has sent_at NULL, and no email exists anywhere.
+			scheduledTestRow{values: []any{
+				9, 7, "daily", "2026-11-07", (*string)(nil), "*", "US", "sent", 3,
+			}},
+			scheduledTestRow{values: []any{
+				7, (*int)(nil), &userID, (*string)(nil), "*", "US", "daily", 15, 0, (*int)(nil), (*int)(nil), (*string)(nil), true,
+				time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC),
+				time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC),
+			}},
+			scheduledTestRow{values: []any{3, "sent", "auto", "done", (*time.Time)(nil)}},
+			scheduledTestRow{values: []any{22}},
+		},
+		execTag: pgconn.NewCommandTag("UPDATE 1"),
+	}
+	result, err := NewScheduledReportStore(db).PrepareResend(ctx, scheduled_reports.ResendRequest{
+		LedgerKey: "7:2026-11-07",
+	})
+	if err != nil {
+		t.Fatalf("PrepareResend() error = %v, want generation allowed without email", err)
+	}
+	if result.DeliveryLogID == nil || *result.DeliveryLogID != 22 {
+		t.Fatalf("result = %#v, want new delivery log 22", result)
+	}
+	if result.Email != nil {
+		t.Fatalf("result.Email = %#v, want nil", result.Email)
+	}
+	if result.Status != "processing" {
+		t.Fatalf("result.Status = %q, want processing", result.Status)
 	}
 }
 
@@ -389,6 +555,67 @@ func TestScheduledReportStoreRefreshLedgerUpsertsAndPagesByDay(t *testing.T) {
 	}
 	if len(db.queryCalls) != 4 {
 		t.Fatalf("Query calls = %d, want subscriptions/day/items/projects", len(db.queryCalls))
+	}
+}
+
+func TestScheduledReportStoreQueryLedgerAllowsResendForGeneratedOnlyRow(t *testing.T) {
+	email := "owner@example.com"
+	expectedAt := time.Date(2026, 11, 2, 15, 0, 0, 0, time.FixedZone("CST", 8*60*60))
+	lastChecked := time.Date(2026, 11, 8, 10, 0, 0, 0, time.FixedZone("CST", 8*60*60))
+	db := &scheduledTestDB{
+		rowsQueueQuery: []Rows{
+			&scheduledTestRows{batches: [][]any{{"2026-11-02"}}},
+			&scheduledTestRows{batches: [][]any{{
+				9,
+				"7:2026-11-02",
+				"2026-11-02",
+				expectedAt,
+				"daily",
+				7,
+				&email,
+				"*",
+				"US",
+				"sent",
+				3,
+				(*string)(nil),
+				// Generated-only delivery log: status sent, sent_at NULL.
+				(*time.Time)(nil),
+				lastChecked,
+				(*string)(nil),
+				(*string)(nil),
+				(*string)(nil),
+				"pending",
+				(*string)(nil),
+				(*string)(nil),
+				(*string)(nil),
+				(*time.Time)(nil),
+			}}},
+		},
+		rowsQueue: []pgx.Row{
+			scheduledTestRow{values: []any{1, 1, 0, 0}},
+		},
+	}
+	response, err := NewScheduledReportStore(db).queryLedger(context.Background(), scheduled_reports.LedgerQuery{
+		StartDate: "2026-11-01",
+		EndDate:   "2026-11-02",
+		Limit:     100,
+		Scope:     scheduled_reports.Scope{IsAdmin: true},
+	})
+	if err != nil {
+		t.Fatalf("queryLedger() error = %v", err)
+	}
+	if len(response.Items) != 1 {
+		t.Fatalf("items = %#v", response.Items)
+	}
+	item := response.Items[0]
+	if item.EmailSent {
+		t.Fatalf("EmailSent = true, want false for sent_at NULL")
+	}
+	if !item.CanResend {
+		t.Fatalf("CanResend = false, want true for a generated-only row")
+	}
+	if item.Status != scheduled_reports.StatusSent {
+		t.Fatalf("status = %q, want sent", item.Status)
 	}
 }
 

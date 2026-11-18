@@ -22,6 +22,7 @@ function makeItem(overrides: Partial<LedgerItem> = {}): LedgerItem {
     latest_delivery_log_id: 99,
     error_message: null,
     sent_at: '2026-08-24T15:05:00+08:00',
+    email_sent: false,
     can_resend: false,
     last_checked_at: null,
     screenshot_r2_url: null,

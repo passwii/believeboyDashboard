@@ -37,7 +37,7 @@ func GenerateDeliverySummary(ctx context.Context, db store.FullDB, provider ai.P
 		return nil, fmt.Errorf("load delivery log: %w", err)
 	}
 	projectIDs := parseProjectIDs(projectIDsText)
-	reportDateValue, err := time.ParseInLocation("2006-01-02", reportDate, time.Local)
+	reportDateValue, err := time.ParseInLocation("2006-01-02", reportDate, scheduledReportLocation())
 	if err != nil {
 		return nil, fmt.Errorf("invalid report_date %q", reportDate)
 	}
