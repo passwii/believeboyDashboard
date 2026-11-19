@@ -121,6 +121,49 @@ func TestReturnAnalysisHandler(t *testing.T) {
 	}
 }
 
+func TestReturnAnalysisHandlerSerializesEmptyListsAsArrays(t *testing.T) {
+	store := &mockReturnStore{
+		analysisResp: &ReturnAnalysisResponse{
+			ProjectID:   19,
+			ProjectName: "Empty Project",
+			Country:     "US",
+			StartDate:   "2026-11-12",
+			EndDate:     "2026-11-19",
+			Summary: ReturnAnalysisSummary{
+				DataAvailable: false,
+			},
+		},
+	}
+	router := setupReturnRouter(store)
+	adminCtx := auth.WithUserContext(context.Background(), auth.UserContext{Operator: "admin", IsAdmin: true})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/return-analysis?project_id=19&start_date=2026-11-12&end_date=2026-11-19", nil).WithContext(adminCtx)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	for _, field := range []string{
+		"ranking_rows",
+		"reason_rows",
+		"trend_rows",
+		"disposition_rows",
+		"status_rows",
+		"feedback_rows",
+		"weekday_rows",
+		"fulfillment_center_rows",
+	} {
+		if string(payload[field]) == "null" {
+			t.Errorf("%s serialized as null; the dashboard treats it as an array", field)
+		}
+	}
+}
+
 func TestReturnReasonAliasesAndFallbacks(t *testing.T) {
 	cases := map[string]string{
 		"AMZ-PG-WJ-TOO-SMALL":    "首饰过小或过短",

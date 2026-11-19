@@ -156,6 +156,54 @@ func TestReturnAnalysisAggregatesUniqueEventsAndFeedback(t *testing.T) {
 	}
 }
 
+func TestReturnAnalysisEmptyWindowReturnsEmptyArrays(t *testing.T) {
+	ctx := context.Background()
+	mockDB := &fakeDB{
+		rowsQueue: []pgx.Row{
+			fakeRow{values: []any{"Empty Project"}},
+			fakeRow{values: []any{(*time.Time)(nil), (*time.Time)(nil)}},
+		},
+		rowsQueueQuery: []Rows{
+			&fakeRows{},
+			&fakeRows{},
+		},
+	}
+	store := NewReturnAnalysisStore(&fakeWriteDB{fakeDB: mockDB})
+
+	resp, err := store.GetReturnAnalysis(ctx, return_analysis.ReturnAnalysisFilter{
+		ProjectID: 19,
+		Country:   "US",
+		StartDate: "2026-11-12",
+		EndDate:   "2026-11-19",
+	})
+	if err != nil {
+		t.Fatalf("analysis: %v", err)
+	}
+
+	if resp.Summary.DataAvailable {
+		t.Fatalf("data_available = true, want false for a window without return data")
+	}
+	if resp.Summary.TotalReturns != 0 || resp.Summary.TotalQuantity != 0 {
+		t.Fatalf("summary should be zero: %+v", resp.Summary)
+	}
+
+	lists := map[string]any{
+		"ranking_rows":            resp.RankingRows,
+		"reason_rows":             resp.ReasonRows,
+		"trend_rows":              resp.TrendRows,
+		"disposition_rows":        resp.DispositionRows,
+		"status_rows":             resp.StatusRows,
+		"feedback_rows":           resp.FeedbackRows,
+		"weekday_rows":            resp.WeekdayRows,
+		"fulfillment_center_rows": resp.FulfillmentCenterRows,
+	}
+	for name, value := range lists {
+		if value == nil {
+			t.Errorf("%s is nil; empty windows must return [] so JSON is not null", name)
+		}
+	}
+}
+
 func TestReturnAnalysisSQLPreparesAgainstPostgres(t *testing.T) {
 	databaseURL := os.Getenv("TEST_DATABASE_URL")
 	if databaseURL == "" {
