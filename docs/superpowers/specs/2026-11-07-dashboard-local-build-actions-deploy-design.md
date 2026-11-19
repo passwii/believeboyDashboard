@@ -1,5 +1,7 @@
 # Dashboard 本地构建、Actions 部署与 VPS 空间回收设计
 
+> 历史设计记录（2026-11-07）。2026-11-18 用户调整默认发布策略为 GitHub Actions 执行检查、构建、推镜像与部署；本机 SSH 发布仅作备用。当前规则以 [AGENTS.md](../../../AGENTS.md)、[REFERENCE.md](../../REFERENCE.md) 与 [VPS 部署手册](../../deployment/dashboard-vps-compose.md) 为准。
+
 日期：2026-11-07
 
 状态：用户已批准，按实施计划进行

@@ -228,10 +228,10 @@ go test ./... -count=1           # 测试（CI 门禁）
 
 ### Workflow
 - 推送前：按 §测试规则 的分级跑（**不默认全量**）；前端 T1/T2 优先带路径过滤，全量 `pnpm test` 已可裸跑（BLF-1238 已修，~43s 起）；后端 T3 才跑全量并做失败集对账。
-- 推送 + 部署：`git deploy` 先校验 main、Goose 迁移（含 Alembic 冻结归档）和 push，再执行 `deploy/deploy-local.sh`。
-- `deploy/deploy-local.sh` 构建并推送 `believeboydashboard-web` / `believeboydashboard-api`，使用镜像 digest 部署 `/opt/believeboy-dashboard/docker-compose.yml`。
+- 默认发布：`git deploy` 只要求 main 干净并推送最新 `origin/main`，然后派发 `.github/workflows/deploy-dashboard.yml` 的 `build_and_deploy`。迁移校验、前端 lint/test、Go API/Web 构建与 GHCR 推送、VPS 部署和健康检查均在 GitHub Actions 执行。
+- 本机备用发布：`DEPLOY_METHOD=ssh git deploy` 在本机执行 Goose 迁移检查（含 Alembic 冻结归档）、前端 lint/test、构建与推送镜像，再通过 SSH 部署；需本机 Docker、pnpm、Go、部署环境和 SSH 配置（包括 `DEPLOY_HOST`、`GO_API_TRUSTED_PROXY_SECRET` 与 `DEPLOYMENTS_ENABLED=true`）。
 - PostgreSQL、Redis、Caddy 不进入 Compose；应用容器使用 host network 访问现有回环端口。
-- Actions 只作手动备用：`gh workflow run deploy-dashboard.yml --ref main`。
+- Actions 手动入口：`gh workflow run deploy-dashboard.yml --ref main`。该工作流仅部署 `main`。
 - 只推代码：`PUSH_ONLY=1 git deploy`。
 - 回滚与故障处理见 [dashboard-vps-compose.md](./deployment/dashboard-vps-compose.md)。
 

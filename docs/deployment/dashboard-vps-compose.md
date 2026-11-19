@@ -119,7 +119,7 @@ obscura serve --port 9222 --stealth --font-dir frontend/public/fonts
 - `FRONTEND_URL`：CORS 与邮件中的可点击链接。
 - R2、Resend、联网搜索等外部服务地址。
 
-## 本地发布与 GitHub Actions 部署
+## GitHub Actions 默认发布与本机备用
 
 配置：
 
@@ -127,7 +127,7 @@ obscura serve --port 9222 --stealth --font-dir frontend/public/fonts
 ~/.config/believeboy-dashboard/deploy.env
 ```
 
-发布：
+默认发布：
 
 ```bash
 git switch main
@@ -135,31 +135,34 @@ git pull --ff-only origin main
 git deploy
 ```
 
-`git deploy` 要求在 `main` 上运行，先推送代码，再由本机执行迁移图检查、前端 lint/test，并构建、推送三张 `linux/amd64` 镜像。脚本读取每张镜像的 registry digest，然后通过 GitHub CLI 派发预构建部署模式。GitHub Actions 连接 VPS，复用统一远端部署脚本；本机不再直接 SSH 到 VPS。
+`git deploy` 要求在 `main` 上运行，推送最新 main 后派发 GitHub Actions 的 `build_and_deploy`。Actions 在 `ubuntu-latest` 上运行 Goose 迁移检查、前端 lint/test，构建并推送 Go API/Web 两张 `linux/amd64` 镜像，然后通过统一远端部署脚本部署到 VPS。完整过程由 GitHub Actions 执行；本机只需要 GitHub CLI 登录并保持 main 工作区干净，不需要本机 Docker、pnpm、Go、`.env.local` 或 SSH 到 VPS。
 
-本机发现 Git build context 中存在未跟踪且未忽略的文件时，会在构建前终止，避免将不属于发布 SHA 的文件打入镜像。Actions 与 SSH 两种发布方式都固定使用上表中的三个 GHCR 仓库。
+GitHub Actions 使用仓库 Secrets/Variables 中的运行凭据与磁盘门槛，Web 运行期配置继续以 VPS 当前 `web.env` 为准。构建日志记录源码 SHA、镜像 digest、迁移检查和部署结果。可查看运行：
 
-本机脚本会输出每张镜像及三张镜像合计的构建/推送耗时。本地无法访问 `proxy.golang.org` 时，可在 `deploy.env` 设置 `GO_MODULE_PROXY=https://goproxy.cn,direct`。预构建模式会复用本机刚推送的 digest，不在 GitHub runner 上重复构建镜像。
+```bash
+gh run list --workflow deploy-dashboard.yml --limit 3
+gh run view <run-id>
+```
 
-GitHub Actions 预构建模式继续以 VPS 当前 `web.env` 为 Web 运行配置来源，并通过 GitHub Secret 更新 Go 代理密钥。需要同步本机 `.env.local` 中的运行期配置时，使用显式本机 SSH 应急路径：
+本机发布路径作为备用。它会在本机跑迁移检查和前端 lint/test，本地构建并推送镜像，然后经 SSH 部署；需要本机 Docker、pnpm、Go、`frontend/.env.local`，以及 `deploy.env` 中的 `DEPLOY_HOST` / `GO_API_TRUSTED_PROXY_SECRET` / `DEPLOYMENTS_ENABLED=true`：
 
 ```bash
 DEPLOY_METHOD=ssh git deploy
 ```
 
-本机 SSH 路径需要 `deploy.env` 中的 `DEPLOY_HOST` 和 `GO_API_TRUSTED_PROXY_SECRET`，会按本机 frontend env 生成 Web/Go 运行配置并上传到 VPS。
+本机备用模式会拒绝 Docker build context 中存在未跟踪且未忽略的文件，以防止将发布 SHA 之外的内容打进镜像。无法访问 `proxy.golang.org` 时，可在 `deploy.env` 设置 `GO_MODULE_PROXY=https://goproxy.cn,direct`。
 
-手动运行 Actions 时，不传预构建输入会执行完整构建备用流程；预构建模式由 `git deploy` 自动传入 SHA 与三个 digest。只推代码仍使用：
+只推代码和手动派发 Actions 仍可使用：
 
 ```bash
 PUSH_ONLY=1 git deploy
-gh workflow run deploy-dashboard.yml --ref main
+gh workflow run deploy-dashboard.yml --ref main -f deploy_mode=build_and_deploy
 gh run list --workflow deploy-dashboard.yml --limit 3
 ```
 
 Actions 和 SSH 调用端只创建部署根目录与唯一暂存目录、上传本次部署文件；所有 VPS 活动状态修改都由持有 `.deploy.lock` 的远端脚本完成。锁内流程包含 legacy 环境 bootstrap、目录初始化、镜像拉取与 revision 校验、旧写入方停机、legacy 数据复制与权限调整、migration、健康检查、回滚和清理。legacy storage/celerybeat 只在旧服务停止后复制，避免把仍在写入的不一致快照切到新运行目录。Actions 的 `always()` 暂存清理也会先取得同一把锁；远端事务仍在运行时延后清理，由远端退出逻辑或下一次部署回收。
 
-**部署开关（2026-11-13 已解冻）**：2026-11-10 起曾为 Go 全量迁移冻结发布；仓库变量 `DEPLOYMENTS_ENABLED` 已于 2026-11-13 设为 `true`，部署恢复正常。该开关仍作为紧急停发闸门保留：值不为 `true` 时 `deploy-dashboard.yml` 和 `deploy/deploy-local.sh` 都会立即失败退出。
+**部署开关（2026-11-13 已解冻）**：2026-11-10 起曾为 Go 全量迁移冻结发布；仓库变量 `DEPLOYMENTS_ENABLED` 已于 2026-11-13 设为 `true`，部署恢复正常。该仓库变量仍是 GitHub Actions 的紧急停发闸门。只有本机 SSH 备用路径会另外要求本地 `deploy.env` 中将 `DEPLOYMENTS_ENABLED=true`。
 
 每次远端部署会先仅回收三个 Dashboard GHCR 仓库中未被容器或当前镜像清单引用的镜像，再读取部署分区总容量与可用空间。空间门槛是可配置的**绝对下限**（原版固定 10% 在 15 GB VPS 上、两套镜像共存时不可达）：`DEPLOY_FREE_SPACE_MIN_BYTES`（默认 1 GiB）与 `DEPLOY_FREE_SPACE_POST_PULL_MIN_BYTES`（默认 512 MiB，目标镜像拉取后）；可选 `DEPLOY_FREE_SPACE_PERCENT`（默认 0 表示关闭）。需要复制 legacy 数据时，仍会按“估算已分配空间 + 10% + 512 MiB 缓冲”预检；目标镜像拉取后、停机复制前会再次执行精确检查。空间不足时在运行 migration 前中止；数据复制预检不通过时不会停止旧服务。日志记录源码 SHA、三个镜像 digest、分区总容量、各项门槛、可用空间、清理的镜像引用数量以及各阶段的 Docker 镜像占用。
 

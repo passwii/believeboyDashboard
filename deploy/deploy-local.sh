@@ -2,20 +2,23 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REQUESTED_DEPLOY_METHOD="${DEPLOY_METHOD:-}"
 CONFIG_FILE="${DEPLOY_CONFIG_FILE:-$HOME/.config/believeboy-dashboard/deploy.env}"
 if [[ -f "$CONFIG_FILE" ]]; then
   # shellcheck disable=SC1090
   source "$CONFIG_FILE"
 fi
 
-# 2026-11-13：部署已解冻（仓库变量 DEPLOYMENTS_ENABLED=true）。
-# 该开关保留为紧急停发闸门；见 deploy/local.env.example。
-if [[ "${DEPLOYMENTS_ENABLED:-false}" != "true" ]]; then
-  echo "Deployments are disabled. Set DEPLOYMENTS_ENABLED=true to enable deployment." >&2
+# 命令行选择优先于 deploy.env；git deploy 显式传入默认值 actions。
+DEPLOY_METHOD="${REQUESTED_DEPLOY_METHOD:-${DEPLOY_METHOD:-actions}}"
+unset REQUESTED_DEPLOY_METHOD
+
+# 2026-11-13：Actions 工作流的仓库变量 DEPLOYMENTS_ENABLED=true 是发布闸门。
+# 本机 SSH 备用路径额外检查本地配置里的同名值，避免绕过 Actions 的停发闸门。
+if [[ "$DEPLOY_METHOD" == "ssh" && "${DEPLOYMENTS_ENABLED:-false}" != "true" ]]; then
+  echo "Local SSH deployment is disabled. Set DEPLOYMENTS_ENABLED=true to enable the fallback." >&2
   exit 1
 fi
-
-DEPLOY_METHOD="${DEPLOY_METHOD:-actions}"
 case "$DEPLOY_METHOD" in
   actions | ssh) ;;
   *)
@@ -46,11 +49,11 @@ if [[ "$DEPLOY_METHOD" == "ssh" ]]; then
   : "${DEPLOY_HOST:?Set DEPLOY_HOST in $CONFIG_FILE or the shell environment}"
 fi
 
-REQUIRED_COMMANDS=(git pnpm docker)
+REQUIRED_COMMANDS=(git)
 if [[ "$DEPLOY_METHOD" == "actions" ]]; then
-  REQUIRED_COMMANDS+=(gh)
+  REQUIRED_COMMANDS+=(gh openssl)
 else
-  REQUIRED_COMMANDS+=(ssh scp)
+  REQUIRED_COMMANDS+=(pnpm docker go openssl ssh scp)
 fi
 
 for command in "${REQUIRED_COMMANDS[@]}"; do
@@ -65,8 +68,8 @@ if [[ -n "$(git -C "$ROOT" status --porcelain --untracked-files=no)" ]]; then
   exit 1
 fi
 
-if [[ -n "$(git -C "$ROOT" ls-files --others --exclude-standard)" ]]; then
-  echo "Untracked non-ignored files are present in the Docker build context. Commit or remove them before deploying." >&2
+if [[ "$DEPLOY_METHOD" == "ssh" && -n "$(git -C "$ROOT" ls-files --others --exclude-standard)" ]]; then
+  echo "Untracked non-ignored files are present in the local Docker build context. Commit or remove them before deploying." >&2
   exit 1
 fi
 
@@ -90,6 +93,78 @@ MAIN_SHA="$(git -C "$ROOT" rev-parse origin/main)"
 if [[ "$SHA" != "$MAIN_SHA" ]]; then
   echo "HEAD ($SHA) is not the latest origin/main ($MAIN_SHA)." >&2
   exit 1
+fi
+
+if [[ "$DEPLOY_METHOD" == "actions" ]]; then
+  dispatch_id="$(openssl rand -hex 16)"
+  echo "Dispatching full build, checks, and deployment to GitHub Actions..."
+  dispatch_args=(
+    --ref main
+    -f "deploy_mode=build_and_deploy"
+    -f "dispatch_id=$dispatch_id"
+  )
+  if [[ "$GO_API_OWNED_MODULES" != "all" ]]; then
+    dispatch_args+=(-f "go_api_owned=$GO_API_OWNED_MODULES")
+  fi
+
+  if dispatch_output="$(gh workflow run deploy-dashboard.yml "${dispatch_args[@]}" 2>&1)"; then
+    :
+  else
+    dispatch_status=$?
+    printf '%s\n' "$dispatch_output" >&2
+    echo "Unable to dispatch the GitHub Actions deployment." >&2
+    exit "$dispatch_status"
+  fi
+  if [[ -n "$dispatch_output" ]]; then
+    printf '%s\n' "$dispatch_output"
+  fi
+
+  run_id=""
+  run_url=""
+  while IFS= read -r output_line; do
+    if [[ "$output_line" =~ https://github\.com/([^/[:space:]]+)/([^/[:space:]]+)/actions/runs/([0-9]+) ]]; then
+      run_id="${BASH_REMATCH[3]}"
+      run_url="https://github.com/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}/actions/runs/$run_id"
+    fi
+  done <<< "$dispatch_output"
+
+  if [[ -z "$run_id" ]]; then
+    echo "Dispatch returned no Actions URL; waiting for this run to appear..."
+    for ((attempt = 1; attempt <= 15; attempt++)); do
+      if run_record="$(gh run list \
+        --workflow deploy-dashboard.yml \
+        --commit "$SHA" \
+        --event workflow_dispatch \
+        --limit 20 \
+        --json databaseId,url,displayTitle \
+        --jq '.[] | select(.displayTitle == "Deploy Dashboard ('"$dispatch_id"')") | "\(.databaseId)\t\(.url)"' \
+        | head -n 1)"; then
+        if [[ -n "$run_record" ]]; then
+          IFS=$'\t' read -r run_id run_url <<< "$run_record"
+          break
+        fi
+      fi
+      if (( attempt < 15 )); then
+        echo "New Actions run not visible yet (attempt $attempt/15); retrying in 2 seconds..."
+        sleep 2
+      fi
+    done
+    if [[ -z "$run_id" || -z "$run_url" ]]; then
+      echo "No Actions run titled 'Deploy Dashboard ($dispatch_id)' for commit $SHA appeared within 15 polls." >&2
+      exit 1
+    fi
+  fi
+
+  echo "GitHub Actions run: $run_url"
+  echo "Waiting for the deployment run to finish..."
+  if gh run watch "$run_id" --compact --exit-status; then
+    echo "GitHub Actions deployment completed successfully: $run_url"
+  else
+    watch_status=$?
+    echo "GitHub Actions deployment finished unsuccessfully (exit $watch_status): $run_url" >&2
+    exit "$watch_status"
+  fi
+  exit 0
 fi
 
 if [[ ! -f "$FRONTEND_ENV_FILE" ]]; then
@@ -259,91 +334,6 @@ go_api_digest="$(image_digest "$TMP_DIR/go-api-meta.json")"
 web_digest="$(image_digest "$TMP_DIR/web-meta.json")"
 GO_API_IMAGE="$GO_API_IMAGE_NAME${go_api_digest}"
 WEB_IMAGE="$WEB_IMAGE_NAME${web_digest}"
-
-if [[ "$DEPLOY_METHOD" == "actions" ]]; then
-  dispatch_id="$(openssl rand -hex 16)"
-  echo "Dispatching prebuilt deployment to GitHub Actions..."
-  dispatch_args=(
-    --ref main
-    -f "deploy_mode=prebuilt"
-    -f "dispatch_id=$dispatch_id"
-    -f "source_sha=$SHA"
-    -f "go_api_digest=$go_api_digest"
-    -f "web_digest=$web_digest"
-  )
-  if [[ -n "$GO_API_OWNED_MODULES" ]]; then
-    dispatch_args+=(-f "go_api_owned=$GO_API_OWNED_MODULES")
-  fi
-  if [[ "$GO_API_INTERNAL_URL" != "http://127.0.0.1:8200" ]]; then
-    dispatch_args+=(-f "go_api_internal_url=$GO_API_INTERNAL_URL")
-  fi
-  if dispatch_output="$(gh workflow run deploy-dashboard.yml "${dispatch_args[@]}" 2>&1)"; then
-    :
-  else
-    dispatch_status=$?
-    printf '%s\n' "$dispatch_output" >&2
-    echo "Unable to dispatch the GitHub Actions deployment." >&2
-    exit "$dispatch_status"
-  fi
-
-  if [[ -n "$dispatch_output" ]]; then
-    printf '%s\n' "$dispatch_output"
-  fi
-
-  run_id=""
-  run_url=""
-  while IFS= read -r output_line; do
-    if [[ "$output_line" =~ https://github\.com/([^/[:space:]]+)/([^/[:space:]]+)/actions/runs/([0-9]+) ]]; then
-      run_id="${BASH_REMATCH[3]}"
-      run_url="https://github.com/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}/actions/runs/$run_id"
-    fi
-  done <<< "$dispatch_output"
-
-  if [[ -z "$run_id" ]]; then
-    echo "Dispatch returned no Actions URL; waiting for this run to appear..."
-    for ((attempt = 1; attempt <= 15; attempt++)); do
-if run_record="$(gh run list \
-          --workflow deploy-dashboard.yml \
-          --commit "$SHA" \
-          --event workflow_dispatch \
-          --limit 20 \
-          --json databaseId,url,displayTitle \
-          --jq '.[] | select(.displayTitle == "Deploy Dashboard ('"$dispatch_id"')") | "\(.databaseId)\t\(.url)"' \
-          | head -n 1)"; then
-        if [[ -n "$run_record" ]]; then
-          IFS=$'	' read -r run_id run_url <<< "$run_record"
-          break
-        fi
-      fi
-
-      if (( attempt < 15 )); then
-        echo "New Actions run not visible yet (attempt $attempt/15); retrying in 2 seconds..."
-        sleep 2
-      fi
-    done
-
-    if [[ -z "$run_id" || -z "$run_url" ]]; then
-      echo "No Actions run titled 'Deploy Dashboard ($dispatch_id)' for commit $SHA appeared within 15 polls." >&2
-      exit 1
-    fi
-  fi
-
-  if [[ -z "$run_id" || -z "$run_url" ]]; then
-    echo "Unable to identify the GitHub Actions run for commit $SHA." >&2
-    exit 1
-  fi
-
-  echo "GitHub Actions run: $run_url"
-  echo "Waiting for the deployment run to finish..."
-  if gh run watch "$run_id" --compact --exit-status; then
-    echo "GitHub Actions deployment completed successfully: $run_url"
-  else
-    watch_status=$?
-    echo "GitHub Actions deployment finished unsuccessfully (exit $watch_status): $run_url" >&2
-    exit "$watch_status"
-  fi
-  exit 0
-fi
 
 PUBLIC_WEB_HEALTH_URL="${PUBLIC_WEB_HEALTH_URL:-${DOMAIN%/}/healthz}"
 PUBLIC_API_HEALTH_URL="${PUBLIC_API_HEALTH_URL:-${BACKEND_API_BASE_URL%/}/api/v1/health/ready}"

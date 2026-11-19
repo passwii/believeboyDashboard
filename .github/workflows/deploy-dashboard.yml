@@ -1,9 +1,10 @@
 name: Deploy dashboard stack
 run-name: Deploy Dashboard (${{ inputs.dispatch_id || github.run_number }})
 
-# Manual fallback. The local Mac is the primary release path via
-# deploy/deploy-local.sh. Both paths deploy the same Go API and Web image set
-# through the shared remote Compose script.
+# Primary release path: git deploy dispatches build_and_deploy so checks,
+# image builds, GHCR pushes, and deployment all run in GitHub Actions. The
+# deploy/deploy-local.sh SSH path is the explicit local fallback. Both paths
+# deploy the same Go API and Web image set through the shared remote script.
 
 on:
   workflow_dispatch:
