@@ -348,7 +348,7 @@ describe('LedgerView 日组默认展开', () => {
 
     const table = await screen.findByRole('table', { name: '台账明细' })
     expect(within(table).getByText('历史日项目')).toBeInTheDocument()
-    const dayHead = screen.getByRole('button', { name: /2026-11-13/ })
+    const dayHead = within(table).getByRole('button', { name: /2026-11-13/ })
     expect(dayHead).toHaveAttribute('aria-expanded', 'true')
 
     // 用户手动折叠后，常规刷新（同一日期/筛选）不再强制展开。
@@ -359,7 +359,7 @@ describe('LedgerView 日组默认展开', () => {
     await waitFor(() => expect(refresh).toBeEnabled())
     fireEvent.click(refresh)
     await waitFor(() => expect(fetchLedgerMock).toHaveBeenCalledTimes(2))
-    expect(screen.getByRole('button', { name: /2026-11-13/ })).toHaveAttribute(
+    expect(within(table).getByRole('button', { name: /2026-11-13/ })).toHaveAttribute(
       'aria-expanded',
       'false'
     )
