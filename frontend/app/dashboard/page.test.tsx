@@ -223,17 +223,19 @@ describe('DashboardHomePage', () => {
     expect(mocks.refresh).toHaveBeenCalledOnce()
   })
 
-  it('wires search, notification, and profile actions in the Warm topbar', () => {
+  it('wires search, notification, and profile actions in the Warm topbar', async () => {
+    const user = userEvent.setup()
     const onSearch = vi.fn()
     window.addEventListener(OPEN_SEARCH_EVENT, onSearch)
     render(<DashboardHomePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: '全局搜索' }))
+    await user.click(screen.getByRole('button', { name: '全局搜索' }))
 
     expect(onSearch).toHaveBeenCalledOnce()
-    fireEvent.click(screen.getByRole('button', { name: '通知，3 条未读' }))
+    await user.click(screen.getByRole('button', { name: '通知，3 条未读' }))
     expect(mocks.refreshNotifications).toHaveBeenCalledOnce()
-    fireEvent.click(screen.getByRole('button', { name: '个人资料' }))
+    await user.hover(screen.getByRole('button', { name: '个人资料' }))
+    await user.click(await screen.findByRole('menuitem', { name: '个人中心' }))
     expect(mocks.push).toHaveBeenCalledWith('/dashboard/profile')
     window.removeEventListener(OPEN_SEARCH_EVENT, onSearch)
   })

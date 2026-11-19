@@ -135,8 +135,11 @@ const WARM_C8_ROUTE_CASES = [
 const shellMocks = vi.hoisted(() => ({
   pathname: '/dashboard',
   replace: vi.fn(),
+  push: vi.fn(),
   refresh: vi.fn(),
   refreshNotifications: vi.fn(),
+  setTheme: vi.fn(),
+  theme: 'dark',
   refetchProjects: vi.fn(),
   loadingProjects: false,
   projects: [
@@ -147,7 +150,15 @@ const shellMocks = vi.hoisted(() => ({
 
 vi.mock('next/navigation', () => ({
   usePathname: () => shellMocks.pathname,
-  useRouter: () => ({ replace: shellMocks.replace, refresh: shellMocks.refresh }),
+  useRouter: () => ({
+    replace: shellMocks.replace,
+    push: shellMocks.push,
+    refresh: shellMocks.refresh,
+  }),
+}))
+
+vi.mock('next-themes', () => ({
+  useTheme: () => ({ theme: shellMocks.theme, setTheme: shellMocks.setTheme }),
 }))
 
 vi.mock('next/link', () => ({
@@ -257,6 +268,8 @@ afterEach(() => {
   vi.unstubAllGlobals()
   shellMocks.pathname = '/dashboard'
   shellMocks.loadingProjects = false
+  shellMocks.theme = 'dark'
+  shellMocks.setTheme.mockReset()
   shellMocks.projects = [
     { id: 11, name: '项目一' },
     { id: 12, name: '项目二' },
@@ -1101,8 +1114,9 @@ describe('WarmLedgerTopbar', () => {
     expect(screen.queryByRole('button', { name: '用户菜单' })).not.toBeInTheDocument()
   })
 
-  it('connects each visible topbar action to its callback', () => {
+  it('connects each visible topbar action to its callback', async () => {
     installMatchMedia(false)
+    const user = userEvent.setup()
     const onRefresh = vi.fn()
     const onSearch = vi.fn()
     const onNotifications = vi.fn()
@@ -1130,12 +1144,99 @@ describe('WarmLedgerTopbar', () => {
     fireEvent.click(screen.getByRole('button', { name: '刷新当前页数据' }))
     fireEvent.click(screen.getByRole('button', { name: '全局搜索' }))
     fireEvent.click(screen.getByRole('button', { name: '通知，3 条未读' }))
-    fireEvent.click(screen.getByRole('button', { name: '用户菜单' }))
+    await user.hover(screen.getByRole('button', { name: '用户菜单' }))
+    await user.click(await screen.findByRole('menuitem', { name: '个人中心' }))
 
     expect(onRefresh).toHaveBeenCalledOnce()
     expect(onSearch).toHaveBeenCalledOnce()
     expect(onNotifications).toHaveBeenCalledOnce()
     expect(onUserAction).toHaveBeenCalledOnce()
+  })
+
+  it('opens the account menu on hover and changes the selected theme', async () => {
+    installMatchMedia(false)
+    const user = userEvent.setup()
+
+    const view = render(
+      <WarmLedgerShell
+        topbar={<WarmLedgerTopbar profileHref="/dashboard/profile" userLabel="个人中心" />}
+      >
+        Dashboard
+      </WarmLedgerShell>
+    )
+
+    await user.hover(screen.getByRole('button', { name: '个人中心' }))
+
+    expect(await screen.findByRole('menu')).toBeInTheDocument()
+    expect(screen.getByRole('menuitemradio', { name: '浅色模式' })).toHaveAttribute(
+      'aria-checked',
+      'false'
+    )
+    expect(screen.getByRole('menuitemradio', { name: '深色模式' })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    )
+    expect(screen.getByRole('menuitemradio', { name: '跟随系统' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: '退出登录' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('menuitemradio', { name: '浅色模式' }))
+    expect(shellMocks.setTheme).toHaveBeenCalledWith('light')
+
+    shellMocks.theme = 'light'
+    view.rerender(
+      <WarmLedgerShell
+        topbar={<WarmLedgerTopbar profileHref="/dashboard/profile" userLabel="个人中心" />}
+      >
+        Dashboard
+      </WarmLedgerShell>
+    )
+    await user.hover(screen.getByRole('button', { name: '个人中心' }))
+    expect(screen.getByRole('menuitemradio', { name: '浅色模式' })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    )
+    await user.click(screen.getByRole('menuitemradio', { name: '深色模式' }))
+
+    expect(shellMocks.setTheme).toHaveBeenLastCalledWith('dark')
+  })
+
+  it('opens the account menu from the keyboard trigger', async () => {
+    installMatchMedia(false)
+    const user = userEvent.setup()
+
+    render(
+      <WarmLedgerShell
+        topbar={<WarmLedgerTopbar profileHref="/dashboard/profile" userLabel="个人中心" />}
+      >
+        Dashboard
+      </WarmLedgerShell>
+    )
+
+    screen.getByRole('button', { name: '个人中心' }).focus()
+    await user.keyboard('{Enter}')
+
+    expect(await screen.findByRole('menu')).toBeInTheDocument()
+  })
+
+  it('dispatches the existing logout event from the account menu', async () => {
+    installMatchMedia(false)
+    const user = userEvent.setup()
+    const logoutListener = vi.fn()
+    window.addEventListener('believeboy:logout', logoutListener)
+
+    render(
+      <WarmLedgerShell
+        topbar={<WarmLedgerTopbar profileHref="/dashboard/profile" userLabel="个人中心" />}
+      >
+        Dashboard
+      </WarmLedgerShell>
+    )
+
+    await user.hover(screen.getByRole('button', { name: '个人中心' }))
+    await user.click(await screen.findByRole('menuitem', { name: '退出登录' }))
+
+    expect(logoutListener).toHaveBeenCalledOnce()
+    window.removeEventListener('believeboy:logout', logoutListener)
   })
 
   it('groups all home actions and scope information for the phone layout', () => {

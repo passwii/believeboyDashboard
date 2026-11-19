@@ -1107,6 +1107,90 @@ html.light .warm-ledger {
   background: var(--warm-ledger-color-raised);
 }
 
+.warm-ledger__account-menu-content {
+  z-index: 61;
+  width: 216px;
+  max-height: min(420px, calc(100dvh - 24px));
+  overflow-y: auto;
+  padding: var(--warm-ledger-space-1);
+  pointer-events: auto;
+  color: var(--warm-ledger-color-text);
+  background: var(--warm-ledger-color-panel);
+  border: var(--warm-ledger-border-width) solid var(--warm-ledger-color-hairline-strong);
+  border-radius: var(--warm-ledger-radius-panel);
+  box-shadow: var(--warm-ledger-shadow-popover), var(--warm-ledger-highlight-rest);
+  font-family: var(--warm-ledger-font-sans);
+  font-size: var(--warm-ledger-font-size-control);
+}
+
+.warm-ledger__account-menu-label {
+  display: block;
+  padding: var(--warm-ledger-space-2) var(--warm-ledger-space-2) var(--warm-ledger-space-1);
+  color: var(--warm-ledger-color-text-muted);
+  font-size: var(--warm-ledger-font-size-label);
+  font-weight: var(--warm-ledger-font-weight-medium);
+}
+
+.warm-ledger__account-menu-item {
+  position: relative;
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  gap: var(--warm-ledger-space-2);
+  padding: var(--warm-ledger-space-2);
+  color: var(--warm-ledger-color-text);
+  border-radius: var(--warm-ledger-radius-inner);
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+}
+
+.warm-ledger__account-menu-item:hover,
+.warm-ledger__account-menu-item:focus {
+  color: var(--warm-ledger-color-text);
+  background: var(--warm-ledger-color-raised);
+}
+
+.warm-ledger__account-menu-item:focus-visible {
+  outline: var(--warm-ledger-focus-width) solid var(--warm-ledger-focus-color);
+  outline-offset: 2px;
+}
+
+.warm-ledger__account-menu-item[role='menuitemradio'] {
+  padding-left: 34px;
+}
+
+.warm-ledger__account-menu-item[role='menuitemradio'][aria-checked='true'] {
+  color: var(--warm-ledger-color-accent);
+  background: var(--warm-ledger-color-accent-soft);
+}
+
+.warm-ledger__account-menu-item > svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  pointer-events: none;
+}
+
+.warm-ledger__account-menu-indicator {
+  position: absolute;
+  left: var(--warm-ledger-space-2);
+  display: flex;
+  width: 14px;
+  height: 14px;
+  align-items: center;
+  justify-content: center;
+  color: var(--warm-ledger-color-accent);
+  font-size: var(--warm-ledger-font-size-control);
+  font-weight: var(--warm-ledger-font-weight-medium);
+}
+
+.warm-ledger__account-menu-separator {
+  height: var(--warm-ledger-border-width);
+  margin: var(--warm-ledger-space-1) 0;
+  background: var(--warm-ledger-color-hairline);
+}
+
 .warm-ledger__notification-action {
   position: relative;
 }
