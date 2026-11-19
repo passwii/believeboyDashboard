@@ -1,11 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { Bell, ChevronRight, Menu, RefreshCw, Search, UserRound } from 'lucide-react'
+import { Bell, ChevronRight, Menu, RefreshCw, Search } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { RouteLoadingLink } from '@/components/dashboard/route-loading-link'
 import { WarmIconButton, WarmSelect, type WarmSelectOption } from '../controls'
 import { useWarmLedgerNavigation } from './warm-ledger-navigation'
+import { WarmLedgerUserMenu } from './warm-ledger-user-menu'
 
 export type WarmLedgerBreadcrumb = {
   label: string
@@ -224,24 +224,12 @@ export function WarmLedgerTopbar({
             ) : null}
           </div>
         ) : null}
-        {profileHref ? (
-          <RouteLoadingLink
-            href={profileHref}
-            className="warm-ledger__icon-button warm-ledger__topbar-action warm-ledger__topbar-action--secondary warm-ledger__profile-action"
-            aria-label={userLabel}
-            title={userLabel}
-          >
-            <UserRound aria-hidden="true" />
-          </RouteLoadingLink>
-        ) : onUserAction ? (
-          <WarmIconButton
-            className="warm-ledger__topbar-action warm-ledger__topbar-action--secondary warm-ledger__profile-action"
-            aria-label={userLabel}
-            title={userLabel}
-            onClick={onUserAction}
-          >
-            <UserRound aria-hidden="true" />
-          </WarmIconButton>
+        {profileHref || onUserAction ? (
+          <WarmLedgerUserMenu
+            profileHref={profileHref}
+            onUserAction={onUserAction}
+            userLabel={userLabel}
+          />
         ) : null}
       </div>
       {routeFrame && hasRouteSlots ? (
