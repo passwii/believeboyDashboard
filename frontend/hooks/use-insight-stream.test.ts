@@ -245,6 +245,7 @@ describe('useInsightStream', () => {
   })
 
   it('把成簇到达的 delta 摊平成逐帧吐字，而账面全文照旧只在窗口落地', async () => {
+    vi.useFakeTimers()
     const stream = pushableSseResponse()
     const fetchMock = vi
       .fn()
@@ -258,40 +259,64 @@ describe('useInsightStream', () => {
       return state
     })
 
-    act(() => {
-      void result.current.start(CANONICAL_REQUEST)
-    })
-    await waitFor(() => expect(result.current.status).toBe('live'))
+    try {
+      act(() => {
+        void result.current.start(CANONICAL_REQUEST)
+      })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0)
+      })
+      expect(result.current.status).toBe('live')
 
-    act(() => {
-      for (let index = 0; index < 30; index += 1) {
-        stream.push(
-          event('content.delta', { id: `delta-${index}`, seq: index + 1, slot: 'summary', delta: 'a' })
-        )
+      act(() => {
+        for (let index = 0; index < 30; index += 1) {
+          stream.push(
+            event('content.delta', { id: `delta-${index}`, seq: index + 1, slot: 'summary', delta: 'a' })
+          )
+        }
+      })
+      await act(async () => {})
+
+      // 假时钟逐帧推进，让节奏器发布各自 flush 成独立渲染；同时验证 150ms
+      // 批处理窗口内账面全文不发布。
+      const advanceFrame = async () => {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(16)
+        })
       }
-    })
-    await act(async () => {})
+      for (let frame = 0; frame < 9; frame += 1) {
+        await advanceFrame()
+      }
+      expect(result.current.drafts.summary).toBeUndefined()
 
-    // 30 条 delta 落在同一个批处理窗口内：窗口未到期前不发布，避免每个 token 一次渲染。
-    expect(result.current.partialDrafts.summary).toBeUndefined()
+      await advanceFrame()
+      expect(result.current.drafts.summary).toBe('a'.repeat(30))
 
-    await waitFor(() => expect(result.current.partialDrafts.summary).toBe('a'.repeat(30)))
+      for (
+        let frame = 0;
+        frame < 30 && result.current.partialDrafts.summary !== 'a'.repeat(30);
+        frame += 1
+      ) {
+        await advanceFrame()
+      }
+      expect(result.current.partialDrafts.summary).toBe('a'.repeat(30))
 
-    // 节奏器把这 30 个字按帧摊开：多次「只比上一帧多一两个字」的发布，而不是一帧整块弹出。
-    const visible = published.filter((value) => value.length > 0)
-    expect(visible.length).toBeGreaterThan(2)
-    let previous = ''
-    let maxStep = 0
-    for (const value of visible) {
-      expect(value.startsWith(previous)).toBe(true)
-      maxStep = Math.max(maxStep, value.length - previous.length)
-      previous = value
+      // 节奏器把这 30 个字按帧摊开：多次「只比上一帧多一两个字」的发布，而不是一帧整块弹出。
+      const visible = published.filter((value) => value.length > 0)
+      expect(visible.length).toBeGreaterThan(2)
+      let previous = ''
+      let maxStep = 0
+      for (const value of visible) {
+        expect(value.startsWith(previous)).toBe(true)
+        maxStep = Math.max(maxStep, value.length - previous.length)
+        previous = value
+      }
+      // 单帧增量远小于整块：30 个字分多帧摊开，而不是一帧弹出。
+      expect(maxStep).toBeLessThanOrEqual(Math.ceil(30 / 3))
+      expect(previous).toBe('a'.repeat(30))
+    } finally {
+      vi.useRealTimers()
     }
-    // 单帧增量远小于整块：30 个字分多帧摊开，而不是一帧弹出。
-    expect(maxStep).toBeLessThanOrEqual(Math.ceil(30 / 3))
-    expect(previous).toBe('a'.repeat(30))
-    // 终态/落库读的账面全文不受节奏器影响。
-    await waitFor(() => expect(result.current.drafts).toEqual({ summary: 'a'.repeat(30) }))
   })
 
   it('高频 600 帧 delta 下渲染次数由帧率而非 token 数决定，且不丢字不回跳', async () => {

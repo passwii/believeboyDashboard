@@ -89,7 +89,9 @@ test('deployments stay disabled until explicitly re-enabled', async () => {
   assert.match(workflow, /DEPLOYMENTS_ENABLED/)
   assert.match(workflow, /Deployments are disabled/)
   assert.match(localDeploy, /DEPLOYMENTS_ENABLED/)
-  assert.match(localDeploy, /Deployments are disabled/)
+  // 2026-11-19：默认发布切到 GitHub Actions。本地脚本只在显式选择 ssh
+  // 备用路径时检查本地 DEPLOYMENTS_ENABLED，停发文案也随之限定为 SSH。
+  assert.match(localDeploy, /Local SSH deployment is disabled/)
 })
 
 test('deploy free-space policy uses configurable absolute floors', async () => {
