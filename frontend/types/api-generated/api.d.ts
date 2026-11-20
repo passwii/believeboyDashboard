@@ -3660,6 +3660,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/change-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Change Password */
+        patch: operations["change_password_api_v1_auth_change_password_patch"];
+        trace?: never;
+    };
+    "/api/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Logout
+         * @description 撤销当前请求所属的 Redis 浏览器会话。Auth.js 登出只清 cookie，若不撤销服务端会话，被复制的 JWT 仍能通过 `/auth/me`（且每次校验都会滑动作废窗口 TTL）。幂等：缺少 session id 不算错误。
+         */
+        post: operations["logout_api_v1_auth_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/category-research/datasets": {
         parameters: {
             query?: never;
@@ -14414,6 +14451,12 @@ export interface components {
             address?: string | null;
             /** Annual Revenue */
             annual_revenue?: number | null;
+            /** Contact Email */
+            contact_email?: string | null;
+            /** Contact Name */
+            contact_name?: string;
+            /** Contact Phone */
+            contact_phone?: string | null;
             /** Customer Type */
             customer_type?: string | null;
             /** Employee Count */
@@ -25373,6 +25416,12 @@ export interface components {
         UsersResponse: {
             /** Items */
             items: components["schemas"]["UserItem"][];
+            /** Page */
+            page?: number;
+            /** Page Size */
+            page_size?: number;
+            /** Total */
+            total?: number;
         };
         /** ValidationError */
         ValidationError: {
@@ -33562,6 +33611,20 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
+            /** @description Session service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Code */
+                        code: string;
+                        /** Detail */
+                        detail: string;
+                    };
+                };
+            };
         };
     };
     get_current_user_api_v1_auth_me_get: {
@@ -33571,6 +33634,12 @@ export interface operations {
                 "X-User-Id"?: string | null;
                 "X-User-Email"?: string | null;
                 "X-Session-Id"?: string | null;
+                "X-Role-Type"?: string | null;
+                "X-Is-Admin"?: string | null;
+                "X-Operator"?: string | null;
+                "X-User-Name"?: string | null;
+                "X-Session-Issued-At"?: string | null;
+                "X-Auth-Identity-Refresh"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -33586,6 +33655,20 @@ export interface operations {
                     "application/json": components["schemas"]["MeResponse"];
                 };
             };
+            /** @description Session invalid or account disabled */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description User not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -33594,6 +33677,136 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Session validation unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    change_password_api_v1_auth_change_password_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-User-Id"?: string;
+                "X-User-Email"?: string;
+                "X-Role-Type"?: string;
+                "X-Is-Admin"?: string;
+                "X-Operator"?: string;
+                "X-User-Name"?: string;
+                "X-Session-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Current Password */
+                    current_password: string;
+                    /** New Password */
+                    new_password: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Ok */
+                        ok: boolean;
+                    };
+                };
+            };
+            /** @description Invalid current password */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid request body */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Session service unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    logout_api_v1_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-User-Id"?: string;
+                "X-User-Email"?: string;
+                "X-Session-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Ok */
+                        ok: boolean;
+                    };
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Session revocation unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -49745,6 +49958,10 @@ export interface operations {
     list_users_api_v1_system_management_users_get: {
         parameters: {
             query?: {
+                page?: number;
+                page_size?: number;
+                /** @description true/1 时额外返回 total/page/page_size；缺省保持仅 items 的旧契约，避免破坏既有设备端调用方。 */
+                include_total?: boolean;
                 api_key?: string | null;
             };
             header?: {

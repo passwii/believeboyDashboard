@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Monitor, RefreshCw, X } from 'lucide-react'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import { forceDarkDocument } from '@/lib/forced-dark'
-import { fetchProjectOptionsCached } from '@/lib/project-client-cache'
+import { fetchProjectOptionsCached, type ProjectOption } from '@/lib/project-client-cache'
 
 import styles from './digital-display-warm.module.css'
 import { WarmTrendChart } from './warm-trend-chart'
@@ -60,7 +60,7 @@ interface DisplayData {
 
 interface Project {
   id: number
-  project_name: string
+  name: string
 }
 
 function fmtMoney(v: number) {
@@ -155,9 +155,13 @@ export default function DigitalDisplayPage() {
 
   useEffect(() => {
     const saved = localStorage.getItem('digital-display-project')
-    fetchProjectOptionsCached<{ items?: Project[] }>()
-      .then((data) => {
-        const items = data?.items ?? []
+    fetchProjectOptionsCached()
+      .then((options) => {
+        const items = Array.isArray(options)
+          ? options.filter(
+              (project): project is ProjectOption & { id: number } => typeof project.id === 'number'
+            )
+          : []
         setProjects(items)
         if (saved) {
           const found = items.find((project) => String(project.id) === saved)
@@ -242,7 +246,7 @@ export default function DigitalDisplayPage() {
             {projects.length === 0 ? <option value="">选择项目</option> : null}
             {projects.map((project) => (
               <option key={project.id} value={project.id}>
-                {project.project_name}
+                {project.name}
               </option>
             ))}
           </select>

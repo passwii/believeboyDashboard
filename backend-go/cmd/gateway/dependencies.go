@@ -139,6 +139,33 @@ func newDependencies(ctx context.Context, cfg config.Config) (*dependencies, err
 		}
 	}
 
+	var userSessionStore *store.RedisUserSessionStore
+	ensureUserSessionStore := func() (*store.RedisUserSessionStore, error) {
+		if userSessionStore != nil {
+			return userSessionStore, nil
+		}
+		if cfg.RedisURL == "" {
+			return nil, fmt.Errorf("REDIS_URL is required for auth session validation")
+		}
+		if sharedRedisClient == nil {
+			client, err := newSharedRedisClient(cfg)
+			if err != nil {
+				return nil, err
+			}
+			sharedRedisClient = client
+			redisClients = append(redisClients, client)
+		}
+		userSessionStore = store.NewRedisUserSessionStore(
+			sharedRedisClient,
+			cfg.RedisKeyPrefix,
+			8*time.Hour,
+		)
+		if userSessionStore == nil {
+			return nil, fmt.Errorf("Redis auth session store is unavailable")
+		}
+		return userSessionStore, nil
+	}
+
 	needsDatabase := cfg.OwnedModules["health"] ||
 		cfg.OwnedModules["exchange_rates"] ||
 		cfg.OwnedModules["notifications"] ||
@@ -260,29 +287,32 @@ func newDependencies(ctx context.Context, cfg config.Config) (*dependencies, err
 			}
 		}
 		if cfg.OwnedModules["auth"] {
-			deps.Stores.CustomRegistrars = append(deps.Stores.CustomRegistrars, auth.NewRegistrar(store.NewUserStore(primaryDB)))
+			sessions, err := ensureUserSessionStore()
+			if err != nil {
+				closeAll()
+				return nil, fmt.Errorf("configure auth sessions: %w", err)
+			}
+			deps.Stores.CustomRegistrars = append(
+				deps.Stores.CustomRegistrars,
+				auth.NewRegistrar(
+					store.NewUserStore(primaryDB),
+					auth.WithSessionManager(sessions),
+					auth.WithAuditor(auditSvc),
+				),
+			)
 		}
 		if cfg.OwnedModules["users"] {
-			if sharedRedisClient == nil {
-				client, err := newSharedRedisClient(cfg)
-				if err != nil {
-					closeAll()
-					return nil, err
-				}
-				sharedRedisClient = client
-				redisClients = append(redisClients, client)
+			sessions, err := ensureUserSessionStore()
+			if err != nil {
+				closeAll()
+				return nil, fmt.Errorf("configure user sessions: %w", err)
 			}
 			deps.Stores.CustomRegistrars = append(
 				deps.Stores.CustomRegistrars,
 				users.NewRegistrarWithOptions(
 					store.NewUserStore(primaryDB),
 					users.WithAuditor(auditSvc),
-					users.WithSessionRevoker(
-						store.NewRedisSessionRevoker(
-							sharedRedisClient,
-							cfg.RedisKeyPrefix,
-						),
-					),
+					users.WithSessionRevoker(sessions),
 				),
 			)
 		}
@@ -437,6 +467,7 @@ func newDependencies(ctx context.Context, cfg config.Config) (*dependencies, err
 			registrar := platform_revenues.NewRegistrar(
 				store.NewPlatformRevenueStore(primaryDB),
 				auditSvc,
+				platform_revenues.WithProjectReader(projectStore),
 			)
 			if objectStore != nil {
 				registrar.WithBlobStore(objectStore)
@@ -1016,7 +1047,10 @@ func newDependencies(ctx context.Context, cfg config.Config) (*dependencies, err
 		if cfg.OwnedModules["digital_display"] {
 			deps.Stores.CustomRegistrars = append(
 				deps.Stores.CustomRegistrars,
-				digital_display.NewRegistrar(store.NewDigitalDisplayStore(primaryDB)),
+				digital_display.NewRegistrar(
+					store.NewDigitalDisplayStore(primaryDB),
+					digital_display.WithProjectReader(projectStore),
+				),
 			)
 		}
 		if cfg.OwnedModules["agent_ops"] {
@@ -1046,29 +1080,17 @@ func newDependencies(ctx context.Context, cfg config.Config) (*dependencies, err
 			)
 		}
 		if cfg.OwnedModules["amazon_review_tracking"] {
-			var sessionValidator amazon_review_tracking.SessionValidator
-			if cfg.RedisURL != "" {
-				if sharedRedisClient == nil {
-					client, err := newSharedRedisClient(cfg)
-					if err != nil {
-						closeAll()
-						return nil, err
-					}
-					sharedRedisClient = client
-					redisClients = append(redisClients, client)
-				}
-				sessionValidator = store.NewRedisSessionValidator(
-					sharedRedisClient,
-					cfg.RedisKeyPrefix,
-					8*time.Hour,
-				)
+			sessions, err := ensureUserSessionStore()
+			if err != nil {
+				closeAll()
+				return nil, fmt.Errorf("configure Amazon Review Tracking sessions: %w", err)
 			}
 			deps.Stores.CustomRegistrars = append(
 				deps.Stores.CustomRegistrars,
 				amazon_review_tracking.NewRegistrar(
 					store.NewAmazonReviewTrackingStore(primaryDB),
 					auditSvc,
-					amazon_review_tracking.WithSessionValidator(sessionValidator),
+					amazon_review_tracking.WithSessionValidator(sessions),
 				),
 			)
 		}

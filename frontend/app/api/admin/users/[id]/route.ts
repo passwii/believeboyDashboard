@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { requireAdminSession } from '@/lib/auth/server'
+import { invalidateBackendSessionValidation } from '@/lib/auth/session-validation'
 import { buildBackendAuthHeaders, getBackendApiKeyOrFail } from '@/lib/backend-auth'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import { backendFetchJson, getBackendBaseUrl } from '@/lib/server/backend-api'
@@ -76,6 +77,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         cache: 'no-store',
       }
     )
+    invalidateBackendSessionValidation(id)
     return NextResponse.json({ item: toFrontendUser(data.item) })
   } catch (err) {
     const message = normalizeErrorMessage(err, '更新失败')
@@ -102,6 +104,7 @@ export async function DELETE(_: Request, { params }: { params: Promise<{ id: str
   })
 
   if (response.ok) {
+    invalidateBackendSessionValidation(id)
     return new NextResponse(null, { status: 204 })
   }
 

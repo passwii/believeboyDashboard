@@ -56,6 +56,11 @@ func NewHandler(store Store, auditor audit.Service, options ...Option) *Handler 
 }
 
 func (h *Handler) ListProjects(w http.ResponseWriter, r *http.Request) {
+	identity, hasIdentity := auth.UserContextFromContext(r.Context())
+	if hasIdentity && !identity.IsAdmin {
+		httpapi.WriteDetail(w, http.StatusForbidden, "需要管理员权限")
+		return
+	}
 	items, err := h.store.ListOptions(r.Context())
 	if err != nil {
 		writeStoreError(w, err)
@@ -69,6 +74,11 @@ func (h *Handler) ListProjects(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ListProjectOperatorOptions(w http.ResponseWriter, r *http.Request) {
+	identity, hasIdentity := auth.UserContextFromContext(r.Context())
+	if hasIdentity && !identity.IsAdmin {
+		httpapi.WriteDetail(w, http.StatusForbidden, "需要管理员权限")
+		return
+	}
 	items, err := h.store.ListOperatorOptions(r.Context())
 	if err != nil {
 		writeStoreError(w, err)

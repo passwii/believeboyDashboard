@@ -42,6 +42,8 @@ const PRIORITY_OPTIONS = Object.entries(TASK_PRIORITY_LABELS).map(([value, label
 function normalizeDateInput(value?: string) {
   if (!value) return ''
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  const utcMidnight = /^(\d{4}-\d{2}-\d{2})T00:00:00(?:\.0+)?(?:Z|\+00:00)$/.exec(value)
+  if (utcMidnight) return utcMidnight[1]
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return ''
   const year = date.getFullYear()

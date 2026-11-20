@@ -141,6 +141,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           if (identity.name) {
             token.name = identity.name
           }
+          if (identity.isAdmin !== undefined) {
+            token.isAdmin = identity.isAdmin
+          }
+          if (identity.roleType) {
+            token.roleType = identity.roleType
+          }
         }
       }
       return token
@@ -161,8 +167,37 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           (token.roleType as 'admin' | 'operator' | 'businessdev') ??
           (token.isAdmin ? 'admin' : 'operator')
         session.user.sessionId = typeof token.sessionId === 'string' ? token.sessionId : undefined
+        const sessionUser = session.user as typeof session.user & { authIssuedAt?: number }
+        sessionUser.authIssuedAt = typeof token.iat === 'number' ? token.iat : undefined
       }
       return session
+    },
+  },
+  events: {
+    /**
+     * Auth.js JWT 登出只清浏览器 cookie，不碰服务端会话。若不撤销 Redis
+     * session，被复制的 JWT 仍能通过 `/auth/me`（且每次校验都会滑动作废窗口
+     * TTL），等于「登出后仍可继续访问」。
+     *
+     * 失败口径：绝不阻塞登出。Auth.js 会吞掉 event 抛出的错误并照常清理
+     * cookie，这里再显式 catch 一次，保证 Go 网关不可达时用户仍能正常退出，
+     * 只留下一条告警。
+     */
+    async signOut(message) {
+      if (!('token' in message)) return
+      const token = message.token as Record<string, unknown> | null | undefined
+      const userId = typeof token?.uid === 'string' ? token.uid.trim() : ''
+      const sessionId = typeof token?.sessionId === 'string' ? token.sessionId.trim() : ''
+      if (!userId || !sessionId) return
+      try {
+        await backendFetchJson('/api/v1/auth/logout', {
+          method: 'POST',
+          headers: { 'X-User-Id': userId, 'X-Session-Id': sessionId },
+          cache: 'no-store',
+        })
+      } catch (err) {
+        console.warn('[auth] 后端会话撤销失败（本地登出仍继续）:', err)
+      }
     },
   },
 })

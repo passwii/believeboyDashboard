@@ -264,42 +264,52 @@ func (s *ProjectStore) UpdateProject(
 		}
 		input.Country = &country
 	}
-	isActive := true
-	if input.IsActive != nil {
-		isActive = *input.IsActive
+
+	sets := []string{"project_name = $2"}
+	args := []any{projectID, input.Name}
+	add := func(column string, value any) {
+		args = append(args, value)
+		sets = append(sets, fmt.Sprintf("%s = $%d", column, len(args)))
 	}
+	if input.HasField("brand_name") {
+		add("brand_name", input.BrandName)
+	}
+	if input.HasField("store_address") {
+		add("store_address", input.StoreAddress)
+	}
+	if input.HasField("project_operator") {
+		add("project_operator", input.ProjectOperator)
+	}
+	if input.HasField("assistant_operator") {
+		add("assistant_operator", input.AssistantOperator)
+	}
+	if input.HasField("commission_basis") {
+		add("commission_basis", input.CommissionBasis)
+	}
+	if input.HasField("commission_rate") {
+		add("commission_rate", input.CommissionRate)
+	}
+	if input.IsActive != nil {
+		add("is_active", *input.IsActive)
+	}
+	if input.HasField("project_tier") {
+		add("project_tier", input.ProjectTier)
+	}
+	if input.Country != nil {
+		add("country", *input.Country)
+	}
+	if input.VATEnabled != nil {
+		add("vat_enabled", *input.VATEnabled)
+	}
+	sets = append(sets, "updated_at = now()")
 
 	var item projects.ProjectItem
 	err := s.inTx(ctx, func(db DB) error {
-		row := db.QueryRow(
-			ctx,
-			`update public.projects
-			 set project_name = $2,
-			     brand_name = $3,
-			     store_address = $4,
-			     project_operator = $5,
-			     assistant_operator = $6,
-			     commission_basis = $7,
-			     commission_rate = $8,
-			     is_active = $9,
-			     project_tier = $10,
-			     country = coalesce($11, country),
-			     vat_enabled = coalesce($12, vat_enabled)
+		query := `update public.projects
+			 set ` + strings.Join(sets, ", ") + `
 			 where id = $1
-			 returning `+projectSelectColumns,
-			projectID,
-			input.Name,
-			input.BrandName,
-			input.StoreAddress,
-			input.ProjectOperator,
-			input.AssistantOperator,
-			input.CommissionBasis,
-			input.CommissionRate,
-			isActive,
-			input.ProjectTier,
-			input.Country,
-			input.VATEnabled,
-		)
+			 returning ` + projectSelectColumns
+		row := db.QueryRow(ctx, query, args...)
 		var err error
 		item, err = scanProjectItem(row)
 		if err == pgx.ErrNoRows {
@@ -576,9 +586,7 @@ func (s *ProjectStore) PatchProjectContext(
 			current.ProjectContext = mergeProjectContext(current.ProjectContext, projectPatch)
 		}
 		if skuPatch != nil {
-			for key, value := range skuPatch {
-				current.SKUContext[key] = value
-			}
+			current.SKUContext = mergeProjectContext(current.SKUContext, skuPatch)
 		}
 		projectJSON, err := json.Marshal(current.ProjectContext)
 		if err != nil {
@@ -776,6 +784,10 @@ func mergeProjectContext(base, patch map[string]any) map[string]any {
 		result[key] = value
 	}
 	for key, value := range patch {
+		if value == nil {
+			delete(result, key)
+			continue
+		}
 		patchMap, patchOK := value.(map[string]any)
 		baseMap, baseOK := result[key].(map[string]any)
 		if patchOK && baseOK {

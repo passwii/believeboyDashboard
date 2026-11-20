@@ -1,6 +1,7 @@
 import type { Session } from 'next-auth'
 
 import { auth } from '@/lib/auth/options'
+import { validateBackendSession, type BackendSessionState } from '@/lib/auth/session-validation'
 
 // ── JWT Session Cache ─────────────────────────────────────────────────────
 // 同一用户同一 JWT cookie 在 5 分钟内只解密一次。
@@ -55,16 +56,25 @@ export async function getServerAuthSession() {
   return session
 }
 
-export async function requireUserSession() {
+export async function getValidatedServerAuthSession(): Promise<{
+  session: Session | null
+  state: 'unauthenticated' | BackendSessionState
+}> {
   const session = await getServerAuthSession()
   if (!session?.user?.id) {
-    return null
+    return { session: null, state: 'unauthenticated' }
   }
-  return session
+  const state = await validateBackendSession(session)
+  return { session: state === 'valid' ? session : null, state }
+}
+
+export async function requireUserSession() {
+  const { session, state } = await getValidatedServerAuthSession()
+  return state === 'valid' ? session : null
 }
 
 export async function requireAdminSession() {
-  const session = await getServerAuthSession()
+  const session = await requireUserSession()
   if (!session?.user?.id || session.user.roleType !== 'admin') {
     return null
   }

@@ -690,8 +690,25 @@ func (s *CRMStore) UpdateCustomer(
 	if input.EmployeeCount.Set {
 		add("employee_count", input.EmployeeCount.Value)
 	}
-	if len(sets) == 0 {
-		err := s.inTx(ctx, func(db FullDB) error {
+	contactFieldsSet := input.ContactName.Set || input.ContactPhone.Set || input.ContactEmail.Set
+	if len(sets) > 0 {
+		sets = append(sets, "updated_at = now()")
+		args = append(args, customerID)
+	}
+	err := s.inTx(ctx, func(db FullDB) error {
+		if len(sets) > 0 {
+			tag, err := db.Exec(ctx, `
+				update public.crm_customers
+				set `+strings.Join(sets, ", ")+`
+				where id = $`+strconv.Itoa(nextArg)+` and is_deleted = false
+			`, args...)
+			if err != nil {
+				return err
+			}
+			if tag.RowsAffected() == 0 {
+				return pgx.ErrNoRows
+			}
+		} else {
 			var exists int
 			if err := db.QueryRow(ctx, `
 				select 1 from public.crm_customers
@@ -700,29 +717,11 @@ func (s *CRMStore) UpdateCustomer(
 			`, customerID).Scan(&exists); err != nil {
 				return err
 			}
-			return insertCRMAudit(ctx, db, "customer", customerID, "update", actorID, "编辑客户")
-		})
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil
 		}
-		if err != nil {
-			return nil, err
-		}
-		return s.GetCustomer(ctx, customerID)
-	}
-	sets = append(sets, "updated_at = now()")
-	args = append(args, customerID)
-	err := s.inTx(ctx, func(db FullDB) error {
-		tag, err := db.Exec(ctx, `
-			update public.crm_customers
-			set `+strings.Join(sets, ", ")+`
-			where id = $`+strconv.Itoa(nextArg)+` and is_deleted = false
-		`, args...)
-		if err != nil {
-			return err
-		}
-		if tag.RowsAffected() == 0 {
-			return pgx.ErrNoRows
+		if contactFieldsSet {
+			if err := updatePrimaryCustomerContact(ctx, db, customerID, input); err != nil {
+				return err
+			}
 		}
 		return insertCRMAudit(ctx, db, "customer", customerID, "update", actorID, "编辑客户")
 	})
@@ -733,6 +732,66 @@ func (s *CRMStore) UpdateCustomer(
 		return nil, err
 	}
 	return s.GetCustomer(ctx, customerID)
+}
+
+func updatePrimaryCustomerContact(
+	ctx context.Context,
+	db FullDB,
+	customerID int64,
+	input crm.CustomerUpdateInput,
+) error {
+	var contactID int64
+	err := db.QueryRow(ctx, `
+		select id from public.crm_contacts
+		where customer_id = $1
+		order by is_primary desc, id asc
+		limit 1
+		for update
+	`, customerID).Scan(&contactID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		if !input.ContactName.Set || input.ContactName.Value == nil || strings.TrimSpace(*input.ContactName.Value) == "" {
+			return crm.NewAPIError(422, "contact_name is required when adding a primary contact")
+		}
+		_, err := db.Exec(ctx, `
+			insert into public.crm_contacts (customer_id, name, phone, email, is_primary)
+			values ($1, $2, $3, $4, true)
+		`, customerID, strings.TrimSpace(*input.ContactName.Value),
+			crmNullableString(input.ContactPhone.Value), crmNullableString(input.ContactEmail.Value))
+		return err
+	}
+	if err != nil {
+		return err
+	}
+
+	sets := []string{}
+	args := []any{}
+	add := func(column string, value any) {
+		sets = append(sets, column+" = $"+strconv.Itoa(len(args)+1))
+		args = append(args, value)
+	}
+	if input.ContactName.Set {
+		if input.ContactName.Value == nil || strings.TrimSpace(*input.ContactName.Value) == "" {
+			return crm.NewAPIError(422, "contact_name must contain at least 1 character")
+		}
+		add("name", strings.TrimSpace(*input.ContactName.Value))
+	}
+	if input.ContactPhone.Set {
+		add("phone", crmNullableString(input.ContactPhone.Value))
+	}
+	if input.ContactEmail.Set {
+		add("email", crmNullableString(input.ContactEmail.Value))
+	}
+	if len(sets) == 0 {
+		return nil
+	}
+	sets = append(sets, "updated_at = now()")
+	args = append(args, contactID)
+	_, err = db.Exec(ctx, `
+		update public.crm_contacts
+		set `+strings.Join(sets, ", ")+`
+		where id = $`+strconv.Itoa(len(args))+`
+	`, args...)
+	return err
 }
 
 func (s *CRMStore) UpdateCustomerValueScores(

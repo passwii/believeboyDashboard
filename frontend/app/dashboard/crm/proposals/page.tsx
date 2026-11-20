@@ -66,8 +66,11 @@ export default function ProposalsPage() {
     signature: string
     items: Proposal[]
     total: number
+    page: number
   } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const listRequestIdRef = useRef(0)
   const [errorResult, setErrorResult] = useState<{ signature: string; message: string } | null>(null)
   const [keyword, setKeyword] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
@@ -88,11 +91,14 @@ export default function ProposalsPage() {
   const querySignature = JSON.stringify([scope, keyword.trim(), filters])
   const items = itemsResult?.signature === querySignature ? itemsResult.items : []
   const total = itemsResult?.signature === querySignature ? itemsResult.total : 0
+  const hasMore = items.length < total
   const error = errorResult?.signature === querySignature ? errorResult.message : null
   const isLoading = loading || (itemsResult?.signature !== querySignature && !error)
 
   const load = useCallback(async () => {
+    const requestId = ++listRequestIdRef.current
     setLoading(true)
+    setLoadingMore(false)
     setErrorResult(null)
     try {
       const page = await client.listProposals({
@@ -101,19 +107,69 @@ export default function ProposalsPage() {
         filters: filters.length > 0 ? filters : undefined,
         sortBy: 'updated_at',
         sortOrder: 'desc',
+        page: 1,
         pageSize: PAGE_SIZE,
       })
-      setItemsResult({ signature: querySignature, items: page.items, total: page.total })
+      if (requestId !== listRequestIdRef.current) return
+      setItemsResult({ signature: querySignature, items: page.items, total: page.total, page: page.page })
     } catch (e) {
+      if (requestId !== listRequestIdRef.current) return
       // A failed manual refresh should not erase the last successful page for this query.
       setErrorResult({
         signature: querySignature,
         message: e instanceof Error ? e.message : '加载方案失败',
       })
     } finally {
-      setLoading(false)
+      if (requestId === listRequestIdRef.current) setLoading(false)
     }
   }, [client, scope, keyword, filters, querySignature])
+
+  const loadMore = useCallback(async () => {
+    const current = itemsResult
+    if (
+      loading ||
+      loadingMore ||
+      !current ||
+      current.signature !== querySignature ||
+      current.items.length >= current.total
+    ) {
+      return
+    }
+
+    const requestId = listRequestIdRef.current
+    setLoadingMore(true)
+    try {
+      const page = await client.listProposals({
+        scope,
+        keyword: keyword.trim() || undefined,
+        filters: filters.length > 0 ? filters : undefined,
+        sortBy: 'updated_at',
+        sortOrder: 'desc',
+        page: current.page + 1,
+        pageSize: PAGE_SIZE,
+      })
+      if (requestId !== listRequestIdRef.current) return
+      setItemsResult((result) => {
+        if (!result || result.signature !== querySignature) return result
+        const known = new Set(result.items.map((proposal) => proposal.id))
+        return {
+          signature: result.signature,
+          items: [...result.items, ...page.items.filter((proposal) => !known.has(proposal.id))],
+          total: page.total,
+          page: page.page,
+        }
+      })
+    } catch (e) {
+      if (requestId !== listRequestIdRef.current) return
+      notify({
+        type: 'error',
+        title: '加载更多方案失败',
+        message: e instanceof Error ? e.message : '加载更多方案失败',
+      })
+    } finally {
+      if (requestId === listRequestIdRef.current) setLoadingMore(false)
+    }
+  }, [client, filters, itemsResult, keyword, loading, loadingMore, notify, querySignature, scope])
 
   useEffect(() => {
     void load()
@@ -298,7 +354,24 @@ export default function ProposalsPage() {
         />
       ) : null}
 
-      <WarmCrmTableFrame footer={<span className={styles.footerCount}>共 {total} 个方案</span>}>
+      <WarmCrmTableFrame
+        footer={
+          <div className={styles.footerActions}>
+            <span className={styles.footerCount}>共 {total} 个方案</span>
+            {hasMore ? (
+              <WarmButton
+                variant="secondary"
+                loading={loadingMore}
+                loadingLabel="正在加载更多方案"
+                disabled={isLoading || loadingMore}
+                onClick={() => void loadMore()}
+              >
+                加载更多方案（{items.length}/{total}）
+              </WarmButton>
+            ) : null}
+          </div>
+        }
+      >
         <WarmCrmTableScroller ariaLabel="客户方案列表">
           <table>
             <thead>

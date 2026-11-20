@@ -118,7 +118,7 @@ export async function suspendEmployee(id: number) {
   const res = await fetch(resolveApiUrl(`/api/v1/digital-employees/${id}/status`), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status: 'SUSPENDED' }),
+    body: JSON.stringify({ status: 'suspended' }),
   })
   if (!res.ok) throw new Error('Failed to suspend')
 }
@@ -127,7 +127,7 @@ export async function resumeEmployee(id: number) {
   const res = await fetch(resolveApiUrl(`/api/v1/digital-employees/${id}/status`), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status: 'IDLE' }),
+    body: JSON.stringify({ status: 'idle' }),
   })
   if (!res.ok) throw new Error('Failed to resume')
 }

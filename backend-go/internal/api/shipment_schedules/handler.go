@@ -31,6 +31,11 @@ type Handler struct {
 	projects ProjectReader
 }
 
+type shipmentFilteredSummaryStore interface {
+	SummarizeCostsFiltered(context.Context, ShipmentFilter) (ShipmentScheduleCostSummary, error)
+	ListSkuSummaryFiltered(context.Context, ShipmentFilter) (ShipmentSkuSummaryResponse, error)
+}
+
 func NewHandler(store Store, auditor audit.Service, projectReaders ...ProjectReader) *Handler {
 	var pr ProjectReader
 	if len(projectReaders) > 0 {
@@ -43,22 +48,28 @@ func (h *Handler) checkAccess(ctx context.Context, projectID int64, identity aut
 	if identity.IsAdmin {
 		return nil
 	}
-	if strings.TrimSpace(identity.Operator) == "" {
+	if strings.TrimSpace(identity.Operator) == "" || h.projects == nil {
 		return ErrForbidden
 	}
-	if h.projects != nil {
-		p, err := h.projects.GetProject(ctx, projectID)
-		if err != nil {
-			return err
-		}
-		if p == nil {
-			return ErrNotFound
-		}
-		if !projects.CanAccessProject(*p, identity.Operator, false) {
-			return ErrForbidden
-		}
+	p, err := h.projects.GetProject(ctx, projectID)
+	if err != nil {
+		return err
+	}
+	if p == nil {
+		return ErrNotFound
+	}
+	if !projects.CanAccessProject(*p, identity.Operator, false) {
+		return ErrForbidden
 	}
 	return nil
+}
+
+func (h *Handler) requireProjectReader(w http.ResponseWriter, identity auth.UserContext) bool {
+	if identity.IsAdmin || h.projects != nil {
+		return true
+	}
+	httpapi.WriteDetail(w, http.StatusServiceUnavailable, "项目访问范围未配置")
+	return false
 }
 
 func (h *Handler) parseFilter(r *http.Request) ShipmentFilter {
@@ -67,21 +78,33 @@ func (h *Handler) parseFilter(r *http.Request) ShipmentFilter {
 	if v, err := strconv.ParseInt(query.Get("project_id"), 10, 64); err == nil && v > 0 {
 		projectID = &v
 	}
-	var country, keyword, shipmentStatus, startDate, endDate *string
+	var country, keyword, startDate, endDate, createdDateFrom, createdDateTo *string
 	if v := strings.TrimSpace(query.Get("country")); v != "" {
 		country = &v
 	}
 	if v := strings.TrimSpace(query.Get("keyword")); v != "" {
 		keyword = &v
 	}
-	if v := strings.TrimSpace(query.Get("shipment_status")); v != "" {
-		shipmentStatus = &v
-	}
 	if v := strings.TrimSpace(query.Get("start_date")); v != "" {
 		startDate = &v
 	}
 	if v := strings.TrimSpace(query.Get("end_date")); v != "" {
 		endDate = &v
+	}
+	if v := strings.TrimSpace(query.Get("created_date_from")); v != "" {
+		createdDateFrom = &v
+	}
+	if v := strings.TrimSpace(query.Get("created_date_to")); v != "" {
+		createdDateTo = &v
+	}
+	shipmentStatuses := parseShipmentFilterValues(query["shipment_status"])
+	shipmentNos := parseShipmentFilterValues(query["shipment_no"])
+	if len(shipmentNos) == 0 {
+		shipmentNos = parseShipmentFilterValues(query["shipment_nos"])
+	}
+	var shipmentStatus *string
+	if len(shipmentStatuses) == 1 {
+		shipmentStatus = &shipmentStatuses[0]
 	}
 	page := 1
 	if v, err := strconv.Atoi(query.Get("page")); err == nil && v >= 1 {
@@ -95,22 +118,62 @@ func (h *Handler) parseFilter(r *http.Request) ShipmentFilter {
 
 	identity, _ := auth.UserContextFromContext(r.Context())
 	return ShipmentFilter{
-		ProjectID:      projectID,
-		Operator:       identity.Operator,
-		IsAdmin:        identity.IsAdmin,
-		Country:        country,
-		Keyword:        keyword,
-		ShipmentStatus: shipmentStatus,
-		StartDate:      startDate,
-		EndDate:        endDate,
-		Page:           page,
-		PageSize:       pageSize,
-		IncludeTotal:   includeTotal,
+		ProjectID:        projectID,
+		Operator:         identity.Operator,
+		IsAdmin:          identity.IsAdmin,
+		Country:          country,
+		Keyword:          keyword,
+		ShipmentStatus:   shipmentStatus,
+		ShipmentStatuses: shipmentStatuses,
+		ShipmentNos:      shipmentNos,
+		StartDate:        startDate,
+		EndDate:          endDate,
+		CreatedDateFrom:  createdDateFrom,
+		CreatedDateTo:    createdDateTo,
+		Page:             page,
+		PageSize:         pageSize,
+		IncludeTotal:     includeTotal,
 	}
+}
+
+func parseShipmentFilterValues(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	result := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		for _, part := range strings.Split(value, ",") {
+			part = strings.TrimSpace(part)
+			if part == "" {
+				continue
+			}
+			if _, ok := seen[part]; ok {
+				continue
+			}
+			seen[part] = struct{}{}
+			result = append(result, part)
+		}
+	}
+	return result
+}
+
+func hasShipmentSkuDetailFilters(filter ShipmentFilter) bool {
+	return len(filter.ShipmentStatuses) > 0 || filter.ShipmentStatus != nil || len(filter.ShipmentNos) > 0 ||
+		filter.StartDate != nil || filter.EndDate != nil ||
+		filter.CreatedDateFrom != nil || filter.CreatedDateTo != nil
+}
+
+func hasShipmentCostDetailFilters(filter ShipmentFilter) bool {
+	return len(filter.ShipmentStatuses) > 0 || filter.ShipmentStatus != nil || len(filter.ShipmentNos) > 0 ||
+		filter.CreatedDateFrom != nil || filter.CreatedDateTo != nil
 }
 
 func (h *Handler) ListShipmentSchedules(w http.ResponseWriter, r *http.Request) {
 	identity, _ := auth.UserContextFromContext(r.Context())
+	if !h.requireProjectReader(w, identity) {
+		return
+	}
 	filter := h.parseFilter(r)
 	if filter.ProjectID != nil {
 		if err := h.checkAccess(r.Context(), *filter.ProjectID, identity); err != nil {
@@ -160,6 +223,9 @@ func (h *Handler) ListShipmentSchedules(w http.ResponseWriter, r *http.Request) 
 
 func (h *Handler) SummarizeShipmentScheduleCosts(w http.ResponseWriter, r *http.Request) {
 	identity, _ := auth.UserContextFromContext(r.Context())
+	if !h.requireProjectReader(w, identity) {
+		return
+	}
 	filter := h.parseFilter(r)
 	if filter.ProjectID != nil {
 		if err := h.checkAccess(r.Context(), *filter.ProjectID, identity); err != nil {
@@ -188,7 +254,16 @@ func (h *Handler) SummarizeShipmentScheduleCosts(w http.ResponseWriter, r *http.
 			filter.ProjectIDs = append(filter.ProjectIDs, p.ID)
 		}
 	}
-	summary, err := h.store.SummarizeCosts(r.Context(), filter.ProjectID, filter.ProjectIDs, filter.Country, filter.StartDate, filter.EndDate)
+	var summary ShipmentScheduleCostSummary
+	var err error
+	if filtered, ok := h.store.(shipmentFilteredSummaryStore); ok {
+		summary, err = filtered.SummarizeCostsFiltered(r.Context(), filter)
+	} else if hasShipmentCostDetailFilters(filter) {
+		httpapi.WriteDetail(w, http.StatusNotImplemented, "发货汇总筛选暂不可用")
+		return
+	} else {
+		summary, err = h.store.SummarizeCosts(r.Context(), filter.ProjectID, filter.ProjectIDs, filter.Country, filter.StartDate, filter.EndDate)
+	}
 	if err != nil {
 		if errors.Is(err, ErrForbidden) || strings.Contains(err.Error(), "403") {
 			httpapi.WriteDetail(w, http.StatusForbidden, "无权限访问该项目")
@@ -202,6 +277,9 @@ func (h *Handler) SummarizeShipmentScheduleCosts(w http.ResponseWriter, r *http.
 
 func (h *Handler) ListShipmentSkuSummary(w http.ResponseWriter, r *http.Request) {
 	identity, _ := auth.UserContextFromContext(r.Context())
+	if !h.requireProjectReader(w, identity) {
+		return
+	}
 	filter := h.parseFilter(r)
 	if filter.ProjectID != nil {
 		if err := h.checkAccess(r.Context(), *filter.ProjectID, identity); err != nil {
@@ -216,8 +294,30 @@ func (h *Handler) ListShipmentSkuSummary(w http.ResponseWriter, r *http.Request)
 			httpapi.WriteDetail(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+	} else if !identity.IsAdmin && h.projects != nil {
+		accessible, err := h.projects.ListManage(r.Context(), identity.Operator, false, false)
+		if err != nil {
+			httpapi.WriteDetail(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if len(accessible) == 0 {
+			_ = httpapi.WriteJSON(w, http.StatusOK, ShipmentSkuSummaryResponse{Items: []ShipmentSkuSummaryItem{}})
+			return
+		}
+		for _, project := range accessible {
+			filter.ProjectIDs = append(filter.ProjectIDs, project.ID)
+		}
 	}
-	summary, err := h.store.ListSkuSummary(r.Context(), filter.ProjectID, filter.Country, filter.StartDate, filter.EndDate)
+	var summary ShipmentSkuSummaryResponse
+	var err error
+	if filtered, ok := h.store.(shipmentFilteredSummaryStore); ok {
+		summary, err = filtered.ListSkuSummaryFiltered(r.Context(), filter)
+	} else if !identity.IsAdmin || hasShipmentSkuDetailFilters(filter) {
+		httpapi.WriteDetail(w, http.StatusNotImplemented, "SKU 汇总筛选暂不可用")
+		return
+	} else {
+		summary, err = h.store.ListSkuSummary(r.Context(), filter.ProjectID, filter.Country, filter.StartDate, filter.EndDate)
+	}
 	if err != nil {
 		if errors.Is(err, ErrForbidden) || strings.Contains(err.Error(), "403") {
 			httpapi.WriteDetail(w, http.StatusForbidden, "无权限访问该项目")

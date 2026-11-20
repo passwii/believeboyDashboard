@@ -56,7 +56,7 @@ func RequireAPIKey(
 						writeAuthError(w, http.StatusForbidden, invalidAPIKeyDetail)
 						return
 					}
-					serveAuthenticated(next, w, r, UserContextFromRequest(r))
+					serveAuthenticated(next, w, r, UserContextFromRequest(r), RequestAuthKindTrustedProxy)
 					return
 				}
 			}
@@ -69,7 +69,7 @@ func RequireAPIKey(
 						return
 					}
 					if record != nil {
-						serveAuthenticated(next, w, r, UserContextFromUserKey(*record))
+						serveAuthenticated(next, w, r, UserContextFromUserKey(*record), RequestAuthKindUserAPIKey)
 						return
 					}
 				}
@@ -129,8 +129,15 @@ func apiKeyCandidates(r *http.Request) []string {
 	return candidates
 }
 
-func serveAuthenticated(next http.Handler, w http.ResponseWriter, r *http.Request, user UserContext) {
+func serveAuthenticated(
+	next http.Handler,
+	w http.ResponseWriter,
+	r *http.Request,
+	user UserContext,
+	kind RequestAuthKind,
+) {
 	ctx := WithUserContext(r.Context(), user)
+	ctx = withRequestAuthKind(ctx, kind)
 	next.ServeHTTP(w, r.WithContext(ctx))
 }
 

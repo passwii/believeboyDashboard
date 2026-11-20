@@ -9,7 +9,9 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
+	"github.com/passwii/believeboyDashboard/backend-go/internal/audit"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/httpapi"
 )
 
@@ -20,11 +22,38 @@ type Store interface {
 }
 
 type Handler struct {
-	store Store
+	store            Store
+	sessions         SessionManager
+	sessionsRequired bool
+	auditor          audit.Service
 }
 
-func NewHandler(store Store) *Handler {
-	return &Handler{store: store}
+type Option func(*Handler)
+
+func WithSessionManager(sessions SessionManager) Option {
+	return func(handler *Handler) {
+		handler.sessions = sessions
+		handler.sessionsRequired = true
+	}
+}
+
+func WithAuditor(auditor audit.Service) Option {
+	return func(handler *Handler) {
+		handler.auditor = auditor
+	}
+}
+
+// NewHandler keeps direct in-memory handler construction usable by unit
+// fixtures. Production registrars must pass WithSessionManager; without it,
+// Login/Me retain legacy behavior only for isolated tests.
+func NewHandler(store Store, options ...Option) *Handler {
+	handler := &Handler{store: store}
+	for _, option := range options {
+		if option != nil {
+			option(handler)
+		}
+	}
+	return handler
 }
 
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
@@ -57,13 +86,30 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.sessionsRequired && h.sessions == nil {
+		writeLoginError(w, http.StatusServiceUnavailable, "Session service unavailable", "SESSION_STORE_UNAVAILABLE")
+		return
+	}
 	sessionID, err := newSessionID()
 	if err != nil {
 		httpapi.WriteInternalServerError(w)
 		return
 	}
+	issuedAt := time.Now().UTC()
+	if account.PasswordChangedAt != nil && !issuedAt.After(*account.PasswordChangedAt) {
+		issuedAt = account.PasswordChangedAt.Add(time.Nanosecond)
+	}
+	if h.sessions != nil {
+		if err := h.sessions.CreateUserSession(r.Context(), account.ID, sessionID, issuedAt); err != nil {
+			writeLoginError(w, http.StatusServiceUnavailable, "Session service unavailable", "SESSION_STORE_UNAVAILABLE")
+			return
+		}
+	}
 	apiKey, err := h.store.IssueUserAPIKey(r.Context(), account.ID, clientID)
 	if err != nil {
+		if h.sessions != nil {
+			_ = h.sessions.DeleteUserSession(r.Context(), account.ID, sessionID)
+		}
 		httpapi.WriteInternalServerError(w)
 		return
 	}

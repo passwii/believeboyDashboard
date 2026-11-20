@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -16,12 +17,31 @@ type UserContext struct {
 	Operator             string
 	RoleType             string
 	SessionID            string
+	SessionIssuedAt      int64
 	IsAdmin              bool
 	IsAdminHeader        string
 	IsAdminHeaderPresent bool
 }
 
 type userContextKey struct{}
+type requestAuthKindKey struct{}
+
+type RequestAuthKind uint8
+
+const (
+	RequestAuthKindUnknown RequestAuthKind = iota
+	RequestAuthKindTrustedProxy
+	RequestAuthKindUserAPIKey
+)
+
+func withRequestAuthKind(ctx context.Context, kind RequestAuthKind) context.Context {
+	return context.WithValue(ctx, requestAuthKindKey{}, kind)
+}
+
+func AuthKindFromContext(ctx context.Context) RequestAuthKind {
+	kind, _ := ctx.Value(requestAuthKindKey{}).(RequestAuthKind)
+	return kind
+}
 
 func WithUserContext(ctx context.Context, user UserContext) context.Context {
 	return context.WithValue(ctx, userContextKey{}, user)
@@ -43,6 +63,7 @@ func UserContextFromRequest(r *http.Request) UserContext {
 	if len(adminValues) > 0 {
 		adminHeader = adminValues[0]
 	}
+	sessionIssuedAt, _ := strconv.ParseInt(strings.TrimSpace(r.Header.Get("X-Session-Issued-At")), 10, 64)
 
 	return UserContext{
 		UserID:               truncate(DecodeHeaderValue(r.Header.Get("X-User-Id")), 64),
@@ -51,6 +72,7 @@ func UserContextFromRequest(r *http.Request) UserContext {
 		Operator:             truncate(operator, 255),
 		RoleType:             truncate(DecodeHeaderValue(r.Header.Get("X-Role-Type")), 32),
 		SessionID:            DecodeHeaderValue(r.Header.Get("X-Session-Id")),
+		SessionIssuedAt:      sessionIssuedAt,
 		IsAdmin:              isTruthy(adminHeader),
 		IsAdminHeader:        adminHeader,
 		IsAdminHeaderPresent: adminPresent,

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	projectapi "github.com/passwii/believeboyDashboard/backend-go/internal/api/projects"
 )
 
 var (
@@ -79,6 +81,12 @@ type Store interface {
 		days int,
 		now time.Time,
 	) (Response, error)
+}
+
+// ProjectReader supplies the project ownership data required to authorize a
+// non-admin digital-display request. Implemented by store.ProjectStore.
+type ProjectReader interface {
+	GetProject(ctx context.Context, projectID int64) (*projectapi.ProjectItem, error)
 }
 
 func NormalizeCountry(value string) (string, error) {

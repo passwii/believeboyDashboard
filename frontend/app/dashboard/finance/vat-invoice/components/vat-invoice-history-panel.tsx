@@ -30,6 +30,8 @@ import styles from '../vat-invoice-warm.module.css'
 
 type StatusFilter = '' | 'draft' | 'issued' | 'voided'
 
+const HISTORY_PAGE_SIZE = 100
+
 export function VatInvoiceHistoryPanel() {
   const { notify } = useNotifications()
   const [projects, setProjects] = useState<Array<{ id: number; name: string; vat_enabled: boolean }>>([])
@@ -40,6 +42,8 @@ export function VatInvoiceHistoryPanel() {
   const [status, setStatus] = useState<StatusFilter>('')
   const [q, setQ] = useState<string>('')
   const [rows, setRows] = useState<VatInvoiceListItem[]>([])
+  const [page, setPage] = useState(1)
+  const [hasNextPage, setHasNextPage] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
@@ -82,17 +86,27 @@ export function VatInvoiceHistoryPanel() {
         project_id: projectId ? Number(projectId) : undefined,
         status: status || undefined,
         q: q || undefined,
+        limit: HISTORY_PAGE_SIZE + 1,
+        offset: (page - 1) * HISTORY_PAGE_SIZE,
       })
-      setRows(data)
+      if (data.length === 0 && page > 1) {
+        setPage((current) => Math.max(1, current - 1))
+        setRows([])
+        setHasNextPage(false)
+        return
+      }
+      setRows(data.slice(0, HISTORY_PAGE_SIZE))
+      setHasNextPage(data.length > HISTORY_PAGE_SIZE)
     } catch (err) {
       const message = normalizeErrorMessage(err)
       setLoadError(message)
       notify({ type: 'error', title: '加载发票失败', message })
       setRows([])
+      setHasNextPage(false)
     } finally {
       setLoading(false)
     }
-  }, [projectId, status, q, notify])
+  }, [page, projectId, status, q, notify])
 
   useEffect(() => {
     fetchList()
@@ -159,7 +173,10 @@ export function VatInvoiceHistoryPanel() {
               </Label>
               <Select
                 value={projectId || 'all'}
-                onValueChange={(v) => setProjectId(v === 'all' ? '' : v)}
+                onValueChange={(v) => {
+                  setProjectId(v === 'all' ? '' : v)
+                  setPage(1)
+                }}
               >
                 <SelectTrigger
                   id="project"
@@ -208,7 +225,10 @@ export function VatInvoiceHistoryPanel() {
               </Label>
               <Select
                 value={status || 'all'}
-                onValueChange={(v) => setStatus((v === 'all' ? '' : v) as StatusFilter)}
+                onValueChange={(v) => {
+                  setStatus((v === 'all' ? '' : v) as StatusFilter)
+                  setPage(1)
+                }}
               >
                 <SelectTrigger id="status" className={styles.selectTrigger}>
                   <SelectValue placeholder="全部" />
@@ -229,7 +249,10 @@ export function VatInvoiceHistoryPanel() {
                 id="q"
                 className={cn(styles.control, styles.numericControl)}
                 value={q}
-                onChange={(e) => setQ(e.target.value)}
+                onChange={(e) => {
+                  setQ(e.target.value)
+                  setPage(1)
+                }}
                 placeholder="INV-… 或 ORDER-…"
               />
             </div>
@@ -253,6 +276,25 @@ export function VatInvoiceHistoryPanel() {
           <h2 id="vat-history-list-title" className={styles.panelTitle}>
             发票列表
           </h2>
+          <nav className={styles.panelActions} aria-label="发票历史分页">
+            <span className={styles.label} role="status" aria-live="polite">
+              第 {page} 页 · 本页 {rows.length} 张
+            </span>
+            <WarmButton
+              variant="secondary"
+              disabled={loading || page <= 1}
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+            >
+              上一页
+            </WarmButton>
+            <WarmButton
+              variant="secondary"
+              disabled={loading || !hasNextPage}
+              onClick={() => setPage((current) => current + 1)}
+            >
+              下一页
+            </WarmButton>
+          </nav>
         </header>
         <div className={styles.panelBody} aria-busy={loading || undefined}>
           {loadError ? (

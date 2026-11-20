@@ -37,7 +37,18 @@ func (s *ShipmentScheduleStore) ListShipmentSchedules(ctx context.Context, filte
 		conditions = append(conditions, fmt.Sprintf("s.project_id = $%d", idx))
 		args = append(args, *filter.ProjectID)
 		idx++
-	} else if !filter.IsAdmin && strings.TrimSpace(filter.Operator) != "" {
+	} else if !filter.IsAdmin && strings.TrimSpace(filter.Operator) == "" {
+		// Fail closed: a non-admin request without an operator identity has no
+		// project scope, so returning anything would leak every project.
+		zero := 0
+		return shipment_schedules.ShipmentScheduleListResponse{
+			Items:    []shipment_schedules.ShipmentScheduleListItem{},
+			Page:     filter.Page,
+			PageSize: filter.PageSize,
+			Total:    &zero,
+			HasNext:  false,
+		}, nil
+	} else if !filter.IsAdmin {
 		accessible, err := s.getAccessibleProjectIDs(ctx, filter.Operator)
 		if err != nil {
 			return shipment_schedules.ShipmentScheduleListResponse{}, err
@@ -61,9 +72,22 @@ func (s *ShipmentScheduleStore) ListShipmentSchedules(ctx context.Context, filte
 		args = append(args, strings.ToUpper(*filter.Country))
 		idx++
 	}
-	if filter.ShipmentStatus != nil && *filter.ShipmentStatus != "" {
+	shipmentStatuses := filter.ShipmentStatuses
+	if len(shipmentStatuses) == 0 && filter.ShipmentStatus != nil && strings.TrimSpace(*filter.ShipmentStatus) != "" {
+		shipmentStatuses = []string{strings.TrimSpace(*filter.ShipmentStatus)}
+	}
+	if len(shipmentStatuses) == 1 {
 		conditions = append(conditions, fmt.Sprintf("s.shipment_status = $%d", idx))
-		args = append(args, *filter.ShipmentStatus)
+		args = append(args, shipmentStatuses[0])
+		idx++
+	} else if len(shipmentStatuses) > 1 {
+		conditions = append(conditions, fmt.Sprintf("s.shipment_status = any($%d)", idx))
+		args = append(args, shipmentStatuses)
+		idx++
+	}
+	if len(filter.ShipmentNos) > 0 {
+		conditions = append(conditions, fmt.Sprintf("s.shipment_no = any($%d)", idx))
+		args = append(args, filter.ShipmentNos)
 		idx++
 	}
 	if filter.Keyword != nil && *filter.Keyword != "" {
@@ -79,6 +103,16 @@ func (s *ShipmentScheduleStore) ListShipmentSchedules(ctx context.Context, filte
 	if filter.EndDate != nil && *filter.EndDate != "" {
 		conditions = append(conditions, fmt.Sprintf("s.etd_date <= $%d", idx))
 		args = append(args, *filter.EndDate)
+		idx++
+	}
+	if filter.CreatedDateFrom != nil && *filter.CreatedDateFrom != "" {
+		conditions = append(conditions, fmt.Sprintf("s.created_date >= $%d", idx))
+		args = append(args, *filter.CreatedDateFrom)
+		idx++
+	}
+	if filter.CreatedDateTo != nil && *filter.CreatedDateTo != "" {
+		conditions = append(conditions, fmt.Sprintf("s.created_date <= $%d", idx))
+		args = append(args, *filter.CreatedDateTo)
 		idx++
 	}
 
@@ -208,45 +242,76 @@ func (s *ShipmentScheduleStore) getAccessibleProjectIDs(ctx context.Context, ope
 }
 
 func (s *ShipmentScheduleStore) SummarizeCosts(ctx context.Context, projectID *int64, projectIDs []int64, country, startDate, endDate *string) (shipment_schedules.ShipmentScheduleCostSummary, error) {
+	identity, _ := auth.UserContextFromContext(ctx)
+	return s.SummarizeCostsFiltered(ctx, shipment_schedules.ShipmentFilter{
+		ProjectID:  projectID,
+		ProjectIDs: projectIDs,
+		Operator:   identity.Operator,
+		IsAdmin:    identity.IsAdmin,
+		Country:    country,
+		StartDate:  startDate,
+		EndDate:    endDate,
+	})
+}
+
+func (s *ShipmentScheduleStore) SummarizeCostsFiltered(ctx context.Context, filter shipment_schedules.ShipmentFilter) (shipment_schedules.ShipmentScheduleCostSummary, error) {
+	projectIDs, empty, err := s.resolveShipmentProjectIDs(ctx, filter)
+	if err != nil {
+		return shipment_schedules.ShipmentScheduleCostSummary{}, err
+	}
+	if empty {
+		return shipment_schedules.ShipmentScheduleCostSummary{}, nil
+	}
+
 	var conditions []string
 	var args []any
 	idx := 1
-	if projectID != nil && *projectID > 0 {
-		conditions = append(conditions, fmt.Sprintf("project_id = $%d", idx))
-		args = append(args, *projectID)
-		idx++
-	} else if len(projectIDs) > 0 {
-		conditions = append(conditions, fmt.Sprintf("project_id = any($%d)", idx))
+	if len(projectIDs) > 0 {
+		conditions = append(conditions, fmt.Sprintf("s.project_id = any($%d)", idx))
 		args = append(args, projectIDs)
 		idx++
-	} else {
-		identity, _ := auth.UserContextFromContext(ctx)
-		if !identity.IsAdmin && strings.TrimSpace(identity.Operator) != "" {
-			accessible, err := s.getAccessibleProjectIDs(ctx, identity.Operator)
-			if err != nil {
-				return shipment_schedules.ShipmentScheduleCostSummary{}, err
-			}
-			if len(accessible) == 0 {
-				return shipment_schedules.ShipmentScheduleCostSummary{}, nil
-			}
-			conditions = append(conditions, fmt.Sprintf("project_id = any($%d)", idx))
-			args = append(args, accessible)
-			idx++
-		}
 	}
-	if country != nil && *country != "" {
-		conditions = append(conditions, fmt.Sprintf("upper(country) = $%d", idx))
-		args = append(args, strings.ToUpper(*country))
+	if filter.Country != nil && *filter.Country != "" {
+		conditions = append(conditions, fmt.Sprintf("upper(s.country) = $%d", idx))
+		args = append(args, strings.ToUpper(*filter.Country))
 		idx++
 	}
-	if startDate != nil && *startDate != "" {
-		conditions = append(conditions, fmt.Sprintf("etd_date >= $%d", idx))
-		args = append(args, *startDate)
+	shipmentStatuses := filter.ShipmentStatuses
+	if len(shipmentStatuses) == 0 && filter.ShipmentStatus != nil && strings.TrimSpace(*filter.ShipmentStatus) != "" {
+		shipmentStatuses = []string{strings.TrimSpace(*filter.ShipmentStatus)}
+	}
+	if len(shipmentStatuses) == 1 {
+		conditions = append(conditions, fmt.Sprintf("s.shipment_status = $%d", idx))
+		args = append(args, shipmentStatuses[0])
+		idx++
+	} else if len(shipmentStatuses) > 1 {
+		conditions = append(conditions, fmt.Sprintf("s.shipment_status = any($%d)", idx))
+		args = append(args, shipmentStatuses)
 		idx++
 	}
-	if endDate != nil && *endDate != "" {
-		conditions = append(conditions, fmt.Sprintf("etd_date <= $%d", idx))
-		args = append(args, *endDate)
+	if len(filter.ShipmentNos) > 0 {
+		conditions = append(conditions, fmt.Sprintf("s.shipment_no = any($%d)", idx))
+		args = append(args, filter.ShipmentNos)
+		idx++
+	}
+	if filter.StartDate != nil && *filter.StartDate != "" {
+		conditions = append(conditions, fmt.Sprintf("s.etd_date >= $%d", idx))
+		args = append(args, *filter.StartDate)
+		idx++
+	}
+	if filter.EndDate != nil && *filter.EndDate != "" {
+		conditions = append(conditions, fmt.Sprintf("s.etd_date <= $%d", idx))
+		args = append(args, *filter.EndDate)
+		idx++
+	}
+	if filter.CreatedDateFrom != nil && *filter.CreatedDateFrom != "" {
+		conditions = append(conditions, fmt.Sprintf("s.created_date >= $%d", idx))
+		args = append(args, *filter.CreatedDateFrom)
+		idx++
+	}
+	if filter.CreatedDateTo != nil && *filter.CreatedDateTo != "" {
+		conditions = append(conditions, fmt.Sprintf("s.created_date <= $%d", idx))
+		args = append(args, *filter.CreatedDateTo)
 		idx++
 	}
 	where := ""
@@ -269,7 +334,7 @@ func (s *ShipmentScheduleStore) SummarizeCosts(ctx context.Context, projectID *i
 		%s
 	`, where)
 	var summary shipment_schedules.ShipmentScheduleCostSummary
-	err := s.db.QueryRow(ctx, querySQL, args...).Scan(
+	err = s.db.QueryRow(ctx, querySQL, args...).Scan(
 		&summary.ShipmentCount,
 		&summary.TotalSKU,
 		&summary.TotalQuantity,
@@ -277,6 +342,55 @@ func (s *ShipmentScheduleStore) SummarizeCosts(ctx context.Context, projectID *i
 		&summary.TotalLogisticsCost,
 	)
 	return summary, err
+}
+
+func (s *ShipmentScheduleStore) resolveShipmentProjectIDs(
+	ctx context.Context,
+	filter shipment_schedules.ShipmentFilter,
+) ([]int64, bool, error) {
+	identity, _ := auth.UserContextFromContext(ctx)
+	operator := strings.TrimSpace(filter.Operator)
+	if operator == "" {
+		operator = strings.TrimSpace(identity.Operator)
+	}
+	isAdmin := filter.IsAdmin || identity.IsAdmin
+	if isAdmin {
+		if filter.ProjectID != nil && *filter.ProjectID > 0 {
+			return []int64{*filter.ProjectID}, false, nil
+		}
+		return filter.ProjectIDs, false, nil
+	}
+	if operator == "" {
+		return nil, true, nil
+	}
+	accessible, err := s.getAccessibleProjectIDs(ctx, operator)
+	if err != nil {
+		return nil, false, err
+	}
+	if len(accessible) == 0 {
+		return nil, true, nil
+	}
+	requested := filter.ProjectIDs
+	if filter.ProjectID != nil && *filter.ProjectID > 0 {
+		requested = []int64{*filter.ProjectID}
+	}
+	if len(requested) == 0 {
+		return accessible, false, nil
+	}
+	allowed := make(map[int64]struct{}, len(accessible))
+	for _, id := range accessible {
+		allowed[id] = struct{}{}
+	}
+	result := make([]int64, 0, len(requested))
+	for _, id := range requested {
+		if _, ok := allowed[id]; ok {
+			result = append(result, id)
+		}
+	}
+	if len(result) == 0 {
+		return nil, false, shipment_schedules.ErrForbidden
+	}
+	return result, false, nil
 }
 
 func (s *ShipmentScheduleStore) ListSkuSummary(ctx context.Context, projectID *int64, country, startDate, endDate *string) (shipment_schedules.ShipmentSkuSummaryResponse, error) {
@@ -326,6 +440,167 @@ func (s *ShipmentScheduleStore) ListSkuSummary(ctx context.Context, projectID *i
 		}
 	}
 	return shipment_schedules.ShipmentSkuSummaryResponse{Items: items}, nil
+}
+
+func (s *ShipmentScheduleStore) ListSkuSummaryFiltered(ctx context.Context, filter shipment_schedules.ShipmentFilter) (shipment_schedules.ShipmentSkuSummaryResponse, error) {
+	projectIDs, empty, err := s.resolveShipmentProjectIDs(ctx, filter)
+	if err != nil {
+		return shipment_schedules.ShipmentSkuSummaryResponse{}, err
+	}
+	if empty {
+		return shipment_schedules.ShipmentSkuSummaryResponse{Items: []shipment_schedules.ShipmentSkuSummaryItem{}}, nil
+	}
+
+	shipmentStatuses := filter.ShipmentStatuses
+	if len(shipmentStatuses) == 0 && filter.ShipmentStatus != nil && strings.TrimSpace(*filter.ShipmentStatus) != "" {
+		shipmentStatuses = []string{strings.TrimSpace(*filter.ShipmentStatus)}
+	}
+	hasShipmentFilters := len(shipmentStatuses) > 0 || len(filter.ShipmentNos) > 0 ||
+		(filter.CreatedDateFrom != nil && *filter.CreatedDateFrom != "") ||
+		(filter.CreatedDateTo != nil && *filter.CreatedDateTo != "") ||
+		(filter.StartDate != nil && *filter.StartDate != "") ||
+		(filter.EndDate != nil && *filter.EndDate != "")
+
+	var conditions []string
+	var args []any
+	idx := 1
+	if len(projectIDs) > 0 {
+		conditions = append(conditions, fmt.Sprintf("project_id = any($%d)", idx))
+		args = append(args, projectIDs)
+		idx++
+	}
+	if filter.Country != nil && *filter.Country != "" {
+		conditions = append(conditions, fmt.Sprintf("upper(country) = $%d", idx))
+		args = append(args, strings.ToUpper(*filter.Country))
+		idx++
+	}
+
+	if !hasShipmentFilters {
+		where := ""
+		if len(conditions) > 0 {
+			where = "where " + strings.Join(conditions, " and ")
+		}
+		rows, err := s.db.Query(ctx, fmt.Sprintf(`
+			select project_id, project_name_snapshot, country, sku,
+			       shipment_count, total_quantity,
+			       coalesce(total_chargeable_weight_kg, 0),
+			       coalesce(total_logistics_cost, 0),
+			       coalesce(average_logistics_unit_price, 0)
+			from public.shipment_sku_summaries
+			%s
+			order by project_name_snapshot asc, country asc, sku asc
+		`, where), args...)
+		if err != nil {
+			return shipment_schedules.ShipmentSkuSummaryResponse{}, err
+		}
+		defer rows.Close()
+		items := make([]shipment_schedules.ShipmentSkuSummaryItem, 0)
+		for rows.Next() {
+			var item shipment_schedules.ShipmentSkuSummaryItem
+			if err := rows.Scan(
+				&item.ProjectID, &item.ProjectName, &item.Country, &item.SKU,
+				&item.ShipmentCount, &item.TotalQuantity,
+				&item.TotalChargeableWeightKG, &item.TotalLogisticsCost, &item.AverageLogisticsUnitPrice,
+			); err != nil {
+				return shipment_schedules.ShipmentSkuSummaryResponse{}, err
+			}
+			items = append(items, item)
+		}
+		return shipment_schedules.ShipmentSkuSummaryResponse{Items: items}, rows.Err()
+	}
+
+	conditions = conditions[:0]
+	args = args[:0]
+	idx = 1
+	if len(projectIDs) > 0 {
+		conditions = append(conditions, fmt.Sprintf("s.project_id = any($%d)", idx))
+		args = append(args, projectIDs)
+		idx++
+	}
+	if filter.Country != nil && *filter.Country != "" {
+		conditions = append(conditions, fmt.Sprintf("upper(s.country) = $%d", idx))
+		args = append(args, strings.ToUpper(*filter.Country))
+		idx++
+	}
+	if len(shipmentStatuses) == 1 {
+		conditions = append(conditions, fmt.Sprintf("s.shipment_status = $%d", idx))
+		args = append(args, shipmentStatuses[0])
+		idx++
+	} else if len(shipmentStatuses) > 1 {
+		conditions = append(conditions, fmt.Sprintf("s.shipment_status = any($%d)", idx))
+		args = append(args, shipmentStatuses)
+		idx++
+	}
+	if len(filter.ShipmentNos) > 0 {
+		conditions = append(conditions, fmt.Sprintf("s.shipment_no = any($%d)", idx))
+		args = append(args, filter.ShipmentNos)
+		idx++
+	}
+	if filter.StartDate != nil && *filter.StartDate != "" {
+		conditions = append(conditions, fmt.Sprintf("s.etd_date >= $%d", idx))
+		args = append(args, *filter.StartDate)
+		idx++
+	}
+	if filter.EndDate != nil && *filter.EndDate != "" {
+		conditions = append(conditions, fmt.Sprintf("s.etd_date <= $%d", idx))
+		args = append(args, *filter.EndDate)
+		idx++
+	}
+	if filter.CreatedDateFrom != nil && *filter.CreatedDateFrom != "" {
+		conditions = append(conditions, fmt.Sprintf("s.created_date >= $%d", idx))
+		args = append(args, *filter.CreatedDateFrom)
+		idx++
+	}
+	if filter.CreatedDateTo != nil && *filter.CreatedDateTo != "" {
+		conditions = append(conditions, fmt.Sprintf("s.created_date <= $%d", idx))
+		args = append(args, *filter.CreatedDateTo)
+		idx++
+	}
+	querySQL := fmt.Sprintf(`
+		with filtered_items as (
+			select s.id as shipment_id, s.project_id, s.project_name_snapshot,
+			       upper(s.country) as country, i.sku, i.quantity,
+			       coalesce(i.chargeable_weight_kg, 0) as chargeable_weight_kg,
+			       coalesce(
+			         nullif(i.estimated_logistics_cost, 0),
+			         coalesce(i.chargeable_weight_kg, 0) * coalesce(s.logistics_unit_price, 0)
+			       ) as estimated_logistics_cost,
+			       coalesce(i.average_logistics_unit_price, 0) as average_logistics_unit_price
+			from public.shipment_schedules s
+			join public.shipment_schedule_items i on i.shipment_schedule_id = s.id
+			where %s
+		)
+		select project_id, project_name_snapshot, country, sku,
+		       count(distinct shipment_id)::int,
+		       coalesce(sum(quantity), 0)::int,
+		       coalesce(sum(chargeable_weight_kg), 0),
+		       coalesce(sum(estimated_logistics_cost), 0),
+		       case when sum(chargeable_weight_kg) > 0
+		            then sum(estimated_logistics_cost) / sum(chargeable_weight_kg)
+		            else coalesce(avg(average_logistics_unit_price), 0)
+		       end
+		from filtered_items
+		group by project_id, project_name_snapshot, country, sku
+		order by project_name_snapshot asc, country asc, sku asc
+	`, strings.Join(conditions, " and "))
+	rows, err := s.db.Query(ctx, querySQL, args...)
+	if err != nil {
+		return shipment_schedules.ShipmentSkuSummaryResponse{}, err
+	}
+	defer rows.Close()
+	items := make([]shipment_schedules.ShipmentSkuSummaryItem, 0)
+	for rows.Next() {
+		var item shipment_schedules.ShipmentSkuSummaryItem
+		if err := rows.Scan(
+			&item.ProjectID, &item.ProjectName, &item.Country, &item.SKU,
+			&item.ShipmentCount, &item.TotalQuantity,
+			&item.TotalChargeableWeightKG, &item.TotalLogisticsCost, &item.AverageLogisticsUnitPrice,
+		); err != nil {
+			return shipment_schedules.ShipmentSkuSummaryResponse{}, err
+		}
+		items = append(items, item)
+	}
+	return shipment_schedules.ShipmentSkuSummaryResponse{Items: items}, rows.Err()
 }
 
 func (s *ShipmentScheduleStore) ListFbaBoxDetails(ctx context.Context, projectIDs []int64, countries, shipmentNos []string) (shipment_schedules.ShipmentFbaBoxDetailResponse, error) {

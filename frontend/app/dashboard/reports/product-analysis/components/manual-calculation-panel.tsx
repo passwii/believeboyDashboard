@@ -393,18 +393,18 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
   }, [])
 
   // ── File recognition via backend ──
-  // 广告报表（.xlsx/.xls）走 ad-upload 链路（C 表），其他（.csv/.txt）走 report-upload
-  // 链路（业务/付款/库存/销售/退货 报表）。后端 `recognize_file` 对 .xlsx 显式返回
-  // None（见 `backend/app/utils/recognition/recognizers/__init__.py:309-311`），必须
-  // 在前端按扩展名预判分流，否则广告报表会被识别为 `report_type: 'unknown'`。
+  // 广告报表（.xlsx）走 ad-upload 链路（C 表）；其他（.csv/.txt）走 report-upload 链路。
+  // Go ad-upload 不支持旧版 .xls，因此不将 .xls 请求转发到识别接口。
   const recognizeFile = useCallback(
     async (file: File): Promise<RecognitionResponse | null> => {
+      const lowerName = file.name.toLowerCase()
+      if (lowerName.endsWith('.xls')) return null
+
       const formData = new FormData()
       formData.append('file', file)
       formData.append('country', country)
 
-      const lowerName = file.name.toLowerCase()
-      const isAdExcel = lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls')
+      const isAdExcel = lowerName.endsWith('.xlsx')
       const endpoint = isAdExcel ? '/api/v1/ad-upload/recognize' : '/api/v1/report-upload/recognize'
 
       try {
@@ -462,7 +462,9 @@ export default function ManualCalculationPanel(_props: ManualCalculationPanelPro
               userReportEndDate: null,
               fileCommitStatus: 'idle',
               commitError: null,
-              error: '识别失败',
+              error: file.name.toLowerCase().endsWith('.xls')
+                ? '此流程不支持 .xls，请转换为 .xlsx'
+                : '识别失败',
               rowsIngested: null,
             })
             continue

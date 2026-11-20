@@ -132,6 +132,14 @@ func (s *UserStore) IssueUserAPIKey(
 	return plaintext, err
 }
 
+func (s *UserStore) UpdatePassword(ctx context.Context, userID, password string) (bool, error) {
+	updated, err := s.Update(ctx, userID, users.UpdateInput{Password: &password})
+	if err != nil {
+		return false, err
+	}
+	return updated != nil, nil
+}
+
 func (s *UserStore) List(
 	ctx context.Context,
 	page int,
@@ -162,7 +170,7 @@ func (s *UserStore) List(
 		   created_at,
 		   updated_at
 		 from public.user_accounts
-		 order by created_at desc
+		 order by created_at desc, id desc
 		 offset $1
 		 limit $2`,
 		offset,
@@ -296,7 +304,7 @@ func (s *UserStore) Update(
 		   update public.user_api_keys
 		   set revoked_at = now()
 		   where user_id = (select id from updated)
-		     and $7::text is not null
+		     and ($7::text is not null or $4::boolean is not null)
 		     and revoked_at is null
 		   returning id
 		 )

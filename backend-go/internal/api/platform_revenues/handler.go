@@ -1,6 +1,7 @@
 package platform_revenues
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,22 +11,42 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/api/projects"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/audit"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/auth"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/httpapi"
 )
 
-type Handler struct {
-	store   Store
-	auditor audit.Service
-	blobs   BlobStore
+type ProjectReader interface {
+	GetProjectByName(ctx context.Context, name string) (*projects.ProjectItem, error)
 }
 
-func NewHandler(store Store, auditor audit.Service) *Handler {
-	return &Handler{
+type Option func(*Handler)
+
+func WithProjectReader(reader ProjectReader) Option {
+	return func(handler *Handler) {
+		handler.projectReader = reader
+	}
+}
+
+type Handler struct {
+	store         Store
+	auditor       audit.Service
+	blobs         BlobStore
+	projectReader ProjectReader
+}
+
+func NewHandler(store Store, auditor audit.Service, options ...Option) *Handler {
+	handler := &Handler{
 		store:   store,
 		auditor: auditor,
 	}
+	for _, option := range options {
+		if option != nil {
+			option(handler)
+		}
+	}
+	return handler
 }
 
 func (h *Handler) WithBlobStore(blobs BlobStore) *Handler {

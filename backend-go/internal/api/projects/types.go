@@ -59,6 +59,59 @@ type UpdateProjectInput struct {
 	ProjectTier       *string  `json:"project_tier"`
 	Country           *string  `json:"country"`
 	VATEnabled        *bool    `json:"vat_enabled"`
+
+	fieldsPresent map[string]struct{} `json:"-"`
+}
+
+func (input *UpdateProjectInput) UnmarshalJSON(data []byte) error {
+	type updateProjectInputAlias UpdateProjectInput
+	var decoded updateProjectInputAlias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	*input = UpdateProjectInput(decoded)
+	input.fieldsPresent = make(map[string]struct{}, len(fields))
+	for field := range fields {
+		input.fieldsPresent[field] = struct{}{}
+	}
+	return nil
+}
+
+// HasField distinguishes an omitted PATCH field from an explicit JSON null.
+// Pointer fields provide the same information for callers that construct the
+// input directly instead of decoding JSON.
+func (input UpdateProjectInput) HasField(field string) bool {
+	if _, present := input.fieldsPresent[field]; present {
+		return true
+	}
+	switch field {
+	case "brand_name":
+		return input.BrandName != nil
+	case "store_address":
+		return input.StoreAddress != nil
+	case "project_operator":
+		return input.ProjectOperator != nil
+	case "assistant_operator":
+		return input.AssistantOperator != nil
+	case "commission_basis":
+		return input.CommissionBasis != nil
+	case "commission_rate":
+		return input.CommissionRate != nil
+	case "is_active":
+		return input.IsActive != nil
+	case "project_tier":
+		return input.ProjectTier != nil
+	case "country":
+		return input.Country != nil
+	case "vat_enabled":
+		return input.VATEnabled != nil
+	default:
+		return false
+	}
 }
 
 type ProjectShopItem struct {

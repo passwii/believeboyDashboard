@@ -281,7 +281,10 @@ function toQueryString(params: ListParams): string {
   if (params.keyword) qs.set('keyword', params.keyword)
   if (params.page != null) qs.set('page', String(params.page))
   if (params.pageSize != null) qs.set('page_size', String(params.pageSize))
-  if (params.sortBy) qs.set('sort_by', params.sortBy)
+  if (params.sortBy) {
+    const sortBy = params.sortBy === 'lastFollowAt' ? 'last_follow_at' : params.sortBy
+    qs.set('sort_by', sortBy)
+  }
   if (params.sortOrder) qs.set('sort_order', params.sortOrder)
   if (params.filters && params.filters.length > 0) {
     qs.set('filters', JSON.stringify(params.filters))

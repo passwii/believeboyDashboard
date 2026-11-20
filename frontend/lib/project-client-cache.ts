@@ -9,6 +9,13 @@ const PROJECT_CACHE_PREFIX = 'projects:'
 // TTL: 2 minutes — balances UX (avoid频繁刷新) vs权限变更感知
 const PROJECTS_CACHE_TTL_MS = 2 * 60 * 1000
 
+export type ProjectOption = {
+  id: number | null
+  name: string
+  country: string
+  country_name: string | null
+}
+
 /**
  * 同一缓存键的在途请求去重（BEL-424）：并发重复 mount 只产生一个网络请求。
  * 与 ad-client-cache / ops-client-cache 同款语义 —— 例如 vat-invoice 页
@@ -90,10 +97,12 @@ export function clearProjectClientCaches(): void {
   clearClientCacheByPrefix(PROJECT_CACHE_PREFIX)
 }
 
-export async function fetchProjectOptionsCached<T>(): Promise<T> {
-  return fetchCachedJson<T>(`${PROJECT_CACHE_PREFIX}options`, '/api/backend/api/v1/projects', {
-    fallbackError: '项目列表加载失败',
-  })
+export async function fetchProjectOptionsCached<T = ProjectOption[]>(): Promise<T> {
+  return fetchCachedJson<T>(
+    `${PROJECT_CACHE_PREFIX}options`,
+    '/api/backend/api/v1/projects',
+    { fallbackError: '项目列表加载失败' }
+  )
 }
 
 export async function fetchManagedProjectsCached<T>(

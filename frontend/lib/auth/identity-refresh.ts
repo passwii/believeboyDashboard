@@ -1,4 +1,5 @@
-import { normalizeFullName } from '@/lib/auth/display-name'
+import { normalizeFullName, pickSessionDisplayName } from '@/lib/auth/display-name'
+import { invalidateBackendSessionValidation } from '@/lib/auth/session-validation'
 import { backendFetchJson } from '@/lib/server/backend-api'
 
 /**
@@ -31,14 +32,21 @@ import { backendFetchJson } from '@/lib/server/backend-api'
 
 /** token 里参与回源的身份字段（都来自服务端签发的 JWT，客户端不可控）。 */
 export type SessionIdentityToken = {
+  iat?: unknown
   uid?: unknown
   email?: unknown
+  name?: unknown
+  fullName?: unknown
+  isAdmin?: unknown
+  roleType?: unknown
   sessionId?: unknown
 }
 
 export type SessionIdentity = {
   /** 权威登录名（`user_accounts.name`）；响应里没有就不动 token。 */
   name?: string
+  isAdmin?: boolean
+  roleType?: 'admin' | 'operator' | 'businessdev'
   /**
    * 权威姓名三态，与 `normalizeFullName` 一致：
    * `undefined` = 响应里没这个键（旧后端）→ 保持 token 原值；
@@ -50,6 +58,8 @@ export type SessionIdentity = {
 type AuthMePayload = {
   name?: unknown
   full_name?: unknown
+  is_admin?: unknown
+  role_type?: unknown
 }
 
 function asTrimmedString(value: unknown): string | null {
@@ -61,8 +71,9 @@ function asTrimmedString(value: unknown): string | null {
 /**
  * 用 token 里的身份回源 `/api/v1/auth/me`，返回权威姓名；任何失败都返回 `null`。
  *
- * 三个身份字段缺一不可：缺 `sessionId` 时后端会跳过 Redis 会话校验，等于把
- * 「会话是否仍有效」这一层让掉，所以宁可不更新 token 也不发这次请求。
+ * 身份与角色来自服务端签名 token，缺少 sessionId 时不发请求。JWT 签发时间只作为
+ * 旧 Redis session value 的密码更新时间校验回退；新 session 使用 Redis 内的签发时间。
+ * Go `/auth/me` 校验 Redis session、账号状态、当前角色和密码更新时间。
  */
 export async function fetchSessionIdentity(
   token: SessionIdentityToken
@@ -73,17 +84,42 @@ export async function fetchSessionIdentity(
   if (!uid || !email || !sessionId) return null
 
   try {
+    const roleType =
+      token.roleType === 'admin' || token.roleType === 'businessdev' || token.roleType === 'operator'
+        ? token.roleType
+        : token.isAdmin === true
+          ? 'admin'
+          : 'operator'
+    const fullName = normalizeFullName(token.fullName)
+    const operator = pickSessionDisplayName({
+      fullName,
+      name: asTrimmedString(token.name),
+    })
+    const headers: Record<string, string> = {
+      'X-User-Id': uid,
+      // Keep identity headers aligned with backend-auth.ts; the JWT values are
+      // server-signed and are used only as the lookup identity for /auth/me.
+      'X-User-Email': encodeURIComponent(email),
+      'X-Role-Type': roleType,
+      'X-Session-Id': sessionId,
+      'X-Auth-Identity-Refresh': 'true',
+    }
+    if (typeof token.iat === 'number' && Number.isFinite(token.iat) && token.iat > 0) {
+      headers['X-Session-Issued-At'] = String(Math.floor(token.iat))
+    }
+    if (token.isAdmin === true || roleType === 'admin') headers['X-Is-Admin'] = 'true'
+    if (operator) {
+      headers['X-User-Name'] = encodeURIComponent(operator)
+      headers['X-Operator'] = encodeURIComponent(operator)
+    }
+
     const me = await backendFetchJson<AuthMePayload>('/api/v1/auth/me', {
       method: 'GET',
-      headers: {
-        'X-User-Id': uid,
-        // 后端 `/auth/me` 对邮箱做 `unquote`，这里与 backend-auth 的请求头口径一致。
-        'X-User-Email': encodeURIComponent(email),
-        'X-Session-Id': sessionId,
-      },
+      headers,
       cache: 'no-store',
     })
     if (!me || typeof me !== 'object') return null
+    invalidateBackendSessionValidation(uid, sessionId)
 
     const identity: SessionIdentity = { fullName: undefined }
     if ('full_name' in me) {
@@ -91,6 +127,10 @@ export async function fetchSessionIdentity(
     }
     const name = asTrimmedString(me.name)
     if (name) identity.name = name
+    if (typeof me.is_admin === 'boolean') identity.isAdmin = me.is_admin
+    if (me.role_type === 'admin' || me.role_type === 'operator' || me.role_type === 'businessdev') {
+      identity.roleType = me.role_type
+    }
     return identity
   } catch {
     // 后端不可达 / 401（会话吊销、账号停用）/ 404：本次 update 不生效。

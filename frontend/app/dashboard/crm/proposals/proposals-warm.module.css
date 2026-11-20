@@ -103,9 +103,17 @@
   text-align: center;
 }
 
+.footerActions {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--warm-ledger-space-3);
+}
+
 .footerCount {
   display: block;
-  text-align: right;
+  text-align: left;
 }
 
 .dialog {
