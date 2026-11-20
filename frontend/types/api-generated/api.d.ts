@@ -16716,6 +16716,8 @@ export interface components {
             recommended_action?: string | null;
             /** Recommended Action Label */
             recommended_action_label: string;
+            /** Sales Qty 7d */
+            sales_qty_7d: number;
             /**
              * Shipment Quantities
              * @default {}
@@ -16742,6 +16744,10 @@ export interface components {
             project_name: string;
             /** Report Date */
             report_date?: string | null;
+            /** Sales Window End */
+            sales_window_end?: string | null;
+            /** Sales Window Start */
+            sales_window_start?: string | null;
             /**
              * Shipment Column Totals
              * @default {}
@@ -16780,6 +16786,8 @@ export interface components {
             total_age_91_180_qty: number;
             /** Total Available Qty */
             total_available_qty: number;
+            /** Total Sales Qty 7d */
+            total_sales_qty_7d: number;
         };
         /**
          * InventoryDecisionPath

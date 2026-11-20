@@ -159,6 +159,7 @@ type InventoryAnalysisItem struct {
 	ASIN                   *string          `json:"asin"`
 	ProductName            *string          `json:"product_name"`
 	AvailableQty           int64            `json:"available_qty"`
+	SalesQty7d             int64            `json:"sales_qty_7d"`
 	Age0To90Qty            int64            `json:"age_0_90_qty"`
 	Age91To180Qty          int64            `json:"age_91_180_qty"`
 	Age181To270Qty         int64            `json:"age_181_270_qty"`
@@ -177,6 +178,7 @@ type InventoryAnalysisSummary struct {
 	AgingSKUCount       int   `json:"aging_sku_count"`
 	OverAgedSKUCount    int   `json:"over_aged_sku_count"`
 	TotalAvailableQty   int64 `json:"total_available_qty"`
+	TotalSalesQty7d     int64 `json:"total_sales_qty_7d"`
 	TotalAge0To90Qty    int64 `json:"total_age_0_90_qty"`
 	TotalAge91To180Qty  int64 `json:"total_age_91_180_qty"`
 	TotalAge181To270Qty int64 `json:"total_age_181_270_qty"`
@@ -204,6 +206,10 @@ type InventoryAnalysisResponse struct {
 	Items                []InventoryAnalysisItem  `json:"items"`
 	ShipmentColumns      []ShipmentColumn         `json:"shipment_columns"`
 	ShipmentColumnTotals map[string]int64         `json:"shipment_column_totals"`
+	// 7 天销量的统计区间（含首尾）。T 取本次响应返回的 report_date，前面没有快照时
+	// 取站点时区的「今天」；区间固定为 T-1 至 T-8。
+	SalesWindowStart *string `json:"sales_window_start"`
+	SalesWindowEnd   *string `json:"sales_window_end"`
 }
 
 type InventorySnapshotOption struct {
