@@ -25,6 +25,7 @@ on:
       - "productEnvAgent/**"
       - "frontend/**"
       - "deploy/**"
+      - ".github/workflows/deploy-dashboard.yml"
       - ".github/workflows/test-ci.yml"
   pull_request:
     branches: [main]
@@ -35,6 +36,7 @@ on:
       - "productEnvAgent/**"
       - "frontend/**"
       - "deploy/**"
+      - ".github/workflows/deploy-dashboard.yml"
       - ".github/workflows/test-ci.yml"
   workflow_dispatch: {}
   schedule:
@@ -87,6 +89,7 @@ jobs:
               - ".github/workflows/test-ci.yml"
             deploy:
               - "deploy/**"
+              - ".github/workflows/deploy-dashboard.yml"
               - ".github/workflows/test-ci.yml"
       - name: 断言 Python 运行时未回流
         run: |
@@ -432,7 +435,8 @@ jobs:
     if: >-
       github.event_name == 'schedule' ||
       github.event_name == 'workflow_dispatch' ||
-      needs.changes.outputs.frontend == 'true'
+      needs.changes.outputs.frontend == 'true' ||
+      needs.changes.outputs.deploy == 'true'
     timeout-minutes: 30
     defaults:
       run:
