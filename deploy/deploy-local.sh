@@ -157,13 +157,56 @@ if [[ "$DEPLOY_METHOD" == "actions" ]]; then
 
   echo "GitHub Actions run: $run_url"
   echo "Waiting for the deployment run to finish..."
-  if gh run watch "$run_id" --compact --exit-status; then
-    echo "GitHub Actions deployment completed successfully: $run_url"
-  else
-    watch_status=$?
-    echo "GitHub Actions deployment finished unsuccessfully (exit $watch_status): $run_url" >&2
-    exit "$watch_status"
+
+  # 2026-11-20：`gh run watch` 的可用参数随 gh 版本变化（2.46 没有 --compact），
+  # 参数解析失败会返回非零码，脚本会把参数错误误判成「部署失败」。这里不再依赖
+  # watch，改为轮询 `gh run view` 的 status/conclusion，只按 run 的真实结论判定成败。
+  # 读取状态失败（网络/权限）与 run 真正失败分别报错，避免把「查不到状态」说成「部署失败」。
+  RUN_STATUS_ERROR_FILE="$(mktemp)"
+  trap 'rm -f "$RUN_STATUS_ERROR_FILE"' EXIT
+  RUN_STATUS_POLL_INTERVAL=10
+  RUN_STATUS_MAX_ATTEMPTS=5
+
+  run_status=""
+  run_status_attempts=0
+  run_status_error=""
+  while true; do
+    if run_status="$(gh run view "$run_id" --json status --jq '.status' 2>"$RUN_STATUS_ERROR_FILE")"; then
+      run_status_attempts=0
+    else
+      run_status_attempts=$((run_status_attempts + 1))
+      run_status_error="$(cat "$RUN_STATUS_ERROR_FILE")"
+      if (( run_status_attempts >= RUN_STATUS_MAX_ATTEMPTS )); then
+        echo "Unable to read the status of the GitHub Actions run after $RUN_STATUS_MAX_ATTEMPTS attempts: $run_status_error" >&2
+        echo "The deployment run may still be running; check it manually: $run_url" >&2
+        exit 1
+      fi
+      echo "Unable to read the status of the GitHub Actions run (attempt $run_status_attempts/$RUN_STATUS_MAX_ATTEMPTS): $run_status_error" >&2
+      sleep "$RUN_STATUS_POLL_INTERVAL"
+      continue
+    fi
+
+    if [[ "$run_status" != "completed" ]]; then
+      echo "GitHub Actions run status: $run_status; checking again in ${RUN_STATUS_POLL_INTERVAL}s..."
+      sleep "$RUN_STATUS_POLL_INTERVAL"
+      continue
+    fi
+    break
+  done
+
+  run_conclusion=""
+  if ! run_conclusion="$(gh run view "$run_id" --json conclusion --jq '.conclusion' 2>"$RUN_STATUS_ERROR_FILE")"; then
+    run_conclusion="unknown"
+    echo "Unable to read the conclusion of the GitHub Actions run: $(cat "$RUN_STATUS_ERROR_FILE")" >&2
   fi
+  if [[ -z "$run_conclusion" || "$run_conclusion" == "null" ]]; then
+    run_conclusion="unknown"
+  fi
+  if [[ "$run_conclusion" != "success" ]]; then
+    echo "GitHub Actions deployment finished unsuccessfully ($run_conclusion): $run_url" >&2
+    exit 1
+  fi
+  echo "GitHub Actions deployment completed successfully: $run_url"
   exit 0
 fi
 

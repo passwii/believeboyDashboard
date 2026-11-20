@@ -94,6 +94,25 @@ test('deployments stay disabled until explicitly re-enabled', async () => {
   assert.match(localDeploy, /Local SSH deployment is disabled/)
 })
 
+test('local deploy judges the Actions run by its real conclusion', async () => {
+  const localDeploy = await read('deploy/deploy-local.sh')
+  // 只检查实际执行的命令行：注释里可以记录历史原因。
+  const localDeployCode = localDeploy
+    .split('\n')
+    .filter((line) => !line.trimStart().startsWith('#'))
+    .join('\n')
+  // 2026-11-20：旧版 gh（2.46）的 `gh run watch` 没有 --compact，参数解析失败
+  // 会返回非零码，被脚本误判成「部署失败」。判定必须只依赖 run 的真实结论，
+  // 不再调用 gh run watch，也不允许 --compact 回来。
+  assert.doesNotMatch(localDeployCode, /--compact/)
+  assert.doesNotMatch(localDeployCode, /gh run watch/)
+  assert.match(localDeploy, /gh run view "\$run_id" --json status/)
+  assert.match(localDeploy, /gh run view "\$run_id" --json conclusion/)
+  // 「读不到 run 状态（网络/权限）」与「run 真的失败」必须分开报错。
+  assert.match(localDeploy, /Unable to read the status of the GitHub Actions run/)
+  assert.match(localDeploy, /finished unsuccessfully \(\$run_conclusion\)/)
+})
+
 test('deploy free-space policy uses configurable absolute floors', async () => {
   const script = await read('deploy/deploy-remote.sh')
   assert.match(script, /DEPLOY_FREE_SPACE_MIN_BYTES/)
