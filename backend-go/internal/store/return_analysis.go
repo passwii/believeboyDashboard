@@ -665,7 +665,7 @@ func (s *ReturnAnalysisStore) GetReturnAnalysis(ctx context.Context, filter retu
 		summaryText += " 同期无计入销量，无法计算退货率。"
 	}
 
-	return &return_analysis.ReturnAnalysisResponse{
+	response := &return_analysis.ReturnAnalysisResponse{
 		ProjectID:   filter.ProjectID,
 		ProjectName: projectName,
 		Country:     filter.Country,
@@ -697,7 +697,9 @@ func (s *ReturnAnalysisStore) GetReturnAnalysis(ctx context.Context, filter retu
 		FulfillmentCenterRows:   fcRows,
 		MultiItemReturnCount:    multiItemCount,
 		MultiItemReturnQuantity: multiItemQty,
-	}, nil
+	}
+	response.NormalizeEmptyLists()
+	return response, nil
 }
 
 func addEvent[Key comparable, Event comparable](events map[Key]map[Event]struct{}, key Key, event Event) {

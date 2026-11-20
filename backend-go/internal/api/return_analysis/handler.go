@@ -87,6 +87,7 @@ func (h *Handler) GetReturnAnalysis(w http.ResponseWriter, r *http.Request) {
 		httpapi.WriteDetail(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	resp.NormalizeEmptyLists()
 
 	_ = httpapi.WriteJSON(w, http.StatusOK, resp)
 }

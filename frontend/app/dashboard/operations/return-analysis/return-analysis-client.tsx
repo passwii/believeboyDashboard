@@ -282,6 +282,43 @@ type ReturnAnalysisResponse = {
   multi_item_return_quantity: number
 }
 
+type NullableListKeys =
+  | 'ranking_rows'
+  | 'reason_rows'
+  | 'trend_rows'
+  | 'disposition_rows'
+  | 'status_rows'
+  | 'feedback_rows'
+  | 'weekday_rows'
+  | 'fulfillment_center_rows'
+
+/**
+ * 后端在空周期时可能把切片序列化成 null（Go nil slice），而页面把它当数组
+ * 使用。这里在进入 state 前统一归一为 []，既兼容尚未更新的后端，也让空周期
+ * 走页面内空态而不是在渲染阶段抛异常、落到全局错误页。
+ */
+export function normalizeReturnAnalysisPayload(
+  payload: ReturnAnalysisResponse
+): ReturnAnalysisResponse {
+  const normalized = { ...payload }
+  const listKeys: NullableListKeys[] = [
+    'ranking_rows',
+    'reason_rows',
+    'trend_rows',
+    'disposition_rows',
+    'status_rows',
+    'feedback_rows',
+    'weekday_rows',
+    'fulfillment_center_rows',
+  ]
+  for (const key of listKeys) {
+    if (!Array.isArray(normalized[key])) {
+      normalized[key] = []
+    }
+  }
+  return normalized
+}
+
 type ReturnRawRowsResponse = {
   project_id: number
   country: string
@@ -600,7 +637,7 @@ export default function ReturnAnalysisPage() {
           `${API_BASE}/return-analysis?${search.toString()}`,
           { session, force, fallbackError: '退货数据加载失败' }
         )
-        setData(payload)
+        setData(normalizeReturnAnalysisPayload(payload))
         hasLoadedDataRef.current = true
         setLoadError(null)
       } catch (fetchError) {

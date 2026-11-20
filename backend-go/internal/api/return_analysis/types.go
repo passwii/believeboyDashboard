@@ -166,6 +166,40 @@ type Store interface {
 	GetRawRows(ctx context.Context, filter ReturnAnalysisFilter, limit int) ([]ReturnRawRowItem, error)
 }
 
+// NormalizeEmptyLists keeps the JSON contract stable for windows with no
+// return data. Go encodes nil slices as null, while the dashboard reads these
+// fields as arrays (for example ranking_rows.length), so an empty result must
+// serialize as [] rather than null.
+func (resp *ReturnAnalysisResponse) NormalizeEmptyLists() {
+	if resp == nil {
+		return
+	}
+	if resp.RankingRows == nil {
+		resp.RankingRows = []ReturnRankingItem{}
+	}
+	if resp.ReasonRows == nil {
+		resp.ReasonRows = []ReturnReasonItem{}
+	}
+	if resp.TrendRows == nil {
+		resp.TrendRows = []ReturnTrendItem{}
+	}
+	if resp.DispositionRows == nil {
+		resp.DispositionRows = []DispositionItem{}
+	}
+	if resp.StatusRows == nil {
+		resp.StatusRows = []StatusItem{}
+	}
+	if resp.FeedbackRows == nil {
+		resp.FeedbackRows = []CustomerFeedbackItem{}
+	}
+	if resp.WeekdayRows == nil {
+		resp.WeekdayRows = []WeekdayItem{}
+	}
+	if resp.FulfillmentCenterRows == nil {
+		resp.FulfillmentCenterRows = []FulfillmentCenterItem{}
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Translations
 // ---------------------------------------------------------------------------

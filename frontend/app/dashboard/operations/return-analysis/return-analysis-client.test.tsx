@@ -325,6 +325,7 @@ import ReturnAnalysisClient, {
   RETURN_REASON_COLORS,
   RETURN_REASON_SLICE_STROKE,
   RETURN_REASON_SLICE_STROKE_WIDTH,
+  normalizeReturnAnalysisPayload,
 } from './return-analysis-client'
 import { fetchOpsJsonCached } from '@/lib/ops-client-cache'
 import { RAW_DISPLAY_LIMIT, RETURN_RAW_COLUMNS } from './return-raw-columns'
@@ -472,6 +473,54 @@ describe('ReturnAnalysisClient header 化渲染契约（BLF-834 / operations hea
       'data-warm-state',
       'error'
     )
+  })
+
+  it('空周期响应所有列表为 null 时归一化为 []，页面保持空态而不抛异常', async () => {
+    const emptyPayload = {
+      ...returnPayload(),
+      summary: {
+        ...SUMMARY,
+        total_returns: 0,
+        total_quantity: 0,
+        unique_skus: 0,
+        top_return_sku: null,
+        top_return_reason: null,
+        top_return_reason_display: null,
+        total_sales_quantity: 0,
+        total_sales_amount: 0,
+        overall_return_rate: 0,
+        data_available: false,
+        data_span: null,
+      },
+      ranking_rows: null,
+      reason_rows: null,
+      trend_rows: null,
+      disposition_rows: null,
+      status_rows: null,
+      feedback_rows: null,
+      weekday_rows: null,
+      fulfillment_center_rows: null,
+    }
+    vi.mocked(fetchOpsJsonCached).mockResolvedValueOnce(emptyPayload as never)
+
+    const { container } = render(<ReturnAnalysisClient />)
+    expect(await screen.findByText('暂无退货排行数据')).toBeInTheDocument()
+    expect(container.querySelector('[data-warm-page="return-analysis"]')).toHaveAttribute(
+      'data-warm-state',
+      'empty'
+    )
+  })
+
+  it('normalizeReturnAnalysisPayload 只补空列表，不改动已有数据', () => {
+    const payload = returnPayload()
+    const normalized = normalizeReturnAnalysisPayload({
+      ...payload,
+      reason_rows: null,
+    } as never)
+
+    expect(normalized.reason_rows).toEqual([])
+    expect(normalized.ranking_rows).toEqual(payload.ranking_rows)
+    expect(normalized.trend_rows).toEqual(payload.trend_rows)
   })
 
   it('控制台卡片已移除：无「控制台」文案，导出按钮位于工作区卡头', async () => {
