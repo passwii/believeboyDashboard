@@ -164,8 +164,8 @@ if [[ "$DEPLOY_METHOD" == "actions" ]]; then
   # 读取状态失败（网络/权限）与 run 真正失败分别报错，避免把「查不到状态」说成「部署失败」。
   RUN_STATUS_ERROR_FILE="$(mktemp)"
   trap 'rm -f "$RUN_STATUS_ERROR_FILE"' EXIT
-  RUN_STATUS_POLL_INTERVAL="${RUN_STATUS_POLL_INTERVAL:-10}"
-  RUN_STATUS_MAX_ATTEMPTS="${RUN_STATUS_MAX_ATTEMPTS:-5}"
+  RUN_STATUS_POLL_INTERVAL=10
+  RUN_STATUS_MAX_ATTEMPTS=5
 
   run_status=""
   run_status_attempts=0
