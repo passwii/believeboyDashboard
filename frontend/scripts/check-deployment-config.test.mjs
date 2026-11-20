@@ -113,6 +113,18 @@ test('local deploy judges the Actions run by its real conclusion', async () => {
   assert.match(localDeploy, /finished unsuccessfully \(\$run_conclusion\)/)
 })
 
+test('CI runs the frontend deployment assertions when deployment config changes', async () => {
+  const workflow = await read('.github/workflows/test-ci.yml')
+  // 2026-11-20：部署配置（deploy/** 与部署 workflow）以前不会触发前端 job，
+  // 部署断言（scripts/check-deployment-config.test.mjs）因此不被执行。
+  // deploy filter 必须覆盖部署脚本与部署 workflow，frontend job 也要在
+  // deploy 变更时运行，否则部署配置改了也没有任何断言守着。
+  assert.match(workflow, /deploy:\n\s+- "deploy\/\*\*"\n\s+- "\.github\/workflows\/deploy-dashboard\.yml"/)
+  assert.match(workflow, /needs\.changes\.outputs\.deploy == 'true'/)
+  // 顶层 paths 过滤也要放行部署 workflow，否则整个 workflow 根本不会启动。
+  assert.match(workflow, /- "\.github\/workflows\/deploy-dashboard\.yml"/)
+})
+
 test('deploy free-space policy uses configurable absolute floors', async () => {
   const script = await read('deploy/deploy-remote.sh')
   assert.match(script, /DEPLOY_FREE_SPACE_MIN_BYTES/)
