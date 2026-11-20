@@ -131,6 +131,17 @@ export interface MetricSwitcherCardProps<K extends string> {
 
   /** 追加一个与 metric cell 同规格的业务统计项（例如目标进度）。 */
   extraContent?: React.ReactNode
+  /** `hero-strip` 手机上显示在指标带末尾的紧凑业务统计项。 */
+  mobileExtraContent?: React.ReactNode
+
+  /**
+   * 手机端指标布局：
+   *   - `'grid'`（默认）：保留 2 列 KPI 网格，桌面行为不变
+   *   - `'hero-strip'`：前两个指标变为主卡，其余进入单行横滑指标带
+   */
+  mobileLayout?: 'grid' | 'hero-strip'
+  /** `hero-strip` 的主卡指标顺序；默认取 metrics 的前两个 */
+  mobileHeroMetrics?: readonly K[]
 
   /** 计算模式：传入 tooltip formatter */
   tooltipFormatter?: (value: number, metricKey: K) => React.ReactNode
@@ -155,6 +166,9 @@ export function MetricSwitcherCard<K extends string>({
   chartKind = 'auto',
   showChartKindToggle = false,
   extraContent,
+  mobileExtraContent,
+  mobileLayout = 'grid',
+  mobileHeroMetrics,
   tooltipFormatter,
   yAxisFormatter,
 }: MetricSwitcherCardProps<K>) {
@@ -215,6 +229,18 @@ export function MetricSwitcherCard<K extends string>({
   )
 
   const hasCompareData = chartData.some((row) => row.compareMetricValue != null)
+  const heroMetrics = React.useMemo(() => {
+    if (mobileLayout !== 'hero-strip') return []
+    const keys = mobileHeroMetrics?.length
+      ? mobileHeroMetrics
+      : metrics.slice(0, 2).map((item) => item.key)
+    return keys
+      .map((key) => metrics.find((item) => item.key === key))
+      .filter((item): item is MetricDef<K> => Boolean(item))
+      .slice(0, 2)
+  }, [mobileHeroMetrics, metrics, mobileLayout])
+  const heroKeys = React.useMemo(() => new Set(heroMetrics.map((item) => item.key)), [heroMetrics])
+  const stripMetrics = metrics.filter((item) => !heroKeys.has(item.key))
 
   return (
     <Card className="animate-enter overflow-hidden">
@@ -237,8 +263,18 @@ export function MetricSwitcherCard<K extends string>({
       {/* BLF-529：指标卡片区左右/顶部零内边距（占满卡片两侧、顶对齐）。
           BLF-872 起 CardHeader 基类已无 md 断点内边距（px-4 pb-3 pt-4），
           p-0 即可完全清零；pb-2 显式保留 —— 给"形态"切换行留一点呼吸空间。 */}
-      <CardHeader className="p-0 pb-2">
-        <div className="relative grid grow grid-cols-2 divide-y divide-[var(--warm-ledger-color-hairline)] sm:grid-cols-3 lg:grid-cols-6">
+      <CardHeader
+        className={cn(
+          'p-0 pb-2',
+          mobileLayout === 'hero-strip' && 'max-md:px-0 max-md:pt-0'
+        )}
+      >
+        <div
+          className={cn(
+            'relative grid grow grid-cols-2 divide-y divide-[var(--warm-ledger-color-hairline)] sm:grid-cols-3 lg:grid-cols-6',
+            mobileLayout === 'hero-strip' && 'hidden md:grid'
+          )}
+        >
           {metrics.map((m) => {
             return (
               <MetricCell<K>
@@ -248,27 +284,90 @@ export function MetricSwitcherCard<K extends string>({
                 currentValue={getCurrentForCard(m.key)}
                 previousValue={getPrevious?.(m.key) ?? null}
                 onSelect={() => setSelected(m.key)}
+                responsive={mobileLayout === 'hero-strip' ? 'desktop-only' : 'always'}
               />
             )
           })}
           {extraContent}
         </div>
 
+        {mobileLayout === 'hero-strip' ? (
+          <div className="md:hidden" data-testid="metric-hero-strip" data-metric-cell-wrapper="hero-strip">
+            <div className="grid grid-cols-2 gap-2 pt-1.5">
+              {heroMetrics.map((m) => (
+                <MetricCell<K>
+                  key={`hero-${m.key}`}
+                  metric={m}
+                  isActive={m.key === selected}
+                  currentValue={getCurrentForCard(m.key)}
+                  previousValue={getPrevious?.(m.key) ?? null}
+                  onSelect={() => setSelected(m.key)}
+                  variant="hero"
+                  indicatorId="metric-cell-indicator-hero"
+                />
+              ))}
+            </div>
+            <div
+              className="mt-2.5 flex snap-x snap-mandatory overflow-x-auto rounded-[var(--warm-ledger-radius-panel)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-hairline)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              data-testid="metric-strip"
+            >
+              {stripMetrics.map((m) => (
+                <MetricCell<K>
+                  key={`strip-${m.key}`}
+                  metric={m}
+                  isActive={m.key === selected}
+                  currentValue={getCurrentForCard(m.key)}
+                  previousValue={getPrevious?.(m.key) ?? null}
+                  onSelect={() => setSelected(m.key)}
+                  variant="strip"
+                  indicatorId="metric-cell-indicator-strip"
+                />
+              ))}
+              {mobileExtraContent ? (
+                <div className="w-[112px] shrink-0 snap-start bg-[var(--warm-ledger-color-panel)]">
+                  {mobileExtraContent}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
         {showChartKindToggle && (
-          <div className="flex items-center justify-end gap-1 border-t border-[var(--warm-ledger-color-hairline)] px-3 py-1.5">
-            <span className="mr-1 font-sans text-[11px] font-medium text-[var(--warm-ledger-color-text-muted)]">
+          <div
+            className={cn(
+              'flex items-center gap-1 border-t border-[var(--warm-ledger-color-hairline)] px-3 py-1.5',
+              mobileLayout === 'hero-strip'
+                ? 'justify-between md:justify-end'
+                : 'justify-end'
+            )}
+          >
+            {mobileLayout === 'hero-strip' && metric ? (
+              <span
+                className="min-w-0 truncate font-sans text-[11px] font-medium text-[var(--warm-ledger-color-text)] md:hidden"
+                data-testid="mobile-chart-title"
+              >
+                {metric.label}
+              </span>
+            ) : null}
+            <span
+              className={cn(
+                'mr-1 font-sans text-[11px] font-medium text-[var(--warm-ledger-color-text-muted)]',
+                mobileLayout === 'hero-strip' && 'hidden md:inline'
+              )}
+            >
               形态
             </span>
             <ChartKindToggle
               value={effectiveKind}
               onChange={setOverrideKind}
               disabled={chartKind !== 'auto'}
+              compact={mobileLayout === 'hero-strip'}
             />
           </div>
         )}
       </CardHeader>
 
-      <CardContent className="px-2.5 py-3">
+      <CardContent className={cn('px-2.5 py-3', mobileLayout === 'hero-strip' && 'max-md:px-0 py-3')}>
         {/* 用 key={effectiveKind} 强制 remount：切换 chartKind 时整个图表重新挂载，
             保证 line ↔ bar 跨形态切换也有干净的 enter 动画（同形态切换靠 recharts 内部）。
             外层 motion.div 用来掩盖 remount 之间的视觉空隙 —— 不做 morph
@@ -281,6 +380,7 @@ export function MetricSwitcherCard<K extends string>({
           transition={{ duration: DURATION.fast, ease: EASE.smoothOut }}
           className={cn(
             'w-full border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)]',
+            mobileLayout === 'hero-strip' && 'max-md:rounded-[var(--warm-ledger-radius-panel)]',
             heightClass
           )}
         >
@@ -328,6 +428,9 @@ interface MetricCellProps<K extends string> {
   currentValue: number
   previousValue: number | null
   onSelect: () => void
+  variant?: 'grid' | 'hero' | 'strip'
+  indicatorId?: string
+  responsive?: 'always' | 'desktop-only' | 'mobile-only'
 }
 
 function MetricCell<K extends string>({
@@ -336,6 +439,9 @@ function MetricCell<K extends string>({
   currentValue,
   previousValue,
   onSelect,
+  variant = 'grid',
+  indicatorId = 'metric-cell-indicator',
+  responsive = 'always',
 }: MetricCellProps<K>) {
   // Display math (shared with the legacy inline version)
   const prev = previousValue
@@ -363,6 +469,9 @@ function MetricCell<K extends string>({
         change={change}
         isPositive={isPositive}
         onSelect={onSelect}
+        variant={variant}
+        indicatorId={indicatorId}
+        responsive={responsive}
       />
     )
   }
@@ -374,26 +483,58 @@ function MetricCell<K extends string>({
       onClick={onSelect}
       aria-pressed={false}
       className={cn(
-        'relative min-h-[88px] cursor-pointer px-4 py-3 text-start transition-colors duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--warm-ledger-color-accent-strong)]',
-        'hover:bg-[var(--warm-ledger-color-raised-hover)]'
+        'relative cursor-pointer text-start transition-colors duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--warm-ledger-color-accent-strong)]',
+        variant !== 'hero' && 'hover:bg-[var(--warm-ledger-color-raised-hover)]',
+        variant === 'grid' && 'min-h-[88px] px-4 py-3',
+        variant === 'hero' &&
+          'min-h-[94px] rounded-[var(--warm-ledger-radius-panel)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] px-3 py-3 text-start shadow-[var(--warm-ledger-highlight-rest)] hover:border-[var(--warm-ledger-color-hairline-strong)]',
+        variant === 'strip' &&
+          'min-h-[62px] w-[112px] shrink-0 snap-start bg-[var(--warm-ledger-color-panel)] px-2.5 py-2'
       )}
+      data-metric-cell={variant}
+      data-responsive={responsive}
     >
-      <div className="mb-2 flex items-center justify-between gap-1.5">
-        <span className="truncate font-sans text-[11px] text-[var(--warm-ledger-color-text-muted)]">
-          {metric.label}
-        </span>
+      <div
+        className={cn(
+          'flex items-center justify-between gap-1.5',
+          variant === 'strip' ? 'mb-1' : 'mb-2'
+        )}
+      >
         <span
           className={cn(
-            'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] px-1.5 py-0.5 font-mono text-[11px] leading-4',
-            'text-[var(--warm-ledger-color-text-muted)]'
+            'truncate font-sans text-[var(--warm-ledger-color-text-muted)]',
+            variant === 'strip' ? 'text-[9px]' : 'text-[11px]'
           )}
         >
-          {hasPrev && displayPrevious !== null ? `对比 ${metric.format(displayPrevious)}` : '--'}
+          {metric.label}
         </span>
+        {variant === 'strip' ? null : (
+          <span
+            className={cn(
+              'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] px-1.5 py-0.5 font-mono text-[11px] leading-4',
+              'text-[var(--warm-ledger-color-text-muted)]'
+            )}
+          >
+            {hasPrev && displayPrevious !== null ? `对比 ${metric.format(displayPrevious)}` : '--'}
+          </span>
+        )}
       </div>
-      <div className="truncate font-mono text-base leading-6 tabular-nums text-[var(--warm-ledger-color-text-soft)]">
+      <div
+        className={cn(
+          'truncate font-mono tabular-nums text-[var(--warm-ledger-color-text-soft)]',
+          variant === 'hero' ? 'text-lg leading-6' : 'text-base leading-6',
+          variant === 'strip' && 'text-[13px] leading-4'
+        )}
+      >
         {metric.format(displayCurrent)}
       </div>
+      {variant === 'strip' ? (
+        <div className="mt-1 truncate font-mono text-[8px] leading-3 text-[var(--warm-ledger-color-text-faint)]">
+          {hasPrev && displayPrevious !== null
+            ? `对比 ${metric.format(displayPrevious)}`
+            : '--'}
+        </div>
+      ) : null}
     </button>
   )
 }
@@ -410,6 +551,9 @@ interface ActiveMetricCellProps<K extends string> {
   change: number | null
   isPositive: boolean
   onSelect: () => void
+  variant?: 'grid' | 'hero' | 'strip'
+  indicatorId?: string
+  responsive?: 'always' | 'desktop-only' | 'mobile-only'
 }
 
 function ActiveMetricCell<K extends string>({
@@ -419,6 +563,9 @@ function ActiveMetricCell<K extends string>({
   change,
   isPositive,
   onSelect,
+  variant = 'grid',
+  indicatorId = 'metric-cell-indicator',
+  responsive = 'always',
 }: ActiveMetricCellProps<K>) {
   // useReducedMotion is required at the top of every framer-motion consumer
   // that respects the OS preference, even if we don't branch on its value
@@ -449,18 +596,37 @@ function ActiveMetricCell<K extends string>({
       onClick={onSelect}
       aria-pressed={true}
       className={cn(
-        'relative min-h-[88px] cursor-pointer px-4 py-3 text-start transition-colors duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--warm-ledger-color-accent-strong)]',
-        'bg-[var(--warm-ledger-color-raised)]'
+        'relative cursor-pointer text-start transition-colors duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--warm-ledger-color-accent-strong)]',
+        variant === 'grid' && 'min-h-[88px] bg-[var(--warm-ledger-color-raised)] px-4 py-3',
+        variant === 'hero' &&
+          'min-h-[94px] rounded-[var(--warm-ledger-radius-panel)] border border-[var(--warm-ledger-color-hairline-strong)] bg-[var(--warm-ledger-color-raised)] px-3 py-3 text-start shadow-[var(--warm-ledger-highlight-hover)]',
+        variant === 'strip' &&
+          'min-h-[62px] w-[112px] shrink-0 snap-start bg-[var(--warm-ledger-color-raised)] px-2.5 py-2'
       )}
+      data-metric-cell={variant}
+      data-responsive={responsive}
     >
       <motion.span
-        layoutId="metric-cell-indicator"
+        layoutId={indicatorId}
         aria-hidden
-        className="pointer-events-none absolute inset-x-2 bottom-0 h-0.5 rounded-none bg-[var(--warm-ledger-color-accent)]"
+        className={cn(
+          'pointer-events-none absolute bottom-0 h-0.5 rounded-none bg-[var(--warm-ledger-color-accent)]',
+          variant === 'strip' ? 'inset-x-1' : 'inset-x-2'
+        )}
         transition={{ type: 'spring', stiffness: 380, damping: 32 }}
       />
-      <div className="mb-2 flex items-center justify-between gap-1.5">
-        <span className="truncate font-sans text-[11px] text-[var(--warm-ledger-color-text-muted)]">
+      <div
+        className={cn(
+          'flex items-center justify-between gap-1.5',
+          variant === 'strip' ? 'mb-1' : 'mb-2'
+        )}
+      >
+        <span
+          className={cn(
+            'truncate font-sans text-[var(--warm-ledger-color-text-muted)]',
+            variant === 'strip' ? 'text-[9px]' : 'text-[11px]'
+          )}
+        >
           {metric.label}
         </span>
         {change === null ? (
@@ -484,10 +650,20 @@ function ActiveMetricCell<K extends string>({
           </span>
         )}
       </div>
-      <div className="truncate font-mono text-base leading-6 tabular-nums text-[var(--warm-ledger-color-text)]">
+      <div
+        className={cn(
+          'truncate font-mono tabular-nums text-[var(--warm-ledger-color-text)]',
+          variant === 'hero' ? 'text-lg leading-6' : 'text-base leading-6',
+          variant === 'strip' && 'text-[13px] leading-4'
+        )}
+      >
         {displayValue}
       </div>
-      {comparisonReference ? (
+      {variant === 'strip' ? (
+        <div className="mt-1 truncate font-mono text-[8px] leading-3 text-[var(--warm-ledger-color-text-faint)]">
+          {comparisonReference ?? '--'}
+        </div>
+      ) : comparisonReference ? (
         <div className="mt-1 truncate font-mono text-[11px] leading-4 text-[var(--warm-ledger-color-text-muted)]">
           {comparisonReference}
         </div>
@@ -504,10 +680,12 @@ function ChartKindToggle({
   value,
   onChange,
   disabled,
+  compact = false,
 }: {
   value: ChartKind
   onChange: (k: ChartKind) => void
   disabled: boolean
+  compact?: boolean
 }) {
   const options: Array<{ kind: ChartKind; label: string; icon: React.ElementType }> = [
     { kind: 'line', label: '折线', icon: LineIcon },
@@ -522,6 +700,7 @@ function ChartKindToggle({
       data-testid="chart-kind-toggle"
       className={cn(
         'inline-flex h-9 items-center rounded-[var(--warm-ledger-radius-inner)] border border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] p-0.5 font-sans text-xs shadow-[var(--warm-ledger-highlight-rest)]',
+        compact && 'max-md:h-7',
         disabled && 'opacity-50'
       )}
     >
@@ -537,6 +716,7 @@ function ChartKindToggle({
             aria-pressed={isActive}
             className={cn(
               'relative inline-flex h-full min-w-11 items-center justify-center gap-1 rounded-[var(--warm-ledger-radius-inner)] px-2 font-sans transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[var(--warm-ledger-color-accent-strong)]',
+              compact && 'max-md:min-w-0 max-md:px-1.5',
               isActive &&
                 prefersReducedMotion &&
                 'border-[var(--warm-ledger-color-hairline-strong)] bg-[var(--warm-ledger-color-raised)] text-[var(--warm-ledger-color-text)] shadow-[var(--warm-ledger-highlight-rest)]'
@@ -565,7 +745,7 @@ function ChartKindToggle({
               )}
             >
               <Icon className="size-3" />
-              <span>{opt.label}</span>
+              <span className={cn(compact && 'max-md:sr-only')}>{opt.label}</span>
             </span>
             {isActive ? (
               <span

@@ -62,6 +62,7 @@ const runsSelfContainedSpec = process.argv.some(
     arg.includes('scheduled-reports-visual') ||
     arg.includes('warm-ledger-expansion-desktop') ||
     arg.includes('warm-ledger-phone-shell') ||
+    arg.includes('blf-1568-phone-layout') ||
     // iPad 10~12 英寸外壳回归（BLF-1530）
     arg.includes('warm-ledger-ipad-blf1530') ||
     arg.includes('@ipad-blf1530')

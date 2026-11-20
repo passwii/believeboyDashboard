@@ -5,6 +5,9 @@ import { ChevronDown, SlidersHorizontal } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
+/** 顶栏筛选入口与手机筛选条之间的轻量事件：打开后由筛选条自行接管展开态。 */
+export const OPEN_MOBILE_FILTER_EVENT = 'warm-ledger:open-mobile-filters'
+
 interface MobileFilterStripProps {
   /**
    * 折叠态显示的当前筛选摘要（如 "玥涵 · US · 06/01~09/01"）。
@@ -59,6 +62,8 @@ export function MobileFilterStrip({
   const isControlled = controlledOpen !== undefined
   const isOpen = isControlled ? controlledOpen : internalOpen
   const stripId = React.useId()
+  const sectionRef = React.useRef<HTMLElement>(null)
+  const toggleRef = React.useRef<HTMLButtonElement>(null)
 
   const toggle = React.useCallback(() => {
     if (isControlled) {
@@ -68,18 +73,98 @@ export function MobileFilterStrip({
     }
   }, [isControlled, isOpen, onOpenChange])
 
+  // 顶栏的筛选图标负责“随时重开”；滚动收起后先回到筛选条所在位置再展开，
+  // 否则展开面板会在视口上方，用户看不到正在操作的控件。
+  React.useEffect(() => {
+    const openFromHeader = () => {
+      const section = sectionRef.current
+      const host = section?.closest<HTMLElement>('.warm-ledger__main-scroll')
+      const scrollsOnHost = host
+        ? ['auto', 'scroll'].includes(getComputedStyle(host).overflowY)
+        : false
+      if (section) {
+        const sectionTop = section.getBoundingClientRect().top
+        const hostTop = host && scrollsOnHost ? host.getBoundingClientRect().top : 0
+        if (sectionTop < hostTop) {
+          const delta = hostTop - sectionTop
+          if (host && scrollsOnHost) {
+            host.scrollTo({ top: Math.max(0, host.scrollTop - delta), behavior: 'smooth' })
+          } else {
+            window.scrollTo({ top: Math.max(0, window.scrollY - delta), behavior: 'smooth' })
+          }
+        }
+      }
+      if (isControlled) {
+        onOpenChange?.(true)
+      } else {
+        setInternalOpen(true)
+      }
+    }
+    window.addEventListener(OPEN_MOBILE_FILTER_EVENT, openFromHeader)
+    return () => window.removeEventListener(OPEN_MOBILE_FILTER_EVENT, openFromHeader)
+  }, [isControlled, onOpenChange])
+
+  // 折叠态随滚动逐渐叠进顶部：高度 44px → 0，滚动 56px 完成。
+  // 展开态不参与折叠，避免用户正在操作筛选时被滚动打断。
+  React.useEffect(() => {
+    const section = sectionRef.current
+    const trigger = toggleRef.current
+    if (!section || !trigger) return
+
+    if (isOpen) {
+      trigger.style.minHeight = ''
+      trigger.style.height = ''
+      trigger.style.opacity = ''
+      trigger.style.pointerEvents = ''
+      section.style.removeProperty('--wlf-collapse')
+      section.style.marginBottom = ''
+      return
+    }
+
+    // 只在手机正文是独立滚动容器时监听它；否则回落到 window，避免
+    // 平板/桌面页面因整页文档滚动而收不到 scroll 事件。
+    const host = section.closest<HTMLElement>('.warm-ledger__main-scroll')
+    const hostScrolls = host
+      ? ['auto', 'scroll'].includes(getComputedStyle(host).overflowY) &&
+        window.matchMedia('(max-width: 430px)').matches
+      : false
+    const scrollTarget: HTMLElement | Window = host && hostScrolls ? host : window
+
+    const onScroll = () => {
+      const offset = scrollTarget === window ? window.scrollY : host!.scrollTop
+      // Use the document/scrollport distance, not an absolute page offset:
+      // the strip lives at the top of the scrollport, so its own scrollTop is
+      // the amount already compacted away.
+      const progress = Math.max(0, Math.min(1, offset / 56))
+      const remaining = 44 * (1 - progress)
+      trigger.style.minHeight = `${remaining}px`
+      trigger.style.height = `${remaining}px`
+      trigger.style.opacity = `${1 - progress * 0.9}`
+      trigger.style.pointerEvents = progress > 0.66 ? 'none' : ''
+      section.style.setProperty('--wlf-collapse', String(progress))
+      section.style.marginBottom = `${16 * (1 - progress)}px`
+    }
+
+    onScroll()
+    scrollTarget.addEventListener('scroll', onScroll, { passive: true })
+    return () => scrollTarget.removeEventListener('scroll', onScroll)
+  }, [isOpen])
+
   return (
     <section
+      ref={sectionRef}
       className={cn(
         isWarm
           ? 'border-b border-[var(--warm-ledger-color-hairline)] bg-[var(--warm-ledger-color-panel)] text-[var(--warm-ledger-color-text)]'
           : 'border-b border-term-border bg-term-panel',
+        'overflow-hidden',
         className
       )}
       data-testid="mobile-filter-strip"
       data-variant={variant}
     >
       <button
+        ref={toggleRef}
         type="button"
         onClick={toggle}
         aria-expanded={isOpen}

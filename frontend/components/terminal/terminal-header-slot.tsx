@@ -46,6 +46,8 @@ export interface TerminalHeaderSlotContextValue {
 
   /** 移动端筛选条挂载点（正文顶部）；null = 尚未挂载（SSR / 首帧） */
   mobileStripAnchor: HTMLElement | null
+  /** 当前页面是否真的挂载了移动端筛选条内容 */
+  mobileStripSlotActive: boolean
 
   /** 刷新回调是否已由当前页面提供（决定头部刷新按钮点击走页面回调还是 router.refresh 兜底） */
   refreshRegistered: boolean
@@ -79,6 +81,7 @@ export function TerminalHeaderSlotProvider({ children }: { children: React.React
   const [secondaryAnchor, setSecondaryAnchor] = React.useState<HTMLElement | null>(null)
   const [secondarySlotActive, setSecondarySlotActive] = React.useState(false)
   const [mobileStripAnchor, setMobileStripAnchor] = React.useState<HTMLElement | null>(null)
+  const [mobileStripSlotActive, setMobileStripSlotActive] = React.useState(false)
   const [refreshLoading, setRefreshLoadingState] = React.useState(false)
   const [refreshHandlerPending, setRefreshHandlerPending] = React.useState(false)
   const [refreshRegistered, setRefreshRegistered] = React.useState(false)
@@ -98,6 +101,7 @@ export function TerminalHeaderSlotProvider({ children }: { children: React.React
   const actionSlotIdRef = React.useRef(0)
   const primaryFilterSlotIdRef = React.useRef(0)
   const secondarySlotIdRef = React.useRef(0)
+  const mobileStripSlotIdRef = React.useRef(0)
 
   const registerActionSlot = React.useCallback(() => {
     const id = ++actionSlotIdRef.current
@@ -129,6 +133,17 @@ export function TerminalHeaderSlotProvider({ children }: { children: React.React
       if (secondarySlotIdRef.current !== id) return
       secondarySlotIdRef.current += 1
       setSecondarySlotActive(false)
+    }
+  }, [])
+
+  const registerMobileStripSlot = React.useCallback(() => {
+    const id = ++mobileStripSlotIdRef.current
+    setMobileStripSlotActive(true)
+
+    return () => {
+      if (mobileStripSlotIdRef.current !== id) return
+      mobileStripSlotIdRef.current += 1
+      setMobileStripSlotActive(false)
     }
   }, [])
 
@@ -249,6 +264,7 @@ export function TerminalHeaderSlotProvider({ children }: { children: React.React
       secondaryAnchor,
       secondarySlotActive,
       mobileStripAnchor,
+      mobileStripSlotActive,
       refreshRegistered,
       refreshLoading,
       refreshHandlerPending,
@@ -266,6 +282,7 @@ export function TerminalHeaderSlotProvider({ children }: { children: React.React
       secondaryAnchor,
       secondarySlotActive,
       mobileStripAnchor,
+      mobileStripSlotActive,
       refreshRegistered,
       refreshLoading,
       refreshHandlerPending,
@@ -287,6 +304,7 @@ export function TerminalHeaderSlotProvider({ children }: { children: React.React
         setMobileStripAnchor,
         registerPrimaryFilterSlot,
         registerSecondarySlot,
+        registerMobileStripSlot,
       }}
     >
       <Ctx.Provider value={value}>{children}</Ctx.Provider>
@@ -400,6 +418,7 @@ interface SlotBindings {
   setMobileStripAnchor: (el: HTMLElement | null) => void
   registerPrimaryFilterSlot: () => () => void
   registerSecondarySlot: () => () => void
+  registerMobileStripSlot: () => () => void
 }
 
 const SlotBindingsCtx = React.createContext<SlotBindings | null>(null)
@@ -490,9 +509,16 @@ export function useSecondaryHeaderSlot(node: React.ReactNode): React.ReactPortal
  */
 export function useMobileFilterStrip(node: React.ReactNode): React.ReactPortal | null {
   const { mobileStripAnchor } = useTerminalHeaderSlot()
+  const { registerMobileStripSlot } = useSlotMountBinding()
   const isMobile = useIsMobile()
+  const hasContent = node !== null && node !== undefined && node !== false
 
-  if (!isMobile || !mobileStripAnchor) return null
+  React.useEffect(() => {
+    if (!isMobile || !hasContent) return
+    return registerMobileStripSlot()
+  }, [hasContent, isMobile, registerMobileStripSlot])
+
+  if (!isMobile || !mobileStripAnchor || !hasContent) return null
   return createPortal(node, mobileStripAnchor)
 }
 

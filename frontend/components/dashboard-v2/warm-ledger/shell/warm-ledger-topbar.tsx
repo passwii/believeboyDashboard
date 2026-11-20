@@ -1,8 +1,16 @@
 'use client'
 
 import Link from 'next/link'
-import { Bell, ChevronRight, Menu, RefreshCw, Search } from 'lucide-react'
+import {
+  Bell,
+  ChevronRight,
+  Menu,
+  RefreshCw,
+  Search,
+  SlidersHorizontal,
+} from 'lucide-react'
 import type { ReactNode } from 'react'
+import { OPEN_MOBILE_FILTER_EVENT } from '@/components/terminal/mobile-filter-strip'
 import { WarmIconButton, WarmSelect, type WarmSelectOption } from '../controls'
 import { useWarmLedgerNavigation } from './warm-ledger-navigation'
 import { WarmLedgerUserMenu } from './warm-ledger-user-menu'
@@ -41,6 +49,8 @@ export type WarmLedgerTopbarProps = {
   onUserAction?: () => void
   profileHref?: string
   userLabel?: string
+  /** 手机端页面筛选条已挂载时显示一个随时重开的筛选入口。 */
+  mobileFiltersAvailable?: boolean
 }
 
 const DEFAULT_BREADCRUMBS: ReadonlyArray<WarmLedgerBreadcrumb> = [
@@ -69,6 +79,7 @@ export function WarmLedgerTopbar({
   onUserAction,
   profileHref,
   userLabel = '用户菜单',
+  mobileFiltersAvailable = false,
 }: WarmLedgerTopbarProps) {
   const { isMobile, isDrawerOpen, menuButtonRef, openNavigation } = useWarmLedgerNavigation()
   const notificationLabel = unreadCount > 0 ? `通知，${unreadCount} 条未读` : '通知'
@@ -117,6 +128,19 @@ export function WarmLedgerTopbar({
           )
         })}
       </nav>
+
+      {mobileFiltersAvailable ? (
+        <WarmIconButton
+          className="warm-ledger__mobile-filter-button"
+          aria-label="打开页面筛选"
+          title="筛选"
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent(OPEN_MOBILE_FILTER_EVENT))
+          }}
+        >
+          <SlidersHorizontal aria-hidden="true" />
+        </WarmIconButton>
+      ) : null}
 
       <div className="warm-ledger__topbar-controls">
         {!routeFrame && projectId !== undefined && projectOptions?.length && onProjectChange ? (

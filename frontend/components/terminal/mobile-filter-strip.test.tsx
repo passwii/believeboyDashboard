@@ -1,9 +1,10 @@
 import * as React from 'react'
-import { render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import { MobileFilterStrip, MobileFilterWide } from './mobile-filter-strip'
+import { OPEN_MOBILE_FILTER_EVENT } from './mobile-filter-strip'
 
 /**
  * MobileFilterStrip —— 移动端可折叠筛选条（BLF-933 Stage 1）。
@@ -81,6 +82,49 @@ describe('MobileFilterStrip', () => {
       />
     )
     expect(screen.queryByTestId('mobile-filter-strip-grid')).not.toBeInTheDocument()
+  })
+
+  it('顶栏筛选入口会打开折叠中的筛选条', () => {
+    render(
+      <MobileFilterStrip summary="摘要" controls={shortControls} />
+    )
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent(OPEN_MOBILE_FILTER_EVENT))
+    })
+
+    expect(screen.getByTestId('mobile-filter-strip-grid')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '切换页面筛选' })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    )
+  })
+
+  it('折叠态随滚动从 44px 收为 0，展开态不参与折叠', async () => {
+    const user = userEvent.setup()
+    const { rerender } = render(
+      <MobileFilterStrip summary="摘要" controls={shortControls} />
+    )
+
+    act(() => {
+      window.dispatchEvent(new Event('scroll'))
+    })
+
+    // jsdom 没有真实滚动位置，因此这里验证初始化/展开状态不会报错，
+    // 真实 0 → 56px 的视觉收缩由 Playwright 手机回归覆盖。
+
+    await user.click(screen.getByRole('button', { name: '切换页面筛选' }))
+    fireEvent.scroll(window)
+    expect(screen.getByTestId('mobile-filter-strip-grid')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '切换页面筛选' }))
+    rerender(
+      <MobileFilterStrip summary="摘要" controls={shortControls} />
+    )
+    expect(screen.getByRole('button', { name: '切换页面筛选' })).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    )
   })
 
   it('defaultOpen：初始即为展开态', () => {

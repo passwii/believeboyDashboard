@@ -492,6 +492,7 @@ function WarmLedgerRouteContent({
     actionSlotActive,
     primaryFilterSlotActive,
     secondarySlotActive,
+    mobileStripSlotActive,
     refreshRegistered,
     refreshLoading,
     refreshHandlerPending,
@@ -589,6 +590,7 @@ function WarmLedgerRouteContent({
             routeFrame
             breadcrumbs={breadcrumbs}
             routeSlots={routeSlots}
+            mobileFiltersAvailable={mobileStripSlotActive}
             showScopeMeta={false}
             onRefresh={handleRefresh}
             refreshing={refreshActive}

@@ -211,4 +211,21 @@ describe('GoalProgressStat（daily-analysis stats 目标入口）', () => {
     expect(screen.getByRole('link', { name: '查看目标管理' })).toBeInTheDocument()
     expect(screen.getByText('加载中')).toBeInTheDocument()
   })
+
+  it('compact 变体只保留主指标值与简称，仍链接到目标管理页', () => {
+    render(
+      <GoalProgressStat
+        variant="compact"
+        href="/dashboard/operations/project-goals?project=7&country=US"
+        items={ITEMS}
+      />
+    )
+
+    const link = screen.getByRole('link', { name: '查看目标管理' })
+    expect(link).toHaveAttribute('href', '/dashboard/operations/project-goals?project=7&country=US')
+    expect(link).toHaveAttribute('data-goal-stat', 'compact')
+    expect(link.className).toContain('min-h-[62px]')
+    expect(screen.getByText('86.3%')).toBeInTheDocument()
+    expect(screen.queryByText('40.0%')).not.toBeInTheDocument()
+  })
 })
