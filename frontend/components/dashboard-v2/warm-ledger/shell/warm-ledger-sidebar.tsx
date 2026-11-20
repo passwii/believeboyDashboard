@@ -329,9 +329,6 @@ export function WarmLedgerSidebar() {
             </div>
           ) : null}
 
-          <span className="warm-ledger__nav-label">
-            {isPhone && mobileDomain !== 'all' ? '页面' : '业务域'}
-          </span>
           <div className="warm-ledger__nav-list">
             {!isPhone ? (
               <Link
