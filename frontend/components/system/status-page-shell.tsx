@@ -2,26 +2,21 @@ import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { AlertTriangle, Home, ShieldAlert } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
+import '@/components/dashboard-v2/warm-ledger/shell/theme.css'
 import { cn } from '@/lib/utils'
 
+import styles from './status-page-shell.module.css'
+
 type StatusTone = 'error' | 'warning'
-
-const toneClasses: Record<StatusTone, string> = {
-  error: 'border-term-neg/40 bg-term-neg/5 text-term-neg',
-  warning: 'border-term-warn/40 bg-term-warn/5 text-term-warn',
-}
-
-const toneIcons = {
-  error: ShieldAlert,
-  warning: AlertTriangle,
-} as const
+type StatusKind = 'not-found' | 'error'
 
 type StatusPageShellProps = {
   code?: string
   title: string
   description: string
   tone?: StatusTone
+  kind?: StatusKind
+  headingLevel?: 'h1' | 'h2'
   primaryAction?: ReactNode
   secondaryAction?: ReactNode
   compact?: boolean
@@ -32,58 +27,50 @@ export function StatusPageShell({
   title,
   description,
   tone = 'error',
+  kind = code === '404' ? 'not-found' : 'error',
+  headingLevel = 'h1',
   primaryAction,
   secondaryAction,
   compact = false,
 }: StatusPageShellProps) {
-  const Icon = toneIcons[tone]
+  const Icon = kind === 'error' ? ShieldAlert : AlertTriangle
+  const Heading = headingLevel
 
   return (
-    <div
-      className={cn(
-        'relative overflow-hidden rounded-none border border-term-border bg-term-panel shadow-none',
-        compact ? 'mx-auto max-w-4xl p-6 sm:p-8' : 'min-h-screen p-6 sm:p-10'
-      )}
+    <section
+      className={cn('warm-ledger', styles.root, compact ? styles.compactPage : styles.fullPage)}
+      data-status-kind={kind}
+      aria-labelledby="status-page-title"
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,hsl(var(--primary)/0.12),transparent_26%),radial-gradient(circle_at_82%_18%,hsl(var(--warning)/0.12),transparent_22%)]" />
-      <div
-        className={cn(
-          'relative mx-auto flex max-w-4xl flex-col justify-center',
-          compact ? 'min-h-[24rem]' : 'min-h-[calc(100vh-5rem)]'
-        )}
-      >
-        <div className="max-w-2xl space-y-6">
-          <div className="flex flex-wrap items-center gap-3">
+      <div className={cn(styles.surface, compact ? styles.compactSurface : styles.fullSurface)}>
+        <div className={styles.content}>
+          <div className={cn(styles.statusLine, tone === 'error' ? styles.errorTone : styles.warningTone)}>
+            <Icon aria-hidden="true" className={styles.statusIcon} />
             {code ? (
-              <span className="rounded-none border border-term-border bg-term-bg px-4 py-1 font-mono text-xs uppercase tracking-wider text-term-muted">
-                {code}
-              </span>
-            ) : null}
-            <span
-              className={cn(
-                'inline-flex items-center gap-2 rounded-none border px-4 py-1.5 font-mono text-xs uppercase tracking-wider',
-                toneClasses[tone]
-              )}
-            >
-              <Icon className="h-4 w-4" />
-              系统状态提示
-            </span>
+              <span className={styles.code}>{code}</span>
+            ) : (
+              <span>{kind === 'not-found' ? '页面未找到' : '页面发生错误'}</span>
+            )}
           </div>
-          <div className="space-y-3">
-            <h1 className="font-mono text-3xl font-semibold tracking-tight text-term-text sm:text-4xl">
+          <div
+            className={styles.message}
+            role={kind === 'error' ? 'alert' : 'status'}
+            aria-labelledby="status-page-title"
+          >
+            <Heading className={styles.title} id="status-page-title">
               {title}
-            </h1>
-            <p className="max-w-xl font-mono text-sm leading-6 text-term-muted sm:text-base">
-              {description}
-            </p>
+            </Heading>
+            <p className={styles.description}>{description}</p>
           </div>
-          <div className="flex flex-wrap gap-3">
-            {primaryAction}
-            {secondaryAction}
-          </div>
+          {primaryAction || secondaryAction ? (
+            <div className={styles.actions}>
+              {primaryAction}
+              {secondaryAction}
+            </div>
+          ) : null}
         </div>
       </div>
-    </div>
+    </section>
   )
 }
 
@@ -95,11 +82,16 @@ export function StatusHomeAction({
   children?: ReactNode
 }) {
   return (
-    <Button asChild>
-      <Link href={href}>
-        <Home className="h-4 w-4" />
-        {children}
-      </Link>
-    </Button>
+    <Link
+      className={cn(
+        'warm-ledger__button',
+        'warm-ledger__button--primary',
+        styles.homeAction
+      )}
+      href={href}
+    >
+      <Home aria-hidden="true" className={styles.actionIcon} />
+      {children}
+    </Link>
   )
 }
