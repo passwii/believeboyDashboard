@@ -377,8 +377,8 @@ describe('ReturnAnalysisClient header 化渲染契约（BLF-834 / operations hea
     render(<ReturnAnalysisClient />)
     // 磁贴条（data 加载后）
     expect(await screen.findByText('退货单数')).toBeInTheDocument()
-    expect(screen.getByText('整体退货率')).toBeInTheDocument()
-    expect(screen.getByText('多件退货')).toBeInTheDocument()
+    expect(await screen.findByText('整体退货率')).toBeInTheDocument()
+    expect(await screen.findByText('多件退货')).toBeInTheDocument()
     // 表格行（rankings tab 默认）
     expect(await screen.findByText('SKU-001')).toBeInTheDocument()
   })
