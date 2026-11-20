@@ -47,6 +47,7 @@ type InventorySummary = {
   aging_sku_count: number
   over_aged_sku_count: number
   total_available_qty: number
+  total_sales_qty_7d: number
   total_age_0_90_qty: number
   total_age_91_180_qty: number
   total_age_181_270_qty: number
@@ -63,6 +64,7 @@ type InventoryItem = {
   asin: string | null
   product_name: string | null
   available_qty: number
+  sales_qty_7d: number
   age_0_90_qty: number
   age_91_180_qty: number
   age_181_270_qty: number
@@ -94,6 +96,8 @@ type InventoryResponse = {
   items: InventoryItem[]
   shipment_columns: ShipmentColumn[]
   shipment_column_totals: Record<string, number>
+  sales_window_start: string | null
+  sales_window_end: string | null
 }
 
 type SnapshotOption = {
@@ -194,6 +198,7 @@ export default function InventoryAnalysisPage() {
     aging_sku_count: 0,
     over_aged_sku_count: 0,
     total_available_qty: 0,
+    total_sales_qty_7d: 0,
     total_age_0_90_qty: 0,
     total_age_91_180_qty: 0,
     total_age_181_270_qty: 0,
@@ -207,6 +212,10 @@ export default function InventoryAnalysisPage() {
   const [exporting, setExporting] = useState(false)
   const [shipmentColumns, setShipmentColumns] = useState<ShipmentColumn[]>([])
   const [shipmentColumnTotals, setShipmentColumnTotals] = useState<Record<string, number>>({})
+  const [salesWindow, setSalesWindow] = useState<{ start: string | null; end: string | null }>({
+    start: null,
+    end: null,
+  })
 
   const currentProjectId = useMemo(() => {
     const parsed = Number(projectId)
@@ -215,6 +224,7 @@ export default function InventoryAnalysisPage() {
 
   const detailTotals = useMemo(
     () => ({
+      sales_qty_7d: summary.total_sales_qty_7d,
       available_qty: summary.total_available_qty,
       age_0_90_qty: summary.total_age_0_90_qty,
       age_91_180_qty: summary.total_age_91_180_qty,
@@ -224,6 +234,15 @@ export default function InventoryAnalysisPage() {
     }),
     [summary]
   )
+
+  // 7 天销量口径：T-1 至 T-8（T = 当前库存业务日期）。区间由后端给出，避免前后端各算一套。
+  const salesWindowRange = useMemo(() => {
+    if (!salesWindow.start || !salesWindow.end) return ''
+    return `${salesWindow.start} ~ ${salesWindow.end}`
+  }, [salesWindow])
+  const salesColumnHint = salesWindowRange
+    ? `T-1 至 T-8 销量合计（${salesWindowRange}）`
+    : 'T-1 至 T-8 销量合计'
 
   useEffect(() => {
     let active = true
@@ -268,6 +287,10 @@ export default function InventoryAnalysisPage() {
       setRows(payload.items)
       setShipmentColumns(payload.shipment_columns || [])
       setShipmentColumnTotals(payload.shipment_column_totals || {})
+      setSalesWindow({
+        start: payload.sales_window_start ?? null,
+        end: payload.sales_window_end ?? null,
+      })
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : '库存分析加载失败')
       setRows([])
@@ -342,6 +365,11 @@ export default function InventoryAnalysisPage() {
         { header: 'SKU', key: 'sku', width: 22 },
         { header: 'ASIN', key: 'asin', width: 18 },
         { header: '品名', key: 'product_name', width: 24 },
+        {
+          header: salesWindowRange ? `7天销量（${salesWindowRange}）` : '7天销量',
+          key: 'sales_qty_7d',
+          width: 14,
+        },
         { header: '库存', key: 'available_qty', width: 12 },
         { header: '0-90天', key: 'age_0_90_qty', width: 12 },
         { header: '91-180天', key: 'age_91_180_qty', width: 12 },
@@ -359,13 +387,29 @@ export default function InventoryAnalysisPage() {
       }))
       const columns = [...baseColumns, ...shipmentExportColumns]
 
-      const lastColumn = columns.length
+      // 列号统一按 1 起算，改列顺序时只改这里，避免散落的魔法数字错位。
+      const colIndex = (key: string) => columns.findIndex((column) => column.key === key) + 1
+      const numericColumnNumbers = new Set(
+        [
+          'sales_qty_7d',
+          'available_qty',
+          'age_0_90_qty',
+          'age_91_180_qty',
+          'age_181_270_qty',
+          'age_271_365_qty',
+          'age_365_plus_qty',
+        ].map(colIndex)
+      )
+      shipmentExportColumns.forEach((column) => numericColumnNumbers.add(colIndex(column.key)))
+      const stockStatusColumn = colIndex('stock_status')
+      const agingStatusColumn = colIndex('aging_status')
+      const isNumericColumn = (colNumber: number) => numericColumnNumbers.has(colNumber)
+
       worksheet.columns = columns.map((column) => ({
         header: column.header,
         key: column.key,
         width: column.width,
       }))
-      void lastColumn
 
       const headerRow = worksheet.getRow(1)
       headerRow.values = columns.map((column) => column.header)
@@ -383,6 +427,7 @@ export default function InventoryAnalysisPage() {
           row.sku,
           row.asin || '--',
           row.product_name || '--',
+          row.sales_qty_7d,
           row.available_qty,
           row.age_0_90_qty,
           row.age_91_180_qty,
@@ -400,20 +445,20 @@ export default function InventoryAnalysisPage() {
           cell.font = { name: 'Microsoft YaHei', color: { argb: 'FF0F172A' } }
           cell.alignment = {
             vertical: 'middle',
-            horizontal: (colNumber >= 4 && colNumber <= 9) || colNumber > 12 ? 'right' : 'left',
+            horizontal: isNumericColumn(colNumber) ? 'right' : 'left',
             wrapText: true,
           }
-          if ((colNumber >= 4 && colNumber <= 9) || colNumber > 12) {
+          if (isNumericColumn(colNumber)) {
             cell.numFmt = '#,##0'
           }
-          if (colNumber === 11) {
+          if (colNumber === stockStatusColumn) {
             cell.font = {
               name: 'Microsoft YaHei',
               bold: true,
               color: { argb: stockExcelFontColor(row.stock_status) },
             }
           }
-          if (colNumber === 12) {
+          if (colNumber === agingStatusColumn) {
             cell.font = {
               name: 'Microsoft YaHei',
               bold: true,
@@ -435,6 +480,7 @@ export default function InventoryAnalysisPage() {
         '合计',
         '--',
         '--',
+        detailTotals.sales_qty_7d,
         detailTotals.available_qty,
         detailTotals.age_0_90_qty,
         detailTotals.age_91_180_qty,
@@ -452,9 +498,9 @@ export default function InventoryAnalysisPage() {
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } }
         cell.alignment = {
           vertical: 'middle',
-          horizontal: (colNumber >= 4 && colNumber <= 9) || colNumber > 12 ? 'right' : 'left',
+          horizontal: isNumericColumn(colNumber) ? 'right' : 'left',
         }
-        if ((colNumber >= 4 && colNumber <= 9) || colNumber > 12) {
+        if (isNumericColumn(colNumber)) {
           cell.numFmt = '#,##0'
         }
       })
@@ -655,7 +701,7 @@ export default function InventoryAnalysisPage() {
     />
   )
 
-  const colCount = 12 + shipmentColumns.length
+  const colCount = 13 + shipmentColumns.length
 
   return (
     <div className={styles.page} aria-busy={projectsLoading || loading}>
@@ -700,6 +746,9 @@ export default function InventoryAnalysisPage() {
                 <TermHead>SKU</TermHead>
                 <TermHead>ASIN</TermHead>
                 <TermHead>品名</TermHead>
+                <TermHead numeric title={salesColumnHint}>
+                  7天销量
+                </TermHead>
                 <TermHead numeric>库存</TermHead>
                 <TermHead numeric>0-90天</TermHead>
                 <TermHead numeric>91-180天</TermHead>
@@ -756,6 +805,7 @@ export default function InventoryAnalysisPage() {
                       <TermCell className={styles.productCell} title={row.product_name || undefined}>
                         {row.product_name || '--'}
                       </TermCell>
+                      <TermCell numeric>{formatInt(row.sales_qty_7d)}</TermCell>
                       <TermCell numeric>{formatInt(row.available_qty)}</TermCell>
                       <TermCell numeric>{formatInt(row.age_0_90_qty)}</TermCell>
                       <TermCell numeric>{formatInt(row.age_91_180_qty)}</TermCell>
@@ -790,6 +840,7 @@ export default function InventoryAnalysisPage() {
                   ))}
                   <TermRow highlight className={styles.totalRow}>
                     <TermCell colSpan={3}>合计</TermCell>
+                    <TermCell numeric>{formatInt(detailTotals.sales_qty_7d)}</TermCell>
                     <TermCell numeric>{formatInt(detailTotals.available_qty)}</TermCell>
                     <TermCell numeric>{formatInt(detailTotals.age_0_90_qty)}</TermCell>
                     <TermCell numeric>{formatInt(detailTotals.age_91_180_qty)}</TermCell>

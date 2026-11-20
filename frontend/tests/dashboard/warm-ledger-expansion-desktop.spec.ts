@@ -236,6 +236,7 @@ function genericApiPayload(pathname: string) {
         aging_sku_count: 0,
         over_aged_sku_count: 0,
         total_available_qty: 0,
+        total_sales_qty_7d: 0,
         total_age_0_90_qty: 0,
         total_age_91_180_qty: 0,
         total_age_181_270_qty: 0,
@@ -247,6 +248,8 @@ function genericApiPayload(pathname: string) {
       items: [],
       shipment_columns: [],
       shipment_column_totals: {},
+      sales_window_start: null,
+      sales_window_end: null,
     }
   }
   if (normalizedPath.includes('/seasonal-replenishment-analysis')) {

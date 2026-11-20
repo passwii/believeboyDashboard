@@ -17828,6 +17828,10 @@
             "title": "Recommended Action Label",
             "type": "string"
           },
+          "sales_qty_7d": {
+            "title": "Sales Qty 7d",
+            "type": "integer"
+          },
           "shipment_quantities": {
             "additionalProperties": {
               "type": "integer"
@@ -17851,6 +17855,7 @@
           "country",
           "sku",
           "available_qty",
+          "sales_qty_7d",
           "age_0_90_qty",
           "age_91_180_qty",
           "age_181_270_qty",
@@ -17902,6 +17907,28 @@
               }
             ],
             "title": "Report Date"
+          },
+          "sales_window_end": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sales Window End"
+          },
+          "sales_window_start": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sales Window Start"
           },
           "shipment_column_totals": {
             "additionalProperties": {
@@ -17979,6 +18006,10 @@
           "total_available_qty": {
             "title": "Total Available Qty",
             "type": "integer"
+          },
+          "total_sales_qty_7d": {
+            "title": "Total Sales Qty 7d",
+            "type": "integer"
           }
         },
         "required": [
@@ -17992,7 +18023,8 @@
           "total_age_181_270_qty",
           "total_age_271_365_qty",
           "total_age_365_plus_qty",
-          "action_type_count"
+          "action_type_count",
+          "total_sales_qty_7d"
         ],
         "title": "InventoryAnalysisSummary",
         "type": "object"

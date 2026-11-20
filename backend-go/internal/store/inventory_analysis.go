@@ -5,9 +5,16 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/api/inventory_replenishment"
+)
+
+const (
+	// 7 天销量覆盖 T-1 至 T-8，含首尾共 8 个自然日（T = 页面业务日期 / 库存快照 report_date）。
+	inventoryAnalysisSalesWindowDays    = 8
+	inventoryAnalysisSalesWindowLagDays = 1
 )
 
 type inventoryAnalysisRow struct {
@@ -71,6 +78,13 @@ func (s *InventoryReplenishmentStore) GetInventoryAnalysis(ctx context.Context, 
 	}
 
 	orderedRows := mergeInventoryAnalysisRows(baseRows, aggregatedRows)
+
+	// 7 天销量：口径与每日分析一致（见 loadSKUSalesQtyWindow），区间以页面业务日期 T 为基准。
+	salesWindow := inventoryAnalysisSalesWindow(reportDate, country, time.Now())
+	salesQtyBySKU, err := loadSKUSalesQtyWindow(ctx, s.db, projectID, country, salesWindow)
+	if err != nil {
+		return inventory_replenishment.InventoryAnalysisResponse{}, err
+	}
 
 	actionSet := make(map[string]struct{})
 	for _, row := range orderedRows {
@@ -189,6 +203,8 @@ func (s *InventoryReplenishmentStore) GetInventoryAnalysis(ctx context.Context, 
 		productName := lookupInventoryProductName(skuNameMap, asinNameMap, row.SKU, row.ASIN)
 		shipmentQuantities := make(map[string]int64)
 		skuKey := strings.ToLower(strings.TrimSpace(row.SKU))
+		salesQty7d := salesQtyBySKU[skuKey]
+		summary.TotalSalesQty7d += salesQty7d
 		for _, shipmentNo := range relevantShipmentNos {
 			if qty := qtyIndex[shipmentNo][skuKey]; qty > 0 {
 				shipmentQuantities[shipmentNo] = qty
@@ -202,6 +218,7 @@ func (s *InventoryReplenishmentStore) GetInventoryAnalysis(ctx context.Context, 
 			ASIN:                   row.ASIN,
 			ProductName:            productName,
 			AvailableQty:           row.AvailableQty,
+			SalesQty7d:             salesQty7d,
 			Age0To90Qty:            row.Age0To90Qty,
 			Age91To180Qty:          row.Age91To180Qty,
 			Age181To270Qty:         row.Age181To270Qty,
@@ -225,7 +242,45 @@ func (s *InventoryReplenishmentStore) GetInventoryAnalysis(ctx context.Context, 
 		Items:                items,
 		ShipmentColumns:      shipmentColumns,
 		ShipmentColumnTotals: shipmentTotals,
+		SalesWindowStart:     &salesWindow.StartDate,
+		SalesWindowEnd:       &salesWindow.EndDate,
 	}, nil
+}
+
+// inventoryAnalysisSalesWindow 以页面业务日期 T（库存快照 report_date）为基准，
+// 返回 T-1 至 T-8 的自然日区间；没有可用快照时以站点时区的「今天」为 T。
+func inventoryAnalysisSalesWindow(reportDate *string, country string, now time.Time) SKUSalesWindow {
+	anchor := now
+	if location := countryLocation(country); location != nil {
+		anchor = now.In(location)
+	}
+	if reportDate != nil {
+		if parsed, ok := parseSalesWindowAnchor(*reportDate); ok {
+			anchor = parsed
+		}
+	}
+	end := anchor.AddDate(0, 0, -inventoryAnalysisSalesWindowLagDays)
+	start := end.AddDate(0, 0, -(inventoryAnalysisSalesWindowDays - 1))
+	return SKUSalesWindow{
+		StartDate: start.Format("2006-01-02"),
+		EndDate:   end.Format("2006-01-02"),
+	}
+}
+
+// parseSalesWindowAnchor 解析后端返回的业务日期（date 文本，兼容带时间的 ISO 串）。
+func parseSalesWindowAnchor(value string) (time.Time, bool) {
+	datePart := strings.TrimSpace(value)
+	if index := strings.IndexAny(datePart, "T "); index > 0 {
+		datePart = datePart[:index]
+	}
+	if datePart == "" {
+		return time.Time{}, false
+	}
+	parsed, err := time.Parse("2006-01-02", datePart)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return parsed, true
 }
 
 func (s *InventoryReplenishmentStore) loadInventoryAnalysisBaseSKUs(ctx context.Context, projectName, country string) ([]inventoryAnalysisRow, error) {
