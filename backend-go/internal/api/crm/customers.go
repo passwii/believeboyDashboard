@@ -112,6 +112,22 @@ func (handler *Handler) CreateCustomer(w http.ResponseWriter, r *http.Request) {
 		httpapi.WriteDetail(w, http.StatusUnprocessableEntity, "contact_name is too long")
 		return
 	}
+	if input.ContactPhone != nil {
+		trimmed := strings.TrimSpace(*input.ContactPhone)
+		input.ContactPhone = &trimmed
+		if err := validateLength(trimmed, 0, 50, "contact_phone"); err != nil {
+			WriteError(w, err)
+			return
+		}
+	}
+	if input.ContactEmail != nil {
+		trimmed := strings.TrimSpace(*input.ContactEmail)
+		input.ContactEmail = &trimmed
+		if err := validateLength(trimmed, 0, 200, "contact_email"); err != nil {
+			WriteError(w, err)
+			return
+		}
+	}
 	item, err := handler.store.CreateCustomer(r.Context(), input, identity.UserID)
 	if err != nil {
 		WriteError(w, err)
@@ -210,6 +226,34 @@ func (handler *Handler) UpdateCustomer(w http.ResponseWriter, r *http.Request) {
 		trimmed := strings.TrimSpace(*input.Name.Value)
 		input.Name.Value = &trimmed
 		if err := validateLength(trimmed, 1, 200, "name"); err != nil {
+			WriteError(w, err)
+			return
+		}
+	}
+	if input.ContactName.Set {
+		if input.ContactName.Value == nil {
+			WriteError(w, NewAPIError(http.StatusUnprocessableEntity, "contact_name must contain at least 1 character"))
+			return
+		}
+		trimmed := strings.TrimSpace(*input.ContactName.Value)
+		input.ContactName.Value = &trimmed
+		if err := validateLength(trimmed, 1, 100, "contact_name"); err != nil {
+			WriteError(w, err)
+			return
+		}
+	}
+	if input.ContactPhone.Set && input.ContactPhone.Value != nil {
+		trimmed := strings.TrimSpace(*input.ContactPhone.Value)
+		input.ContactPhone.Value = &trimmed
+		if err := validateLength(trimmed, 0, 50, "contact_phone"); err != nil {
+			WriteError(w, err)
+			return
+		}
+	}
+	if input.ContactEmail.Set && input.ContactEmail.Value != nil {
+		trimmed := strings.TrimSpace(*input.ContactEmail.Value)
+		input.ContactEmail.Value = &trimmed
+		if err := validateLength(trimmed, 0, 200, "contact_email"); err != nil {
 			WriteError(w, err)
 			return
 		}

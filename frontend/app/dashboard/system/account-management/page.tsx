@@ -78,10 +78,14 @@ const NEXT_ROLE_TYPE: Record<Exclude<UserRoleType, 'admin'>, Exclude<UserRoleTyp
   operator: 'businessdev',
   businessdev: 'operator',
 }
+const USER_PAGE_SIZE = 50
 
 export default function AccountManagementPage() {
   const { notify } = useNotifications()
   const [items, setItems] = useState<UserItem[]>([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
+  const pageCount = Math.max(1, Math.ceil(total / USER_PAGE_SIZE))
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
 
@@ -108,15 +112,33 @@ export default function AccountManagementPage() {
   const [deleteUser, setDeleteUser] = useState<UserItem | null>(null)
   const [deleting, setDeleting] = useState(false)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (targetPage = page) => {
     setLoading(true)
     try {
-      const response = await fetch('/api/admin/users', { cache: 'no-store' })
-      const data = (await response.json()) as { items?: UserItem[]; message?: string }
+      const query = new URLSearchParams({
+        page: String(targetPage),
+        page_size: String(USER_PAGE_SIZE),
+      })
+      const response = await fetch(`/api/admin/users?${query}`, { cache: 'no-store' })
+      const data = (await response.json()) as {
+        items?: UserItem[]
+        total?: number
+        page?: number
+        message?: string
+      }
       if (!response.ok) {
         throw new Error(data.message || '加载失败')
       }
+      const nextTotal = data.total ?? data.items?.length ?? 0
+      const lastPage = Math.max(1, Math.ceil(nextTotal / USER_PAGE_SIZE))
+      if (targetPage > lastPage) {
+        setTotal(nextTotal)
+        setPage(lastPage)
+        return
+      }
       setItems(data.items || [])
+      setTotal(nextTotal)
+      if (data.page && data.page !== page) setPage(data.page)
     } catch (err) {
       notify({
         type: 'error',
@@ -126,7 +148,7 @@ export default function AccountManagementPage() {
     } finally {
       setLoading(false)
     }
-  }, [notify])
+  }, [notify, page])
 
   useEffect(() => {
     void load()
@@ -191,7 +213,12 @@ export default function AccountManagementPage() {
       if (!response.ok || !data.item) {
         throw new Error(data.message || '创建失败')
       }
-      setItems((prev) => [data.item!, ...prev])
+      setTotal((prev) => prev + 1)
+      if (page === 1) {
+        setItems((prev) => [data.item!, ...prev].slice(0, USER_PAGE_SIZE))
+      } else {
+        setPage(1)
+      }
       setCreateOpen(false)
       setCreateName('')
       setCreateFullName('')
@@ -297,7 +324,12 @@ export default function AccountManagementPage() {
         const data = (await response.json().catch(() => ({}))) as { message?: string }
         throw new Error(data.message || '删除失败')
       }
-      setItems((prev) => prev.filter((item) => item.id !== deleteUser.id))
+      setTotal((prev) => Math.max(0, prev - 1))
+      if (page > 1 && items.length === 1) {
+        setPage(page - 1)
+      } else {
+        setItems((prev) => prev.filter((item) => item.id !== deleteUser.id))
+      }
       setDeleteOpen(false)
       notify({ type: 'success', title: '账号已删除' })
     } catch (err) {
@@ -445,6 +477,25 @@ export default function AccountManagementPage() {
             </tbody>
           </table>
         </div>
+        <nav className={styles.panelActions} aria-label="账号列表分页">
+          <span aria-live="polite">
+            第 {page} / {pageCount} 页，共 {total} 个账号
+          </span>
+          <WarmButton
+            variant="secondary"
+            disabled={loading || page <= 1}
+            onClick={() => setPage((current) => Math.max(1, current - 1))}
+          >
+            上一页
+          </WarmButton>
+          <WarmButton
+            variant="secondary"
+            disabled={loading || page >= pageCount}
+            onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+          >
+            下一页
+          </WarmButton>
+        </nav>
       </section>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>

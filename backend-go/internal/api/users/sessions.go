@@ -20,6 +20,20 @@ type SessionRevoker interface {
 	DeleteUserSessions(ctx context.Context, userID string) (int, error)
 }
 
+func (h *Handler) revokeUserSessions(w http.ResponseWriter, r *http.Request, userID string) bool {
+	if h.sessionRevoker == nil {
+		// Direct handlers without a configured revoker are retained for
+		// isolated construction. The gateway wires this dependency whenever
+		// the users/auth modules are enabled.
+		return true
+	}
+	if _, err := h.sessionRevoker.DeleteUserSessions(r.Context(), userID); err != nil {
+		httpapi.WriteDetail(w, http.StatusServiceUnavailable, "Session revocation unavailable")
+		return false
+	}
+	return true
+}
+
 type SessionRevocationInput struct {
 	UserID   string
 	Operator *string

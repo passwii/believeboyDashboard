@@ -69,7 +69,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	pagination := httpapi.ParsePagination(r, 20, 200)
-	items, _, err := h.store.List(r.Context(), pagination.Page, pagination.PageSize)
+	items, total, err := h.store.List(r.Context(), pagination.Page, pagination.PageSize)
 	if err != nil {
 		httpapi.WriteInternalServerError(w)
 		return
@@ -78,7 +78,24 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	for _, item := range items {
 		responseItems = append(responseItems, serializeUser(item))
 	}
+	if wantsPaginationMetadata(r) {
+		_ = httpapi.WriteJSON(w, http.StatusOK, PaginatedListResponse{
+			Items:    responseItems,
+			Total:    total,
+			Page:     pagination.Page,
+			PageSize: pagination.PageSize,
+		})
+		return
+	}
 	_ = httpapi.WriteJSON(w, http.StatusOK, ListResponse{Items: responseItems})
+}
+
+// wantsPaginationMetadata mirrors the include_total convention used by the
+// shipment list: metadata is opt-in so the legacy items-only contract stays
+// byte-identical for consumers that have not asked for totals.
+func wantsPaginationMetadata(r *http.Request) bool {
+	value := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("include_total")))
+	return value == "true" || value == "1"
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
@@ -156,6 +173,12 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		isAdmin := *input.RoleType == "admin"
 		input.IsAdmin = &isAdmin
 	}
+	if input.Name != nil || input.FullName != nil || input.IsAdmin != nil ||
+		input.IsActive != nil || input.RoleType != nil || input.Password != nil {
+		if !h.revokeUserSessions(w, r, userID) {
+			return
+		}
+	}
 
 	updated, err := h.store.Update(r.Context(), userID, input)
 	if err != nil {
@@ -206,6 +229,9 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.EqualFold(before.Name, "yawei") || strings.HasPrefix(strings.ToLower(before.Email), "yawei@") {
 		httpapi.WriteDetail(w, http.StatusForbidden, "Yawei 账号不允许删除")
+		return
+	}
+	if !h.revokeUserSessions(w, r, userID) {
 		return
 	}
 

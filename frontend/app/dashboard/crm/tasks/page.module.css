@@ -34,6 +34,19 @@
   background: var(--warm-ledger-color-panel);
 }
 
+.loadMore {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--warm-ledger-space-3);
+  padding: var(--warm-ledger-space-4) 0;
+}
+
+.loadMoreError {
+  color: var(--warm-ledger-color-negative);
+  font-size: var(--warm-ledger-font-size-label);
+}
+
 @media (max-width: 640px) {
   .toolbarControls {
     flex-direction: column;

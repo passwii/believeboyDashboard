@@ -56,7 +56,7 @@ describe('手动核对异步按钮', () => {
     })
     const { container } = render(<ManualReconcileTab />)
 
-    fireEvent.change(container.querySelector('input[accept=".xlsx,.xls"]')!, {
+    fireEvent.change(container.querySelector('input[accept=".xlsx"]')!, {
       target: { files: [new File(['excel'], 'report.xlsx')] },
     })
     fireEvent.change(container.querySelector('input[accept=".pdf"]')!, {

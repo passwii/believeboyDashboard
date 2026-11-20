@@ -8,7 +8,7 @@ export type ProjectContextResponse = {
 }
 
 export type ProjectContextUpdate = {
-  project_context?: Record<string, string>
+  project_context?: Record<string, string | null>
   sku_context?: Record<string, unknown>
 }
 

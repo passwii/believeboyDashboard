@@ -11,8 +11,8 @@ type Registrar struct {
 	handler *Handler
 }
 
-func NewRegistrar(store Store, auditor audit.Service) *Registrar {
-	return &Registrar{handler: NewHandler(store, auditor)}
+func NewRegistrar(store Store, auditor audit.Service, options ...Option) *Registrar {
+	return &Registrar{handler: NewHandler(store, auditor, options...)}
 }
 
 func (*Registrar) ModuleName() string { return "platform_revenues" }

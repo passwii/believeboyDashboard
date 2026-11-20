@@ -31,7 +31,7 @@ function toFrontendUser(item: UserItem) {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await requireAdminSession()
   if (!session) {
     return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
@@ -40,13 +40,37 @@ export async function GET() {
   const apiKeyOrResponse = getBackendApiKeyOrFail()
   if (apiKeyOrResponse.error) return apiKeyOrResponse.error
 
+  const url = new URL(request.url)
+  const requestedPage = Number.parseInt(url.searchParams.get('page') || '1', 10)
+  const requestedPageSize = Number.parseInt(url.searchParams.get('page_size') || '50', 10)
+  const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
+  const pageSize =
+    Number.isInteger(requestedPageSize) && requestedPageSize > 0
+      ? Math.min(requestedPageSize, 200)
+      : 50
+  const query = new URLSearchParams({
+    page: String(page),
+    page_size: String(pageSize),
+    include_total: 'true',
+  })
+
   try {
-    const data = await backendFetchJson<{ items: UserItem[] }>('/api/v1/system-management/users', {
+    const data = await backendFetchJson<{
+      items: UserItem[]
+      total: number
+      page: number
+      page_size: number
+    }>(`/api/v1/system-management/users?${query}`, {
       method: 'GET',
       headers: buildBackendAuthHeaders(session, { apiKey: apiKeyOrResponse.apiKey }),
       cache: 'no-store',
     })
-    return NextResponse.json({ items: data.items.map(toFrontendUser) })
+    return NextResponse.json({
+      items: data.items.map(toFrontendUser),
+      total: data.total,
+      page: data.page,
+      pageSize: data.page_size,
+    })
   } catch (err) {
     return NextResponse.json({ message: normalizeErrorMessage(err, '加载失败') }, { status: 500 })
   }

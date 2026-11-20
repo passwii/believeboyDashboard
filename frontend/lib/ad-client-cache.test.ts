@@ -162,11 +162,11 @@ describe('具名封装的 URL 组装', () => {
     )
   })
 
-  it('ad-upload-files 按项目/国家拼 URL', async () => {
+  it('ad-upload-files 按项目/国家分页拉全量', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse([]))
     await fetchAdUploadFilesCached('3', 'DE', SESSION)
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/backend/api/v1/internal/ad-data/projects/3/ad-upload-files?country=DE',
+      '/api/backend/api/v1/internal/ad-data/projects/3/ad-upload-files?country=DE&limit=500&offset=0',
       expect.anything()
     )
   })

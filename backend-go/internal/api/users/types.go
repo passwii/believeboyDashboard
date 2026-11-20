@@ -45,8 +45,20 @@ type UserItem struct {
 	UpdatedAt string  `json:"updated_at"`
 }
 
+// ListResponse is the legacy items-only shape. Callers that need pagination
+// metadata must send include_total=true and receive PaginatedListResponse,
+// because existing device clients parse this contract without the extra keys.
 type ListResponse struct {
 	Items []UserItem `json:"items"`
+}
+
+// PaginatedListResponse adds the pagination metadata the account-management
+// page needs to render real pages instead of a silently truncated first page.
+type PaginatedListResponse struct {
+	Items    []UserItem `json:"items"`
+	Total    int        `json:"total"`
+	Page     int        `json:"page"`
+	PageSize int        `json:"page_size"`
 }
 
 type ItemResponse struct {

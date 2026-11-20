@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 
-import { requireUserSession } from '@/lib/auth/server'
+import { getValidatedServerAuthSession } from '@/lib/auth/server'
 import { tryCachedBackendGet } from '@/lib/server/backend-cache'
 import { normalizeErrorMessage } from '@/lib/error-utils'
 import {
@@ -17,10 +17,17 @@ import { getProxyTimeoutMs } from '@/lib/server/backend-proxy-timeout-policy'
 
 async function proxy(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params
-  const session = await requireUserSession()
-  if (!session) {
+  const validation = await getValidatedServerAuthSession()
+  if (validation.state === 'unavailable') {
+    return NextResponse.json(
+      { message: '登录状态校验服务暂不可用，请稍后重试。' },
+      { status: 503 }
+    )
+  }
+  if (validation.state !== 'valid' || !validation.session) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
   }
+  const session = validation.session
 
   const joinedPath = Array.isArray(path) ? path.join('/') : ''
   if (!joinedPath) {

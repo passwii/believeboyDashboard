@@ -2,7 +2,9 @@ package store
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,6 +29,168 @@ type SessionRedisClient interface {
 
 type SessionRedisValidatorClient interface {
 	Eval(ctx context.Context, script string, keys []string, args ...any) *redis.Cmd
+}
+
+type SessionRedisWriterClient interface {
+	Set(ctx context.Context, key string, value interface{}, expiration time.Duration) *redis.StatusCmd
+}
+
+type SessionRedisReaderClient interface {
+	Get(ctx context.Context, key string) *redis.StringCmd
+}
+
+type SessionRedisStoreClient interface {
+	SessionRedisClient
+	SessionRedisValidatorClient
+	SessionRedisWriterClient
+	SessionRedisReaderClient
+}
+
+// RedisUserSessionStore owns the web-session lifecycle. It uses the same key
+// layout as the legacy revoker/validator so Amazon Review Tracking and explicit
+// account revocation see the sessions created by /auth/login.
+type RedisUserSessionStore struct {
+	client SessionRedisStoreClient
+	prefix string
+	ttl    time.Duration
+}
+
+func NewRedisUserSessionStore(
+	client SessionRedisStoreClient,
+	keyPrefix string,
+	ttl time.Duration,
+) *RedisUserSessionStore {
+	if client == nil {
+		return nil
+	}
+	if ttl <= 0 {
+		ttl = defaultSessionTTL
+	}
+	prefix := strings.Trim(strings.TrimSpace(keyPrefix), ":")
+	if prefix == "" {
+		prefix = "bb"
+	}
+	return &RedisUserSessionStore{client: client, prefix: prefix, ttl: ttl}
+}
+
+func (store *RedisUserSessionStore) sessionKey(userID, sessionID string) (string, error) {
+	if store == nil || store.client == nil {
+		return "", fmt.Errorf("session redis client is nil")
+	}
+	if strings.TrimSpace(userID) == "" || strings.TrimSpace(sessionID) == "" {
+		return "", fmt.Errorf("session identity is empty")
+	}
+	if strings.ContainsAny(store.prefix, "*?[]\\") {
+		return "", fmt.Errorf("session key prefix contains wildcard characters")
+	}
+	return store.prefix + ":session:" + strings.TrimSpace(userID) + ":" + strings.TrimSpace(sessionID), nil
+}
+
+func (store *RedisUserSessionStore) CreateUserSession(
+	ctx context.Context,
+	userID string,
+	sessionID string,
+	issuedAt time.Time,
+) error {
+	if ctx == nil {
+		return fmt.Errorf("session creation context is nil")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	key, err := store.sessionKey(userID, sessionID)
+	if err != nil {
+		return err
+	}
+	if issuedAt.IsZero() {
+		return fmt.Errorf("session issue time is empty")
+	}
+	return store.client.Set(ctx, key, strconv.FormatInt(issuedAt.UTC().UnixNano(), 10), store.ttl).Err()
+}
+
+func (store *RedisUserSessionStore) ValidateSession(
+	ctx context.Context,
+	userID string,
+	sessionID string,
+) (bool, error) {
+	if ctx == nil {
+		return false, fmt.Errorf("session validation context is nil")
+	}
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	key, err := store.sessionKey(userID, sessionID)
+	if err != nil {
+		return false, err
+	}
+	valid, err := store.client.Eval(
+		ctx,
+		validateSessionLua,
+		[]string{key},
+		int64(store.ttl.Seconds()),
+	).Int64()
+	if err != nil {
+		return false, err
+	}
+	return valid == 1, nil
+}
+
+func (store *RedisUserSessionStore) SessionIssuedAt(
+	ctx context.Context,
+	userID string,
+	sessionID string,
+) (time.Time, bool, error) {
+	valid, err := store.ValidateSession(ctx, userID, sessionID)
+	if err != nil || !valid {
+		return time.Time{}, valid, err
+	}
+	key, err := store.sessionKey(userID, sessionID)
+	if err != nil {
+		return time.Time{}, false, err
+	}
+	value, err := store.client.Get(ctx, key).Result()
+	if errors.Is(err, redis.Nil) {
+		return time.Time{}, false, nil
+	}
+	if err != nil {
+		return time.Time{}, false, err
+	}
+	nanoseconds, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || nanoseconds <= 0 {
+		// Older Redis session records may only contain "1". The browser's
+		// server-signed JWT issue time is used by auth/me for password-change
+		// checks when a stored issue timestamp is unavailable.
+		return time.Time{}, true, nil
+	}
+	return time.Unix(0, nanoseconds).UTC(), true, nil
+}
+
+func (store *RedisUserSessionStore) DeleteUserSession(
+	ctx context.Context,
+	userID string,
+	sessionID string,
+) error {
+	if ctx == nil {
+		return fmt.Errorf("session deletion context is nil")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	key, err := store.sessionKey(userID, sessionID)
+	if err != nil {
+		return err
+	}
+	return store.client.Del(ctx, key).Err()
+}
+
+func (store *RedisUserSessionStore) DeleteUserSessions(
+	ctx context.Context,
+	userID string,
+) (int, error) {
+	if store == nil || store.client == nil {
+		return 0, fmt.Errorf("session redis client is nil")
+	}
+	return NewRedisSessionRevoker(store.client, store.prefix).DeleteUserSessions(ctx, userID)
 }
 
 type RedisSessionRevoker struct {

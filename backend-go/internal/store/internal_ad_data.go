@@ -248,9 +248,13 @@ func (s *InternalAdDataStore) QueryRaw(ctx context.Context, filter internal_ad_d
 		defer fRows.Close()
 		for fRows.Next() {
 			var fid int64
-			if err := fRows.Scan(&fid); err == nil {
-				fileIDs = append(fileIDs, fid)
+			if err := fRows.Scan(&fid); err != nil {
+				return nil, err
 			}
+			fileIDs = append(fileIDs, fid)
+		}
+		if err := fRows.Err(); err != nil {
+			return nil, err
 		}
 	}
 
@@ -265,6 +269,16 @@ func (s *InternalAdDataStore) QueryRaw(ctx context.Context, filter internal_ad_d
 				DateRange: []string{periodInfo.StartDate, periodInfo.EndDate},
 			},
 		}, nil
+	}
+
+	var totalRows int
+	countQuery := fmt.Sprintf(`
+		select count(*)
+		from %s
+		where source_file_id = any($1)
+	`, mapping.tableName)
+	if err := s.db.QueryRow(ctx, countQuery, fileIDs).Scan(&totalRows); err != nil {
+		return nil, err
 	}
 
 	orderBy := "report_end_date"
@@ -309,7 +323,7 @@ func (s *InternalAdDataStore) QueryRaw(ctx context.Context, filter internal_ad_d
 			var rStart, rEnd, createdAt string
 			var rawRow map[string]any
 			if err := rows.Scan(&id, &sourceFileID, &rStart, &rEnd, &createdAt, &rawRow); err != nil {
-				continue
+				return nil, err
 			}
 			rowMap := rawRow
 			if rowMap == nil {
@@ -322,6 +336,9 @@ func (s *InternalAdDataStore) QueryRaw(ctx context.Context, filter internal_ad_d
 			rowMap["created_at"] = createdAt
 			data = append(data, rowMap)
 		}
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
 	}
 	if data == nil {
 		data = []map[string]any{}
@@ -333,7 +350,7 @@ func (s *InternalAdDataStore) QueryRaw(ctx context.Context, filter internal_ad_d
 		Country:   filter.Country,
 		Data:      data,
 		Summary: internal_ad_data.RawSummary{
-			TotalRows: len(data),
+			TotalRows: totalRows,
 			DateRange: []string{periodInfo.StartDate, periodInfo.EndDate},
 		},
 	}, nil

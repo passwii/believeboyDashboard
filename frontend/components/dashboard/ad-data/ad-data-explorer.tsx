@@ -57,6 +57,7 @@ type UploadFileItem = {
 type SortState = { key: string; dir: 'asc' | 'desc' } | null
 
 const PAGE_SIZE_OPTIONS = [50, 100, 200, 500]
+const RAW_DATA_FETCH_PAGE_SIZE = 10_000
 
 /** 数值列（int/money/percent/ratio）→ 等宽右对齐 */
 const isNumericCol = (col: AdDataColumn) =>
@@ -204,38 +205,54 @@ export function AdDataExplorer() {
     setTotalRowsResult((current) => current?.signature === querySignature ? current : null)
     setErrorResult((current) => current?.signature === querySignature ? current : null)
     setLoading(true)
-    const query = new URLSearchParams({
+    const baseQuery = new URLSearchParams({
       period: 'custom',
       country,
-      limit: '10000',
       start_date: dateFrom || '2000-01-01',
       end_date: dateTo || '2100-12-31',
     })
-    fetchAdRawCached<{ data: RawRow[]; summary?: { total_rows?: number } }>(
-      projectId,
-      config.endpoint,
-      query,
-      session
-    )
-      .then((payload) => {
+    const loadAllRows = async () => {
+      const allRows: RawRow[] = []
+      let totalRowCount = 0
+      let offset = 0
+
+      try {
+        while (active) {
+          const query = new URLSearchParams(baseQuery.toString())
+          query.set('limit', String(RAW_DATA_FETCH_PAGE_SIZE))
+          query.set('offset', String(offset))
+          const payload = await fetchAdRawCached<{
+            data: RawRow[]
+            summary?: { total_rows?: number }
+          }>(projectId, config.endpoint, query, session)
+          if (!active) return
+
+          const pageRows = payload.data ?? []
+          allRows.push(...pageRows)
+          totalRowCount = payload.summary?.total_rows ?? Math.max(totalRowCount, allRows.length)
+
+          if (pageRows.length < RAW_DATA_FETCH_PAGE_SIZE) break
+          offset += RAW_DATA_FETCH_PAGE_SIZE
+        }
+
         if (!active) return
-        setRowsResult({ signature: querySignature, value: payload.data ?? [] })
+        setRowsResult({ signature: querySignature, value: allRows })
         setTotalRowsResult({
           signature: querySignature,
-          value: payload.summary?.total_rows ?? payload.data?.length ?? 0,
+          value: Math.max(totalRowCount, allRows.length),
         })
         setPage(1)
-      })
-      .catch((fetchError) => {
+      } catch (fetchError) {
         if (!active) return
         setErrorResult({
           signature: querySignature,
           message: fetchError instanceof Error ? fetchError.message : '数据加载失败',
         })
-      })
-      .finally(() => {
+      } finally {
         if (active) setLoading(false)
-      })
+      }
+    }
+    void loadAllRows()
     return () => {
       active = false
     }

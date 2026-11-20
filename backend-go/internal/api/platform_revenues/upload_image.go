@@ -18,6 +18,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/passwii/believeboyDashboard/backend-go/internal/auth"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/blob"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/httpapi"
 	_ "golang.org/x/image/webp"
@@ -50,9 +51,46 @@ func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	identity, authenticated := auth.UserContextFromContext(r.Context())
 	projectName, filename, declaredType, data, ok := readPaymentScreenshotUpload(w, r)
 	if !ok {
 		return
+	}
+
+	// Production routes are wrapped by RequireAPIKey, which always installs a
+	// user context. Keep direct handler calls without that middleware working
+	// for existing unit-level callers; authenticated requests must fail closed.
+	if authenticated {
+		if strings.TrimSpace(identity.UserID) == "" {
+			httpapi.WriteDetail(w, http.StatusUnauthorized, "Not authenticated")
+			return
+		}
+		if h.projectReader == nil {
+			httpapi.WriteDetail(w, http.StatusServiceUnavailable, "Project authorization is not configured")
+			return
+		}
+		project, err := h.projectReader.GetProjectByName(r.Context(), projectName)
+		if err != nil {
+			httpapi.WriteInternalServerError(w)
+			return
+		}
+		if project == nil {
+			httpapi.WriteDetail(w, http.StatusNotFound, "项目不存在")
+			return
+		}
+		if err := h.store.VerifyProjectAccess(r.Context(), project.ID, identity.Operator, identity.IsAdmin); err != nil {
+			if errors.Is(err, ErrProjectNotFound) {
+				httpapi.WriteDetail(w, http.StatusNotFound, "项目不存在")
+				return
+			}
+			if errors.Is(err, ErrProjectForbidden) {
+				httpapi.WriteDetail(w, http.StatusForbidden, "无权限在该项目下上传图片")
+				return
+			}
+			httpapi.WriteInternalServerError(w)
+			return
+		}
+		projectName = project.Name
 	}
 
 	primary, primaryType, extension, thumbnail, err := preparePaymentScreenshot(data, declaredType)

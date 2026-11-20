@@ -14,10 +14,7 @@ export async function POST(request: Request) {
   const apiKeyOrResponse = getBackendApiKeyOrFail()
   if (apiKeyOrResponse.error) return apiKeyOrResponse.error
 
-  // Re-pack the multipart body so we can carry the original filename +
-  // content-type forward — ``request.formData()`` consumes the stream and
-  // we lose the boundary when we re-serialise. Reassembling from the raw
-  // body keeps the multipart envelope intact.
+  // Forward the original multipart bytes unchanged and preserve their boundary.
   const contentType = request.headers.get('content-type') || ''
   if (!contentType.toLowerCase().startsWith('multipart/form-data')) {
     return NextResponse.json({ message: '请求必须是 multipart/form-data' }, { status: 400 })
@@ -33,8 +30,7 @@ export async function POST(request: Request) {
       method: 'POST',
       headers: buildBackendAuthHeaders(session, {
         apiKey: apiKeyOrResponse.apiKey,
-        // Do NOT set Content-Type — fetch will populate it with the
-        // correct multipart boundary when given a Buffer body.
+        contentType,
       }),
       body,
       cache: 'no-store',

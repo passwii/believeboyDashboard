@@ -28,6 +28,7 @@ func (s *UserKeyStore) ResolveUserKey(ctx context.Context, keyHash string) (*aut
 		 from public.user_api_keys as k
 		 join public.user_accounts as u on u.id = k.user_id
 		 where k.key_hash = $1
+		   and u.is_active = true
 		 limit 1`,
 		keyHash,
 	)

@@ -593,6 +593,12 @@ function stripUndefined(obj: Record<string, unknown>): Record<string, unknown> {
   return out
 }
 
+/** HTML date inputs return YYYY-MM-DD; Go time.Time JSON decoding needs RFC3339. */
+function serializeCRMDateTime(value?: string): string | undefined {
+  if (!value) return undefined
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00Z` : value
+}
+
 /** 客户创建/更新入参。contact* 入站（后端建主联系人，修复丢失联系人 bug）。 */
 export function toCustomerPayload(input: Partial<CustomerInput>): Record<string, unknown> {
   return stripUndefined({
@@ -678,7 +684,7 @@ export function toFollowPayload(input: FollowInput): Record<string, unknown> {
     entity_id: Number(input.entityId),
     type: input.type,
     content: input.content,
-    next_follow_at: input.nextFollowAt,
+    next_follow_at: serializeCRMDateTime(input.nextFollowAt),
   })
 }
 
@@ -714,7 +720,7 @@ export function toTaskPayload(input: Partial<TaskInput>): Record<string, unknown
   return stripUndefined({
     title: input.title,
     description: input.description,
-    due_date: input.dueDate,
+    due_date: serializeCRMDateTime(input.dueDate),
     priority: input.priority,
     type: input.type,
     owner_id: input.ownerId,

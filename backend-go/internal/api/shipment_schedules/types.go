@@ -223,18 +223,22 @@ type ShipmentBatchHiddenDeleteRequest struct {
 }
 
 type ShipmentFilter struct {
-	ProjectID      *int64
-	ProjectIDs     []int64
-	Operator       string
-	IsAdmin        bool
-	Country        *string
-	Keyword        *string
-	ShipmentStatus *string
-	StartDate      *string
-	EndDate        *string
-	Page           int
-	PageSize       int
-	IncludeTotal   bool
+	ProjectID        *int64
+	ProjectIDs       []int64
+	Operator         string
+	IsAdmin          bool
+	Country          *string
+	Keyword          *string
+	ShipmentStatus   *string
+	ShipmentStatuses []string
+	ShipmentNos      []string
+	StartDate        *string
+	EndDate          *string
+	CreatedDateFrom  *string
+	CreatedDateTo    *string
+	Page             int
+	PageSize         int
+	IncludeTotal     bool
 }
 
 var (

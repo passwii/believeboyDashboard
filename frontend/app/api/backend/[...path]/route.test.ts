@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   requireUserSession: vi.fn(),
+  getValidatedServerAuthSession: vi.fn(),
   tryCachedBackendGet: vi.fn(),
   normalizeErrorMessage: vi.fn((error: unknown, fallback: string) =>
     error instanceof Error ? error.message : fallback
@@ -14,7 +15,10 @@ const mocks = vi.hoisted(() => ({
   appendApiKeyQuery: vi.fn((search: string) => search),
 }))
 
-vi.mock('@/lib/auth/server', () => ({ requireUserSession: mocks.requireUserSession }))
+vi.mock('@/lib/auth/server', () => ({
+  requireUserSession: mocks.requireUserSession,
+  getValidatedServerAuthSession: mocks.getValidatedServerAuthSession,
+}))
 vi.mock('@/lib/server/backend-cache', () => ({ tryCachedBackendGet: mocks.tryCachedBackendGet }))
 vi.mock('@/lib/error-utils', () => ({ normalizeErrorMessage: mocks.normalizeErrorMessage }))
 vi.mock('@/lib/server/backend-proxy', () => ({
@@ -41,6 +45,10 @@ describe('backend proxy cancellation and overview deadline', () => {
     vi.clearAllMocks()
     vi.restoreAllMocks()
     mocks.requireUserSession.mockResolvedValue({ user: { id: 'user-1' } })
+    mocks.getValidatedServerAuthSession.mockResolvedValue({
+      session: { user: { id: 'user-1' } },
+      state: 'valid',
+    })
     mocks.tryCachedBackendGet.mockResolvedValue(null)
   })
 
@@ -159,6 +167,10 @@ describe('BLF-1404: 方案上传按 method 分档的代理 deadline', () => {
     vi.clearAllMocks()
     vi.restoreAllMocks()
     mocks.requireUserSession.mockResolvedValue({ user: { id: 'user-1' } })
+    mocks.getValidatedServerAuthSession.mockResolvedValue({
+      session: { user: { id: 'user-1' } },
+      state: 'valid',
+    })
     mocks.tryCachedBackendGet.mockResolvedValue(null)
     mocks.getProxyRequestBody.mockResolvedValue(undefined)
     vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 200 })))

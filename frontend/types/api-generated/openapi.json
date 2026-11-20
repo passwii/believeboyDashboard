@@ -10834,6 +10834,7 @@
           "contact_email": {
             "anyOf": [
               {
+                "maxLength": 200,
                 "type": "string"
               },
               {
@@ -10856,6 +10857,7 @@
           "contact_phone": {
             "anyOf": [
               {
+                "maxLength": 50,
                 "type": "string"
               },
               {
@@ -11060,6 +11062,7 @@
           "contact_email": {
             "anyOf": [
               {
+                "maxLength": 200,
                 "type": "string"
               },
               {
@@ -11082,6 +11085,7 @@
           "contact_phone": {
             "anyOf": [
               {
+                "maxLength": 50,
                 "type": "string"
               },
               {
@@ -11460,6 +11464,7 @@
           "contact_email": {
             "anyOf": [
               {
+                "maxLength": 200,
                 "type": "string"
               },
               {
@@ -11482,6 +11487,7 @@
           "contact_phone": {
             "anyOf": [
               {
+                "maxLength": 50,
                 "type": "string"
               },
               {
@@ -11634,6 +11640,36 @@
               }
             ],
             "title": "Annual Revenue"
+          },
+          "contact_email": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Email"
+          },
+          "contact_name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Contact Name",
+            "type": "string"
+          },
+          "contact_phone": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Phone"
           },
           "customer_type": {
             "anyOf": [
@@ -41603,6 +41639,18 @@
             },
             "title": "Items",
             "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
           }
         },
         "required": [
@@ -64917,6 +64965,31 @@
             },
             "description": "Successful Response"
           },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "title": "Code",
+                      "type": "string"
+                    },
+                    "detail": {
+                      "title": "Detail",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "code"
+                  ],
+                  "title": "LoginSessionErrorResponse",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Session service unavailable"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -64985,6 +65058,78 @@
               ],
               "title": "X-Session-Id"
             }
+          },
+          {
+            "in": "header",
+            "name": "X-Role-Type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "title": "X-Role-Type"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Is-Admin",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "title": "X-Is-Admin"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Operator",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "title": "X-Operator"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "title": "X-User-Name"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Session-Issued-At",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "title": "X-Session-Issued-At"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Auth-Identity-Refresh",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "title": "X-Auth-Identity-Refresh"
+            }
           }
         ],
         "responses": {
@@ -64998,6 +65143,18 @@
             },
             "description": "Successful Response"
           },
+          "401": {
+            "description": "Session invalid or account disabled"
+          },
+          "404": {
+            "description": "User not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Session validation unavailable"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -65010,6 +65167,211 @@
           }
         },
         "summary": "Get Current User",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/change-password": {
+      "patch": {
+        "operationId": "change_password_api_v1_auth_change_password_patch",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-User-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "X-User-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Email",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "X-User-Email"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Role-Type",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "X-Role-Type"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Is-Admin",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "X-Is-Admin"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Operator",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "X-Operator"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Name",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "X-User-Name"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Session-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "X-Session-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "current_password": {
+                    "title": "Current Password",
+                    "type": "string"
+                  },
+                  "new_password": {
+                    "maxLength": 128,
+                    "minLength": 8,
+                    "title": "New Password",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "current_password",
+                  "new_password"
+                ],
+                "title": "ChangePasswordRequest",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "ok": {
+                      "title": "Ok",
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "title": "ChangePasswordResponse",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "Invalid current password"
+          },
+          "401": {
+            "description": "Invalid session"
+          },
+          "422": {
+            "description": "Invalid request body"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "description": "Session service unavailable"
+          }
+        },
+        "summary": "Change Password",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "description": "撤销当前请求所属的 Redis 浏览器会话。Auth.js 登出只清 cookie，若不撤销服务端会话，被复制的 JWT 仍能通过 `/auth/me`（且每次校验都会滑动作废窗口 TTL）。幂等：缺少 session id 不算错误。",
+        "operationId": "logout_api_v1_auth_logout_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-User-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "X-User-Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-User-Email",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "X-User-Email"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Session-Id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "X-Session-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "ok": {
+                      "title": "Ok",
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "ok"
+                  ],
+                  "title": "LogoutResponse",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not authenticated"
+          },
+          "503": {
+            "description": "Session revocation unavailable"
+          }
+        },
+        "summary": "Logout",
         "tags": [
           "auth"
         ]
@@ -118354,6 +118716,39 @@
       "get": {
         "operationId": "list_users_api_v1_system_management_users_get",
         "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "true/1 时额外返回 total/page/page_size；缺省保持仅 items 的旧契约，避免破坏既有设备端调用方。",
+            "in": "query",
+            "name": "include_total",
+            "required": false,
+            "schema": {
+              "title": "Include Total",
+              "type": "boolean"
+            }
+          },
           {
             "in": "query",
             "name": "api_key",

@@ -19,6 +19,7 @@ import {
   fetchProjectContext,
   updateProjectContext,
   type ProjectContextResponse,
+  type ProjectContextUpdate,
 } from '@/lib/project-context'
 import { AiParseContextSheet } from './ai-parse-context-sheet'
 import { DynamicContextCard } from './dynamic-context-card'
@@ -32,6 +33,17 @@ type ProjectContextDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSuccess?: () => void
+}
+
+function projectContextMergePatch(
+  original: Record<string, string>,
+  draft: Record<string, string>
+): Record<string, string | null> {
+  const patch: Record<string, string | null> = { ...draft }
+  for (const key of Object.keys(original)) {
+    if (!(key in draft)) patch[key] = null
+  }
+  return patch
 }
 
 export function ProjectContextDialog({
@@ -99,7 +111,11 @@ export function ProjectContextDialog({
     setSubmitting(true)
     setSaveState('saving')
     try {
-      const result = await updateProjectContext(projectId, { project_context: draftContext }, null)
+      const original = (context?.project_context as Record<string, string> | null) || {}
+      const payload: ProjectContextUpdate = {
+        project_context: projectContextMergePatch(original, draftContext),
+      }
+      const result = await updateProjectContext(projectId, payload, null)
       setContext(result)
       setHasChanges(false)
       setSaveState('success')

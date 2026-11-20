@@ -51,7 +51,9 @@ func TestStage1BProjectsAndWorkflowWireContracts(t *testing.T) {
 		{
 			method: http.MethodGet,
 			path:   "/api/v1/projects",
-			want:   `[{"id":7,"name":"北美","country":"US","country_name":"美国站"}]`,
+			// 项目选项接口现在只对管理员开放（普通 operator 走 /projects/manage）。
+			user: auth.UserContext{UserID: "admin", IsAdmin: true},
+			want: `[{"id":7,"name":"北美","country":"US","country_name":"美国站"}]`,
 		},
 		{
 			method: http.MethodGet,

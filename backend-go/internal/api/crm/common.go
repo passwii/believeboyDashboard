@@ -144,6 +144,34 @@ func parseOptionalStringList(values []string) []string {
 	return result
 }
 
+func normalizeCRMDateOnlyJSONField(data []byte, field string) ([]byte, error) {
+	var object map[string]json.RawMessage
+	if err := json.Unmarshal(data, &object); err != nil {
+		return nil, err
+	}
+	raw, ok := object[field]
+	if !ok || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+		return data, nil
+	}
+	var value string
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return data, nil
+	}
+	if len(value) != len("2006-01-02") || value[4] != '-' || value[7] != '-' {
+		return data, nil
+	}
+	parsed, err := time.Parse("2006-01-02", value)
+	if err != nil {
+		return data, nil
+	}
+	normalized, err := json.Marshal(parsed.Format(time.RFC3339Nano))
+	if err != nil {
+		return nil, err
+	}
+	object[field] = normalized
+	return json.Marshal(object)
+}
+
 func decodeJSON(r *http.Request, target any, disallowUnknown bool) error {
 	decoder := json.NewDecoder(io.LimitReader(r.Body, 32<<20))
 	decoder.UseNumber()

@@ -81,8 +81,13 @@ beforeEach(() => {
   NOTIFY.notify.mockReset()
   fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
     const url = String(input)
-    if (url === '/api/admin/users' && (!init || !init.method || init.method === 'GET')) {
-      return jsonResponse(USERS)
+    // 列表接口现在带 page/page_size/include_total 查询串。
+    if (
+      url.startsWith('/api/admin/users') &&
+      !url.startsWith('/api/admin/users/') &&
+      (!init || !init.method || init.method === 'GET')
+    ) {
+      return jsonResponse({ ...USERS, total: USERS.items.length, page: 1, pageSize: 50 })
     }
     if (url.startsWith('/api/admin/users/') && init?.method === 'PATCH') {
       const id = url.split('/').pop()!

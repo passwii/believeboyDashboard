@@ -145,6 +145,9 @@ type CustomerUpdateInput struct {
 	AnnualRevenue     Optional[float64] `json:"annual_revenue"`
 	EmployeeCount     Optional[int]     `json:"employee_count"`
 	Remark            Optional[string]  `json:"remark"`
+	ContactName       Optional[string]  `json:"contact_name"`
+	ContactPhone      Optional[string]  `json:"contact_phone"`
+	ContactEmail      Optional[string]  `json:"contact_email"`
 }
 
 type CustomerSeaImportRow struct {
@@ -309,6 +312,20 @@ type FollowCreateInput struct {
 	Type         string     `json:"type"`
 	Content      string     `json:"content"`
 	NextFollowAt *time.Time `json:"next_follow_at"`
+}
+
+func (input *FollowCreateInput) UnmarshalJSON(data []byte) error {
+	normalized, err := normalizeCRMDateOnlyJSONField(data, "next_follow_at")
+	if err != nil {
+		return err
+	}
+	type plain FollowCreateInput
+	var decoded plain
+	if err := json.Unmarshal(normalized, &decoded); err != nil {
+		return err
+	}
+	*input = FollowCreateInput(decoded)
+	return nil
 }
 
 type FollowUpItem struct {
@@ -533,6 +550,20 @@ type TaskCreateInput struct {
 	LeadID      *int64     `json:"lead_id"`
 }
 
+func (input *TaskCreateInput) UnmarshalJSON(data []byte) error {
+	normalized, err := normalizeCRMDateOnlyJSONField(data, "due_date")
+	if err != nil {
+		return err
+	}
+	type plain TaskCreateInput
+	var decoded plain
+	if err := json.Unmarshal(normalized, &decoded); err != nil {
+		return err
+	}
+	*input = TaskCreateInput(decoded)
+	return nil
+}
+
 type TaskUpdateInput struct {
 	Title       Optional[string]    `json:"title"`
 	Description Optional[string]    `json:"description"`
@@ -544,6 +575,20 @@ type TaskUpdateInput struct {
 	LeadID      Optional[int64]     `json:"lead_id"`
 }
 
+func (input *TaskUpdateInput) UnmarshalJSON(data []byte) error {
+	normalized, err := normalizeCRMDateOnlyJSONField(data, "due_date")
+	if err != nil {
+		return err
+	}
+	type plain TaskUpdateInput
+	var decoded plain
+	if err := json.Unmarshal(normalized, &decoded); err != nil {
+		return err
+	}
+	*input = TaskUpdateInput(decoded)
+	return nil
+}
+
 type TaskStatusInput struct {
 	Status string `json:"status"`
 }
@@ -551,6 +596,20 @@ type TaskStatusInput struct {
 type TaskCompleteInput struct {
 	NextFollowAt *time.Time `json:"next_follow_at"`
 	Note         *string    `json:"note"`
+}
+
+func (input *TaskCompleteInput) UnmarshalJSON(data []byte) error {
+	normalized, err := normalizeCRMDateOnlyJSONField(data, "next_follow_at")
+	if err != nil {
+		return err
+	}
+	type plain TaskCompleteInput
+	var decoded plain
+	if err := json.Unmarshal(normalized, &decoded); err != nil {
+		return err
+	}
+	*input = TaskCompleteInput(decoded)
+	return nil
 }
 
 type TaskListFilter struct {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useHeaderRefresh } from '@/components/terminal/terminal-header-slot'
 import {
   WarmCrmPage,
@@ -52,29 +52,76 @@ export default function TasksPage() {
   const [view, setView] = useState<ViewMode>('board')
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
   const [tasks, setTasks] = useState<Task[]>([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const listRequestIdRef = useRef(0)
 
   const load = useCallback(
     async (preserveData = false) => {
+      const requestId = ++listRequestIdRef.current
       setLoading(true)
+      setLoadingMore(false)
+      setLoadMoreError(null)
       setError(null)
       try {
-        const page = await client.listTasks({
+        const result = await client.listTasks({
           scope,
           type: typeFilter === 'all' ? undefined : typeFilter,
+          page: 1,
           pageSize: PAGE_SIZE,
         })
-        setTasks(page.items)
+        if (requestId !== listRequestIdRef.current) return
+        setTasks(result.items)
+        setTotal(result.total)
+        setPage(result.page)
       } catch (e) {
+        if (requestId !== listRequestIdRef.current) return
         setError(e instanceof Error ? e.message : '加载任务失败')
-        if (!preserveData) setTasks([])
+        if (!preserveData) {
+          setTasks([])
+          setTotal(0)
+          setPage(1)
+        }
       } finally {
-        setLoading(false)
+        if (requestId === listRequestIdRef.current) setLoading(false)
       }
     },
     [client, scope, typeFilter]
   )
+
+  const loadMore = useCallback(async () => {
+    if (loading || loadingMore || tasks.length >= total) return
+    const requestId = listRequestIdRef.current
+    const nextPage = page + 1
+    setLoadingMore(true)
+    setLoadMoreError(null)
+    try {
+      const result = await client.listTasks({
+        scope,
+        type: typeFilter === 'all' ? undefined : typeFilter,
+        page: nextPage,
+        pageSize: PAGE_SIZE,
+      })
+      if (requestId !== listRequestIdRef.current) return
+      setTasks((current) => {
+        const known = new Set(current.map((task) => task.id))
+        return [...current, ...result.items.filter((task) => !known.has(task.id))]
+      })
+      setTotal(result.total)
+      setPage(result.page)
+    } catch (e) {
+      if (requestId !== listRequestIdRef.current) return
+      const message = e instanceof Error ? e.message : '加载更多任务失败'
+      setLoadMoreError(message)
+      notify({ type: 'error', title: '加载更多任务失败', message })
+    } finally {
+      if (requestId === listRequestIdRef.current) setLoadingMore(false)
+    }
+  }, [client, loading, loadingMore, notify, page, scope, tasks.length, total, typeFilter])
 
   useHeaderRefresh(() => load(true), { loading })
 
@@ -152,6 +199,24 @@ export default function TasksPage() {
             ) : (
               <TaskList tasks={tasks} />
             ))}
+          {tasks.length < total ? (
+            <div className={styles.loadMore}>
+              {loadMoreError ? (
+                <span className={styles.loadMoreError} role="alert">
+                  {loadMoreError}
+                </span>
+              ) : null}
+              <WarmButton
+                variant="secondary"
+                loading={loadingMore}
+                loadingLabel="正在加载更多任务"
+                disabled={loading || loadingMore}
+                onClick={() => void loadMore()}
+              >
+                {loadMoreError ? '重试加载' : `加载更多任务（${tasks.length}/${total}）`}
+              </WarmButton>
+            </div>
+          ) : null}
         </>
       )}
     </WarmCrmPage>

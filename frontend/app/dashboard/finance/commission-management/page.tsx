@@ -89,8 +89,8 @@ const API_BASE = '/api/backend'
 
 function lastMonthString(): string {
   const now = new Date()
-  now.setMonth(now.getMonth() - 1)
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  return `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`
 }
 
 function parseErrorBody(text: string, status: number): string {

@@ -161,8 +161,8 @@ export default function ManualReconcileTab() {
       if (!file) return
 
       if (type === 'excel') {
-        if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
-          notify({ type: 'error', title: '请上传 Excel 文件 (.xlsx, .xls)' })
+        if (!file.name.toLowerCase().endsWith('.xlsx')) {
+          notify({ type: 'error', title: '请上传 .xlsx 文件' })
           return
         }
         setExcelFile(file)
@@ -264,7 +264,7 @@ export default function ManualReconcileTab() {
                   </div>
                   <input
                     type="file"
-                    accept=".xlsx,.xls"
+                    accept=".xlsx"
                     className="hidden"
                     onChange={handleFileChange('excel')}
                   />
