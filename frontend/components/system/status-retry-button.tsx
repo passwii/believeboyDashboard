@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react'
 import { RotateCcw } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
+import { WarmButton } from '@/components/dashboard-v2/warm-ledger/controls'
 
 export function StatusRetryButton({
   onClick,
@@ -13,9 +13,9 @@ export function StatusRetryButton({
   children?: ReactNode
 }) {
   return (
-    <Button variant="outline" onClick={onClick}>
+    <WarmButton variant="secondary" onClick={onClick}>
       <RotateCcw className="h-4 w-4" />
       {children}
-    </Button>
+    </WarmButton>
   )
 }

@@ -28,10 +28,11 @@ export default function AppErrorPage({
   return (
     <StatusPageShell
       code={isBackendError ? 'SERVER' : 'ERROR'}
+      kind="error"
       title={isBackendError ? BACKEND_UNAVAILABLE_TITLE : GENERIC_ERROR_TITLE}
       description={isBackendError ? BACKEND_UNAVAILABLE_MESSAGE : GENERIC_ERROR_MESSAGE}
-      primaryAction={<StatusRetryButton onClick={reset} />}
-      secondaryAction={<StatusHomeAction />}
+      primaryAction={<StatusHomeAction />}
+      secondaryAction={<StatusRetryButton onClick={reset} />}
     />
   )
 }
