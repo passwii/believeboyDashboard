@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { readFileSync, readdirSync } from 'node:fs'
 import { extname, join } from 'node:path'
@@ -16,8 +16,8 @@ const {
   SESSION_DATA: { user: { id: 'u1', roleType: 'admin', name: '测试' } },
   NOTIFY: { notify: vi.fn() },
   FETCH_MANAGED_PROJECTS_CACHED: vi.fn().mockResolvedValue([
-    { id: 1, name: '店铺甲', country: 'US', country_name: '美国站', brand_name: '甲', project_operator: null, assistant_operator: null, commission_basis: null, commission_rate: null, sort_order: 0, is_active: true, source_file: null, has_context: true, project_tier: null, store_address: null },
-    { id: 2, name: '店铺乙', country: 'DE', country_name: null, brand_name: '乙', project_operator: null, assistant_operator: null, commission_basis: null, commission_rate: null, sort_order: 1, is_active: false, source_file: null, has_context: true, project_tier: 'T2', store_address: null },
+    { id: 1, name: '店铺甲', country: 'US', country_name: '美国站', brand_name: '甲', project_operator: null, assistant_operator: null, commission_basis: null, commission_rate: null, sort_order: 0, is_active: true, source_file: null, has_context: true, project_tier: null, store_address: null, project_code: 'QUF' },
+    { id: 2, name: '店铺乙', country: 'DE', country_name: null, brand_name: '乙', project_operator: null, assistant_operator: null, commission_basis: null, commission_rate: null, sort_order: 1, is_active: false, source_file: null, has_context: true, project_tier: 'T2', store_address: null, project_code: null },
   ]),
   FETCH_WORKFLOW_SUMMARY: vi.fn().mockResolvedValue({ projects: [] }),
   REFRESH_HANDLER: { current: null as null | (() => Promise<void>) },
@@ -146,6 +146,60 @@ describe('StoreInfoPage 站点列/下拉', () => {
     expect(screen.getByText('站点')).toBeInTheDocument()
   })
 
+  it('列表展示项目码，未分配时显示短横线', async () => {
+    render(<ProjectInfoPage />)
+    await userEvent.click(await screen.findByRole('tab', { name: '基础信息' }))
+
+    const table = await screen.findByRole('table', { name: '项目资料列表' })
+    const headers = within(table).getAllByRole('columnheader')
+    const projectCodeColumn = headers.findIndex((header) => header.textContent === '项目码')
+    expect(projectCodeColumn).toBeGreaterThanOrEqual(0)
+
+    const assignedRow = screen.getByText('店铺甲').closest('tr')
+    const unassignedRow = screen.getByText('店铺乙').closest('tr')
+    expect(within(assignedRow!).getAllByRole('cell')[projectCodeColumn]).toHaveTextContent('QUF')
+    expect(within(unassignedRow!).getAllByRole('cell')[projectCodeColumn]).toHaveTextContent('-')
+  })
+
+  it('新建项目时可输入项目码并以大写写入', async () => {
+    const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue(new Response('{}', { status: 201 }))
+    const user = userEvent.setup()
+    render(<ProjectInfoPage />)
+    await user.click(await screen.findByRole('tab', { name: '基础信息' }))
+    await user.click(screen.getByRole('button', { name: '单个新增' }))
+
+    await user.type(screen.getByLabelText('项目名称'), '新项目')
+    const projectCodeInput = screen.getByLabelText('项目码')
+    await user.type(projectCodeInput, 'quf')
+    expect(projectCodeInput).toHaveValue('QUF')
+    await user.click(screen.getByRole('button', { name: '确认新增' }))
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/backend/api/v1/projects',
+        expect.objectContaining({
+          method: 'POST',
+          body: expect.stringContaining('"project_code":"QUF"'),
+        })
+      )
+    })
+  })
+
+  it('新建项目时拒绝保留码 ALL', async () => {
+    const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue(new Response('{}', { status: 201 }))
+    const user = userEvent.setup()
+    render(<ProjectInfoPage />)
+    await user.click(await screen.findByRole('tab', { name: '基础信息' }))
+    await user.click(screen.getByRole('button', { name: '单个新增' }))
+
+    await user.type(screen.getByLabelText('项目名称'), '新项目')
+    await user.type(screen.getByLabelText('项目码'), 'all')
+
+    expect(screen.getByRole('button', { name: '确认新增' })).toBeDisabled()
+    expect(screen.getByText('ALL 为保留码，不能分配')).toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('站点列显示中文站点名：优先后端 country_name，兜底 getCountryLabel', async () => {
     render(<ProjectInfoPage />)
     const basicTab = await screen.findByRole('tab', { name: '基础信息' })
@@ -248,6 +302,75 @@ describe('StoreInfoPage 站点列/下拉', () => {
     expect(screen.getByRole('dialog')).toHaveClass('warm-ledger')
     // 弹窗中站点应回显 US（美国站 (US)）
     expect(screen.getByText('美国站 (US)')).toBeInTheDocument()
+  })
+
+  it('未分配项目码时可首次赋码并写入 PATCH', async () => {
+    const fetchMock = vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url === '/api/backend/api/v1/projects/2/shops') {
+        return new Response('[]', { status: 200 })
+      }
+      if (url === '/api/backend/api/v1/projects/2' && init?.method === 'PATCH') {
+        return new Response('{}', { status: 200 })
+      }
+      return new Response('[]', { status: 200 })
+    })
+    const user = userEvent.setup()
+    render(<ProjectInfoPage />)
+    await user.click(await screen.findByRole('tab', { name: '基础信息' }))
+    await user.click((await screen.findAllByRole('button', { name: /编辑项目 店铺乙/ }))[0])
+    await waitFor(() => {
+      expect(screen.queryByText('正在加载店铺映射...')).not.toBeInTheDocument()
+    })
+
+    const projectCodeInput = screen.getByLabelText('项目码')
+    expect(projectCodeInput).toHaveValue('')
+    expect(projectCodeInput).not.toHaveAttribute('readonly')
+    await user.type(projectCodeInput, 'xnu')
+    await user.click(screen.getByRole('button', { name: '保存修改' }))
+
+    await waitFor(() => {
+      const patchCall = fetchMock.mock.calls.find(
+        ([input, init]) =>
+          String(input) === '/api/backend/api/v1/projects/2' && init?.method === 'PATCH'
+      )
+      expect(patchCall).toBeDefined()
+      expect(JSON.parse(String(patchCall?.[1]?.body))).toMatchObject({ project_code: 'XNU' })
+    })
+  })
+
+  it('已分配项目码只读且不随 PATCH 提交', async () => {
+    const fetchMock = vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input)
+      if (url === '/api/backend/api/v1/projects/1/shops') {
+        return new Response('[]', { status: 200 })
+      }
+      if (url === '/api/backend/api/v1/projects/1' && init?.method === 'PATCH') {
+        return new Response('{}', { status: 200 })
+      }
+      return new Response('[]', { status: 200 })
+    })
+    const user = userEvent.setup()
+    render(<ProjectInfoPage />)
+    await user.click(await screen.findByRole('tab', { name: '基础信息' }))
+    await user.click((await screen.findAllByRole('button', { name: /编辑项目 店铺甲/ }))[0])
+    await waitFor(() => {
+      expect(screen.queryByText('正在加载店铺映射...')).not.toBeInTheDocument()
+    })
+
+    const projectCodeInput = screen.getByLabelText('项目码')
+    expect(projectCodeInput).toHaveValue('QUF')
+    expect(projectCodeInput).toHaveAttribute('readonly')
+    await user.click(screen.getByRole('button', { name: '保存修改' }))
+
+    await waitFor(() => {
+      const patchCall = fetchMock.mock.calls.find(
+        ([input, init]) =>
+          String(input) === '/api/backend/api/v1/projects/1' && init?.method === 'PATCH'
+      )
+      expect(patchCall).toBeDefined()
+      expect(JSON.parse(String(patchCall?.[1]?.body))).not.toHaveProperty('project_code')
+    })
   })
 
   it('编辑弹窗加载并显示当前站点的 Shop ID', async () => {
