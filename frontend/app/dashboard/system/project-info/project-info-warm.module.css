@@ -169,7 +169,7 @@
 
 .dataTable {
   width: 100%;
-  min-width: 1560px;
+  min-width: 1640px;
   border-collapse: separate;
   border-spacing: 0;
   color: var(--warm-ledger-color-text-soft);
@@ -211,6 +211,13 @@
   color: var(--warm-ledger-color-text-muted);
   font-family: var(--warm-ledger-font-mono);
   font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+}
+
+.projectCodeCell {
+  color: var(--warm-ledger-color-text-soft);
+  font-family: var(--warm-ledger-font-mono);
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+  white-space: nowrap;
 }
 
 .nameCell {
@@ -559,6 +566,17 @@
 
 .formInput::placeholder {
   color: var(--warm-ledger-color-text-muted) !important;
+}
+
+.formInput:read-only {
+  color: var(--warm-ledger-color-text-muted) !important;
+  background: var(--warm-ledger-color-raised) !important;
+}
+
+.projectCodeInput {
+  font-family: var(--warm-ledger-font-mono) !important;
+  font-variant-numeric: var(--warm-ledger-font-variant-numeric);
+  letter-spacing: 0.04em;
 }
 
 .formSelect {

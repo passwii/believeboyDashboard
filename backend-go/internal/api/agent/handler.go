@@ -58,9 +58,11 @@ type agentSellerIdentity struct {
 type agentProjectItem struct {
 	ProjectID   int64              `json:"project_id"`
 	ProjectName string             `json:"project_name"`
+	ProjectCode *string            `json:"project_code"`
 	Country     string             `json:"country"`
 	CountryName *string            `json:"country_name"`
 	IsActive    bool               `json:"is_active"`
+	ShopCount   int                `json:"shop_count"`
 	Shops       []agentProjectShop `json:"shops"`
 }
 
@@ -72,6 +74,19 @@ func (h *Handler) ListProjects(w http.ResponseWriter, r *http.Request) {
 	status := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("status")))
 	if status == "" {
 		status = "active"
+	}
+	if status != "active" && status != "inactive" && status != "all" {
+		writeValidationError(w, "status must be active, inactive, or all", nil)
+		return
+	}
+	code := r.URL.Query().Get("code")
+	if code != "" {
+		normalized, ok := normalizeProjectCodeFilter(code)
+		if !ok {
+			writeValidationError(w, "project_code must match ^[A-Z]{3}$", nil)
+			return
+		}
+		code = normalized
 	}
 	showInactive := status != "active"
 	items, err := h.stores.Projects.ListManage(r.Context(), "", true, showInactive)
@@ -91,6 +106,9 @@ func (h *Handler) ListProjects(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if name != "" && item.Name != name {
+			continue
+		}
+		if code != "" && (item.ProjectCode == nil || *item.ProjectCode != code) {
 			continue
 		}
 		shops, err := h.stores.Projects.ListProjectShops(r.Context(), item.ID)
@@ -121,13 +139,32 @@ func (h *Handler) ListProjects(w http.ResponseWriter, r *http.Request) {
 		response = append(response, agentProjectItem{
 			ProjectID:   item.ID,
 			ProjectName: item.Name,
+			ProjectCode: item.ProjectCode,
 			Country:     item.Country,
 			CountryName: projects.CountryName(item.Country),
 			IsActive:    item.IsActive,
+			ShopCount:   len(shopItems),
 			Shops:       shopItems,
 		})
 	}
 	writeOK(w, response, "")
+}
+
+func normalizeProjectCodeFilter(value string) (string, bool) {
+	if len(value) != 3 {
+		return "", false
+	}
+	normalized := []byte(value)
+	for index, character := range normalized {
+		switch {
+		case character >= 'a' && character <= 'z':
+			normalized[index] = character - ('a' - 'A')
+		case character >= 'A' && character <= 'Z':
+		default:
+			return "", false
+		}
+	}
+	return string(normalized), true
 }
 
 func (h *Handler) GetSalesSummary(w http.ResponseWriter, r *http.Request) {

@@ -53,13 +53,13 @@ func TestStage1BProjectsAndWorkflowWireContracts(t *testing.T) {
 			path:   "/api/v1/projects",
 			// 项目选项接口现在只对管理员开放（普通 operator 走 /projects/manage）。
 			user: auth.UserContext{UserID: "admin", IsAdmin: true},
-			want: `[{"id":7,"name":"北美","country":"US","country_name":"美国站"}]`,
+			want: `[{"id":7,"name":"北美","project_code":null,"country":"US","country_name":"美国站"}]`,
 		},
 		{
 			method: http.MethodGet,
 			path:   "/api/v1/projects/manage",
 			user:   auth.UserContext{Operator: "运营甲"},
-			want:   `[{"id":7,"name":"北美","brand_name":null,"store_address":null,"project_operator":"运营甲","assistant_operator":null,"commission_basis":null,"commission_rate":null,"sort_order":0,"is_active":true,"source_file":null,"has_context":false,"project_tier":null,"country":"US","country_name":"美国站","vat_enabled":false}]`,
+			want:   `[{"id":7,"name":"北美","project_code":null,"brand_name":null,"store_address":null,"project_operator":"运营甲","assistant_operator":null,"commission_basis":null,"commission_rate":null,"sort_order":0,"is_active":true,"source_file":null,"has_context":false,"project_tier":null,"country":"US","country_name":"美国站","vat_enabled":false}]`,
 		},
 		{
 			method: http.MethodGet,

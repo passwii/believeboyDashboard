@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/passwii/believeboyDashboard/backend-go/internal/api/projects"
 	"github.com/passwii/believeboyDashboard/backend-go/internal/audit"
 )
 
@@ -30,6 +31,9 @@ func TestProjectStoreListManageFiltersAndMapsNullableProjectFields(t *testing.T)
 		*item.ProjectOperator != "运营甲" || item.CommissionRate == nil ||
 		*item.CommissionRate != 0.05 || !item.HasContext || !item.IsActive {
 		t.Fatalf("project item = %#v, want scanned row and computed context", item)
+	}
+	if item.ProjectCode == nil || *item.ProjectCode != "QUF" {
+		t.Fatalf("project_code = %#v, want QUF", item.ProjectCode)
 	}
 	if item.Country != "US" || item.CountryName == nil || *item.CountryName != "美国站" {
 		t.Errorf("country fields = %q %#v", item.Country, item.CountryName)
@@ -106,6 +110,7 @@ func projectScanValues() []any {
 	return []any{
 		int64(7),
 		"北美",
+		pgtype.Text{String: "QUF", Valid: true},
 		pgtype.Text{String: "Brand", Valid: true},
 		pgtype.Text{},
 		pgtype.Text{String: "运营甲", Valid: true},
@@ -120,6 +125,101 @@ func projectScanValues() []any {
 		pgtype.Text{String: "T1", Valid: true},
 		"US",
 		false,
+	}
+}
+
+func TestProjectStoreCreatePersistsProjectCode(t *testing.T) {
+	db := &fakeWriteDB{fakeDB: &fakeDB{rowsQueue: []pgx.Row{
+		fakeRow{values: projectScanValues()},
+	}}}
+	code := "QUF"
+	item, err := NewProjectStore(db).CreateProject(context.Background(), projects.CreateProjectInput{
+		Name:        "铨富",
+		ProjectCode: &code,
+		Country:     "US",
+	})
+	if err != nil {
+		t.Fatalf("CreateProject() error = %v", err)
+	}
+	if item.ProjectCode == nil || *item.ProjectCode != code {
+		t.Fatalf("created project_code = %#v, want %q", item.ProjectCode, code)
+	}
+	if len(db.queryRowCalls) != 1 {
+		t.Fatalf("QueryRow() calls = %d, want one", len(db.queryRowCalls))
+	}
+	call := db.queryRowCalls[0]
+	if !strings.Contains(call.sql, "vat_enabled, project_code") || !strings.Contains(call.sql, "$10, $11") {
+		t.Fatalf("create SQL does not persist project_code: %s", call.sql)
+	}
+	if len(call.args) != 11 {
+		t.Fatalf("create args = %#v, want 11 values", call.args)
+	}
+	if got, ok := call.args[10].(*string); !ok || got == nil || *got != code {
+		t.Fatalf("project_code arg = %#v, want pointer to %q", call.args[10], code)
+	}
+}
+
+func TestProjectStoreUpdateWritesProjectCode(t *testing.T) {
+	db := &fakeWriteDB{fakeDB: &fakeDB{rowsQueue: []pgx.Row{
+		fakeRow{values: projectScanValues()},
+	}}}
+	code := "XNU"
+	item, err := NewProjectStore(db).UpdateProject(context.Background(), 7, projects.UpdateProjectInput{
+		Name:        "北美",
+		ProjectCode: &code,
+	})
+	if err != nil {
+		t.Fatalf("UpdateProject() error = %v", err)
+	}
+	if item.ProjectCode == nil || *item.ProjectCode != "QUF" {
+		t.Fatalf("returned project_code = %#v, want scanned QUF", item.ProjectCode)
+	}
+	if len(db.queryRowCalls) != 1 {
+		t.Fatalf("QueryRow() calls = %d, want one", len(db.queryRowCalls))
+	}
+	call := db.queryRowCalls[0]
+	if !strings.Contains(call.sql, "project_code = $3") ||
+		len(call.args) != 3 || call.args[0] != int64(7) || call.args[1] != "北美" {
+		t.Fatalf("update SQL/args = %s / %#v, want project_code at $3", call.sql, call.args)
+	}
+	if got, ok := call.args[2].(*string); !ok || got == nil || *got != code {
+		t.Fatalf("project_code arg = %#v, want pointer to %q", call.args[2], code)
+	}
+}
+
+func TestMapProjectCodeConstraintsToConflictAndValidationErrors(t *testing.T) {
+	tests := []struct {
+		name       string
+		pgError    *pgconn.PgError
+		wantStatus int
+		wantDetail string
+	}{
+		{
+			name:       "duplicate code",
+			pgError:    &pgconn.PgError{Code: "23505", ConstraintName: "uq_projects_project_code"},
+			wantStatus: http.StatusConflict,
+			wantDetail: "project_code is already assigned",
+		},
+		{
+			name:       "immutable code",
+			pgError:    &pgconn.PgError{Code: "23514", ConstraintName: "projects_project_code_immutable"},
+			wantStatus: http.StatusConflict,
+			wantDetail: "project_code cannot be changed once assigned",
+		},
+		{
+			name:       "format check",
+			pgError:    &pgconn.PgError{Code: "23514", ConstraintName: "projects_project_code_format_check"},
+			wantStatus: http.StatusUnprocessableEntity,
+			wantDetail: "project_code must match ^[A-Z]{3}$ and cannot be ALL",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			status, detail := projects.HTTPError(mapProjectConstraintError(test.pgError))
+			if status != test.wantStatus || detail != test.wantDetail {
+				t.Fatalf("HTTPError() = (%d, %q), want (%d, %q)", status, detail, test.wantStatus, test.wantDetail)
+			}
+		})
 	}
 }
 

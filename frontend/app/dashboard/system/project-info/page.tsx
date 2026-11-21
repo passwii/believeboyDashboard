@@ -70,6 +70,7 @@ type ProjectItem = {
   project_tier: string | null
   country: string
   country_name: string | null
+  project_code: string | null
 }
 
 
@@ -79,6 +80,7 @@ type CommissionBasisOption = {
 }
 
 const API_BASE = '/api/backend'
+const PROJECT_CODE_PATTERN = /^[A-Z]{3}$/
 const COMMISSION_BASIS_OPTIONS: CommissionBasisOption[] = [
   { label: '销售额', value: 'sales_amount' },
   { label: '平台回款', value: 'cash_received' },
@@ -90,6 +92,17 @@ const COMMISSION_BASIS_LABEL: Record<string, string> = {
   profit_margin: '利润率',
 }
 const OPERATOR_SPLIT_RE = /[、,，;\n]+/
+
+function normalizeProjectCodeInput(value: string): string {
+  return value.replace(/[^a-z]/gi, '').toUpperCase().slice(0, 3)
+}
+
+function getProjectCodeError(value: string): string | null {
+  if (!value) return null
+  if (value === 'ALL') return 'ALL 为保留码，不能分配'
+  if (!PROJECT_CODE_PATTERN.test(value)) return '项目码需为 3 位大写字母'
+  return null
+}
 
 const TIER_OPTIONS = [
   { label: 'T1', value: 'T1' },
@@ -337,6 +350,7 @@ export default function ProjectInfoPage() {
   const [addCommissionRate, setAddCommissionRate] = useState('')
   const [addProjectTier, setAddProjectTier] = useState(TIER_NONE_VALUE)
   const [addCountry, setAddCountry] = useState('US')
+  const [addProjectCode, setAddProjectCode] = useState('')
 
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<ProjectItem | null>(null)
@@ -354,10 +368,12 @@ export default function ProjectInfoPage() {
   const [loadingShopIds, setLoadingShopIds] = useState(false)
   const [editOriginalShopIds, setEditOriginalShopIds] = useState<Record<string, string>>(emptyShopIds)
   const [editCountry, setEditCountry] = useState('US')
+  const [editProjectCode, setEditProjectCode] = useState('')
 
   const [contextDrawerOpen, setContextDrawerOpen] = useState(false)
   const [contextProjectId, setContextProjectId] = useState<number | null>(null)
   const [contextProjectName, setContextProjectName] = useState('')
+  const [warmPortalContainer, setWarmPortalContainer] = useState<HTMLElement | null>(null)
 
   const openContextDrawer = (item: ProjectItem) => {
     setContextProjectId(item.id)
@@ -366,7 +382,14 @@ export default function ProjectInfoPage() {
   }
   const isAddCashReceivedCommission = addCommissionMode === 'cash_received'
   const isEditCashReceivedCommission = editCommissionMode === 'cash_received'
+  const addProjectCodeError = getProjectCodeError(addProjectCode)
+  const editProjectCodeError =
+    editingItem?.project_code === null ? getProjectCodeError(editProjectCode) : null
   const { showSkeleton, isRefreshing } = useSmoothRefresh({ loading, hasData: items.length > 0 })
+
+  useEffect(() => {
+    setWarmPortalContainer(document.getElementById('warm-ledger-portal-root'))
+  }, [])
 
   const loadOperatorOptions = useCallback(async () => {
     try {
@@ -490,6 +513,14 @@ export default function ProjectInfoPage() {
       notify({ type: 'error', title: '项目名称不能为空' })
       return
     }
+    if (addProjectCodeError) {
+      notify({
+        type: 'error',
+        title: '项目码格式无效',
+        message: addProjectCodeError,
+      })
+      return
+    }
 
     setSubmitting(true)
     startGlobalLoading('blocking')
@@ -514,6 +545,7 @@ export default function ProjectInfoPage() {
               : null,
           project_tier: addProjectTier === TIER_NONE_VALUE ? null : addProjectTier,
           country: addCountry,
+          project_code: addProjectCode || null,
         }),
       })
       if (!response.ok) {
@@ -528,6 +560,7 @@ export default function ProjectInfoPage() {
       setAddCommissionRate('')
       setAddProjectTier(TIER_NONE_VALUE)
       setAddCountry('US')
+      setAddProjectCode('')
       setAddDialogOpen(false)
       clearProjectClientCaches()
       notify({ type: 'success', title: '项目已新增', message: normalizedName })
@@ -557,6 +590,7 @@ export default function ProjectInfoPage() {
     setEditIsActive(item.is_active)
     setEditProjectTier(item.project_tier ?? TIER_NONE_VALUE)
     setEditCountry(item.country ?? 'US')
+    setEditProjectCode(item.project_code ?? '')
     setEditShopIds(emptyShopIds())
     setEditOriginalShopIds(emptyShopIds())
     setShopLoadError(null)
@@ -626,10 +660,37 @@ export default function ProjectInfoPage() {
       notify({ type: 'error', title: '无法保存项目', message: 'Shop ID 加载失败，请重试后再保存' })
       return
     }
+    if (editingItem.project_code === null && editProjectCodeError) {
+      notify({
+        type: 'error',
+        title: '项目码格式无效',
+        message: editProjectCodeError,
+      })
+      return
+    }
 
     const projectId = editingItem.id
     const shopIds = { ...editShopIds }
     const originalShopIds = { ...editOriginalShopIds }
+    const updatePayload = {
+      name: normalizedName,
+      brand_name: editBrandName.trim() || null,
+      store_address: editStoreAddress.trim() || null,
+      project_operator: serializeOperatorNames(editProjectOperators),
+      assistant_operator: serializeOperatorNames(editAssistantOperators),
+      commission_basis: editCommissionMode.trim() || null,
+      commission_rate: isEditCashReceivedCommission
+        ? null
+        : editCommissionRate
+          ? parseFloat(editCommissionRate)
+          : null,
+      is_active: editIsActive,
+      project_tier: editProjectTier === TIER_NONE_VALUE ? null : editProjectTier,
+      country: editCountry,
+      ...(editingItem.project_code === null && editProjectCode
+        ? { project_code: editProjectCode }
+        : {}),
+    }
     setSubmitting(true)
     startGlobalLoading('blocking')
     try {
@@ -639,22 +700,7 @@ export default function ProjectInfoPage() {
           ...authHeaders(),
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          name: normalizedName,
-          brand_name: editBrandName.trim() || null,
-          store_address: editStoreAddress.trim() || null,
-          project_operator: serializeOperatorNames(editProjectOperators),
-          assistant_operator: serializeOperatorNames(editAssistantOperators),
-          commission_basis: editCommissionMode.trim() || null,
-          commission_rate: isEditCashReceivedCommission
-            ? null
-            : editCommissionRate
-              ? parseFloat(editCommissionRate)
-              : null,
-          is_active: editIsActive,
-          project_tier: editProjectTier === TIER_NONE_VALUE ? null : editProjectTier,
-          country: editCountry,
-        }),
+        body: JSON.stringify(updatePayload),
       })
       if (!response.ok) throw new Error(await parseError(response))
       await saveShopIds(projectId, shopIds, originalShopIds)
@@ -739,6 +785,7 @@ export default function ProjectInfoPage() {
                   </DialogTrigger>
                   <DialogContent
                     aria-describedby="add-project-dialog-description"
+                    portalContainer={warmPortalContainer}
                     className={cn('warm-ledger', styles.dialogSurface)}
                   >
                     <span id="add-project-dialog-description" className="sr-only">
@@ -763,6 +810,42 @@ export default function ProjectInfoPage() {
                           disabled={submitting}
                           className={styles.formInput}
                         />
+                      </div>
+                      <div className={styles.formField}>
+                        <label htmlFor="project-add-code" className={styles.formLabel}>
+                          项目码
+                        </label>
+                        <Input
+                          id="project-add-code"
+                          value={addProjectCode}
+                          onChange={(event) =>
+                            setAddProjectCode(normalizeProjectCodeInput(event.target.value))
+                          }
+                          placeholder="可留空"
+                          maxLength={3}
+                          pattern="[A-Z]{3}"
+                          autoComplete="off"
+                          autoCapitalize="characters"
+                          spellCheck={false}
+                          aria-invalid={Boolean(addProjectCodeError)}
+                          aria-describedby={
+                            addProjectCodeError ? 'project-add-code-error' : 'project-add-code-hint'
+                          }
+                          disabled={submitting}
+                          className={cn(styles.formInput, styles.projectCodeInput)}
+                        />
+                        <p id="project-add-code-hint" className={styles.fieldHint}>
+                          可留空；填写 3 位大写字母，ALL 为保留码。
+                        </p>
+                        {addProjectCodeError ? (
+                          <p
+                            id="project-add-code-error"
+                            className={styles.fieldError}
+                            role="alert"
+                          >
+                            {addProjectCodeError}
+                          </p>
+                        ) : null}
                       </div>
                       <div className={styles.formField}>
                         <label htmlFor="project-add-brand" className={styles.formLabel}>
@@ -930,7 +1013,7 @@ export default function ProjectInfoPage() {
                         type="button"
                         variant="primary"
                         onClick={() => void onAddSingle()}
-                        disabled={submitting}
+                        disabled={submitting || Boolean(addProjectCodeError)}
                       >
                         {submitting ? '提交中...' : '确认新增'}
                       </WarmButton>
@@ -948,6 +1031,9 @@ export default function ProjectInfoPage() {
                       ID
                     </th>
                     <th scope="col">项目名称</th>
+                    <th scope="col" style={{ width: 90 }}>
+                      项目码
+                    </th>
                     <th scope="col" style={{ width: 110 }}>
                       站点
                     </th>
@@ -982,14 +1068,14 @@ export default function ProjectInfoPage() {
                   {showSkeleton ? (
                     Array.from({ length: 6 }).map((_, index) => (
                       <tr key={`skeleton-${index}`}>
-                        <td colSpan={14}>
+                        <td colSpan={15}>
                           <Skeleton className={styles.skeleton} />
                         </td>
                       </tr>
                     ))
                   ) : items.length === 0 ? (
                     <tr>
-                      <td className={styles.stateCell} colSpan={14}>
+                      <td className={styles.stateCell} colSpan={15}>
                         暂无项目数据，请先新增一个项目。
                       </td>
                     </tr>
@@ -1009,6 +1095,7 @@ export default function ProjectInfoPage() {
                             <span className={styles.projectName}>{item.name}</span>
                           </div>
                         </td>
+                        <td className={styles.projectCodeCell}>{item.project_code ?? '-'}</td>
                         <td>{item.country_name ?? getCountryLabel(item.country)}</td>
                         <td>{item.brand_name || '-'}</td>
                         <td className={styles.wrapCell}>{item.project_operator || '-'}</td>
@@ -1119,6 +1206,7 @@ export default function ProjectInfoPage() {
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent
           aria-describedby="edit-project-dialog-description"
+          portalContainer={warmPortalContainer}
           className={cn('warm-ledger', styles.dialogSurface)}
         >
           <span id="edit-project-dialog-description" className="sr-only">
@@ -1143,6 +1231,41 @@ export default function ProjectInfoPage() {
                 disabled={submitting}
                 className={styles.formInput}
               />
+            </div>
+            <div className={styles.formField}>
+              <label htmlFor="project-edit-code" className={styles.formLabel}>
+                项目码
+              </label>
+              <Input
+                id="project-edit-code"
+                value={editProjectCode}
+                onChange={(event) =>
+                  setEditProjectCode(normalizeProjectCodeInput(event.target.value))
+                }
+                placeholder={editingItem?.project_code ? undefined : '输入 3 位项目码'}
+                maxLength={3}
+                pattern="[A-Z]{3}"
+                autoComplete="off"
+                autoCapitalize="characters"
+                spellCheck={false}
+                readOnly={Boolean(editingItem?.project_code)}
+                aria-invalid={Boolean(editProjectCodeError)}
+                aria-describedby={
+                  editProjectCodeError ? 'project-edit-code-error' : 'project-edit-code-hint'
+                }
+                disabled={submitting}
+                className={cn(styles.formInput, styles.projectCodeInput)}
+              />
+              <p id="project-edit-code-hint" className={styles.fieldHint}>
+                {editingItem?.project_code
+                  ? '已指定的项目码不可修改。'
+                  : '可首次指定；指定后不可更改。'}
+              </p>
+              {editProjectCodeError ? (
+                <p id="project-edit-code-error" className={styles.fieldError} role="alert">
+                  {editProjectCodeError}
+                </p>
+              ) : null}
             </div>
             <div className={styles.formField}>
               <label htmlFor="project-edit-brand" className={styles.formLabel}>
@@ -1364,7 +1487,7 @@ export default function ProjectInfoPage() {
               type="button"
               variant="primary"
               onClick={() => void onEditSingle()}
-              disabled={submitting || !editingItem}
+              disabled={submitting || !editingItem || Boolean(editProjectCodeError)}
             >
               {submitting ? '保存中...' : '保存修改'}
             </WarmButton>

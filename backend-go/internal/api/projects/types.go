@@ -11,6 +11,7 @@ import (
 type ProjectOption struct {
 	ID          *int64  `json:"id"`
 	Name        string  `json:"name"`
+	ProjectCode *string `json:"project_code"`
 	Country     string  `json:"country"`
 	CountryName *string `json:"country_name"`
 }
@@ -18,6 +19,7 @@ type ProjectOption struct {
 type ProjectItem struct {
 	ID                int64    `json:"id"`
 	Name              string   `json:"name"`
+	ProjectCode       *string  `json:"project_code"`
 	BrandName         *string  `json:"brand_name"`
 	StoreAddress      *string  `json:"store_address"`
 	ProjectOperator   *string  `json:"project_operator"`
@@ -36,6 +38,7 @@ type ProjectItem struct {
 
 type CreateProjectInput struct {
 	Name              string   `json:"name"`
+	ProjectCode       *string  `json:"project_code"`
 	BrandName         *string  `json:"brand_name"`
 	StoreAddress      *string  `json:"store_address"`
 	ProjectOperator   *string  `json:"project_operator"`
@@ -49,6 +52,7 @@ type CreateProjectInput struct {
 
 type UpdateProjectInput struct {
 	Name              string   `json:"name"`
+	ProjectCode       *string  `json:"project_code"`
 	BrandName         *string  `json:"brand_name"`
 	StoreAddress      *string  `json:"store_address"`
 	ProjectOperator   *string  `json:"project_operator"`
@@ -89,6 +93,8 @@ func (input UpdateProjectInput) HasField(field string) bool {
 		return true
 	}
 	switch field {
+	case "project_code":
+		return input.ProjectCode != nil
 	case "brand_name":
 		return input.BrandName != nil
 	case "store_address":
@@ -112,6 +118,26 @@ func (input UpdateProjectInput) HasField(field string) bool {
 	default:
 		return false
 	}
+}
+
+// ValidateProjectCode enforces the persisted project code format. A nil
+// pointer means the project has not been assigned a code yet.
+func ValidateProjectCode(value *string) error {
+	if value == nil {
+		return nil
+	}
+	if *value == "ALL" {
+		return NewAPIError(http.StatusUnprocessableEntity, "project_code cannot be ALL")
+	}
+	if len(*value) != 3 {
+		return NewAPIError(http.StatusUnprocessableEntity, "project_code must match ^[A-Z]{3}$")
+	}
+	for _, character := range *value {
+		if character < 'A' || character > 'Z' {
+			return NewAPIError(http.StatusUnprocessableEntity, "project_code must match ^[A-Z]{3}$")
+		}
+	}
+	return nil
 }
 
 type ProjectShopItem struct {
@@ -268,6 +294,9 @@ func validateProjectInput(input CreateProjectInput) error {
 	input.Name = strings.TrimSpace(input.Name)
 	if input.Name == "" || len([]rune(input.Name)) > 255 {
 		return NewAPIError(http.StatusUnprocessableEntity, "name must contain 1 to 255 characters")
+	}
+	if err := ValidateProjectCode(input.ProjectCode); err != nil {
+		return err
 	}
 	if err := validateProjectFields(input.BrandName, input.StoreAddress, input.ProjectOperator,
 		input.AssistantOperator, input.CommissionBasis, input.CommissionRate, input.ProjectTier); err != nil {

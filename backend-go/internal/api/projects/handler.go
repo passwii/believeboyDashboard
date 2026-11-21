@@ -162,6 +162,12 @@ func (h *Handler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 		httpapi.WriteDetail(w, http.StatusUnprocessableEntity, "name must contain 1 to 255 characters")
 		return
 	}
+	if input.HasField("project_code") {
+		if err := ValidateProjectCode(input.ProjectCode); err != nil {
+			writeStoreError(w, err)
+			return
+		}
+	}
 	if err := validateProjectFields(input.BrandName, input.StoreAddress, input.ProjectOperator,
 		input.AssistantOperator, input.CommissionBasis, input.CommissionRate, input.ProjectTier); err != nil {
 		writeStoreError(w, err)

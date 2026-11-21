@@ -31,7 +31,7 @@ func NewProjectStore(db FullDB, auditors ...audit.Service) *ProjectStore {
 }
 
 const projectSelectColumns = `
-	id, project_name, brand_name, store_address, project_operator,
+	id, project_name, project_code, brand_name, store_address, project_operator,
 	assistant_operator, commission_basis, commission_rate, sort_order,
 	coalesce(is_active, true), source_file, project_context::text,
 	sku_context::text, project_tier, country, vat_enabled`
@@ -47,6 +47,7 @@ func (s *ProjectStore) ListOptions(ctx context.Context) ([]projects.ProjectOptio
 			options = append(options, projects.ProjectOption{
 				ID:          int64Pointer(item.ID),
 				Name:        item.Name,
+				ProjectCode: item.ProjectCode,
 				Country:     item.Country,
 				CountryName: item.CountryName,
 			})
@@ -201,6 +202,9 @@ func (s *ProjectStore) GetProjectByName(ctx context.Context, name string) (*proj
 }
 
 func (s *ProjectStore) CreateProject(ctx context.Context, input projects.CreateProjectInput) (projects.ProjectItem, error) {
+	if err := projects.ValidateProjectCode(input.ProjectCode); err != nil {
+		return projects.ProjectItem{}, err
+	}
 	input.Name = strings.TrimSpace(input.Name)
 	input.Country, _ = projects.ValidateCountry(input.Country)
 	input.BrandName = normalizeProjectText(input.BrandName)
@@ -219,11 +223,11 @@ func (s *ProjectStore) CreateProject(ctx context.Context, input projects.CreateP
 			   project_name, brand_name, store_address, project_operator,
 			   assistant_operator, commission_basis, commission_rate,
 			   sort_order, is_active, source_file, project_tier, country,
-			   vat_enabled
+			   vat_enabled, project_code
 			 )
 			 select $1, $2, $3, $4, $5, $6, $7,
 			        coalesce(max(sort_order), -1) + 1, true,
-			        'manual_single_add', $8, $9, $10
+			        'manual_single_add', $8, $9, $10, $11
 			 from public.projects
 			 returning `+projectSelectColumns,
 			input.Name,
@@ -236,6 +240,7 @@ func (s *ProjectStore) CreateProject(ctx context.Context, input projects.CreateP
 			input.ProjectTier,
 			input.Country,
 			input.VATEnabled,
+			input.ProjectCode,
 		)
 		var err error
 		item, err = scanProjectItem(row)
@@ -249,6 +254,11 @@ func (s *ProjectStore) UpdateProject(
 	projectID int64,
 	input projects.UpdateProjectInput,
 ) (projects.ProjectItem, error) {
+	if input.HasField("project_code") {
+		if err := projects.ValidateProjectCode(input.ProjectCode); err != nil {
+			return projects.ProjectItem{}, err
+		}
+	}
 	input.Name = strings.TrimSpace(input.Name)
 	input.BrandName = normalizeProjectText(input.BrandName)
 	input.StoreAddress = normalizeProjectText(input.StoreAddress)
@@ -270,6 +280,9 @@ func (s *ProjectStore) UpdateProject(
 	add := func(column string, value any) {
 		args = append(args, value)
 		sets = append(sets, fmt.Sprintf("%s = $%d", column, len(args)))
+	}
+	if input.HasField("project_code") {
+		add("project_code", input.ProjectCode)
 	}
 	if input.HasField("brand_name") {
 		add("brand_name", input.BrandName)
@@ -631,6 +644,7 @@ type projectScanner interface {
 func scanProjectItem(scanner projectScanner) (projects.ProjectItem, error) {
 	var (
 		item            projects.ProjectItem
+		projectCode     pgtype.Text
 		brandName       pgtype.Text
 		storeAddress    pgtype.Text
 		projectOperator pgtype.Text
@@ -645,6 +659,7 @@ func scanProjectItem(scanner projectScanner) (projects.ProjectItem, error) {
 	err := scanner.Scan(
 		&item.ID,
 		&item.Name,
+		&projectCode,
 		&brandName,
 		&storeAddress,
 		&projectOperator,
@@ -664,6 +679,7 @@ func scanProjectItem(scanner projectScanner) (projects.ProjectItem, error) {
 		return projects.ProjectItem{}, err
 	}
 	item.BrandName = Text(brandName)
+	item.ProjectCode = Text(projectCode)
 	item.StoreAddress = Text(storeAddress)
 	item.ProjectOperator = Text(projectOperator)
 	item.AssistantOperator = Text(assistant)
@@ -880,8 +896,17 @@ func mapProjectConstraintError(err error) error {
 		return nil
 	}
 	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-		return projects.ErrConflict
+	if errors.As(err, &pgErr) {
+		switch {
+		case pgErr.Code == "23505" && pgErr.ConstraintName == "uq_projects_project_code":
+			return projects.NewAPIError(http.StatusConflict, "project_code is already assigned")
+		case pgErr.Code == "23505":
+			return projects.ErrConflict
+		case pgErr.Code == "23514" && pgErr.ConstraintName == "projects_project_code_immutable":
+			return projects.NewAPIError(http.StatusConflict, "project_code cannot be changed once assigned")
+		case pgErr.Code == "23514" && pgErr.ConstraintName == "projects_project_code_format_check":
+			return projects.NewAPIError(http.StatusUnprocessableEntity, "project_code must match ^[A-Z]{3}$ and cannot be ALL")
+		}
 	}
 	return err
 }
