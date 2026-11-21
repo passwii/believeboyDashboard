@@ -111,6 +111,7 @@ afterEach(() => {
   vi.restoreAllMocks()
   SEARCH_PARAMS.configure = null
   CONTEXT_DRAWER_PROPS.current = null
+  document.getElementById('warm-ledger-portal-root')?.remove()
 })
 
 describe('StoreInfoPage 站点列/下拉', () => {
@@ -302,6 +303,40 @@ describe('StoreInfoPage 站点列/下拉', () => {
     expect(screen.getByRole('dialog')).toHaveClass('warm-ledger')
     // 弹窗中站点应回显 US（美国站 (US)）
     expect(screen.getByText('美国站 (US)')).toBeInTheDocument()
+  })
+
+  it('编辑弹窗内运营和其他下拉菜单都显示在 Warm Ledger 弹层容器内', async () => {
+    const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue(new Response('[]', { status: 200 }))
+    const portalRoot = document.createElement('div')
+    portalRoot.id = 'warm-ledger-portal-root'
+    portalRoot.className = 'warm-ledger__portal-root'
+    document.body.appendChild(portalRoot)
+    const user = userEvent.setup()
+
+    render(<ProjectInfoPage />)
+    await user.click(await screen.findByRole('tab', { name: '基础信息' }))
+    await user.click((await screen.findAllByRole('button', { name: /编辑项目 店铺甲/ }))[0])
+    expect(await within(portalRoot).findByRole('dialog')).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledWith('/api/backend/api/v1/projects/1/shops')
+
+    await user.click(document.getElementById('project-edit-operator')!)
+    expect(await within(portalRoot).findByText('暂无可选运营')).toBeVisible()
+    await user.keyboard('{Escape}')
+
+    await user.click(document.getElementById('project-edit-assistant-operator')!)
+    expect(await within(portalRoot).findByText('暂无可选运营')).toBeVisible()
+    await user.keyboard('{Escape}')
+
+    await user.click(screen.getByRole('combobox', { name: '佣金方式' }))
+    expect(await within(portalRoot).findByRole('option', { name: '销售额' })).toBeVisible()
+    await user.keyboard('{Escape}')
+
+    await user.click(screen.getByRole('combobox', { name: '项目等级' }))
+    expect(await within(portalRoot).findByRole('option', { name: 'T1' })).toBeVisible()
+    await user.keyboard('{Escape}')
+
+    await user.click(screen.getByRole('combobox', { name: '站点' }))
+    expect(await within(portalRoot).findByRole('option', { name: '德国站 (DE)' })).toBeVisible()
   })
 
   it('未分配项目码时可首次赋码并写入 PATCH', async () => {
