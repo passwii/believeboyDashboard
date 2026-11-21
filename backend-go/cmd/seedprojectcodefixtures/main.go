@@ -26,6 +26,8 @@ var projectCodeFixtureNames = []string{
 	"诗澜瑞",
 }
 
+const projectCodeFixtureIDStart int64 = 920001
+
 func main() {
 	databaseURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
 	if databaseURL == "" {
@@ -99,8 +101,8 @@ func seed(ctx context.Context, db store.FullDB) error {
 			continue
 		}
 		if _, err := tx.Exec(ctx,
-			"insert into public.projects (project_name, sort_order, is_active) values ($1, $2, false)",
-			name, sortOrder,
+			"insert into public.projects (id, project_name, sort_order, is_active) overriding system value values ($1, $2, $3, false)",
+			projectCodeFixtureIDStart+int64(sortOrder), name, sortOrder,
 		); err != nil {
 			return err
 		}
