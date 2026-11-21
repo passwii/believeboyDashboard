@@ -164,6 +164,61 @@ describe('fetchManagedProjectsCached', () => {
       /^\/api\/backend\/api\/v1\/projects\/manage\?show_inactive=true&_cache_bust=\d+$/
     )
   })
+
+  it('force 请求不会复用旧在途列表，迟到的旧响应也不能覆盖新缓存', async () => {
+    let resolveStale!: (response: Response) => void
+    let resolveFresh!: (response: Response) => void
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementationOnce(
+        () => new Promise<Response>((resolve) => { resolveStale = resolve })
+      )
+      .mockImplementationOnce(
+        () => new Promise<Response>((resolve) => { resolveFresh = resolve })
+      )
+
+    const staleRequest = fetchManagedProjectsCached<Array<{ id: number }>>(SESSION, true)
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    const freshRequest = fetchManagedProjectsCached<Array<{ id: number }>>(SESSION, true, {
+      force: true,
+    })
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+
+    resolveFresh(jsonResponse([{ id: 2 }]))
+    await expect(freshRequest).resolves.toEqual([{ id: 2 }])
+    resolveStale(jsonResponse([{ id: 1 }]))
+    await expect(staleRequest).resolves.toEqual([{ id: 1 }])
+
+    await expect(fetchManagedProjectsCached(SESSION, true)).resolves.toEqual([{ id: 2 }])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('清除项目缓存也会让旧在途请求失效，后续读取不会复用或保存旧结果', async () => {
+    let resolveStale!: (response: Response) => void
+    let resolveFresh!: (response: Response) => void
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementationOnce(
+        () => new Promise<Response>((resolve) => { resolveStale = resolve })
+      )
+      .mockImplementationOnce(
+        () => new Promise<Response>((resolve) => { resolveFresh = resolve })
+      )
+
+    const staleRequest = fetchManagedProjectsCached<Array<{ id: number }>>(SESSION, true)
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    clearProjectClientCaches()
+    const freshRequest = fetchManagedProjectsCached<Array<{ id: number }>>(SESSION, true)
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+
+    resolveFresh(jsonResponse([{ id: 2 }]))
+    await expect(freshRequest).resolves.toEqual([{ id: 2 }])
+    resolveStale(jsonResponse([{ id: 1 }]))
+    await expect(staleRequest).resolves.toEqual([{ id: 1 }])
+
+    await expect(fetchManagedProjectsCached(SESSION, true)).resolves.toEqual([{ id: 2 }])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
  })
 
 describe('fetchProjectOptionsCached / fetchProjectOperatorOptionsCached', () => {

@@ -1,6 +1,7 @@
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+import { revalidateTag } from 'next/cache'
 import { NextRequest, NextResponse } from 'next/server'
 
 import { getValidatedServerAuthSession } from '@/lib/auth/server'
@@ -98,6 +99,21 @@ async function proxy(request: NextRequest, { params }: { params: Promise<{ path:
       cache: 'no-store',
       signal: upstreamSignal,
     })
+    if (
+      response.ok &&
+      request.method !== 'GET' &&
+      request.method !== 'HEAD' &&
+      /^api\/v1\/projects(?:\/|$)/.test(backendPath)
+    ) {
+      try {
+        revalidateTag('proxy:projects-manage', { expire: 0 })
+      } catch (error) {
+        console.warn(
+          '[proxy] project list cache invalidation failed:',
+          normalizeErrorMessage(error, 'unknown')
+        )
+      }
+    }
     return await toProxyResponse(response)
   } catch (error) {
     // A caller closing the page is not a backend failure. Use the conventional

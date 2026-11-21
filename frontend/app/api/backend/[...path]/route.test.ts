@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   getProxyRequestBody: vi.fn(async () => undefined),
   toProxyResponse: vi.fn(async (response: Response) => response),
   appendApiKeyQuery: vi.fn((search: string) => search),
+  revalidateTag: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/server', () => ({
@@ -28,6 +29,7 @@ vi.mock('@/lib/server/backend-proxy', () => ({
   toProxyResponse: mocks.toProxyResponse,
 }))
 vi.mock('@/lib/server/backend-api', () => ({ appendApiKeyQuery: mocks.appendApiKeyQuery }))
+vi.mock('next/cache', () => ({ revalidateTag: mocks.revalidateTag }))
 
 import { GET, POST } from './route'
 
@@ -149,6 +151,38 @@ describe('backend proxy cancellation and overview deadline', () => {
 
     expect(response.status).toBe(500)
     expect(await response.json()).toEqual({ message: 'connection refused' })
+  })
+
+  it('successful project writes immediately expire cached managed project lists', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 200 })))
+
+    const response = await POST(
+      new NextRequest('https://dashboard.test/api/backend/api/v1/projects', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: '新项目' }),
+      }),
+      { params: Promise.resolve({ path: ['api', 'v1', 'projects'] }) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.revalidateTag).toHaveBeenCalledWith('proxy:projects-manage', { expire: 0 })
+  })
+
+  it('failed project writes leave the cached managed project list untouched', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 422 })))
+
+    const response = await POST(
+      new NextRequest('https://dashboard.test/api/backend/api/v1/projects', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: '无效项目' }),
+      }),
+      { params: Promise.resolve({ path: ['api', 'v1', 'projects'] }) }
+    )
+
+    expect(response.status).toBe(422)
+    expect(mocks.revalidateTag).not.toHaveBeenCalled()
   })
 })
 

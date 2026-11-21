@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { encode } from 'next-auth/jwt'
 
+import { contrastRatio } from '../color-contrast'
 import { BLF611_FIXTURE_SECRET } from '../setup/blf611-fixture'
 
 /**
@@ -646,7 +647,19 @@ test.describe('@mobile-blf1512 系统管理', () => {
 
     await page.getByRole('button', { name: '单个新增' }).click()
     const dialog = await expectBottomSheet(page)
+    const theme = await dialog.evaluate((element) => {
+      const styles = getComputedStyle(element)
+      return {
+        textToken: styles.getPropertyValue('--warm-ledger-color-text').trim(),
+        foreground: styles.color,
+        background: styles.backgroundColor,
+      }
+    })
+    expect(theme.textToken).not.toBe('')
+    expect(contrastRatio(theme.foreground, theme.background)).toBeGreaterThanOrEqual(4.5)
     const nameLabel = dialog.getByText('项目名称', { exact: true })
+    const labelColor = await nameLabel.evaluate((element) => getComputedStyle(element).color)
+    expect(contrastRatio(labelColor, theme.background)).toBeGreaterThanOrEqual(4.5)
     const brandLabel = dialog.getByText('品牌名称', { exact: true })
     await expect(nameLabel).toBeVisible()
     await expect(brandLabel).toBeVisible()

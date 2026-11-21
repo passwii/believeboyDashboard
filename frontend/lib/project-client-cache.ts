@@ -64,9 +64,10 @@ async function fetchCachedJson<T>(
   }
 
   const pending = INFLIGHT.get(key) as Promise<T> | undefined
-  if (pending) return pending
+  if (pending && !options?.force) return pending
 
-  const request = (async () => {
+  let request: Promise<T> | undefined
+  request = (async () => {
     try {
       const response = await fetchWithTimeout(url, {
         timeoutMs: 5_000,
@@ -82,10 +83,10 @@ async function fetchCachedJson<T>(
       }
 
       const payload = (await response.json()) as T
-      setClientCache(key, payload)
+      if (request && INFLIGHT.get(key) === request) setClientCache(key, payload)
       return payload
     } finally {
-      INFLIGHT.delete(key)
+      if (request && INFLIGHT.get(key) === request) INFLIGHT.delete(key)
     }
   })()
 
@@ -95,6 +96,9 @@ async function fetchCachedJson<T>(
 
 export function clearProjectClientCaches(): void {
   clearClientCacheByPrefix(PROJECT_CACHE_PREFIX)
+  for (const key of INFLIGHT.keys()) {
+    if (key.startsWith(PROJECT_CACHE_PREFIX)) INFLIGHT.delete(key)
+  }
 }
 
 export async function fetchProjectOptionsCached<T = ProjectOption[]>(): Promise<T> {
