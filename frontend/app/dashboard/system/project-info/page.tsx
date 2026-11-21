@@ -176,6 +176,7 @@ function renderOperatorSummary(values: string[]): string {
 
 type OperatorMultiSelectProps = {
   buttonId?: string
+  portalContainer?: HTMLElement | null
   value: string[]
   options: string[]
   placeholder: string
@@ -185,6 +186,7 @@ type OperatorMultiSelectProps = {
 
 function OperatorMultiSelect({
   buttonId,
+  portalContainer,
   value,
   options,
   placeholder,
@@ -210,7 +212,11 @@ function OperatorMultiSelect({
           <ChevronsUpDown className={styles.multiSelectIcon} aria-hidden="true" />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className={cn('warm-ledger', styles.multiSelectContent)}>
+      <PopoverContent
+        align="start"
+        portalContainer={portalContainer}
+        className={cn('warm-ledger', styles.multiSelectContent)}
+      >
         <div className={styles.multiSelectList}>
           {options.length > 0 ? (
             options.map((name) => {
@@ -867,6 +873,7 @@ export default function ProjectInfoPage() {
                         <div className={styles.inlineFieldRow}>
                           <OperatorMultiSelect
                             buttonId="project-add-operator"
+                            portalContainer={warmPortalContainer}
                             value={addProjectOperators}
                             options={operatorOptions}
                             placeholder="选择一个或多个运营"
@@ -895,6 +902,7 @@ export default function ProjectInfoPage() {
                         <div className={styles.inlineFieldRow}>
                           <OperatorMultiSelect
                             buttonId="project-add-assistant-operator"
+                            portalContainer={warmPortalContainer}
                             value={addAssistantOperators}
                             options={operatorOptions}
                             placeholder="选择一个或多个助理运营"
@@ -1287,6 +1295,7 @@ export default function ProjectInfoPage() {
               <div className={styles.inlineFieldRow}>
                 <OperatorMultiSelect
                   buttonId="project-edit-operator"
+                  portalContainer={warmPortalContainer}
                   value={editProjectOperators}
                   options={operatorOptions}
                   placeholder="选择一个或多个运营"
@@ -1313,6 +1322,7 @@ export default function ProjectInfoPage() {
               <div className={styles.inlineFieldRow}>
                 <OperatorMultiSelect
                   buttonId="project-edit-assistant-operator"
+                  portalContainer={warmPortalContainer}
                   value={editAssistantOperators}
                   options={operatorOptions}
                   placeholder="选择一个或多个助理运营"
