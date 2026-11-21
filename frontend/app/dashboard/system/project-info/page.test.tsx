@@ -245,6 +245,7 @@ describe('StoreInfoPage 站点列/下拉', () => {
     // 点编辑按钮
     const editBtns = screen.getAllByRole('button', { name: /编辑项目 店铺甲/ })
     await userEvent.click(editBtns[0])
+    expect(screen.getByRole('dialog')).toHaveClass('warm-ledger')
     // 弹窗中站点应回显 US（美国站 (US)）
     expect(screen.getByText('美国站 (US)')).toBeInTheDocument()
   })
@@ -434,6 +435,72 @@ describe('StoreInfoPage 站点列/下拉', () => {
     )
     expect(patchCall?.[1]).toEqual(
       expect.objectContaining({ body: expect.stringContaining('"is_active":true') })
+    )
+  })
+
+  it('新增弹窗及运营下拉 Portal 保留 Warm Ledger 主题范围', async () => {
+    render(<ProjectInfoPage />)
+    await userEvent.click(await screen.findByRole('tab', { name: '基础信息' }))
+    await userEvent.click(screen.getByRole('button', { name: '单个新增' }))
+
+    expect(screen.getByRole('dialog')).toHaveClass('warm-ledger')
+
+    await userEvent.click(screen.getByRole('button', { name: '运营' }))
+    const emptyOperators = await screen.findByText('暂无可选运营')
+    expect(emptyOperators.closest('.warm-ledger')).not.toBeNull()
+  })
+
+  it('项目资料手动刷新绕过浏览器和服务端列表缓存', async () => {
+    render(<ProjectInfoPage />)
+    await userEvent.click(await screen.findByRole('tab', { name: '基础信息' }))
+    await screen.findByText('店铺甲')
+
+    await userEvent.click(screen.getByRole('button', { name: '刷新数据' }))
+
+    expect(FETCH_MANAGED_PROJECTS_CACHED).toHaveBeenLastCalledWith(
+      SESSION_DATA,
+      true,
+      { force: true }
+    )
+  })
+
+  it('新增项目后强制重取列表并立即显示新项目', async () => {
+    const createdProject = {
+      id: 3,
+      name: '新项目',
+      brand_name: null,
+      store_address: null,
+      project_operator: null,
+      assistant_operator: null,
+      commission_basis: null,
+      commission_rate: null,
+      sort_order: 0,
+      is_active: true,
+      source_file: 'manual_single_add',
+      has_context: false,
+      project_tier: null,
+      country: 'US',
+      country_name: '美国站',
+    }
+    FETCH_MANAGED_PROJECTS_CACHED.mockResolvedValueOnce([]).mockResolvedValueOnce([createdProject])
+    const fetchMock = vi.spyOn(global, 'fetch').mockResolvedValue(new Response('{}', { status: 200 }))
+
+    render(<ProjectInfoPage />)
+    await userEvent.click(await screen.findByRole('tab', { name: '基础信息' }))
+    await screen.findByText('暂无项目数据，请先新增一个项目。')
+    await userEvent.click(screen.getByRole('button', { name: '单个新增' }))
+    await userEvent.type(screen.getByLabelText('项目名称'), '新项目')
+    await userEvent.click(screen.getByRole('button', { name: '确认新增' }))
+
+    expect(await screen.findByText('新项目')).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/backend/api/v1/projects',
+      expect.objectContaining({ method: 'POST', body: expect.stringContaining('"name":"新项目"') })
+    )
+    expect(FETCH_MANAGED_PROJECTS_CACHED).toHaveBeenLastCalledWith(
+      SESSION_DATA,
+      true,
+      { force: true }
     )
   })
 })

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
+import { contrastRatio } from '../color-contrast'
 import { addBLF611FixtureAuth } from '../setup/blf611-fixture'
 
 const VIEWPORT = { width: 1440, height: 900 } as const
@@ -480,6 +481,38 @@ test.describe('V4 Warm Ledger dashboard desktop matrix', () => {
     await expect(page.locator('.warm-ledger'), '/dashboard Warm surface').toBeVisible()
     await expect(page.locator('.warm-ledger__app-window'), '/dashboard app window').toBeVisible()
     await expectDesktopWindowGeometry(page)
+  })
+
+  test('project creation dialog resolves Warm Ledger tokens outside the page portal', async ({
+    page,
+    context,
+  }) => {
+    await page.setViewportSize(VIEWPORT)
+    await addBLF611FixtureAuth(context)
+    await installApiFixtures(page)
+
+    await page.goto('/dashboard/system/project-info', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('tab', { name: '基础信息' }).click()
+    await page.getByRole('button', { name: '单个新增' }).click()
+
+    const dialog = page.getByRole('dialog', { name: '新增项目' })
+    await expect(dialog).toBeVisible()
+    const theme = await dialog.evaluate((element) => {
+      const styles = getComputedStyle(element)
+      return {
+        textToken: styles.getPropertyValue('--warm-ledger-color-text').trim(),
+        panelToken: styles.getPropertyValue('--warm-ledger-color-panel').trim(),
+        foreground: styles.color,
+        background: styles.backgroundColor,
+      }
+    })
+    expect(theme.textToken).not.toBe('')
+    expect(theme.panelToken).not.toBe('')
+    expect(contrastRatio(theme.foreground, theme.background)).toBeGreaterThanOrEqual(4.5)
+    const projectNameLabel = dialog.getByText('项目名称', { exact: true })
+    const labelColor = await projectNameLabel.evaluate((element) => getComputedStyle(element).color)
+    expect(contrastRatio(labelColor, theme.background)).toBeGreaterThanOrEqual(4.5)
+    await expect(dialog.getByLabel('项目名称')).toBeVisible()
   })
 
   test('Office presentation mode bypasses the Warm app frame', async ({ page, context }) => {

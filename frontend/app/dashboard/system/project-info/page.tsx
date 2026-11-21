@@ -197,7 +197,7 @@ function OperatorMultiSelect({
           <ChevronsUpDown className={styles.multiSelectIcon} aria-hidden="true" />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className={styles.multiSelectContent}>
+      <PopoverContent align="start" className={cn('warm-ledger', styles.multiSelectContent)}>
         <div className={styles.multiSelectList}>
           {options.length > 0 ? (
             options.map((name) => {
@@ -309,6 +309,7 @@ function ProjectStatusPill({ active }: { active: boolean }) {
 }
 
 export default function ProjectInfoPage() {
+  const projectListRequestRef = useRef(0)
   const shopLoadRequestRef = useRef(0)
   const startupSummaryRequestRef = useRef(0)
   const { startGlobalLoading, endGlobalLoading } = useGlobalLoading()
@@ -411,18 +412,21 @@ export default function ProjectInfoPage() {
     if (status === 'loading') {
       return
     }
+    const requestId = ++projectListRequestRef.current
     setLoading(true)
     try {
       const payload = await fetchManagedProjectsCached<ProjectItem[]>(session, true, options)
+      if (requestId !== projectListRequestRef.current) return
       setItems(payload)
     } catch (loadError) {
+      if (requestId !== projectListRequestRef.current) return
       notify({
         type: 'error',
         title: '加载失败',
         message: loadError instanceof Error ? loadError.message : '加载失败',
       })
     } finally {
-      setLoading(false)
+      if (requestId === projectListRequestRef.current) setLoading(false)
     }
   }, [session, status, notify])
 
@@ -527,7 +531,7 @@ export default function ProjectInfoPage() {
       setAddDialogOpen(false)
       clearProjectClientCaches()
       notify({ type: 'success', title: '项目已新增', message: normalizedName })
-      await loadProjects()
+      await refreshPageData()
     } catch (submitError) {
       notify({
         type: 'error',
@@ -716,7 +720,7 @@ export default function ProjectInfoPage() {
                   type="button"
                   variant="secondary"
                   className={styles.actionButton}
-                  onClick={() => void Promise.all([loadProjects(), loadStartupSummary()])}
+                  onClick={() => void refreshPageData()}
                   disabled={loading || startupSummaryLoading || submitting}
                 >
                   {loading ? '刷新中...' : '刷新数据'}
@@ -735,7 +739,7 @@ export default function ProjectInfoPage() {
                   </DialogTrigger>
                   <DialogContent
                     aria-describedby="add-project-dialog-description"
-                    className={styles.dialogSurface}
+                    className={cn('warm-ledger', styles.dialogSurface)}
                   >
                     <span id="add-project-dialog-description" className="sr-only">
                       新增项目，一次仅新增一个项目名称
@@ -1115,7 +1119,7 @@ export default function ProjectInfoPage() {
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent
           aria-describedby="edit-project-dialog-description"
-          className={styles.dialogSurface}
+          className={cn('warm-ledger', styles.dialogSurface)}
         >
           <span id="edit-project-dialog-description" className="sr-only">
             编辑项目信息
