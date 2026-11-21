@@ -241,7 +241,17 @@ jobs:
           go-version-file: backend-go/go.mod
           cache-dependency-path: backend-go/go.sum
 
-      - name: 建独立测试库 schema
+      # The project-code migration intentionally fails when catalog rows are absent.
+      # Build the prior schema, seed CI-only catalog rows, then apply the new migration.
+      - name: 建项目前置测试库 schema
+        working-directory: backend-go
+        run: go run ./cmd/migrate up-to 20261117035632
+
+      - name: 预置项目码迁移夹具
+        working-directory: backend-go
+        run: go run ./cmd/seedprojectcodefixtures
+
+      - name: 应用剩余迁移
         working-directory: backend-go
         run: go run ./cmd/migrate up
 
@@ -321,7 +331,17 @@ jobs:
           go-version-file: backend-go/go.mod
           cache-dependency-path: backend-go/go.sum
 
-      - name: 建测试库 schema
+      # The project-code migration intentionally fails when catalog rows are absent.
+      # Build the prior schema, seed CI-only catalog rows, then apply the new migration.
+      - name: 建项目前置测试库 schema
+        working-directory: backend-go
+        run: go run ./cmd/migrate up-to 20261117035632
+
+      - name: 预置项目码迁移夹具
+        working-directory: backend-go
+        run: go run ./cmd/seedprojectcodefixtures
+
+      - name: 应用剩余迁移
         working-directory: backend-go
         run: go run ./cmd/migrate up
 
