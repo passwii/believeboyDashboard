@@ -17,15 +17,15 @@ import (
 
 func TestRegistrarProjectRoutesUseSnakeCaseAndContextIdentity(t *testing.T) {
 	store := &handlerStore{
-		options: []ProjectOption{{ID: int64Pointer(7), Name: "北美", Country: "US", CountryName: stringPointer("美国站")}},
-		manage:  []ProjectItem{{ID: 7, Name: "北美", ProjectOperator: stringPointer("运营甲"), Country: "US"}},
+		options: []ProjectOption{{ID: int64Pointer(7), Name: "北美", ProjectCode: stringPointer("QUF"), Country: "US", CountryName: stringPointer("美国站")}},
+		manage:  []ProjectItem{{ID: 7, Name: "北美", ProjectCode: stringPointer("QUF"), ProjectOperator: stringPointer("运营甲"), Country: "US"}},
 	}
 	router := chi.NewRouter()
 	NewRegistrar(store, &handlerAudit{}).RegisterRoutes(router, passthrough)
 
 	list := httptest.NewRecorder()
 	router.ServeHTTP(list, httptest.NewRequest(http.MethodGet, "/api/v1/projects", nil))
-	if list.Code != http.StatusOK || list.Body.String() != `[{"id":7,"name":"北美","country":"US","country_name":"美国站"}]` {
+	if list.Code != http.StatusOK || list.Body.String() != `[{"id":7,"name":"北美","project_code":"QUF","country":"US","country_name":"美国站"}]` {
 		t.Fatalf("GET /projects = %d %s", list.Code, list.Body.String())
 	}
 
@@ -44,14 +44,17 @@ func TestRegistrarProjectRoutesUseSnakeCaseAndContextIdentity(t *testing.T) {
 	if !strings.Contains(managed.Body.String(), `"project_operator":"运营甲"`) {
 		t.Errorf("manage body = %s, want snake_case project_operator", managed.Body.String())
 	}
+	if !strings.Contains(managed.Body.String(), `"project_code":"QUF"`) {
+		t.Errorf("manage body = %s, want project_code", managed.Body.String())
+	}
 }
 
 func TestCreateProjectAuditsSuccessfulMutation(t *testing.T) {
-	created := ProjectItem{ID: 9, Name: "新品", Country: "DE"}
+	created := ProjectItem{ID: 9, Name: "新品", ProjectCode: stringPointer("QUF"), Country: "DE"}
 	store := &handlerStore{created: created}
 	auditor := &handlerAudit{}
 	handler := NewHandler(store, auditor)
-	request := httptest.NewRequest(http.MethodPost, "/api/v1/projects", strings.NewReader(`{"name":"新品","country":"DE"}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/projects", strings.NewReader(`{"name":"新品","project_code":"QUF","country":"DE"}`))
 	request = request.WithContext(auth.WithUserContext(request.Context(), auth.UserContext{
 		Operator: "运营甲",
 		IsAdmin:  true,
@@ -68,8 +71,39 @@ func TestCreateProjectAuditsSuccessfulMutation(t *testing.T) {
 		*auditor.entries[0].Operator != "运营甲" {
 		t.Fatalf("audit entries = %#v, want projects.create for 运营甲", auditor.entries)
 	}
+	if store.createdInput.ProjectCode == nil || *store.createdInput.ProjectCode != "QUF" {
+		t.Fatalf("CreateProject input code = %#v, want QUF", store.createdInput.ProjectCode)
+	}
 	if !strings.Contains(recorder.Body.String(), `"country":"DE"`) {
 		t.Errorf("body = %s, want country DE", recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), `"project_code":"QUF"`) {
+		t.Errorf("body = %s, want project_code QUF", recorder.Body.String())
+	}
+}
+
+func TestUpdateProjectAcceptsCodeAndRejectsLowercase(t *testing.T) {
+	store := &handlerStore{updated: ProjectItem{ID: 7, Name: "北美", ProjectCode: stringPointer("XNU")}}
+	handler := NewHandler(store, &handlerAudit{})
+
+	request := httptest.NewRequest(http.MethodPatch, "/api/v1/projects/7", strings.NewReader(`{"name":"北美","project_code":"XNU"}`))
+	request = request.WithContext(auth.WithUserContext(request.Context(), auth.UserContext{IsAdmin: true}))
+	request = withChiParam(request, "project_id", "7")
+	recorder := httptest.NewRecorder()
+	handler.UpdateProject(recorder, request)
+	if recorder.Code != http.StatusOK || store.updatedInput.ProjectCode == nil ||
+		*store.updatedInput.ProjectCode != "XNU" {
+		t.Fatalf("update response = %d %s, input=%#v", recorder.Code, recorder.Body.String(), store.updatedInput)
+	}
+
+	request = httptest.NewRequest(http.MethodPatch, "/api/v1/projects/7", strings.NewReader(`{"name":"北美","project_code":"quf"}`))
+	request = request.WithContext(auth.WithUserContext(request.Context(), auth.UserContext{IsAdmin: true}))
+	request = withChiParam(request, "project_id", "7")
+	recorder = httptest.NewRecorder()
+	handler.UpdateProject(recorder, request)
+	if recorder.Code != http.StatusUnprocessableEntity ||
+		!strings.Contains(recorder.Body.String(), "project_code must match ^[A-Z]{3}$") {
+		t.Fatalf("lowercase update = %d %s, want 422 format error", recorder.Code, recorder.Body.String())
 	}
 }
 
@@ -214,7 +248,7 @@ func TestProjectItemJSONUsesSnakeCaseAndNullOptionals(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(payload) != `{"id":1,"name":"A","brand_name":null,"store_address":null,"project_operator":null,"assistant_operator":null,"commission_basis":null,"commission_rate":null,"sort_order":0,"is_active":false,"source_file":null,"has_context":false,"project_tier":null,"country":"US","country_name":null,"vat_enabled":false}` {
+	if string(payload) != `{"id":1,"name":"A","project_code":null,"brand_name":null,"store_address":null,"project_operator":null,"assistant_operator":null,"commission_basis":null,"commission_rate":null,"sort_order":0,"is_active":false,"source_file":null,"has_context":false,"project_tier":null,"country":"US","country_name":null,"vat_enabled":false}` {
 		t.Fatalf("ProjectItem JSON = %s", payload)
 	}
 }
@@ -244,6 +278,9 @@ type handlerStore struct {
 	options       []ProjectOption
 	manage        []ProjectItem
 	created       ProjectItem
+	createdInput  CreateProjectInput
+	updated       ProjectItem
+	updatedInput  UpdateProjectInput
 	context       ProjectContext
 	listOperator  string
 	listAdmin     bool
@@ -269,11 +306,13 @@ func (*handlerStore) GetProject(context.Context, int64) (*ProjectItem, error) {
 	item := ProjectItem{ID: 7, Name: "北美", ProjectOperator: stringPointer("运营甲")}
 	return &item, nil
 }
-func (s *handlerStore) CreateProject(context.Context, CreateProjectInput) (ProjectItem, error) {
+func (s *handlerStore) CreateProject(_ context.Context, input CreateProjectInput) (ProjectItem, error) {
+	s.createdInput = input
 	return s.created, nil
 }
-func (*handlerStore) UpdateProject(context.Context, int64, UpdateProjectInput) (ProjectItem, error) {
-	return ProjectItem{}, nil
+func (s *handlerStore) UpdateProject(_ context.Context, _ int64, input UpdateProjectInput) (ProjectItem, error) {
+	s.updatedInput = input
+	return s.updated, nil
 }
 func (s *handlerStore) MoveProject(_ context.Context, projectID int64, direction string) (ProjectItem, error) {
 	s.moveDirection = direction
